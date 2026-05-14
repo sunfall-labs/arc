@@ -74,6 +74,9 @@ Effect-native interruption.
   - The Promise API now runs that Effect program, while
     `loadStartAppGraphDiagnosticsEffect` maps failures into
     `StartAppGraphDiagnosticsRunnerError`.
+- `scripts/package-project-console-starter.mjs`
+  - Replaced the remaining raw async path-existence adapter with
+    `Effect.tryPromise`, `Effect.as`, and typed `ENOENT` handling.
 
 ## Remaining Promise Sites To Review
 
@@ -91,6 +94,9 @@ Effect-native interruption.
 - `packages/start/src/cli.ts`
   - Remaining Promise helpers are bin-entry wrappers over
     `runStartDiagnosticsCliEffect` and `runStartDiagnosticsCliMainEffect`.
+- Tooling scripts:
+  - The project-console starter packaging script keeps filesystem checks inside
+    Effect programs; no raw async or Promise method chains remain there.
 - Source grep follow-up:
   - `rg -n "Promise\\.resolve\\(|new Promise|\\.then\\(|\\.finally\\(" packages/*/src -g '*.ts'`
     currently finds no package source hits.
@@ -147,3 +153,7 @@ Effect-native interruption.
   passed after moving the Vite diagnostics loader lifecycle under Effect.
 - Full `pnpm verify` passed after moving the Vite diagnostics loader lifecycle
   under Effect.
+- `pnpm starter:project-console:package` passed after replacing the starter
+  packaging path-existence adapter with an Effect program.
+- Full `pnpm verify` passed after replacing the starter packaging
+  path-existence adapter with an Effect program.

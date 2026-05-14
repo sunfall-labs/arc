@@ -110,25 +110,29 @@ const shouldCopyPath = (from) => {
 const statFile = (filePath) =>
   fsEffect(`inspect ${relative(workspaceRoot, filePath)}`, () => stat(filePath));
 
+const isNodeNotFoundError = (cause) =>
+  cause &&
+  typeof cause === "object" &&
+  "code" in cause &&
+  cause.code === "ENOENT";
+
 const pathExists = (filePath) =>
-  fsEffect(
-    `check whether ${relative(workspaceRoot, filePath)} exists`,
-    async () => {
-      try {
-        await stat(filePath);
-        return true;
-      } catch (cause) {
-        if (
-          cause &&
-          typeof cause === "object" &&
-          "code" in cause &&
-          cause.code === "ENOENT"
-        ) {
-          return false;
-        }
-        throw cause;
-      }
-    },
+  Effect.tryPromise({
+    try: () => stat(filePath),
+    catch: (cause) => cause,
+  }).pipe(
+    Effect.as(true),
+    Effect.catch((cause) =>
+      isNodeNotFoundError(cause)
+        ? Effect.succeed(false)
+        : Effect.fail(
+            fail(
+              `Failed to check whether ${relative(workspaceRoot, filePath)} exists.`,
+              "Run from the repository root and check filesystem permissions.",
+              cause,
+            ),
+          ),
+    ),
   );
 
 const assertFile = (relativePath) =>
