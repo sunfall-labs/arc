@@ -24,6 +24,9 @@ and DB query-builder cleanup sweeps.
 - The devtools extension transport structurally validates inspected-window
   `DevtoolsPanels` payloads before rendering them, so the bridge normalizer no
   longer needs a raw panel payload cast.
+- `effectUiStart(...)` now returns the concrete `EffectUiStartPlugin`
+  interface, so Start tests call Vite plugin hooks directly instead of
+  re-narrowing a broad `PluginOption` with `as never` hook-context casts.
 - No package, example, script, or type-test source currently contains `as any`
   or `@ts-ignore`; negative tests use explicit `@ts-expect-error` or
   `unknown`-to-contract casts for runtime validation shapes.
@@ -119,6 +122,17 @@ and DB query-builder cleanup sweeps.
   extension test file / 6 tests, basic starter verify, project-console starter
   packaging, project-console typecheck, 4 project-console test files / 23
   tests, project-console build, and leak scan.
+- `pnpm --filter @effect-ui/start typecheck`, `pnpm typecheck:types`,
+  `pnpm exec vitest run packages/start/test/start.test.ts -t "Vite preset|server modules|generated file route definitions|build policy"`,
+  and `pnpm exec vitest run packages/start/test/start.test.ts` passed after
+  tightening `effectUiStart(...)` to return `EffectUiStartPlugin` and removing
+  Start Vite plugin hook `as never` casts.
+- `pnpm verify` passed after adding `EffectUiStartPlugin`: 9 package builds,
+  workspace typecheck, type tests, 38 root test files / 320 tests,
+  devtools-panel verify, devtools-extension verify with 1 extension test file /
+  6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.
 
 ## Follow-Up
 

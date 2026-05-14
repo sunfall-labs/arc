@@ -84,8 +84,10 @@ Subpath exports:
 
 - `./vite` owns `effectUiStart`, file route discovery, virtual module creation,
   build-policy validation, app graph diagnostics loading, and SSR dev handling.
-  Its SSR module handler type is named `StartSsrRequestHandler` so it cannot be
-  confused with the root Promise-only `StartRequestHandler`.
+  `effectUiStart` returns the concrete `EffectUiStartPlugin` interface rather
+  than a broad Vite `PluginOption`, and its SSR module handler type is named
+  `StartSsrRequestHandler` so it cannot be confused with the root Promise-only
+  `StartRequestHandler`.
 - `./diagnostics-report` owns grouped repair reports with owner/edit guidance.
 - `./adapters` owns Node/fetch adapter conversion and response writing.
 - `./virtual` owns virtual module typings only.
@@ -97,6 +99,9 @@ Release decisions:
 - `./vite` exports low-level manifest and virtual-module helpers as expert
   public because CI scripts, starter generators, and agent tooling need to run
   the same graph and diagnostics code as the plugin.
+- `EffectUiStartPlugin` is public because tests, CI helpers, and starter tools
+  should be able to call the Start Vite plugin hooks without re-narrowing Vite's
+  broad `PluginOption` union.
 - The root `StartRequestHandler` is the Promise host-boundary request handler
   returned by `createRequestHandler`; the Vite-only synchronous-or-async SSR
   module handler is `StartSsrRequestHandler`.

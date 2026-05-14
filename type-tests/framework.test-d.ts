@@ -46,7 +46,7 @@ import {
   streamHydrationConsumedAttribute,
   submitStartActionEffect
 } from "@effect-ui/start";
-import type { StartSsrRequestHandler } from "@effect-ui/start/vite";
+import { effectUiStart, type EffectUiStartPlugin, type StartSsrRequestHandler } from "@effect-ui/start/vite";
 import {
   createNodeHandlerEffect,
   nodeRequestToWebRequestEffect,
@@ -616,9 +616,13 @@ const startRequestHandler: StartRequestHandler = () => startResponsePromise;
 // @ts-expect-error root Start request handlers are Promise host boundaries
 const syncStartRequestHandler: StartRequestHandler = () => new Response("ok");
 const viteStartSsrRequestHandler: StartSsrRequestHandler = () => new Response("ok");
+const startVitePlugin: EffectUiStartPlugin = effectUiStart();
+startVitePlugin.resolveId("virtual:effect-ui/app-graph");
+startVitePlugin.transform("", "/src/domain.server.ts", { ssr: true });
 void startRequestHandler;
 void syncStartRequestHandler;
 void viteStartSsrRequestHandler;
+void startVitePlugin;
 preloadRequestEffect(StartApp, new Request("https://example.com/projects/atlas"), {
   collections: [ProjectsCollection]
 });

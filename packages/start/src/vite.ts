@@ -3,7 +3,7 @@ import { isPromiseLike, runPromise, type ActionDefinition, type ServerFunction }
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { dirname, isAbsolute, relative as relativePath, resolve as resolvePath } from "node:path";
-import { createServer, type InlineConfig, type PluginOption, type UserConfig } from "vite";
+import { createServer, type InlineConfig, type UserConfig } from "vite";
 import { nodeRequestToWebRequestEffect, writeNodeResponseEffect } from "./adapters.js";
 import { serverActionPath, serverRpcPath } from "./rpc.js";
 import {
@@ -76,6 +76,33 @@ export interface EffectUiStartOptions {
   readonly serverEntry?: string;
   readonly handlerExport?: string;
   readonly buildPolicy?: StartBuildPolicy | boolean;
+}
+
+export interface EffectUiStartPlugin {
+  readonly name: "effect-ui-start";
+  readonly config: (config?: UserConfig) => UserConfig;
+  readonly configResolved: (config: { readonly root: string }) => void;
+  readonly buildStart: () => void;
+  readonly resolveId: (id: string) => string | null;
+  readonly load: (id: string) => string | null;
+  readonly transform: (
+    code: string,
+    id: string,
+    options?: { readonly ssr?: boolean }
+  ) => null;
+  readonly configureServer: (
+    server: StartDevServer & {
+      readonly middlewares: {
+        use: (
+          handler: (
+            request: IncomingMessage,
+            response: ServerResponse,
+            next: StartDevMiddlewareNext
+          ) => void
+        ) => void;
+      };
+    }
+  ) => () => void;
 }
 
 export interface StartBuildPolicy {
@@ -786,7 +813,7 @@ export const handleSsrDevMiddlewareEffect = (
     )
   );
 
-export const effectUiStart = (options: EffectUiStartOptions = {}): PluginOption => {
+export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStartPlugin => {
   const serverEntry = options.serverEntry ?? defaultServerEntry;
   let viteRoot = process.cwd();
 

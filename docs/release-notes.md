@@ -73,6 +73,9 @@ Latest full gate on May 14, 2026:
   Promise-catch cleanup.
 - The devtools extension now structurally validates inspected-window
   `DevtoolsPanels` bridge payloads before rendering live data.
+- `effectUiStart(...)` now returns the concrete `EffectUiStartPlugin` type for
+  Start Vite plugin hooks instead of exposing only Vite's broad `PluginOption`
+  union.
 
 ## Notable Limits
 

@@ -1854,24 +1854,13 @@ describe("Effect UI Start", () => {
 
   it("keeps .server modules out of the client transform graph", () => {
     const plugin = effectUiStart();
-    const transform = Array.isArray(plugin)
-      ? plugin.find((item) => item && typeof item === "object" && "transform" in item)?.transform
-      : plugin && typeof plugin === "object" && "transform" in plugin
-        ? plugin.transform
-        : undefined;
 
     expect(isServerOnlyModule("/src/domain.server.ts")).toBe(true);
     expect(isServerOnlyModule("/src/domain.contract.ts")).toBe(false);
     expect(() =>
-      typeof transform === "function"
-        ? transform.call({} as never, "", "/src/domain.server.ts", {})
-        : undefined
+      plugin.transform("", "/src/domain.server.ts", {})
     ).toThrow(StartServerOnlyModuleError);
-    expect(
-      typeof transform === "function"
-        ? transform.call({} as never, "", "/src/domain.server.ts", { ssr: true })
-        : undefined
-    ).toBeNull();
+    expect(plugin.transform("", "/src/domain.server.ts", { ssr: true })).toBeNull();
   });
 
   it("emits a production-shaped server function manifest from the Vite preset", async () => {
@@ -1901,28 +1890,9 @@ describe("Effect UI Start", () => {
         }
       ]
     });
-    const config = !Array.isArray(plugin) &&
-      plugin &&
-      typeof plugin === "object" &&
-      "config" in plugin &&
-      typeof plugin.config === "function"
-        ? plugin.config()
-        : undefined;
-    const resolved = !Array.isArray(plugin) &&
-      plugin &&
-      typeof plugin === "object" &&
-      "resolveId" in plugin &&
-      typeof plugin.resolveId === "function"
-        ? await plugin.resolveId.call({} as never, serverFunctionManifestVirtualModuleId, undefined, {})
-        : undefined;
-    const loaded = !Array.isArray(plugin) &&
-      plugin &&
-      typeof plugin === "object" &&
-      "load" in plugin &&
-      typeof plugin.load === "function" &&
-      typeof resolved === "string"
-        ? await plugin.load.call({} as never, resolved, {})
-        : undefined;
+    const config = plugin.config();
+    const resolved = plugin.resolveId(serverFunctionManifestVirtualModuleId);
+    const loaded = resolved === null ? undefined : plugin.load(resolved);
 
     expect(JSON.parse(manifest)).toMatchObject({
       version: 1,
@@ -1978,28 +1948,9 @@ describe("Effect UI Start", () => {
         }
       ]
     });
-    const config = !Array.isArray(plugin) &&
-      plugin &&
-      typeof plugin === "object" &&
-      "config" in plugin &&
-      typeof plugin.config === "function"
-        ? plugin.config()
-        : undefined;
-    const resolved = !Array.isArray(plugin) &&
-      plugin &&
-      typeof plugin === "object" &&
-      "resolveId" in plugin &&
-      typeof plugin.resolveId === "function"
-        ? await plugin.resolveId.call({} as never, actionManifestVirtualModuleId, undefined, {})
-        : undefined;
-    const loaded = !Array.isArray(plugin) &&
-      plugin &&
-      typeof plugin === "object" &&
-      "load" in plugin &&
-      typeof plugin.load === "function" &&
-      typeof resolved === "string"
-        ? await plugin.load.call({} as never, resolved, {})
-        : undefined;
+    const config = plugin.config();
+    const resolved = plugin.resolveId(actionManifestVirtualModuleId);
+    const loaded = resolved === null ? undefined : plugin.load(resolved);
 
     expect(JSON.parse(manifest)).toMatchObject({
       version: 1,
@@ -2041,28 +1992,9 @@ describe("Effect UI Start", () => {
     };
     const manifest = serializeStartFileRouteManifest(options);
     const plugin = effectUiStart(options);
-    const config = !Array.isArray(plugin) &&
-      plugin &&
-      typeof plugin === "object" &&
-      "config" in plugin &&
-      typeof plugin.config === "function"
-        ? plugin.config()
-        : undefined;
-    const resolved = !Array.isArray(plugin) &&
-      plugin &&
-      typeof plugin === "object" &&
-      "resolveId" in plugin &&
-      typeof plugin.resolveId === "function"
-        ? await plugin.resolveId.call({} as never, fileRouteManifestVirtualModuleId, undefined, {})
-        : undefined;
-    const loaded = !Array.isArray(plugin) &&
-      plugin &&
-      typeof plugin === "object" &&
-      "load" in plugin &&
-      typeof plugin.load === "function" &&
-      typeof resolved === "string"
-        ? await plugin.load.call({} as never, resolved, {})
-        : undefined;
+    const config = plugin.config();
+    const resolved = plugin.resolveId(fileRouteManifestVirtualModuleId);
+    const loaded = resolved === null ? undefined : plugin.load(resolved);
 
     expect(JSON.parse(manifest)).toMatchObject({
       version: 1,
@@ -2100,21 +2032,8 @@ describe("Effect UI Start", () => {
         routeDirectory: "src/routes"
       }
     });
-    const resolved = !Array.isArray(plugin) &&
-      plugin &&
-      typeof plugin === "object" &&
-      "resolveId" in plugin &&
-      typeof plugin.resolveId === "function"
-        ? await plugin.resolveId.call({} as never, fileRouteDefinitionsVirtualModuleId, undefined, {})
-        : undefined;
-    const loaded = !Array.isArray(plugin) &&
-      plugin &&
-      typeof plugin === "object" &&
-      "load" in plugin &&
-      typeof plugin.load === "function" &&
-      typeof resolved === "string"
-        ? await plugin.load.call({} as never, resolved, {})
-        : undefined;
+    const resolved = plugin.resolveId(fileRouteDefinitionsVirtualModuleId);
+    const loaded = resolved === null ? undefined : plugin.load(resolved);
 
     expect(resolved).toBe(`\0${fileRouteDefinitionsVirtualModuleId}`);
     expect(String(loaded)).toContain('import { Route as route_root } from "/src/routes/index.js";');
@@ -2138,28 +2057,9 @@ describe("Effect UI Start", () => {
       writeFileSync(join(root, "src/routes/projects/readme.md"), "# project routes\n");
 
       const plugin = effectUiStart();
-      const config = !Array.isArray(plugin) &&
-        plugin &&
-        typeof plugin === "object" &&
-        "config" in plugin &&
-        typeof plugin.config === "function"
-          ? await (plugin.config as (config: { readonly root: string }) => unknown)({ root })
-          : undefined;
-      const resolved = !Array.isArray(plugin) &&
-        plugin &&
-        typeof plugin === "object" &&
-        "resolveId" in plugin &&
-        typeof plugin.resolveId === "function"
-          ? await plugin.resolveId.call({} as never, fileRouteManifestVirtualModuleId, undefined, {})
-          : undefined;
-      const loaded = !Array.isArray(plugin) &&
-        plugin &&
-        typeof plugin === "object" &&
-        "load" in plugin &&
-        typeof plugin.load === "function" &&
-        typeof resolved === "string"
-          ? await plugin.load.call({} as never, resolved, {})
-          : undefined;
+      const config = plugin.config({ root });
+      const resolved = plugin.resolveId(fileRouteManifestVirtualModuleId);
+      const loaded = resolved === null ? undefined : plugin.load(resolved);
 
       expect(discoverFileRoutes({ root })).toEqual([
         "src/routes/index.tsx",
@@ -2171,11 +2071,9 @@ describe("Effect UI Start", () => {
           __EFFECT_UI_FILE_ROUTES__: expect.any(String)
         }
       });
-      expect(
-        JSON.parse(
-          (config as { readonly define: Record<string, string> }).define.__EFFECT_UI_FILE_ROUTES__
-        )
-      ).toMatchObject({
+      const serializedFileRoutes = config.define?.__EFFECT_UI_FILE_ROUTES__;
+      expect(typeof serializedFileRoutes).toBe("string");
+      expect(JSON.parse(String(serializedFileRoutes))).toMatchObject({
         version: 1,
         routeDirectory: defaultFileRouteDirectory,
         entries: [
@@ -2206,15 +2104,7 @@ describe("Effect UI Start", () => {
       writeFileSync(join(root, "src/routes/projects/$id.tsx"), "export default null;\n");
 
       const plugin = effectUiStart();
-      if (
-        !Array.isArray(plugin) &&
-        plugin &&
-        typeof plugin === "object" &&
-        "configResolved" in plugin &&
-        typeof plugin.configResolved === "function"
-      ) {
-        await plugin.configResolved.call({} as never, { root } as never);
-      }
+      plugin.configResolved({ root });
 
       const generatedPath = join(root, defaultFileRouteGeneratedFile);
       const generated = readFileSync(generatedPath, "utf8");
@@ -2244,15 +2134,7 @@ describe("Effect UI Start", () => {
           outputFile: false
         }
       });
-      if (
-        !Array.isArray(plugin) &&
-        plugin &&
-        typeof plugin === "object" &&
-        "configResolved" in plugin &&
-        typeof plugin.configResolved === "function"
-      ) {
-        await plugin.configResolved.call({} as never, { root } as never);
-      }
+      plugin.configResolved({ root });
 
       expect(existsSync(join(root, defaultFileRouteGeneratedFile))).toBe(false);
     } finally {
@@ -2290,28 +2172,9 @@ describe("Effect UI Start", () => {
     };
     const graph = serializeStartAppGraph(options);
     const plugin = effectUiStart(options);
-    const config = !Array.isArray(plugin) &&
-      plugin &&
-      typeof plugin === "object" &&
-      "config" in plugin &&
-      typeof plugin.config === "function"
-        ? plugin.config()
-        : undefined;
-    const resolved = !Array.isArray(plugin) &&
-      plugin &&
-      typeof plugin === "object" &&
-      "resolveId" in plugin &&
-      typeof plugin.resolveId === "function"
-        ? await plugin.resolveId.call({} as never, appGraphVirtualModuleId, undefined, {})
-        : undefined;
-    const loaded = !Array.isArray(plugin) &&
-      plugin &&
-      typeof plugin === "object" &&
-      "load" in plugin &&
-      typeof plugin.load === "function" &&
-      typeof resolved === "string"
-        ? await plugin.load.call({} as never, resolved, {})
-        : undefined;
+    const config = plugin.config();
+    const resolved = plugin.resolveId(appGraphVirtualModuleId);
+    const loaded = resolved === null ? undefined : plugin.load(resolved);
 
     expect(JSON.parse(graph)).toMatchObject({
       version: 1,
@@ -2392,21 +2255,8 @@ describe("Effect UI Start", () => {
         routeDirectory: "src/routes"
       }
     });
-    const resolved = !Array.isArray(plugin) &&
-      plugin &&
-      typeof plugin === "object" &&
-      "resolveId" in plugin &&
-      typeof plugin.resolveId === "function"
-        ? await plugin.resolveId.call({} as never, appGraphVirtualModuleId, undefined, {})
-        : undefined;
-    const loaded = !Array.isArray(plugin) &&
-      plugin &&
-      typeof plugin === "object" &&
-      "load" in plugin &&
-      typeof plugin.load === "function" &&
-      typeof resolved === "string"
-        ? await plugin.load.call({} as never, resolved, {})
-        : undefined;
+    const resolved = plugin.resolveId(appGraphVirtualModuleId);
+    const loaded = resolved === null ? undefined : plugin.load(resolved);
 
     expect(String(loaded)).toContain(
       '"routePreloadResources":{"requireDeclaredForPreload":true}'
@@ -2999,15 +2849,7 @@ describe("Effect UI Start", () => {
     });
 
     expect(() => {
-      if (
-        !Array.isArray(plugin) &&
-        plugin &&
-        typeof plugin === "object" &&
-        "config" in plugin &&
-        typeof plugin.config === "function"
-      ) {
-        plugin.config();
-      }
+      plugin.config();
     }).toThrow(StartAppGraphMissingWireSchemas);
   });
 
