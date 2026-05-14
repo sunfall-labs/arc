@@ -236,7 +236,7 @@ export interface CollectionDefinition<A extends object, K extends CollectionKey 
   writeDelete(key: K): void;
 }
 
-export type AnyCollection = CollectionDefinition<any, any, any, any>;
+export type AnyCollection<E = any, R = any> = CollectionDefinition<any, any, E, R>;
 type AnyCollectionRow = CollectionRow<any, any>;
 export type CollectionValue<C> = C extends CollectionDefinition<infer A, infer _K, infer _E, infer _R> ? A : never;
 export type CollectionRowValue<C> = C extends CollectionDefinition<infer A, infer K, infer _E, infer _R> ? CollectionRow<A, K> : never;
@@ -1168,7 +1168,7 @@ const transaction = <A extends object, K extends CollectionKey>(
 });
 
 const withCollectionRetry = <A, E, R>(
-  definition: CollectionDefinition<any, any, E, R>,
+  definition: AnyCollection<E, R>,
   effect: Effect.Effect<A, E, R>
 ): Effect.Effect<A, E, R> => {
   const retry = definition.options.policy?.retry;

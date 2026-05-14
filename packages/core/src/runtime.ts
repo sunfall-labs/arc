@@ -8,9 +8,12 @@ import {
 
 export const RuntimeTypeId: unique symbol = Symbol.for("@effect-ui/core/Runtime") as typeof RuntimeTypeId;
 
+type RuntimeManagedBoundary<ER> = ManagedRuntime.ManagedRuntime<any, ER>;
+type CurrentRuntimeBoundary = EffectUiRuntime<any, any>;
+
 export interface EffectUiRuntime<R = never, ER = never> {
   readonly [RuntimeTypeId]: typeof RuntimeTypeId;
-  readonly managed: ManagedRuntime.ManagedRuntime<any, ER>;
+  readonly managed: RuntimeManagedBoundary<ER>;
   readonly resourceStore: ResourceStoreState;
   provide<A, E, RIn>(effect: Effect.Effect<A, E, RIn>, options?: RuntimeProvideOptions): Effect.Effect<A, E | ER, Scope.Scope>;
   runFork<A, E, RIn>(effect: Effect.Effect<A, E, RIn>, options?: Effect.RunOptions): Fiber.Fiber<A, E | ER>;
@@ -40,7 +43,7 @@ const fromManagedRuntime = <R, ER>(
   resourceStore: ResourceStoreState = makeResourceStore(),
   options: { readonly disposeManaged: boolean } = { disposeManaged: true }
 ): EffectUiRuntime<R, ER> => {
-  const managedRuntime: ManagedRuntime.ManagedRuntime<any, ER> = managed;
+  const managedRuntime: RuntimeManagedBoundary<ER> = managed;
 
   const provideStore = <A, E, RIn>(
     effect: Effect.Effect<A, E, RIn>,
@@ -113,11 +116,11 @@ export const withResourceStore = <R, ER>(
 
 export const defaultRuntime: EffectUiRuntime<never, never> = makeRuntime(Layer.empty);
 
-let currentRuntime: EffectUiRuntime<any, any> | undefined;
+let currentRuntime: CurrentRuntimeBoundary | undefined;
 
-export const getCurrentRuntime = (): EffectUiRuntime<any, any> | undefined => currentRuntime;
+export const getCurrentRuntime = (): CurrentRuntimeBoundary | undefined => currentRuntime;
 
-export const currentOrDefaultRuntime = (): EffectUiRuntime<any, any> =>
+export const currentOrDefaultRuntime = (): CurrentRuntimeBoundary =>
   currentRuntime ?? defaultRuntime;
 
 export const runWithRuntime = <A, R, ER>(

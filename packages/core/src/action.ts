@@ -128,6 +128,9 @@ interface SignalPatchState<A> {
   patches: Array<SignalPatch<A>>;
 }
 
+type AnyWritableSignal = WritableSignal<any>;
+type AnySignalPatchState = SignalPatchState<any>;
+
 type SignalPatchDecision<A> =
   | { readonly _tag: "Commit"; readonly base: A }
   | { readonly _tag: "Rollback" };
@@ -138,7 +141,7 @@ interface ActionTransactionRuntime<R> {
   readonly rollback: ActionRollback<R>;
 }
 
-const signalPatchStates = new WeakMap<WritableSignal<any>, SignalPatchState<any>>();
+const signalPatchStates = new WeakMap<AnyWritableSignal, AnySignalPatchState>();
 
 const recomputeSignal = <A>(
   signal: WritableSignal<A>,
@@ -187,7 +190,7 @@ const updateSignalPatches = <A>(
 
 const makeTransactionRuntime = <R>(): ActionTransactionRuntime<R> => {
   const transaction = Symbol("Action.optimistic");
-  const touched = new Set<WritableSignal<any>>();
+  const touched = new Set<AnyWritableSignal>();
 
   const api: ActionOptimisticTransaction = {
     signal: <A>(

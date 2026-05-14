@@ -181,6 +181,11 @@ Latest full gate on May 14, 2026:
 - DB live-query row/context erasure is now named through local query boundary
   aliases instead of repeated inline wildcard record and builder applications.
 - The latest `pnpm verify` passed after the DB query wildcard boundary cleanup.
+- Core optimistic signal patch storage, ambient runtime service-erasure, and DB
+  collection retry policy wildcard boundaries are now named through local
+  aliases.
+- The latest `pnpm verify` passed after the core runtime and signal wildcard
+  boundary cleanup.
 
 ## Notable Limits
 
