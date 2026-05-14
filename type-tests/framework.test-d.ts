@@ -30,11 +30,13 @@ import {
   readStartHydrationChunks,
   StartAction,
   type StartActionInvalidationPlan,
+  type StartRequestHandler,
   type StartRequestTrace,
   type StartRequestTraceTeardown,
   streamHydrationConsumedAttribute,
   submitStartActionEffect
 } from "@effect-ui/start";
+import type { StartSsrRequestHandler } from "@effect-ui/start/vite";
 import {
   createNodeHandlerEffect,
   nodeRequestToWebRequestEffect,
@@ -590,6 +592,13 @@ createRequestHandler(StartApp, {
   // @ts-expect-error request trace handlers must return Effect or a pure value, not Promise
   onRequestTrace: async () => {}
 });
+const startRequestHandler: StartRequestHandler = () => Promise.resolve(new Response("ok"));
+// @ts-expect-error root Start request handlers are Promise host boundaries
+const syncStartRequestHandler: StartRequestHandler = () => new Response("ok");
+const viteStartSsrRequestHandler: StartSsrRequestHandler = () => new Response("ok");
+void startRequestHandler;
+void syncStartRequestHandler;
+void viteStartSsrRequestHandler;
 preloadRequestEffect(StartApp, new Request("https://example.com/projects/atlas"), {
   collections: [ProjectsCollection]
 });

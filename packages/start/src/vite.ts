@@ -95,7 +95,7 @@ export interface FileRouteDiscoveryOptions {
   readonly extensions?: readonly string[];
 }
 
-export type StartRequestHandler = (request: Request) => Response | Promise<Response>;
+export type StartSsrRequestHandler = (request: Request) => Response | Promise<Response>;
 
 export interface StartDevServer {
   ssrLoadModule(id: string): Promise<Record<string, unknown>>;
@@ -908,7 +908,7 @@ export const shouldHandleSsrRequest = (
 export const resolveStartHandler = (
   module: Record<string, unknown>,
   options: { readonly handlerExport?: string } = {}
-): StartRequestHandler => {
+): StartSsrRequestHandler => {
   const candidate = options.handlerExport
     ? module[options.handlerExport]
     : module.default ?? module.handleRequest;
@@ -918,13 +918,13 @@ export const resolveStartHandler = (
     throw new StartHandlerNotFound({ exportName });
   }
 
-  return candidate as StartRequestHandler;
+  return candidate as StartSsrRequestHandler;
 };
 
 export const resolveStartHandlerEffect = (
   module: Record<string, unknown>,
   options: { readonly handlerExport?: string } = {}
-): Effect.Effect<StartRequestHandler, StartHandlerNotFound> =>
+): Effect.Effect<StartSsrRequestHandler, StartHandlerNotFound> =>
   Effect.try({
     try: () => resolveStartHandler(module, options),
     catch: (error) =>
@@ -945,7 +945,7 @@ const tryDevPromise = <A>(
   });
 
 const handlerResultEffect = (
-  handler: StartRequestHandler,
+  handler: StartSsrRequestHandler,
   request: Request
 ): Effect.Effect<Response, StartDevServerError> =>
   Effect.try({

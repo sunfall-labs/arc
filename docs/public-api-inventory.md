@@ -79,6 +79,8 @@ Subpath exports:
 
 - `./vite` owns `effectUiStart`, file route discovery, virtual module creation,
   build-policy validation, app graph diagnostics loading, and SSR dev handling.
+  Its SSR module handler type is named `StartSsrRequestHandler` so it cannot be
+  confused with the root Promise-only `StartRequestHandler`.
 - `./diagnostics-report` owns grouped repair reports with owner/edit guidance.
 - `./adapters` owns Node/fetch adapter conversion and response writing.
 - `./virtual` owns virtual module typings only.
@@ -88,8 +90,9 @@ Needs release decision:
 - `./vite` exports many low-level manifest and virtual-module helpers. Keep
   them public only if CI, starters, or agent tooling are expected to call them
   directly.
-- `StartRequestHandler` exists in both root and `./vite` with different return
-  shapes. Rename or scope one before public release if this causes confusion.
+- The root `StartRequestHandler` is the Promise host-boundary request handler
+  returned by `createRequestHandler`; the Vite-only synchronous-or-async SSR
+  module handler is `StartSsrRequestHandler`.
 - `StartRequestTrace` is intentionally structural with
   `DevtoolsRequestTrace`. Keep type-test coverage so Start can emit devtools
   facts without depending on `@effect-ui/devtools`.
