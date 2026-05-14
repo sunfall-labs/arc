@@ -13,6 +13,9 @@ exports. It supports the release-engineering charter workstream.
   - `files: ["dist"]` limits publication payloads to build output.
   - `sideEffects: false` documents that framework package modules are intended
     to be tree-shakable.
+- Package TypeScript build info now writes to package-local `.tsbuildinfo`
+  files instead of `dist/.tsbuildinfo`, so publishable `dist` payloads do not
+  include compiler cache files.
 - `@effect-ui/start`
   - Source entrypoints import `effect` directly in runtime, manifests, Vite,
     adapters, hydration, routing, and streaming modules.
@@ -47,6 +50,8 @@ exports. It supports the release-engineering charter workstream.
   typecheck, 4 example test files / 23 tests, example build, and leak scan.
 - `pnpm build` and `pnpm typecheck` passed after the package publish metadata
   hardening sweep.
+- `pnpm build` and `pnpm typecheck` passed after moving package
+  `.tsbuildinfo` outputs out of `dist`.
 - Individual package dry-run packs passed after refreshing workspace links:
   - `pnpm --filter @effect-ui/core pack --dry-run`
   - `pnpm --filter @effect-ui/db pack --dry-run`
@@ -55,6 +60,9 @@ exports. It supports the release-engineering charter workstream.
   - `pnpm --filter @effect-ui/solid pack --dry-run`
   - `pnpm --filter @effect-ui/solid-db pack --dry-run`
   - `pnpm --filter @effect-ui/tsrx pack --dry-run`
+- The latest dry-run pack payloads contain only `dist` JavaScript,
+  declaration, source-map files, and package manifests; no `.tsbuildinfo`
+  compiler cache files are included.
 
 ## Follow-Up
 
