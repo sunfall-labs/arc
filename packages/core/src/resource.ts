@@ -1,55 +1,68 @@
 import {
   Cache,
-  Clock,
-  Context,
-  Data,
   Duration,
   Effect,
   Exit,
-  Fiber,
-  Option,
-  PubSub,
   Request as EffectRequest,
   RequestResolver,
-  Scope,
   type Schedule
 } from "effect";
 import type { EffectInput } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
 import {
-  planResourceInvalidationTargets,
   recordResourceProvidedTags,
-  removeResourceRefFromTagIndex,
-  resourceRefsForTag
+  removeResourceRefFromTagIndex
 } from "./resource-dependency-graph.js";
 import { parseDuration, type DurationInput } from "./resource-duration.js";
-import { describeResourceStoreInvalidationCause, publishResourceStoreEvent } from "./resource-events.js";
+import { publishResourceStoreEvent } from "./resource-events.js";
 import { ResourceTagTypeId, ResourceTypeId } from "./resource-identifiers.js";
 import {
-  clearResourceInFlight,
-  inspectResourceStatus,
   interruptResourceGc,
   interruptResourceInFlight,
-  isResourceStateCollected,
-  isResourceStateStale,
   makeResourceEntry,
-  previousResourceValue,
-  resetResourceEntry,
   scheduleResourceGc,
-  setResourceFailure,
-  setResourcePending,
   setResourceSuccess,
-  shouldShowResourcePending
+  type ResourceLifetimeEntry as ResourceEntry
 } from "./resource-lifetime.js";
 import { ResourceStore, type ResourceStore as ResourceStoreState, type ResourceStoreEvent } from "./resource-store.js";
-import { currentOrDefaultRuntime, runFork } from "./runtime.js";
-import type { ReadableSignal, WritableSignal } from "./signal.js";
+import { runFork } from "./runtime.js";
+import type { ReadableSignal } from "./signal.js";
 import { stableStringify } from "./stable-stringify.js";
+import type { ResourceCollected } from "./resource-collector.js";
+import { MissingResourceInput } from "./resource-errors.js";
+import {
+  collectResourceEffect,
+  currentResourceStore,
+  dehydrateResources,
+  dehydrateResourcesEffect,
+  hydrateResources,
+  hydrateResourcesEffect,
+  invalidateResource,
+  invalidateResourceEffect,
+  planResourceInvalidation,
+  planResourceInvalidationEffect,
+  prefetchResourceEffect,
+  readResource,
+  refsForResourceTag,
+  refreshResourceEffect,
+  registerResourceRuntimeFamily,
+  resourceHydrationPayload,
+  resourceHydrationPayloadEffect,
+  resourceResult,
+  resourceStatus,
+  resourceStatusEffect,
+  runResourceInvalidationPlan,
+  runResourceInvalidationPlanEffect,
+  subscribeResourceEventsEffect
+} from "./resource-runtime.js";
 
 export { isResourceRef, isResourceTag } from "./resource-dependency-graph.js";
 export { UnsupportedDuration } from "./resource-duration.js";
 export type { DurationInput } from "./resource-duration.js";
 export { ResourceTagTypeId, ResourceTypeId } from "./resource-identifiers.js";
+export { ResourceCollector } from "./resource-collector.js";
+export type { ResourceCollected } from "./resource-collector.js";
+export { MissingResourceInput, ResourceFailure } from "./resource-errors.js";
 
 /** Cache lifecycle policy for a resource family. */
 export interface ResourcePolicy<E = unknown> {
@@ -246,38 +259,8 @@ export type ResourceStatus<I, A, E = unknown, R = never> =
       readonly error: E;
     });
 
-/** Internal collector service used while planning route preloads. */
-export interface ResourceCollector {
-  readonly refs: Map<string, AnyResourceRef>;
-}
-
-export const ResourceCollector = Context.Service<ResourceCollector>(
-  "@effect-ui/core/ResourceCollector"
-);
-
-interface ResourceEntry<A, E> {
-  readonly state: WritableSignal<ResourceState<A, E>>;
-  inFlight: ResourceInFlight<A, E> | undefined;
-  gcFiber: Fiber.Fiber<void, never> | undefined;
-}
-
-interface ResourceInFlight<A, E> {
-  readonly token: object;
-  fiber: Fiber.Fiber<A, E>;
-}
-
 const familyDefinitions = new Map<string, AnyResourceFamily>();
 const resourceTagDefinitions = new Map<string, ResourceTagDiagnostics>();
-
-export class ResourceFailure<A = unknown, E = unknown> extends Data.TaggedError("ResourceFailure")<{
-  readonly ref: ResourceRef<unknown, A, E, unknown>;
-  readonly error: E;
-  readonly previous: A | undefined;
-}> {}
-
-export class MissingResourceInput extends Data.TaggedError("MissingResourceInput")<{
-  readonly key: string;
-}> {}
 
 /**
  * Runtime cache and state container for a set of resource refs.
@@ -288,6 +271,7 @@ export class MissingResourceInput extends Data.TaggedError("MissingResourceInput
 export class ResourceFamily<I, A, E = unknown, R = never> {
   constructor(readonly options: ResourceFamilyOptions<I, A, E, R>) {
     familyDefinitions.set(options.name, this as AnyResourceFamily);
+    registerResourceRuntimeFamily(this as AnyResourceFamily);
   }
 
   #register(store: ResourceStoreState): void {
@@ -454,14 +438,6 @@ export class ResourceFamily<I, A, E = unknown, R = never> {
   }
 }
 
-const currentResourceStore = (): ResourceStoreState => currentOrDefaultRuntime().resourceStore;
-
-const resourceStoreEffect: Effect.Effect<ResourceStoreState> =
-  Effect.gen(function* () {
-    const store = yield* Effect.serviceOption(ResourceStore);
-    return Option.isSome(store) ? store.value : currentResourceStore();
-  });
-
 const resourceFamilyDiagnostics = (
   family: AnyResourceFamily
 ): ResourceFamilyDiagnostics => {
@@ -486,14 +462,6 @@ const makeResourceTag = (name: string, key: string): ResourceTag => ({
   key
 });
 
-const recordTouched = (ref: AnyResourceRef): Effect.Effect<void> =>
-  Effect.gen(function* () {
-    const collector = yield* Effect.serviceOption(ResourceCollector);
-    if (Option.isSome(collector)) {
-      collector.value.refs.set(ref.key, ref);
-    }
-  });
-
 /**
  * Resource helpers for cached Effect data, suspense reads, invalidation, and hydration.
  */
@@ -517,10 +485,7 @@ export namespace Resource {
   export type Diagnostics = ResourceDiagnostics;
   export type RequestFamilyOptions<I, Req extends EffectRequest.Any, EX = never, RX = never> =
     ResourceRequestFamilyOptions<I, Req, EX, RX>;
-  export type Collected<A> = {
-    readonly value: A;
-    readonly refs: ReadonlyArray<AnyResourceRef>;
-  };
+  export type Collected<A> = ResourceCollected<A>;
 
   /**
    * Defines a resource family and returns a ref factory.
@@ -654,23 +619,22 @@ export namespace Resource {
   });
 
   export const refsForTag = (tag: ResourceTag): ReadonlyArray<AnyResourceRef> =>
-    resourceRefsForTag(tag, currentResourceStore());
+    refsForResourceTag(tag);
 
   /** Computes which cached refs would be affected by a ref or tag invalidation. */
   export const planInvalidation = (target: ResourceInvalidationTarget): ResourceInvalidationPlan =>
-    planResourceInvalidationTargets(target, currentResourceStore());
+    planResourceInvalidation(target);
 
   /** Effect version of planInvalidation that uses the ResourceStore in context. */
   export const planInvalidationEffect = (
     target: ResourceInvalidationTarget
   ): Effect.Effect<ResourceInvalidationPlan> =>
-    Effect.map(resourceStoreEffect, (store) => planResourceInvalidationTargets(target, store));
+    planResourceInvalidationEffect(target);
 
-  export const subscribeEventsEffect = (): Effect.Effect<PubSub.Subscription<ResourceStoreEvent>, never, Scope.Scope> =>
-    Effect.flatMap(resourceStoreEffect, (store) => PubSub.subscribe(store.events));
+  export const subscribeEventsEffect = subscribeResourceEventsEffect;
 
   export const result = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): ReadableSignal<ResourceState<A, E>> =>
-    ref.family.entry(ref, currentResourceStore()).state;
+    resourceResult(ref);
 
   /**
    * Returns a rich snapshot of a resource ref without starting a load.
@@ -678,15 +642,11 @@ export namespace Resource {
    * Use this for UI state such as loading, refreshing, stale, and cache age.
    */
   export const status = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): ResourceStatus<I, A, E, R> =>
-    inspectResourceStatus(ref, currentResourceStore(), Date.now());
+    resourceStatus(ref);
 
   /** Effect version of status that reads time and store from Effect context. */
   export const statusEffect = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): Effect.Effect<ResourceStatus<I, A, E, R>> =>
-    Effect.gen(function* () {
-      const store = yield* resourceStoreEffect;
-      const now = yield* Clock.currentTimeMillis;
-      return inspectResourceStatus(ref, store, now);
-    });
+    resourceStatusEffect(ref);
 
   export const value = <A, E>(state: ResourceState<A, E>): A | undefined => {
     switch (state._tag) {
@@ -703,122 +663,26 @@ export namespace Resource {
   export const error = <A, E>(state: ResourceState<A, E>): E | undefined =>
     state._tag === "Failure" ? state.error : undefined;
 
-  const run = <I, A, E, R>(
-    ref: ResourceRef<I, A, E, R>,
-    options: { readonly force: boolean }
-  ): Effect.Effect<A, E, R> =>
-    Effect.gen(function* () {
-      const store = yield* resourceStoreEffect;
-      yield* recordTouched(ref as AnyResourceRef);
-      const entry = ref.family.entry(ref, store);
-      const currentInFlight = entry.inFlight;
-      if (currentInFlight) {
-        return yield* Fiber.join(currentInFlight.fiber);
-      }
-
-      const token = {};
-
-      return yield* Effect.withFiber((fiber) => {
-        entry.inFlight = {
-          token,
-          fiber: fiber as Fiber.Fiber<A, E>
-        };
-        store.fibers.add(fiber as Fiber.Fiber<A, E>);
-
-        return Effect.gen(function* () {
-          const current = entry.state.get();
-          const shouldShowPending = shouldShowResourcePending(
-            ref as ResourceRef<unknown, A, E, unknown>,
-            current,
-            options.force
-          );
-
-          if (shouldShowPending) {
-            yield* interruptResourceGc(entry, store);
-            setResourcePending(entry);
-            yield* publishResourceStoreEvent(store, {
-              _tag: "ResourcePending",
-              name: ref.family.options.name,
-              key: ref.key,
-              force: options.force,
-              previous: previousResourceValue(current) !== undefined
-            });
-          }
-
-          const value = yield* (options.force ? ref.family.refresh(ref, store) : ref.family.get(ref, store));
-          const updatedAt = yield* Clock.currentTimeMillis;
-          setResourceSuccess(entry, value, updatedAt);
-
-          recordResourceProvidedTags(ref, value, store);
-          yield* scheduleResourceGc(ref, entry, store);
-          yield* publishResourceStoreEvent(store, {
-            _tag: "ResourceSuccess",
-            name: ref.family.options.name,
-            key: ref.key,
-            updatedAt
-          });
-
-          return value;
-        }).pipe(Effect.ensuring(clearResourceInFlight(entry, store, token)));
-      });
-    }).pipe(
-      Effect.catch((error: E) =>
-        Effect.gen(function* () {
-          const store = yield* resourceStoreEffect;
-          const entry = ref.family.entry(ref, store);
-          yield* interruptResourceGc(entry, store);
-          const previous = previousResourceValue(entry.state.get());
-          setResourceFailure(entry, error);
-          yield* ref.family.invalidate(ref, store);
-          yield* publishResourceStoreEvent(store, {
-            _tag: "ResourceFailure",
-            name: ref.family.options.name,
-            key: ref.key,
-            error,
-            previous: previous !== undefined
-          });
-          return yield* Effect.fail(error);
-        })
-      )
-    );
-
   /**
    * Forces a resource ref to reload as an Effect and updates cache state.
    *
    * Prefer this inside route preloads, actions, and other Effect workflows.
    */
   export const refreshEffect = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): Effect.Effect<A, E, R> =>
-    run(ref, { force: true });
+    refreshResourceEffect(ref);
   /**
    * Ensures a resource ref is loaded as an Effect, reusing fresh cached data.
    *
    * This records the ref for route preload collection and shares in-flight work.
    */
   export const prefetchEffect = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): Effect.Effect<A, E, R> =>
-    run(ref, { force: false });
+    prefetchResourceEffect(ref);
 
   /** Runs an Effect and returns the resource refs it touched through prefetch/read. */
   export const collectEffect = <A, E, R>(
     effect: Effect.Effect<A, E, R>
   ): Effect.Effect<Collected<A>, E, R> =>
-    Effect.gen(function* () {
-      const collector: ResourceCollector = { refs: new Map() };
-      const value = yield* Effect.provideService(effect, ResourceCollector, collector);
-      return {
-        value,
-        refs: Array.from(collector.refs.values())
-      };
-    });
-
-  const suspensePromise = <I, A, E, R>(
-    ref: ResourceRef<I, A, E, R>,
-    entry: ResourceEntry<A, E>
-  ): Promise<A> => {
-    const runtime = currentOrDefaultRuntime();
-    return entry.inFlight
-      ? runtime.runPromise(Fiber.join(entry.inFlight.fiber))
-      : runtime.runPromise(prefetchEffect(ref));
-  };
+    collectResourceEffect(effect);
 
   /**
    * Reads a resource value for render code.
@@ -828,42 +692,7 @@ export namespace Resource {
    * in the background.
    */
   export const read = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): A => {
-    const entry = ref.family.entry(ref, currentResourceStore());
-    const state = readSignal(entry.state);
-
-    if (state._tag === "Initial") {
-      throw suspensePromise(ref, entry);
-    }
-
-    if (state._tag === "Pending") {
-      if ("previous" in state) {
-        return state.previous as A;
-      }
-      throw suspensePromise(ref, entry);
-    }
-
-    if (state._tag === "Failure") {
-      throw new ResourceFailure({
-        ref: ref as ResourceRef<unknown, A, E, unknown>,
-        error: state.error,
-        previous: state.previous
-      });
-    }
-
-    if (isResourceStateCollected(ref as ResourceRef<unknown, A, E, unknown>, state)) {
-      resetResourceEntry(entry);
-      throw suspensePromise(ref, entry);
-    }
-
-    if (isResourceStateStale(ref as ResourceRef<unknown, A, E, unknown>, state)) {
-      void runFork(
-        refreshEffect(ref).pipe(
-          Effect.catch(() => Effect.void)
-        )
-      );
-    }
-
-    return state.value;
+    return readResource(ref);
   };
 
   /**
@@ -872,95 +701,49 @@ export namespace Resource {
   export const invalidateEffect = <R = any>(
     target: ResourceInvalidationTarget
   ): Effect.Effect<void, never, R> =>
-    Effect.gen(function* () {
-      const store = yield* resourceStoreEffect;
-      yield* runInvalidationPlanEffect(planResourceInvalidationTargets(target, store));
-    });
+    invalidateResourceEffect(target);
 
   /** Runs a previously computed invalidation plan as an Effect. */
   export const runInvalidationPlanEffect = <R = any>(
     plan: ResourceInvalidationPlan
   ): Effect.Effect<void, never, R> =>
-    Effect.gen(function* () {
-      const store = yield* resourceStoreEffect;
-      for (const entry of plan.entries) {
-        yield* publishResourceStoreEvent(store, {
-          _tag: "ResourceInvalidated",
-          name: entry.ref.family.options.name,
-          key: entry.ref.key,
-          causes: entry.causes.map(describeResourceStoreInvalidationCause)
-        });
-        yield* refreshEffect(entry.ref).pipe(Effect.catch(() => Effect.void));
-      }
-    });
+    runResourceInvalidationPlanEffect(plan);
 
   /** Fire-and-forget runtime boundary for invalidateEffect. */
   export const invalidate = (
     target: ResourceInvalidationTarget
   ): void => {
-    runInvalidationPlan(planResourceInvalidationTargets(target, currentResourceStore()));
+    invalidateResource(target);
   };
 
   /** Fire-and-forget runtime boundary for runInvalidationPlanEffect. */
   export const runInvalidationPlan = (
     plan: ResourceInvalidationPlan
   ): void => {
-    const store = currentResourceStore();
-    void runFork(
-      Effect.provideService(runInvalidationPlanEffect(plan), ResourceStore, store).pipe(
-        Effect.catch(() => Effect.void)
-      )
-    );
-  };
-
-  const dehydrateWithStore = (
-    refs: Iterable<AnyResourceRef>,
-    store: ResourceStoreState
-  ): ReadonlyArray<ResourceHydrationSnapshot> => {
-    const snapshot: Array<ResourceHydrationSnapshot> = [];
-
-    for (const ref of refs) {
-      const state = ref.family.entry(ref, store).state.get() as ResourceState<unknown, unknown>;
-      if (state._tag === "Success") {
-        snapshot.push({
-          name: ref.family.options.name,
-          key: ref.key,
-          input: ref.input,
-          state
-        });
-      }
-    }
-
-    return snapshot;
+    runResourceInvalidationPlan(plan);
   };
 
   /** Serializes successful resource refs from the current store for hydration. */
   export const dehydrate = (
     refs: Iterable<AnyResourceRef>
   ): ReadonlyArray<ResourceHydrationSnapshot> =>
-    dehydrateWithStore(refs, currentResourceStore());
+    dehydrateResources(refs);
 
   /** Effect version of dehydrate that reads the ResourceStore from context. */
   export const dehydrateEffect = (
     refs: Iterable<AnyResourceRef>
   ): Effect.Effect<ReadonlyArray<ResourceHydrationSnapshot>> =>
-    Effect.map(resourceStoreEffect, (store) => dehydrateWithStore(refs, store));
+    dehydrateResourcesEffect(refs);
 
   /** Wraps dehydrated snapshots in the payload shape used by route plans. */
-  export const hydrationPayload = (refs: Iterable<AnyResourceRef>): ResourceHydrationPayload => ({
-    resources: dehydrate(refs)
-  });
+  export const hydrationPayload = (refs: Iterable<AnyResourceRef>): ResourceHydrationPayload =>
+    resourceHydrationPayload(refs);
 
   /** Effect version of hydrationPayload. */
   export const hydrationPayloadEffect = (
     refs: Iterable<AnyResourceRef>
   ): Effect.Effect<ResourceHydrationPayload> =>
-    Effect.map(dehydrateEffect(refs), (resources) => ({ resources }));
-
-  const snapshotsFrom = (
-    input: ReadonlyArray<ResourceHydrationSnapshot> | ResourceHydrationPayload
-  ): ReadonlyArray<ResourceHydrationSnapshot> =>
-    "resources" in input ? input.resources : input;
+    resourceHydrationPayloadEffect(refs);
 
   /**
    * Restores successful resource snapshots into the current ResourceStore.
@@ -971,31 +754,12 @@ export namespace Resource {
   export const hydrateEffect = (
     input: ReadonlyArray<ResourceHydrationSnapshot> | ResourceHydrationPayload
   ): Effect.Effect<void> =>
-    Effect.gen(function* () {
-      const store = yield* resourceStoreEffect;
-      for (const snapshot of snapshotsFrom(input)) {
-        const family =
-          store.families.get(snapshot.name) as AnyResourceFamily | undefined ??
-          familyDefinitions.get(snapshot.name);
-        if (!family) {
-          continue;
-        }
-
-        const ref = family.ref(snapshot.input);
-        if (ref.key !== snapshot.key) {
-          continue;
-        }
-
-        yield* family.hydrate(ref, snapshot.state as Extract<ResourceState<any, any>, { readonly _tag: "Success" }>, store);
-      }
-    });
+    hydrateResourcesEffect(input);
 
   /** Synchronous runtime boundary for hydrateEffect. */
   export const hydrate = (
     input: ReadonlyArray<ResourceHydrationSnapshot> | ResourceHydrationPayload
   ): void => {
-    currentOrDefaultRuntime().runSync(hydrateEffect(input));
+    hydrateResources(input);
   };
 }
-
-const readSignal = <A>(signal: ReadableSignal<A>): A => signal.get();

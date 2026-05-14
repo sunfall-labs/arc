@@ -213,8 +213,8 @@ Status: items 1-6 are fixed in the current worktree.
 
 ## Review 4: Effect-First Coordination Follow-Up
 
-Status: fixed for the findings in this pass; larger runtime-root candidates
-remain open.
+Status: fixed for the findings in this pass. No open candidates remain from
+Review 4.
 
 1. Devtools Store Module
    - Status: fixed.
@@ -307,11 +307,95 @@ remain open.
      verify, project-console starter packaging/typecheck/tests/build, and leak
      scan.
 
-Open candidates from this pass:
+4. Start Request Handler Module
+   - Status: fixed.
+   - Files: `packages/start/src/index.ts`,
+     `packages/start/src/start-request-handler.ts`,
+     `packages/start/src/start-request-endpoints.ts`,
+     `packages/start/src/start-request-preload.ts`,
+     `packages/start/src/request-runtime.ts`,
+     `packages/start/src/request-trace.ts`,
+     `packages/start/src/start-transport-protocol.ts`.
+   - Problem: the Start root still owned RPC/action/SSR endpoint selection,
+     Request Runtime creation and provisioning, request trace mutation,
+     ResponseContext application, and stream finalization orchestration.
+   - Fix: `start-request-endpoints.ts` now owns server RPC/action endpoint
+     execution, `start-request-preload.ts` owns request preload and collection
+     hydration facts, and `start-request-handler.ts` owns endpoint selection,
+     SSR render orchestration, response context application, request trace
+     mutation, and runtime/stream finalization. The Start root remains the
+     public facade and keeps client action/RPC helpers separate from server
+     request lifecycle code.
+   - Benefits: server request lifecycle bugs now have a focused Module and can
+     depend on the existing request-runtime, request-trace, and transport
+     protocol Interfaces without expanding the public root Implementation.
+   - Evidence: `pnpm --filter @effect-ui/start typecheck` and
+     `pnpm typecheck` passed, and escalated
+     `pnpm exec vitest run packages/start/test/start.test.ts packages/start/test/rpc.test.ts packages/start/test/adapters.test.ts`
+     passed: 3 files / 71 tests.
 
-- Start Request Handler Module: Start root still owns RPC/action/SSR endpoint
-  selection, Request Runtime provisioning, request trace mutation,
-  ResponseContext application, and stream finalization orchestration.
-- Resource Runtime Module: core Resource still owns family cache lookup,
-  in-flight fiber coordination, suspense reads, invalidation execution,
-  dehydration, and hydration behind one large Implementation.
+5. Resource Runtime Module
+   - Status: fixed.
+   - Files: `packages/core/src/resource.ts`,
+     `packages/core/src/resource-runtime.ts`,
+     `packages/core/src/resource-collector.ts`,
+     `packages/core/src/resource-errors.ts`,
+     `packages/core/src/resource-lifetime.ts`,
+     `packages/core/src/resource-store.ts`.
+   - Problem: the public Resource root still owned runtime store lookup,
+     touched-ref collection, in-flight fiber coordination, suspense reads,
+     invalidation execution, dehydration, hydration, and duplicate runtime
+     contract declarations that broke Vite/Rolldown app-graph diagnostics.
+   - Fix: `resource-runtime.ts` now owns store lookup, touched-ref collection,
+     refresh/prefetch execution, suspense reads, invalidation execution,
+     dehydration, and hydration. `resource.ts` keeps Resource Definition,
+     family/tag diagnostics, and public Resource namespace wrappers.
+     `resource-collector.ts` and `resource-errors.ts` hold the stable contract
+     exports so source consumers do not see duplicate ESM exports.
+   - Benefits: Resource runtime bugs now have better locality, and Start's Vite
+     diagnostics path can parse Core source without duplicate export failures.
+   - Evidence: `pnpm --filter @effect-ui/core typecheck` passed, and
+     `pnpm exec vitest run packages/core/test/resource.test.ts packages/core/test/resource-store.test.ts packages/core/test/runtime.test.ts packages/core/test/action.test.ts packages/core/test/action-result.test.ts packages/core/test/route-server.test.ts packages/start/test/start.test.ts`
+     passed: 7 files / 128 tests.
+
+Open candidates from this pass: none after the Start Request Handler and
+Resource Runtime extractions. A fresh review should look for new candidates
+instead of reopening the fixed Review 4 list.
+
+## Review 5: Devtools Summary Follow-Up
+
+Status: fixed for the finding in this pass. No open candidates remain from
+Review 5.
+
+1. Devtools Summary Contract Module
+   - Status: fixed.
+   - Files: `packages/devtools/src/summary.ts`,
+     `packages/devtools/src/summary-app-graph.ts`,
+     `packages/devtools/src/summary-facts.ts`,
+     `packages/devtools/src/causal-graph.ts`,
+     `packages/devtools/test/devtools.test.ts`.
+   - Problem: after the public devtools root was split, `summary.ts` became a
+     new low-locality Implementation. It owned app graph summary projection,
+     route/invalidation/request/runtime summary facts, resource indexing, and
+     causal graph construction in one 1,400+ line Module.
+   - Fix: `summary-app-graph.ts` now owns Start App Graph summary projection,
+     `summary-facts.ts` owns normalized invalidation, route, request, runtime
+     event, and resource index facts, and `causal-graph.ts` owns causal node and
+     edge construction. `summary.ts` now composes those Modules into the public
+     `DevtoolsSummary` facade.
+   - Benefits: app graph summary bugs, runtime fact normalization bugs, and
+     causal graph bugs now have separate implementation surfaces. The public
+     devtools summary and causal graph exports remain stable.
+   - Evidence: `pnpm --filter @effect-ui/devtools typecheck` passed, and
+     `pnpm exec vitest run packages/devtools/test/devtools.test.ts` passed:
+     1 file / 17 tests.
+
+Full gate: escalated `pnpm verify` passed after the Start Request Handler,
+Resource Runtime, and Devtools Summary extractions with 9 package builds,
+workspace typecheck, type tests, 40 root test files / 328 tests,
+devtools-panel verify, devtools-extension verify, basic starter verify,
+project-console starter packaging/typecheck/tests/build, and leak scan.
+
+Open candidates from this pass: none. The next architecture-deepening review
+should start from a fresh scan rather than the fixed Review 4 or Review 5
+findings.

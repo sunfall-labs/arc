@@ -3,7 +3,7 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import { Data, Effect } from "effect";
-import type { StartRequestHandler, StartRequestHandlerEffect } from "./index.js";
+import type { StartRequestHandler, StartRequestHandlerEffect } from "./start-request-handler.js";
 
 /** Error raised while converting Node requests or writing Node responses. */
 export class StartNodeAdapterError extends Data.TaggedError("StartNodeAdapterError")<{

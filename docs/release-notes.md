@@ -317,7 +317,27 @@ Latest full gate on May 14, 2026:
 - DB Collection runtime behavior now lives in `collection-runtime.ts`, with
   collection symbols, tagged errors, and preload collection contracts split into
   focused internal modules behind the public DB root facade.
-- The latest `pnpm verify` passed after the DB Collection Runtime extraction:
+- Start server request lifecycle behavior now lives in
+  `start-request-handler.ts`, with RPC/action endpoint execution in
+  `start-request-endpoints.ts` and request preload plus collection hydration
+  facts in `start-request-preload.ts`. SSR render orchestration, response
+  context application, request trace mutation, and runtime/stream finalization
+  stay behind the public Start facade.
+- Core Resource runtime behavior now delegates through `resource-runtime.ts`;
+  touched-ref collection, in-flight coordination, suspense reads, invalidation,
+  dehydration, and hydration are separate from the public Resource Definition
+  facade, and duplicate source exports were removed for Vite/Rolldown
+  compatibility.
+- Devtools summary behavior is now split across `summary-app-graph.ts`,
+  `summary-facts.ts`, and `causal-graph.ts`, leaving `summary.ts` as the public
+  summary facade while keeping app graph projection, runtime fact
+  normalization, and causal graph construction separate.
+- The latest `pnpm verify` passed after the Start Request Handler, Core
+  Resource Runtime, and Devtools Summary extractions: 9 package builds,
+  workspace typecheck, type tests, 40 root test files / 328 tests, devtools
+  panel verify, devtools extension verify, basic starter verify,
+  project-console starter packaging/typecheck/tests/build, and leak scan.
+- The previous `pnpm verify` passed after the DB Collection Runtime extraction:
   9 package builds, workspace typecheck, type tests, 40 root test files / 328
   tests, devtools panel verify, devtools extension verify, basic starter
   verify, project-console starter packaging/typecheck/tests/build, and leak

@@ -780,3 +780,8 @@ interruption.
   tests, devtools-panel verify, devtools-extension verify, basic starter
   verify, project-console starter packaging/typecheck/tests/build, and leak
   scan.
+- Full `pnpm verify` passed after the Start Request Handler, Core Resource
+  Runtime, and Devtools Summary extractions: 9 package builds, workspace
+  typecheck, type tests, 40 root test files / 328 tests, devtools-panel verify,
+  devtools-extension verify, basic starter verify, project-console starter
+  packaging/typecheck/tests/build, and leak scan.
