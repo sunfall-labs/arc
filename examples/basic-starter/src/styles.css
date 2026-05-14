@@ -1,0 +1,35 @@
+.starterShell {
+  align-items: center;
+  background: #f5f7fb;
+  color: #172033;
+  display: flex;
+  min-height: 100vh;
+  padding: 32px;
+}
+
+.starterPanel {
+  background: #ffffff;
+  border: 1px solid #d8deea;
+  border-radius: 8px;
+  max-width: 640px;
+  padding: 28px;
+}
+
+.starterEyebrow {
+  color: #47627f;
+  font-size: 13px;
+  font-weight: 700;
+  margin: 0 0 8px;
+}
+
+.starterPanel h1 {
+  font-size: 36px;
+  line-height: 1.1;
+  margin: 0 0 12px;
+}
+
+.starterPanel p {
+  color: #4d5c73;
+  font-size: 16px;
+  margin: 0;
+}

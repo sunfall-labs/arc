@@ -20,6 +20,8 @@ starter and whether browser/server boundaries remain explicit.
 - Project console UI event handlers now cross the browser boundary through
   small Effect programs: refresh uses `Resource.invalidateEffect`, rename uses
   `StartAction.submitEffect`, and advance uses `Action.submitEffect`.
+- Added `examples/basic-starter` as the minimal copyable app shell with SSR,
+  hydration, a route-owned Resource preload, and its own server-only leak scan.
 
 ## Verification Evidence
 
@@ -33,6 +35,8 @@ starter and whether browser/server boundaries remain explicit.
   `pnpm --filter @effect-ui/example-project-console build`, and
   `pnpm --filter @effect-ui/example-project-console leak-scan` passed after
   moving UI event handlers onto Effect-native APIs.
+- `pnpm starter:verify` passed for `@effect-ui/starter-basic`: typecheck, 1
+  starter test, production build, and leak scan.
 
 ## Follow-Up
 

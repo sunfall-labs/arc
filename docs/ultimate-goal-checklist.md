@@ -411,7 +411,8 @@ Last evidence pass: May 14, 2026.
 - [x] Examples in docs are copyable or clearly illustrative.
   - Evidence: docs use APIs covered by `type-tests/framework.test-d.ts` and
     package tests; `examples/project-console/README.md` now records the
-    copyable example path and monorepo-only alias caveat.
+    copyable example path and monorepo-only alias caveat; `docs/starter.md`
+    points to `examples/basic-starter` as the minimal checked starter.
 - [x] New architectural decisions are recorded in docs or ADRs.
   - Evidence: no new architecture decision was introduced in this pass; existing
     decisions remain in docs. No ADR needed.
@@ -545,9 +546,9 @@ Last evidence pass: May 14, 2026.
 - [x] Completed checklist items have evidence notes.
   - Evidence: every checked item above has path/test/command evidence.
 - [x] Remaining unchecked competitive-bar items listed.
-  - Evidence: concrete external starter packaging, platform-specific deployment
-    packages beyond generic Node/fetch, and any dedicated devtools app or
-    extension shell remain future production-readiness items from
+  - Evidence: richer starter packaging, platform-specific deployment packages
+    beyond generic Node/fetch, and any dedicated devtools app or extension shell
+    remain future production-readiness items from
     `docs/winning-spec.md`.
 - [x] Remaining unchecked winning-bar items listed.
   - Evidence: next section.
@@ -556,9 +557,9 @@ Last evidence pass: May 14, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026 after the Node/fetch
-    adapter facade package slice: 9 package builds, workspace typecheck, type
-    tests, 35 package test files / 308 tests, example typecheck, 4 example test
+  - Evidence: root `pnpm verify` passed on May 14, 2026 after the minimal
+    starter slice: 9 package builds, workspace typecheck, type tests, 36 root
+    test files / 309 tests, starter verify, example typecheck, 4 example test
     files / 23 tests, example build, and leak scan.
 
 ## Remaining Winning-Bar Items
@@ -569,13 +570,14 @@ Last evidence pass: May 14, 2026.
     and an Effect-scoped DOM mount helper for the `DevtoolsPanels` contract.
 - [ ] Integrate the browser panel renderer into a dedicated app or extension
   shell if productizing beyond the embedded UI surface.
-- [ ] Add external starter packaging and broader host-specific adapter packages
+- [ ] Add richer starter packaging and broader host-specific adapter packages
   when the framework is ready for users outside this repo.
   - Evidence: current Node/fetch deployment guidance exists in
     `docs/deployment.md`, and tested Node/fetch adapter facades exist as
-    `@effect-ui/start-node` and `@effect-ui/start-fetch`; starter packaging and
-    platform-specific Cloudflare/Vercel/Netlify/Bun/static packages remain
-    future work.
+    `@effect-ui/start-node` and `@effect-ui/start-fetch`; the minimal checked
+    starter exists at `examples/basic-starter`, while a richer project-console
+    starter template and platform-specific Cloudflare/Vercel/Netlify/Bun/static
+    packages remain future work.
 - [x] Add benchmarks for SSR, route preload, resource cache behavior, DB live
   query behavior, and RPC/action transport.
   - Evidence: `benchmarks/framework-baseline.bench.ts` and
@@ -591,7 +593,7 @@ quality goal.
    extension shell if productizing beyond the embedded UI surface.
 2. Extend request traces with any missing response context, collection, and
    request-fiber details uncovered by real panel usage.
-3. Add external starter packaging and platform-specific adapter packages beyond
-   the generic Node/fetch facades.
-4. Package the project console as a starter template once the devtools UI and
-   platform-specific adapter package plan stabilizes.
+3. Add platform-specific adapter packages beyond the generic Node/fetch
+   facades.
+4. Package the project console as a richer starter template once the devtools
+   UI and platform-specific adapter package plan stabilizes.

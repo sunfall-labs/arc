@@ -1,0 +1,58 @@
+import { RuntimeProvider } from "@effect-ui/solid";
+import {
+  createHtmlResponseEffect,
+  createRequestHandler,
+  htmlChunk,
+  streamHydrationChunk
+} from "@effect-ui/start";
+import { Effect, Stream } from "effect";
+import { createComponent, generateHydrationScript, renderToString } from "solid-js/web";
+import App from "./App.js";
+import { app } from "./app-definition.js";
+import "./starter.server.js";
+import "./styles.css";
+
+const shellOpen = (solidHydrationScript: string): string => `<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Effect UI Starter</title>
+    ${solidHydrationScript}
+  </head>
+  <body>
+    <div id="root">`;
+
+const shellClose = (hydrationScript: string): string => `</div>
+    ${hydrationScript}
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>`;
+
+export const handleRequest = createRequestHandler(app, {
+  render: ({ resources, hydrationScript, runtime }) =>
+    Effect.gen(function* () {
+      const body = renderToString(() =>
+        createComponent(RuntimeProvider, {
+          runtime,
+          get children() {
+            return createComponent(App, {});
+          }
+        })
+      );
+
+      return yield* createHtmlResponseEffect({
+        shell: htmlChunk(shellOpen(generateHydrationScript())),
+        chunks: Stream.make(
+          htmlChunk(body),
+          streamHydrationChunk(resources)
+        ),
+        tail: htmlChunk(shellClose(hydrationScript)),
+        headers: {
+          "x-effect-ui-starter": "basic"
+        }
+      });
+    })
+});
+
+export default handleRequest;

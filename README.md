@@ -17,8 +17,8 @@ surface, examples, diagnostics, and release gates are being hardened.
 - JSON-safe devtools summaries, causal graphs, request traces, panel data
   models, and a browser-embeddable panel renderer.
 - Deterministic Start manifests and build diagnostics with repair guidance.
-- A copyable project console example with SSR, hydration, no-JS form fallback,
-  mocks, and server-only leak scans.
+- A copyable project console example and a minimal starter with SSR,
+  hydration, route-owned Resource preload, and server-only leak scans.
 
 ## Start Here
 
@@ -26,6 +26,7 @@ surface, examples, diagnostics, and release gates are being hardened.
 - [Effect style guide](docs/effect-style.md)
 - [Deployment](docs/deployment.md)
 - [Framework perfection charter](docs/framework-perfection-charter.md)
+- [Basic starter](docs/starter.md)
 - [Public API inventory](docs/public-api-inventory.md)
 - [Project console example](examples/project-console/README.md)
 
@@ -50,6 +51,7 @@ pnpm build
 pnpm typecheck
 pnpm test
 pnpm benchmark
+pnpm starter:verify
 pnpm example:typecheck
 pnpm example:test
 pnpm example:build

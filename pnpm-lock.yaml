@@ -43,6 +43,43 @@ importers:
         specifier: ^4.1.6
         version: 4.1.6(@types/node@25.7.0)(vite@8.0.12(@types/node@25.7.0)(yaml@2.9.0))
 
+  examples/basic-starter:
+    dependencies:
+      '@effect-ui/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@effect-ui/solid':
+        specifier: workspace:*
+        version: link:../../packages/solid
+      '@effect-ui/start':
+        specifier: workspace:*
+        version: link:../../packages/start
+      '@effect-ui/tsrx':
+        specifier: workspace:*
+        version: link:../../packages/tsrx
+      effect:
+        specifier: ^4.0.0-beta.66
+        version: 4.0.0-beta.66
+      solid-js:
+        specifier: ^1.9.12
+        version: 1.9.12
+    devDependencies:
+      '@tsrx/typescript-plugin':
+        specifier: ^0.3.58
+        version: 0.3.58(@tsrx/solid@0.1.8(solid-js@1.9.12))(typescript@5.9.3)
+      '@types/node':
+        specifier: ^25.7.0
+        version: 25.7.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vite:
+        specifier: ^8.0.12
+        version: 8.0.12(@types/node@25.7.0)(yaml@2.9.0)
+      vitest:
+        specifier: ^4.1.6
+        version: 4.1.6(@types/node@25.7.0)(vite@8.0.12(@types/node@25.7.0)(yaml@2.9.0))
+
   examples/project-console:
     dependencies:
       '@effect-ui/core':
