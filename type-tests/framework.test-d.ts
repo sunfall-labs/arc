@@ -321,9 +321,9 @@ Effect.map(ProjectsCollection.flushPendingMutationsEffect(), (transactions) =>
   transactions.map((transaction) => transaction.mutations.map((mutation) => mutation.key.toUpperCase()))
 );
 Collection.flushPendingMutationsEffect(ProjectsCollection);
-ProjectsCollection.flushPendingMutations().then((transactions) =>
-  transactions.map((transaction) => transaction.collection.toUpperCase())
-);
+const flushedTransactionsPromise: Promise<ReadonlyArray<Collection.Transaction<Project, string>>> =
+  ProjectsCollection.flushPendingMutations();
+void flushedTransactionsPromise;
 
 const projectMemoryStorage = Collection.memoryStorage();
 ProjectsCollection.persistEffect(projectMemoryStorage, { key: "projects" });
@@ -346,10 +346,11 @@ const ServerProjectsCollection = Collection.define(serverCollectionOptions<Proje
   }
 }));
 
+declare const projectRowsPromise: Promise<readonly Project[]>;
 Collection.define(Collection.serverOptions<Project>({
   name: "Projects.serverNamespaceCollection",
   getKey: (project) => project.id,
-  load: () => Promise.resolve([{ id: "atlas", name: "Atlas" }])
+  load: () => projectRowsPromise
 }));
 const syncAdapter: Collection.SyncAdapter<Project> = {
   name: "projects-sync",
@@ -370,7 +371,7 @@ Collection.define(Collection.syncOptions<Project>({
   sync: Collection.serverSyncAdapter<Project>({
     name: "Projects.serverSyncCollection",
     getKey: (project) => project.id,
-    load: () => Promise.resolve([{ id: "atlas", name: "Atlas" }])
+    load: () => projectRowsPromise
   })
 }));
 const ProjectRowsResource = Resource.family<void, ReadonlyArray<Project>, ProjectError>({
@@ -610,7 +611,8 @@ createRequestHandler(StartApp, {
   // @ts-expect-error request trace handlers must return Effect or a pure value, not Promise
   onRequestTrace: async () => {}
 });
-const startRequestHandler: StartRequestHandler = () => Promise.resolve(new Response("ok"));
+declare const startResponsePromise: Promise<Response>;
+const startRequestHandler: StartRequestHandler = () => startResponsePromise;
 // @ts-expect-error root Start request handlers are Promise host boundaries
 const syncStartRequestHandler: StartRequestHandler = () => new Response("ok");
 const viteStartSsrRequestHandler: StartSsrRequestHandler = () => new Response("ok");

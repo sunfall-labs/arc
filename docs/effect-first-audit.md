@@ -84,6 +84,9 @@ Effect-native interruption.
   - Replaced remaining low-friction `Promise.resolve(...)`, `.then(...)`, and
     `.finally(...)` test conveniences with Effect-backed helpers or direct
     `await`.
+  - Replaced type-test Promise method syntax with declared Promise values so
+    compile-time host-boundary assertions no longer look like runtime Promise
+    choreography.
   - Remaining `new Promise(...)` sites are confined to Node server/listener and
     timer host-boundary helpers in adapter tests.
 
@@ -112,6 +115,8 @@ Effect-native interruption.
     currently finds no non-Effect catch hits.
   - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts -g '*.ts' -g '*.tsx' -g '*.mjs'`
     currently finds no package, example, or script hits.
+  - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
+    currently finds no hits outside the docs that record historical evidence.
 
 ## Verification Evidence
 
@@ -180,3 +185,11 @@ Effect-native interruption.
   conveniences.
 - Full `pnpm verify` passed after replacing remaining test Promise-method
   conveniences.
+- `pnpm typecheck:types` passed after replacing type-test Promise method syntax
+  with declared Promise values.
+- Full `pnpm verify` passed after replacing type-test Promise method syntax: 9
+  package builds, workspace typecheck, type tests, 38 root test files / 320
+  tests, devtools-panel verify, devtools-extension verify with 1 extension test
+  file / 6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.

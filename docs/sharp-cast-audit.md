@@ -17,6 +17,8 @@ and DB query-builder cleanup sweeps.
 - No package, example, or script source currently contains `Promise.resolve`,
   `.then(...)`, or `.finally(...)`; adapter tests keep `new Promise(...)` only
   for Node listener/timer host-boundary helpers.
+- No package, example, script, or type-test source currently contains
+  `Promise.resolve`, `.then(...)`, or `.finally(...)`.
 - No package, example, script, or type-test source currently contains `as any`
   or `@ts-ignore`; negative tests use explicit `@ts-expect-error` or
   `unknown`-to-contract casts for runtime validation shapes.
@@ -44,6 +46,7 @@ and DB query-builder cleanup sweeps.
   - `rg -n "as any|@ts-ignore" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
 - Promise-method grep:
   - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts -g '*.ts' -g '*.tsx' -g '*.mjs'`
+  - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
 - `pnpm verify` passed after the latest cast cleanup stack: package build,
   workspace typecheck, type tests, 35 package test files / 307 tests, example
   typecheck, 4 example test files / 23 tests, example build, and leak scan.
@@ -75,6 +78,14 @@ and DB query-builder cleanup sweeps.
   basic starter verify, project-console starter packaging, project-console
   typecheck, 4 project-console test files / 23 tests, project-console build,
   and leak scan.
+- `pnpm typecheck:types` passed after replacing type-test Promise method syntax
+  with declared Promise values.
+- `pnpm verify` passed after replacing type-test Promise method syntax: 9
+  package builds, workspace typecheck, type tests, 38 root test files / 320
+  tests, devtools-panel verify, devtools-extension verify with 1 extension test
+  file / 6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.
 
 ## Follow-Up
 

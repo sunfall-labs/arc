@@ -69,7 +69,7 @@ Latest full gate on May 14, 2026:
 - The latest devtools extension verify includes 1 extension test file / 6 tests
   plus the Manifest V3 production build.
 - The latest `pnpm verify` also covers the private `UNLICENSED` workspace
-  metadata sweep.
+  metadata sweep and the type-test Promise-method cleanup.
 
 ## Notable Limits
 
