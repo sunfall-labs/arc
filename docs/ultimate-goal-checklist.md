@@ -530,12 +530,13 @@ Last evidence pass: May 14, 2026.
 - [x] Shipped capabilities summarized.
   - Evidence: workstream sections above.
 - [x] Changed packages/docs/examples listed.
-  - Evidence: changed docs are `docs/ultimate-goal-prompt.md`,
-    `docs/ultimate-goal-checklist.md`,
+  - Evidence: changed docs include `README.md`,
+    `docs/ultimate-goal-prompt.md`, `docs/ultimate-goal-checklist.md`,
     `docs/effect-ui-framework-comparison.md`,
     `docs/framework-perfection-charter.md`,
-    `docs/public-api-inventory.md`, `docs/perfection-progress.md`, and
-    `docs/effect-first-audit.md`.
+    `docs/public-api-inventory.md`, `docs/perfection-progress.md`,
+    `docs/effect-first-audit.md`, and
+    `docs/example-copyability-and-leak-audit.md`.
 - [x] Completed checklist items have evidence notes.
   - Evidence: every checked item above has path/test/command evidence.
 - [x] Remaining unchecked competitive-bar items listed.
@@ -548,10 +549,10 @@ Last evidence pass: May 14, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for this docs-only pass.
 - [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026 after the benchmark
-    baseline sweep: package build, workspace typecheck, type tests, 35 package
-    test files / 302 tests, example typecheck, 4 example test files / 23 tests,
-    example build, and leak scan.
+  - Evidence: root `pnpm verify` passed on May 14, 2026 after the API, core,
+    and example cleanup stack: package build, workspace typecheck, type tests,
+    35 package test files / 307 tests, example typecheck, 4 example test files
+    / 23 tests, example build, and leak scan.
 
 ## Remaining Winning-Bar Items
 

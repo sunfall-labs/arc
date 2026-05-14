@@ -4,7 +4,7 @@ Last updated: 2026-05-14.
 
 This audit checks release-tracking docs for claims that no longer match the
 implementation after the request trace, Effect-first, typed-error, package
-hygiene, and generated-artifact sweeps.
+hygiene, generated-artifact, public-API, and example cleanup sweeps.
 
 ## Current Sweep Results
 
@@ -14,6 +14,8 @@ hygiene, and generated-artifact sweeps.
   Promise `.then(...)` internals or already-shipped teardown facts.
 - Updated the cleanup backlog so the generated artifact determinism audit points
   at the completed audit artifact instead of remaining unchecked.
+- Updated final handoff evidence to point at the latest full `pnpm verify`
+  result after API, core, and example cleanup.
 - Left older checkpoint counts in place only where they explicitly describe
   historical evidence from that checkpoint; current verification counts are
   recorded in the verification gate and progress ledger.
@@ -27,6 +29,8 @@ hygiene, and generated-artifact sweeps.
   - `docs/ultimate-goal-checklist.md`
   - `docs/perfection-progress.md`
   - `docs/framework-perfection-charter.md`
+  - `docs/public-api-inventory.md`
+  - `README.md`
 
 ## Follow-Up
 
