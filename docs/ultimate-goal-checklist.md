@@ -447,15 +447,16 @@ Last evidence pass: May 14, 2026.
   - Comparison blog post added.
 - Evidence:
   - `pnpm verify` passed after localhost-binding approval.
-  - Runtime package tests: 33 files, 292 tests.
+  - Runtime package tests at that checkpoint: 33 files, 292 tests.
   - Example tests: 4 files, 23 tests.
   - Example build and leak scan passed.
 - Blockers:
   - No blocker for current docs/prompt/blog deliverables.
-  - Remaining product gap: richer Start request-runtime teardown facts.
+  - The richer Start request-runtime teardown gap from this checkpoint has since
+    been closed; current remaining gaps are listed below.
 - Next owners:
-  - Start/devtools owners should harden the emitted request trace payload if
-    devtools UI work needs more teardown detail.
+  - Devtools owners should build the first UI panel against the richer request
+    trace payload.
 
 ### Trace Slice
 

@@ -215,8 +215,12 @@ the audit finds them.
 - [x] Error message audit with repair guidance.
   - Evidence: `docs/error-message-audit.md`; no raw `Error`/`TypeError` throws
     remain in package source as of the typed-error sweep.
-- [ ] Docs drift audit.
-- [ ] Generated artifact determinism audit.
+- [x] Docs drift audit.
+  - Evidence: `docs/docs-drift-audit.md`; stale teardown and Promise-method
+    follow-ups were updated after implementation landed.
+- [x] Generated artifact determinism audit.
+  - Evidence: `docs/generated-artifact-audit.md`; file route manifests have
+    reversed-input serialization regression coverage.
 - [ ] Type-test coverage audit.
 - [ ] Runtime leak and teardown audit.
 - [ ] Example app copyability audit.

@@ -34,6 +34,8 @@ or command result that proves it.
 - Generated artifact determinism audit is recorded and has focused Start
   manifest/module coverage.
 - Full verification is green after the generated artifact audit.
+- Docs drift audit is recorded; stale release-candidate follow-ups were updated
+  after the completed teardown and Promise-method sweeps.
 - The current operating window is recorded as work until 8:00 AM
   America/Denver on May 14, 2026, with Effect-first implementation as a standing
   requirement.
@@ -69,11 +71,12 @@ or command result that proves it.
 | 23 | Full verification after package hygiene | `pnpm verify` | Package build, workspace typecheck, type tests, 34 package test files / 300 tests, example typecheck, 4 example test files / 23 tests, example build, and leak scan passed. | Commit the verified slice and keep iterating. |
 | 24 | Generated artifact determinism audit | `docs/generated-artifact-audit.md`; `packages/start/test/file-routes.test.ts`; `packages/start/src/vite.ts` | Added reversed-input serialization regression coverage for file route manifests and cleaned generated app graph module source formatting. Focused Start artifact tests and Start typecheck passed. | Keep generated artifact assertions current as virtual modules grow. |
 | 25 | Full verification after generated artifact audit | `pnpm verify` | Package build, workspace typecheck, type tests, 34 package test files / 300 tests, example typecheck, 4 example test files / 23 tests, example build, and leak scan passed. | Commit the verified slice and keep iterating. |
+| 26 | Docs drift audit | `docs/docs-drift-audit.md`; `docs/ultimate-goal-checklist.md`; `docs/perfection-progress.md` | Removed stale follow-ups for already-shipped richer teardown facts and package-source Promise-method cleanup while preserving historical checkpoint counts as historical evidence. | Re-run before release-candidate handoff. |
 
 ## Thirty-Sweep Gate
 
 The final goal requires 30 full code sweeps without finding more improvements.
-This ledger currently records 25 sweeps. The remaining 5 should cover:
+This ledger currently records 26 sweeps. The remaining 4 should cover:
 
 - Devtools UI/docs polish around the richer request trace teardown facts.
 - Promise-shaped internals that can be pushed down into Effect programs.
@@ -90,15 +93,10 @@ This ledger currently records 25 sweeps. The remaining 5 should cover:
 
 ## Open Release-Candidate Slices
 
-1. Harden `DevtoolsRequestTrace` teardown facts beyond the current runtime
-   disposal marker.
-2. Add a docs page or section that explains request traces as the bridge between
-   app graph facts and runtime events.
-3. Add a benchmark baseline artifact before calling release engineering done.
-4. Re-run the public API inventory after any rename/removal work and update
+1. Build the first devtools UI/panel surface against `DevtoolsSummary` and the
+   richer request trace payload.
+2. Add a benchmark baseline artifact before calling release engineering done.
+3. Re-run the public API inventory after any rename/removal work and update
    migration notes.
-5. Continue the action/resource Promise-internals audit and replace the
-   remaining `.then(...)` state where an Effect primitive gives better
-   interruption or locality.
-6. Run full `pnpm verify` and record the result before any handoff that claims
+4. Run full `pnpm verify` and record the result before any handoff that claims
    release-candidate status.
