@@ -37,6 +37,9 @@ Effect-native interruption.
 - `packages/start/src/hydration.ts`
   - Hydration sync helpers now run schema/collection hydration Effects directly
     through the selected runtime without local requirement erasure.
+  - Public hydration runtime options are typed as opaque
+    `EffectUiRuntime<unknown, unknown>` values because hydration does not depend
+    on caller-specific runtime service or error details.
 - `packages/core/src/runtime.ts`
   - Replaced Promise `.then(...)` disposal sequencing with a single
     `disposeEffect` run from the public `dispose()` host-boundary method.
@@ -110,6 +113,9 @@ Effect-native interruption.
   - Core Action now delegates `Fiber.join`, workflow fibers, and reset
     interruption to the runtime boundary without per-call `Effect.Effect`
     assertions.
+  - Start action client options now accept an opaque
+    `EffectUiRuntime<unknown, unknown>` because the client boundary only needs
+    to run/provide hydration and invalidation Effects.
 - `packages/core/src/scope.ts` and `packages/core/src/signal.ts`
   - Scope finalizers, scoped forks, and `Signal.watch(...)` use Effect's own
     Scope and `EffectInput` typing directly, without local Effect assertions.
@@ -149,6 +155,8 @@ Effect-native interruption.
   - UI fire-and-forget effects now use a generic runtime helper and
     `Effect.catch(...)` directly instead of erasing Effect errors and
     requirements at each call site.
+  - The example UI helper accepts an opaque runtime when it deliberately
+    observes no runtime-specific service or error detail.
 - Test and example host-boundary helpers
   - Replaced remaining low-friction `Promise.resolve(...)`, `.then(...)`,
     `.catch(...)`, and `.finally(...)` test conveniences with Effect-backed
@@ -343,5 +351,15 @@ Effect-native interruption.
   builds, workspace typecheck, type tests, 38 root test files / 320 tests,
   devtools-panel verify, devtools-extension verify with 1 extension test file / 6
   tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.
+- `pnpm --filter @effect-ui/start typecheck`, `pnpm typecheck:types`, and
+  `pnpm --filter @effect-ui/example-project-console typecheck` passed after
+  tightening opaque Start hydration/action runtime options and the
+  project-console UI helper from `any` to `unknown`.
+- Full `pnpm verify` passed after the opaque runtime option wildcard cleanup: 9
+  package builds, workspace typecheck, type tests, 38 root test files / 320
+  tests, devtools-panel verify, devtools-extension verify with 1 extension test
+  file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.

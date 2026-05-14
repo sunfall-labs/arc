@@ -38,7 +38,7 @@ export interface HydrateStartPayloadEffectOptions
   extends StartCollectionHydrationOptions, CollectionHydrateOptions {}
 
 export interface HydrateStartPayloadOptions extends HydrateStartPayloadEffectOptions {
-  readonly runtime?: EffectUiRuntime<any, any>;
+  readonly runtime?: EffectUiRuntime<unknown, unknown>;
 }
 
 export interface ReadStartHydrationChunksOptions {
@@ -53,14 +53,14 @@ export interface HydrateStartHydrationChunksFromDocumentEffectOptions
 
 export interface HydrateStartHydrationChunksFromDocumentOptions
   extends HydrateStartHydrationChunksFromDocumentEffectOptions {
-  readonly runtime?: EffectUiRuntime<any, any>;
+  readonly runtime?: EffectUiRuntime<unknown, unknown>;
 }
 
 export interface HydrateFromDocumentEffectOptions
   extends HydrateStartHydrationChunksFromDocumentEffectOptions {}
 
 export interface HydrateFromDocumentOptions extends HydrateFromDocumentEffectOptions {
-  readonly runtime?: EffectUiRuntime<any, any>;
+  readonly runtime?: EffectUiRuntime<unknown, unknown>;
 }
 
 export interface PreloadRequestOptions extends StartCollectionHydrationOptions {}
@@ -129,7 +129,7 @@ const streamCollectionHydrateOptions = (
 
 const runHydrationSync = <A>(
   effect: Effect.Effect<A>,
-  runtime: EffectUiRuntime<any, any> | undefined
+  runtime: EffectUiRuntime<unknown, unknown> | undefined
 ): A =>
   (runtime ?? currentOrDefaultRuntime()).runSync(effect);
 

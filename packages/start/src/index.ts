@@ -158,7 +158,7 @@ export interface ServerRpcClientOptions {
 }
 
 export interface StartActionClientOptions extends ServerRpcClientOptions, StartCollectionHydrationOptions {
-  readonly runtime?: EffectUiRuntime<any, any>;
+  readonly runtime?: EffectUiRuntime<unknown, unknown>;
 }
 
 export type StartRequestTraceTransport = "ssr" | "rpc" | "action" | "unknown";

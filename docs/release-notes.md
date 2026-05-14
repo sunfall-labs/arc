@@ -149,7 +149,12 @@ Latest full gate on May 14, 2026:
 - The latest `pnpm verify` passed after the explicit Effect-any cleanup.
 - Solid Resource hook requirement defaults now use `unknown`, and route outlet
   UI internals avoid `Component<any>` / `value: any` boundaries.
-- The latest `pnpm verify` passed after the Solid UI wildcard cleanup.
+- `pnpm verify` passed after the Solid UI wildcard cleanup.
+- Start action client and hydration runtime options now use opaque
+  `EffectUiRuntime<unknown, unknown>` types where the public option only needs a
+  runtime boundary, not caller-specific service or error detail.
+- The latest `pnpm verify` passed after the opaque runtime option wildcard
+  cleanup.
 
 ## Notable Limits
 

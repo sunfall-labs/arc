@@ -87,7 +87,7 @@ const healthLabel = (health: ProjectHealth): string => {
 const formatSpend = (spend: number): string => `${spend}%`;
 
 function runUiEffect<A, E, R>(
-  runtime: EffectUiRuntime<any, any>,
+  runtime: EffectUiRuntime<unknown, unknown>,
   effect: Effect.Effect<A, E, R>
 ): void {
   void runtime.runPromise(effect.pipe(Effect.catch(() => Effect.void)));
