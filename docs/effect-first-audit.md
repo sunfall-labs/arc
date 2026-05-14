@@ -500,3 +500,14 @@ Effect-native interruption.
   file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
+- `pnpm --filter @effect-ui/example-devtools-panel verify`,
+  `pnpm --filter @effect-ui/example-devtools-extension verify`, and
+  `pnpm --filter @effect-ui/example-project-console typecheck` passed after
+  moving remaining example fire-and-forget effects to detached fibers. The
+  package/example/script/type-test `void runPromise` grep now reports no hits.
+- Full `pnpm verify` passed after the example fire-and-forget Promise cleanup:
+  9 package builds, workspace typecheck, type tests, 38 root test files / 320
+  tests, devtools-panel verify, devtools-extension verify with 1 extension test
+  file / 6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.

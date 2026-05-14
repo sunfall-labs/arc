@@ -209,6 +209,11 @@ Last evidence pass: May 14, 2026.
     dev middleware now use `runFork(...)` or `Effect.runFork(...)`; the
     package-source `void runPromise` grep reports no hits, and focused
     lifecycle typechecks/tests passed. Full `pnpm verify` also passed.
+- [x] Example fire-and-forget effects also use fibers.
+  - Evidence: devtools panel/extension entrypoints and the project-console UI
+    helper use `Effect.runFork(...)` or `runtime.runFork(...)`; the
+    package/example/script/type-test `void runPromise` grep reports no hits, and
+    focused example verifies/typecheck passed. Full `pnpm verify` also passed.
 - [x] Compile-time rejection rules have type tests.
   - Evidence: `type-tests/framework.test-d.ts` and `pnpm typecheck:types`.
 - [x] Compile-time Promise rejection tests avoid Promise-shaped callback syntax.
@@ -700,7 +705,7 @@ Last evidence pass: May 14, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026 after the package
+  - Evidence: root `pnpm verify` passed on May 14, 2026 after the example
     fire-and-forget Promise cleanup: 9 package builds, workspace typecheck, type
     tests, 38 root test files / 320 tests, devtools-panel verify,
     devtools-extension verify with 1 extension test file / 6 tests, basic

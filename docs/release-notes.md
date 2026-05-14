@@ -195,6 +195,11 @@ Latest full gate on May 14, 2026:
   host/API boundaries.
 - The latest `pnpm verify` passed after the package fire-and-forget Promise
   cleanup.
+- Example app entrypoints and UI helpers also run fire-and-forget effects as
+  fibers; the broad `void runPromise` grep now reports no hits across packages,
+  examples, scripts, and type tests.
+- The latest `pnpm verify` passed after the example fire-and-forget Promise
+  cleanup.
 
 ## Notable Limits
 

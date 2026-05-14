@@ -45,7 +45,7 @@ const updateFromInspectedWindowEffect = (
     )
   );
 
-void Effect.runPromise(
+void Effect.runFork(
   Effect.scoped(
     Effect.gen(function* () {
       const mount = yield* mountDevtoolsPanelsEffect({

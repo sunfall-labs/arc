@@ -90,7 +90,7 @@ function runUiEffect<A, E, R>(
   runtime: EffectUiRuntime<unknown, unknown>,
   effect: Effect.Effect<A, E, R>
 ): void {
-  void runtime.runPromise(effect.pipe(Effect.catch(() => Effect.void)));
+  void runtime.runFork(effect.pipe(Effect.catch(() => Effect.void)));
 }
 
 const SearchIcon = () => (

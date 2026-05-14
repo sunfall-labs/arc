@@ -17,7 +17,7 @@ if (!root) {
   });
 }
 
-void Effect.runPromise(
+void Effect.runFork(
   Effect.scoped(
     Effect.gen(function* () {
       yield* mountDevtoolsPanelsEffect({
