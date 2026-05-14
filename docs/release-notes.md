@@ -165,6 +165,10 @@ Latest full gate on May 14, 2026:
   generics.
 - The latest `pnpm verify` passed after the conditional helper and route
   wildcard cleanup.
+- `UiScope` now creates its closeable scope through `Scope.make(...)` run by
+  Effect rather than calling `Scope.makeUnsafe(...)` directly.
+- The latest `pnpm verify` passed after the `UiScope` creation primitive
+  cleanup.
 
 ## Notable Limits
 

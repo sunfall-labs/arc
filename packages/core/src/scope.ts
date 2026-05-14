@@ -17,7 +17,7 @@ export class UiScopeDisposed extends Data.TaggedError("UiScopeDisposed")<{
 }> {}
 
 export class UiScope {
-  readonly effectScope: Scope.Closeable = Scope.makeUnsafe("sequential");
+  readonly effectScope: Scope.Closeable = Effect.runSync(Scope.make("sequential"));
   private disposed = false;
 
   addFinalizer(finalizer: () => EffectInput<void>): void {

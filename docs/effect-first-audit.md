@@ -131,6 +131,9 @@ Effect-native interruption.
 - `packages/core/src/scope.ts` and `packages/core/src/signal.ts`
   - Scope finalizers, scoped forks, and `Signal.watch(...)` use Effect's own
     Scope and `EffectInput` typing directly, without local Effect assertions.
+  - `UiScope` now creates its closeable Effect scope through
+    `Effect.runSync(Scope.make("sequential"))` instead of calling
+    `Scope.makeUnsafe(...)` directly.
 - `packages/solid/src/index.ts` and `packages/solid-db/src/index.ts`
   - Moved router preload completion, background resource preload, collection
     preload, and live-query preload error handling into Effect programs before
@@ -411,5 +414,15 @@ Effect-native interruption.
   cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files
   / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension
   test file / 6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.
+- `pnpm --filter @effect-ui/core typecheck`,
+  `pnpm exec vitest run packages/core/test/scope.test.ts packages/core/test/signal.test.ts`,
+  and `pnpm typecheck:types` passed after replacing direct `Scope.makeUnsafe`
+  usage with `Scope.make(...)` run through Effect.
+- Full `pnpm verify` passed after the `UiScope` creation primitive cleanup: 9
+  package builds, workspace typecheck, type tests, 38 root test files / 320
+  tests, devtools-panel verify, devtools-extension verify with 1 extension test
+  file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
