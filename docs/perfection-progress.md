@@ -94,6 +94,7 @@ or command result that proves it.
 | 44 | Root README release entrypoint | `README.md`; `docs/perfection-progress.md` | Added the missing repository README with the framework purpose, start-here docs, verification commands, package map, and current release bar. | Keep README claims backed by docs, tests, or ledger evidence. |
 | 45 | Final handoff docs drift refresh | `docs/ultimate-goal-checklist.md`; `docs/docs-drift-audit.md`; `docs/perfection-progress.md` | Updated final handoff evidence and drift audit scope to include the latest API, core, README, and example cleanup stack plus the 307-test full verification result. | Keep historical checkpoint counts only where they are explicitly historical. |
 | 46 | Start CLI diagnostics guard | `packages/start/src/cli.ts`; `docs/perfection-progress.md` | Replaced the Start diagnostics CLI's trusted `error.diagnostics` cast with a structural app-graph diagnostics guard before rendering repair reports. Focused diagnostics CLI tests and workspace typecheck passed. | Keep dynamic error payloads guarded before turning them into agent-facing repair data. |
+| 47 | Solid runtime default cast cleanup | `packages/solid/src/index.ts`; `docs/perfection-progress.md` | Replaced Solid adapter casts around the default runtime with `currentOrDefaultRuntime()` and direct `defaultRuntime` use. Solid package typecheck and workspace typecheck passed. | Continue removing casts where the runtime API already provides the shape. |
 
 ## Thirty-Sweep Gate
 

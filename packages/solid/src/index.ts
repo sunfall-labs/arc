@@ -1,12 +1,12 @@
 import {
   Action,
+  currentOrDefaultRuntime,
   read as coreRead,
   Resource,
   ResourceFailure,
   Route,
   defaultRuntime,
   forkScoped,
-  getCurrentRuntime,
   makeRuntime,
   onDispose,
   runWithRuntime,
@@ -138,10 +138,10 @@ export interface RuntimeProviderProps {
 export const createEffectRuntime = makeRuntime;
 
 export const useRuntime = (): EffectUiRuntime<any, any> =>
-  useContext(RuntimeContext) ?? getCurrentRuntime() ?? (defaultRuntime as unknown as EffectUiRuntime<any, any>);
+  useContext(RuntimeContext) ?? currentOrDefaultRuntime();
 
 export const RuntimeProvider = (props: RuntimeProviderProps): JSX.Element => {
-  const runtime = props.runtime ?? (props.source ? makeRuntime(props.source) : (defaultRuntime as unknown as EffectUiRuntime<any, any>));
+  const runtime = props.runtime ?? (props.source ? makeRuntime(props.source) : defaultRuntime);
   if (!props.runtime && props.source) {
     onCleanup(() => {
       void runtime.dispose();
