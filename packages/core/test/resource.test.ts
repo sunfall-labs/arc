@@ -327,6 +327,65 @@ describe("Resource", () => {
     });
   });
 
+  it("dedupes public prefetch through one in-flight Effect fiber", async () => {
+    const started = Effect.runSync(Deferred.make<void>());
+    const gate = Effect.runSync(Deferred.make<void>());
+    let loads = 0;
+    const Count = Resource.family({
+      name: "Count.public-prefetch-fiber",
+      load: () =>
+        Effect.gen(function* () {
+          loads++;
+          yield* Deferred.succeed(started, undefined);
+          yield* Deferred.await(gate);
+          return loads;
+        })
+    });
+    const ref = Count(undefined);
+
+    const first = Resource.prefetch(ref);
+    const second = Resource.prefetch(ref);
+
+    expect(second).toBe(first);
+    await Effect.runPromise(Deferred.await(started));
+    expect(loads).toBe(1);
+
+    await Effect.runPromise(Deferred.succeed(gate, undefined));
+    await expect(first).resolves.toBe(1);
+    await expect(second).resolves.toBe(1);
+    expect(Resource.status(ref)).toMatchObject({
+      _tag: "Success",
+      value: 1
+    });
+  });
+
+  it("interrupts public prefetch fibers when the owning runtime is disposed", async () => {
+    const runtime = makeRuntime();
+    const started = Effect.runSync(Deferred.make<void>());
+    let interrupted = false;
+    const Count = Resource.family({
+      name: "Count.public-prefetch-dispose",
+      load: () =>
+        Effect.gen(function* () {
+          yield* Deferred.succeed(started, undefined);
+          return yield* Effect.ensuring(
+            Effect.never,
+            Effect.sync(() => {
+              interrupted = true;
+            })
+          );
+        })
+    });
+    const ref = Count(undefined);
+
+    const prefetch = runWithRuntime(runtime, () => Resource.prefetch(ref));
+    await runtime.runPromise(Deferred.await(started));
+    await runtime.dispose();
+
+    await expect(prefetch).rejects.toBeDefined();
+    expect(interrupted).toBe(true);
+  });
+
   it("explains invalidation plans with direct refs and tag causes", async () => {
     const ProjectTag = Resource.tag<{ readonly id: string }>("Project.plan-resource-test", {
       key: ({ id }) => id

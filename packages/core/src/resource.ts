@@ -170,8 +170,14 @@ export const ResourceCollector = Context.Service<ResourceCollector>(
 
 interface ResourceEntry<A, E> {
   readonly state: WritableSignal<ResourceState<A, E>>;
-  promise: Promise<A> | undefined;
+  inFlight: ResourceInFlight<A, E> | undefined;
   gcFiber: Fiber.Fiber<void, never> | undefined;
+}
+
+interface ResourceInFlight<A, E> {
+  readonly token: object;
+  promise: Promise<A> | undefined;
+  fiber: Fiber.Fiber<A, E> | undefined;
 }
 
 const familyDefinitions = new Map<string, ResourceFamily<any, any, any, any>>();
@@ -286,7 +292,7 @@ export class ResourceFamily<I, A, E = unknown, R = never> {
 
     const entry: ResourceEntry<A, E> = {
       state: Signal.make<ResourceState<A, E>>({ _tag: "Initial", waiting: false }),
-      promise: undefined,
+      inFlight: undefined,
       gcFiber: undefined
     };
     entries.set(ref.key, entry);
@@ -318,7 +324,7 @@ export class ResourceFamily<I, A, E = unknown, R = never> {
       self.#remember(ref, store);
       const entry = self.entry(ref, store);
       yield* interruptGcFiber(entry, store);
-      entry.promise = undefined;
+      yield* interruptInFlightResource(entry, store);
       entry.state.set(state);
       yield* Cache.set(self.#cache(store), ref.key, state.value);
       recordProvidedTags(ref, state.value, store);
@@ -343,6 +349,7 @@ export class ResourceFamily<I, A, E = unknown, R = never> {
       const entry = entries.get(ref.key);
       if (entry) {
         yield* interruptGcFiber(entry, store);
+        yield* interruptInFlightResource(entry, store);
       }
 
       entries.delete(ref.key);
@@ -566,6 +573,38 @@ const interruptGcFiber = <A, E>(
     entry.gcFiber = undefined;
     store.fibers.delete(fiber);
     return Fiber.interrupt(fiber).pipe(Effect.as(true));
+  });
+
+const clearInFlightResource = <A, E>(
+  entry: ResourceEntry<A, E>,
+  store: ResourceStoreState,
+  token: object
+): Effect.Effect<void> =>
+  Effect.sync(() => {
+    const inFlight = entry.inFlight;
+    if (inFlight?.token !== token) {
+      return;
+    }
+
+    entry.inFlight = undefined;
+    if (inFlight.fiber) {
+      store.fibers.delete(inFlight.fiber);
+    }
+  });
+
+const interruptInFlightResource = <A, E>(
+  entry: ResourceEntry<A, E>,
+  store: ResourceStoreState
+): Effect.Effect<boolean> =>
+  Effect.suspend(() => {
+    const inFlight = entry.inFlight;
+    entry.inFlight = undefined;
+    if (!inFlight?.fiber) {
+      return Effect.succeed(false);
+    }
+
+    store.fibers.delete(inFlight.fiber);
+    return Fiber.interrupt(inFlight.fiber).pipe(Effect.as(true));
   });
 
 const scheduleGcEffect = <I, A, E, R>(
@@ -974,22 +1013,31 @@ export namespace Resource {
   ): Promise<A> => {
     const store = currentResourceStore();
     const entry = ref.family.entry(ref, store);
-    if (entry.promise) {
-      return entry.promise;
+    if (entry.inFlight?.promise) {
+      return entry.inFlight.promise;
     }
 
-    const promise = runPromise(Effect.provideService(effect, ResourceStore, store)).then(
-      (value) => {
-        entry.promise = undefined;
-        return value;
-      },
-      (error: E) => {
-        entry.promise = undefined;
-        throw error;
-      }
-    );
+    const token = {};
+    entry.inFlight = {
+      token,
+      fiber: undefined,
+      promise: undefined
+    };
 
-    entry.promise = promise;
+    const runtime = currentOrDefaultRuntime();
+    const fiber = runtime.runFork(
+      Effect.provideService(effect, ResourceStore, store).pipe(
+        Effect.ensuring(clearInFlightResource(entry, store, token))
+      ) as Effect.Effect<A, E, any>
+    );
+    const promise = runtime.runPromise(Fiber.join(fiber) as Effect.Effect<A, E, any>);
+
+    if (entry.inFlight?.token === token) {
+      entry.inFlight.fiber = fiber;
+      entry.inFlight.promise = promise;
+      store.fibers.add(fiber);
+    }
+
     return promise;
   };
 
@@ -1026,7 +1074,7 @@ export namespace Resource {
       if ("previous" in state) {
         return state.previous as A;
       }
-      throw entry.promise ?? refresh(ref);
+      throw entry.inFlight?.promise ?? refresh(ref);
     }
 
     if (state._tag === "Failure") {

@@ -134,6 +134,11 @@ Last evidence pass: May 14, 2026.
     source exports and type tests.
 - [x] Promise helpers are documented as UI/host adapters.
   - Evidence: `docs/effect-style.md` and `docs/architecture.md`.
+- [x] Resource public Promise helpers delegate to Effect fibers for in-flight
+  lifecycle tracking.
+  - Evidence: `packages/core/src/resource.ts` stores in-flight public
+    prefetch/refresh work as a `Fiber`; `packages/core/test/resource.test.ts`
+    covers dedupe and runtime-disposal interruption.
 - [x] Compile-time rejection rules have type tests.
   - Evidence: `type-tests/framework.test-d.ts` and `pnpm typecheck:types`.
 - [x] Runtime lifecycle guarantees have behavioral tests.
@@ -404,7 +409,7 @@ Last evidence pass: May 14, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Evidence: `pnpm verify` ran all package tests: 34 test files, 298 tests.
+  - Evidence: `pnpm verify` ran all package tests: 34 test files, 300 tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.
@@ -477,6 +482,21 @@ Last evidence pass: May 14, 2026.
     typecheck, 4 example test files / 23 tests, example build, and leak scan.
 - Remaining:
   - Richer teardown details if the next tests reveal missing facts.
+
+### Resource Fiber Slice
+
+- Completed:
+  - Replaced Resource public in-flight Promise bookkeeping with an Effect
+    `Fiber` record.
+  - Runtime disposal, hydration, and resource deletion now interrupt tracked
+    public prefetch/refresh fibers.
+  - Added tests for public prefetch dedupe and runtime-disposal interruption.
+- Evidence:
+  - `pnpm exec vitest run packages/core/test/resource.test.ts` passed: 1 file,
+    24 tests.
+  - `pnpm typecheck` passed.
+  - `pnpm verify` passed: 34 package test files / 300 tests, example
+    typecheck, 4 example test files / 23 tests, example build, and leak scan.
 
 ## Final Handoff
 

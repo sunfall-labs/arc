@@ -43,6 +43,11 @@ Effect-native interruption.
   - Replaced repeated-reference `WeakSet` tracking with active-path tracking.
     The implementation now permits shared acyclic references and reports true
     cycles with a typed error that carries both paths.
+- `packages/core/src/resource.ts`
+  - Replaced Promise `.then(...)` in public Resource in-flight dedupe with an
+    Effect fiber record.
+  - Runtime disposal, hydration, and resource deletion now interrupt tracked
+    public prefetch/refresh fibers instead of only clearing a Promise handle.
 
 ## Remaining Promise Sites To Review
 
@@ -51,9 +56,6 @@ Effect-native interruption.
     action concurrency state. Review whether the internal state machine can
     track `Fiber` plus Effect state more directly while keeping `submit(...)` as
     a convenience API.
-- `packages/core/src/resource.ts`
-  - Uses a Promise to dedupe in-flight resource loads. Review whether the cache
-    should hold `Fiber` or an Effect-native deferred primitive instead.
 - `packages/solid/src/index.ts`
   - Uses Promises at Solid/browser boundaries for preload, suspense throws, and
     ignored background prefetches. Keep only where Solid expects a Promise.
@@ -77,3 +79,9 @@ Effect-native interruption.
 - `pnpm verify` passed after the typed-error sweep: package build, workspace
   typecheck, type tests, 34 package test files / 298 tests, example typecheck,
   4 example test files / 23 tests, example build, and leak scan.
+- `pnpm exec vitest run packages/core/test/resource.test.ts` passed after the
+  Resource in-flight fiber sweep: 1 file, 24 tests.
+- `pnpm typecheck` passed after the Resource in-flight fiber sweep.
+- `pnpm verify` passed after the Resource in-flight fiber sweep: package build,
+  workspace typecheck, type tests, 34 package test files / 300 tests, example
+  typecheck, 4 example test files / 23 tests, example build, and leak scan.

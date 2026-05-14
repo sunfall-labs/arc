@@ -19,6 +19,9 @@ or command result that proves it.
 - Package-source raw validation throws were replaced with typed errors carrying
   repair guidance.
 - Full verification is green after the typed-error sweep.
+- Core Resource public in-flight dedupe is now fiber-backed and participates in
+  runtime disposal.
+- Full verification is green after the Resource fiber sweep.
 - The current operating window is recorded as work until 8:00 AM
   America/Denver on May 14, 2026, with Effect-first implementation as a standing
   requirement.
@@ -44,11 +47,13 @@ or command result that proves it.
 | 13 | Effect-backed no-op Promise helpers | `packages/db/src/index.ts`; `packages/solid/src/index.ts`; `docs/effect-first-audit.md` | Replaced remaining `Promise.resolve(...)` source helpers with `runPromise(...Effect)` / `runtime.runPromise(Effect.void)`. | Run full verify after next source sweep. |
 | 14 | Typed error and repair-guidance audit | `docs/error-message-audit.md`; `packages/core/src/stable-stringify.ts`; `packages/db/src/server-collection.ts`; `packages/db/src/sqlite-persistence.ts`; `packages/devtools/src/index.ts`; `packages/start/src/hydration.ts` | Removed package-source raw `Error`/`TypeError` throws and added owned typed errors with repair guidance plus focused tests. | Continue the Effect-first Promise-internals audit. |
 | 15 | Full verification after typed-error sweep | `pnpm verify` | Package build, workspace typecheck, type tests, 34 package test files / 298 tests, example typecheck, 4 example test files / 23 tests, example build, and leak scan passed. | Commit the verified slice and keep iterating. |
+| 16 | Resource in-flight Effect fiber sweep | `packages/core/src/resource.ts`; `packages/core/test/resource.test.ts`; `docs/effect-first-audit.md` | Public Resource prefetch/refresh dedupe now tracks a `Fiber` and runtime disposal interrupts in-flight public loads. Focused Resource tests and `pnpm typecheck` passed. | Keep verifying as the next Effect-first slice lands. |
+| 17 | Full verification after Resource fiber sweep | `pnpm verify` | Package build, workspace typecheck, type tests, 34 package test files / 300 tests, example typecheck, 4 example test files / 23 tests, example build, and leak scan passed. | Commit the verified slice and keep iterating. |
 
 ## Thirty-Sweep Gate
 
 The final goal requires 30 full code sweeps without finding more improvements.
-This ledger currently records 15 sweeps. The remaining 15 should cover:
+This ledger currently records 17 sweeps. The remaining 13 should cover:
 
 - Richer Start request trace teardown facts beyond the current runtime-disposed
   marker.
