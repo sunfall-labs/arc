@@ -88,6 +88,11 @@ interface Project {
   readonly name: string;
 }
 
+declare const promisedProject: Promise<Project>;
+declare const promisedProjects: Promise<ReadonlyArray<Project>>;
+declare const promisedString: Promise<string>;
+declare const promisedVoid: Promise<void>;
+
 type ProjectError = {
   readonly _tag: "ProjectError";
   readonly message: string;
@@ -226,7 +231,7 @@ Server.implement(GetProject, ({ id }) => Effect.succeed({ id, name: "Server Proj
 Server.implement(GetProject, ({ id }) => ({ id }));
 
 // @ts-expect-error server implementations must return Effect or a pure value, not Promise
-Server.implement(GetProject, async ({ id }) => ({ id, name: "Server Project" }));
+Server.implement(GetProject, () => promisedProject);
 
 const ProjectTag = Resource.tag<{ readonly id: string }>("Project", {
   key: ({ id }) => id
@@ -254,7 +259,7 @@ Resource.prefetchEffect(ProjectById("atlas"));
 Resource.family<string, Project>({
   name: "Project.asyncResource",
   // @ts-expect-error resource loaders must return Effect or a pure value, not Promise
-  load: async (id) => ({ id, name: "Async" })
+  load: () => promisedProject
 });
 
 const BrandedProjectById = Resource.family<ProjectId, Project, ProjectError>({
@@ -605,11 +610,11 @@ createRequestHandler(StartApp, {
 });
 createRequestHandler(StartApp, {
   // @ts-expect-error Start render callbacks must return Effect or a pure value, not Promise
-  render: async () => ""
+  render: () => promisedString
 });
 createRequestHandler(StartApp, {
   // @ts-expect-error request trace handlers must return Effect or a pure value, not Promise
-  onRequestTrace: async () => {}
+  onRequestTrace: () => promisedVoid
 });
 declare const startResponsePromise: Promise<Response>;
 const startRequestHandler: StartRequestHandler = () => startResponsePromise;
@@ -697,7 +702,7 @@ Collection.define<Project>({
   name: "Projects.asyncCollection",
   getKey: (project) => project.id,
   // @ts-expect-error collection loaders must return Effect or a pure value, not Promise
-  load: async () => [{ id: "atlas", name: "Atlas" }]
+  load: () => promisedProjects
 });
 
 const ProjectNames = Query.live((query) =>
@@ -875,7 +880,7 @@ ProjectApi.useEffect(() => ({ id: "atlas", name: "Pure Project" }));
 ProjectApi.use((api) => api.rename({ id: "atlas" }));
 
 // @ts-expect-error capability callbacks must return Effect or a pure value, not Promise
-ProjectApi.useEffect(async (api) => ({ id: "atlas", name: "Async Project" }));
+ProjectApi.useEffect(() => promisedProject);
 
 Resource.family<string, Project>({
   name: "Project.bad",
@@ -883,14 +888,14 @@ Resource.family<string, Project>({
   load: (id) => ({ id })
 });
 
-route("/async-preload", {
+route("/promise-preload", {
   // @ts-expect-error route preload must return Effect or a pure value, not Promise
-  preload: async () => undefined
+  preload: () => promisedVoid
 });
 
-defineFileRoute("/async-file-preload")({
+defineFileRoute("/promise-file-preload")({
   // @ts-expect-error file route preload must return Effect or a pure value, not Promise
-  preload: async () => undefined
+  preload: () => promisedVoid
 });
 
 const TouchProject = Action.define<{ readonly id: string }, Project>({
@@ -1062,7 +1067,7 @@ Action.define<{ readonly id: string }, Project>({
 Action.define<{ readonly id: string }, Project>({
   name: "Project.asyncAction",
   // @ts-expect-error actions must return Effect or a pure value, not Promise
-  run: async ({ id }) => ({ id, name: "Touched" })
+  run: () => promisedProject
 });
 
 Action.define<{ readonly id: string }, Project>({
@@ -1100,7 +1105,7 @@ Form.make({
   schema: ProjectFormSchema,
   initial: { id: "atlas", name: "Atlas Billing", spend: 1200 },
   // @ts-expect-error form validation must return Effect or a pure value, not Promise
-  validate: async () => undefined
+  validate: () => promisedVoid
 });
 
 projectForm.setField("name", "Atlas Revenue");

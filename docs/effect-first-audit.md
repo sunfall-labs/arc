@@ -186,6 +186,9 @@ Effect-native interruption.
   - Replaced type-test Promise method syntax with declared Promise values so
     compile-time host-boundary assertions no longer look like runtime Promise
     choreography.
+  - Replaced type-test `async` negative cases with declared Promise values, so
+    the type suite still rejects Promise-returning framework callbacks without
+    embedding async callback syntax.
   - Remaining `new Promise(...)` sites are confined to Node server/listener and
     timer host-boundary helpers in adapter tests.
 
@@ -421,6 +424,15 @@ Effect-native interruption.
   and `pnpm typecheck:types` passed after replacing direct `Scope.makeUnsafe`
   usage with `Scope.make(...)` run through Effect.
 - Full `pnpm verify` passed after the `UiScope` creation primitive cleanup: 9
+  package builds, workspace typecheck, type tests, 38 root test files / 320
+  tests, devtools-panel verify, devtools-extension verify with 1 extension test
+  file / 6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.
+- `pnpm typecheck:types` passed after replacing type-test `async` negative
+  cases with declared Promise values. The async/Promise-method grep over
+  package source, scripts, and type tests now reports no hits.
+- Full `pnpm verify` passed after the type-test async callback cleanup: 9
   package builds, workspace typecheck, type tests, 38 root test files / 320
   tests, devtools-panel verify, devtools-extension verify with 1 extension test
   file / 6 tests, basic starter verify, project-console starter packaging,

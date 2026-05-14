@@ -169,6 +169,10 @@ Latest full gate on May 14, 2026:
   Effect rather than calling `Scope.makeUnsafe(...)` directly.
 - The latest `pnpm verify` passed after the `UiScope` creation primitive
   cleanup.
+- Public type tests now use declared Promise values instead of `async`
+  callbacks for negative Promise-return checks, keeping type coverage without
+  Promise-shaped callback examples.
+- The latest `pnpm verify` passed after the type-test async callback cleanup.
 
 ## Notable Limits
 
