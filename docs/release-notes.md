@@ -232,6 +232,11 @@ Latest full gate on May 14, 2026:
   `Effect.promise(...)`.
 - The latest `pnpm verify` passed after the core ActionResult async test
   cleanup.
+- Core route/server tests now return Effect programs instead of async wrappers
+  or Promise matcher assertions, while keeping public route/server/Response
+  Promise APIs under test behind `Effect.promise(...)`.
+- The latest `pnpm verify` passed after the core route/server async test
+  cleanup.
 
 ## Notable Limits
 

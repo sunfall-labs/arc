@@ -1,4 +1,4 @@
-import { Effect, Schema } from "effect";
+import { Effect, Exit, Schema } from "effect";
 import { describe, expect, expectTypeOf, it } from "vitest";
 import { defineApp, read, RequestContext, Resource, ResponseContext, route, Route, Server } from "../src/index.js";
 
@@ -58,7 +58,7 @@ describe("route", () => {
     expect(match?.href).toBe("/projects/atlas?tab=activity");
   });
 
-  it("runs route preload as an Effect", async () => {
+  it("runs route preload as an Effect", () => {
     let preloaded = "";
     const ProjectRoute = route("/projects/:id", {
       preload: ({ params }) =>
@@ -69,11 +69,15 @@ describe("route", () => {
     const match = ProjectRoute.match("/projects/atlas");
 
     expect(match).toBeDefined();
-    await Route.preload(match!);
-    expect(preloaded).toBe("atlas");
+    return Effect.runPromise(
+      Effect.promise(() => Route.preload(match!)).pipe(
+        Effect.tap(() => Effect.sync(() => expect(preloaded).toBe("atlas"))),
+        Effect.asVoid
+      )
+    );
   });
 
-  it("plans route preload resources and hydration payloads", async () => {
+  it("plans route preload resources and hydration payloads", () => {
     const Project = Resource.family({
       name: "Route.Project.plan",
       load: (id: string) => Effect.succeed({ id, name: "Atlas" })
@@ -82,20 +86,27 @@ describe("route", () => {
       preload: ({ params }) => Resource.prefetchEffect(Project(params.id))
     });
 
-    const plan = await Route.planNavigation([ProjectRoute] as const, "/projects/atlas");
-
-    expect(plan._tag).toBe("Matched");
-    expect(plan.match?.params.id).toBe("atlas");
-    expect(plan.refs.map((ref) => ref.key)).toEqual([Project("atlas").key]);
-    expect(plan.resources.resources[0]).toMatchObject({
-      name: "Route.Project.plan",
-      input: "atlas",
-      state: {
-        _tag: "Success",
-        value: { id: "atlas", name: "Atlas" }
-      }
-    });
-    expect(read(Project("atlas"))).toEqual({ id: "atlas", name: "Atlas" });
+    return Effect.runPromise(
+      Effect.promise(() => Route.planNavigation([ProjectRoute] as const, "/projects/atlas")).pipe(
+        Effect.tap((plan) =>
+          Effect.sync(() => {
+            expect(plan._tag).toBe("Matched");
+            expect(plan.match?.params.id).toBe("atlas");
+            expect(plan.refs.map((ref) => ref.key)).toEqual([Project("atlas").key]);
+            expect(plan.resources.resources[0]).toMatchObject({
+              name: "Route.Project.plan",
+              input: "atlas",
+              state: {
+                _tag: "Success",
+                value: { id: "atlas", name: "Atlas" }
+              }
+            });
+            expect(read(Project("atlas"))).toEqual({ id: "atlas", name: "Atlas" });
+          })
+        ),
+        Effect.asVoid
+      )
+    );
   });
 
   it("describes declared route preload resource families without executing preload", () => {
@@ -161,68 +172,101 @@ describe("route", () => {
     expect(ran).toBe(false);
   });
 
-  it("plans not found routes without running preload", async () => {
+  it("plans not found routes without running preload", () => {
     const Home = route("/", {});
 
-    const plan = await Route.planNavigation([Home] as const, "/missing");
-
-    expect(plan).toEqual({
-      _tag: "NotFound",
-      href: "/missing",
-      match: undefined,
-      refs: [],
-      resources: { resources: [] }
-    });
+    return Effect.runPromise(
+      Effect.promise(() => Route.planNavigation([Home] as const, "/missing")).pipe(
+        Effect.tap((plan) =>
+          Effect.sync(() =>
+            expect(plan).toEqual({
+              _tag: "NotFound",
+              href: "/missing",
+              match: undefined,
+              refs: [],
+              resources: { resources: [] }
+            })
+          )
+        ),
+        Effect.asVoid
+      )
+    );
   });
 });
 
 describe("Server", () => {
-  it("runs Effect-backed server functions", async () => {
+  it("runs Effect-backed server functions", () => {
     const getNumber = Server.fn("Number.get", {
       handler: (_input: void) => Effect.succeed(42)
     });
 
-    await expect(getNumber()).resolves.toBe(42);
-    await expect(Effect.runPromise(getNumber.effect())).resolves.toBe(42);
-    expect(Server.manifest([getNumber])).toEqual([
-      {
-        name: "Number.get",
-        inputSchema: false,
-        outputSchema: false,
-        errorSchema: false
-      }
-    ]);
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const promiseValue = yield* Effect.promise(() => getNumber());
+        const effectValue = yield* getNumber.effect();
+
+        yield* Effect.sync(() => {
+          expect(promiseValue).toBe(42);
+          expect(effectValue).toBe(42);
+          expect(Server.manifest([getNumber])).toEqual([
+            {
+              name: "Number.get",
+              inputSchema: false,
+              outputSchema: false,
+              errorSchema: false
+            }
+          ]);
+        });
+      })
+    );
   });
 
-  it("invokes schema-backed server functions across the wire", async () => {
+  it("invokes schema-backed server functions across the wire", () => {
     const echo = Server.fn("Echo", {
       input: Schema.Struct({ value: Schema.String }),
       output: Schema.Struct({ value: Schema.String }),
       handler: ({ value }) => Effect.succeed({ value: value.toUpperCase() })
     });
 
-    await expect(Effect.runPromise(echo.invoke({ value: "ada" }))).resolves.toEqual({
-      value: "ADA"
-    });
-    await expect(Effect.runPromise(echo.invoke({ value: 1 }))).rejects.toBeDefined();
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const success = yield* echo.invoke({ value: "ada" });
+        const invalid = yield* Effect.exit(echo.invoke({ value: 1 }));
+
+        yield* Effect.sync(() => {
+          expect(success).toEqual({ value: "ADA" });
+          expect(Exit.isFailure(invalid)).toBe(true);
+        });
+      })
+    );
   });
 
-  it("provides request context to server routes", async () => {
+  it("provides request context to server routes", () => {
     const serverRoute = Server.route("GET", "/hello", () =>
       RequestContext.use(({ url }) => Effect.succeed(new Response(url.pathname)))
     );
 
-    const response = await Server.handleRoute(serverRoute, new Request("https://example.com/hello"));
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const response = yield* Effect.promise(() =>
+          Server.handleRoute(serverRoute, new Request("https://example.com/hello"))
+        );
+        const responseText = yield* Effect.promise(() => response.text());
+        const effectResponse = yield* Server.handleRouteEffect(
+          serverRoute,
+          new Request("https://example.com/effect")
+        );
+        const effectResponseText = yield* Effect.promise(() => effectResponse.text());
 
-    await expect(response.text()).resolves.toBe("/hello");
-
-    const effectResponse = await Effect.runPromise(
-      Server.handleRouteEffect(serverRoute, new Request("https://example.com/effect"))
+        yield* Effect.sync(() => {
+          expect(responseText).toBe("/hello");
+          expect(effectResponseText).toBe("/effect");
+        });
+      })
     );
-    await expect(effectResponse.text()).resolves.toBe("/effect");
   });
 
-  it("applies response context mutations from server routes", async () => {
+  it("applies response context mutations from server routes", () => {
     const serverRoute = Server.route("GET", "/login", () =>
       ResponseContext.use((response) =>
         Effect.gen(function* () {
@@ -238,14 +282,23 @@ describe("Server", () => {
       )
     );
 
-    const response = await Server.handleRoute(serverRoute, new Request("https://example.com/login"));
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const response = yield* Effect.promise(() =>
+          Server.handleRoute(serverRoute, new Request("https://example.com/login"))
+        );
+        const body = yield* Effect.promise(() => response.text());
 
-    expect(response.status).toBe(202);
-    expect(response.statusText).toBe("Accepted");
-    expect(response.headers.get("x-effect-ui-route")).toBe("response-context");
-    expect(response.headers.getSetCookie()).toEqual([
-      "session=abc123; Path=/; HttpOnly; SameSite=Lax"
-    ]);
-    await expect(response.text()).resolves.toBe("ok");
+        yield* Effect.sync(() => {
+          expect(response.status).toBe(202);
+          expect(response.statusText).toBe("Accepted");
+          expect(response.headers.get("x-effect-ui-route")).toBe("response-context");
+          expect(response.headers.getSetCookie()).toEqual([
+            "session=abc123; Path=/; HttpOnly; SameSite=Lax"
+          ]);
+          expect(body).toBe("ok");
+        });
+      })
+    );
   });
 });
