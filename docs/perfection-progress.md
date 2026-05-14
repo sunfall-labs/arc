@@ -42,8 +42,8 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest full verification gate is green after the test unknown-cast
-  cleanup: 38 root test files / 320 tests plus devtools panel, devtools
+- The latest full verification gate is green after the DB query root builder
+  cast cleanup: 38 root test files / 320 tests plus devtools panel, devtools
   extension, starter, rich starter packaging, project-console build, and
   leak-scan gates.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
@@ -69,6 +69,8 @@ or command result that proves it.
   assertions instead of `as unknown as` casts, and Start Cause helpers use
   public `cause.reasons`; the broad sharp-cast grep now reports only
   package-source seams.
+- DB `QueryRoot.from(...)` now constructs a typed `QueryBuilder` directly
+  instead of casting the root builder through `never`.
 - `@effect-ui/devtools` now exposes scoped app-side bridge helpers so apps can
   install and clean up that global payload provider through Effect.
 - Workspace package manifests now carry `UNLICENSED` metadata while they remain
@@ -196,6 +198,8 @@ or command result that proves it.
 | 112 | Full verification after Start Vite plugin return type tightening | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after adding `EffectUiStartPlugin`: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 | 113 | Test unknown-cast cleanup | `packages/devtools/test/devtools.test.ts`; `packages/db/test/server-collection.test.ts`; `packages/core/test/form.test.ts`; `packages/core/test/server.test.ts`; `packages/start/test/start.test.ts`; `docs/sharp-cast-audit.md`; `docs/perfection-progress.md` | Replaced negative runtime-validation `as unknown as` test casts with explicit `@ts-expect-error` assertions, and replaced the legacy Start Effect Cause shape fallback casts with public `cause.reasons` access. The broad sharp-cast grep now reports only package-source seams. `pnpm typecheck`, focused negative-runtime tests, Start package typecheck, and the full Start test file passed. | Run full verification before committing this test sharp-edge cleanup. |
 | 114 | Full verification after test unknown-cast cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after removing test-only unknown casts: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
+| 115 | DB query root builder cast cleanup | `packages/db/src/index.ts`; `docs/sharp-cast-audit.md`; `docs/perfection-progress.md` | `QueryRoot.from(...)` now instantiates `QueryBuilder<QueryContext<Sources>, QueryContext<Sources>>` directly instead of casting the builder through `never`. DB package typecheck, public type tests, and focused DB collection/live-query tests passed: 2 files / 35 tests. | Run full verification before committing this DB cast cleanup. |
+| 116 | Full verification after DB query root builder cast cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after removing the `QueryRoot.from(...)` builder `as never` cast: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 
 ## Thirty-Sweep Gate
 

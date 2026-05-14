@@ -43,6 +43,9 @@ and DB query-builder cleanup sweeps.
 - The DB default projector cast remains because an unprojected query returns
   the current context shape, while `QueryBuilder` also supports selected result
   shapes through the same class.
+- The DB `QueryRoot.from(...)` constructor now instantiates `QueryBuilder` with
+  the intended context/result types directly instead of casting the builder
+  through `never`.
 - Test-only `as unknown as` and `as never` casts have been removed; the broad
   sharp-cast grep now reports only package-source type-id, runtime
   service-erasure, capability inference, and DB query context-variance seams.
@@ -148,6 +151,16 @@ and DB query-builder cleanup sweeps.
   6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
+- `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck:types`, and
+  `pnpm exec vitest run packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
+  passed after removing the `QueryRoot.from(...)` builder `as never` cast: 2
+  files, 35 tests.
+- `pnpm verify` passed after removing the `QueryRoot.from(...)` builder
+  `as never` cast: 9 package builds, workspace typecheck, type tests, 38 root
+  test files / 320 tests, devtools-panel verify, devtools-extension verify with
+  1 extension test file / 6 tests, basic starter verify, project-console starter
+  packaging, project-console typecheck, 4 project-console test files / 23
+  tests, project-console build, and leak scan.
 
 ## Follow-Up
 

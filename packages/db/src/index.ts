@@ -2005,9 +2005,11 @@ export interface LiveQuery<T, E = unknown, R = never> {
 }
 
 const queryRoot: QueryRoot = {
-  from: (sources) => new QueryBuilder(
+  from: <const Sources extends SourceRecord>(
+    sources: Sources
+  ): QueryBuilder<QueryContext<Sources>, QueryContext<Sources>> => new QueryBuilder<QueryContext<Sources>, QueryContext<Sources>>(
     Object.entries(sources) as ReadonlyArray<readonly [string, AnyCollection]>
-  ) as never
+  )
 };
 
 const buildContexts = <TContext extends Record<string, any>>(

@@ -79,6 +79,8 @@ Latest full gate on May 14, 2026:
 - Test sources no longer use unknown-to-contract casts; negative
   runtime-validation tests use explicit `@ts-expect-error` assertions, and Start
   Cause helpers use public `cause.reasons` access.
+- DB `QueryRoot.from(...)` now constructs its typed `QueryBuilder` directly
+  instead of casting the builder through `never`.
 
 ## Notable Limits
 
