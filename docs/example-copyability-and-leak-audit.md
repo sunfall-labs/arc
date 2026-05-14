@@ -22,6 +22,11 @@ starter and whether browser/server boundaries remain explicit.
   `StartAction.submitEffect`, and advance uses `Action.submitEffect`.
 - Added `examples/basic-starter` as the minimal copyable app shell with SSR,
   hydration, a route-owned Resource preload, and its own server-only leak scan.
+- Added `scripts/package-project-console-starter.mjs`, an Effect-backed
+  generator for `.test-dist/starters/project-console`. The generated rich
+  starter rewrites workspace protocol dependencies, removes monorepo Vite
+  aliases, writes a standalone `tsconfig.json`, and verifies the expected
+  starter payload.
 
 ## Verification Evidence
 
@@ -37,11 +42,13 @@ starter and whether browser/server boundaries remain explicit.
   moving UI event handlers onto Effect-native APIs.
 - `pnpm starter:verify` passed for `@effect-ui/starter-basic`: typecheck, 1
   starter test, production build, and leak scan.
+- `pnpm starter:project-console:package` passed and verified 17 required
+  project-console starter files.
 
 ## Follow-Up
 
-- Replace workspace dependency notes with exact published package versions when
-  the first npm release candidate exists.
+- Replace the generated rich starter's pre-release package placeholders with
+  exact published package versions when the first npm release candidate exists.
 - If additional `.server.ts` modules are added, extend the leak scan with
   module-specific sentinel strings that prove private server data stayed out of
   the browser bundle.

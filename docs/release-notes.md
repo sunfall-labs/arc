@@ -18,8 +18,9 @@ yet.
   seams, mutation queues, and flush policies.
 - Solid adapters: runtime provider, router, Resource hooks, Action hooks,
   stream hooks, and collection hooks.
-- Starter paths: `examples/basic-starter` for the smallest full-stack shell and
-  `examples/project-console` for the golden-path app.
+- Starter paths: `examples/basic-starter` for the smallest full-stack shell,
+  `examples/project-console` for the golden-path app, and
+  `pnpm starter:project-console:package` for a generated rich starter payload.
 
 ## Experimental Or Expert-Public
 
@@ -44,18 +45,21 @@ Latest full gate on May 14, 2026:
 - 37 root test files / 311 tests;
 - devtools panel verify;
 - basic starter verify;
+- project console starter packaging;
 - project console typecheck;
 - 4 project console test files / 23 tests;
 - project console production build;
 - project console server-only leak scan.
 - `pnpm benchmark` refreshed the SSR, route preload, Resource, live query, and
   RPC transport baselines.
+- The latest `pnpm verify` includes the rich project-console starter packaging
+  gate.
 
 ## Notable Limits
 
 - Packages are still private and versioned `0.0.0-alpha.0`.
 - No browser extension package exists for devtools yet.
-- The project console is still an example app, not a packaged rich starter
-  template.
+- The generated rich starter still uses pre-release `0.0.0-alpha.0`
+  `@effect-ui/*` package placeholders until package publication is finalized.
 - Cloudflare, Vercel, Netlify, Bun, and static deployment currently use recipes
   over Node/fetch facades rather than dedicated packages.

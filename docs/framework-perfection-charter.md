@@ -175,6 +175,9 @@ Goal: prove that a user can copy the framework's intended path.
 - Turn the project console into the canonical starter-quality example.
 - Add a minimal starter or starter recipe.
   - Evidence: `examples/basic-starter` and `docs/starter.md`.
+- Add a richer starter package path for the project console.
+  - Evidence: `scripts/package-project-console-starter.mjs` and
+    `pnpm starter:project-console:package`.
 - Add deployment docs for Node/fetch hosts currently supported.
   - Evidence: `docs/deployment.md`.
 - Add host-specific package facades for the currently tested Node/fetch
@@ -239,7 +242,8 @@ the audit finds them.
     shuts down event channels even when module finalizers fail.
 - [x] Example app copyability audit.
   - Evidence: `docs/example-copyability-and-leak-audit.md`; the example now has
-    local test/build/leak-scan/verify scripts plus copy guidance.
+    local test/build/leak-scan/verify scripts, copy guidance, and checked rich
+    starter packaging.
 - [x] Package export and dependency hygiene audit.
   - Evidence: `docs/package-hygiene-audit.md`; `@effect-ui/start` now declares
     its direct `effect` dependency.

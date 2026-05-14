@@ -27,3 +27,14 @@ The starter includes:
 Use the project console when you need the larger golden path with forms,
 actions, local-first collections, mocks, and diagnostics. Use the basic starter
 when you need the smallest copyable app shell.
+
+Package the richer project-console starter:
+
+```sh
+pnpm starter:project-console:package
+```
+
+That command writes `.test-dist/starters/project-console` from
+`examples/project-console`, rewrites workspace protocol dependencies to the
+current pre-release package version, removes monorepo Vite aliases, writes a
+standalone `tsconfig.json`, and verifies the required starter files are present.

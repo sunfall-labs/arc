@@ -18,7 +18,8 @@ surface, examples, diagnostics, and release gates are being hardened.
   models, a browser-embeddable panel renderer, and a checked panel app shell.
 - Deterministic Start manifests and build diagnostics with repair guidance.
 - A copyable project console example and a minimal starter with SSR,
-  hydration, route-owned Resource preload, and server-only leak scans.
+  hydration, route-owned Resource preload, checked rich-starter packaging, and
+  server-only leak scans.
 
 ## Start Here
 
@@ -56,6 +57,7 @@ pnpm test
 pnpm benchmark
 pnpm devtools-panel:verify
 pnpm starter:verify
+pnpm starter:project-console:package
 pnpm example:typecheck
 pnpm example:test
 pnpm example:build

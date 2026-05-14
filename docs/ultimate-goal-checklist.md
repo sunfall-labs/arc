@@ -415,8 +415,10 @@ Last evidence pass: May 14, 2026.
 - [x] Examples in docs are copyable or clearly illustrative.
   - Evidence: docs use APIs covered by `type-tests/framework.test-d.ts` and
     package tests; `examples/project-console/README.md` now records the
-    copyable example path and monorepo-only alias caveat; `docs/starter.md`
-    points to `examples/basic-starter` as the minimal checked starter.
+    copyable example path, monorepo-only alias caveat, and checked rich-starter
+    packaging command; `docs/starter.md` points to `examples/basic-starter` as
+    the minimal checked starter and documents the generated project-console
+    starter payload.
 - [x] New architectural decisions are recorded in docs or ADRs.
   - Evidence: no new architecture decision was introduced in this pass; existing
     decisions remain in docs. No ADR needed.
@@ -430,7 +432,8 @@ Last evidence pass: May 14, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Evidence: `pnpm verify` ran all package tests: 35 test files, 302 tests.
+  - Evidence: `pnpm verify` ran all root package tests: 37 test files, 311
+    tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.
@@ -442,6 +445,9 @@ Last evidence pass: May 14, 2026.
 - [x] Example leak scan passes.
   - Evidence: example-local `pnpm leak-scan` returned no matches for
     server-only seed data or server module sentinels.
+- [x] Rich project-console starter packaging passes.
+  - Evidence: `pnpm starter:project-console:package` completed inside
+    `pnpm verify` and verified 17 required starter files.
 - [x] `pnpm verify` passes from the repo root.
   - Evidence: approved rerun completed successfully. The first sandboxed run
     reached tests and failed only because local `127.0.0.1` listener binding was
@@ -550,10 +556,9 @@ Last evidence pass: May 14, 2026.
 - [x] Completed checklist items have evidence notes.
   - Evidence: every checked item above has path/test/command evidence.
 - [x] Remaining unchecked competitive-bar items listed.
-  - Evidence: richer starter packaging, platform-specific deployment packages
-    beyond generic Node/fetch, and optional devtools browser extension
-    packaging remain future production-readiness items from
-    `docs/winning-spec.md`.
+  - Evidence: platform-specific deployment packages beyond generic Node/fetch
+    and optional devtools browser extension packaging remain future
+    production-readiness items from `docs/winning-spec.md`.
 - [x] Remaining unchecked winning-bar items listed.
   - Evidence: next section.
 - [x] Next recommended workstreams listed.
@@ -561,10 +566,12 @@ Last evidence pass: May 14, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026 after the facade
-    runtime test slice: 9 package builds, workspace typecheck, type tests, 37
-    root test files / 311 tests, devtools-panel verify, starter verify, example
-    typecheck, 4 example test files / 23 tests, example build, and leak scan.
+  - Evidence: root `pnpm verify` passed on May 14, 2026 after the rich
+    project-console starter packaging slice: 9 package builds, workspace
+    typecheck, type tests, 37 root test files / 311 tests, devtools-panel
+    verify, basic starter verify, project-console starter packaging,
+    project-console typecheck, 4 project-console test files / 23 tests,
+    project-console build, and leak scan.
 
 ## Remaining Winning-Bar Items
 
@@ -577,15 +584,20 @@ Last evidence pass: May 14, 2026.
     and `pnpm devtools-panel:verify` passed.
 - [ ] Package the devtools panel as a browser extension if productizing beyond
   the checked app-shell example.
-- [ ] Add richer starter packaging and broader host-specific adapter packages
-  when the framework is ready for users outside this repo.
+- [x] Add richer starter packaging for the project console.
+  - Evidence: `scripts/package-project-console-starter.mjs` generates
+    `.test-dist/starters/project-console`, rewrites workspace protocol
+    dependencies to pre-release package placeholders, removes monorepo Vite
+    aliases, writes a standalone `tsconfig.json`, and verifies the starter
+    payload through `pnpm starter:project-console:package`.
+- [ ] Add broader host-specific adapter packages when real host behavior is
+  needed beyond the generic Node/fetch facades.
   - Evidence: current Node/fetch deployment guidance exists in
-    `docs/deployment.md`, and tested Node/fetch adapter facades exist as
-    `@effect-ui/start-node` and `@effect-ui/start-fetch`; the minimal checked
-    starter exists at `examples/basic-starter`; Cloudflare/Vercel Edge/Netlify
-    Edge/Bun/static recipes exist in `docs/deployment.md`, while a richer
-    project-console starter template and platform-specific packages with real
-    behavior beyond generic Node/fetch remain future work.
+    `docs/deployment.md`, tested Node/fetch adapter facades exist as
+    `@effect-ui/start-node` and `@effect-ui/start-fetch`, and
+    Cloudflare/Vercel Edge/Netlify Edge/Bun/static recipes exist in
+    `docs/deployment.md`; platform-specific packages with behavior beyond the
+    generic Node/fetch facades remain future work.
 - [x] Add benchmarks for SSR, route preload, resource cache behavior, DB live
   query behavior, and RPC/action transport.
   - Evidence: `benchmarks/framework-baseline.bench.ts` and
@@ -603,5 +615,5 @@ quality goal.
    request-fiber details uncovered by real panel usage.
 3. Add platform-specific adapter packages only where a host needs behavior
    beyond the generic Node/fetch facades and documented recipes.
-4. Package the project console as a richer starter template once the devtools
-   UI and platform-specific adapter package plan stabilizes.
+4. Keep the project-console starter packaging aligned with published package
+   versions once package publication is finalized.
