@@ -34,7 +34,8 @@
   },
   "dependencies": {
     "@effect-ui/core": "workspace:*",
-    "@effect-ui/db": "workspace:*"
+    "@effect-ui/db": "workspace:*",
+    "effect": "^4.0.0-beta.66"
   },
   "peerDependencies": {
     "vite": "*"

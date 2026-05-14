@@ -28,6 +28,9 @@ or command result that proves it.
 - Request traces now include richer teardown duration and Resource Store
   before/after disposal snapshots.
 - Full verification is green after the richer request teardown trace slice.
+- Package dependency hygiene audit is recorded; `@effect-ui/start` now declares
+  its direct `effect` dependency.
+- Full verification is green after the package hygiene change.
 - The current operating window is recorded as work until 8:00 AM
   America/Denver on May 14, 2026, with Effect-first implementation as a standing
   requirement.
@@ -59,11 +62,13 @@ or command result that proves it.
 | 19 | Full verification after Promise-method cleanup | `pnpm verify` | Package build, workspace typecheck, type tests, 34 package test files / 300 tests, example typecheck, 4 example test files / 23 tests, example build, and leak scan passed. | Commit the verified slice and keep iterating. |
 | 20 | Rich request teardown trace facts | `packages/start/src/index.ts`; `packages/devtools/src/index.ts`; `packages/start/test/start.test.ts`; `packages/devtools/test/devtools.test.ts` | Request traces now record start/completion timestamps, duration, and before/after Resource Store teardown snapshots; focused Start/devtools tests, typecheck, and type tests passed. | Run full verify before committing this slice. |
 | 21 | Full verification after request teardown trace facts | `pnpm verify` | Package build, workspace typecheck, type tests, 34 package test files / 300 tests, example typecheck, 4 example test files / 23 tests, example build, and leak scan passed. | Commit the verified slice and keep iterating. |
+| 22 | Package dependency hygiene audit | `docs/package-hygiene-audit.md`; `packages/start/package.json`; `pnpm-lock.yaml` | Manifest/import sweep found and fixed the missing direct `effect` dependency in `@effect-ui/start`; lockfile-only install plus Start build/typecheck passed. | Keep this audit current as new dependencies land. |
+| 23 | Full verification after package hygiene | `pnpm verify` | Package build, workspace typecheck, type tests, 34 package test files / 300 tests, example typecheck, 4 example test files / 23 tests, example build, and leak scan passed. | Commit the verified slice and keep iterating. |
 
 ## Thirty-Sweep Gate
 
 The final goal requires 30 full code sweeps without finding more improvements.
-This ledger currently records 21 sweeps. The remaining 9 should cover:
+This ledger currently records 23 sweeps. The remaining 7 should cover:
 
 - Devtools UI/docs polish around the richer request trace teardown facts.
 - Promise-shaped internals that can be pushed down into Effect programs.
@@ -73,7 +78,7 @@ This ledger currently records 21 sweeps. The remaining 9 should cover:
 - Type-test coverage for compile-time rejection rules.
 - Runtime leak and teardown behavior under stress.
 - Example app copyability and starter extraction.
-- Package dependency and export hygiene.
+- Package publish metadata and export hygiene before npm publication.
 - Browser/server boundary leak checks beyond the existing example scan.
 - Benchmark baselines for SSR, preload, collections, live queries, and transport.
 

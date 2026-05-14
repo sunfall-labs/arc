@@ -220,7 +220,9 @@ the audit finds them.
 - [ ] Type-test coverage audit.
 - [ ] Runtime leak and teardown audit.
 - [ ] Example app copyability audit.
-- [ ] Package export and dependency hygiene audit.
+- [x] Package export and dependency hygiene audit.
+  - Evidence: `docs/package-hygiene-audit.md`; `@effect-ui/start` now declares
+    its direct `effect` dependency.
 - [ ] Browser/server leak audit beyond the current example scan.
 - [ ] Benchmark baseline audit.
 
