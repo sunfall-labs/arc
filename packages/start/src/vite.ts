@@ -589,50 +589,66 @@ const startAppGraphDiagnosticsFromModule = (
     : []
 });
 
-export const loadStartAppGraphDiagnostics = async (
+const loadStartAppGraphDiagnosticsRawEffect = (
   options: LoadStartAppGraphDiagnosticsOptions = {}
-): Promise<LoadedStartAppGraphDiagnostics> => {
-  const inlineConfig = options.vite ?? {};
-  const plugins = [
-    ...(inlineConfig.plugins ?? []),
-    ...(options.start === undefined ? [] : [effectUiStart(options.start)])
-  ];
-  const root = options.root ?? inlineConfig.root;
-  const configFile = options.configFile ?? inlineConfig.configFile;
-  const mode = options.mode ?? inlineConfig.mode;
-  const server = await createServer({
-    ...inlineConfig,
-    ...(root === undefined ? {} : { root }),
-    ...(configFile === undefined ? {} : { configFile }),
-    ...(mode === undefined ? {} : { mode }),
-    logLevel: inlineConfig.logLevel ?? "silent",
-    plugins,
-    server: {
-      ...inlineConfig.server,
-      middlewareMode: true,
-      hmr: false
-    }
+): Effect.Effect<LoadedStartAppGraphDiagnostics, unknown> =>
+  Effect.gen(function* () {
+    const inlineConfig = options.vite ?? {};
+    const plugins = [
+      ...(inlineConfig.plugins ?? []),
+      ...(options.start === undefined ? [] : [effectUiStart(options.start)])
+    ];
+    const root = options.root ?? inlineConfig.root;
+    const configFile = options.configFile ?? inlineConfig.configFile;
+    const mode = options.mode ?? inlineConfig.mode;
+    const server = yield* Effect.tryPromise({
+      try: () =>
+        createServer({
+          ...inlineConfig,
+          ...(root === undefined ? {} : { root }),
+          ...(configFile === undefined ? {} : { configFile }),
+          ...(mode === undefined ? {} : { mode }),
+          logLevel: inlineConfig.logLevel ?? "silent",
+          plugins,
+          server: {
+            ...inlineConfig.server,
+            middlewareMode: true,
+            hmr: false
+          }
+        }),
+      catch: (cause) => cause
+    });
+
+    return yield* Effect.tryPromise({
+      try: () => server.ssrLoadModule(appGraphVirtualModuleId),
+      catch: (cause) => cause
+    }).pipe(
+      Effect.map(startAppGraphDiagnosticsFromModule),
+      Effect.ensuring(
+        Effect.tryPromise({
+          try: () => server.close(),
+          catch: (cause) => cause
+        }).pipe(Effect.catch((cause) => Effect.die(cause)))
+      )
+    );
   });
 
-  try {
-    const module = await server.ssrLoadModule(appGraphVirtualModuleId);
-    return startAppGraphDiagnosticsFromModule(module);
-  } finally {
-    await server.close();
-  }
-};
+export const loadStartAppGraphDiagnostics = (
+  options: LoadStartAppGraphDiagnosticsOptions = {}
+): Promise<LoadedStartAppGraphDiagnostics> =>
+  runPromise(loadStartAppGraphDiagnosticsRawEffect(options));
 
 export const loadStartAppGraphDiagnosticsEffect = (
   options: LoadStartAppGraphDiagnosticsOptions = {}
 ): Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsRunnerError> =>
-  Effect.tryPromise({
-    try: () => loadStartAppGraphDiagnostics(options),
-    catch: (cause) =>
+  loadStartAppGraphDiagnosticsRawEffect(options).pipe(
+    Effect.mapError((cause) =>
       new StartAppGraphDiagnosticsRunnerError({
         message: "Could not load resolved Effect UI app graph diagnostics through Vite.",
         cause
       })
-  });
+    )
+  );
 
 export interface FileRouteDefinitionsFileWriteResult {
   readonly outputFile: string;

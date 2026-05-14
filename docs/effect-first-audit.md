@@ -68,6 +68,12 @@ Effect-native interruption.
     `runStartDiagnosticsCliEffect`.
   - The Promise-returning CLI helpers now only run that Effect program at the
     bin/host boundary.
+- `packages/start/src/vite.ts`
+  - Moved the app graph diagnostics loader's create-server/load-module/close
+    lifecycle into `loadStartAppGraphDiagnosticsRawEffect`.
+  - The Promise API now runs that Effect program, while
+    `loadStartAppGraphDiagnosticsEffect` maps failures into
+    `StartAppGraphDiagnosticsRunnerError`.
 
 ## Remaining Promise Sites To Review
 
@@ -135,3 +141,9 @@ Effect-native interruption.
   response stream pull/cancel lifecycle into Effect programs.
 - Full `pnpm verify` passed after moving response stream pull/cancel lifecycle
   into Effect programs.
+- `pnpm --filter @effect-ui/start typecheck`,
+  `pnpm exec vitest run packages/start/test/start.test.ts -t "diagnostics
+  through Vite"`, and `pnpm exec vitest run packages/start/test/start.test.ts`
+  passed after moving the Vite diagnostics loader lifecycle under Effect.
+- Full `pnpm verify` passed after moving the Vite diagnostics loader lifecycle
+  under Effect.

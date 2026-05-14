@@ -52,6 +52,7 @@ import {
   handleSsrDevRequestEffect,
   isServerOnlyModule,
   loadStartAppGraphDiagnostics,
+  loadStartAppGraphDiagnosticsEffect,
   makeStartBuildAppGraphEffect,
   resolveStartHandler,
   serializeStartActionManifest,
@@ -2445,28 +2446,30 @@ describe("Effect UI Start", () => {
         ].join("\n")
       );
 
-      const result = await loadStartAppGraphDiagnostics({
-        root,
-        configFile: false,
-        start: {
-          fileRoutes: ["src/routes/index.ts"],
-          fileRouteOptions: {
-            routeDirectory: "src/routes"
-          },
-          buildPolicy: {
-            wireSchemas: false,
-            diagnostics: {
-              routePreloadResources: {
-                requireDeclaredForPreload: true
-              },
-              routePreloadCollections: {
-                requireDeclaredForPreload: true
+      const result = await Effect.runPromise(
+        loadStartAppGraphDiagnosticsEffect({
+          root,
+          configFile: false,
+          start: {
+            fileRoutes: ["src/routes/index.ts"],
+            fileRouteOptions: {
+              routeDirectory: "src/routes"
+            },
+            buildPolicy: {
+              wireSchemas: false,
+              diagnostics: {
+                routePreloadResources: {
+                  requireDeclaredForPreload: true
+                },
+                routePreloadCollections: {
+                  requireDeclaredForPreload: true
+                }
               }
             }
-          }
-        },
-        vite: startDiagnosticsRunnerViteConfig()
-      });
+          },
+          vite: startDiagnosticsRunnerViteConfig()
+        })
+      );
 
       expect(result.diagnosticsPolicyViolations).toEqual([]);
       expect(result.diagnostics.routeModules).toEqual([
