@@ -584,3 +584,15 @@ Effect-native interruption.
   6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
+- `pnpm --filter @effect-ui/core typecheck` and
+  `pnpm exec vitest run packages/core/test/action-result.test.ts` passed after
+  converting ActionResult tests to returned Effect programs. Expected
+  success-channel exits are captured through `Effect.exit(...)`, and public
+  Action/Resource Promise boundaries under test stay behind
+  `Effect.promise(...)`.
+- Full `pnpm verify` passed after the core ActionResult async test cleanup: 9
+  package builds, workspace typecheck, type tests, 39 root test files / 321
+  tests, devtools-panel verify, devtools-extension verify with 1 extension test
+  file / 6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.

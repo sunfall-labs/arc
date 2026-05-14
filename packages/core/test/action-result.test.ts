@@ -12,7 +12,7 @@ describe("ActionResult", () => {
     name: Schema.String
   });
 
-  it("turns form validation into a typed success-channel result", async () => {
+  it("turns form validation into a typed success-channel result", () => {
     class ProjectNameTooShort extends Data.TaggedError("ProjectNameTooShort")<{
       readonly minimum: number;
     }> {}
@@ -26,19 +26,26 @@ describe("ActionResult", () => {
           : Effect.void
     });
 
-    const exit = await Effect.runPromiseExit(ActionResult.validateFormEffect(form));
-
-    expect(Exit.isSuccess(exit)).toBe(true);
-    if (Exit.isSuccess(exit)) {
-      expect(exit.value._tag).toBe("ValidationFailure");
-      if (ActionResult.isValidationFailure(exit.value)) {
-        const error = exit.value.fieldErrors.name?.[0];
-        expect(error).toBeInstanceOf(ProjectNameTooShort);
-      }
-    }
+    return Effect.runPromise(
+      Effect.exit(ActionResult.validateFormEffect(form)).pipe(
+        Effect.tap((exit) =>
+          Effect.sync(() => {
+            expect(Exit.isSuccess(exit)).toBe(true);
+            if (Exit.isSuccess(exit)) {
+              expect(exit.value._tag).toBe("ValidationFailure");
+              if (ActionResult.isValidationFailure(exit.value)) {
+                const error = exit.value.fieldErrors.name?.[0];
+                expect(error).toBeInstanceOf(ProjectNameTooShort);
+              }
+            }
+          })
+        ),
+        Effect.asVoid
+      )
+    );
   });
 
-  it("lets Effect actions return redirects without throwing untyped values", async () => {
+  it("lets Effect actions return redirects without throwing untyped values", () => {
     type SubmitResult = ActionResultValue<
       { readonly id: string },
       { readonly name: string },
@@ -59,41 +66,55 @@ describe("ActionResult", () => {
     });
     const action = Action.use(SubmitProject);
 
-    const result = await action.submit("redirect");
-
-    expect(ActionResult.isRedirect(result)).toBe(true);
-    if (ActionResult.isRedirect(result)) {
-      expect(result.location).toBe("/projects/atlas");
-      expect(result.status).toBe(303);
-      expect(result.replace).toBe(true);
-    }
-    expect(read(action.state)).toMatchObject({
-      _tag: "Success",
-      value: {
-        _tag: "Redirect",
-        location: "/projects/atlas"
-      }
-    });
+    return Effect.runPromise(
+      Effect.promise(() => action.submit("redirect")).pipe(
+        Effect.tap((result) =>
+          Effect.sync(() => {
+            expect(ActionResult.isRedirect(result)).toBe(true);
+            if (ActionResult.isRedirect(result)) {
+              expect(result.location).toBe("/projects/atlas");
+              expect(result.status).toBe(303);
+              expect(result.replace).toBe(true);
+            }
+            expect(read(action.state)).toMatchObject({
+              _tag: "Success",
+              value: {
+                _tag: "Redirect",
+                location: "/projects/atlas"
+              }
+            });
+          })
+        ),
+        Effect.asVoid
+      )
+    );
   });
 
-  it("captures domain failures as typed result data", async () => {
+  it("captures domain failures as typed result data", () => {
     class ProjectNameConflict extends Data.TaggedError("ProjectNameConflict")<{
       readonly name: string;
     }> {}
 
-    const exit = await Effect.runPromiseExit(
-      ActionResult.fromEffect(
-        Effect.fail(new ProjectNameConflict({ name: "Atlas" }))
+    return Effect.runPromise(
+      Effect.exit(
+        ActionResult.fromEffect(
+          Effect.fail(new ProjectNameConflict({ name: "Atlas" }))
+        )
+      ).pipe(
+        Effect.tap((exit) =>
+          Effect.sync(() => {
+            expect(Exit.isSuccess(exit)).toBe(true);
+            if (Exit.isSuccess(exit)) {
+              expect(ActionResult.isFailure(exit.value)).toBe(true);
+              if (ActionResult.isFailure(exit.value)) {
+                expect(exit.value.error).toBeInstanceOf(ProjectNameConflict);
+              }
+            }
+          })
+        ),
+        Effect.asVoid
       )
     );
-
-    expect(Exit.isSuccess(exit)).toBe(true);
-    if (Exit.isSuccess(exit)) {
-      expect(ActionResult.isFailure(exit.value)).toBe(true);
-      if (ActionResult.isFailure(exit.value)) {
-        expect(exit.value.error).toBeInstanceOf(ProjectNameConflict);
-      }
-    }
   });
 
   it("builds typed single-field validation failures", () => {
@@ -116,7 +137,7 @@ describe("ActionResult", () => {
     });
   });
 
-  it("automatically invalidates resources carried by ActionResult values", async () => {
+  it("automatically invalidates resources carried by ActionResult values", () => {
     let value = 0;
     const load = vi.fn(() => Effect.succeed(value));
     const Count = Resource.family({
@@ -124,7 +145,6 @@ describe("ActionResult", () => {
       load
     });
     const ref = Count(undefined);
-    await Resource.prefetch(ref);
 
     type IncrementResult = ActionResultValue<number>;
     const Increment = Action.define<void, IncrementResult>({
@@ -137,14 +157,21 @@ describe("ActionResult", () => {
     });
     const action = Action.use(Increment);
 
-    await action.submit(undefined);
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* Effect.promise(() => Resource.prefetch(ref));
+        yield* Effect.promise(() => action.submit(undefined));
 
-    expect(read(ref)).toBe(1);
-    expect(load).toHaveBeenCalledTimes(2);
-    expect(read(action.invalidationPlan)?.entries.map((entry) => entry.ref.key)).toEqual([ref.key]);
+        yield* Effect.sync(() => {
+          expect(read(ref)).toBe(1);
+          expect(load).toHaveBeenCalledTimes(2);
+          expect(read(action.invalidationPlan)?.entries.map((entry) => entry.ref.key)).toEqual([ref.key]);
+        });
+      })
+    );
   });
 
-  it("merges ActionResult invalidations with definition invalidations", async () => {
+  it("merges ActionResult invalidations with definition invalidations", () => {
     let left = 0;
     let right = 0;
     const Left = Resource.family({
@@ -157,8 +184,6 @@ describe("ActionResult", () => {
     });
     const leftRef = Left(undefined);
     const rightRef = Right(undefined);
-    await Resource.prefetch(leftRef);
-    await Resource.prefetch(rightRef);
 
     const IncrementBoth = Action.define<void, ActionResultValue<number>>({
       name: "action-result.increment-both",
@@ -172,13 +197,21 @@ describe("ActionResult", () => {
     });
     const action = Action.use(IncrementBoth);
 
-    await action.submit(undefined);
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* Effect.promise(() => Resource.prefetch(leftRef));
+        yield* Effect.promise(() => Resource.prefetch(rightRef));
+        yield* Effect.promise(() => action.submit(undefined));
 
-    expect(read(leftRef)).toBe(1);
-    expect(read(rightRef)).toBe(1);
-    expect(read(action.invalidationPlan)?.entries.map((entry) => entry.ref.key).sort()).toEqual([
-      leftRef.key,
-      rightRef.key
-    ].sort());
+        yield* Effect.sync(() => {
+          expect(read(leftRef)).toBe(1);
+          expect(read(rightRef)).toBe(1);
+          expect(read(action.invalidationPlan)?.entries.map((entry) => entry.ref.key).sort()).toEqual([
+            leftRef.key,
+            rightRef.key
+          ].sort());
+        });
+      })
+    );
   });
 });

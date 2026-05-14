@@ -227,6 +227,11 @@ Latest full gate on May 14, 2026:
   wrappers or Promise `.resolves` assertions, with expected failures captured by
   `Effect.exit(...)`.
 - The latest `pnpm verify` passed after the core Form async test cleanup.
+- Core ActionResult tests now return Effect programs instead of async wrappers,
+  with public Action/Resource Promise boundaries sequenced through
+  `Effect.promise(...)`.
+- The latest `pnpm verify` passed after the core ActionResult async test
+  cleanup.
 
 ## Notable Limits
 
