@@ -12,10 +12,15 @@ import {
 import { useCollection, useLiveQuery } from "@effect-ui/solid-db";
 import {
   describeDevtoolsPanels,
+  effectUiDevtoolsBridgeGlobal,
+  installDevtoolsBridge,
+  installDevtoolsBridgeEffect,
   makeDevtoolsStore,
   mountDevtoolsPanelsEffect,
   renderDevtoolsPanelsHtml,
   renderDevtoolsPanelsHtmlEffect,
+  type DevtoolsBridgePayload,
+  type DevtoolsBridgeTarget,
   type DevtoolsInvalidationPlan,
   type DevtoolsPanelMount,
   type DevtoolsPanelUiInput,
@@ -1002,6 +1007,16 @@ const serializedInvalidationPlan: DevtoolsInvalidationPlan = {
   ]
 };
 const startInvalidationPlan: StartActionInvalidationPlan = serializedInvalidationPlan;
+const devtoolsPanelsForBridge = describeDevtoolsPanels();
+const devtoolsBridgePayload: DevtoolsBridgePayload = {
+  panels: devtoolsPanelsForBridge,
+  selectedPanelId: "requests"
+};
+const devtoolsBridgeTarget: DevtoolsBridgeTarget = {};
+const devtoolsBridgeInstall = installDevtoolsBridge(devtoolsBridgePayload, devtoolsBridgeTarget);
+devtoolsBridgeTarget[effectUiDevtoolsBridgeGlobal] = () => devtoolsBridgePayload;
+devtoolsBridgeInstall.uninstall();
+installDevtoolsBridgeEffect(() => devtoolsBridgePayload, devtoolsBridgeTarget);
 devtoolsStore.recordActionState("Project.touch", "Success", {
   serializedInvalidationPlan: startInvalidationPlan
 });

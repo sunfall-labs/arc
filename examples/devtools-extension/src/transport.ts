@@ -1,5 +1,10 @@
 import { Data, Effect } from "effect";
-import type { DevtoolsPanelId, DevtoolsPanels } from "@effect-ui/devtools";
+import {
+  effectUiDevtoolsBridgeGlobal,
+  type DevtoolsBridgePayload,
+  type DevtoolsPanelId,
+  type DevtoolsPanels
+} from "@effect-ui/devtools";
 
 export interface ChromeDevtoolsEvalException {
   readonly isException?: boolean;
@@ -21,12 +26,6 @@ export interface ChromeInspectedWindowApi {
   };
 }
 
-export interface EffectUiDevtoolsBridgePayload {
-  readonly panels: DevtoolsPanels;
-  readonly selectedPanelId?: DevtoolsPanelId;
-  readonly title?: string;
-}
-
 export class DevtoolsExtensionTransportError extends Data.TaggedError(
   "DevtoolsExtensionTransportError"
 )<{
@@ -34,8 +33,6 @@ export class DevtoolsExtensionTransportError extends Data.TaggedError(
   readonly error: unknown;
   readonly guidance: string;
 }> {}
-
-export const effectUiDevtoolsBridgeGlobal = "__EFFECT_UI_DEVTOOLS__";
 
 export const effectUiDevtoolsBridgeExpression = [
   "(() => {",
@@ -49,7 +46,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 export const normalizeEffectUiDevtoolsBridgePayload = (
   value: unknown
-): EffectUiDevtoolsBridgePayload | undefined => {
+): DevtoolsBridgePayload | undefined => {
   if (!isRecord(value)) {
     return undefined;
   }
@@ -72,7 +69,7 @@ export const readInspectedWindowDevtoolsPayloadEffect = (
   api: ChromeInspectedWindowApi | undefined,
   expression = effectUiDevtoolsBridgeExpression
 ): Effect.Effect<
-  EffectUiDevtoolsBridgePayload | undefined,
+  DevtoolsBridgePayload | undefined,
   DevtoolsExtensionTransportError
 > => {
   const evaluate = api?.devtools?.inspectedWindow?.eval;

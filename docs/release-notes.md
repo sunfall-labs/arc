@@ -43,7 +43,7 @@ Latest full gate on May 14, 2026:
 
 - 9 package builds;
 - workspace typecheck and public type tests;
-- 38 root test files / 319 tests;
+- 38 root test files / 320 tests;
 - devtools panel verify;
 - devtools extension verify;
 - basic starter verify;
@@ -64,6 +64,8 @@ Latest full gate on May 14, 2026:
   response writing, and error forwarding inside an Effect program.
 - The devtools extension now keeps sample data as a fallback and updates from a
   live inspected-page `__EFFECT_UI_DEVTOOLS__` panel payload when present.
+- Apps can expose that payload through `installDevtoolsBridgeEffect(...)`, which
+  scopes `globalThis.__EFFECT_UI_DEVTOOLS__` setup and cleanup inside Effect.
 - The latest devtools extension verify includes 1 extension test file / 6 tests
   plus the Manifest V3 production build.
 

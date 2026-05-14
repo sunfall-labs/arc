@@ -15,9 +15,13 @@ import {
   describeDevtoolsPanelsEffect,
   describeInvalidationPlan,
   describeRoutePlan,
+  effectUiDevtoolsBridgeGlobal,
+  installDevtoolsBridge,
+  installDevtoolsBridgeEffect,
   renderDevtoolsPanelsHtml,
   renderDevtoolsPanelsHtmlEffect,
   toDevtoolsSerializableValue,
+  type DevtoolsBridgeTarget,
   type DevtoolsInvalidationPlan,
   type DevtoolsRecordActionStateOptions,
   type DevtoolsRequestTrace,
@@ -570,6 +574,60 @@ describe("devtools invalidation plans", () => {
         maxItemsPerPanel: 1
       }))
     ).resolves.toEqual(html);
+  });
+
+  it("installs the inspected-window devtools bridge with scoped cleanup", async () => {
+    const target: DevtoolsBridgeTarget = {};
+    const panels = describeDevtoolsPanels();
+    const install = installDevtoolsBridge({
+      panels,
+      selectedPanelId: "requests",
+      title: "Bridge"
+    }, target);
+
+    expect(target[effectUiDevtoolsBridgeGlobal]).toMatchObject({
+      panels,
+      selectedPanelId: "requests",
+      title: "Bridge"
+    });
+    install.uninstall();
+    expect(target[effectUiDevtoolsBridgeGlobal]).toBeUndefined();
+
+    target[effectUiDevtoolsBridgeGlobal] = () => ({
+      panels,
+      title: "Previous"
+    });
+
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          yield* installDevtoolsBridgeEffect(() => ({
+            panels,
+            selectedPanelId: "resources"
+          }), target);
+          expect(
+            typeof target[effectUiDevtoolsBridgeGlobal]
+          ).toBe("function");
+          expect(
+            typeof target[effectUiDevtoolsBridgeGlobal] === "function"
+              ? target[effectUiDevtoolsBridgeGlobal]()
+              : undefined
+          ).toMatchObject({
+            panels,
+            selectedPanelId: "resources"
+          });
+        })
+      )
+    );
+
+    expect(
+      typeof target[effectUiDevtoolsBridgeGlobal] === "function"
+        ? target[effectUiDevtoolsBridgeGlobal]()
+        : undefined
+    ).toMatchObject({
+      panels,
+      title: "Previous"
+    });
   });
 
   it("derives a deterministic causal graph from routes, resources, actions, schemas, and runtime events", async () => {

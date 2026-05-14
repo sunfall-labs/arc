@@ -201,6 +201,21 @@ The scoped mount clears the root and removes tab listeners when the Effect scope
 closes. Use `mount.update(...)` when a host shell wants to refresh the panel
 after recording new devtools facts.
 
+Apps that want browser extensions to read the same panel payload can expose an
+inspected-window bridge through the devtools package:
+
+```ts
+yield* installDevtoolsBridgeEffect(() => ({
+  panels: store.getPanels(),
+  selectedPanelId: "requests",
+  title: "Effect UI Devtools"
+}))
+```
+
+The scoped bridge restores any previous `globalThis.__EFFECT_UI_DEVTOOLS__`
+value when the Effect scope closes. The plain `installDevtoolsBridge(...)`
+helper is available for non-Effect host setup.
+
 The checked app-shell integration lives at
 [`examples/devtools-panel`](../examples/devtools-panel). It mounts sample
 public facts through `mountDevtoolsPanelsEffect(...)` and verifies typecheck,
@@ -214,6 +229,7 @@ panel host, mounts the same public panel contract through
 from `globalThis.__EFFECT_UI_DEVTOOLS__` through
 `chrome.devtools.inspectedWindow.eval`. The bridge accepts either a
 `DevtoolsPanels` payload wrapper or a provider function returning that wrapper,
+uses the shared `effectUiDevtoolsBridgeGlobal` key from `@effect-ui/devtools`,
 keeps the sample payload as a fallback, and verifies the manifest, panel
 registration, transport, render output, typecheck, and production build.
 

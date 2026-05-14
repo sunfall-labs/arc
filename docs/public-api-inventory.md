@@ -160,6 +160,9 @@ The root export includes:
 - `renderDevtoolsPanelsHtml`, `renderDevtoolsPanelsHtmlEffect`,
   `mountDevtoolsPanels`, `mountDevtoolsPanelsEffect`, and
   `devtoolsPanelStyles` for dependency-light browser panel rendering;
+- `effectUiDevtoolsBridgeGlobal`, `installDevtoolsBridge`, and
+  `installDevtoolsBridgeEffect` for exposing a scoped inspected-window bridge
+  to browser extension panels;
 - JSON-safe serialization helpers;
 - invalidation plans, route plans, app graph diagnostics summaries, runtime
   event models, collection event models, and request trace models.
@@ -172,8 +175,8 @@ Release decisions:
 - `DevtoolsSummary`, `DevtoolsCausalGraph`, and the first `DevtoolsPanels`
   model should be treated as stable data contracts for agents and UI panels.
 - The browser panel renderer is public as an embedded UI surface, while
-  dedicated app or extension packaging remains a separate release-engineering
-  concern.
+  the bridge helpers are public as the supported app-side handshake for checked
+  app or extension shells.
 
 ### `@effect-ui/solid`
 
