@@ -10,11 +10,10 @@ import type {
   CollectionKey,
   CollectionLoadState,
   CollectionOrigin,
-  CollectionTransaction,
   CollectionRow,
-  CollectionRowSnapshot,
+  CollectionTransaction,
   CollectionUpdate
-} from "./index.js";
+} from "./collection-contract.js";
 
 /**
  * Error raised when reading an index that was not declared on the collection.
@@ -252,47 +251,6 @@ export const replaceCollectionRows = <A extends object, K extends CollectionKey>
     state.rows.set(row.key, row);
   }
 
-  bumpCollectionState(state);
-};
-
-export const storedRowSnapshot = <A extends object, K extends CollectionKey>(
-  row: StoredRow<A, K>
-): CollectionRowSnapshot<A, K> => ({
-  key: row.key,
-  value: row.value,
-  synced: row.synced,
-  origin: row.origin
-});
-
-export const storedRowFromSnapshot = <A extends object, K extends CollectionKey>(
-  snapshot: CollectionRowSnapshot<A, K>
-): StoredRow<A, K> => ({
-  key: snapshot.key,
-  value: snapshot.value,
-  synced: snapshot.synced,
-  origin: snapshot.origin
-});
-
-export const cloneStoredRow = <A extends object, K extends CollectionKey>(
-  row: StoredRow<A, K>
-): StoredRow<A, K> => ({
-  key: row.key,
-  value: row.value,
-  synced: row.synced,
-  origin: row.origin
-});
-
-export const restoreStoredRows = <A extends object, K extends CollectionKey>(
-  state: CollectionState<A, K, any>,
-  snapshots: ReadonlyMap<K, StoredRow<A, K> | undefined>
-): void => {
-  for (const [key, row] of snapshots) {
-    if (row) {
-      state.rows.set(key, cloneStoredRow(row));
-    } else {
-      state.rows.delete(key);
-    }
-  }
   bumpCollectionState(state);
 };
 

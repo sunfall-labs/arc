@@ -5,7 +5,7 @@ import type {
   CollectionIndexValue,
   CollectionRow,
   CollectionRowValue
-} from "./index.js";
+} from "./collection-contract.js";
 
 /**
  * Error raised when the query builder cannot be represented as a live query.

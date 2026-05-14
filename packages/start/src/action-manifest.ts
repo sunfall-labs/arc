@@ -3,10 +3,12 @@ import { Data, Effect, Schema } from "effect";
 import {
   classifyStartManifestModule,
   compareManifestEntries,
-  isNonEmptyString,
+  decodeSerializedCallableManifest,
+  decodeSerializedCallableManifestEntry,
   isRecord,
   isStartManifestServerOnlyModule,
   normalizeManifestModuleId,
+  parseSerializedStartManifestJson,
   stableManifestEntryId,
   validateManifestDefinition,
   validateManifestEntrySet,
@@ -403,97 +405,41 @@ const decodeSerializedEntry = (
   value: unknown,
   index: number,
   actionPath: string
-): Effect.Effect<ActionManifestDefinition, ActionManifestParseError> => {
-  if (!isRecord(value) || !isRecord(value.server) || !isRecord(value.wire) || !isRecord(value.client)) {
-    return Effect.fail(
-      new ActionManifestParseError({
-        message: `Expected action manifest entry ${index} to contain server, client, and wire records.`
-      })
+): Effect.Effect<ActionManifestDefinition, ActionManifestParseError> =>
+  Effect.gen(function* () {
+    const decoded = yield* decodeSerializedCallableManifestEntry(value, index, {
+      transportPath: actionPath,
+      transportPathField: "actionPath",
+      transportClientTag: "Post",
+      stableId: stableActionId,
+      recordEntryLabel: "action manifest entry",
+      messageEntryLabel: "Action manifest entry",
+      parseError: (message) => new ActionManifestParseError({ message })
+    });
+    const behavior = yield* decodeSerializedBehavior(
+      isRecord(value) ? value.behavior : undefined,
+      index
     );
-  }
-
-  const server = value.server;
-  const wire = value.wire;
-  const client = value.client;
-
-  if (
-    !isNonEmptyString(value.name) ||
-    !isNonEmptyString(value.id) ||
-    value.id !== stableActionId(value.name) ||
-    !isNonEmptyString(server.module) ||
-    !isNonEmptyString(server.exportName) ||
-    typeof wire.inputSchema !== "boolean" ||
-    typeof wire.outputSchema !== "boolean" ||
-    typeof wire.errorSchema !== "boolean"
-  ) {
-    return Effect.fail(
-      new ActionManifestParseError({
-        message: `Action manifest entry ${index} has invalid server or wire fields.`
-      })
-    );
-  }
-
-  if (
-    !isNonEmptyString(client.id) ||
-    client.id !== value.id ||
-    client.name !== value.name ||
-    client.actionPath !== actionPath
-  ) {
-    return Effect.fail(
-      new ActionManifestParseError({
-        message: `Action manifest entry ${index} has an invalid client identity.`
-      })
-    );
-  }
-
-  if (
-    client._tag !== "Post" &&
-    (client._tag !== "Import" ||
-      !isNonEmptyString(client.module) ||
-      !isNonEmptyString(client.exportName))
-  ) {
-    return Effect.fail(
-      new ActionManifestParseError({
-        message: `Action manifest entry ${index} has an invalid client reference.`
-      })
-    );
-  }
-
-  const name = value.name;
-  const module = server.module;
-  const exportName = server.exportName;
-  const inputSchema = wire.inputSchema;
-  const outputSchema = wire.outputSchema;
-  const errorSchema = wire.errorSchema;
-  const clientModule = client._tag === "Import" && isNonEmptyString(client.module)
-    ? client.module
-    : undefined;
-  const clientExportName = client._tag === "Import" && isNonEmptyString(client.exportName)
-    ? client.exportName
-    : undefined;
-
-  return Effect.map(decodeSerializedBehavior(value.behavior, index), (behavior) => {
     const base = {
-      name,
-      module,
-      exportName,
-      inputSchema,
-      outputSchema,
-      errorSchema,
+      name: decoded.name,
+      module: decoded.module,
+      exportName: decoded.exportName,
+      inputSchema: decoded.inputSchema,
+      outputSchema: decoded.outputSchema,
+      errorSchema: decoded.errorSchema,
       ...behavior
     };
 
-    if (clientModule === undefined || clientExportName === undefined) {
+    if (decoded.clientModule === undefined || decoded.clientExportName === undefined) {
       return base;
     }
 
     return {
       ...base,
-      clientModule,
-      clientExportName
+      clientModule: decoded.clientModule,
+      clientExportName: decoded.clientExportName
     };
   });
-};
 
 const decodeSerializedManifest = (
   value: unknown
@@ -503,44 +449,30 @@ const decodeSerializedManifest = (
     readonly definitions: readonly ActionManifestDefinition[];
   },
   ActionManifestParseError
-> => {
-  if (
-    !isRecord(value) ||
-    value.version !== 1 ||
-    !isNonEmptyString(value.actionPath) ||
-    !Array.isArray(value.entries)
-  ) {
-    return Effect.fail(
-      new ActionManifestParseError({
-        message: "Expected a version 1 action manifest."
-      })
-    );
-  }
-
-  const actionPath = value.actionPath;
-  return Effect.map(
-    Effect.forEach(value.entries, (entry, index) =>
-      decodeSerializedEntry(entry, index, actionPath)
-    ),
-    (definitions) => ({
-      actionPath,
+> =>
+  Effect.map(
+    decodeSerializedCallableManifest(value, {
+      pathField: "actionPath",
+      manifestName: "action",
+      parseError: (message) => new ActionManifestParseError({ message }),
+      decodeEntry: decodeSerializedEntry
+    }),
+    ({ path, definitions }) => ({
+      actionPath: path,
       definitions
     })
   );
-};
 
 export const deserializeActionManifest = (
   serialized: string,
   options: ActionManifestOptions = {}
 ): Effect.Effect<ActionManifest, ActionManifestParseError | ActionManifestError> =>
-  Effect.try({
-    try: () => JSON.parse(serialized) as unknown,
-    catch: (cause) =>
+  parseSerializedStartManifestJson(serialized, (cause) =>
       new ActionManifestParseError({
         message: "Action manifest is not valid JSON.",
         cause
       })
-  }).pipe(
+  ).pipe(
     Effect.flatMap(decodeSerializedManifest),
     Effect.flatMap(({ definitions, actionPath }) =>
       makeActionManifest(definitions, {

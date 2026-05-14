@@ -47,6 +47,42 @@ export interface StartManifestEntrySetErrors<Entry extends StartManifestEntryLik
   }) => unknown;
 }
 
+export interface DecodedSerializedCallableManifestEntry<Id = unknown> {
+  readonly id: Id;
+  readonly name: string;
+  readonly module: string;
+  readonly exportName: string;
+  readonly inputSchema: boolean;
+  readonly outputSchema: boolean;
+  readonly errorSchema: boolean;
+  readonly clientModule?: string;
+  readonly clientExportName?: string;
+  readonly serverRecord: Record<string, unknown>;
+  readonly clientRecord: Record<string, unknown>;
+  readonly wireRecord: Record<string, unknown>;
+}
+
+export interface DecodeSerializedCallableManifestEntryOptions<Id, Error> {
+  readonly transportPath: string;
+  readonly transportPathField: string;
+  readonly transportClientTag: string;
+  readonly stableId: (name: string) => Id;
+  readonly recordEntryLabel: string;
+  readonly messageEntryLabel: string;
+  readonly parseError: (message: string) => Error;
+}
+
+export interface DecodeSerializedCallableManifestOptions<Definition, Error> {
+  readonly pathField: string;
+  readonly manifestName: string;
+  readonly parseError: (message: string) => Error;
+  readonly decodeEntry: (
+    entry: unknown,
+    index: number,
+    transportPath: string
+  ) => Effect.Effect<Definition, Error>;
+}
+
 export const compareString = (left: string, right: string): number =>
   left < right ? -1 : left > right ? 1 : 0;
 
@@ -62,7 +98,7 @@ export const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0;
 
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
+  typeof value === "object" && value !== null && !Array.isArray(value);
 
 export const normalizeManifestModuleId = (id: string): string =>
   (id.split(/[?#]/, 1)[0] ?? id)
@@ -207,3 +243,127 @@ export const validateManifestEntrySet = <
       byServerExport.set(exportKey, entry);
     }
   });
+
+export const parseSerializedStartManifestJson = <Error>(
+  serialized: string,
+  parseError: (cause: unknown) => Error
+): Effect.Effect<unknown, Error> =>
+  Effect.try({
+    try: () => JSON.parse(serialized) as unknown,
+    catch: parseError
+  });
+
+export const decodeSerializedCallableManifestEntry = <Id, Error>(
+  value: unknown,
+  index: number,
+  options: DecodeSerializedCallableManifestEntryOptions<Id, Error>
+): Effect.Effect<DecodedSerializedCallableManifestEntry<Id>, Error> => {
+  if (!isRecord(value) || !isRecord(value.server) || !isRecord(value.wire) || !isRecord(value.client)) {
+    return Effect.fail(
+      options.parseError(
+        `Expected ${options.recordEntryLabel} ${index} to contain server, client, and wire records.`
+      )
+    );
+  }
+
+  const server = value.server;
+  const wire = value.wire;
+  const client = value.client;
+  if (
+    !isNonEmptyString(value.name) ||
+    !isNonEmptyString(value.id) ||
+    value.id !== options.stableId(value.name) ||
+    !isNonEmptyString(server.module) ||
+    !isNonEmptyString(server.exportName) ||
+    typeof wire.inputSchema !== "boolean" ||
+    typeof wire.outputSchema !== "boolean" ||
+    typeof wire.errorSchema !== "boolean"
+  ) {
+    return Effect.fail(
+      options.parseError(
+        `${options.messageEntryLabel} ${index} has invalid server or wire fields.`
+      )
+    );
+  }
+
+  if (
+    !isNonEmptyString(client.id) ||
+    client.id !== value.id ||
+    client.name !== value.name ||
+    client[options.transportPathField] !== options.transportPath
+  ) {
+    return Effect.fail(
+      options.parseError(
+        `${options.messageEntryLabel} ${index} has an invalid client identity.`
+      )
+    );
+  }
+
+  if (
+    client._tag !== options.transportClientTag &&
+    (client._tag !== "Import" ||
+      !isNonEmptyString(client.module) ||
+      !isNonEmptyString(client.exportName))
+  ) {
+    return Effect.fail(
+      options.parseError(
+        `${options.messageEntryLabel} ${index} has an invalid client reference.`
+      )
+    );
+  }
+
+  const clientModule = client._tag === "Import" && isNonEmptyString(client.module)
+    ? client.module
+    : undefined;
+  const clientExportName = client._tag === "Import" && isNonEmptyString(client.exportName)
+    ? client.exportName
+    : undefined;
+
+  return Effect.succeed({
+    id: options.stableId(value.name),
+    name: value.name,
+    module: server.module,
+    exportName: server.exportName,
+    inputSchema: wire.inputSchema,
+    outputSchema: wire.outputSchema,
+    errorSchema: wire.errorSchema,
+    ...(clientModule === undefined ? {} : { clientModule }),
+    ...(clientExportName === undefined ? {} : { clientExportName }),
+    serverRecord: server,
+    clientRecord: client,
+    wireRecord: wire
+  });
+};
+
+export const decodeSerializedCallableManifest = <Definition, Error>(
+  value: unknown,
+  options: DecodeSerializedCallableManifestOptions<Definition, Error>
+): Effect.Effect<
+  {
+    readonly path: string;
+    readonly definitions: readonly Definition[];
+  },
+  Error
+> => {
+  const path = isRecord(value) ? value[options.pathField] : undefined;
+  if (
+    !isRecord(value) ||
+    value.version !== 1 ||
+    !isNonEmptyString(path) ||
+    !Array.isArray(value.entries)
+  ) {
+    return Effect.fail(
+      options.parseError(`Expected a version 1 ${options.manifestName} manifest.`)
+    );
+  }
+
+  return Effect.map(
+    Effect.forEach(value.entries, (entry, index) =>
+      options.decodeEntry(entry, index, path)
+    ),
+    (definitions) => ({
+      path,
+      definitions
+    })
+  );
+};

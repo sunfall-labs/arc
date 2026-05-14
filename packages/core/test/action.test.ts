@@ -351,6 +351,53 @@ describe("Action", () => {
     expect(read(title)).toBe("Published");
   });
 
+  it("rolls back optimistic patches when interrupted inside optimistic work", () => {
+    const title = Signal.make("Draft");
+    const firstOptimisticApplied = Effect.runSync(Deferred.make<void>());
+    const holdFirstOptimistic = Effect.runSync(Deferred.make<void>());
+    const Rename = Action.define<string, string>({
+      name: "rename.optimistic.interrupted-optimistic",
+      optimistic: (next, transaction) =>
+        Effect.gen(function* () {
+          yield* transaction.signal(title, next);
+          if (next === "Stale") {
+            yield* Deferred.succeed(firstOptimisticApplied, undefined);
+            yield* Deferred.await(holdFirstOptimistic);
+          }
+          return Effect.void;
+        }),
+      run: (next) => Effect.succeed(next)
+    });
+    const action = Action.use(Rename);
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const first = yield* action.submitEffect("Stale").pipe(
+          Effect.forkChild({ startImmediately: true })
+        );
+        yield* Deferred.await(firstOptimisticApplied);
+        yield* Effect.sync(() => {
+          expect(read(title)).toBe("Stale");
+        });
+
+        const second = yield* action.submitEffect("Published").pipe(
+          Effect.forkChild({ startImmediately: true })
+        );
+        const secondValue = yield* Fiber.join(second);
+        yield* Fiber.await(first);
+
+        yield* Effect.sync(() => {
+          expect(secondValue).toBe("Published");
+          expect(read(title)).toBe("Published");
+          expect(read(action.state)).toMatchObject({
+            _tag: "Success",
+            value: "Published"
+          });
+        });
+      })
+    );
+  });
+
   it("supports exhaust concurrency for event submissions", async () => {
     const release = Effect.runSync(Deferred.make<void>());
     let runs = 0;
@@ -501,5 +548,85 @@ describe("Action", () => {
       input: "second",
       value: "second"
     });
+  });
+
+  it("keeps stale parallel successes from replacing the latest invalidation plan", () => {
+    const FirstTag = Resource.tag("Action.parallel-plan.first");
+    const SecondTag = Resource.tag("Action.parallel-plan.second");
+    const firstLoad = vi.fn(() => Effect.succeed("first"));
+    const secondLoad = vi.fn(() => Effect.succeed("second"));
+    const First = Resource.family({
+      name: "Action.parallel-plan.first",
+      load: firstLoad,
+      provides: () => [FirstTag]
+    });
+    const Second = Resource.family({
+      name: "Action.parallel-plan.second",
+      load: secondLoad,
+      provides: () => [SecondTag]
+    });
+    const firstRef = First(undefined);
+    const secondRef = Second(undefined);
+    const firstStarted = Effect.runSync(Deferred.make<void>());
+    const secondStarted = Effect.runSync(Deferred.make<void>());
+    const firstRelease = Effect.runSync(Deferred.make<void>());
+    const secondRelease = Effect.runSync(Deferred.make<void>());
+    const Update = Action.define<string, string>({
+      name: "update.parallel-plan",
+      policy: {
+        concurrency: "parallel"
+      },
+      run: (value) =>
+        Effect.gen(function* () {
+          if (value === "first") {
+            yield* Deferred.succeed(firstStarted, undefined);
+            yield* Deferred.await(firstRelease);
+          } else {
+            yield* Deferred.succeed(secondStarted, undefined);
+            yield* Deferred.await(secondRelease);
+          }
+          return value;
+        }),
+      invalidates: (_value, input) => [input === "first" ? FirstTag : SecondTag]
+    });
+    const action = Action.use(Update);
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* Resource.prefetchEffect(firstRef);
+        yield* Resource.prefetchEffect(secondRef);
+
+        const first = yield* action.submitEffect("first").pipe(
+          Effect.forkChild({ startImmediately: true })
+        );
+        yield* Deferred.await(firstStarted);
+        const second = yield* action.submitEffect("second").pipe(
+          Effect.forkChild({ startImmediately: true })
+        );
+        yield* Deferred.await(secondStarted);
+
+        yield* Deferred.succeed(secondRelease, undefined);
+        const secondValue = yield* Fiber.join(second);
+        yield* Effect.sync(() => {
+          expect(secondValue).toBe("second");
+          expect(read(action.invalidationPlan)?.targets).toEqual([SecondTag]);
+          expect(secondLoad).toHaveBeenCalledTimes(2);
+        });
+
+        yield* Deferred.succeed(firstRelease, undefined);
+        const firstValue = yield* Fiber.join(first);
+
+        yield* Effect.sync(() => {
+          expect(firstValue).toBe("first");
+          expect(firstLoad).toHaveBeenCalledTimes(2);
+          expect(read(action.invalidationPlan)?.targets).toEqual([SecondTag]);
+          expect(read(action.state)).toMatchObject({
+            _tag: "Success",
+            input: "second",
+            value: "second"
+          });
+        });
+      })
+    );
   });
 });

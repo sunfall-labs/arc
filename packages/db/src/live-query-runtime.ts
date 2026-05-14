@@ -15,7 +15,7 @@ import {
   type RootStreamBuilder
 } from "@tanstack/db-ivm";
 import { Effect } from "effect";
-import type { AnyCollection } from "./index.js";
+import type { AnyCollection } from "./collection-contract.js";
 import {
   UnsupportedLiveQuery,
   compareRows,

@@ -33,7 +33,7 @@ import {
   type SourceRecord
 } from "./query-plan.js";
 import { indexJoinKeys } from "./collection-runtime.js";
-import type { AnyCollection, CollectionRowValue } from "./index.js";
+import type { AnyCollection, CollectionRowValue } from "./collection-contract.js";
 
 /**
  * Immutable builder for collection-backed queries.

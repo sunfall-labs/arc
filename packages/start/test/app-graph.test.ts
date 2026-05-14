@@ -505,6 +505,34 @@ describe("Start app graph", () => {
       })
     );
   });
+
+  it("revalidates nested route modules while deserializing the graph", () => {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const graph = yield* makeGraphEffect();
+        const corrupted = JSON.parse(serializeStartAppGraph(graph)) as {
+          readonly routes: {
+            readonly modules: Array<{ routePath: string }>;
+          };
+        };
+        const routeModule = corrupted.routes.modules.find((module) => module.routePath === "/projects/:id");
+
+        if (!routeModule) {
+          throw new Error("Expected generated route module.");
+        }
+
+        routeModule.routePath = "/projects/wrong";
+
+        const exit = yield* Effect.exit(
+          deserializeStartAppGraph(JSON.stringify(corrupted))
+        );
+
+        yield* Effect.sync(() => {
+          expect(firstFailure(exit)).toBeInstanceOf(FileRouteManifestParseError);
+        });
+      })
+    );
+  });
 });
 
 const makeGraphEffect = (

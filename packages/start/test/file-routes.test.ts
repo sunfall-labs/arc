@@ -80,6 +80,11 @@ describe("file route manifest generation", () => {
     });
   });
 
+  it("does not turn malformed dynamic params into static sync routes", () => {
+    expect(filePathToRouteManifestEntry("src/routes/projects/$123.tsx", options)).toBeUndefined();
+    expect(generateFileRouteManifest(["src/routes/projects/$123.tsx"], options)).toEqual([]);
+  });
+
   it("ignores route group and pathless layout directory segments", () => {
     expect(filePathToRouteManifestEntry("src/routes/(app)/_shell/projects/$id.tsx", options)).toMatchObject({
       id: "(app)/_shell/projects/$id",
@@ -301,6 +306,32 @@ describe("file route manifest generation", () => {
           })
         )
       ).pipe(
+        Effect.tap((invalid) =>
+          Effect.sync(() => expect(firstFailure(invalid)).toBeInstanceOf(FileRouteManifestParseError))
+        ),
+        Effect.asVoid
+      )
+    );
+  });
+
+  it("rejects route manifest modules whose path metadata does not match their segments", () => {
+    const manifest = generateFileRouteManifestArtifact(
+      ["src/routes/projects/$id.tsx"],
+      options
+    );
+    const corrupted = JSON.parse(serializeFileRouteManifest(manifest)) as {
+      readonly modules: Array<{ routePath: string }>;
+    };
+    const routeModule = corrupted.modules.find((module) => module.routePath === "/projects/:id");
+
+    if (!routeModule) {
+      throw new Error("Expected generated route module.");
+    }
+
+    routeModule.routePath = "/projects/wrong";
+
+    return Effect.runPromise(
+      Effect.exit(deserializeFileRouteManifest(JSON.stringify(corrupted))).pipe(
         Effect.tap((invalid) =>
           Effect.sync(() => expect(firstFailure(invalid)).toBeInstanceOf(FileRouteManifestParseError))
         ),

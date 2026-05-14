@@ -9,7 +9,7 @@ import type {
   CollectionPolicy,
   CollectionTransaction,
   CollectionWriteOptions
-} from "./index.js";
+} from "./collection-contract.js";
 
 /**
  * Insert payload delivered to a collection sync adapter.

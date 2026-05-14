@@ -1,5 +1,5 @@
 import { Data } from "effect";
-import type { CollectionKey } from "./index.js";
+import type { CollectionKey } from "./collection-contract.js";
 
 /**
  * Error raised when an update/delete targets a missing row.

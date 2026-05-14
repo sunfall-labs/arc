@@ -1,14 +1,15 @@
 import type {
   CollectionKey,
   CollectionMutation,
-  CollectionPendingMutation,
-  CollectionRollbackRow,
   CollectionTransaction
-} from "./index.js";
+} from "./collection-contract.js";
+import {
+  pendingEntryFromSnapshot,
+  pendingMutationSnapshot,
+  pendingMutationSnapshots
+} from "./collection-snapshot-codec.js";
 import {
   bumpCollectionState,
-  storedRowFromSnapshot,
-  storedRowSnapshot,
   type CollectionState,
   type PendingMutationEntry,
   type StoredRow
@@ -41,39 +42,11 @@ export const advanceCollectionTransactionIdentity = (
   }
 };
 
-const rollbackRowSnapshot = <A extends object, K extends CollectionKey>(
-  key: K,
-  row: StoredRow<A, K> | undefined
-): CollectionRollbackRow<A, K> =>
-  row
-    ? { key, row: storedRowSnapshot(row) }
-    : { key };
-
-export const pendingMutationSnapshot = <A extends object, K extends CollectionKey>(
-  entry: PendingMutationEntry<A, K>
-): CollectionPendingMutation<A, K> => ({
-  transaction: entry.transaction,
-  rollbackRows: Array.from(entry.rollbackRows, ([key, row]) => rollbackRowSnapshot(key, row)),
-  createdAt: entry.createdAt,
-  attempts: entry.attempts
-});
-
-export const pendingEntryFromSnapshot = <A extends object, K extends CollectionKey>(
-  snapshot: CollectionPendingMutation<A, K>
-): PendingMutationEntry<A, K> => ({
-  transaction: snapshot.transaction,
-  rollbackRows: new Map(snapshot.rollbackRows.map((rollback) => [
-    rollback.key,
-    rollback.row ? storedRowFromSnapshot(rollback.row) : undefined
-  ])),
-  createdAt: snapshot.createdAt,
-  attempts: snapshot.attempts
-});
-
-export const pendingMutationSnapshots = <A extends object, K extends CollectionKey>(
-  state: CollectionState<A, K, any>
-): ReadonlyArray<CollectionPendingMutation<A, K>> =>
-  Array.from(state.pendingMutations.values(), pendingMutationSnapshot);
+export {
+  pendingEntryFromSnapshot,
+  pendingMutationSnapshot,
+  pendingMutationSnapshots
+};
 
 export const enqueuePendingMutation = <A extends object, K extends CollectionKey>(
   state: CollectionState<A, K, any>,

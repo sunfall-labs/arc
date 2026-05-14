@@ -1,14 +1,18 @@
 import {
   compareRoutePathSegment,
   isRoutePathSegmentPrefix,
-  isRouteParamName,
-  routePathFromSegments,
-  routeParamsFromSegments,
-  routePathSlug,
   type RoutePathParam,
   type RoutePathSegment
 } from "@effect-ui/core";
 import { Data, Effect, Schema } from "effect";
+import {
+  decodeFileRoutePath,
+  decodeFileRoutePathEffect,
+  decodeSerializedFileRoutePathEffect,
+  type DecodedFileRoutePath,
+  type FileRoutePathDecodeInvalidSegment,
+  isFileRoutePathlessSegment
+} from "./file-route-segments.js";
 
 export const FileRouteSourceId = Schema.String.pipe(Schema.brand("FileRouteSourceId"));
 export type FileRouteSourceId = typeof FileRouteSourceId.Type;
@@ -175,12 +179,6 @@ const stripExtension = (
   return undefined;
 };
 
-const isGroupSegment = (segment: string): boolean =>
-  segment.startsWith("(") && segment.endsWith(")") && segment.length > 2;
-
-const isPathlessSegment = (segment: string): boolean =>
-  segment.startsWith("_") && segment.length > 1;
-
 const isErrorBoundaryFile = (segment: string): boolean =>
   segment === "error" ||
   segment === "_error" ||
@@ -201,7 +199,7 @@ const isMetadataFile = (segment: string): boolean =>
   segment === "+head";
 
 const isLayoutFile = (segment: string): boolean =>
-  segment === "layout" || segment === "_layout" || segment === "+layout" || isPathlessSegment(segment);
+  segment === "layout" || segment === "_layout" || segment === "+layout" || isFileRoutePathlessSegment(segment);
 
 const fileRouteModuleKindFromLeaf = (segment: string): FileRouteModuleKind => {
   if (isErrorBoundaryFile(segment)) {
@@ -229,80 +227,35 @@ const exportNameForModuleKind = (kind: FileRouteModuleKind): string => {
   }
 };
 
-const routeIdFromPath = (routePath: string): FileRouteId => {
-  if (routePath === "/") {
-    return makeFileRouteId("route_root");
-  }
-
-  return makeFileRouteId(`route_${routePathSlug(routePath)}`);
-};
-
 const compareString = (left: string, right: string): number =>
   left < right ? -1 : left > right ? 1 : 0;
 
-const parseDynamicFileRouteSegment = (
-  segment: string
-): FileRouteSegment | undefined => {
-  if (!segment.startsWith("$")) {
-    return undefined;
-  }
-
-  const raw = segment.slice(1);
-  const optional = raw.endsWith("?");
-  const name = optional ? raw.slice(0, -1) : raw;
-  return isRouteParamName(name)
-    ? {
-        _tag: "Dynamic",
-        name,
-        optional
-      }
-    : undefined;
-};
-
-const parseRouteSegment = (segment: string): FileRouteSegment | undefined => {
-  if (isGroupSegment(segment) || isPathlessSegment(segment)) {
-    return undefined;
-  }
-
-  const dynamic = parseDynamicFileRouteSegment(segment);
-  if (dynamic !== undefined) {
-    return dynamic;
-  }
-
-  return {
-    _tag: "Static",
-    value: segment
-  };
-};
-
-const parseRouteSegmentEffect = (
-  segment: string,
+const invalidSegmentFromPathDecodeError = (
+  error: FileRoutePathDecodeInvalidSegment,
   filePath: string
-): Effect.Effect<FileRouteSegment | undefined, FileRouteManifestInvalidSegment> => {
-  if (isGroupSegment(segment) || isPathlessSegment(segment)) {
-    return Effect.succeed(undefined);
-  }
-
-  const dynamic = parseDynamicFileRouteSegment(segment);
-  if (dynamic !== undefined) {
-    return Effect.succeed(dynamic);
-  }
-
-  if (segment.startsWith("$")) {
-    return Effect.fail(
-      new FileRouteManifestInvalidSegment({
-        filePath,
-        segment,
-        reason: "InvalidParamName"
-      })
-    );
-  }
-
-  return Effect.succeed({
-    _tag: "Static",
-    value: segment
+): FileRouteManifestInvalidSegment =>
+  new FileRouteManifestInvalidSegment({
+    filePath,
+    segment: error.segment,
+    reason: error.reason
   });
-};
+
+const decodeManifestPathFields = (
+  value: {
+    readonly routeId: string;
+    readonly routePath: string;
+    readonly segments: readonly unknown[];
+    readonly params: readonly unknown[];
+  },
+  owner: string
+): Effect.Effect<DecodedFileRoutePath, FileRouteManifestParseError> =>
+  decodeSerializedFileRoutePathEffect(value, { owner }).pipe(
+    Effect.mapError((error) =>
+      new FileRouteManifestParseError({
+        message: error.message
+      })
+    )
+  );
 
 const compareManifestEntries = (
   left: FileRouteManifestEntry,
@@ -395,22 +348,20 @@ export const filePathToFileRouteModule = (
   const routeSegments = kind === "Route" && leaf !== "index"
     ? rawSegments
     : rawSegments.slice(0, -1);
-  const segments = routeSegments.flatMap((segment) => {
-    const parsed = parseRouteSegment(segment);
-    return parsed ? [parsed] : [];
-  });
-  const params = routeParamsFromSegments(segments);
-  const routePath = routePathFromSegments(segments);
+  const decodedPath = decodeFileRoutePath(routeSegments);
+  if (!decodedPath) {
+    return undefined;
+  }
 
   return {
     id: makeFileRouteSourceId(stripped.path),
     kind,
-    routeId: routeIdFromPath(routePath),
+    routeId: makeFileRouteId(decodedPath.routeId),
     moduleId: normalizeModuleId(normalized),
     filePath: normalized,
-    routePath,
-    segments,
-    params,
+    routePath: decodedPath.routePath,
+    segments: decodedPath.segments,
+    params: decodedPath.params,
     exportName: exportNameForModuleKind(kind)
   };
 };
@@ -439,21 +390,19 @@ export const filePathToFileRouteModuleEffect = (
     const routeSegments = kind === "Route" && leaf !== "index"
       ? rawSegments
       : rawSegments.slice(0, -1);
-    const segments = yield* Effect.forEach(routeSegments, (segment) =>
-      parseRouteSegmentEffect(segment, normalized)
-    ).pipe(Effect.map((segments) => segments.filter((segment): segment is FileRouteSegment => segment !== undefined)));
-    const params = routeParamsFromSegments(segments);
-    const routePath = routePathFromSegments(segments);
+    const decodedPath = yield* decodeFileRoutePathEffect(routeSegments).pipe(
+      Effect.mapError((error) => invalidSegmentFromPathDecodeError(error, normalized))
+    );
 
     return {
       id: makeFileRouteSourceId(stripped.path),
       kind,
-      routeId: routeIdFromPath(routePath),
+      routeId: makeFileRouteId(decodedPath.routeId),
       moduleId: normalizeModuleId(normalized),
       filePath: normalized,
-      routePath,
-      segments,
-      params,
+      routePath: decodedPath.routePath,
+      segments: decodedPath.segments,
+      params: decodedPath.params,
       exportName: exportNameForModuleKind(kind)
     };
   });
@@ -573,68 +522,6 @@ const isFileRouteModuleKind = (value: unknown): value is FileRouteModuleKind =>
   value === "ErrorBoundary" ||
   value === "Metadata";
 
-const decodeSerializedSegment = (
-  value: unknown,
-  index: number
-): Effect.Effect<FileRouteSegment, FileRouteManifestParseError> => {
-  if (!isRecord(value)) {
-    return Effect.fail(
-      new FileRouteManifestParseError({
-        message: `Expected file route segment ${index} to be a record.`
-      })
-    );
-  }
-
-  if (value._tag === "Static" && isNonEmptyString(value.value)) {
-    return Effect.succeed({
-      _tag: "Static",
-      value: value.value
-    });
-  }
-
-  if (
-    value._tag === "Dynamic" &&
-    isNonEmptyString(value.name) &&
-    isRouteParamName(value.name) &&
-    typeof value.optional === "boolean"
-  ) {
-    return Effect.succeed({
-      _tag: "Dynamic",
-      name: value.name,
-      optional: value.optional
-    });
-  }
-
-  return Effect.fail(
-    new FileRouteManifestParseError({
-      message: `File route segment ${index} is invalid.`
-    })
-  );
-};
-
-const decodeSerializedParam = (
-  value: unknown,
-  index: number
-): Effect.Effect<FileRouteParam, FileRouteManifestParseError> => {
-  if (
-    isRecord(value) &&
-    isNonEmptyString(value.name) &&
-    isRouteParamName(value.name) &&
-    typeof value.optional === "boolean"
-  ) {
-    return Effect.succeed({
-      name: value.name,
-      optional: value.optional
-    });
-  }
-
-  return Effect.fail(
-    new FileRouteManifestParseError({
-      message: `File route param ${index} is invalid.`
-    })
-  );
-};
-
 const decodeSerializedModule = (
   value: unknown,
   index: number
@@ -660,32 +547,25 @@ const decodeSerializedModule = (
       );
     }
 
-    const segments = yield* Effect.forEach(value.segments, decodeSerializedSegment);
-    const params = yield* Effect.forEach(value.params, decodeSerializedParam);
-    const routePath = routePathFromSegments(segments);
-    const expectedParams = routeParamsFromSegments(segments);
-
-    if (
-      value.routePath !== routePath ||
-      value.routeId !== routeIdFromPath(routePath) ||
-      JSON.stringify(params) !== JSON.stringify(expectedParams)
-    ) {
-      return yield* Effect.fail(
-        new FileRouteManifestParseError({
-          message: `File route module ${index} does not match its segments.`
-        })
-      );
-    }
+    const decodedPath = yield* decodeManifestPathFields(
+      {
+        routeId: value.routeId,
+        routePath: value.routePath,
+        segments: value.segments,
+        params: value.params
+      },
+      `File route module ${index}`
+    );
 
     return {
       id: makeFileRouteSourceId(value.id),
       kind: value.kind,
-      routeId: makeFileRouteId(value.routeId),
+      routeId: makeFileRouteId(decodedPath.routeId),
       moduleId: normalizeModuleId(value.moduleId),
       filePath: normalizePath(value.filePath),
-      routePath,
-      segments,
-      params,
+      routePath: decodedPath.routePath,
+      segments: decodedPath.segments,
+      params: decodedPath.params,
       exportName: value.exportName
     };
   });
@@ -712,31 +592,24 @@ const decodeSerializedEntry = (
       );
     }
 
-    const segments = yield* Effect.forEach(value.segments, decodeSerializedSegment);
-    const params = yield* Effect.forEach(value.params, decodeSerializedParam);
-    const routePath = routePathFromSegments(segments);
-    const expectedParams = routeParamsFromSegments(segments);
-
-    if (
-      value.routePath !== routePath ||
-      value.routeId !== routeIdFromPath(routePath) ||
-      JSON.stringify(params) !== JSON.stringify(expectedParams)
-    ) {
-      return yield* Effect.fail(
-        new FileRouteManifestParseError({
-          message: `File route manifest entry ${index} does not match its segments.`
-        })
-      );
-    }
+    const decodedPath = yield* decodeManifestPathFields(
+      {
+        routeId: value.routeId,
+        routePath: value.routePath,
+        segments: value.segments,
+        params: value.params
+      },
+      `File route manifest entry ${index}`
+    );
 
     return {
       id: makeFileRouteSourceId(value.id),
-      routeId: makeFileRouteId(value.routeId),
+      routeId: makeFileRouteId(decodedPath.routeId),
       moduleId: normalizeModuleId(value.moduleId),
       filePath: normalizePath(value.filePath),
-      routePath,
-      segments,
-      params
+      routePath: decodedPath.routePath,
+      segments: decodedPath.segments,
+      params: decodedPath.params
     };
   });
 

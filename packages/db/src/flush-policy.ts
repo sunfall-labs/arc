@@ -5,7 +5,7 @@ import type {
   CollectionError,
   CollectionRequirements,
   CollectionTransaction
-} from "./index.js";
+} from "./collection-contract.js";
 
 type IterableCollection<Collections> =
   Collections extends Iterable<infer Collection>

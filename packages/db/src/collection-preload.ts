@@ -1,5 +1,5 @@
 import { Context } from "effect";
-import type { AnyCollection } from "./index.js";
+import type { AnyCollection } from "./collection-contract.js";
 
 export interface CollectionPreloadCollector {
   readonly definitions: Map<string, AnyCollection>;

@@ -360,7 +360,45 @@ Latest full gate on May 14, 2026:
   localized in `request-trace-recorder.ts`, and generated app-graph virtual
   modules reuse the shared diagnostics policy contract instead of embedding a
   second policy implementation.
-- The latest `pnpm verify` passed after the DB query/live-query extraction,
+- Devtools graph and panel ids now flow through `graph-ids.ts`, and bounded
+  store fact references flow through `fact-identity.ts` so invalidation history
+  trimming rebases action/runtime links and id-less request traces receive
+  deterministic ids before summary or causal graph projection.
+- Start file-route segment parsing now lives in `file-route-segments.ts`, so
+  sync route discovery and Effect manifest generation share route group,
+  pathless, static, dynamic, and invalid dynamic-param semantics.
+- Start RPC and action client behavior now lives in `start-rpc-client.ts` and
+  `start-action-client.ts`; the root facade re-exports the public client
+  Interfaces without owning fetch, decode, hydration, Layer, and action
+  concurrency implementation details.
+- Core Action submission coordination now lives behind an internal Action
+  Submission Controller, keeping versioning, current fiber ownership, stale
+  interruption checks, invalidation-plan state, and reset interruption local to
+  `Action.use(...)`.
+- DB collection snapshot validation, cloning, pending mutation conversion,
+  JSON encode/decode, and hydration application now live in
+  `collection-snapshot-codec.ts`, giving persistence and hydration one snapshot
+  policy. Invalid persisted snapshot JSON now fails as typed
+  `CollectionSnapshotCodecError` Effect errors instead of defects.
+- DB collection contracts and process-wide registry behavior now live in
+  `collection-contract.ts` and `collection-registry.ts`; internal DB modules
+  import those contracts directly while the DB root re-exports the public
+  facade.
+- Devtools serialization now has an explicit bounded policy for deep, wide,
+  long, circular, accessor, Map/Set, Error, and detached runtime values, and
+  the Store copies caller-owned facts at set/get/record seams.
+- Start server-function and action manifest deserialization now share Manifest
+  Entry Core helpers for JSON parsing, version/path validation, callable entry
+  identity checks, and import-client reference validation.
+- The latest `pnpm verify` passed after the shared Action Submission
+  Controller, DB Collection contract/registry extraction, typed
+  `CollectionSnapshotCodecError` propagation, Devtools graph/fact/serialization
+  cleanup, Start file-route/client/callable manifest extractions, and Project
+  Console typed codec error handling: 9 package builds, workspace typecheck,
+  type tests, 40 root test files / 349 tests, devtools panel verify, devtools
+  extension verify, basic starter verify, project-console starter packaging/
+  typecheck/tests/build, and leak scan.
+- The previous `pnpm verify` passed after the DB query/live-query extraction,
   DB transaction identity locality fix, Core typed route/server Effect seams,
   Start manifest/trace/diagnostics cleanup, Core Signal Dependency Tracker
   extraction, and Core Form validation race guard: 9 package builds, workspace

@@ -1,7 +1,7 @@
 import type { EffectInput } from "@effect-ui/core";
 import { toEffect } from "@effect-ui/core";
 import { Data, Effect } from "effect";
-import type { CollectionPersistenceStorage } from "./index.js";
+import type { CollectionPersistenceStorage } from "./collection-contract.js";
 
 export const SQLITE_PERSISTENCE_DEFAULT_TABLE = "effect_ui_collection_persistence";
 export const SQLITE_PERSISTENCE_DEFAULT_NAMESPACE = "effect-ui:collections";

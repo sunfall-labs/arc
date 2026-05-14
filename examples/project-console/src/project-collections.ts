@@ -1,5 +1,5 @@
 import { Action, ActionResult, Server } from "@effect-ui/core";
-import { Collection, CollectionRowNotFound } from "@effect-ui/db";
+import { Collection, CollectionRowNotFound, CollectionSnapshotCodecError } from "@effect-ui/db";
 import { Effect, Schedule, Schema } from "effect";
 import {
   InvalidProjectName,
@@ -61,10 +61,14 @@ const isProjectError = (error: unknown): error is ProjectError =>
 
 const toProjectNameResultError = (
   input: ProjectNameSubmissionInput,
-  error: ProjectRemoteError | CollectionRowNotFound
-): Effect.Effect<ProjectNameSubmissionResult, Server.ClientError> => {
+  error: ProjectRemoteError | CollectionRowNotFound | CollectionSnapshotCodecError
+): Effect.Effect<ProjectNameSubmissionResult, Server.ClientError | CollectionSnapshotCodecError> => {
   if (error instanceof CollectionRowNotFound) {
     return ActionResult.failureEffect(new ProjectNotFound({ id: input.id }));
+  }
+
+  if (error instanceof CollectionSnapshotCodecError) {
+    return Effect.fail(error);
   }
 
   if (error instanceof InvalidProjectName || hasTag(error, "InvalidProjectName")) {
@@ -87,7 +91,7 @@ const toProjectNameResultError = (
 export const RenameProjectFromCollection = Action.define<
   ProjectNameSubmissionInput,
   ProjectNameSubmissionResult,
-  Server.ClientError,
+  Server.ClientError | CollectionSnapshotCodecError,
   ProjectApi
 >({
   name: "Project.collection.rename",
@@ -127,7 +131,7 @@ export const RenameProjectFromCollection = Action.define<
         invalidates: projectResourceInvalidations(input.id)
       });
     }).pipe(
-      Effect.catch((error: ProjectRemoteError | CollectionRowNotFound) =>
+      Effect.catch((error: ProjectRemoteError | CollectionRowNotFound | CollectionSnapshotCodecError) =>
         toProjectNameResultError(input, error)
       )
     );

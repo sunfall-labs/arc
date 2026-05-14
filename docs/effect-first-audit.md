@@ -805,6 +805,38 @@ interruption.
 - DB collection transaction ids now allocate from Collection State and hydrate
   from restored pending mutations, keeping optimistic mutation identity scoped
   to the active Collection Store instead of a module-global counter.
+- Devtools graph/panel id creation now lives in `graph-ids.ts`, and bounded
+  Store fact-reference repair lives in `fact-identity.ts`; request trace facts
+  receive deterministic ids before runtime-event summarization.
+- Start file-route segment parsing now lives in `file-route-segments.ts`, so
+  sync discovery and Effect manifest generation share malformed dynamic-param
+  handling instead of maintaining separate parser semantics.
+- Start RPC and action client behavior now lives in `start-rpc-client.ts` and
+  `start-action-client.ts`, keeping fetch, decode, hydration, Layer, and action
+  concurrency workflows behind focused Effect-first client Modules.
+- Core Action submission versioning, fiber coordination, invalidation-plan
+  state, and reset interruption now live behind an internal Action Submission
+  Controller.
+- DB collection snapshot validation, cloning, pending mutation conversion,
+  JSON encode/decode, and hydration application now live in
+  `collection-snapshot-codec.ts`; invalid persisted snapshot JSON now fails as
+  a typed `CollectionSnapshotCodecError` in the Effect error channel.
+- DB collection contracts and registry diagnostics now live outside the package
+  root in `collection-contract.ts` and `collection-registry.ts`, so internal DB
+  modules depend on focused Effect-aware contracts rather than the facade.
+- Devtools serialization now has a bounded policy for arbitrary runtime values,
+  and Store snapshot/event facts are detached before projection.
+- Start callable manifest deserialization now uses Manifest Entry Core helpers
+  for JSON parsing, version/path validation, callable identity checks, and
+  import-client validation across server functions and actions.
+- Full `pnpm verify` passed after the shared Action Submission Controller,
+  DB Collection contract/registry extraction, typed `CollectionSnapshotCodecError`
+  propagation, Devtools graph/fact/serialization cleanup, Start
+  file-route/client/callable manifest extractions, and Project Console typed
+  codec error handling: 9 package builds, workspace typecheck, type tests,
+  40 root test files / 349 tests, devtools-panel verify, devtools-extension
+  verify, basic starter verify, project-console starter packaging/typecheck/
+  tests/build, and leak scan.
 - Full `pnpm verify` passed after the DB query/live-query extraction, Core
   typed route/server Effect seams, Start manifest/trace/diagnostics cleanup,
   Core Signal Dependency Tracker extraction, and Core Form validation race

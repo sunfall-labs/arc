@@ -8,6 +8,10 @@ import { CollectionTypeId } from "./collection-ids.js";
 import { ReadonlyCollectionMutation } from "./collection-errors.js";
 import { rowsMatchingCollectionIndex } from "./collection-state.js";
 import {
+  collectionSnapshotFromValues,
+  encodeCollectionSnapshotEffect
+} from "./collection-snapshot-codec.js";
+import {
   collectionInputEffect,
   persistenceKey,
   recordCollectionPreload
@@ -16,14 +20,28 @@ import { Query, type LiveQuery, type QueryFactory } from "./query-builder.js";
 import type {
   AnyCollection,
   CollectionDefinition,
+  CollectionIndexRecord,
   CollectionKey,
-  CollectionLiveQueryOptions,
   CollectionLoadState,
   CollectionPersistOptions,
   CollectionPersistenceStorage,
   CollectionRow,
   CollectionSnapshot
-} from "./index.js";
+} from "./collection-contract.js";
+
+/**
+ * Options for a read-only collection backed by a live query.
+ *
+ * Use when derived query results should be addressable as a collection, such as
+ * joining or indexing view rows. Mutation effects fail with
+ * `ReadonlyCollectionMutation`.
+ */
+export interface CollectionLiveQueryOptions<A extends object, K extends CollectionKey, E = unknown, R = never> {
+  readonly name: string;
+  readonly getKey: (value: A) => K;
+  readonly indexes?: CollectionIndexRecord<A>;
+  readonly query: LiveQuery<A, E, R> | QueryFactory<A>;
+}
 
 export type LiveQueryCollectionRegister = (
   name: string,
@@ -124,28 +142,11 @@ export const makeLiveQueryCollectionDefinition = <
     pendingMutations: () => [],
     flushPendingMutationsEffect: () => Effect.succeed([]),
     snapshotEffect: () =>
-      Effect.map(Clock.currentTimeMillis, (updatedAt): CollectionSnapshot<A, K> => ({
-        name: options.name,
-        rows: materialized().map((value) => ({
-          key: options.getKey(value),
-          value,
-          synced: true,
-          origin: "remote"
-        })),
-        pendingMutations: [],
-        updatedAt
-      })),
-    snapshot: () => ({
-      name: options.name,
-      rows: materialized().map((value) => ({
-        key: options.getKey(value),
-        value,
-        synced: true,
-        origin: "remote"
-      })),
-      pendingMutations: [],
-      updatedAt: Date.now()
-    }),
+      Effect.map(Clock.currentTimeMillis, (updatedAt): CollectionSnapshot<A, K> =>
+        collectionSnapshotFromValues(options.name, materialized(), options.getKey, updatedAt)
+      ),
+    snapshot: () =>
+      collectionSnapshotFromValues(options.name, materialized(), options.getKey, Date.now()),
     hydrateEffect: () => Effect.void,
     hydrate: () => {},
     persistEffect: <PE = unknown, PR = never>(
@@ -155,7 +156,8 @@ export const makeLiveQueryCollectionDefinition = <
       Effect.gen(function* () {
         const key = persistenceKey(definition, persistOptions);
         const snapshot = yield* definition.snapshotEffect();
-        yield* collectionInputEffect(storage.setItem(key, JSON.stringify(snapshot)));
+        const encoded = yield* encodeCollectionSnapshotEffect(snapshot);
+        yield* collectionInputEffect(storage.setItem(key, encoded));
       }),
     restoreEffect: () => Effect.void,
     insertEffect: () => readonlyFail("insert"),

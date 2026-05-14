@@ -1,6 +1,5 @@
 import type {
   ActionInstance,
-  ActionState,
   ResourceInvalidationPlan,
   ResourceStoreEvent,
   Route
@@ -21,6 +20,17 @@ import type {
   DevtoolsStoreOptions,
   DevtoolsSummary
 } from "./index.js";
+import {
+  ensureRequestTraceId,
+  rebaseRuntimeEventInvalidations,
+  rebaseSnapshotActionInvalidations
+} from "./fact-identity.js";
+import {
+  copyAppGraphDiagnostics,
+  copyDevtoolsRoutePlan,
+  copyDevtoolsRuntimeEvent,
+  copyDevtoolsSnapshot
+} from "./serialization.js";
 
 export interface DevtoolsStoreRuntime {
   readonly describeInvalidationPlan: (plan: ResourceInvalidationPlan) => DevtoolsInvalidationPlan;
@@ -33,11 +43,11 @@ export interface DevtoolsStoreRuntime {
   readonly describeCausalGraph: (input: { readonly snapshot: DevtoolsSnapshot }) => DevtoolsCausalGraph;
 }
 
-const actionStateTag = <I, A, E>(state: ActionState<I, A, E>): string =>
+const actionStateTag = (state: { readonly _tag: string }): string =>
   state._tag;
 
-const actionStateInput = <I, A, E>(state: ActionState<I, A, E>): I | undefined =>
-  "input" in state ? state.input : undefined;
+const actionStateInput = <I>(state: { readonly _tag: string }): I | undefined =>
+  "input" in state ? (state as { readonly input: I }).input : undefined;
 
 export const makeDevtoolsStoreWithRuntime = (
   options: DevtoolsStoreOptions = {},
@@ -48,6 +58,7 @@ export const makeDevtoolsStoreWithRuntime = (
   const requestTraceLimit = options.requestTraceLimit ?? 50;
   const eventLimit = options.eventLimit ?? 500;
   let nextEventSequence = 0;
+  let nextRequestTraceSequence = 0;
   let snapshot: DevtoolsSnapshot = {
     resources: [],
     actions: [],
@@ -79,7 +90,7 @@ export const makeDevtoolsStoreWithRuntime = (
       ...snapshot,
       events: boundedEvents([
         ...(snapshot.events ?? []),
-        withSequence(event)
+        copyDevtoolsRuntimeEvent(withSequence(event))
       ])
     };
   };
@@ -88,13 +99,26 @@ export const makeDevtoolsStoreWithRuntime = (
     recordSerializedInvalidationPlan(runtime.describeInvalidationPlan(plan));
 
   const recordSerializedInvalidationPlan = (plan: DevtoolsInvalidationPlan): number => {
-    const invalidations = [
+    const nextInvalidations = [
       ...snapshot.invalidations,
       runtime.copyInvalidationPlan(plan)
-    ].slice(-invalidationLimit);
+    ];
+    const dropped = Math.max(0, nextInvalidations.length - invalidationLimit);
+    const invalidations = nextInvalidations.slice(-invalidationLimit);
+    if (dropped === 0) {
+      snapshot = {
+        ...snapshot,
+        invalidations
+      };
+      return invalidations.length - 1;
+    }
+
+    const rebasedEvents = rebaseRuntimeEventInvalidations(snapshot.events, dropped);
     snapshot = {
       ...snapshot,
-      invalidations
+      invalidations,
+      actions: rebaseSnapshotActionInvalidations(snapshot.actions, dropped),
+      ...(rebasedEvents === undefined ? {} : { events: rebasedEvents })
     };
     return invalidations.length - 1;
   };
@@ -123,16 +147,20 @@ export const makeDevtoolsStoreWithRuntime = (
   };
 
   const recordRequestTrace = (trace: DevtoolsRequestTrace): void => {
+    const copied = ensureRequestTraceId(
+      runtime.copyRequestTrace(trace),
+      `trace:${nextRequestTraceSequence++}`
+    );
     snapshot = {
       ...snapshot,
       requestTraces: [
         ...(snapshot.requestTraces ?? []),
-        runtime.copyRequestTrace(trace)
+        copied
       ].slice(-requestTraceLimit)
     };
     recordRuntimeEvent({
       _tag: "RequestTrace",
-      trace: runtime.copyRequestTrace(trace)
+      trace: copied
     });
   };
 
@@ -194,16 +222,16 @@ export const makeDevtoolsStoreWithRuntime = (
     );
   };
 
-  const getSnapshotEffect = () => Effect.sync(() => snapshot);
+  const getSnapshotEffect = () => Effect.sync(() => copyDevtoolsSnapshot(snapshot));
   const setSnapshotEffect = (next: DevtoolsSnapshot) =>
     Effect.sync(() => {
-      snapshot = next;
+      snapshot = copyDevtoolsSnapshot(next);
     });
   const setAppGraphDiagnosticsEffect = (appGraph: DevtoolsStartAppGraphDiagnostics) =>
     Effect.sync(() => {
       snapshot = {
         ...snapshot,
-        appGraph
+        appGraph: copyAppGraphDiagnostics(appGraph)
       };
     });
   const clearAppGraphDiagnosticsEffect = () =>
@@ -257,7 +285,7 @@ export const makeDevtoolsStoreWithRuntime = (
         ...snapshot,
         routePlans: [
           ...snapshot.routePlans,
-          runtime.describeRoutePlan(plan)
+          copyDevtoolsRoutePlan(runtime.describeRoutePlan(plan))
         ].slice(-routePlanLimit)
       };
     });

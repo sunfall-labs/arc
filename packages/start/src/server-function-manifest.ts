@@ -3,11 +3,12 @@ import { Data, Effect, Schema } from "effect";
 import {
   classifyStartManifestModule,
   compareManifestEntries,
-  isNonEmptyString,
-  isRecord,
+  decodeSerializedCallableManifest,
+  decodeSerializedCallableManifestEntry,
   isStartManifestContractModule,
   isStartManifestServerOnlyModule,
   normalizeManifestModuleId,
+  parseSerializedStartManifestJson,
   stableManifestEntryId,
   validateManifestDefinition,
   validateManifestEntrySet,
@@ -332,78 +333,44 @@ const decodeSerializedEntry = (
   value: unknown,
   index: number,
   rpcPath: string
-): Effect.Effect<ServerFunctionManifestDefinition, ServerFunctionManifestParseError> => {
-  if (!isRecord(value) || !isRecord(value.server) || !isRecord(value.wire) || !isRecord(value.client)) {
-    return Effect.fail(
-      new ServerFunctionManifestParseError({
-        message: `Expected manifest entry ${index} to contain server, client, and wire records.`
-      })
-    );
-  }
+): Effect.Effect<ServerFunctionManifestDefinition, ServerFunctionManifestParseError> =>
+  Effect.gen(function* () {
+    const decoded = yield* decodeSerializedCallableManifestEntry(value, index, {
+      transportPath: rpcPath,
+      transportPathField: "rpcPath",
+      transportClientTag: "Rpc",
+      stableId: stableServerFunctionId,
+      recordEntryLabel: "manifest entry",
+      messageEntryLabel: "Manifest entry",
+      parseError: (message) => new ServerFunctionManifestParseError({ message })
+    });
 
-  if (
-    !isNonEmptyString(value.name) ||
-    !isNonEmptyString(value.id) ||
-    value.id !== stableServerFunctionId(value.name) ||
-    !isNonEmptyString(value.server.module) ||
-    !isNonEmptyString(value.server.exportName) ||
-    typeof value.server.hasHandler !== "boolean" ||
-    typeof value.wire.inputSchema !== "boolean" ||
-    typeof value.wire.outputSchema !== "boolean" ||
-    typeof value.wire.errorSchema !== "boolean"
-  ) {
-    return Effect.fail(
-      new ServerFunctionManifestParseError({
-        message: `Manifest entry ${index} has invalid server or wire fields.`
-      })
-    );
-  }
+    if (typeof decoded.serverRecord.hasHandler !== "boolean") {
+      return yield* Effect.fail(
+        new ServerFunctionManifestParseError({
+          message: `Manifest entry ${index} has invalid server or wire fields.`
+        })
+      );
+    }
 
-  if (
-    !isNonEmptyString(value.client.id) ||
-    value.client.id !== value.id ||
-    value.client.name !== value.name ||
-    value.client.rpcPath !== rpcPath
-  ) {
-    return Effect.fail(
-      new ServerFunctionManifestParseError({
-        message: `Manifest entry ${index} has an invalid client identity.`
-      })
-    );
-  }
+    const base = {
+      name: decoded.name,
+      module: decoded.module,
+      exportName: decoded.exportName,
+      hasHandler: decoded.serverRecord.hasHandler,
+      inputSchema: decoded.inputSchema,
+      outputSchema: decoded.outputSchema,
+      errorSchema: decoded.errorSchema
+    };
 
-  const base = {
-    name: value.name,
-    module: value.server.module,
-    exportName: value.server.exportName,
-    hasHandler: value.server.hasHandler,
-    inputSchema: value.wire.inputSchema,
-    outputSchema: value.wire.outputSchema,
-    errorSchema: value.wire.errorSchema
-  };
-
-  if (value.client._tag === "Rpc") {
-    return Effect.succeed(base);
-  }
-
-  if (
-    value.client._tag !== "Import" ||
-    !isNonEmptyString(value.client.module) ||
-    !isNonEmptyString(value.client.exportName)
-  ) {
-    return Effect.fail(
-      new ServerFunctionManifestParseError({
-        message: `Manifest entry ${index} has an invalid client reference.`
-      })
-    );
-  }
-
-  return Effect.succeed({
-    ...base,
-    clientModule: value.client.module,
-    clientExportName: value.client.exportName
+    return decoded.clientModule === undefined || decoded.clientExportName === undefined
+      ? base
+      : {
+          ...base,
+          clientModule: decoded.clientModule,
+          clientExportName: decoded.clientExportName
+        };
   });
-};
 
 const decodeSerializedManifest = (
   value: unknown
@@ -413,44 +380,30 @@ const decodeSerializedManifest = (
     readonly definitions: readonly ServerFunctionManifestDefinition[];
   },
   ServerFunctionManifestParseError
-> => {
-  if (
-    !isRecord(value) ||
-    value.version !== 1 ||
-    !isNonEmptyString(value.rpcPath) ||
-    !Array.isArray(value.entries)
-  ) {
-    return Effect.fail(
-      new ServerFunctionManifestParseError({
-        message: "Expected a version 1 server function manifest."
-      })
-    );
-  }
-
-  const rpcPath = value.rpcPath;
-  return Effect.map(
-    Effect.forEach(value.entries, (entry, index) =>
-      decodeSerializedEntry(entry, index, rpcPath)
-    ),
-    (definitions) => ({
-      rpcPath,
+> =>
+  Effect.map(
+    decodeSerializedCallableManifest(value, {
+      pathField: "rpcPath",
+      manifestName: "server function",
+      parseError: (message) => new ServerFunctionManifestParseError({ message }),
+      decodeEntry: decodeSerializedEntry
+    }),
+    ({ path, definitions }) => ({
+      rpcPath: path,
       definitions
     })
   );
-};
 
 export const deserializeServerFunctionManifest = (
   serialized: string,
   options: ServerFunctionManifestOptions = {}
 ): Effect.Effect<ServerFunctionManifest, ServerFunctionManifestParseError | ServerFunctionManifestError> =>
-  Effect.try({
-    try: () => JSON.parse(serialized) as unknown,
-    catch: (cause) =>
+  parseSerializedStartManifestJson(serialized, (cause) =>
       new ServerFunctionManifestParseError({
         message: "Server function manifest is not valid JSON.",
         cause
       })
-  }).pipe(
+  ).pipe(
     Effect.flatMap(decodeSerializedManifest),
     Effect.flatMap(({ definitions, rpcPath }) =>
       makeServerFunctionManifest(definitions, {

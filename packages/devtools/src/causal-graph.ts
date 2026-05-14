@@ -1,4 +1,24 @@
 import { Effect } from "effect";
+import {
+  devtoolsActionNodeId as actionNodeId,
+  devtoolsCausalEdgeId as causalEdgeId,
+  devtoolsCollectionNodeId as collectionNodeId,
+  devtoolsEndpointNodeId as endpointNodeId,
+  devtoolsInvalidationNodeId as invalidationNodeId,
+  devtoolsInvalidationTargetNodeId as targetNodeId,
+  devtoolsMissingSchemaNodeId as missingSchemaNodeId,
+  devtoolsModuleNodeId as moduleNodeId,
+  devtoolsRequestTraceNodeId as requestTraceNodeId,
+  devtoolsResourceFamilyNodeId as resourceFamilyNodeId,
+  devtoolsResourceNodeId as resourceNodeId,
+  devtoolsResourceTagNodeId as tagNodeId,
+  devtoolsRouteNodeId as routeNodeId,
+  devtoolsRoutePlanNodeId as routePlanNodeId,
+  devtoolsRuntimeEventNodeId as runtimeEventNodeId,
+  devtoolsRuntimeTargetLabel as runtimeTargetLabel,
+  devtoolsSchemaCoverageNodeId as schemaCoverageNodeId,
+  devtoolsServerFunctionNodeId as serverFunctionNodeId
+} from "./graph-ids.js";
 import { toDevtoolsSerializableValue } from "./serialization.js";
 import {
   appGraphCollectionDefinitions,
@@ -19,64 +39,16 @@ import type {
   DevtoolsSerializableValue,
   DevtoolsSnapshot,
   DevtoolsStartAppGraphDiagnostics,
-  DevtoolsStartAppGraphMissingSchema,
   DevtoolsStartAppGraphModuleKind,
   DevtoolsStartAppGraphSchemaCoverage,
   DevtoolsSummaryInput,
-  DevtoolsSummaryInvalidationCause,
   DevtoolsSummaryInvalidationPlan,
-  DevtoolsSummaryInvalidationTarget,
   DevtoolsSummaryRequestTrace,
   DevtoolsSummaryResource,
   DevtoolsSummaryRoutePlan,
   DevtoolsSummaryRuntimeEvent,
   DevtoolsRequestTrace
 } from "./index.js";
-
-const actionNodeId = (name: string): string => `action:${name}`;
-
-const collectionNodeId = (collection: string): string => `collection:${collection}`;
-
-const endpointNodeId = (name: string): string => `endpoint:${name}`;
-
-const invalidationNodeId = (index: number): string => `invalidation:${index}`;
-
-const missingSchemaNodeId = (schema: DevtoolsStartAppGraphMissingSchema): string =>
-  `missing-schema:${schema.kind}:${schema.name}:${schema.input ? "input" : "no-input"}:${schema.output ? "output" : "no-output"}:${schema.error ? "error" : "no-error"}`;
-
-const moduleNodeId = (kind: "server-only" | "browser-client" | "route" | DevtoolsStartAppGraphModuleKind, path: string): string =>
-  `module:${kind}:${path}`;
-
-const resourceFamilyNodeId = (name: string): string => `resource-family:${name}`;
-
-const resourceNodeId = (key: string): string => `resource:${key}`;
-
-const requestTraceNodeId = (trace: DevtoolsSummaryRequestTrace): string =>
-  `request-trace:${trace.id}`;
-
-const routeNodeId = (path: string): string => `route:${path}`;
-
-const routePlanNodeId = (index: number, href: string): string => `route-plan:${index}:${href}`;
-
-const schemaCoverageNodeId = (kind: "serverFunctions" | "actions"): string =>
-  `schema-coverage:${kind}`;
-
-const serverFunctionNodeId = (name: string): string => `server-function:${name}`;
-
-const tagNodeId = (key: string): string => `resource-tag:${key}`;
-
-const targetNodeId = (target: DevtoolsSummaryInvalidationTarget | DevtoolsSummaryInvalidationCause): string =>
-  target._tag === "Tag" ? tagNodeId(target.key) : resourceNodeId(target.key);
-
-const runtimeEventNodeId = (event: DevtoolsSummaryRuntimeEvent): string =>
-  `runtime-event:${event.sequence}:${event._tag}`;
-
-const runtimeTargetLabel = (target: NonNullable<DevtoolsSummaryRuntimeEvent["target"]>): string =>
-  target.kind === "Collection" && target.id.startsWith("collection:")
-    ? target.id.slice("collection:".length)
-    : target.kind === "RequestTrace" && target.id.startsWith("request-trace:")
-      ? target.id.slice("request-trace:".length)
-    : target.id;
 
 const schemaCoverageData = (
   coverage: DevtoolsStartAppGraphSchemaCoverage
@@ -102,7 +74,7 @@ const addEdge = (
   index: number
 ): void => {
   edges.push({
-    id: `edge:${index}:${edge.kind}:${edge.source}->${edge.target}`,
+    id: causalEdgeId(index, edge.kind, edge.source, edge.target),
     ...edge
   });
 };

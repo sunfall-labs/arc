@@ -189,6 +189,85 @@ describe("devtools invalidation plans", () => {
     );
   });
 
+  it("drops stale action invalidation links after bounded history trimming", () => {
+    const firstPlan: DevtoolsInvalidationPlan = {
+      targets: [
+        {
+          _tag: "Tag",
+          key: "Project.first",
+          name: "Project.first"
+        }
+      ],
+      entries: []
+    };
+    const secondPlan: DevtoolsInvalidationPlan = {
+      targets: [
+        {
+          _tag: "Tag",
+          key: "Project.second",
+          name: "Project.second"
+        }
+      ],
+      entries: []
+    };
+    const store = makeDevtoolsStore({ invalidationLimit: 1 });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* store.recordActionStateEffect("Project.first", "Success", {
+          serializedInvalidationPlan: firstPlan
+        });
+        yield* store.recordActionStateEffect("Project.second", "Success", {
+          serializedInvalidationPlan: secondPlan
+        });
+
+        const snapshot = store.getSnapshot();
+        expect(snapshot.invalidations).toEqual([secondPlan]);
+        expect(snapshot.actions).toEqual([
+          {
+            name: "Project.first",
+            state: "Success"
+          },
+          {
+            name: "Project.second",
+            state: "Success",
+            invalidationIndexes: [0]
+          }
+        ]);
+        expect(snapshot.events).toEqual([
+          {
+            _tag: "ActionState",
+            sequence: 0,
+            action: "Project.first",
+            state: "Success"
+          },
+          {
+            _tag: "ActionState",
+            sequence: 1,
+            action: "Project.second",
+            state: "Success",
+            invalidationIndexes: [0]
+          }
+        ]);
+
+        expect(store.getCausalGraph().edges).not.toContainEqual(
+          expect.objectContaining({
+            kind: "Emits",
+            source: "action:Project.first",
+            target: "invalidation:0"
+          })
+        );
+        expect(store.getCausalGraph().edges).toContainEqual(
+          expect.objectContaining({
+            kind: "Emits",
+            source: "action:Project.second",
+            target: "invalidation:0"
+          })
+        );
+      })
+    );
+  });
+
   it("tracks Start-shaped action instances without depending on the start package", async () => {
     const plan: DevtoolsInvalidationPlan = {
       targets: [
@@ -832,6 +911,50 @@ describe("devtools invalidation plans", () => {
     });
   });
 
+  it("applies a safe serialization policy to complex values", () => {
+    const throwingGetter: Record<string, unknown> = {};
+    Object.defineProperty(throwingGetter, "bad", {
+      enumerable: true,
+      get() {
+        throw new Error("getter exploded");
+      }
+    });
+
+    expect(toDevtoolsSerializableValue(new Map([["a", 1]]))).toEqual({
+      _tag: "Map",
+      size: 1,
+      entries: [["a", 1]]
+    });
+    expect(toDevtoolsSerializableValue(new Set(["x"]))).toEqual({
+      _tag: "Set",
+      size: 1,
+      values: ["x"]
+    });
+    expect(toDevtoolsSerializableValue(new Error("boom"))).toMatchObject({
+      _tag: "Error",
+      name: "Error",
+      message: "boom"
+    });
+    expect(toDevtoolsSerializableValue(throwingGetter)).toEqual({
+      bad: {
+        _tag: "Accessor"
+      }
+    });
+    expect(toDevtoolsSerializableValue(["a", "b", "c"], { maxEntries: 2 })).toEqual([
+      "a",
+      "b",
+      {
+        _tag: "Truncated",
+        remaining: 1
+      }
+    ]);
+    expect(toDevtoolsSerializableValue("abcdef", { maxStringLength: 3 })).toEqual({
+      _tag: "TruncatedString",
+      length: 6,
+      value: "abc"
+    });
+  });
+
   it("lets the store expose graph-aware summaries", () => {
     const store = makeDevtoolsStore();
 
@@ -1170,6 +1293,139 @@ describe("devtools invalidation plans", () => {
       })
     ]));
     expect(JSON.parse(JSON.stringify(summary))).toEqual(summary);
+  });
+
+  it("stamps id-less request traces before runtime-event summarization", () => {
+    const store = makeDevtoolsStore();
+    const trace: DevtoolsRequestTrace = {
+      request: {
+        method: "GET",
+        url: "https://example.test/projects/atlas",
+        path: "/projects/atlas",
+        transport: "ssr"
+      },
+      response: { status: 200 },
+      services: [],
+      resources: [],
+      collections: [],
+      serverFunctions: [],
+      actions: [],
+      fibers: [],
+      streams: [],
+      status: "success"
+    };
+
+    store.recordRuntimeEvent({
+      _tag: "Custom",
+      sequence: 0,
+      name: "before-trace"
+    });
+    store.recordRequestTrace(trace);
+
+    const snapshot = store.getSnapshot();
+    expect(snapshot.requestTraces?.[0]?.request.id).toBe("trace:0");
+    expect(snapshot.events?.[1]).toMatchObject({
+      _tag: "RequestTrace",
+      sequence: 1,
+      trace: {
+        request: {
+          id: "trace:0"
+        }
+      }
+    });
+
+    const graph = store.getCausalGraph();
+    expect(graph.nodes.filter((node) => node.kind === "RequestTrace")).toEqual([
+      expect.objectContaining({ id: "request-trace:trace:0" })
+    ]);
+    expect(graph.edges).toContainEqual(
+      expect.objectContaining({
+        kind: "Observes",
+        source: "runtime-event:1:RequestTrace",
+        target: "request-trace:trace:0"
+      })
+    );
+  });
+
+  it("detaches caller snapshots at the store seam", () => {
+    const store = makeDevtoolsStore();
+    const input = { id: "atlas" };
+    const plan: DevtoolsInvalidationPlan = {
+      targets: [
+        {
+          _tag: "Ref",
+          key: "project:atlas",
+          family: "Project",
+          input
+        }
+      ],
+      entries: []
+    };
+
+    store.setSnapshot({
+      resources: [],
+      actions: [],
+      invalidations: [plan],
+      routePlans: []
+    });
+    input.id = "changed-after-set";
+
+    const firstSnapshot = store.getSnapshot();
+    const firstTarget = firstSnapshot.invalidations[0]?.targets[0];
+    expect(firstTarget).toMatchObject({
+      _tag: "Ref",
+      input: {
+        id: "atlas"
+      }
+    });
+    if (firstTarget?._tag === "Ref") {
+      (firstTarget.input as { id: string }).id = "changed-after-read";
+    }
+
+    expect(store.getSnapshot().invalidations[0]?.targets[0]).toMatchObject({
+      _tag: "Ref",
+      input: {
+        id: "atlas"
+      }
+    });
+  });
+
+  it("detaches recorded runtime event payloads at the store seam", () => {
+    const store = makeDevtoolsStore();
+    const payload = {
+      nested: {
+        count: 1
+      }
+    };
+
+    store.recordRuntimeEvent({
+      _tag: "Custom",
+      name: "custom",
+      payload
+    });
+    payload.nested.count = 2;
+
+    const firstEvent = store.getSnapshot().events?.[0];
+    expect(firstEvent).toMatchObject({
+      _tag: "Custom",
+      payload: {
+        nested: {
+          count: 1
+        }
+      }
+    });
+    if (firstEvent?._tag === "Custom") {
+      ((firstEvent.payload as { nested: { count: number } }).nested).count = 3;
+    }
+
+    expect(store.getSnapshot().events?.[0]).toMatchObject({
+      _tag: "Custom",
+      payload: {
+        nested: {
+          count: 1
+        }
+      }
+    });
   });
 
   it("lets adapters observe snapshots, summaries, events, and causal graphs through Effect", async () => {

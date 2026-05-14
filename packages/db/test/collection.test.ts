@@ -1,7 +1,8 @@
 import { makeResourceStore, makeRuntime, read, ResourceStore, runWithRuntime } from "@effect-ui/core";
 import { Collection, CollectionRowNotFound, Query, UnknownCollectionIndex, and, eq, gt } from "@effect-ui/db";
-import { Deferred, Effect, Fiber, PubSub, Schedule } from "effect";
+import { Cause, Deferred, Effect, Exit, Fiber, PubSub, Schedule } from "effect";
 import { describe, expect, it, vi } from "vitest";
+import { CollectionSnapshotCodecError } from "../src/collection-snapshot-codec.js";
 
 interface Project {
   readonly id: string;
@@ -26,6 +27,13 @@ interface RankedProject {
   readonly name: string;
   readonly status: "active" | "blocked" | "queued";
   readonly progress: number;
+}
+
+interface SnapshotProject {
+  readonly id: string;
+  readonly meta: {
+    readonly labels: Array<string>;
+  };
 }
 
 describe("Collection", () => {
@@ -450,6 +458,62 @@ describe("Collection", () => {
     }
   });
 
+  it("detaches snapshot rows and pending rollback rows from mutable collection state", () => {
+    const runtime = makeRuntime();
+    const release = Effect.runSync(Deferred.make<void>());
+    const Projects = Collection.define<SnapshotProject, string, never>({
+      name: "Projects.snapshot-codec-detach",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", meta: { labels: ["remote"] } }
+      ],
+      onUpdate: () => Deferred.await(release)
+    });
+    let update: Fiber.Fiber<unknown, unknown> | undefined;
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        update = runtime.runFork(Projects.updateEffect("atlas", (draft) => {
+          draft.meta.labels.push("local");
+        }));
+        yield* Effect.sleep("10 millis");
+
+        const snapshot = yield* runtime.provide(Projects.snapshotEffect());
+        const row = snapshot.rows[0];
+        const pending = snapshot.pendingMutations[0];
+        const rollback = pending?.rollbackRows[0]?.row;
+
+        yield* Effect.sync(() => {
+          expect(row?.value.meta.labels).toEqual(["remote", "local"]);
+          expect(rollback?.value.meta.labels).toEqual(["remote"]);
+
+          row?.value.meta.labels.push("snapshot-only");
+          rollback?.value.meta.labels.push("rollback-only");
+
+          expect(runWithRuntime(runtime, () => Projects.get("atlas")?.meta.labels)).toEqual([
+            "remote",
+            "local"
+          ]);
+        });
+
+        yield* Deferred.succeed(release, undefined);
+        if (update !== undefined) {
+          yield* Fiber.join(update);
+        }
+      }).pipe(
+        Effect.ensuring(
+          Effect.gen(function* () {
+            yield* Deferred.succeed(release, undefined).pipe(Effect.ignore);
+            if (update !== undefined) {
+              yield* Fiber.await(update);
+            }
+            yield* runtime.disposeEffect;
+          })
+        )
+      )
+    );
+  });
+
   it("persists and restores collection snapshots through a storage adapter", async () => {
     const first = makeRuntime();
     const second = makeRuntime();
@@ -478,6 +542,47 @@ describe("Collection", () => {
       await Effect.runPromise(first.disposeEffect);
       await Effect.runPromise(second.disposeEffect);
     }
+  });
+
+  it("validates persisted snapshot shape before hydrating storage rows", () => {
+    const runtime = makeRuntime();
+    const storage = Collection.memoryStorage([[
+      "invalid-projects-cache",
+      JSON.stringify({
+        name: "Projects.snapshot-codec-invalid",
+        rows: "not-rows",
+        pendingMutations: [],
+        updatedAt: 1
+      })
+    ]]);
+    const Projects = Collection.define<Project>({
+      name: "Projects.snapshot-codec-invalid",
+      getKey: (project) => project.id
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const exit = yield* Effect.exit(
+          runtime.provide(Projects.restoreEffect(storage, { key: "invalid-projects-cache" }))
+        );
+
+        yield* Effect.sync(() => {
+          expect(Exit.isFailure(exit)).toBe(true);
+          const failure = Exit.isFailure(exit)
+            ? exit.cause.reasons.find(Cause.isFailReason)?.error
+            : undefined;
+          expect(failure).toBeInstanceOf(CollectionSnapshotCodecError);
+          expect(failure).toMatchObject({
+            _tag: "CollectionSnapshotCodecError",
+            operation: "decode",
+            path: "$.rows"
+          });
+          expect(runWithRuntime(runtime, () => Projects.rows())).toEqual([]);
+        });
+      }).pipe(
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
   });
 
   it("persists and restores pending mutation queue entries", async () => {

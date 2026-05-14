@@ -11,7 +11,7 @@ import type {
   CollectionKey,
   CollectionOptions,
   CollectionPolicy
-} from "./index.js";
+} from "./collection-contract.js";
 import {
   collectionSyncOptions,
   type CollectionSyncAdapter,

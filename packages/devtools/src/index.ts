@@ -1,4 +1,4 @@
-import { type ActionState, type ReadableSignal, type ResourceInvalidationPlan, type ResourceStoreEvent, type Route } from "@effect-ui/core";
+import { type ActionSubmissionState, type ActionState, type ReadableSignal, type ResourceInvalidationPlan, type ResourceStoreEvent, type Route } from "@effect-ui/core";
 import { Data, Effect, type Scope } from "effect";
 import {
   mountDevtoolsPanelsEffectWithResolver,
@@ -128,7 +128,7 @@ export interface DevtoolsStartActionInstance {
   readonly definition: {
     readonly name: string;
   };
-  readonly state: ReadableSignal<ActionState<unknown, unknown, unknown>>;
+  readonly state: ReadableSignal<ActionSubmissionState<unknown, unknown, unknown, unknown>>;
   readonly invalidation: ReadableSignal<DevtoolsInvalidationPlan | undefined>;
 }
 

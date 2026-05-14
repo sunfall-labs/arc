@@ -1,3 +1,15 @@
+import {
+  devtoolsActionNodeId,
+  devtoolsCollectionNodeId,
+  devtoolsMissingSchemaPanelItemId,
+  devtoolsRequestPanelItemId,
+  devtoolsResourceNodeId,
+  devtoolsRoutePanelItemId,
+  devtoolsRoutePlanPanelItemId,
+  devtoolsUnknownActionPanelItemId,
+  devtoolsUnknownRoutePreloadCollectionsPanelItemId,
+  devtoolsUnknownRoutePreloadResourcesPanelItemId
+} from "./graph-ids.js";
 import type {
   DevtoolsPanelItem,
   DevtoolsPanelMetric,
@@ -116,7 +128,7 @@ export const describeDevtoolsPanelsWithRuntime = (
         items: graphAvailable
           ? summary.graph.routes.modules.map((routeModule) =>
               panelItem({
-                id: `route:${routeModule.routeId}`,
+                id: devtoolsRoutePanelItemId(routeModule.routeId),
                 label: routeModule.routePath,
                 detail: routeModule.moduleId,
                 severity: routeModule.preloadResources.status === "unknown" ||
@@ -143,7 +155,7 @@ export const describeDevtoolsPanelsWithRuntime = (
         ],
         items: summary.routes.plans.map((plan) =>
           panelItem({
-            id: `route-plan:${plan.index}`,
+            id: devtoolsRoutePlanPanelItemId(plan.index),
             label: plan.href,
             detail: plan.path ?? "not found",
             severity: plan._tag === "NotFound" ? "warning" : "ok",
@@ -171,7 +183,7 @@ export const describeDevtoolsPanelsWithRuntime = (
         ],
         items: summary.resources.map((resource) =>
           panelItem({
-            id: `resource:${resource.key}`,
+            id: devtoolsResourceNodeId(resource.key),
             label: resource.family ?? resource.key,
             detail: resource.state ?? "unknown",
             severity: resource.state === "Failure" ? "error" : "ok",
@@ -199,7 +211,7 @@ export const describeDevtoolsPanelsWithRuntime = (
         ],
         items: summary.runtime.actions.map((action) =>
           panelItem({
-            id: `action:${action.name}`,
+            id: devtoolsActionNodeId(action.name),
             label: action.name,
             detail: action.state,
             severity: action.state === "Failure" ? "error" : "ok",
@@ -224,7 +236,7 @@ export const describeDevtoolsPanelsWithRuntime = (
         items: graphAvailable
           ? summary.graph.collections.definitions.map((collection) =>
               panelItem({
-                id: `collection:${collection.name}`,
+                id: devtoolsCollectionNodeId(collection.name),
                 label: collection.name,
                 severity: "ok"
               })
@@ -244,7 +256,7 @@ export const describeDevtoolsPanelsWithRuntime = (
         ],
         items: summary.requests.traces.map((trace) =>
           panelItem({
-            id: `request:${trace.id}`,
+            id: devtoolsRequestPanelItemId(trace),
             label: `${trace.method} ${trace.path}`,
             detail: `${trace.transport} ${trace.status}${trace.failureKind === null ? "" : ` (${trace.failureKind})`}`,
             severity: requestTraceSeverity(trace),
@@ -281,7 +293,7 @@ export const describeDevtoolsPanelsWithRuntime = (
           ? [
               ...summary.graph.missingSchemas.map((schema) =>
                 panelItem({
-                  id: `missing-schema:${schema.kind}:${schema.name}`,
+                  id: devtoolsMissingSchemaPanelItemId(schema),
                   label: schema.name,
                   detail: schema.kind,
                   severity: "error",
@@ -290,7 +302,7 @@ export const describeDevtoolsPanelsWithRuntime = (
               ),
               ...summary.graph.actions.unknownBehavior.map((entry) =>
                 panelItem({
-                  id: `unknown-action:${entry.name}`,
+                  id: devtoolsUnknownActionPanelItemId(entry.name),
                   label: entry.name,
                   detail: "unknown action behavior",
                   severity: "warning",
@@ -299,7 +311,7 @@ export const describeDevtoolsPanelsWithRuntime = (
               ),
               ...summary.graph.routes.unknownPreloadResources.map((entry) =>
                 panelItem({
-                  id: `unknown-preload-resources:${entry.routeId}`,
+                  id: devtoolsUnknownRoutePreloadResourcesPanelItemId(entry.routeId),
                   label: entry.routePath,
                   detail: "unknown preload resources",
                   severity: "warning",
@@ -308,7 +320,7 @@ export const describeDevtoolsPanelsWithRuntime = (
               ),
               ...summary.graph.routes.unknownPreloadCollections.map((entry) =>
                 panelItem({
-                  id: `unknown-preload-collections:${entry.routeId}`,
+                  id: devtoolsUnknownRoutePreloadCollectionsPanelItemId(entry.routeId),
                   label: entry.routePath,
                   detail: "unknown preload collections",
                   severity: "warning",

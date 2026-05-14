@@ -1,4 +1,14 @@
 import { type ResourceStoreEvent } from "@effect-ui/core";
+import {
+  devtoolsActionNodeId as actionNodeId,
+  devtoolsCollectionNodeId as collectionNodeId,
+  devtoolsInvalidationNodeId as invalidationNodeId,
+  devtoolsRequestTraceNodeId as requestTraceNodeId,
+  devtoolsResourceNodeId as resourceNodeId,
+  devtoolsRoutePlanNodeId as routePlanNodeId,
+  devtoolsRuntimeEventSummaryId as runtimeEventSummaryId,
+  devtoolsRuntimeTargetLabel as runtimeTargetLabel
+} from "./graph-ids.js";
 import { toDevtoolsSerializableValue } from "./serialization.js";
 import type {
   DevtoolsCollectionStoreEvent,
@@ -38,19 +48,6 @@ const stateCounts = (
     .sort(([left], [right]) => left.localeCompare(right))
     .map(([state, count]) => ({ state, count }));
 };
-
-const actionNodeId = (name: string): string => `action:${name}`;
-
-const collectionNodeId = (collection: string): string => `collection:${collection}`;
-
-const invalidationNodeId = (index: number): string => `invalidation:${index}`;
-
-const requestTraceNodeId = (trace: DevtoolsSummaryRequestTrace): string =>
-  `request-trace:${trace.id}`;
-
-const resourceNodeId = (key: string): string => `resource:${key}`;
-
-const routePlanNodeId = (index: number, href: string): string => `route-plan:${index}:${href}`;
 
 export const summarizeResourceRef = (ref: {
   readonly key: string;
@@ -140,13 +137,6 @@ const collectionEventTarget = (event: DevtoolsCollectionStoreEvent): { readonly 
   label: event.collection
 });
 
-const runtimeTargetLabel = (target: NonNullable<DevtoolsSummaryRuntimeEvent["target"]>): string =>
-  target.kind === "Collection" && target.id.startsWith("collection:")
-    ? target.id.slice("collection:".length)
-    : target.kind === "RequestTrace" && target.id.startsWith("request-trace:")
-      ? target.id.slice("request-trace:".length)
-    : target.id;
-
 export const summarizeRuntimeEvent = (
   event: DevtoolsRuntimeEvent,
   index: number
@@ -159,7 +149,7 @@ export const summarizeRuntimeEvent = (
       const target = resourceEventTarget(event.event);
       return {
         index,
-        id: `runtime-event:${sequence}:ResourceStoreEvent`,
+        id: runtimeEventSummaryId(sequence, "ResourceStoreEvent"),
         _tag: event._tag,
         sequence,
         at,
@@ -175,7 +165,7 @@ export const summarizeRuntimeEvent = (
       const target = collectionEventTarget(event.event);
       return {
         index,
-        id: `runtime-event:${sequence}:CollectionStoreEvent`,
+        id: runtimeEventSummaryId(sequence, "CollectionStoreEvent"),
         _tag: event._tag,
         sequence,
         at,
@@ -190,7 +180,7 @@ export const summarizeRuntimeEvent = (
     case "ActionState":
       return {
         index,
-        id: `runtime-event:${sequence}:ActionState`,
+        id: runtimeEventSummaryId(sequence, "ActionState"),
         _tag: event._tag,
         sequence,
         at,
@@ -209,7 +199,7 @@ export const summarizeRuntimeEvent = (
     case "Invalidation":
       return {
         index,
-        id: `runtime-event:${sequence}:Invalidation`,
+        id: runtimeEventSummaryId(sequence, "Invalidation"),
         _tag: event._tag,
         sequence,
         at,
@@ -226,7 +216,7 @@ export const summarizeRuntimeEvent = (
     case "RoutePlan":
       return {
         index,
-        id: `runtime-event:${sequence}:RoutePlan`,
+        id: runtimeEventSummaryId(sequence, "RoutePlan"),
         _tag: event._tag,
         sequence,
         at,
@@ -241,7 +231,7 @@ export const summarizeRuntimeEvent = (
       const trace = summarizeRequestTrace(event.trace, index);
       return {
         index,
-        id: `runtime-event:${sequence}:RequestTrace`,
+        id: runtimeEventSummaryId(sequence, "RequestTrace"),
         _tag: event._tag,
         sequence,
         at,
@@ -256,7 +246,7 @@ export const summarizeRuntimeEvent = (
     case "Custom":
       return {
         index,
-        id: `runtime-event:${sequence}:Custom`,
+        id: runtimeEventSummaryId(sequence, "Custom"),
         _tag: event._tag,
         sequence,
         at,

@@ -680,8 +680,342 @@ this is not a clean-sweep point.
      passed: 3 files / 39 tests.
 
 Open candidates still queued from follow-up probes: Core Definition Registry,
-Core Action Submission Controller, Devtools Fact Identity, Devtools Store
-Snapshot Detachment, Devtools Serialization Policy,
+Core Action Submission Controller, Devtools Store Snapshot Detachment,
+Devtools Serialization Policy,
 DB Collection Contract Module, DB Collection Registry Locality, DB Collection
 Snapshot Codec, Start callable manifest entry assembly/deserialization, Start
 App Graph Diagnostics Runtime, and Start File Route Path Decoder.
+
+## Review 10: Devtools Identity Follow-Up
+
+Status: fixed for Devtools Fact Identity and Graph Identity findings. Other
+Devtools candidates remain queued.
+
+1. Devtools Graph Identity Module
+   - Status: fixed.
+   - Files: `CONTEXT.md`,
+     `packages/devtools/src/graph-ids.ts`,
+     `packages/devtools/src/causal-graph.ts`,
+     `packages/devtools/src/summary-facts.ts`,
+     `packages/devtools/src/panels.ts`.
+   - Problem: causal graph construction, summary facts, and panels each built
+     ids with local string templates. The same conceptual ids existed in
+     multiple Implementations, so future graph/panel changes could drift
+     silently.
+   - Fix: `graph-ids.ts` now owns graph node ids, panel item ids, runtime event
+     ids, invalidation target ids, runtime target labels, and causal edge ids.
+     Graph, summary, and panel Modules call the shared Interface.
+   - Benefits: stable Devtools identity has one Locality point and callers get
+     the same ids across summaries, panels, and causal graph edges.
+   - Evidence: `pnpm --filter @effect-ui/devtools typecheck` passed, and
+     `pnpm exec vitest run packages/devtools/test/devtools.test.ts` passed:
+     1 file / 19 tests.
+
+2. Devtools Fact Identity Module
+   - Status: fixed.
+   - Files: `CONTEXT.md`,
+     `packages/devtools/src/fact-identity.ts`,
+     `packages/devtools/src/store.ts`,
+     `packages/devtools/test/devtools.test.ts`.
+   - Problem: bounded invalidation history trimming left stored action/runtime
+     invalidation indexes pointing at stale positions, and id-less request
+     traces could be summarized into graph facts without stable request ids.
+   - Fix: `fact-identity.ts` now owns invalidation index rebasing for stored
+     action/runtime facts and fallback request trace id stamping. The Store
+     applies it before appending trimmed invalidation history or recording a
+     request trace runtime event.
+   - Benefits: Devtools Store fact references remain valid after bounded
+     history truncation, and request trace facts get deterministic identity
+     before summary or causal graph projection.
+   - Evidence: `pnpm --filter @effect-ui/devtools typecheck` passed, and
+     `pnpm exec vitest run packages/devtools/test/devtools.test.ts` passed:
+     1 file / 19 tests.
+
+Open candidates still queued: Core Definition Registry, Devtools Store Snapshot
+Detachment, Devtools Serialization Policy,
+DB Collection Contract Module, DB Collection Registry Locality, DB Collection
+Snapshot Codec, Start callable manifest entry assembly/deserialization, Start
+App Graph Diagnostics Runtime, and Start File Route Path Decoder.
+
+## Review 11: Start File Route Segment Parser Follow-Up
+
+Status: fixed for the Start File Route Path Decoder finding.
+
+1. Start File Route Segment Parser
+   - Status: fixed.
+   - Files: `CONTEXT.md`,
+     `packages/start/src/file-route-segments.ts`,
+     `packages/start/src/file-routes.ts`,
+     `packages/start/test/file-routes.test.ts`.
+   - Problem: file-route segment parsing existed in two forms: sync route
+     discovery used an undefined/ignored return shape, while Effect manifest
+     generation represented invalid dynamic params as typed
+     `FileRouteManifestInvalidSegment` errors. The sync path could treat a
+     malformed `$123` segment as static when producing a route manifest entry.
+   - Fix: `file-route-segments.ts` now owns one parser that classifies ignored
+     route groups/pathless segments, valid static/dynamic segments, and invalid
+     dynamic param names. Sync route discovery drops invalid routes, while
+     Effect manifest generation converts the same parse result into the typed
+     manifest error.
+   - Benefits: file-route path decoding has one Locality point, and sync
+     discovery plus Effect manifest generation cannot drift on malformed
+     dynamic param semantics.
+   - Evidence: `pnpm --filter @effect-ui/start typecheck` passed, and
+     `pnpm exec vitest run packages/start/test/file-routes.test.ts packages/start/test/start.test.ts`
+     passed: 2 files / 71 tests.
+
+Open candidates still queued: Core Definition Registry, Devtools Store Snapshot
+Detachment, Devtools Serialization Policy,
+DB Collection Contract Module, DB Collection Registry Locality, DB Collection
+Snapshot Codec, Start callable manifest entry assembly/deserialization, and
+Start App Graph Diagnostics Runtime.
+
+## Review 12: Core Action Submission Controller Follow-Up
+
+Status: fixed for the Core Action Submission Controller finding.
+
+1. Core Action Submission Controller
+   - Status: fixed.
+   - Files: `CONTEXT.md`,
+     `packages/core/src/action.ts`,
+     `packages/core/test/action.test.ts`.
+   - Problem: `Action.use(...)` scattered submission versioning, current fiber
+     ownership, visible state mutation, invalidation-plan mutation, stale
+     checks, and reset interruption across the submit workflow. That made it
+     easy for stale parallel completions to mutate the visible invalidation
+     plan independently from the visible success state, and optimistic signal
+     patches applied during an interrupted optimistic Effect had no local
+     rollback owner until the optimistic callback returned.
+   - Fix: `action.ts` now has an internal Action Submission Controller that
+     owns submission identity, latest/exhaust/parallel coordination, current
+     fiber tracking, state transitions, invalidation-plan updates, stale
+     interruption checks, and reset coordination behind the existing public
+     `Action.use(...)` Interface. The workflow now acquires the optimistic
+     transaction rollback before running user optimistic work.
+   - Benefits: Action submission coordination now has one Locality point while
+     callers keep the same Interface. The regression tests exercise the
+     Interface behavior directly: interrupted optimistic work rolls back
+     transaction patches, and stale parallel successes still run their
+     invalidations without replacing the latest visible invalidation plan.
+   - Evidence: `pnpm --filter @effect-ui/core typecheck` passed,
+     `pnpm exec vitest run packages/core/test/action.test.ts` passed:
+     1 file / 20 tests, and
+     `pnpm exec vitest run packages/core/test` passed: 12 files / 108 tests.
+
+Open candidates still queued: Core Definition Registry, Devtools Store Snapshot
+Detachment, Devtools Serialization Policy, DB Collection Contract Module,
+DB Collection Registry Locality, DB Collection Snapshot Codec, Start callable
+manifest entry assembly/deserialization, and Start App Graph Diagnostics
+Runtime.
+
+## Review 13: Start Client Facade Follow-Up
+
+Status: fixed for Start client facade depth in this pass.
+
+1. Start RPC Client And Action Client Modules
+   - Status: fixed.
+   - Files: `CONTEXT.md`,
+     `packages/start/src/index.ts`,
+     `packages/start/src/start-rpc-client.ts`,
+     `packages/start/src/start-action-client.ts`,
+     `packages/start/test/rpc.test.ts`,
+     `packages/start/test/start.test.ts`.
+   - Problem: the Start root facade still implemented RPC-backed
+     `ServerClient` creation, browser RPC Layer construction, action transport
+     submission, and stateful `StartAction.use(...)`. Those are real client
+     Modules with fetch resolution, transport failure classification, schema
+     encode/decode, hydration, and action concurrency behavior; keeping them in
+     the root made the root Interface shallow.
+   - Fix: `start-rpc-client.ts` owns the Start RPC Client, including
+     `makeRpcClient`, `makeRpcClientLayer`, and `BrowserRpcLive`.
+     `start-action-client.ts` owns `submitStartActionEffect` and the
+     stateful `StartAction` namespace. The Start root now re-exports those
+     public Interfaces.
+   - Benefits: client transport behavior has focused Locality while preserving
+     root import leverage. Future RPC/action client changes can be tested and
+     reviewed without editing the whole Start root facade.
+   - Evidence: `pnpm --filter @effect-ui/start typecheck` passed, and
+     `pnpm exec vitest run packages/start/test/rpc.test.ts packages/start/test/start.test.ts packages/start/test/file-routes.test.ts`
+     passed: 3 files / 78 tests.
+
+Open candidates still queued: Core Definition Registry, Devtools Store Snapshot
+Detachment, Devtools Serialization Policy, DB Collection Contract Module,
+DB Collection Registry Locality, DB Collection Snapshot Codec, Start callable
+manifest entry assembly/deserialization, and Start App Graph Diagnostics
+Runtime.
+
+## Review 14: DB Snapshot And Devtools Serialization Follow-Up
+
+Status: fixed for DB Collection Snapshot Codec, Devtools Store Snapshot
+Detachment, and Devtools Serialization Policy findings.
+
+1. DB Collection Snapshot Codec
+   - Status: fixed.
+   - Files: `CONTEXT.md`,
+     `packages/db/src/collection-snapshot-codec.ts`,
+     `packages/db/src/collection-persistence.ts`,
+     `packages/db/src/collection-mutation-queue.ts`,
+     `packages/db/src/collection-state.ts`,
+     `packages/db/src/collection-runtime.ts`,
+     `packages/db/src/live-query-collection.ts`,
+     `packages/db/test/collection.test.ts`.
+   - Problem: collection row snapshot cloning, pending mutation snapshot
+     conversion, hydration validation, JSON encoding/decoding, and live-query
+     collection snapshot creation were spread across runtime, state,
+     persistence, mutation queue, and live-query adapter Modules.
+   - Fix: `collection-snapshot-codec.ts` now owns snapshot validation,
+     cloning, pending mutation conversion, JSON encode/decode, hydration state
+     application, and live-query collection snapshot construction helpers.
+   - Benefits: persistence and hydration seams now have one validation and
+     copy policy, which improves Locality for snapshot format changes and
+     keeps persisted data from leaking unchecked shapes into Collection State.
+   - Evidence: `pnpm --filter @effect-ui/db typecheck` passed, and the focused
+     multi-package regression suite passed: 7 files / 162 tests.
+
+2. Devtools Serialization Policy And Store Snapshot Detachment
+   - Status: fixed.
+   - Files: `CONTEXT.md`,
+     `packages/devtools/src/serialization.ts`,
+     `packages/devtools/src/store.ts`,
+     `packages/devtools/test/devtools.test.ts`.
+   - Problem: Devtools serialization did not have an explicit bounded policy
+     for deep, wide, long, circular, accessor, Map/Set, Error, and detached
+     runtime values. Store record/read seams could retain caller-owned object
+     references, allowing later caller mutation to rewrite recorded facts.
+   - Fix: `serialization.ts` now owns a bounded serialization policy and
+     detached copy helpers for invalidation plans, route plans, request traces,
+     runtime events, app graph diagnostics, and snapshots. `store.ts` uses
+     those helpers at set/get/record seams.
+   - Benefits: Devtools inspection values stay JSON-safe and bounded, and Store
+     facts are detached from caller-owned values before summary or causal graph
+     projection.
+   - Evidence: `pnpm --filter @effect-ui/devtools typecheck` passed, and the
+     focused multi-package regression suite passed: 7 files / 162 tests.
+
+3. Start App Graph Nested Route Revalidation
+   - Status: covered.
+   - Files: `packages/start/test/app-graph.test.ts`.
+   - Problem: app graph deserialization depends on nested file-route manifest
+     facts staying internally consistent. Without regression coverage, a
+     future deserializer could accept route module routePath values that no
+     longer match their decoded segments.
+   - Fix: added a regression test that corrupts a serialized graph's nested
+     route module path and verifies deserialization fails through the typed
+     file-route manifest parse error.
+   - Evidence: `pnpm --filter @effect-ui/start typecheck` passed, and the
+     focused multi-package regression suite passed: 7 files / 162 tests.
+
+Open candidates still queued: Core Definition Registry,
+DB Collection Contract Module, DB Collection Registry Locality, Start callable
+manifest entry assembly/deserialization, and Start App Graph Diagnostics
+Runtime.
+
+## Review 15: Shared Submission, DB Contract, And Manifest Decode Follow-Up
+
+Status: fixed for the highest-confidence Action, DB, and Start follow-up
+findings in this pass.
+
+1. Shared Action Submission Controller
+   - Status: fixed.
+   - Files: `CONTEXT.md`,
+     `packages/core/src/action-submission.ts`,
+     `packages/core/src/action.ts`,
+     `packages/start/src/start-action-client.ts`,
+     `packages/core/test/action.test.ts`,
+     `packages/start/test/start.test.ts`.
+   - Problem: Core `Action.use(...)` and Start `StartAction.use(...)` still
+     carried parallel submission state machines: submission versioning, current
+     fiber ownership, stale interruption, state transitions, invalidation plan
+     updates, and reset interruption. That duplicated a behavioral seam where
+     small drift can become stale UI state or missed interruption.
+   - Fix: `action-submission.ts` now owns the generic Action Submission
+     Controller, including visible state, invalidation signal, concurrency
+     decisions, stale checks, pending/success/failure transitions, and reset.
+     Core Actions and Start Actions both delegate their client state machines
+     to that controller while keeping their domain workflows local.
+   - Benefits: action submission concurrency now has one Interface and one
+     Locality point across local Core actions and transport-backed Start
+     actions.
+   - Evidence: `pnpm --filter @effect-ui/core typecheck`,
+     `pnpm --filter @effect-ui/start typecheck`, and
+     `pnpm exec vitest run packages/core/test/action.test.ts packages/start/test/start.test.ts`
+     passed: 2 files / 77 tests.
+
+2. DB Collection Contract And Registry
+   - Status: fixed.
+   - Files: `CONTEXT.md`,
+     `packages/db/src/collection-contract.ts`,
+     `packages/db/src/collection-registry.ts`,
+     `packages/db/src/index.ts`,
+     `packages/db/src/collection-runtime.ts`,
+     `packages/db/src/live-query-collection.ts`.
+   - Problem: the DB root facade still owned Collection contract types and the
+     process-wide Collection registry, while internal DB Modules imported
+     those root types. That made the root too deep and made registry
+     diagnostics look like facade behavior instead of collection infrastructure.
+   - Fix: `collection-contract.ts` owns Collection Definition, row, mutation,
+     snapshot, persistence, store-event, diagnostics, and related public
+     contracts. `collection-registry.ts` owns registration, definitions, and
+     diagnostics. Internal DB Modules now import collection contracts directly,
+     and the root re-exports the public Interface.
+   - Benefits: the DB root is closer to a facade, while Collection contracts
+     and diagnostics have stable local Modules for future adapter and devtools
+     work.
+   - Evidence: `pnpm --filter @effect-ui/db typecheck` passed, and
+     `pnpm exec vitest run packages/db/test/collection.test.ts packages/db/test/persisted-options.test.ts packages/db/test/sqlite-persistence.test.ts packages/db/test/live-query-collection.test.ts`
+     passed: 4 files / 48 tests.
+
+3. Typed DB Snapshot Codec Errors
+   - Status: fixed.
+   - Files: `packages/db/src/collection-contract.ts`,
+     `packages/db/src/collection-snapshot-codec.ts`,
+     `packages/db/src/collection-persistence.ts`,
+     `packages/db/src/collection-runtime.ts`,
+     `packages/db/src/index.ts`,
+     `packages/db/test/collection.test.ts`.
+   - Problem: snapshot validation existed, but invalid persisted JSON still
+     escaped through `Effect.sync(...)` as a defect. Persistence decode errors
+     should be typed Effect failures because callers can repair storage,
+     clear a key, or surface guidance.
+   - Fix: snapshot encode/decode now use typed
+     `CollectionSnapshotCodecError` failures. Collection persistence,
+     preload/refetch/write/mutation/persist/restore APIs expose that error
+     channel where snapshot storage can be touched.
+   - Benefits: corrupted persisted collection state is now recoverable through
+     normal Effect error handling instead of defect handling.
+   - Evidence: `pnpm --filter @effect-ui/db typecheck` passed, and the DB
+     persistence-focused test suite passed: 4 files / 48 tests.
+
+4. Start Callable Manifest Deserialization Core
+   - Status: fixed.
+   - Files: `packages/start/src/manifest-entry-core.ts`,
+     `packages/start/src/server-function-manifest.ts`,
+     `packages/start/src/action-manifest.ts`,
+     `packages/start/test/action-manifest.test.ts`,
+     `packages/start/test/server-function-manifest.test.ts`.
+   - Problem: action and server-function manifests already shared entry
+     assembly helpers, but deserialization still duplicated JSON parsing,
+     version/path validation, server/wire/client identity validation, import
+     reference validation, and entry iteration.
+   - Fix: Manifest Entry Core now owns typed JSON parsing, versioned manifest
+     payload decoding, and common callable entry decoding. Server-function and
+     action manifests supply their transport path field, transport client tag,
+     branded id function, and domain-specific behavior fields.
+   - Benefits: the Manifest Wall has one deserialization grammar for callable
+     artifacts, which reduces drift between server-function RPC clients and
+     progressive action clients.
+   - Evidence: `pnpm --filter @effect-ui/start typecheck` passed, and
+     `pnpm exec vitest run packages/start/test/action-manifest.test.ts packages/start/test/server-function-manifest.test.ts`
+     passed: 2 files / 12 tests.
+
+Workspace evidence for this pass: `pnpm typecheck:types` passed, and the
+focused cross-package regression run passed: 8 files / 137 tests.
+
+Full verification evidence: escalated `pnpm verify` passed after this tranche:
+9 package builds, workspace typecheck, type tests, 40 root test files / 349
+tests, devtools-panel verify, devtools-extension verify, basic starter verify,
+project-console starter packaging/typecheck/tests/build, and leak scan.
+
+Open candidates still queued: Core Definition Registry and Start App Graph
+Diagnostics Runtime. The Thirty-Sweep Gate is still not satisfied because this
+pass found and fixed new work.

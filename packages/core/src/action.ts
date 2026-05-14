@@ -1,5 +1,12 @@
-import { Data, Effect, Fiber, type Schedule } from "effect";
+import { Effect, Fiber, type Schedule } from "effect";
 import { ActionResult, type AnyActionResult } from "./action-result.js";
+import {
+  ActionInterrupted,
+  makeActionSubmissionController,
+  type ActionSubmissionFiber,
+  type ActionSubmissionRun,
+  type ActionSubmissionState
+} from "./action-submission.js";
 import type { EffectInput } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
 import { Resource, type ResourceInvalidation, type ResourceInvalidationPlan } from "./resource.js";
@@ -9,11 +16,7 @@ import { Signal, type ReadableSignal, type WritableSignal } from "./signal.js";
 export const ActionTypeId: unique symbol = Symbol.for("@effect-ui/core/Action") as typeof ActionTypeId;
 
 /** State machine for one action instance. */
-export type ActionState<I, A, E = unknown> =
-  | { readonly _tag: "Idle" }
-  | { readonly _tag: "Pending"; readonly input: I; readonly previous?: A }
-  | { readonly _tag: "Success"; readonly value: A; readonly input: I; readonly invalidationPlan?: ResourceInvalidationPlan }
-  | { readonly _tag: "Failure"; readonly error: E; readonly input: I; readonly previous?: A };
+export type ActionState<I, A, E = unknown> = ActionSubmissionState<I, A, E>;
 
 export type ActionConcurrency = "latest" | "parallel" | "exhaust";
 
@@ -92,9 +95,16 @@ export interface ActionUseOptions<R = never, ER = unknown> {
   readonly runtime?: EffectUiRuntime<R, ER>;
 }
 
-export class ActionInterrupted extends Data.TaggedError("ActionInterrupted")<{
-  readonly actionName: string;
-}> {}
+export {
+  ActionInterrupted,
+  makeActionSubmissionController,
+  type ActionSubmissionController,
+  type ActionSubmissionControllerOptions,
+  type ActionSubmissionDecision,
+  type ActionSubmissionFiber,
+  type ActionSubmissionRun,
+  type ActionSubmissionState
+} from "./action-submission.js";
 
 type AnyActionDefinition = ActionDefinition<any, any, any, any>;
 
@@ -104,18 +114,6 @@ export const isActionDefinition = (value: unknown): value is ActionDefinition<un
   typeof value === "object" &&
   value !== null &&
   (value as { [ActionTypeId]?: unknown })[ActionTypeId] === ActionTypeId;
-
-const previousFromState = <I, A, E>(state: ActionState<I, A, E>): A | undefined => {
-  switch (state._tag) {
-    case "Success":
-      return state.value;
-    case "Failure":
-    case "Pending":
-      return state.previous;
-    case "Idle":
-      return undefined;
-  }
-};
 
 const resultInvalidations = (value: unknown): ReadonlyArray<ResourceInvalidation> =>
   ActionResult.is(value)
@@ -321,16 +319,12 @@ export namespace Action {
     definition: ActionDefinition<I, A, E, R>,
     options: ActionUseOptions<R> = {}
   ): ActionInstance<I, A, E, R> => {
-    const state = Signal.make<ActionState<I, A, E>>({ _tag: "Idle" });
-    const invalidationPlan = Signal.make<ResourceInvalidationPlan | undefined>(undefined);
     const runtime = options.runtime ?? getCurrentRuntime() ?? currentOrDefaultRuntime();
-    let version = 0;
-    let currentSubmission:
-      | {
-          readonly token: object;
-          fiber?: Fiber.Fiber<A, E | ActionInterrupted>;
-        }
-      | undefined;
+    const submissions = makeActionSubmissionController<I, A, E>(
+      definition.policy?.concurrency === undefined
+        ? { actionName: definition.name }
+        : { actionName: definition.name, concurrency: definition.policy.concurrency }
+    );
 
     const runEffect = (input: I): Effect.Effect<A, E, R> => {
       const effect = toEffect(definition.run(input));
@@ -338,56 +332,41 @@ export namespace Action {
       return retry ? Effect.retry(effect, retry) : effect;
     };
 
-    const applyOptimistic = (input: I): Effect.Effect<ActionTransactionRuntime<R>, never, R> => {
-      const transaction = makeTransactionRuntime<R>();
-
+    const applyOptimistic = (
+      input: I,
+      transaction: ActionTransactionRuntime<R>
+    ): Effect.Effect<ActionRollback<R>, never, R> => {
       if (!definition.optimistic) {
-        return Effect.succeed(transaction);
+        return Effect.succeed(transaction.rollback);
       }
 
-      return Effect.gen(function* () {
-        const extraRollback = yield* definition.optimistic!(input, transaction.api);
-        return {
-          api: transaction.api,
-          commit: transaction.commit,
-          rollback: Effect.ensuring(extraRollback, transaction.rollback)
-        };
-      });
+      return definition.optimistic(input, transaction.api).pipe(
+        Effect.map((extraRollback) =>
+          Effect.ensuring(extraRollback, transaction.rollback)
+        )
+      );
     };
 
     const runWorkflow = (
       input: I,
-      token: number,
-      options: {
-        readonly interruptStale: boolean;
-        readonly updateOnlyLatest: boolean;
-      }
+      submission: ActionSubmissionRun<A, E>
     ): Effect.Effect<A, E | ActionInterrupted, R> =>
       Effect.suspend(() => {
         let rollback: ActionRollback<R> = Effect.void as ActionRollback<R>;
 
         return Effect.ensuring(
           Effect.gen(function* () {
-            const previous = previousFromState(state.get());
-            invalidationPlan.set(undefined);
-            state.set({
-              _tag: "Pending",
-              input,
-              ...(previous === undefined ? {} : { previous })
-            });
+            yield* submissions.pendingEffect(submission, input);
 
-            const transaction = yield* applyOptimistic(input);
+            const transaction = makeTransactionRuntime<R>();
             rollback = transaction.rollback;
+            rollback = yield* applyOptimistic(input, transaction);
 
             const value = yield* runEffect(input);
-            const isLatest = token === version;
-            if (options.interruptStale && !isLatest) {
-              return yield* new ActionInterrupted({ actionName: definition.name });
-            }
+            yield* submissions.interruptStaleEffect(submission);
 
             const invalidations = invalidationsFor(definition, value, input);
             const plan = yield* Resource.planInvalidationEffect(invalidations);
-            invalidationPlan.set(invalidations.length === 0 ? undefined : plan);
             if (invalidations.length > 0) {
               yield* Resource.runInvalidationPlanEffect(plan);
             }
@@ -395,14 +374,12 @@ export namespace Action {
             yield* transaction.commit;
             rollback = Effect.void as ActionRollback<R>;
 
-            if (!options.updateOnlyLatest || isLatest) {
-              state.set({
-                _tag: "Success",
-                value,
-                input,
-                ...(invalidations.length === 0 ? {} : { invalidationPlan: plan })
-              });
-            }
+            yield* submissions.successEffect(
+              submission,
+              input,
+              value,
+              invalidations.length === 0 ? undefined : plan
+            );
 
             return value;
           }),
@@ -414,78 +391,45 @@ export namespace Action {
             return Effect.fail(error);
           }
 
-          const previous = previousFromState(state.get());
-          if (!options.updateOnlyLatest || token === version) {
-            state.set({
-              _tag: "Failure",
-              error: error as E,
-              input,
-              ...(previous === undefined ? {} : { previous })
-            });
-          }
-          return Effect.fail(error as E);
+          return submissions.failureEffect(submission, input, error as E).pipe(
+            Effect.andThen(Effect.fail(error as E))
+          );
         })
       );
 
+    const resetEffect = submissions.resetEffect;
+
     const submitEffect = (input: I): Effect.Effect<A, E | ActionInterrupted, R> =>
       Effect.suspend(() => {
-        const concurrency = definition.policy?.concurrency ?? "latest";
-        const current = currentSubmission;
-        if (concurrency === "exhaust" && current?.fiber) {
-          return Fiber.join(current.fiber);
-        }
-
-        const previousFiber = concurrency === "latest" ? current?.fiber : undefined;
-        const token = ++version;
-        const submissionToken = {};
         return Effect.withFiber((fiber) => {
-          if (concurrency !== "parallel") {
-            currentSubmission = {
-              token: submissionToken,
-              fiber: fiber as Fiber.Fiber<A, E | ActionInterrupted>
-            };
-          }
+          const submissionFiber = fiber as ActionSubmissionFiber<A, E>;
 
-          return Effect.gen(function* () {
-            if (previousFiber && previousFiber !== fiber) {
-              yield* Fiber.interrupt(previousFiber);
-            }
+          return submissions.beginEffect(submissionFiber).pipe(
+            Effect.flatMap((submission) => {
+              if (submission._tag === "Join") {
+                return Fiber.join(submission.fiber);
+              }
 
-            return yield* runWorkflow(input, token, {
-              interruptStale: concurrency === "latest",
-              updateOnlyLatest: true
-            });
-          }).pipe(Effect.ensuring(clearCurrentEffect(submissionToken)));
+              return Effect.gen(function* () {
+                if (submission.previousFiber && submission.previousFiber !== submissionFiber) {
+                  yield* Fiber.interrupt(submission.previousFiber);
+                }
+
+                return yield* runWorkflow(input, submission);
+              }).pipe(Effect.ensuring(submissions.clearCurrentEffect(submission.clearToken)));
+            })
+          );
         });
-      });
-
-    const resetEffect = (): Effect.Effect<void> =>
-      Effect.sync(() => {
-        version++;
-        invalidationPlan.set(undefined);
-        state.set({ _tag: "Idle" });
-      });
-
-    const clearCurrentEffect = (token: object): Effect.Effect<void> =>
-      Effect.sync(() => {
-        if (currentSubmission?.token === token) {
-          currentSubmission = undefined;
-        }
       });
 
     return {
       definition,
-      state,
-      invalidationPlan,
+      state: submissions.state,
+      invalidationPlan: submissions.invalidationPlan,
       submitEffect,
       resetEffect,
       reset: () => {
-        const submission = currentSubmission;
-        if (submission?.fiber) {
-          void runtime.runFork(Fiber.interrupt(submission.fiber));
-        }
-        currentSubmission = undefined;
-        runtime.runSync(resetEffect());
+        submissions.reset(runtime);
       }
     };
   };

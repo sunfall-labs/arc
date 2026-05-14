@@ -4,7 +4,8 @@ import {
   type CollectionIndexValue,
   type CollectionKey,
   type CollectionLoadState,
-  type CollectionRow
+  type CollectionRow,
+  type CollectionSnapshotCodecError
 } from "@effect-ui/db";
 import { useRuntime } from "@effect-ui/solid";
 import { Effect } from "effect";
@@ -31,8 +32,8 @@ export interface CollectionHandle<A extends object, K extends CollectionKey, E =
   get(key: K): CollectionRow<A, K> | undefined;
   index(index: string, value: CollectionIndexValue): ReadonlyArray<CollectionRow<A, K>>;
   firstByIndex(index: string, value: CollectionIndexValue): CollectionRow<A, K> | undefined;
-  preloadEffect(): Effect.Effect<void, E, R>;
-  refetchEffect(): Effect.Effect<void, E, R>;
+  preloadEffect(): Effect.Effect<void, E | CollectionSnapshotCodecError, R>;
+  refetchEffect(): Effect.Effect<void, E | CollectionSnapshotCodecError, R>;
 }
 
 /**
