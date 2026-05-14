@@ -1,6 +1,7 @@
 {
   "name": "@effect-ui/solid-db",
   "version": "0.0.0-alpha.0",
+  "description": "Solid bindings for Effect UI collections and live queries.",
   "type": "module",
   "private": true,
   "main": "./dist/index.js",

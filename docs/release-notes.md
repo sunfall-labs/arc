@@ -56,12 +56,16 @@ Latest full gate on May 14, 2026:
   RPC transport baselines.
 - The latest `pnpm verify` includes the rich project-console starter packaging
   gate and the devtools extension verify gate.
+- Package description metadata has been added and package-local dry-run packs
+  passed for all 9 framework packages.
 - The Start diagnostics CLI now runs its parse/load/render flow through an
   Effect-native runner with Promise helpers kept at the bin boundary.
 
 ## Notable Limits
 
 - Packages are still private and versioned `0.0.0-alpha.0`.
+- Package manifests include pre-release descriptions and build metadata, but
+  final npm repository/license decisions are still open.
 - The browser extension shell currently renders checked public sample facts;
   live inspected-app transport is not committed yet.
 - The generated rich starter still uses pre-release `0.0.0-alpha.0`

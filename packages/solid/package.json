@@ -1,6 +1,7 @@
 {
   "name": "@effect-ui/solid",
   "version": "0.0.0-alpha.0",
+  "description": "Solid runtime provider, router, resource, action, stream, and scope bindings for Effect UI.",
   "type": "module",
   "private": true,
   "main": "./dist/index.js",

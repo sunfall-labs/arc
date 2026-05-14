@@ -1,6 +1,7 @@
 {
   "name": "@effect-ui/start-node",
   "version": "0.0.0-alpha.0",
+  "description": "Node HTTP facade for the tested Effect UI Start adapter surface.",
   "type": "module",
   "private": true,
   "main": "./dist/index.js",

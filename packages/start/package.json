@@ -1,6 +1,7 @@
 {
   "name": "@effect-ui/start",
   "version": "0.0.0-alpha.0",
+  "description": "Effect UI full-stack Start layer for SSR, hydration, transports, diagnostics, and app graphs.",
   "type": "module",
   "private": true,
   "main": "./dist/index.js",

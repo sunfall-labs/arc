@@ -9,6 +9,8 @@ exports. It supports the release-engineering charter workstream.
 
 - Package manifests now include publish-readiness metadata while remaining
   private until the actual npm publication decision:
+  - `description` summarizes each package's public role for registry and
+    generated starter surfaces.
   - `main` and `types` point at the root built entrypoint for older tooling.
   - `files: ["dist"]` limits publication payloads to build output.
   - `sideEffects: false` documents that framework package modules are intended
@@ -45,6 +47,8 @@ exports. It supports the release-engineering charter workstream.
   - `examples/devtools-panel/package.json`
   - `examples/project-console/package.json`
   - `pnpm-lock.yaml`
+- Description sweep:
+  - `rg -n '"description"' packages/*/package.json`
 - `pnpm install --lockfile-only --offline` completed successfully after the
   manifest change.
 - `pnpm install --lockfile-only --offline` completed successfully after adding
@@ -56,9 +60,11 @@ exports. It supports the release-engineering charter workstream.
   typecheck, 4 example test files / 23 tests, example build, and leak scan.
 - `pnpm build` and `pnpm typecheck` passed after the package publish metadata
   hardening sweep.
+- `pnpm build` passed after adding package descriptions.
 - `pnpm build` and `pnpm typecheck` passed after moving package
   `.tsbuildinfo` outputs out of `dist`.
-- Individual package dry-run packs passed after refreshing workspace links:
+- Individual package dry-run packs passed after refreshing workspace links and
+  again after adding package descriptions:
   - `pnpm --filter @effect-ui/core pack --dry-run`
   - `pnpm --filter @effect-ui/db pack --dry-run`
   - `pnpm --filter @effect-ui/devtools pack --dry-run`
@@ -75,14 +81,19 @@ exports. It supports the release-engineering charter workstream.
   9 package builds, workspace typecheck, type tests, 35 package test files /
   308 tests, example typecheck, 4 example test files / 23 tests, example build,
   and leak scan.
+- `pnpm verify` passed after adding package descriptions: 9 package builds,
+  workspace typecheck, type tests, 38 root test files / 315 tests,
+  devtools-panel verify, devtools-extension verify, basic starter verify,
+  project-console starter packaging, project-console typecheck, 4
+  project-console test files / 23 tests, project-console build, and leak scan.
 
 ## Follow-Up
 
 - Re-run this audit after adding a new package export path, adapter, or runtime
   dependency.
 - If packages become public on npm, flip `private`, add final package
-  descriptions/repository/license metadata, and revisit whether framework
-  package dependencies should be direct dependencies or peer dependencies.
+  repository/license metadata, and revisit whether framework package
+  dependencies should be direct dependencies or peer dependencies.
 - Use package-local dry-run pack checks for publication rehearsal; recursive
   workspace pack is not the release signal while workspace protocol replacement
   is still a pnpm publication concern.
