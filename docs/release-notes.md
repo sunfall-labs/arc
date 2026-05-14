@@ -200,6 +200,8 @@ Latest full gate on May 14, 2026:
   examples, scripts, and type tests.
 - The latest `pnpm verify` passed after the example fire-and-forget Promise
   cleanup.
+- The latest `pnpm verify` passed after refreshing docs drift for the wildcard
+  and fire-and-forget sweeps.
 
 ## Notable Limits
 

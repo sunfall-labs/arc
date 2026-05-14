@@ -42,10 +42,10 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest full verification gate is green after the DB collection EffectInput
-  cleanup: 38 root test files / 320 tests plus devtools panel, devtools
-  extension, starter, rich starter packaging, project-console build, and
-  leak-scan gates.
+- The latest full verification gate is green after the example
+  fire-and-forget Promise cleanup: 38 root test files / 320 tests plus devtools
+  panel, devtools extension, starter, rich starter packaging, project-console
+  build, and leak-scan gates.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
   example, script, and type-test sources while keeping negative runtime
   validation tests explicit.
@@ -103,8 +103,8 @@ or command result that proves it.
   the default projector boundary is named instead of using a broad inline
   `unknown` bridge.
 - Core and DB type IDs now use self-type `unique symbol` assertions instead of
-  `as never`; the remaining sharp-cast work is now concentrated in documented
-  runtime/schema/host and DB query-variance boundaries.
+  `as never`; the broad sharp-cast grep across packages, examples, scripts, and
+  type tests now reports no hits.
 - `@effect-ui/devtools` now exposes scoped app-side bridge helpers so apps can
   install and clean up that global payload provider through Effect.
 - Workspace package manifests now carry `UNLICENSED` metadata while they remain
@@ -131,7 +131,13 @@ or command result that proves it.
   generic requirement parameter for refreshed refs.
 - Solid Resource hook requirement defaults and route outlet UI internals now use
   `unknown`/record-shaped boundaries instead of hook-local UI `any` defaults.
-- The latest full verification gate is green after the Solid UI wildcard
+- Remaining arbitrary wildcard boundaries are named as runtime/service-erasure,
+  arbitrary-definition, query-context, and heterogeneous signal aliases instead
+  of repeated inline wildcard applications.
+- Package and example fire-and-forget effects now run as detached fibers rather
+  than floating `runPromise(...)` calls; Promise runners remain at
+  Promise-returning host/API boundaries.
+- The latest full verification gate is green after the example fire-and-forget
   cleanup: 38 root test files / 320 tests plus devtools panel, devtools
   extension, starter, rich starter packaging, project-console build, and
   leak-scan gates.
@@ -320,6 +326,8 @@ or command result that proves it.
 | 174 | Full verification after package fire-and-forget cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/effect-first-audit.md` | Escalated full verification passed after the package fire-and-forget Promise cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 | 175 | Example fire-and-forget Promise cleanup | `examples/devtools-panel/src/main.ts`; `examples/devtools-extension/src/panel.ts`; `examples/project-console/src/App.tsx`; `docs/effect-first-audit.md`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md` | Moved remaining example-source fire-and-forget entrypoint/helper effects from floating `Effect.runPromise(...)`/`runtime.runPromise(...)` calls to `Effect.runFork(...)`/`runtime.runFork(...)`. The package/example/script/type-test `void runPromise` grep now reports no hits; devtools-panel verify, devtools-extension verify, and project-console typecheck passed. | Run full verification before committing this example fire-and-forget cleanup. |
 | 176 | Full verification after example fire-and-forget cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/effect-first-audit.md` | Escalated full verification passed after the example fire-and-forget Promise cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
+| 177 | Docs drift refresh after wildcard and fire-and-forget sweeps | `docs/perfection-progress.md`; `docs/sharp-cast-audit.md`; `docs/docs-drift-audit.md` | Refreshed current-status summaries so the latest full gate, broad sharp-cast state, named wildcard boundaries, and package/example fire-and-forget fiber cleanup no longer stop at older DB collection, Solid UI, or cast-audit checkpoints. | Run full verification before committing this docs drift refresh. |
+| 178 | Full verification after docs drift refresh | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md` | Escalated full verification passed after the docs drift refresh: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 
 ## Thirty-Sweep Gate
 

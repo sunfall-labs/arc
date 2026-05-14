@@ -6,7 +6,9 @@ This audit checks release-tracking docs for claims that no longer match the
 implementation after the request trace, Effect-first, typed-error, package
 hygiene, generated-artifact, public-API, example cleanup, starter packaging,
 devtools extension, inspected-window bridge, release metadata, Start lifecycle,
-runtime wildcard, route wildcard, `UiScope`, and type-test async cleanup sweeps.
+runtime wildcard, route wildcard, `UiScope`, type-test async, DB query wildcard,
+core runtime/signal wildcard, sharp test assertion, and fire-and-forget cleanup
+sweeps.
 
 ## Current Sweep Results
 
@@ -33,6 +35,11 @@ runtime wildcard, route wildcard, `UiScope`, and type-test async cleanup sweeps.
   arbitrary route constraints to `unknown`, creating `UiScope` through
   `Scope.make(...)`, and replacing type-test `async` negative cases with
   declared Promise values.
+- Updated current-status summaries after naming arbitrary Action/Server/Resource,
+  DB query, runtime, signal, and collection wildcard boundaries.
+- Updated sharp-cast and Effect-first summaries after removing the final
+  test-only `as Effect.Effect` assertions and moving package/example
+  fire-and-forget effects from floating Promises to detached fibers.
 - Updated the progress ledger current-status summary so the clean-sweep gate is
   still open for the right reason: recent sweeps found actionable work beyond
   the earlier benchmark baseline and bridge/metadata slices.

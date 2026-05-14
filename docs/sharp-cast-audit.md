@@ -2,9 +2,11 @@
 
 Last updated: 2026-05-14.
 
-This audit records the remaining package-source casts that broad grep still
-finds after the typed-error, route decode, action-result, Start CLI, runtime,
-Solid adapter, and DB query-builder cleanup sweeps.
+This audit records sharp-cast cleanup evidence and the remaining named
+type-erasure boundaries after the typed-error, route decode, action-result,
+Start CLI, runtime, Solid adapter, DB query-builder, wildcard-boundary, and
+test assertion cleanup sweeps. The broad sharp-cast grep currently reports no
+package, example, script, or type-test hits.
 
 ## Current Sweep Results
 
@@ -134,9 +136,12 @@ Solid adapter, and DB query-builder cleanup sweeps.
   - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
 - Promise-catch grep:
   - `rg -n "\\.catch\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs' | rg -v "Effect\\.catch"`
-- `pnpm verify` passed after the latest cast cleanup stack: package build,
-  workspace typecheck, type tests, 35 package test files / 307 tests, example
-  typecheck, 4 example test files / 23 tests, example build, and leak scan.
+- `pnpm verify` passed after the latest cast/fire-and-forget cleanup stack: 9
+  package builds, workspace typecheck, type tests, 38 root test files / 320
+  tests, devtools-panel verify, devtools-extension verify with 1 extension test
+  file / 6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.
 - `pnpm exec vitest run packages/devtools/test/devtools.test.ts packages/db/test/server-collection.test.ts packages/start/test/rpc.test.ts packages/start/test/app-graph.test.ts`
   passed after replacing remaining `as any` test casts: 4 files, 35 tests.
 - `pnpm typecheck` passed after replacing remaining `as any` test casts.
