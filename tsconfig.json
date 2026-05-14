@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.base.json",
+  "files": [],
+  "references": [
+    { "path": "./packages/core" },
+    { "path": "./packages/db" },
+    { "path": "./packages/solid" },
+    { "path": "./packages/solid-db" },
+    { "path": "./packages/tsrx" },
+    { "path": "./packages/start" },
+    { "path": "./packages/devtools" }
+  ]
+}

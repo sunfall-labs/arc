@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "exactOptionalPropertyTypes": true,
+    "noUncheckedIndexedAccess": true,
+    "paths": {
+      "@effect-ui/core": ["./packages/core/src/index.ts"],
+      "@effect-ui/db": ["./packages/db/src/index.ts"],
+      "@effect-ui/solid": ["./packages/solid/src/index.ts"],
+      "@effect-ui/solid-db": ["./packages/solid-db/src/index.ts"],
+      "@effect-ui/tsrx": ["./packages/tsrx/src/index.ts"],
+      "@effect-ui/start": ["./packages/start/src/index.ts"],
+      "@effect-ui/start/adapters": ["./packages/start/src/adapters.ts"],
+      "@effect-ui/start/virtual": ["./packages/start/src/virtual-modules.d.ts"],
+      "@effect-ui/start/vite": ["./packages/start/src/vite.ts"],
+      "@effect-ui/devtools": ["./packages/devtools/src/index.ts"]
+    }
+  }
+}

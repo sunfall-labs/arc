@@ -1,0 +1,23 @@
+{
+  "name": "@effect-ui/solid-db",
+  "version": "0.0.0-alpha.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsgo -p tsconfig.json",
+    "typecheck": "tsgo -b tsconfig.json --pretty false"
+  },
+  "dependencies": {
+    "@effect-ui/core": "workspace:*",
+    "@effect-ui/db": "workspace:*",
+    "@effect-ui/solid": "workspace:*",
+    "effect": "^4.0.0-beta.66",
+    "solid-js": "^1.9.12"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "jsx": "preserve",
+    "jsxImportSource": "solid-js",
+    "noEmit": true,
+    "plugins": [{ "name": "@tsrx/typescript-plugin" }],
+    "types": ["vite/client", "@effect-ui/start/virtual"]
+  },
+  "include": ["src", "vite.config.ts"]
+}

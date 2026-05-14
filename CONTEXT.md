@@ -1,0 +1,63 @@
+# Effect UI Context
+
+## Domain Vocabulary
+
+- **Runtime Spine**: the `EffectUiRuntime` that owns Effect execution for an app, browser session, server request, or test. It carries the Effect `ManagedRuntime`, the Resource Store, and the services that app work depends on.
+- **Request Runtime**: a per-request view of the app Runtime Spine with the same Effect services and a fresh Resource Store. Start uses it for SSR preload, render, and server RPC work.
+- **Resource Definition**: the stable `Resource.family(...)` descriptor. It names the resource, describes input/output/error schemas or types, and defines loading policy, but does not own live cache state.
+- **Resource Store**: the runtime/request-scoped owner of live resource entries, Effect caches, known resource inputs, semantic tag index, hydration state, and resource lifetime fibers. This is the seam that keeps SSR requests, client runtimes, and tests isolated.
+- **Collection Definition**: the stable `Collection.define(...)` descriptor. It names a keyed row set, describes loading and mutation handlers, and exposes typed collection operations, but should not own live row state directly.
+- **Collection Store**: the runtime/request-scoped owner of collection rows, load state, pending mutation queues, and collection event streams. It follows the same isolation rule as the Resource Store: SSR requests, client runtimes, and tests must not share live collection state.
+- **Collection Secondary Index**: a named, Collection Definition-owned selector that the active Collection Store materializes into runtime/request-local lookup buckets. It supports scalar and multi-value index selectors while preserving runtime/request locality.
+- **Collection Event Stream**: the Collection Store's Effect `PubSub` of collection lifecycle and mutation facts, used by tests, devtools, and future sync adapters without exposing private row maps.
+- **Collection Preload Collector**: the `@effect-ui/db` Effect service installed by `Collection.collectEffect(...)`. It records Collection Definitions whose `preloadEffect` or `refetchEffect` runs during route preload without requiring `@effect-ui/core` to import DB.
+- **Collection Hydration Payload**: the serializable DB snapshot for one or more Collection Definitions. It contains rows, row metadata, pending optimistic mutation facts, and rollback rows needed to restore request or browser collection state.
+- **Collection Mutation Queue**: the runtime/request-scoped list of in-flight optimistic collection transactions. It records transaction attempts and rollback rows so persistence, devtools, and future sync adapters can observe pending local work.
+- **Collection Change Batch**: a host-neutral list of external row upserts and deletes applied through the Collection Store. It lets change-feed adapters update rows, metadata, secondary indexes, persistence, and live queries without accessing private row maps.
+- **Collection Change Feed Adapter**: a scoped Adapter that subscribes to an external row-change source and emits Collection Change Batches through the Collection Store. Electric, PowerSync, websocket, worker, and test feeds should satisfy this seam rather than owning collection row state.
+- **Collection Mutation Flush**: the Effect-first operation that replays restored pending mutation facts through a Collection Definition's mutation handlers, then commits synced rows or restores rollback rows from the Collection Mutation Queue.
+- **Collection Flush Policy**: the Effect-first coordination Module that flushes pending mutations across multiple Collection Definitions and can skip collections while offline, blocked, or otherwise not ready to send.
+- **Collection Background Sync Adapter**: a host-supplied Adapter that decides whether a pending Collection Mutation Flush should run for a trigger such as online, visibility, restore, or manual work. It keeps browser, native, and worker scheduling details outside the DB Module.
+- **Collection Sync Adapter**: the Adapter Interface that maps an external row source into Collection Definition load, refetch, insert, update, and delete handlers. Server functions, Electric, PowerSync, TanStack Query-shaped sources, and tests should satisfy this seam rather than duplicating mutation plumbing.
+- **Collection Resource Sync Adapter**: a Collection Sync Adapter implementation that uses an Effect Resource ref returning row arrays as the collection load/refetch source while preserving Collection-owned row metadata, mutation queues, indexes, and live queries.
+- **Collection Query Sync Adapter**: a Collection Sync Adapter implementation that uses a TanStack Query-shaped client with `fetchQuery` and optional invalidation as the collection load, refetch, and post-mutation cache coordination source.
+- **Collection Server Adapter**: a Collection Sync Adapter implementation that adapts Start server functions, Effect callbacks, or promise-returning host calls into Collection Definition load and mutation handlers.
+- **Live Query Collection**: a read-only Collection Definition backed by a `Query.live(...)` graph. It lets derived D2/materialized results participate in collection-shaped APIs without duplicating source row ownership.
+- **Indexed Join Plan**: a Query plan step that joins through scalar or multi-value Collection Secondary Index buckets instead of scanning the joined collection for each left-side row.
+- **Query Plan Diagnostics**: an inspectable summary of a Query plan's sources, joins, join strategy, row counts, and estimated comparison cost. It gives devtools leverage without exposing Query Builder internals.
+- **Collection Durable Storage Adapter**: a persistence Adapter that satisfies the collection snapshot storage Interface with a durable driver. The DB Module should keep this seam storage-engine-shaped rather than browser-API-shaped.
+- **Collection SQLite Persistence Driver**: the SQLite-shaped durable storage Interface for collection snapshots. It addresses rows by namespace and key, stores schema version metadata, and can be implemented by OPFS SQLite, Node SQLite, React Native SQLite, Durable Objects, or tests.
+- **Collection SQLite Statement Adapter**: the dependency-free Adapter that turns a minimal SQL `execute`/`select` driver into a Collection SQLite Persistence Driver.
+- **Collection SQLite Prepared Statement Adapter**: the dependency-free Adapter that turns prepare/run/all SQLite clients into the Collection SQLite Statement Adapter Interface.
+- **Collection SQLite Memory Statement Adapter**: the in-memory reference Adapter for the generated SQLite persistence SQL. It is useful for tests, docs, and host adapter development because it exercises the same statement-driver Interface without a native SQLite dependency.
+- **Collection Persistence Policy**: the Collection Definition option that restores a persisted snapshot during preload and persists row plus pending mutation state after loads, writes, and optimistic mutation queue changes.
+- **Resource Lifetime**: the Effect-native lifecycle of a resource entry, including pending refresh interruption, cache invalidation, GC sleep fibers, and deletion.
+- **Resource Event Stream**: the Resource Store's Effect `PubSub` of lifecycle facts, used by tests and future devtools to observe resource behavior without reading private maps.
+- **Resource Dependency Graph**: the Resource Store's mapping from semantic `Resource.tag(...)` values to the live resource refs that most recently provided those facts.
+- **Navigation Plan**: the typed route preload result that records the matched route, touched resource refs, and hydration payload for a URL.
+- **Start Collection Preload Facts**: the Start preload/render context object that separates route-touched collection definitions, route-declared collection definitions resolved from `preloadCollections`, explicitly registered collection definitions, the final dehydrated definition set, and the collection hydration payload.
+- **Capability**: a named Effect service that represents app behavior behind a dependency-injection seam, such as `ProjectApi`.
+- **Streaming Response**: an Effect Stream of HTML, bytes, and hydration chunks that can be adapted to a Web `Response` at the host seam.
+- **Start Hydration Payload**: the serializable Start payload that restores Resource state and optional Collection Hydration Payload entries into the browser Runtime Spine.
+- **Start Hydration Transport**: the Start module that serializes, emits, reads, and applies Start Hydration Payloads for initial document scripts and streamed hydration chunks.
+- **Start Manifest Wall**: the production artifacts for file routes, server functions, and progressive actions. They use deterministic branded ids, browser-safe client references, wire schema flags, typed parsing, and duplicate detection before bundling.
+- **Start App Graph Diagnostics**: the typed, inspectable summary of routes, endpoints, server-only modules, browser client modules, and wire-schema coverage derived from the Start Manifest Wall.
+- **Progressive Action Result**: typed action outcome data for success, validation failure, redirect, and domain failure.
+- **Start Action Request**: a JSON or form POST to Start's action endpoint that names an Action Definition, carries schema-decoded input, and runs through the Request Runtime.
+
+## Architectural Commitments
+
+- Resource families are definitions; live async/cache state belongs to the current Resource Store.
+- Resource lifetimes should use Effect fibers, `Clock`, interruption, and scopes rather than host timers hidden inside implementations.
+- Effects should cross host seams through the Runtime Spine so services, request context, cancellation, retries, and the Resource Store stay together.
+- Full-stack request work should use a Request Runtime so one SSR request cannot observe another request's resource entries, hydration payloads, tag graph, event stream, or lifetime fibers.
+- A streamed Request Runtime closes when the streamed response body closes or is cancelled, not when the request handler first returns the `Response`.
+- Promise APIs are adapters for UI and host boundaries; framework internals should keep native Effect forms.
+- Mutations invalidate domain facts through the Resource Dependency Graph, not route names, component trees, or ad hoc cache strings.
+- Devtools and diagnostics should subscribe to Resource Event Stream and Collection Event Stream facts instead of coupling to Resource Store or Collection Store internals.
+- Streaming should preserve native Effect `Stream` semantics until the final host adapter creates a Web `ReadableStream` or `Response`.
+- Start manifests should be deterministic, Schema-branded at identifier fields, deserializable through typed Effect parsers, and validated before production bundling.
+- Build and devtool checks should consume Start App Graph Diagnostics instead of ad hoc manifest JSON traversal.
+- Progressive action redirects and validation failures should be typed data, not untyped thrown control flow.
+- Progressive form posts should use Start Action Requests so JS-enhanced and no-JS submissions execute the same Action Definition and services.
+- Domain identifiers and generated framework identifiers should be Schema-branded types at API seams. Route params, resource inputs, server contracts, action inputs, and manifests should reject accidentally-compatible strings at compile time while still decoding cleanly at the wire.

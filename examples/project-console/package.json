@@ -1,0 +1,27 @@
+{
+  "name": "@effect-ui/example-project-console",
+  "version": "0.0.0-alpha.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "build": "tsrx-tsc -p tsconfig.json --noEmit && vite build",
+    "typecheck": "tsrx-tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@effect-ui/core": "workspace:*",
+    "@effect-ui/db": "workspace:*",
+    "@effect-ui/solid": "workspace:*",
+    "@effect-ui/solid-db": "workspace:*",
+    "@effect-ui/start": "workspace:*",
+    "@effect-ui/tsrx": "workspace:*",
+    "effect": "^4.0.0-beta.66",
+    "solid-js": "^1.9.12"
+  },
+  "devDependencies": {
+    "@tsrx/typescript-plugin": "^0.3.58",
+    "@types/node": "^25.7.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.12"
+  }
+}

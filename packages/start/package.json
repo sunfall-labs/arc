@@ -1,0 +1,42 @@
+{
+  "name": "@effect-ui/start",
+  "version": "0.0.0-alpha.0",
+  "type": "module",
+  "private": true,
+  "bin": {
+    "effect-ui-start": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./vite": {
+      "types": "./dist/vite.d.ts",
+      "default": "./dist/vite.js"
+    },
+    "./diagnostics-report": {
+      "types": "./dist/diagnostics-report.d.ts",
+      "default": "./dist/diagnostics-report.js"
+    },
+    "./adapters": {
+      "types": "./dist/adapters.d.ts",
+      "default": "./dist/adapters.js"
+    },
+    "./virtual": {
+      "types": "./dist/virtual.d.ts",
+      "default": "./dist/virtual.js"
+    }
+  },
+  "scripts": {
+    "build": "tsgo -p tsconfig.json && cp src/virtual-modules.d.ts dist/virtual.d.ts",
+    "typecheck": "tsgo -b tsconfig.json --pretty false"
+  },
+  "dependencies": {
+    "@effect-ui/core": "workspace:*",
+    "@effect-ui/db": "workspace:*"
+  },
+  "peerDependencies": {
+    "vite": "*"
+  }
+}
