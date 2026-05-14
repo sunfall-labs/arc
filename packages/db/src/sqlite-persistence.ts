@@ -105,7 +105,7 @@ export class SQLitePersistenceUnsupportedStatement extends Data.TaggedError(
 }> {}
 
 const runInput = <A, E, R>(input: EffectInput<A, E, R>): Effect.Effect<A, E, R> =>
-  toEffect(input) as Effect.Effect<A, E, R>;
+  toEffect(input);
 
 const quoteIdentifier = (identifier: string): string => {
   if (identifier.length === 0 || identifier.includes("\0")) {
@@ -259,16 +259,14 @@ export const makeSQLitePreparedStatementDatabase = <
     });
 
   return {
-    execute: (sql, params) =>
-      Effect.gen(function* () {
-        const statement = yield* prepare(sql);
-        yield* runInput(statement.run(...statementParamList(params)));
-      }) as Effect.Effect<void, E, R>,
-    select: (sql, params) =>
-      Effect.gen(function* () {
-        const statement = yield* prepare(sql);
-        return yield* runInput(statement.all(...statementParamList(params)));
-      }) as Effect.Effect<ReadonlyArray<SQLiteStatementRow>, E, R>
+    execute: (sql, params): Effect.Effect<void, E, R> =>
+      Effect.flatMap(prepare(sql), (statement) =>
+        Effect.asVoid(runInput(statement.run(...statementParamList(params))))
+      ),
+    select: (sql, params): Effect.Effect<ReadonlyArray<SQLiteStatementRow>, E, R> =>
+      Effect.flatMap(prepare(sql), (statement) =>
+        runInput(statement.all(...statementParamList(params)))
+      )
   };
 };
 
@@ -341,7 +339,7 @@ export const makeSQLitePersistenceStorage = <E = unknown, R = never>(
   const deleteRow = table.delete;
 
   const ensureTable = (): Effect.Effect<void, E, R> =>
-    ensure ? runInput(ensure()) : Effect.void as Effect.Effect<void, E, R>;
+    ensure ? runInput(ensure()) : Effect.void;
 
   const rowKey = (key: string): SQLitePersistenceKey => ({ namespace, key });
 

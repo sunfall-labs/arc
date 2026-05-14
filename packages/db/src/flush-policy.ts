@@ -133,7 +133,7 @@ const shouldSkipCollection = <SkipError, SkipRequirements>(
   }
 
   const value = typeof skip === "function" ? skip(context) : skip;
-  return toEffect(value) as Effect.Effect<boolean, SkipError, SkipRequirements>;
+  return toEffect(value);
 };
 
 const backgroundSyncPending = (
@@ -188,11 +188,7 @@ export const flushCollectionsPendingMutationsEffect = <
     }
 
     return results;
-  }) as Effect.Effect<
-    ReadonlyArray<FlushCollectionPendingMutationsResult>,
-    FlushCollectionsPendingMutationsError<Collections, SkipError>,
-    FlushCollectionsPendingMutationsRequirements<Collections, SkipRequirements>
-  >;
+  });
 
 export const flushCollectionsPendingMutations = <
   const Collections extends Iterable<AnyCollection>,
@@ -239,7 +235,7 @@ export const backgroundSyncCollectionsPendingMutationsEffect = <
           trigger,
           collections: collectionArray.map((collection) => collection.name),
           pending
-        })) as Effect.Effect<boolean, AdapterError, AdapterRequirements>
+        }))
       );
 
       if (!shouldFlush) {
@@ -261,11 +257,7 @@ export const backgroundSyncCollectionsPendingMutationsEffect = <
       pending,
       results
     } satisfies CollectionBackgroundSyncFlushedResult;
-  }) as Effect.Effect<
-    CollectionBackgroundSyncResult,
-    CollectionBackgroundSyncError<Collections, AdapterError, SkipError>,
-    CollectionBackgroundSyncRequirements<Collections, AdapterRequirements, SkipRequirements>
-  >;
+  });
 
 export const backgroundSyncCollectionsPendingMutations = <
   const Collections extends Iterable<AnyCollection>,

@@ -42,7 +42,7 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest full verification gate is green after the core server/effect-input
+- The latest full verification gate is green after the DB adapter EffectInput
   cast cleanup: 38 root test files / 320 tests plus devtools panel, devtools
   extension, starter, rich starter packaging, project-console build, and
   leak-scan gates.
@@ -92,6 +92,9 @@ or command result that proves it.
 - Core server schema helpers now centralize typed wire decoding, `ServerClient`
   preserves server function requirements, and route/effect-input public helpers
   no longer cast converted Effects before handing them to Effect/runtime APIs.
+- DB sync, SQLite persistence, flush policy, and server collection adapters now
+  use typed Effect primitives and a named PromiseLike bridge instead of repeated
+  adapter-local `Effect.Effect<..., R>` casts.
 - DB query joins now carry selected projectors with a direct function assertion
   instead of the broader `unknown` bridge used by the remaining predicate/order
   variance helpers.
@@ -245,6 +248,8 @@ or command result that proves it.
 | 132 | Full verification after core helper cast cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after removing core runtime/scope/signal helper casts: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 | 133 | Core server/effect-input cast cleanup | `packages/core/src/server.ts`; `packages/core/src/effect-like.ts`; `packages/core/src/route.ts`; `docs/sharp-cast-audit.md`; `docs/perfection-progress.md` | Centralized typed server wire decoding in `decodeWire<T>(...)`, made `ServerClient.call(...)` preserve each server function's requirements, removed local/mock client outer generator casts, and let route/effect-input helpers pass converted Effects directly. Core and Start package typechecks, public type tests, and focused server/RPC tests passed: 4 files / 20 selected tests. | Run full verification before committing this server cast cleanup. |
 | 134 | Full verification after core server/effect-input cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/public-api-inventory.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after the server/effect-input cast cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
+| 135 | DB adapter EffectInput cast cleanup | `packages/db/src/sync-adapter.ts`; `packages/db/src/sqlite-persistence.ts`; `packages/db/src/flush-policy.ts`; `packages/db/src/server-collection.ts`; `docs/sharp-cast-audit.md`; `docs/perfection-progress.md` | Removed repeated adapter-local `toEffect(...) as Effect.Effect<..., R>` casts by relying on typed wrappers, explicit return annotations, Effect combinators, and a named server-collection PromiseLike bridge. DB package typecheck, public type tests, and focused DB adapter/server-collection tests passed: 4 files / 20 tests. | Run full verification before committing this DB adapter cast cleanup. |
+| 136 | Full verification after DB adapter EffectInput cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after the DB adapter EffectInput cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 
 ## Thirty-Sweep Gate
 

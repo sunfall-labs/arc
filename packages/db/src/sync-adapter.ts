@@ -142,7 +142,7 @@ export interface CollectionChangeFeedSubscribeOptions {
 const runSyncInput = <A, E, R>(
   input: EffectInput<A, E, R>
 ): Effect.Effect<A, E, R> =>
-  toEffect(input) as Effect.Effect<A, E, R>;
+  toEffect(input);
 
 const queryKeyName = (queryKey: CollectionQuerySyncKey): string => {
   const [first] = queryKey;
@@ -252,52 +252,54 @@ export const collectionQuerySyncAdapter = <
     }));
   const invalidate = (): Effect.Effect<void, E, R> =>
     options.queryClient.invalidateQueries
-      ? runSyncInput(options.queryClient.invalidateQueries({ queryKey: options.queryKey }))
-          .pipe(Effect.asVoid) as Effect.Effect<void, E, R>
-      : Effect.void as Effect.Effect<void, E, R>;
+      ? Effect.flatMap(
+          runSyncInput(options.queryClient.invalidateQueries({ queryKey: options.queryKey })),
+          () => Effect.void
+        )
+      : Effect.succeed(undefined);
 
   return {
     name: options.name ?? queryKeyName(options.queryKey),
     load: fetch,
-    refetch: () =>
+    refetch: (): Effect.Effect<ReadonlyArray<A>, E, R> =>
       Effect.gen(function* () {
         if (options.invalidateOnRefetch !== false && options.queryClient.invalidateQueries) {
           yield* invalidate();
         }
         return yield* fetch();
-      }) as Effect.Effect<ReadonlyArray<A>, E, R>,
+      }),
     ...(options.insert === undefined
       ? {}
       : {
-          insert: (payload: CollectionSyncInsertPayload<A, K>) =>
+          insert: (payload: CollectionSyncInsertPayload<A, K>): Effect.Effect<void, E, R> =>
             Effect.gen(function* () {
               yield* runSyncInput(options.insert!(payload));
               if (options.invalidateOnMutation !== false) {
                 yield* invalidate();
               }
-            }) as Effect.Effect<void, E, R>
+            })
         }),
     ...(options.update === undefined
       ? {}
       : {
-          update: (payload: CollectionSyncUpdatePayload<A, K>) =>
+          update: (payload: CollectionSyncUpdatePayload<A, K>): Effect.Effect<void, E, R> =>
             Effect.gen(function* () {
               yield* runSyncInput(options.update!(payload));
               if (options.invalidateOnMutation !== false) {
                 yield* invalidate();
               }
-            }) as Effect.Effect<void, E, R>
+            })
         }),
     ...(options.delete === undefined
       ? {}
       : {
-          delete: (payload: CollectionSyncDeletePayload<A, K>) =>
+          delete: (payload: CollectionSyncDeletePayload<A, K>): Effect.Effect<void, E, R> =>
             Effect.gen(function* () {
               yield* runSyncInput(options.delete!(payload));
               if (options.invalidateOnMutation !== false) {
                 yield* invalidate();
               }
-            }) as Effect.Effect<void, E, R>
+            })
         })
   };
 };

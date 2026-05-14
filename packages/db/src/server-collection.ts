@@ -72,17 +72,27 @@ export class ServerCollectionMissingIdentity extends Data.TaggedError(
   readonly guidance: string;
 }> {}
 
+const serverCollectionResultToEffect = <A, E, R>(
+  result: ServerCollectionResult<A, E, R>
+): Effect.Effect<A, E, R> =>
+  toEffect(result as EffectInput<A, E, R>);
+
+const isServerCollectionFunction = <I, A, E, R>(
+  operation: ServerCollectionOperation<I, A, E, R>
+): operation is ServerFunction<I, A, E, R> =>
+  isServerFunction(operation);
+
 const runOperation = <I, A, E, R>(
   operation: ServerCollectionOperation<I, A, E, R>,
   input: I
 ): Effect.Effect<A, E | ServerClientError, R> =>
   Effect.suspend(() => {
-    if (isServerFunction(operation)) {
-      return operation.effect(input) as Effect.Effect<A, E | ServerClientError, R>;
+    if (isServerCollectionFunction(operation)) {
+      return operation.effect(input);
     }
 
-    return toEffect(operation(input) as EffectInput<A, E, R>) as Effect.Effect<A, E, R>;
-  }) as Effect.Effect<A, E | ServerClientError, R>;
+    return serverCollectionResultToEffect(operation(input));
+  });
 
 const serverCollectionName = <
   A extends object,

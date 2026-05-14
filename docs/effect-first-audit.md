@@ -39,6 +39,11 @@ Effect-native interruption.
   - Replaced live-query collection `Promise.resolve(...)` no-ops with
     `runPromise(definition.*Effect(...))` so public Promise helpers still
     delegate to Effect-native methods.
+- `packages/db/src/sync-adapter.ts`, `packages/db/src/sqlite-persistence.ts`,
+  `packages/db/src/flush-policy.ts`, and `packages/db/src/server-collection.ts`
+  - Adapter EffectInput conversions now stay in typed helpers and Effect
+    combinators. Server collection PromiseLike support is isolated behind a
+    named bridge before entering the collection sync adapter path.
 - `packages/core/src/effect-like.ts`, `packages/core/src/route.ts`, and
   `packages/core/src/server.ts`
   - Effect-input and route preload helpers now hand converted Effects directly to

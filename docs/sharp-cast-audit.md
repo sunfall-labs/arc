@@ -63,6 +63,10 @@ Solid adapter, and DB query-builder cleanup sweeps.
   longer need outer generator assertions.
 - `runEffectInput(...)` and route preload effects now pass their converted
   `EffectInput` values through Effect/runtime helpers directly.
+- DB sync adapters, SQLite persistence helpers, flush policies, and server
+  collection adapters now rely on typed `toEffect(...)` wrappers, explicit method
+  return types, or a named server-collection PromiseLike bridge instead of
+  scattering `Effect.Effect<..., R>` assertions through adapter methods.
 - The DB default projector cast remains because an unprojected query returns
   the current context shape, while `QueryBuilder` also supports selected result
   shapes through the same class.
@@ -287,6 +291,15 @@ Solid adapter, and DB query-builder cleanup sweeps.
   passed after tightening `ServerClient` requirement typing and centralizing
   server schema decode casts: 4 files, 20 selected tests.
 - `pnpm verify` passed after the server/effect-input cast cleanup: 9 package
+  builds, workspace typecheck, type tests, 38 root test files / 320 tests,
+  devtools-panel verify, devtools-extension verify with 1 extension test file / 6
+  tests, basic starter verify, project-console starter packaging, project-console
+  typecheck, 4 project-console test files / 23 tests, project-console build, and
+  leak scan.
+- `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck:types`, and
+  `pnpm exec vitest run packages/db/test/sync-adapter.test.ts packages/db/test/sqlite-persistence.test.ts packages/db/test/flush-policy.test.ts packages/db/test/server-collection.test.ts`
+  passed after removing DB adapter-local EffectInput casts: 4 files, 20 tests.
+- `pnpm verify` passed after the DB adapter EffectInput cleanup: 9 package
   builds, workspace typecheck, type tests, 38 root test files / 320 tests,
   devtools-panel verify, devtools-extension verify with 1 extension test file / 6
   tests, basic starter verify, project-console starter packaging, project-console

@@ -109,6 +109,9 @@ Latest full gate on May 14, 2026:
 - Core server wire helpers now centralize typed schema decoding, and
   `ServerClient.call(...)` preserves server function requirements for local/mock
   Effect execution.
+- DB sync, SQLite persistence, flush-policy, and server-collection adapters now
+  keep EffectInput conversion in typed helper seams instead of repeated
+  adapter-local assertions.
 - The DB query builder projector variance helper no longer uses a broad
   `unknown` bridge.
 - Type-id declarations no longer appear in the broad `as never` cast sweep.
