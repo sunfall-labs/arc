@@ -173,8 +173,36 @@ const errorPayload = (cause: unknown): Record<string, unknown> => {
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
+const isStringArray = (value: unknown): value is readonly string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === "string");
+
+const isStartAppGraphDiagnostics = (
+  value: unknown
+): value is LoadedStartAppGraphDiagnostics["diagnostics"] =>
+  isRecord(value) &&
+  value.version === 1 &&
+  typeof value.routeCount === "number" &&
+  typeof value.serverFunctionCount === "number" &&
+  typeof value.actionCount === "number" &&
+  isStringArray(value.routePaths) &&
+  Array.isArray(value.routeModules) &&
+  Array.isArray(value.serverFunctionModules) &&
+  Array.isArray(value.actionModules) &&
+  Array.isArray(value.resourceFamilies) &&
+  Array.isArray(value.resourceTags) &&
+  Array.isArray(value.collectionDefinitions) &&
+  isStringArray(value.serverOnlyModules) &&
+  isStringArray(value.browserClientModules) &&
+  typeof value.rpcPath === "string" &&
+  typeof value.actionPath === "string" &&
+  isRecord(value.schemaCoverage) &&
+  Array.isArray(value.missingSchemas) &&
+  Array.isArray(value.unknownActionBehavior) &&
+  Array.isArray(value.unknownRoutePreloadResources) &&
+  Array.isArray(value.unknownRoutePreloadCollections);
+
 const diagnosticsReportFromError = (cause: unknown): StartDiagnosticsReport | undefined => {
-  if (!isRecord(cause) || !isRecord(cause.diagnostics)) {
+  if (!isRecord(cause) || !isStartAppGraphDiagnostics(cause.diagnostics)) {
     return undefined;
   }
 
@@ -183,7 +211,7 @@ const diagnosticsReportFromError = (cause: unknown): StartDiagnosticsReport | un
     : [];
 
   return createStartDiagnosticsReport({
-    diagnostics: cause.diagnostics as unknown as LoadedStartAppGraphDiagnostics["diagnostics"],
+    diagnostics: cause.diagnostics,
     diagnosticsPolicyViolations
   });
 };
