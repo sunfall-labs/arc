@@ -581,9 +581,10 @@ Last evidence pass: May 14, 2026.
   - Evidence: current Node/fetch deployment guidance exists in
     `docs/deployment.md`, and tested Node/fetch adapter facades exist as
     `@effect-ui/start-node` and `@effect-ui/start-fetch`; the minimal checked
-    starter exists at `examples/basic-starter`, while a richer project-console
-    starter template and platform-specific Cloudflare/Vercel/Netlify/Bun/static
-    packages remain future work.
+    starter exists at `examples/basic-starter`; Cloudflare/Vercel Edge/Netlify
+    Edge/Bun/static recipes exist in `docs/deployment.md`, while a richer
+    project-console starter template and platform-specific packages with real
+    behavior beyond generic Node/fetch remain future work.
 - [x] Add benchmarks for SSR, route preload, resource cache behavior, DB live
   query behavior, and RPC/action transport.
   - Evidence: `benchmarks/framework-baseline.bench.ts` and
@@ -599,7 +600,7 @@ quality goal.
    checked app-shell example.
 2. Extend request traces with any missing response context, collection, and
    request-fiber details uncovered by real panel usage.
-3. Add platform-specific adapter packages beyond the generic Node/fetch
-   facades.
+3. Add platform-specific adapter packages only where a host needs behavior
+   beyond the generic Node/fetch facades and documented recipes.
 4. Package the project console as a richer starter template once the devtools
    UI and platform-specific adapter package plan stabilizes.

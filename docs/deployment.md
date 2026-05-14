@@ -72,11 +72,54 @@ The Node adapter is covered for:
 - streaming Web `Response` bodies through Node backpressure;
 - preserving multiple `Set-Cookie` headers.
 
+## Platform Recipes
+
+Cloudflare Workers, Vercel Edge, Netlify Edge, and other Fetch-native hosts
+should start from the generic Fetch facade:
+
+```ts
+import { createRequestHandlerEffect } from "@effect-ui/start";
+import { toFetchHandlerEffect } from "@effect-ui/start-fetch";
+import { app } from "./app-definition.js";
+
+const fetchEffect = toFetchHandlerEffect(createRequestHandlerEffect(app));
+
+export default {
+  fetch(request: Request): Promise<Response> {
+    return app.runtime.runPromise(fetchEffect(request));
+  }
+};
+```
+
+Bun's HTTP server can use the same Fetch-shaped boundary:
+
+```ts
+import { createRequestHandlerEffect } from "@effect-ui/start";
+import { toFetchHandlerEffect } from "@effect-ui/start-fetch";
+import { app } from "./app-definition.js";
+
+const fetchEffect = toFetchHandlerEffect(createRequestHandlerEffect(app));
+
+Bun.serve({
+  fetch: (request) => app.runtime.runPromise(fetchEffect(request))
+});
+```
+
+Vercel and Netlify Node functions should use `@effect-ui/start-node` when the
+host provides Node `IncomingMessage`/`ServerResponse` values. Prefer
+`@effect-ui/start-fetch` for their edge runtimes.
+
+Static and SPA-only hosts can use the app build output directly when a route
+does not need SSR, request-local Resource Stores, server functions, or Start
+actions. Keep those routes separate from the full-stack SSR handler so the
+deployment mode is explicit.
+
 ## Current Limits
 
 - Host-specific packages for Cloudflare, Vercel, Netlify, Bun, or static hosts
-  are not split out yet. Node HTTP and generic Fetch hosts have package facades.
-- Static and SPA-only deployment recipes still need an explicit starter path.
+  are not split out yet. Node HTTP and generic Fetch hosts have package facades
+  and platform recipes.
+- Static and SPA-only deployment remains a recipe, not a dedicated package.
 - Package publication remains blocked on the release decision to flip
   `private` package manifests and publish real versions.
 
