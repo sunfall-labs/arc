@@ -2,6 +2,8 @@ import { Deferred, Effect, Fiber, Schedule } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import { Action, makeRuntime, read, Resource, runWithRuntime, Signal } from "../src/index.js";
 
+const ignorePromiseFailure = <A>(promise: Promise<A>) => Effect.tryPromise(() => promise).pipe(Effect.ignore);
+
 describe("Action", () => {
   it("tracks status transitions", async () => {
     const Rename = Action.define({
@@ -179,7 +181,7 @@ describe("Action", () => {
     });
     const action = Action.use(Finish);
 
-    const first = action.submit("first").catch(() => undefined);
+    const first = Effect.runPromise(ignorePromiseFailure(action.submit("first")));
     await Effect.runPromise(Effect.sleep("10 millis"));
     await action.submit("second");
     await first;
@@ -327,7 +329,7 @@ describe("Action", () => {
     });
     const action = Action.use(Rename);
 
-    const first = action.submit("Stale").catch(() => undefined);
+    const first = Effect.runPromise(ignorePromiseFailure(action.submit("Stale")));
     await Effect.runPromise(Effect.sleep("10 millis"));
     expect(read(title)).toBe("Stale");
 

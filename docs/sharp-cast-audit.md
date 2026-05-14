@@ -19,6 +19,8 @@ and DB query-builder cleanup sweeps.
   for Node listener/timer host-boundary helpers.
 - No package, example, script, or type-test source currently contains
   `Promise.resolve`, `.then(...)`, or `.finally(...)`.
+- No package, example, script, or type-test source currently contains direct
+  Promise `.catch(...)` outside Effect's `Effect.catch(...)` operator.
 - No package, example, script, or type-test source currently contains `as any`
   or `@ts-ignore`; negative tests use explicit `@ts-expect-error` or
   `unknown`-to-contract casts for runtime validation shapes.
@@ -47,6 +49,8 @@ and DB query-builder cleanup sweeps.
 - Promise-method grep:
   - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts -g '*.ts' -g '*.tsx' -g '*.mjs'`
   - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
+- Promise-catch grep:
+  - `rg -n "\\.catch\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs' | rg -v "Effect\\.catch"`
 - `pnpm verify` passed after the latest cast cleanup stack: package build,
   workspace typecheck, type tests, 35 package test files / 307 tests, example
   typecheck, 4 example test files / 23 tests, example build, and leak scan.
@@ -86,6 +90,17 @@ and DB query-builder cleanup sweeps.
   file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
+- `pnpm exec vitest run packages/core/test/action.test.ts packages/start/test/adapters.test.ts examples/project-console/src/domain.mock.test.ts`
+  passed after replacing remaining direct Promise catch suppression in tests: 3
+  files, 32 tests.
+- `pnpm typecheck` passed after replacing remaining direct Promise catch
+  suppression in tests.
+- `pnpm verify` passed after replacing remaining direct Promise catch
+  suppression in tests: 9 package builds, workspace typecheck, type tests, 38
+  root test files / 320 tests, devtools-panel verify, devtools-extension verify
+  with 1 extension test file / 6 tests, basic starter verify, project-console
+  starter packaging, project-console typecheck, 4 project-console test files /
+  23 tests, project-console build, and leak scan.
 
 ## Follow-Up
 

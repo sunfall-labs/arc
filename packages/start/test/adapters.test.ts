@@ -80,10 +80,16 @@ describe("Start deployment adapters", () => {
       })
     );
     const server = createServer((request, response) => {
-      void nodeHandler(request, response).catch((error) => {
-        response.statusCode = 500;
-        response.end(String(error));
-      });
+      void Effect.runPromise(
+        Effect.tryPromise(() => nodeHandler(request, response)).pipe(
+          Effect.catch((error) =>
+            Effect.sync(() => {
+              response.statusCode = 500;
+              response.end(String(error));
+            })
+          )
+        )
+      );
     });
     const port = await listen(server);
 

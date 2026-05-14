@@ -81,9 +81,9 @@ Effect-native interruption.
   - Replaced the remaining raw async path-existence adapter with
     `Effect.tryPromise`, `Effect.as`, and typed `ENOENT` handling.
 - Test and example host-boundary helpers
-  - Replaced remaining low-friction `Promise.resolve(...)`, `.then(...)`, and
-    `.finally(...)` test conveniences with Effect-backed helpers or direct
-    `await`.
+  - Replaced remaining low-friction `Promise.resolve(...)`, `.then(...)`,
+    `.catch(...)`, and `.finally(...)` test conveniences with Effect-backed
+    helpers or direct `await`.
   - Replaced type-test Promise method syntax with declared Promise values so
     compile-time host-boundary assertions no longer look like runtime Promise
     choreography.
@@ -113,6 +113,9 @@ Effect-native interruption.
     currently finds no package source or tooling script hits.
   - `rg -n "\\.catch\\(" packages/*/src scripts -g '*.ts' -g '*.mjs' | rg -v "Effect\\.catch"`
     currently finds no non-Effect catch hits.
+  - `rg -n "\\.catch\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs' | rg -v "Effect\\.catch"`
+    currently finds no direct Promise catch hits outside the docs that record
+    historical evidence.
   - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts -g '*.ts' -g '*.tsx' -g '*.mjs'`
     currently finds no package, example, or script hits.
   - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
@@ -193,3 +196,14 @@ Effect-native interruption.
   file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
+- `pnpm exec vitest run packages/core/test/action.test.ts packages/start/test/adapters.test.ts examples/project-console/src/domain.mock.test.ts`
+  passed after replacing remaining direct Promise catch suppression in tests: 3
+  files, 32 tests.
+- `pnpm typecheck` passed after replacing remaining direct Promise catch
+  suppression in tests.
+- Full `pnpm verify` passed after replacing remaining direct Promise catch
+  suppression in tests: 9 package builds, workspace typecheck, type tests, 38
+  root test files / 320 tests, devtools-panel verify, devtools-extension verify
+  with 1 extension test file / 6 tests, basic starter verify, project-console
+  starter packaging, project-console typecheck, 4 project-console test files /
+  23 tests, project-console build, and leak scan.

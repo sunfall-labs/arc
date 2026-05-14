@@ -31,6 +31,8 @@ const mockProject = (overrides: Partial<Project> = {}): Project => ({
   ...overrides
 });
 
+const ignorePromiseFailure = <A>(promise: Promise<A>) => Effect.tryPromise(() => promise).pipe(Effect.ignore);
+
 describe("project console contract mocks", () => {
   const ProjectApiTest = ProjectApi.mock({
     list: () => Effect.succeed([]),
@@ -237,7 +239,9 @@ describe("project console contract mocks", () => {
       expect(read(action.invalidationPlan)?.entries.map((entry) => entry.ref.key)).toContain(ref.key);
     } finally {
       Effect.runSync(Deferred.succeed(release, undefined));
-      await submission?.catch(() => undefined);
+      if (submission !== undefined) {
+        await Effect.runPromise(ignorePromiseFailure(submission));
+      }
       await runtime.dispose();
     }
   });
