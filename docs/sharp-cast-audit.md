@@ -8,8 +8,9 @@ and DB query-builder cleanup sweeps.
 
 ## Current Sweep Results
 
-- No package or project-console source currently contains raw
-  `throw new Error(...)` or `throw new TypeError(...)` sites.
+- No package, example, or script source currently contains raw
+  `throw new Error(...)`, `throw new TypeError(...)`, or raw `Error`
+  subclass sites.
 - No package source currently contains raw Promise method choreography such as
   `.then(...)`, `.finally(...)`, `Promise.resolve(...)`, or `new Promise(...)`
   outside tests and host-boundary code.
@@ -34,6 +35,8 @@ and DB query-builder cleanup sweeps.
 
 - Sharp grep:
   - `rg -n " as unknown as | as any|throw new Error|throw new TypeError|Promise\\.resolve|new Promise|\\.then\\(|\\.finally\\(" packages/*/src examples/project-console/src -g '*.ts' -g '*.tsx'`
+- Raw throw/subclass grep:
+  - `rg -n "throw new Error|throw new TypeError|extends Error" packages examples scripts -g '*.ts' -g '*.tsx' -g '*.mjs'`
 - Test/source `any` grep:
   - `rg -n "as any|@ts-ignore" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
 - `pnpm verify` passed after the latest cast cleanup stack: package build,
@@ -43,6 +46,15 @@ and DB query-builder cleanup sweeps.
   passed after replacing remaining `as any` test casts: 4 files, 35 tests.
 - `pnpm typecheck` passed after replacing remaining `as any` test casts.
 - `pnpm verify` passed after replacing remaining `as any` test casts: 9
+  package builds, workspace typecheck, type tests, 38 root test files / 316
+  tests, devtools-panel verify, devtools-extension verify, basic starter
+  verify, project-console starter packaging, project-console typecheck, 4
+  project-console test files / 23 tests, project-console build, and leak scan.
+- `pnpm exec vitest run packages/core/test/stable-stringify.test.ts packages/core/test/resource.test.ts packages/db/test/sqlite-persistence.test.ts packages/db/test/server-collection.test.ts packages/devtools/test/devtools.test.ts packages/start/test/start.test.ts`
+  passed after replacing raw throw sentinels in negative tests: 6 files, 107
+  tests.
+- `pnpm typecheck` passed after replacing raw throw sentinels in negative tests.
+- `pnpm verify` passed after replacing raw throw sentinels in negative tests: 9
   package builds, workspace typecheck, type tests, 38 root test files / 316
   tests, devtools-panel verify, devtools-extension verify, basic starter
   verify, project-console starter packaging, project-console typecheck, 4

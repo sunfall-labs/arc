@@ -16,7 +16,7 @@ describe("stableStringify", () => {
 
     try {
       stableStringify(value);
-      throw new Error("Expected stableStringify to reject circular data");
+      expect.fail("Expected stableStringify to reject circular data");
     } catch (error) {
       expect(error).toBeInstanceOf(StableStringifyCircularData);
       expect(error).toMatchObject({

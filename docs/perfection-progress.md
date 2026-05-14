@@ -42,12 +42,15 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest full verification gate is green after the test cast cleanup: 38
-  root test files / 316 tests plus devtools panel, devtools extension, starter,
-  rich starter packaging, project-console build, and leak-scan gates.
+- The latest full verification gate is green after the negative-test raw throw
+  cleanup: 38 root test files / 316 tests plus devtools panel, devtools
+  extension, starter, rich starter packaging, project-console build, and
+  leak-scan gates.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
   example, script, and type-test sources while keeping negative runtime
   validation tests explicit.
+- Negative tests no longer use raw `throw new Error(...)` sentinels; the raw
+  throw/subclass grep across package, example, and script sources is clean.
 - The final no-new-improvements clean-sweep gate is still open because the
   latest sweeps still found actionable implementation and docs work. Start the
   clean-sweep counter only after full code/docs/test passes stop finding
@@ -150,6 +153,8 @@ or command result that proves it.
 | 91 | Full verification after Vite dev middleware Effect boundary | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/effect-first-audit.md` | Escalated full verification passed after moving the Vite dev middleware body into Effect: 9 package builds, workspace typecheck, type tests, 38 root test files / 316 tests, devtools-panel verify, devtools-extension verify, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next implementation sweep. |
 | 92 | Test cast cleanup | `packages/devtools/test/devtools.test.ts`; `packages/db/test/server-collection.test.ts`; `packages/start/test/rpc.test.ts`; `packages/start/test/app-graph.test.ts`; `docs/sharp-cast-audit.md` | Replaced remaining `as any` casts with typed JSON-body helpers or explicit `unknown`-to-contract casts for runtime validation shapes. `rg -n "as any|@ts-ignore" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'` now finds no hits. Focused tests and workspace typecheck passed. | Run full verification before committing this cast-audit slice. |
 | 93 | Full verification after test cast cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after replacing remaining `as any` test casts: 9 package builds, workspace typecheck, type tests, 38 root test files / 316 tests, devtools-panel verify, devtools-extension verify, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next implementation sweep. |
+| 94 | Negative-test raw throw cleanup | `packages/core/test/stable-stringify.test.ts`; `packages/core/test/resource.test.ts`; `packages/db/test/sqlite-persistence.test.ts`; `packages/db/test/server-collection.test.ts`; `packages/devtools/test/devtools.test.ts`; `packages/start/test/start.test.ts`; `docs/error-message-audit.md`; `docs/sharp-cast-audit.md` | Replaced raw `throw new Error(...)` sentinels in negative tests with `expect.fail(...)`. `rg -n "throw new Error|throw new TypeError|extends Error" packages examples scripts -g '*.ts' -g '*.tsx' -g '*.mjs'` now finds no hits. Focused tests and workspace typecheck passed. | Run full verification before committing this sharp-edge slice. |
+| 95 | Full verification after negative-test raw throw cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/error-message-audit.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after replacing negative-test raw throw sentinels: 9 package builds, workspace typecheck, type tests, 38 root test files / 316 tests, devtools-panel verify, devtools-extension verify, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next implementation sweep. |
 
 ## Thirty-Sweep Gate
 

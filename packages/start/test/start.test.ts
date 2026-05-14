@@ -3066,7 +3066,7 @@ describe("Effect UI Start", () => {
       handleSsrDevMiddlewareEffect(
         {
           ssrLoadModule: async () => {
-            throw new Error("should not load static requests");
+            expect.fail("should not load static requests");
           },
           transformIndexHtml: async (_url, html) => html
         },

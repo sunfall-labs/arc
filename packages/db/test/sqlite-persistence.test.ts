@@ -365,7 +365,7 @@ describe("SQLite persistence storage", () => {
 
     try {
       memory.select("DELETE FROM \"collection-snapshots\"");
-      throw new Error("Expected memory select to reject non-SELECT SQL");
+      expect.fail("Expected memory select to reject non-SELECT SQL");
     } catch (error) {
       expect(error).toBeInstanceOf(SQLitePersistenceUnsupportedStatement);
       expect(error).toMatchObject({

@@ -23,7 +23,7 @@ describe("serverCollectionOptions", () => {
       serverCollectionOptions<Project>({
         getKey: (project) => project.id
       } as unknown as ServerCollectionOptions<Project>);
-      throw new Error("Expected serverCollectionOptions to reject missing identity");
+      expect.fail("Expected serverCollectionOptions to reject missing identity");
     } catch (error) {
       expect(error).toBeInstanceOf(ServerCollectionMissingIdentity);
       expect(error).toMatchObject({

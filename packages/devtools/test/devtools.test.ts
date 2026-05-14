@@ -1246,7 +1246,7 @@ describe("devtools invalidation plans", () => {
             const actionState = readSignal(action.state);
 
             if (invalidationPlan === undefined) {
-              throw new Error("Expected the golden-path action to expose an invalidation plan.");
+              expect.fail("Expected the golden-path action to expose an invalidation plan.");
             }
 
             yield* store.recordResourceEventEffect(yield* PubSub.take(resourceSubscription));

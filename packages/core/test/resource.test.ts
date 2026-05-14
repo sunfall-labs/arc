@@ -625,7 +625,7 @@ describe("Resource", () => {
 
     try {
       read(ref);
-      throw new Error("expected failure");
+      expect.fail("expected failure");
     } catch (error) {
       expect(error).toBeInstanceOf(ResourceFailure);
       expect((error as ResourceFailure<string, Error>).previous).toBe("ok");
