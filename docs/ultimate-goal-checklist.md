@@ -350,6 +350,11 @@ Last evidence pass: May 14, 2026.
 - [x] Devtools panels have documented target data models.
   - Evidence: `docs/devtools.md` target panels and `DevtoolsPanels` panel-model
     sections.
+- [x] Devtools panels have a browser-embeddable UI renderer.
+  - Evidence: `renderDevtoolsPanelsHtml`, `renderDevtoolsPanelsHtmlEffect`,
+    `mountDevtoolsPanels`, and `mountDevtoolsPanelsEffect` in
+    `packages/devtools/src/index.ts`, with focused devtools tests and public
+    type tests.
 - [x] Devtools never read private runtime maps.
   - Evidence: devtools consumes public app graph diagnostics, serialized
     invalidation plans, route plans, Resource events, Collection events, and
@@ -540,24 +545,29 @@ Last evidence pass: May 14, 2026.
 - [x] Completed checklist items have evidence notes.
   - Evidence: every checked item above has path/test/command evidence.
 - [x] Remaining unchecked competitive-bar items listed.
-  - Evidence: concrete external starter/deployment breadth and browser devtools
-    UI remain future production-readiness items from `docs/winning-spec.md`.
+  - Evidence: concrete external starter and host-specific deployment package
+    breadth plus any dedicated devtools app or extension shell remain future
+    production-readiness items from `docs/winning-spec.md`.
 - [x] Remaining unchecked winning-bar items listed.
   - Evidence: next section.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for this docs-only pass.
+  - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026 after the API, core,
-    and example cleanup stack: package build, workspace typecheck, type tests,
-    35 package test files / 307 tests, example typecheck, 4 example test files
+  - Evidence: root `pnpm verify` passed on May 14, 2026 after the browser
+    devtools renderer slice: package build, workspace typecheck, type tests,
+    35 package test files / 308 tests, example typecheck, 4 example test files
     / 23 tests, example build, and leak scan.
 
 ## Remaining Winning-Bar Items
 
-- [ ] Turn the documented devtools target panels into an actual browser or app
+- [x] Turn the documented devtools target panels into an actual browser or app
   UI once the trace payload is stable.
+  - Evidence: `@effect-ui/devtools` now exposes deterministic HTML rendering
+    and an Effect-scoped DOM mount helper for the `DevtoolsPanels` contract.
+- [ ] Integrate the browser panel renderer into a dedicated app or extension
+  shell if productizing beyond the embedded UI surface.
 - [ ] Add external starter docs and host-specific adapter packages when the
   framework is ready for users outside this repo.
   - Evidence: current Node/fetch deployment guidance exists in
@@ -574,10 +584,10 @@ Use [`docs/framework-perfection-charter.md`](./framework-perfection-charter.md)
 as the several-week cleanup, improvement, iteration, and release-candidate
 quality goal.
 
-1. Build the first devtools UI panel against `DevtoolsSummary` and the new
-   request trace payload.
+1. Integrate the browser panel renderer into a dedicated devtools app or
+   extension shell if productizing beyond the embedded UI surface.
 2. Extend request traces with any missing response context, collection, and
-   request-fiber details uncovered by that UI work.
+   request-fiber details uncovered by real panel usage.
 3. Add external starter packaging and host-specific adapter packages.
 4. Package the project console as a starter template once the devtools UI and
    host-specific adapter packages land.

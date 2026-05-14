@@ -263,6 +263,11 @@ Progress:
 - [x] Richer teardown details beyond runtime disposal, stream state, and reason.
   - Evidence: request traces now include start/completion timestamps, duration,
     and before/after Resource Store teardown snapshots.
+- [x] Browser-embeddable panel renderer for the `DevtoolsPanels` contract.
+  - Evidence: `renderDevtoolsPanelsHtml`,
+    `renderDevtoolsPanelsHtmlEffect`, `mountDevtoolsPanels`, and
+    `mountDevtoolsPanelsEffect` in `@effect-ui/devtools`, covered by focused
+    devtools tests and public type tests.
 
 Deliver:
 

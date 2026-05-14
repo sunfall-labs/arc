@@ -13,7 +13,12 @@ import { useCollection, useLiveQuery } from "@effect-ui/solid-db";
 import {
   describeDevtoolsPanels,
   makeDevtoolsStore,
+  mountDevtoolsPanelsEffect,
+  renderDevtoolsPanelsHtml,
+  renderDevtoolsPanelsHtmlEffect,
   type DevtoolsInvalidationPlan,
+  type DevtoolsPanelMount,
+  type DevtoolsPanelUiInput,
   type DevtoolsPanels,
   type DevtoolsRequestTrace,
   type DevtoolsRequestTraceTeardown
@@ -924,6 +929,11 @@ touchStart.submitEffect({ id: "atlas" }).pipe(
 
 const devtoolsStore = makeDevtoolsStore();
 const devtoolsPanels: DevtoolsPanels = devtoolsStore.getPanels();
+const devtoolsPanelUiInput: DevtoolsPanelUiInput = {
+  panels: devtoolsPanels,
+  selectedPanelId: "requests",
+  maxItemsPerPanel: 4
+};
 devtoolsPanels.panels.map((panel) => {
   panel.id;
   panel.severity;
@@ -931,8 +941,19 @@ devtoolsPanels.panels.map((panel) => {
   panel.items.map((item) => item.severity);
 });
 describeDevtoolsPanels({ summary: devtoolsStore.getSummary() }).panels.map((panel) => panel.title);
+renderDevtoolsPanelsHtml(devtoolsPanelUiInput).toUpperCase();
+renderDevtoolsPanelsHtmlEffect(devtoolsPanelUiInput).pipe(
+  Effect.map((html) => html.toUpperCase())
+);
 devtoolsStore.getPanelsEffect().pipe(
   Effect.map((panels) => panels.panels.map((panel) => panel.id))
+);
+declare const devtoolsPanelRoot: HTMLElement;
+mountDevtoolsPanelsEffect({ root: devtoolsPanelRoot, panels: devtoolsPanels }).pipe(
+  Effect.map((mount: DevtoolsPanelMount) => {
+    mount.update({ selectedPanelId: "diagnostics" });
+    mount.unmount();
+  })
 );
 const serializedInvalidationPlan: DevtoolsInvalidationPlan = {
   targets: [

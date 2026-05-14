@@ -173,6 +173,34 @@ Each panel carries a stable `id`, title, short summary, severity, metrics, and
 serializable items. Request items include the richer teardown facts from Start:
 duration, runtime disposal, teardown reason, and before/after fiber counts.
 
+## Browser Panel Renderer
+
+`renderDevtoolsPanelsHtml(...)` turns the panel contract into deterministic HTML
+for a browser-embedded panel, documentation preview, or app shell:
+
+```ts
+const html = renderDevtoolsPanelsHtml({
+  panels: yield* store.getPanelsEffect(),
+  selectedPanelId: "requests",
+  maxItemsPerPanel: 12
+})
+```
+
+The renderer is dependency-light and escapes all panel text/data before writing
+HTML. Browser hosts that want lifecycle ownership can mount the same contract
+through Effect:
+
+```ts
+yield* mountDevtoolsPanelsEffect({
+  root: document.getElementById("effect-ui-devtools")!,
+  panels: yield* store.getPanelsEffect()
+})
+```
+
+The scoped mount clears the root and removes tab listeners when the Effect scope
+closes. Use `mount.update(...)` when a host shell wants to refresh the panel
+after recording new devtools facts.
+
 ## Target Panels
 
 The devtools product should grow in this order:

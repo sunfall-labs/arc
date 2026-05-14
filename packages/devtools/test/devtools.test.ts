@@ -5,6 +5,7 @@ import { Collection } from "@effect-ui/db";
 import {
   DevtoolsActionInvalidationPlanConflict,
   DevtoolsUnknownInvalidationTarget,
+  devtoolsPanelStyles,
   makeDevtoolsStore,
   describeDevtoolsCausalGraph,
   describeDevtoolsCausalGraphEffect,
@@ -14,6 +15,8 @@ import {
   describeDevtoolsPanelsEffect,
   describeInvalidationPlan,
   describeRoutePlan,
+  renderDevtoolsPanelsHtml,
+  renderDevtoolsPanelsHtmlEffect,
   toDevtoolsSerializableValue,
   type DevtoolsInvalidationPlan,
   type DevtoolsRequestTrace,
@@ -507,6 +510,65 @@ describe("devtools invalidation plans", () => {
         expect.objectContaining({ id: "app-graph" })
       ])
     });
+  });
+
+  it("renders deterministic browser panel HTML from the panel contract", async () => {
+    const requestTrace = (
+      id: string,
+      path: string,
+      status: DevtoolsRequestTrace["status"]
+    ): DevtoolsRequestTrace => ({
+      request: {
+        id,
+        method: "GET",
+        url: `https://example.test${path}`,
+        path,
+        transport: "rpc"
+      },
+      response: {
+        status: status === "success" ? 200 : 500
+      },
+      services: [],
+      resources: [],
+      collections: [],
+      serverFunctions: [],
+      actions: [],
+      fibers: [],
+      streams: [],
+      status,
+      teardown: {
+        runtimeDisposed: status !== "failure",
+        durationMillis: status === "success" ? 12 : 34
+      }
+    });
+    const panels = describeDevtoolsPanels({
+      requestTraces: [
+        requestTrace("safe", "/projects/<atlas>", "success"),
+        requestTrace("failed", "/projects/failure", "failure")
+      ]
+    });
+    const html = renderDevtoolsPanelsHtml({
+      panels,
+      title: "Ops <Devtools>",
+      selectedPanelId: "requests",
+      maxItemsPerPanel: 1
+    });
+
+    expect(devtoolsPanelStyles).toContain(".effect-ui-devtools");
+    expect(html).toContain("Ops &lt;Devtools&gt;");
+    expect(html).toContain("data-selected-panel=\"requests\"");
+    expect(html).toContain("data-effect-ui-devtools-panel-target=\"requests\"");
+    expect(html).toContain("GET /projects/&lt;atlas&gt;");
+    expect(html).toContain("1 more items hidden by the current render limit.");
+    expect(html).not.toContain("Ops <Devtools>");
+    await expect(
+      Effect.runPromise(renderDevtoolsPanelsHtmlEffect({
+        panels,
+        title: "Ops <Devtools>",
+        selectedPanelId: "requests",
+        maxItemsPerPanel: 1
+      }))
+    ).resolves.toEqual(html);
   });
 
   it("derives a deterministic causal graph from routes, resources, actions, schemas, and runtime events", async () => {

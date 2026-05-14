@@ -128,6 +128,9 @@ The root export includes:
 
 - `makeDevtoolsStore`, snapshot APIs, summary APIs, causal graph APIs, and
   panel APIs with Effect wrappers;
+- `renderDevtoolsPanelsHtml`, `renderDevtoolsPanelsHtmlEffect`,
+  `mountDevtoolsPanels`, `mountDevtoolsPanelsEffect`, and
+  `devtoolsPanelStyles` for dependency-light browser panel rendering;
 - JSON-safe serialization helpers;
 - invalidation plans, route plans, app graph diagnostics summaries, runtime
   event models, collection event models, and request trace models.
@@ -139,6 +142,9 @@ Release decisions:
   Start request tests.
 - `DevtoolsSummary`, `DevtoolsCausalGraph`, and the first `DevtoolsPanels`
   model should be treated as stable data contracts for agents and UI panels.
+- The browser panel renderer is public as an embedded UI surface, while
+  dedicated app or extension packaging remains a separate release-engineering
+  concern.
 
 ### `@effect-ui/solid`
 

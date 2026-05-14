@@ -103,6 +103,8 @@ or command result that proves it.
 | 53 | Full verification after cast and example cleanup | `pnpm verify`; `docs/perfection-progress.md` | Package build, workspace typecheck, type tests, 35 package test files / 307 tests, example typecheck, 4 example test files / 23 tests, example build, and leak scan passed after the latest core, DB, Start CLI, and example cleanup stack. | Use this as the latest green checkpoint before the next sweep. |
 | 54 | Sharp cast audit | `docs/sharp-cast-audit.md`; `docs/framework-perfection-charter.md`; `docs/perfection-progress.md`; sharp grep | Recorded the remaining package-source casts as runtime service-erasure and query context-variance boundaries, with the latest full verify as supporting evidence. | Treat new casts as findings unless they get an equally concrete boundary justification. |
 | 55 | Node and fetch deployment guide | `docs/deployment.md`; `README.md`; `docs/ultimate-goal-checklist.md`; `docs/framework-perfection-charter.md`; `docs/perfection-progress.md`; `packages/start/test/adapters.test.ts` | Added deployment guidance for the tested `@effect-ui/start/adapters` Node and fetch surfaces, including current limits for host-specific packages and starter packaging. Focused adapter tests passed with localhost binding enabled: 1 file / 6 tests. | Keep host-specific recipes aligned with adapter tests as new packages land. |
+| 56 | Browser devtools panel renderer | `packages/devtools/src/index.ts`; `packages/devtools/test/devtools.test.ts`; `type-tests/framework.test-d.ts`; `docs/devtools.md`; `docs/public-api-inventory.md`; `docs/ultimate-goal-checklist.md`; `docs/framework-perfection-charter.md`; `README.md` | Added deterministic HTML rendering for `DevtoolsPanels`, an Effect wrapper, a DOM mount helper, and an Effect-scoped mount helper. Devtools package typecheck, public type tests, and focused devtools tests passed: 1 file / 16 tests. | Keep the renderer aligned with the panel contract; integrate it into a dedicated app or extension shell only if productizing beyond embedded UI. |
+| 57 | Full verification after browser panel renderer | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md` | Escalated full verification passed after the devtools renderer slice: package build, workspace typecheck, type tests, 35 package test files / 308 tests, example typecheck, 4 example test files / 23 tests, example build, and leak scan. | Use this as the latest green checkpoint before the next implementation sweep. |
 
 ## Thirty-Sweep Gate
 
@@ -121,8 +123,8 @@ pass finds no improvements to make.
 
 ## Open Release-Candidate Slices
 
-1. Turn the devtools panel model into an actual browser/app UI when product
-   surface work resumes.
+1. Integrate the devtools browser renderer into a dedicated app or extension
+   shell if productizing beyond the embedded UI surface.
 2. Re-run the public API inventory after any rename/removal work and update
    migration notes.
 3. Run full `pnpm verify` and record the result before any handoff that claims

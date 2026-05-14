@@ -14,8 +14,8 @@ surface, examples, diagnostics, and release gates are being hardened.
   streamed responses.
 - Local-first Collections with persistence, sync adapter seams, optimistic
   mutation queues, and live query materialization.
-- JSON-safe devtools summaries, causal graphs, request traces, and panel data
-  models.
+- JSON-safe devtools summaries, causal graphs, request traces, panel data
+  models, and a browser-embeddable panel renderer.
 - Deterministic Start manifests and build diagnostics with repair guidance.
 - A copyable project console example with SSR, hydration, no-JS form fallback,
   mocks, and server-only leak scans.
@@ -64,8 +64,8 @@ pnpm example:leak-scan
   Start action clients.
 - `@effect-ui/db`: Collections, live queries, persistence, and sync adapter
   seams.
-- `@effect-ui/devtools`: serializable inspection contracts for agents and UI
-  panels.
+- `@effect-ui/devtools`: serializable inspection contracts plus a small
+  browser panel renderer for agents and UI panels.
 - `@effect-ui/solid`: Solid runtime provider, router, resource hooks, action
   hooks, streams, and component scopes.
 - `@effect-ui/solid-db`: Solid collection and live query hooks.
