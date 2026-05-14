@@ -268,6 +268,11 @@ remain open.
      passed: 1 file / 7 tests, and
      `pnpm exec vitest run packages/start/test/start.test.ts` passed:
      1 file / 57 tests.
+   - Full gate: escalated `pnpm verify` passed after this follow-up with
+     9 package builds, workspace typecheck, type tests, 40 root test files /
+     328 tests, devtools-panel verify, devtools-extension verify, basic starter
+     verify, project-console starter packaging/typecheck/tests/build, and leak
+     scan.
 
 Open candidates from this pass:
 

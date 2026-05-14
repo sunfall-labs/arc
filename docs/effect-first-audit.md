@@ -759,3 +759,14 @@ interruption.
   now use Effect fibers, `Effect.all(...)`, `Effect.flip(...)`, and
   `Effect.scoped(runtime.provide(...))` instead of Promise handles for internal
   scheduling.
+- Full `pnpm verify` passed after the Effect-first coordination follow-up: 9
+  package builds, workspace typecheck, type tests, 40 root test files / 328
+  tests, devtools-panel verify, devtools-extension verify, basic starter
+  verify, project-console starter packaging/typecheck/tests/build, and leak
+  scan.
+- `pnpm --filter @effect-ui/db typecheck` and
+  `pnpm exec vitest run packages/db/test/flush-policy.test.ts` passed after
+  converting DB flush-policy tests to returned Effect programs. Runtime-scoped
+  hydrate/flush/background-sync sequencing now runs through
+  `runtime.provide(...)`, and runtime disposal is handled with
+  `Effect.ensuring(...)`.

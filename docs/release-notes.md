@@ -311,7 +311,15 @@ Latest full gate on May 14, 2026:
 - Action, Resource, Collection, StartAction, devtools, and project-console tests
   now use Effect fibers and combinators for internal concurrency checks instead
   of Promise handles; Promise conversion remains at the host/test edge.
-- The latest `pnpm verify` passed after the architecture-deepening module sweep:
+- DB flush-policy tests now return Effect programs for runtime-scoped
+  collection hydration, pending mutation flushes, background sync decisions, and
+  runtime disposal.
+- The latest `pnpm verify` passed after the Effect-first coordination follow-up:
+  9 package builds, workspace typecheck, type tests, 40 root test files / 328
+  tests, devtools panel verify, devtools extension verify, basic starter
+  verify, project-console starter packaging/typecheck/tests/build, and leak
+  scan.
+- The previous architecture-deepening `pnpm verify` passed:
   9 package builds, workspace typecheck, type tests, 40 root test files / 328
   tests, devtools panel verify, devtools extension verify, basic starter
   verify, project-console starter packaging/typecheck/tests/build, and leak
