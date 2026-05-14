@@ -2,7 +2,7 @@ import type { RouteDefinition } from "./route.js";
 import { makeRuntime, type EffectUiRuntime, type RuntimeSource } from "./runtime.js";
 
 export interface AppDefinition<
-  Routes extends readonly RouteDefinition<string, any, any>[],
+  Routes extends readonly RouteDefinition<string, unknown, unknown>[],
   Client,
   ServerServices = never,
   ServerError = never
@@ -15,7 +15,7 @@ export interface AppDefinition<
 }
 
 export const defineApp = <
-  const Routes extends readonly RouteDefinition<string, any, any>[],
+  const Routes extends readonly RouteDefinition<string, unknown, unknown>[],
   Client,
   ServerServices = never,
   ServerError = never

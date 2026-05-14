@@ -115,11 +115,11 @@ export const ServerClient = Context.Service<ServerClient>("@effect-ui/core/Serve
 
 type FromContract<T> = [T][T extends unknown ? 0 : never];
 type ServerContractInput<Contract> =
-  Contract extends ServerFunctionContract<infer I, any, any> ? I : never;
+  Contract extends ServerFunctionContract<infer I, infer _A, infer _E> ? I : never;
 type ServerContractOutput<Contract> =
-  Contract extends ServerFunctionContract<any, infer A, any> ? A : never;
+  Contract extends ServerFunctionContract<infer _I, infer A, infer _E> ? A : never;
 type ServerContractError<Contract> =
-  Contract extends ServerFunctionContract<any, any, infer E> ? E : never;
+  Contract extends ServerFunctionContract<infer _I, infer _A, infer E> ? E : never;
 
 const serverFunctionRegistry = new Map<string, ServerFunction<any, any, any, any>>();
 
@@ -171,7 +171,7 @@ export namespace Server {
     });
 
   export const implement = <
-    Contract extends ServerFunctionContract<any, any, any>,
+    Contract extends ServerFunctionContract<unknown, unknown, unknown>,
     R = never
   >(
     contract: Contract,
@@ -201,7 +201,7 @@ export namespace Server {
     });
 
   export const mock = <
-    Contract extends ServerFunctionContract<any, any, any>,
+    Contract extends ServerFunctionContract<unknown, unknown, unknown>,
     R = never
   >(
     contract: Contract,

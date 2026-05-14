@@ -32,9 +32,9 @@ export const isCapability = (value: unknown): value is Capability<unknown, unkno
   (value as { readonly [CapabilityTypeId]?: unknown })[CapabilityTypeId] === CapabilityTypeId;
 
 export namespace Capability {
-  export type Any = Capability<any, any>;
-  export type Shape<C> = C extends Capability<any, infer Shape> ? Shape : never;
-  export type Identifier<C> = C extends Capability<infer Identifier, any> ? Identifier : never;
+  export type Any = Capability<unknown, unknown>;
+  export type Shape<C> = C extends Capability<infer _Identifier, infer Shape> ? Shape : never;
+  export type Identifier<C> = C extends Capability<infer Identifier, infer _Shape> ? Identifier : never;
 
   export const define = <Shape>(
     key: string

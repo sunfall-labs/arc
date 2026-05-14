@@ -95,7 +95,7 @@ export interface DevtoolsStartActionInstance {
   readonly definition: {
     readonly name: string;
   };
-  readonly state: ReadableSignal<ActionState<any, any, any>>;
+  readonly state: ReadableSignal<ActionState<unknown, unknown, unknown>>;
   readonly invalidation: ReadableSignal<DevtoolsInvalidationPlan | undefined>;
 }
 
@@ -3448,7 +3448,7 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}) => {
   };
 
   const recordAction = (
-    action: ActionInstance<any, any, any, any>
+    action: ActionInstance<unknown, unknown, unknown, unknown>
   ): void => {
     const state = action.state.get();
     const input = actionStateInput(state);
@@ -3535,11 +3535,11 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}) => {
         recordActionState(action, state, actionOptions);
       }),
     recordAction,
-    recordActionEffect: (action: ActionInstance<any, any, any, any>) =>
+    recordActionEffect: (action: ActionInstance<unknown, unknown, unknown, unknown>) =>
       Effect.sync(() => {
         recordAction(action);
       }),
-    trackActionEffect: (action: ActionInstance<any, any, any, any>) =>
+    trackActionEffect: (action: ActionInstance<unknown, unknown, unknown, unknown>) =>
       Effect.acquireRelease(
         Effect.sync(() => {
           recordAction(action);

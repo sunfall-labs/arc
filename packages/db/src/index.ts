@@ -237,10 +237,10 @@ export interface CollectionDefinition<A extends object, K extends CollectionKey 
 }
 
 export type AnyCollection = CollectionDefinition<any, any, any, any>;
-export type CollectionValue<C> = C extends CollectionDefinition<infer A, any, any, any> ? A : never;
-export type CollectionRowValue<C> = C extends CollectionDefinition<infer A, infer K, any, any> ? CollectionRow<A, K> : never;
-export type CollectionError<C> = C extends CollectionDefinition<any, any, infer E, any> ? E : never;
-export type CollectionRequirements<C> = C extends CollectionDefinition<any, any, any, infer R> ? R : never;
+export type CollectionValue<C> = C extends CollectionDefinition<infer A, infer _K, infer _E, infer _R> ? A : never;
+export type CollectionRowValue<C> = C extends CollectionDefinition<infer A, infer K, infer _E, infer _R> ? CollectionRow<A, K> : never;
+export type CollectionError<C> = C extends CollectionDefinition<infer _A, infer _K, infer E, infer _R> ? E : never;
+export type CollectionRequirements<C> = C extends CollectionDefinition<infer _A, infer _K, infer _E, infer R> ? R : never;
 
 const collectionDefinitions = new Map<string, AnyCollection>();
 
@@ -1734,7 +1734,7 @@ export type QueryAggregateResult<
   TKey extends Record<string, unknown>,
   Aggregates extends QueryAggregateRecord<any>
 > = TKey & {
-  readonly [Key in keyof Aggregates]: Aggregates[Key] extends QueryAggregate<any, infer R, any> ? R : never;
+  readonly [Key in keyof Aggregates]: Aggregates[Key] extends QueryAggregate<infer _Context, infer R, infer _Value> ? R : never;
 };
 
 interface QueryGrouping<TSource extends Record<string, any>, TResult extends Record<string, unknown>> {

@@ -39,7 +39,7 @@ import { createComponent, isServer } from "solid-js/web";
 
 type ResourceInput<I, A, E, R = unknown> = ResourceRef<I, A, E, R> | (() => ResourceRef<I, A, E, R>);
 
-type AnyRoute = Route.Definition<string, any, any>;
+type AnyRoute = Route.Definition<string, unknown, unknown>;
 
 export interface ResourceSuccessMeta<A, E> {
   readonly refreshing: boolean;

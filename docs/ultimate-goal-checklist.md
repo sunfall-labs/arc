@@ -165,6 +165,12 @@ Last evidence pass: May 14, 2026.
   - Evidence: `packages/core/src/effect-like.ts`, `packages/core/src/runtime.ts`,
     and `packages/core/src/resource.ts` removed explicit
     `Effect.Effect<..., any>` annotations from package source.
+- [x] Conditional helper types avoid ignored `any` placeholders.
+  - Evidence: core Server/Route/Capability helpers, DB collection/query
+    aggregate helpers, and Start action-result helpers use inferred placeholder
+    parameters; focused package typechecks and public type tests passed, and the
+    placeholder grep reports no hits. Full `pnpm verify` passed after this
+    cleanup.
 - [x] Package source avoids raw Promise method lifecycle cleanup.
   - Evidence: action and Start action submitters use `Effect.ensuring` for
     in-flight cleanup; Solid/Solid DB background preloads catch inside Effect;
@@ -188,6 +194,14 @@ Last evidence pass: May 14, 2026.
   run through request runtimes.
   - Evidence: `packages/start/test/start.test.ts` request-runtime, RPC, action,
     hydration, and stream-finalizer tests.
+- [x] Route params/search constraints stay opaque when helpers only carry
+  arbitrary routes.
+  - Evidence: `packages/core/src/route.ts`, `packages/core/src/app.ts`,
+    `packages/solid/src/index.ts`, `packages/start/src/index.ts`, and
+    `packages/start/src/virtual-modules.d.ts` use
+    `Route.Definition<string, unknown, unknown>` at arbitrary route boundaries,
+    while focused Core/Solid/Start typechecks, public type tests, and full
+    `pnpm verify` passed.
 - [x] Start client and hydration runtime options keep caller details opaque
   where the runtime is only an execution boundary.
   - Evidence: `packages/start/src/index.ts` and `packages/start/src/hydration.ts`
@@ -648,12 +662,13 @@ Last evidence pass: May 14, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026 after the runtime helper
-    wildcard cleanup: 9 package builds, workspace typecheck, type tests, 38 root
-    test files / 320 tests, devtools-panel verify, devtools-extension verify
-    with 1 extension test file / 6 tests, basic starter verify, project-console
-    starter packaging, project-console typecheck, 4 project-console test files /
-    23 tests, project-console build, and leak scan.
+  - Evidence: root `pnpm verify` passed on May 14, 2026 after the conditional
+    helper and route wildcard cleanup: 9 package builds, workspace typecheck,
+    type tests, 38 root test files / 320 tests, devtools-panel verify,
+    devtools-extension verify with 1 extension test file / 6 tests, basic
+    starter verify, project-console starter packaging, project-console
+    typecheck, 4 project-console test files / 23 tests, project-console build,
+    and leak scan.
 
 ## Remaining Winning-Bar Items
 

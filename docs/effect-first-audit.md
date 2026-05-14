@@ -62,6 +62,15 @@ Effect-native interruption.
     service-erasure helpers return `unknown` requirements, and Resource
     invalidation Effects expose a generic requirement parameter for refreshed
     refs instead of hard-coding `any`.
+  - Server, Route, Capability, DB collection/query aggregate, and Start action
+    result extraction helpers now use inferred placeholder type parameters
+    instead of `any` placeholders.
+- `packages/core/src/route.ts`, `packages/core/src/app.ts`,
+  `packages/solid/src/index.ts`, `packages/start/src/index.ts`, and
+  `packages/start/src/virtual-modules.d.ts`
+  - Arbitrary route lists and route helper constraints now carry params/search
+    as opaque `unknown` values while preserving concrete route inference through
+    the returned helper types.
 - `packages/db/src/index.ts`
   - Replaced live-query collection `Promise.resolve(...)` no-ops with
     `runPromise(definition.*Effect(...))` so public Promise helpers still
@@ -134,6 +143,10 @@ Effect-native interruption.
   - Solid runtime provider/router props, the runtime context, `useRuntime()`,
     and the Solid-DB collection subscription helper now use opaque
     runtime/source types outside the core ambient runtime boundary.
+- `packages/devtools/src/index.ts`
+  - Devtools action-state recording accepts opaque Action state/instance
+    generics when it only reads names, state tags, inputs, and invalidation
+    plans.
 - `packages/start/src/cli.ts`
   - Moved the diagnostics CLI parse/load/render path into
     `runStartDiagnosticsCliEffect`.
@@ -382,5 +395,21 @@ Effect-native interruption.
   package builds, workspace typecheck, type tests, 38 root test files / 320
   tests, devtools-panel verify, devtools-extension verify with 1 extension test
   file / 6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.
+- `pnpm --filter @effect-ui/core typecheck`,
+  `pnpm --filter @effect-ui/db typecheck`,
+  `pnpm --filter @effect-ui/devtools typecheck`,
+  `pnpm --filter @effect-ui/solid typecheck`,
+  `pnpm --filter @effect-ui/solid-db typecheck`,
+  `pnpm --filter @effect-ui/start typecheck`, and `pnpm typecheck:types`
+  passed after replacing ignored `any` placeholders with inferred parameters,
+  moving arbitrary route constraints to `unknown`, and tightening read-only
+  devtools action recording. The conditional-helper placeholder grep now reports
+  no hits.
+- Full `pnpm verify` passed after the conditional helper and route wildcard
+  cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files
+  / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension
+  test file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.

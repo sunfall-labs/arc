@@ -28,10 +28,10 @@ declare module "virtual:effect-ui/file-routes" {
 }
 
 declare module "virtual:effect-ui/routes" {
-  export const routes: readonly import("@effect-ui/core").Route.Definition<string, any, any>[];
+  export const routes: readonly import("@effect-ui/core").Route.Definition<string, unknown, unknown>[];
   export const routeTree: typeof routes;
-  export const routeById: Readonly<Record<string, import("@effect-ui/core").Route.Definition<string, any, any>>>;
-  export const routeByPath: Readonly<Record<string, import("@effect-ui/core").Route.Definition<string, any, any>>>;
+  export const routeById: Readonly<Record<string, import("@effect-ui/core").Route.Definition<string, unknown, unknown>>>;
+  export const routeByPath: Readonly<Record<string, import("@effect-ui/core").Route.Definition<string, unknown, unknown>>>;
   export const fileRouteModules: readonly import("./file-routes.js").FileRouteManifestModule[];
   export const fileRouteMetadata: readonly import("./file-routes.js").FileRouteRouteMetadata[];
   export type RouteTree = typeof routeTree;

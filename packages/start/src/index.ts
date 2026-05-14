@@ -106,7 +106,7 @@ export {
 } from "./file-routes.js";
 
 export interface StartPreloadResult<
-  Routes extends readonly Route.Definition<string, any, any>[] = readonly Route.Definition<string, any, any>[]
+  Routes extends readonly Route.Definition<string, unknown, unknown>[] = readonly Route.Definition<string, unknown, unknown>[]
 > {
   readonly match: Route.Match<Routes[number]> | undefined;
   readonly resources: ResourceHydrationPayload;
@@ -125,7 +125,7 @@ export interface StartCollectionPreload {
 }
 
 export interface StartRenderContext<
-  Routes extends readonly Route.Definition<string, any, any>[] = readonly Route.Definition<string, any, any>[],
+  Routes extends readonly Route.Definition<string, unknown, unknown>[] = readonly Route.Definition<string, unknown, unknown>[],
   Client = unknown,
   ServerServices = never,
   ServerError = never
@@ -138,7 +138,7 @@ export interface StartRenderContext<
 }
 
 export interface CreateRequestHandlerOptions<
-  Routes extends readonly Route.Definition<string, any, any>[],
+  Routes extends readonly Route.Definition<string, unknown, unknown>[],
   Client = unknown,
   ServerServices = never,
   ServerError = never
@@ -389,7 +389,7 @@ type StartActionOutputValues<A> =
   [Extract<A, { readonly _tag: "ValidationFailure"; readonly fieldErrors: unknown }>] extends [never]
     ? Record<string, unknown>
     : Extract<A, { readonly _tag: "ValidationFailure"; readonly fieldErrors: unknown }> extends {
-    readonly fieldErrors: FormFieldErrors<infer Values, any>;
+    readonly fieldErrors: FormFieldErrors<infer Values, infer _Error>;
   }
     ? Values
     : Record<string, unknown>;
@@ -411,13 +411,13 @@ type StartActionOutputFailure<A, E> =
     : E;
 
 type ActionDefinitionInputValue<D> =
-  D extends ActionDefinition<infer I, any, any, any> ? I : never;
+  D extends ActionDefinition<infer I, infer _A, infer _E, infer _R> ? I : never;
 
 type ActionDefinitionOutputValue<D> =
-  D extends ActionDefinition<any, infer A, any, any> ? A : never;
+  D extends ActionDefinition<infer _I, infer A, infer _E, infer _R> ? A : never;
 
 type ActionDefinitionErrorValue<D> =
-  D extends ActionDefinition<any, any, infer E, any> ? E : never;
+  D extends ActionDefinition<infer _I, infer _A, infer E, infer _R> ? E : never;
 
 export type StartActionResultFor<A, E = unknown> =
   StartActionResult<
@@ -471,7 +471,7 @@ export const startActionForm = <I, A, E, R>(
 });
 
 const makeRequestRuntime = <
-  Routes extends readonly Route.Definition<string, any, any>[],
+  Routes extends readonly Route.Definition<string, unknown, unknown>[],
   Client,
   ServerServices,
   ServerError
@@ -1055,7 +1055,7 @@ const exitToRpcResponse = (
 };
 
 const createServerRpcResponseEffectWithRuntime = <
-  const Routes extends readonly Route.Definition<string, any, any>[],
+  const Routes extends readonly Route.Definition<string, unknown, unknown>[],
   Client,
   ServerServices,
   ServerError
@@ -1127,7 +1127,7 @@ const createServerRpcResponseEffectWithRuntime = <
 };
 
 export const createServerRpcResponseEffect = <
-  const Routes extends readonly Route.Definition<string, any, any>[],
+  const Routes extends readonly Route.Definition<string, unknown, unknown>[],
   Client,
   ServerServices,
   ServerError
@@ -1442,7 +1442,7 @@ const actionExitResponseEffect = (
 };
 
 const createServerActionResponseEffectWithRuntime = <
-  const Routes extends readonly Route.Definition<string, any, any>[],
+  const Routes extends readonly Route.Definition<string, unknown, unknown>[],
   Client,
   ServerServices,
   ServerError
@@ -1517,7 +1517,7 @@ const createServerActionResponseEffectWithRuntime = <
 };
 
 export const createServerActionResponseEffect = <
-  const Routes extends readonly Route.Definition<string, any, any>[],
+  const Routes extends readonly Route.Definition<string, unknown, unknown>[],
   Client,
   ServerServices,
   ServerError
@@ -2229,7 +2229,7 @@ const startCollectionPreloadEffect = (
   });
 
 const preloadRequestEffectWithRuntime = <
-  const Routes extends readonly Route.Definition<string, any, any>[],
+  const Routes extends readonly Route.Definition<string, unknown, unknown>[],
   Client,
   ServerServices,
   ServerError
@@ -2438,7 +2438,7 @@ const completeRequestRuntimeWithResponse = (
       });
 
 export const preloadRequestEffect = <
-  const Routes extends readonly Route.Definition<string, any, any>[],
+  const Routes extends readonly Route.Definition<string, unknown, unknown>[],
   Client,
   ServerServices,
   ServerError
@@ -2455,7 +2455,7 @@ export const preloadRequestEffect = <
 };
 
 export const preloadRequest = <
-  const Routes extends readonly Route.Definition<string, any, any>[],
+  const Routes extends readonly Route.Definition<string, unknown, unknown>[],
   Client,
   ServerServices,
   ServerError
@@ -2468,7 +2468,7 @@ export const preloadRequest = <
 
 export const createRequestHandlerEffect =
   <
-    const Routes extends readonly Route.Definition<string, any, any>[],
+    const Routes extends readonly Route.Definition<string, unknown, unknown>[],
     Client,
     ServerServices,
     ServerError
@@ -2642,7 +2642,7 @@ export const createRequestHandlerEffect =
 
 export const createRequestHandler =
   <
-    const Routes extends readonly Route.Definition<string, any, any>[],
+    const Routes extends readonly Route.Definition<string, unknown, unknown>[],
     Client,
     ServerServices,
     ServerError

@@ -158,7 +158,13 @@ Latest full gate on May 14, 2026:
   use opaque runtime/source types; the only remaining
   `EffectUiRuntime<any, any>` source hits are core ambient runtime accessors
   that preserve caller error typing.
-- The latest `pnpm verify` passed after the runtime helper wildcard cleanup.
+- `pnpm verify` passed after the runtime helper wildcard cleanup.
+- Conditional helper types now use inferred placeholder parameters instead of
+  ignored `any`, arbitrary route params/search constraints use opaque
+  `unknown`, and read-only devtools action recording accepts opaque action
+  generics.
+- The latest `pnpm verify` passed after the conditional helper and route
+  wildcard cleanup.
 
 ## Notable Limits
 
