@@ -30,6 +30,8 @@ yet.
   but remain expert-facing.
 - DB query builder internals intentionally keep a small cast boundary around
   joined context variance and the default projector.
+- DB incremental live queries use a named `IOperator` bridge for the custom IVM
+  flatMap operator instead of an inline bottom-type cast.
 - Core runtime integration with Effect `ManagedRuntime` keeps a documented
   service-erasure cast boundary.
 - Browser extension packaging is checked as an example shell, including a live
@@ -81,6 +83,10 @@ Latest full gate on May 14, 2026:
   Cause helpers use public `cause.reasons` access.
 - DB `QueryRoot.from(...)` now constructs its typed `QueryBuilder` directly
   instead of casting the builder through `never`.
+- DB incremental live-query custom operators now register through a named
+  `IOperator` bridge over `@tanstack/db-ivm`'s class-typed `addOperator(...)`
+  surface.
+- The latest `pnpm verify` passed after the DB IVM operator bridge cleanup.
 
 ## Notable Limits
 

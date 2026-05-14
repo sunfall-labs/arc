@@ -17,6 +17,7 @@ import {
   map as ivmMap,
   orderByWithFractionalIndex as ivmOrderByWithFractionalIndex,
   output as ivmOutput,
+  type IOperator,
   type IStreamBuilder,
   type KeyValue,
   type PipedOperator,
@@ -2201,13 +2202,23 @@ const crossJoinKey = "__effect_ui_db_all__";
 const joinKey = (value: QueryJoinKey): string =>
   value instanceof Date ? `Date:${value.toISOString()}` : stableStringify(value);
 
+type IvmRuntimeOperator = IOperator<unknown>;
+
+const addIvmRuntimeOperator = (
+  graph: IStreamBuilder<unknown>["graph"],
+  operator: IvmRuntimeOperator
+): void => {
+  // @tanstack/db-ivm dispatches through IOperator at runtime, but addOperator is typed to internal classes.
+  (graph.addOperator as (operator: IvmRuntimeOperator) => void)(operator);
+};
+
 const ivmFlatMap = <T, U>(
   mapInput: (input: T) => ReadonlyArray<U>
 ): PipedOperator<T, U> =>
   (stream): IStreamBuilder<U> => {
     const reader = stream.connectReader();
     const output = stream.graph.newInput<U>();
-    stream.graph.addOperator({
+    addIvmRuntimeOperator(stream.graph, {
       run: () => {
         for (const message of reader.drain()) {
           const mapped: Array<[U, number]> = [];
@@ -2222,7 +2233,7 @@ const ivmFlatMap = <T, U>(
         }
       },
       hasPendingWork: () => !reader.isEmpty()
-    } as never);
+    });
     return output;
   };
 

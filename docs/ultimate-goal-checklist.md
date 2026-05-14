@@ -434,7 +434,7 @@ Last evidence pass: May 14, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Evidence: `pnpm verify` ran all root package tests: 38 test files, 315
+  - Evidence: `pnpm verify` ran all root package tests: 38 test files, 320
     tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
@@ -567,8 +567,8 @@ Last evidence pass: May 14, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026 after the DB query root
-    builder cast cleanup: 9 package builds, workspace
+  - Evidence: root `pnpm verify` passed on May 14, 2026 after the DB IVM
+    operator bridge cleanup: 9 package builds, workspace
     typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify,
     devtools-extension verify with 1 extension test file / 6 tests, basic
     starter verify, project-console starter packaging, project-console

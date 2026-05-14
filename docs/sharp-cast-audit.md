@@ -46,6 +46,11 @@ and DB query-builder cleanup sweeps.
 - The DB `QueryRoot.from(...)` constructor now instantiates `QueryBuilder` with
   the intended context/result types directly instead of casting the builder
   through `never`.
+- The DB incremental live-query custom `flatMap` operator now registers through
+  a named `IOperator` bridge instead of casting the operator object through
+  `never`; the bridge documents the `@tanstack/db-ivm` gap where
+  `addOperator(...)` is typed to internal classes while runtime dispatch uses
+  the exported structural operator interface.
 - Test-only `as unknown as` and `as never` casts have been removed; the broad
   sharp-cast grep now reports only package-source type-id, runtime
   service-erasure, capability inference, and DB query context-variance seams.
@@ -161,10 +166,21 @@ and DB query-builder cleanup sweeps.
   1 extension test file / 6 tests, basic starter verify, project-console starter
   packaging, project-console typecheck, 4 project-console test files / 23
   tests, project-console build, and leak scan.
+- `pnpm --filter @effect-ui/db typecheck` and
+  `pnpm exec vitest run packages/db/test/live-query-collection.test.ts packages/db/test/collection.test.ts`
+  passed after replacing the inline IVM custom operator `as never` cast with the
+  named `IOperator` bridge: 2 files, 35 tests.
+- `pnpm verify` passed after replacing the inline IVM custom operator cast with
+  the named `IOperator` bridge: 9 package builds, workspace typecheck, type
+  tests, 38 root test files / 320 tests, devtools-panel verify,
+  devtools-extension verify with 1 extension test file / 6 tests, basic starter
+  verify, project-console starter packaging, project-console typecheck, 4
+  project-console test files / 23 tests, project-console build, and leak scan.
 
 ## Follow-Up
 
 - Keep new casts out of package source unless they sit at a named boundary like
-  runtime service erasure, query context variance, or schema decoding.
+  runtime service erasure, query context variance, schema decoding, or external
+  library type-surface adaptation.
 - If the runtime or query builder type model changes, re-run this audit and
   either remove these casts or keep the justification current.
