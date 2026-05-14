@@ -10,7 +10,7 @@ import {
   type CollectionHydrateOptions,
   type CollectionHydrationPayload
 } from "@effect-ui/db";
-import { Effect } from "effect";
+import { Data, Effect } from "effect";
 
 export const hydrationScriptId = "__EFFECT_UI_HYDRATION__";
 export const streamHydrationAttribute = "data-effect-ui-hydration-chunk";
@@ -64,6 +64,14 @@ export interface HydrateFromDocumentOptions extends HydrateFromDocumentEffectOpt
 }
 
 export interface PreloadRequestOptions extends StartCollectionHydrationOptions {}
+
+export class StartHydrationChunkParseError extends Data.TaggedError(
+  "StartHydrationChunkParseError"
+)<{
+  readonly sequence: number;
+  readonly value: unknown;
+  readonly guidance: string;
+}> {}
 
 export interface StartHydrationScriptElement {
   readonly textContent: string | null;
@@ -177,7 +185,11 @@ const parseStartHydrationChunk = (
     return makeStartHydrationChunk(value, fallbackSequence);
   }
 
-  throw new Error("Invalid Effect UI Start hydration chunk.");
+  throw new StartHydrationChunkParseError({
+    sequence: fallbackSequence,
+    value,
+    guidance: "Emit stream hydration chunks with createStreamHydrationScript or serializeStreamHydrationPayload."
+  });
 };
 
 const startHydrationChunkFrom = (

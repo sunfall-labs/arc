@@ -16,12 +16,14 @@ or command result that proves it.
   `onRequestTrace` for SSR, server RPC, Start actions, and response stream
   close.
 - Focused devtools and Start request trace coverage is green.
+- Package-source raw validation throws were replaced with typed errors carrying
+  repair guidance.
+- Full verification is green after the typed-error sweep.
 - The current operating window is recorded as work until 8:00 AM
   America/Denver on May 14, 2026, with Effect-first implementation as a standing
   requirement.
-- The full charter is not complete. Cancellation/failure trace assertions,
-  benchmark baselines, remaining audits, and the 30 clean-sweep gate are still
-  open.
+- The full charter is not complete. Benchmark baselines, remaining audits, and
+  the 30 clean-sweep gate are still open.
 
 ## Sweep Ledger
 
@@ -40,16 +42,18 @@ or command result that proves it.
 | 11 | Effect-first Promise audit | `docs/effect-first-audit.md`; `packages/core/src/runtime.ts` | Classified Promise sites and moved core runtime disposal sequencing into `disposeEffect`. | Re-run full verify and continue action/resource Promise audit. |
 | 12 | Full verification after runtime cleanup | `pnpm verify` | Package build, workspace typecheck, type tests, 33 package test files / 292 tests, example typecheck, 4 example test files / 23 tests, example build, and leak scan passed. | Continue action/resource Promise audit. |
 | 13 | Effect-backed no-op Promise helpers | `packages/db/src/index.ts`; `packages/solid/src/index.ts`; `docs/effect-first-audit.md` | Replaced remaining `Promise.resolve(...)` source helpers with `runPromise(...Effect)` / `runtime.runPromise(Effect.void)`. | Run full verify after next source sweep. |
+| 14 | Typed error and repair-guidance audit | `docs/error-message-audit.md`; `packages/core/src/stable-stringify.ts`; `packages/db/src/server-collection.ts`; `packages/db/src/sqlite-persistence.ts`; `packages/devtools/src/index.ts`; `packages/start/src/hydration.ts` | Removed package-source raw `Error`/`TypeError` throws and added owned typed errors with repair guidance plus focused tests. | Continue the Effect-first Promise-internals audit. |
+| 15 | Full verification after typed-error sweep | `pnpm verify` | Package build, workspace typecheck, type tests, 34 package test files / 298 tests, example typecheck, 4 example test files / 23 tests, example build, and leak scan passed. | Commit the verified slice and keep iterating. |
 
 ## Thirty-Sweep Gate
 
 The final goal requires 30 full code sweeps without finding more improvements.
-This ledger currently records 13 sweeps. The remaining 17 should cover:
+This ledger currently records 15 sweeps. The remaining 15 should cover:
 
 - Richer Start request trace teardown facts beyond the current runtime-disposed
   marker.
 - Promise-shaped internals that can be pushed down into Effect programs.
-- Error classes and repair guidance.
+- New error classes and repair guidance introduced by later work.
 - Docs drift against current implementation.
 - Generated artifact determinism and source attribution.
 - Type-test coverage for compile-time rejection rules.
@@ -68,5 +72,8 @@ This ledger currently records 13 sweeps. The remaining 17 should cover:
 3. Add a benchmark baseline artifact before calling release engineering done.
 4. Re-run the public API inventory after any rename/removal work and update
    migration notes.
-5. Run full `pnpm verify` and record the result before any handoff that claims
+5. Continue the action/resource Promise-internals audit and replace the
+   remaining `.then(...)` state where an Effect primitive gives better
+   interruption or locality.
+6. Run full `pnpm verify` and record the result before any handoff that claims
    release-candidate status.

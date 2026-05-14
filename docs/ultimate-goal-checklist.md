@@ -139,6 +139,11 @@ Last evidence pass: May 14, 2026.
 - [x] Runtime lifecycle guarantees have behavioral tests.
   - Evidence: core runtime/resource/action/scope/server/route tests in
     `packages/core/test`.
+- [x] Package-source validation failures use typed errors instead of raw
+  `Error`/`TypeError` throws.
+  - Evidence: `docs/error-message-audit.md`,
+    `packages/core/test/stable-stringify.test.ts`, and focused DB/devtools/Start
+    tests added in the typed-error sweep.
 
 ## Full-Stack Start Layer
 
@@ -399,7 +404,7 @@ Last evidence pass: May 14, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Evidence: `pnpm verify` ran all package tests: 33 test files, 292 tests.
+  - Evidence: `pnpm verify` ran all package tests: 34 test files, 298 tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.
@@ -453,8 +458,23 @@ Last evidence pass: May 14, 2026.
   - `pnpm exec vitest run packages/start/test/start.test.ts` passed: 1 file,
     51 tests.
   - `pnpm typecheck` passed.
-  - `pnpm verify` passed: 33 package test files / 292 tests, 4 example test
-    files / 23 tests, example build, and leak scan.
+
+### Typed Error Slice
+
+- Completed:
+  - Replaced remaining package-source raw `Error`/`TypeError` throws with typed
+    `Data.TaggedError` classes carrying repair guidance.
+  - Added stable stringify cycle-path diagnostics and preserved repeated
+    acyclic reference support.
+  - Added focused core, DB, devtools, and Start tests for the new errors.
+- Evidence:
+  - `rg -n "throw new (TypeError|Error)" packages/*/src -g '*.ts'` found no
+    remaining raw package-source throws.
+  - `pnpm exec vitest run packages/core/test/stable-stringify.test.ts packages/db/test/server-collection.test.ts packages/db/test/sqlite-persistence.test.ts packages/devtools/test/devtools.test.ts packages/start/test/start.test.ts`
+    passed: 5 files, 79 tests.
+  - `pnpm typecheck` passed.
+  - `pnpm verify` passed: 34 package test files / 298 tests, example
+    typecheck, 4 example test files / 23 tests, example build, and leak scan.
 - Remaining:
   - Richer teardown details if the next tests reveal missing facts.
 

@@ -25,6 +25,7 @@ import {
   streamHydrationConsumedAttribute,
   streamHydrationSequenceAttribute,
   startActionForm,
+  StartHydrationChunkParseError,
   StartAction,
   submitStartActionEffect,
   defineFileRoute
@@ -1704,6 +1705,22 @@ describe("Effect UI Start", () => {
     } finally {
       await runtime.dispose();
     }
+  });
+
+  it("rejects malformed streamed hydration chunks with typed repair guidance", () => {
+    const element = {
+      textContent: JSON.stringify({ resources: "invalid" }),
+      getAttribute: (name: string) =>
+        name === streamHydrationSequenceAttribute ? "4" : null
+    };
+    const document = {
+      querySelectorAll: (selector: string) =>
+        selector === `[${streamHydrationAttribute}]` ? [element] : []
+    };
+
+    expect(() => hydrateStartHydrationChunksFromDocument(document)).toThrow(
+      StartHydrationChunkParseError
+    );
   });
 
   it("filters dev SSR requests to document navigations", () => {

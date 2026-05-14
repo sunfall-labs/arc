@@ -212,7 +212,9 @@ the audit finds them.
 
 - [x] Public export inventory for every package.
   - Evidence: `docs/public-api-inventory.md`.
-- [ ] Error message audit with repair guidance.
+- [x] Error message audit with repair guidance.
+  - Evidence: `docs/error-message-audit.md`; no raw `Error`/`TypeError` throws
+    remain in package source as of the typed-error sweep.
 - [ ] Docs drift audit.
 - [ ] Generated artifact determinism audit.
 - [ ] Type-test coverage audit.

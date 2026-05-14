@@ -39,6 +39,10 @@ Effect-native interruption.
   - Added structural compatibility coverage from `StartRequestTrace` to
     `DevtoolsRequestTrace`, keeping Start independent of devtools while still
     proving the emitted data contract.
+- `packages/core/src/stable-stringify.ts`
+  - Replaced repeated-reference `WeakSet` tracking with active-path tracking.
+    The implementation now permits shared acyclic references and reports true
+    cycles with a typed error that carries both paths.
 
 ## Remaining Promise Sites To Review
 
@@ -68,5 +72,8 @@ Effect-native interruption.
   passed after the first cleanup pass.
 - `pnpm exec vitest run packages/db/test/live-query-collection.test.ts packages/solid-db/test/solid-db.test.ts`
   passed after replacing no-op Promise helpers.
-- `pnpm verify` passed after Start trace hardening before the core runtime
-  disposal cleanup. Re-run it after the next source change before handoff.
+- `pnpm exec vitest run packages/core/test/stable-stringify.test.ts packages/db/test/server-collection.test.ts packages/db/test/sqlite-persistence.test.ts packages/devtools/test/devtools.test.ts packages/start/test/start.test.ts`
+  passed after the typed-error sweep.
+- `pnpm verify` passed after the typed-error sweep: package build, workspace
+  typecheck, type tests, 34 package test files / 298 tests, example typecheck,
+  4 example test files / 23 tests, example build, and leak scan.

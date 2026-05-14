@@ -1,5 +1,5 @@
 import { isResourceRef, isResourceTag, type ActionInstance, type ActionState, type ReadableSignal, type ResourceInvalidation, type ResourceInvalidationCause, type ResourceInvalidationPlan, type ResourceStoreEvent, type Route } from "@effect-ui/core";
-import { Effect } from "effect";
+import { Data, Effect } from "effect";
 
 export type DevtoolsSerializableValue =
   | null
@@ -116,6 +116,19 @@ export type DevtoolsRequestTraceTransport = "ssr" | "rpc" | "action" | "unknown"
 export type DevtoolsRequestTraceStatus = "success" | "failure" | "cancelled";
 export type DevtoolsRequestTraceStreamState = "open" | "closed" | "cancelled" | "errored";
 export type DevtoolsRequestTraceFiberStatus = "running" | "done" | "interrupted" | "failed";
+
+export class DevtoolsUnknownInvalidationTarget extends Data.TaggedError(
+  "DevtoolsUnknownInvalidationTarget"
+)<{
+  readonly target: unknown;
+  readonly guidance: string;
+}> {}
+
+export class DevtoolsActionInvalidationPlanConflict extends Data.TaggedError(
+  "DevtoolsActionInvalidationPlanConflict"
+)<{
+  readonly guidance: string;
+}> {}
 
 export interface DevtoolsRequestTraceHeader {
   readonly name: string;
@@ -810,7 +823,10 @@ const describeTarget = (target: ResourceInvalidation): DevtoolsInvalidationTarge
     };
   }
 
-  throw new TypeError("Unknown resource invalidation target");
+  throw new DevtoolsUnknownInvalidationTarget({
+    target,
+    guidance: "Record invalidation targets as Resource refs or Resource tags."
+  });
 };
 
 const describeCause = (cause: ResourceInvalidationCause): DevtoolsInvalidationCause => {
@@ -2509,9 +2525,9 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}) => {
       actionOptions.invalidationPlan !== undefined &&
       actionOptions.serializedInvalidationPlan !== undefined
     ) {
-      throw new TypeError(
-        "Devtools action state can record either invalidationPlan or serializedInvalidationPlan, not both"
-      );
+      throw new DevtoolsActionInvalidationPlanConflict({
+        guidance: "Pass invalidationPlan for local refs or serializedInvalidationPlan for transport-provided snapshots."
+      });
     }
 
     if (actionOptions.invalidationPlan !== undefined) {

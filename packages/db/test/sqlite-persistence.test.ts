@@ -3,6 +3,8 @@ import { Collection } from "@effect-ui/db";
 import { describe, expect, it } from "vitest";
 import {
   SQLITE_PERSISTENCE_DEFAULT_TABLE,
+  SQLitePersistenceInvalidTableName,
+  SQLitePersistenceUnsupportedStatement,
   makeSQLiteMemoryStatementDatabase,
   makeSQLitePreparedStatementDatabase,
   makeSQLitePersistenceStorage,
@@ -347,5 +349,29 @@ describe("SQLite persistence storage", () => {
 
     expect(memory.tableRows("collection-snapshots")).toEqual([]);
     expect(memory.statements).toEqual([]);
+  });
+
+  it("throws typed SQLite persistence errors for invalid adapter input", () => {
+    expect(() =>
+      makeSQLitePersistenceStorage(makeSQLiteStatementPersistenceDriver(makeSQLiteMemoryStatementDatabase()), {
+        tableName: ""
+      })
+    ).toThrow(SQLitePersistenceInvalidTableName);
+
+    const memory = makeSQLiteMemoryStatementDatabase();
+    expect(() => memory.execute("DROP TABLE \"collection-snapshots\"")).toThrow(
+      SQLitePersistenceUnsupportedStatement
+    );
+
+    try {
+      memory.select("DELETE FROM \"collection-snapshots\"");
+      throw new Error("Expected memory select to reject non-SELECT SQL");
+    } catch (error) {
+      expect(error).toBeInstanceOf(SQLitePersistenceUnsupportedStatement);
+      expect(error).toMatchObject({
+        _tag: "SQLitePersistenceUnsupportedStatement",
+        operation: "select"
+      });
+    }
   });
 });

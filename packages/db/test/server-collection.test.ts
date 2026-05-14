@@ -3,6 +3,7 @@ import { Collection } from "@effect-ui/db";
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import {
+  ServerCollectionMissingIdentity,
   serverCollectionOptions,
   type ServerCollectionDeletePayload,
   type ServerCollectionInsertPayload,
@@ -16,6 +17,21 @@ interface Project {
 }
 
 describe("serverCollectionOptions", () => {
+  it("requires a stable collection identity", () => {
+    try {
+      serverCollectionOptions<Project>({
+        getKey: (project) => project.id
+      } as any);
+      throw new Error("Expected serverCollectionOptions to reject missing identity");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ServerCollectionMissingIdentity);
+      expect(error).toMatchObject({
+        _tag: "ServerCollectionMissingIdentity",
+        guidance: expect.stringContaining("stable name or id")
+      });
+    }
+  });
+
   it("uses load for preload and refetch for later refreshes", async () => {
     const load = vi.fn(() =>
       Effect.succeed<ReadonlyArray<Project>>([

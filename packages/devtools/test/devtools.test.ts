@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { Action, makeRuntime, read as readSignal, Resource, route, Route, Signal, type ActionState } from "@effect-ui/core";
 import { Collection } from "@effect-ui/db";
 import {
+  DevtoolsActionInvalidationPlanConflict,
+  DevtoolsUnknownInvalidationTarget,
   makeDevtoolsStore,
   describeDevtoolsCausalGraph,
   describeDevtoolsCausalGraphEffect,
@@ -17,6 +19,35 @@ import {
 } from "../src/index.js";
 
 describe("devtools invalidation plans", () => {
+  it("rejects invalidation inputs with typed errors", () => {
+    expect(() =>
+      describeInvalidationPlan({
+        targets: [{}],
+        entries: []
+      } as any)
+    ).toThrow(DevtoolsUnknownInvalidationTarget);
+
+    const Tag = Resource.tag("Devtools.error-tag");
+    const store = makeDevtoolsStore();
+    const serialized: DevtoolsInvalidationPlan = {
+      targets: [
+        {
+          _tag: "Tag",
+          key: "Devtools.error-tag",
+          name: "Devtools.error-tag"
+        }
+      ],
+      entries: []
+    };
+
+    expect(() =>
+      store.recordActionState("Devtools.conflict", "Pending", {
+        invalidationPlan: Resource.planInvalidation(Tag),
+        serializedInvalidationPlan: serialized
+      } as any)
+    ).toThrow(DevtoolsActionInvalidationPlanConflict);
+  });
+
   it("serializes resource invalidation plans without live refs", async () => {
     const UserTag = Resource.tag<{ readonly id: string }>("User.devtools", {
       key: ({ id }) => id

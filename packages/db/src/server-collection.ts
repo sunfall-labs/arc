@@ -5,7 +5,7 @@ import {
   type ServerClientError,
   type ServerFunction
 } from "@effect-ui/core";
-import { Effect } from "effect";
+import { Data, Effect } from "effect";
 import type {
   CollectionIndexRecord,
   CollectionKey,
@@ -66,6 +66,12 @@ export type ServerCollectionOptions<
   readonly delete?: ServerCollectionOperation<ServerCollectionDeletePayload<A, K>, void, E, R>;
 };
 
+export class ServerCollectionMissingIdentity extends Data.TaggedError(
+  "ServerCollectionMissingIdentity"
+)<{
+  readonly guidance: string;
+}> {}
+
 const runOperation = <I, A, E, R>(
   operation: ServerCollectionOperation<I, A, E, R>,
   input: I
@@ -88,7 +94,9 @@ const serverCollectionName = <
 ): string => {
   const name = options.name ?? options.id;
   if (name === undefined) {
-    throw new TypeError("serverCollectionOptions requires a name or id");
+    throw new ServerCollectionMissingIdentity({
+      guidance: "Pass a stable name or id so the collection can be keyed, synced, and traced."
+    });
   }
   return name;
 };
