@@ -87,7 +87,8 @@ describe("Form", () => {
       initial: { id: "atlas", name: "Atlas Billing" }
     });
 
-    form.setField("name", 42 as unknown as string);
+    // @ts-expect-error invalid field value is rejected by schema validation at runtime
+    form.setField("name", 42);
     const exit = await Effect.runPromiseExit(form.validateEffect());
 
     expect(Exit.isFailure(exit)).toBe(true);

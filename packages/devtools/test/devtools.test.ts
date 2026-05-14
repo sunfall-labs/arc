@@ -1,6 +1,6 @@
 import { Effect, PubSub, Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import { Action, makeRuntime, read as readSignal, Resource, route, Route, Signal, type ActionState, type ResourceInvalidationPlan } from "@effect-ui/core";
+import { Action, makeRuntime, read as readSignal, Resource, route, Route, Signal, type ActionState } from "@effect-ui/core";
 import { Collection } from "@effect-ui/db";
 import {
   DevtoolsActionInvalidationPlanConflict,
@@ -23,7 +23,6 @@ import {
   toDevtoolsSerializableValue,
   type DevtoolsBridgeTarget,
   type DevtoolsInvalidationPlan,
-  type DevtoolsRecordActionStateOptions,
   type DevtoolsRequestTrace,
   type DevtoolsStartAppGraphDiagnostics
 } from "../src/index.js";
@@ -32,9 +31,10 @@ describe("devtools invalidation plans", () => {
   it("rejects invalidation inputs with typed errors", () => {
     expect(() =>
       describeInvalidationPlan({
+        // @ts-expect-error invalid target shape is rejected at runtime
         targets: [{}],
         entries: []
-      } as unknown as ResourceInvalidationPlan)
+      })
     ).toThrow(DevtoolsUnknownInvalidationTarget);
 
     const Tag = Resource.tag("Devtools.error-tag");
@@ -51,10 +51,15 @@ describe("devtools invalidation plans", () => {
     };
 
     expect(() =>
-      store.recordActionState("Devtools.conflict", "Pending", {
-        invalidationPlan: Resource.planInvalidation(Tag),
-        serializedInvalidationPlan: serialized
-      } as unknown as DevtoolsRecordActionStateOptions)
+      store.recordActionState(
+        "Devtools.conflict",
+        "Pending",
+        // @ts-expect-error conflicting invalidation inputs are rejected at runtime
+        {
+          invalidationPlan: Resource.planInvalidation(Tag),
+          serializedInvalidationPlan: serialized
+        }
+      )
     ).toThrow(DevtoolsActionInvalidationPlanConflict);
   });
 

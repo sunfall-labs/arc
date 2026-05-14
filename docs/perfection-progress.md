@@ -42,8 +42,8 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest full verification gate is green after the Start Vite plugin return
-  type cleanup: 38 root test files / 320 tests plus devtools panel, devtools
+- The latest full verification gate is green after the negative-test unknown-cast
+  cleanup: 38 root test files / 320 tests plus devtools panel, devtools
   extension, starter, rich starter packaging, project-console build, and
   leak-scan gates.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
@@ -65,6 +65,9 @@ or command result that proves it.
 - `effectUiStart(...)` now exposes a concrete `EffectUiStartPlugin` return type
   so Start Vite plugin tests and CI helpers can call hooks without broad
   `PluginOption` narrowing casts.
+- Negative runtime-validation tests now use explicit `@ts-expect-error`
+  assertions instead of `as unknown as` casts; remaining test casts are limited
+  to legacy Effect Cause shape inspection.
 - `@effect-ui/devtools` now exposes scoped app-side bridge helpers so apps can
   install and clean up that global payload provider through Effect.
 - Workspace package manifests now carry `UNLICENSED` metadata while they remain
@@ -190,6 +193,8 @@ or command result that proves it.
 | 110 | Full verification after devtools bridge payload validation | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after structurally validating devtools extension bridge payloads: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 | 111 | Start Vite plugin return type tightening | `packages/start/src/vite.ts`; `packages/start/test/start.test.ts`; `type-tests/framework.test-d.ts`; `docs/public-api-inventory.md`; `docs/sharp-cast-audit.md`; `docs/perfection-progress.md` | Added `EffectUiStartPlugin` as the concrete return type for `effectUiStart(...)`, removed repeated Start test `PluginOption` narrowing and Vite hook `as never` casts, and added public type-test coverage. Start package typecheck, public type tests, focused Vite-hook tests, and the full Start test file passed. | Run full verification before committing this API cleanup. |
 | 112 | Full verification after Start Vite plugin return type tightening | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after adding `EffectUiStartPlugin`: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
+| 113 | Negative-test unknown-cast cleanup | `packages/devtools/test/devtools.test.ts`; `packages/db/test/server-collection.test.ts`; `packages/core/test/form.test.ts`; `packages/core/test/server.test.ts`; `docs/sharp-cast-audit.md`; `docs/perfection-progress.md` | Replaced negative runtime-validation `as unknown as` test casts with explicit `@ts-expect-error` assertions. The remaining test-only `as unknown as` hits are limited to legacy Effect Cause shape inspection. `pnpm typecheck` and focused tests passed: 4 files / 32 tests. | Run full verification before committing this test sharp-edge cleanup. |
+| 114 | Full verification after negative-test unknown-cast cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after replacing negative-test `as unknown as` casts: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 
 ## Thirty-Sweep Gate
 

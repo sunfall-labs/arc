@@ -43,8 +43,8 @@ and DB query-builder cleanup sweeps.
 - The DB default projector cast remains because an unprojected query returns
   the current context shape, while `QueryBuilder` also supports selected result
   shapes through the same class.
-- Test-only `as unknown as` casts remain for negative runtime-validation inputs
-  and legacy Effect Cause shape inspection.
+- Test-only `as unknown as` casts remain only for legacy Effect Cause shape
+  inspection.
 
 ## Verification Evidence
 
@@ -131,6 +131,16 @@ and DB query-builder cleanup sweeps.
   workspace typecheck, type tests, 38 root test files / 320 tests,
   devtools-panel verify, devtools-extension verify with 1 extension test file /
   6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.
+- `pnpm typecheck` and
+  `pnpm exec vitest run packages/devtools/test/devtools.test.ts packages/db/test/server-collection.test.ts packages/core/test/form.test.ts packages/core/test/server.test.ts`
+  passed after replacing negative-test `as unknown as` casts with explicit
+  `@ts-expect-error` assertions: 4 files, 32 tests.
+- `pnpm verify` passed after replacing negative-test `as unknown as` casts: 9
+  package builds, workspace typecheck, type tests, 38 root test files / 320
+  tests, devtools-panel verify, devtools-extension verify with 1 extension test
+  file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
 

@@ -7,7 +7,6 @@ import {
   serverCollectionOptions,
   type ServerCollectionDeletePayload,
   type ServerCollectionInsertPayload,
-  type ServerCollectionOptions,
   type ServerCollectionUpdatePayload
 } from "../src/server-collection.js";
 
@@ -20,9 +19,12 @@ interface Project {
 describe("serverCollectionOptions", () => {
   it("requires a stable collection identity", () => {
     try {
-      serverCollectionOptions<Project>({
-        getKey: (project) => project.id
-      } as unknown as ServerCollectionOptions<Project>);
+      serverCollectionOptions<Project>(
+        // @ts-expect-error missing stable collection identity is rejected at runtime
+        {
+          getKey: (project) => project.id
+        }
+      );
       expect.fail("Expected serverCollectionOptions to reject missing identity");
     } catch (error) {
       expect(error).toBeInstanceOf(ServerCollectionMissingIdentity);

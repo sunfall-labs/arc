@@ -61,7 +61,8 @@ describe("Server contracts", () => {
       Server.provideMocks(
         getUser.effect({ id: "broken" }),
         Server.mock(GetUser, ({ id }) =>
-          Effect.succeed({ id, name: 42 } as unknown as { readonly id: string; readonly name: string })
+          // @ts-expect-error invalid mock output is rejected by the contract schema at runtime
+          Effect.succeed({ id, name: 42 })
         )
       )
     );
