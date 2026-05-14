@@ -2469,6 +2469,8 @@ describe("Effect UI Start", () => {
     expect(String(loaded)).toContain('"routeCount":2');
     expect(String(loaded)).toContain('import { Resource, Route } from "@effect-ui/core";');
     expect(String(loaded)).toContain('import { Collection } from "@effect-ui/db";');
+    expect(String(loaded)).toContain("unknownRoutePreloadResourcesForDiagnostics");
+    expect(String(loaded)).toContain("collectStartAppGraphDiagnosticsPolicyViolations");
     expect(String(loaded)).toContain('import { Route as route_root } from "/src/routes/index.js";');
     expect(String(loaded)).toContain('import { Route as route_projects_$id } from "/src/routes/projects/$id.js";');
     expect(String(loaded)).toContain("const resourceDiagnostics = Resource.diagnostics();");
@@ -2479,8 +2481,8 @@ describe("Effect UI Start", () => {
     expect(String(loaded)).toContain("preload: routeModulePresence(route_projects_$id.options?.preload)");
     expect(String(loaded)).toContain("preloadResources: Route.describePreloadResources(route_projects_$id)");
     expect(String(loaded)).toContain("preloadCollections: Route.describePreloadCollections(route_projects_$id)");
-    expect(String(loaded)).toContain("const unknownRoutePreloadResources = routeModules");
-    expect(String(loaded)).toContain("const unknownRoutePreloadCollections = routeModules");
+    expect(String(loaded)).toContain("const unknownRoutePreloadResources = unknownRoutePreloadResourcesForDiagnostics({ routeModules });");
+    expect(String(loaded)).toContain("const unknownRoutePreloadCollections = unknownRoutePreloadCollectionsForDiagnostics({ routeModules });");
     expect(String(loaded)).toContain("unknownRoutePreloadResources,");
     expect(String(loaded)).toContain("unknownRoutePreloadCollections,");
     expect(String(loaded)).toContain("resourceFamilies: resourceDiagnostics.families");
@@ -2519,10 +2521,9 @@ describe("Effect UI Start", () => {
     expect(String(loaded)).toContain(
       '"routePreloadCollections":{"requireDeclaredForPreload":true}'
     );
-    expect(String(loaded)).toContain("export const diagnosticsPolicyViolations = collectDiagnosticsPolicyViolations(diagnostics, diagnosticsPolicy);");
+    expect(String(loaded)).toContain("export const diagnosticsPolicyViolations = collectStartAppGraphDiagnosticsPolicyViolations(diagnostics, diagnosticsPolicy);");
     expect(String(loaded)).toContain("Effect UI app graph diagnostics policy failed");
-    expect(String(loaded)).toContain("Routes with preload must declare preloadResources.");
-    expect(String(loaded)).toContain("Routes with preload must declare preloadCollections.");
+    expect(String(loaded)).toContain("formatStartAppGraphDiagnosticsPolicyViolation");
     expect(String(loaded)).toContain("error.diagnostics = diagnostics;");
   });
 

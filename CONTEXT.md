@@ -15,6 +15,7 @@
 - **Collection Preload Collector**: the `@effect-ui/db` Effect service installed by `Collection.collectEffect(...)`. It records Collection Definitions whose `preloadEffect` or `refetchEffect` runs during route preload without requiring `@effect-ui/core` to import DB.
 - **Collection Hydration Payload**: the serializable DB snapshot for one or more Collection Definitions. It contains rows, row metadata, pending optimistic mutation facts, and rollback rows needed to restore request or browser collection state.
 - **Collection Mutation Queue**: the runtime/request-scoped list of in-flight optimistic collection transactions. It records transaction attempts and rollback rows so persistence, devtools, and future sync adapters can observe pending local work.
+- **Collection Transaction Identity**: the Collection Store-local counter for optimistic mutation transaction ids. Hydration advances it from restored pending mutations so new local writes cannot collide with restored transaction facts.
 - **Collection Change Batch**: a host-neutral list of external row upserts and deletes applied through the Collection Store. It lets change-feed adapters update rows, metadata, secondary indexes, persistence, and live queries without accessing private row maps.
 - **Collection Change Feed Adapter**: a scoped Adapter that subscribes to an external row-change source and emits Collection Change Batches through the Collection Store. Electric, PowerSync, websocket, worker, and test feeds should satisfy this seam rather than owning collection row state.
 - **Collection Mutation Flush**: the Effect-first operation that replays restored pending mutation facts through a Collection Definition's mutation handlers, then commits synced rows or restores rollback rows from the Collection Mutation Queue.
@@ -25,8 +26,10 @@
 - **Collection Query Sync Adapter**: a Collection Sync Adapter implementation that uses a TanStack Query-shaped client with `fetchQuery` and optional invalidation as the collection load, refetch, and post-mutation cache coordination source.
 - **Collection Server Adapter**: a Collection Sync Adapter implementation that adapts Start server functions, Effect callbacks, or promise-returning host calls into Collection Definition load and mutation handlers.
 - **Live Query Collection**: a read-only Collection Definition backed by a `Query.live(...)` graph. It lets derived D2/materialized results participate in collection-shaped APIs without duplicating source row ownership.
+- **Live Query Collection Module**: the DB Adapter Module that turns a Live Query graph into a read-only Collection Definition with collection-shaped state, snapshots, indexes, preload collection, and persistence handoff.
 - **Indexed Join Plan**: a Query plan step that joins through scalar or multi-value Collection Secondary Index buckets instead of scanning the joined collection for each left-side row.
 - **Query Plan Diagnostics**: an inspectable summary of a Query plan's sources, joins, join strategy, row counts, and estimated comparison cost. It gives devtools leverage without exposing Query Builder internals.
+- **Query Builder Module**: the DB Module that owns the immutable Query DSL, aggregate helpers, one-shot query execution, live query creation, and query plan diagnostics behind the public DB root facade.
 - **Live Query Runtime**: the DB Module that owns incremental IVM graph construction, source synchronization, joins, grouping, ordering, windowing, output multiplicity, and source preload/refetch loops for reactive queries.
 - **Collection Durable Storage Adapter**: a persistence Adapter that satisfies the collection snapshot storage Interface with a durable driver. The DB Module should keep this seam storage-engine-shaped rather than browser-API-shaped.
 - **Collection SQLite Persistence Driver**: the SQLite-shaped durable storage Interface for collection snapshots. It addresses rows by namespace and key, stores schema version metadata, and can be implemented by OPFS SQLite, Node SQLite, React Native SQLite, Durable Objects, or tests.
@@ -37,6 +40,8 @@
 - **Resource Lifetime**: the Effect-native lifecycle of a resource entry, including pending refresh interruption, cache invalidation, GC sleep fibers, and deletion.
 - **Resource Event Stream**: the Resource Store's Effect `PubSub` of lifecycle facts, used by tests and future devtools to observe resource behavior without reading private maps.
 - **Resource Dependency Graph**: the Resource Store's mapping from semantic `Resource.tag(...)` values to the live resource refs that most recently provided those facts.
+- **Signal Dependency Tracker**: the Core Module that records signal dependencies while `watch(...)` callbacks and `Signal.derive(...)` computations run. It owns source de-duping, subscription cleanup, and queued recompute behavior.
+- **Form Validation Runtime**: the Core form controller logic that snapshots values, tracks validation revisions, and only lets the latest validation commit form state while stale validations still return their captured Effect result.
 - **Route Grammar**: the canonical path segment language shared by core Route matching/building and Start file-route manifests. It owns static segments, dynamic params, optional params, route-id slugs, segment ordering, and prefix checks.
 - **Devtools Panels**: the typed inspection model that projects summaries into stable app graph, route, resource, action, collection, request, diagnostics, and causal graph panels.
 - **Devtools Summary Contract**: the devtools facade Module that composes snapshots, app graph diagnostics, request traces, route plans, invalidation plans, runtime events, resource index facts, and causal graph facts into the public `DevtoolsSummary`.
@@ -51,9 +56,12 @@
 - **Start Hydration Payload**: the serializable Start payload that restores Resource state and optional Collection Hydration Payload entries into the browser Runtime Spine.
 - **Start Hydration Transport**: the Start module that serializes, emits, reads, and applies Start Hydration Payloads for initial document scripts and streamed hydration chunks.
 - **Start Manifest Wall**: the production artifacts for file routes, server functions, and progressive actions. They use deterministic branded ids, browser-safe client references, wire schema flags, typed parsing, and duplicate detection before bundling.
+- **Start Manifest Entry Core**: the internal Manifest Wall Module shared by server-function and action manifests for module id normalization, module classification, deterministic ids, entry validation, duplicate checks, and browser-safe client reference mechanics.
 - **Start App Graph Diagnostics**: the typed, inspectable summary of routes, endpoints, server-only modules, browser client modules, and wire-schema coverage derived from the Start Manifest Wall.
+- **Start App Graph Diagnostics Policy Contract**: the Start App Graph Module interface that collects and formats diagnostics policy violations for both direct validation and generated Vite virtual modules.
 - **Start Transport Protocol**: the Effect-native Module that owns Start RPC and Start Action request decoding, response shaping, schema encode/decode, failure classification, invalidation payload serialization, and client response parsing for the JSON/form transport.
 - **Start Request Handler**: the Start Module that owns server request endpoint selection, Request Runtime creation and provisioning, SSR preload/render orchestration, ResponseContext application, request trace mutation, and stream/request finalization behind the public handler facade.
+- **Start Request Trace Recorder**: the Start Module that owns mutation of request trace facts for transport/protocol/domain failures, server-function/action records, route plans, and collection preload facts before they are rendered into a `StartRequestTrace`.
 - **Progressive Action Result**: typed action outcome data for success, validation failure, redirect, and domain failure.
 - **Start Action Request**: a JSON or form POST to Start's action endpoint that names an Action Definition, carries schema-decoded input, and runs through the Request Runtime.
 - **Devtools Store**: the bounded snapshot and event recording Module for devtools. It owns invalidation, route-plan, request-trace, action, and runtime-event recording while the public devtools root stays a facade.
@@ -77,6 +85,7 @@
 - Streaming should preserve native Effect `Stream` semantics until the final host adapter creates a Web `ReadableStream` or `Response`.
 - Start manifests should be deterministic, Schema-branded at identifier fields, deserializable through typed Effect parsers, and validated before production bundling.
 - Build and devtool checks should consume Start App Graph Diagnostics instead of ad hoc manifest JSON traversal.
+- Generated virtual modules should call shared Start App Graph Diagnostics policy functions rather than embedding second implementations of policy checks.
 - Progressive action redirects and validation failures should be typed data, not untyped thrown control flow.
 - Progressive form posts should use Start Action Requests so JS-enhanced and no-JS submissions execute the same Action Definition and services.
 - Domain identifiers and generated framework identifiers should be Schema-branded types at API seams. Route params, resource inputs, server contracts, action inputs, and manifests should reject accidentally-compatible strings at compile time while still decoding cleanly at the wire.

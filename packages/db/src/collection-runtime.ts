@@ -698,7 +698,7 @@ export const defineCollection = <
         }
         bumpCollectionState(state);
 
-        const tx = createCollectionTransaction(definition.name, mutations);
+        const tx = createCollectionTransaction(state, definition.name, mutations);
         const handler = definition.options.onInsert
           ? collectionInputEffect(definition.options.onInsert(values, { transaction: tx }))
           : Effect.succeed(undefined);
@@ -721,7 +721,7 @@ export const defineCollection = <
         bumpCollectionState(state);
 
         const snapshots = new Map<K, StoredRow<A, K> | undefined>([[key, previous]]);
-        const tx = createCollectionTransaction(definition.name, [{
+        const tx = createCollectionTransaction(state, definition.name, [{
           _tag: "Update",
           key,
           previous: previous.value,
@@ -752,7 +752,7 @@ export const defineCollection = <
         bumpCollectionState(state);
 
         const snapshots = new Map<K, StoredRow<A, K> | undefined>([[key, previous]]);
-        const tx = createCollectionTransaction(definition.name, [{
+        const tx = createCollectionTransaction(state, definition.name, [{
           _tag: "Delete",
           key,
           previous: previous.value

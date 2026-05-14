@@ -51,7 +51,6 @@ export * from "./effect-rpc-compat.js";
 export * from "./diagnostics-report.js";
 export * from "./file-route-modules.js";
 export * from "./file-route.js";
-export * from "./start-transport-protocol.js";
 
 export {
   /** Builds the inline script that transfers Start hydration payloads to HTML. */

@@ -79,10 +79,10 @@ export interface ServerFunction<I, A, E = unknown, R = never> {
 }
 
 /** HTTP route handler used by server adapters. */
-export interface ServerRoute {
+export interface ServerRoute<E = never, R = never> {
   readonly method: string;
   readonly path: string;
-  readonly handler: (request: Request) => Effect.Effect<Response, unknown>;
+  readonly handler: (request: Request) => Effect.Effect<Response, E | ServerRouteHandlerError, R>;
 }
 
 /** Wire request shape for server function RPC transports. */
@@ -113,6 +113,12 @@ export class ServerTransportError extends Data.TaggedError("ServerTransportError
   readonly status?: number;
   readonly cause?: unknown;
   readonly payload?: unknown;
+}> {}
+
+export class ServerRouteHandlerError extends Data.TaggedError("ServerRouteHandlerError")<{
+  readonly method: string;
+  readonly path: string;
+  readonly cause: unknown;
 }> {}
 
 export type ServerClientError =
@@ -154,6 +160,18 @@ const mockFor = <I, A, E, R>(
   fn: ServerFunction<I, A, E, R>
 ): ServerFunctionMock<I, A, E, R> | undefined =>
   mocks.get(fn.name) as ServerFunctionMock<I, A, E, R> | undefined;
+
+const serverRouteHandlerError = (
+  route: Pick<ServerRoute, "method" | "path">,
+  cause: unknown
+): ServerRouteHandlerError =>
+  cause instanceof ServerRouteHandlerError
+    ? cause
+    : new ServerRouteHandlerError({
+        method: route.method,
+        path: route.path,
+        cause
+      });
 
 export const isServerFunction = (value: unknown): value is ServerFunction<unknown, unknown> =>
   typeof value === "function" &&
@@ -415,14 +433,18 @@ export namespace Server {
   /**
    * Creates an adapter-neutral HTTP route whose handler is normalized to an Effect.
    */
-  export const route = (
+  export const route = <E = never, R = never>(
     method: string,
     path: string,
-    handler: (request: Request) => EffectInput<Response>
-  ): ServerRoute => ({
+    handler: (request: Request) => EffectInput<Response, E, R>
+  ): ServerRoute<E, R> => ({
     method,
     path,
-    handler: (request) => toEffect(handler(request))
+    handler: (request) =>
+      Effect.try({
+        try: () => handler(request),
+        catch: (cause) => new ServerRouteHandlerError({ method, path, cause })
+      }).pipe(Effect.flatMap(toEffect))
   });
 
   /**
@@ -430,21 +452,27 @@ export namespace Server {
    *
    * Use this in server adapters that already run Effect.
    */
-  export const handleRouteEffect = (
-    route: ServerRoute,
+  export const handleRouteEffect = <E, R>(
+    route: ServerRoute<E, R>,
     request: Request
-  ): Effect.Effect<Response, unknown> => {
-    const responseContext = makeResponseContext();
-    return Effect.map(
-      provideRequest(request)(provideResponse(responseContext)(route.handler(request))),
-      (response) => applyResponseContext(responseContext, response)
-    );
-  };
+  ): Effect.Effect<Response, E | ServerRouteHandlerError, R> =>
+    Effect.suspend(() => {
+      const responseContext = makeResponseContext();
+      return Effect.try({
+        try: () => route.handler(request),
+        catch: (cause) => serverRouteHandlerError(route, cause)
+      }).pipe(
+        Effect.flatMap((response) =>
+          provideRequest(request)(provideResponse(responseContext)(response))
+        ),
+        Effect.map((response) => applyResponseContext(responseContext, response))
+      );
+    });
 
-  export const handleRoute = (
-    route: ServerRoute,
+  export const handleRoute = <E, R>(
+    route: ServerRoute<E, R>,
     request: Request
-  ): Effect.Effect<Response, unknown> =>
+  ): Effect.Effect<Response, E | ServerRouteHandlerError, R> =>
     handleRouteEffect(route, request);
 
   export const manifest = (functions: Iterable<ServerFunction<unknown, unknown>>): Array<{

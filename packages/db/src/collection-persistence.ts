@@ -7,6 +7,7 @@ import {
   type CollectionState
 } from "./collection-state.js";
 import {
+  advanceCollectionTransactionIdentity,
   pendingEntryFromSnapshot,
   pendingMutationSnapshot
 } from "./collection-mutation-queue.js";
@@ -77,6 +78,7 @@ export const hydrateCollectionEffect = <A extends object, K extends CollectionKe
     }
 
     for (const pending of snapshot.pendingMutations ?? []) {
+      advanceCollectionTransactionIdentity(state, pending.transaction.id);
       state.pendingMutations.set(pending.transaction.id, pendingEntryFromSnapshot(pending));
     }
 

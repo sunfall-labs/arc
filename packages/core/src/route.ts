@@ -1,4 +1,4 @@
-import { Effect, Schema } from "effect";
+import { Data, Effect, Schema } from "effect";
 import type { EffectInput, EnsureEffectInput } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
 import {
@@ -137,6 +137,19 @@ export type RouteHrefOptions<R extends RouteDefinition<string, unknown, unknown>
   readonly search?: Partial<RouteSearch<R>>;
 };
 
+export class RoutePreloadError extends Data.TaggedError("RoutePreloadError")<{
+  readonly path: string;
+  readonly href: string;
+  readonly cause: unknown;
+}> {}
+
+export class RouteNavigationError extends Data.TaggedError("RouteNavigationError")<{
+  readonly input: string;
+  readonly cause: unknown;
+}> {}
+
+export type RouteNavigationPlanError = RouteNavigationError | RoutePreloadError;
+
 type CheckedRoutePreload<Options> = Options extends {
   readonly preload: (...args: infer Args) => infer Out;
 }
@@ -244,6 +257,27 @@ const uniqueSortedCollectionNames = (
     }))
   ).sort();
 
+const routePreloadError = (
+  match: RouteMatch,
+  cause: unknown
+): RoutePreloadError =>
+  cause instanceof RoutePreloadError
+    ? cause
+    : new RoutePreloadError({
+        path: match.route.path,
+        href: match.href,
+        cause
+      });
+
+const routeNavigationError = (
+  input: string | URL,
+  cause: unknown
+): RouteNavigationError =>
+  new RouteNavigationError({
+    input: typeof input === "string" ? input : input.href,
+    cause
+  });
+
 /**
  * Defines a typed route with path params, optional search decoding, and preload work.
  *
@@ -324,6 +358,10 @@ export namespace Route {
 
   export type PreloadCollectionDiagnostics = RoutePreloadCollectionDiagnostics;
 
+  export type PreloadError = RoutePreloadError;
+
+  export type NavigationError = RouteNavigationPlanError;
+
   export type Props<R> = R extends RouteDefinition<infer _Path, infer Params, infer Search>
     ? {
         readonly params: Params;
@@ -368,18 +406,27 @@ export namespace Route {
    */
   export const preloadEffect = <R extends Definition<string, unknown, unknown>>(
     match: Match<R>
-  ): Effect.Effect<void, unknown> => {
-    const preload = match.route.options.preload;
-    if (!preload) {
-      return Effect.void;
-    }
-
-    return toEffect(preload(match)).pipe(Effect.asVoid);
-  };
+  ): Effect.Effect<void, RoutePreloadError> =>
+    Effect.try({
+      try: (): EffectInput<unknown> | undefined => {
+        const preload = match.route.options.preload;
+        return preload?.(match);
+      },
+      catch: (cause) => routePreloadError(match, cause)
+    }).pipe(
+      Effect.flatMap((input) =>
+        input === undefined
+          ? Effect.void
+          : toEffect(input).pipe(
+              Effect.asVoid,
+              Effect.catch((cause: unknown) => Effect.fail(routePreloadError(match, cause)))
+            )
+      )
+    );
 
   export const preload = <R extends Definition<string, unknown, unknown>>(
     match: Match<R>
-  ): Effect.Effect<void, unknown> => preloadEffect(match);
+  ): Effect.Effect<void, RoutePreloadError> => preloadEffect(match);
 
   export const preloadResourceFamilies = <R extends Definition<string, unknown, unknown>>(
     definition: R
@@ -435,7 +482,7 @@ export namespace Route {
 
   export const planPreloadEffect = <R extends Definition<string, unknown, unknown>>(
     match: Match<R>
-  ): Effect.Effect<PreloadPlan<R>, unknown> =>
+  ): Effect.Effect<PreloadPlan<R>, RoutePreloadError> =>
     Resource.collectEffect(preloadEffect(match)).pipe(
       Effect.flatMap((collected) =>
         Resource.hydrationPayloadEffect(collected.refs).pipe(
@@ -450,7 +497,7 @@ export namespace Route {
 
   export const planPreload = <R extends Definition<string, unknown, unknown>>(
     match: Match<R>
-  ): Effect.Effect<PreloadPlan<R>, unknown> => planPreloadEffect(match);
+  ): Effect.Effect<PreloadPlan<R>, RoutePreloadError> => planPreloadEffect(match);
 
   /**
    * Matches a URL and produces a navigation plan with collected resource hydration.
@@ -461,33 +508,44 @@ export namespace Route {
   export const planNavigationEffect = <const Routes extends readonly Definition<string, unknown, unknown>[]>(
     routes: Routes,
     input: string | URL
-  ): Effect.Effect<NavigationPlan<Routes[number]>, unknown> => {
-    const href = hrefForRouteInput(input);
-    const matched = match(routes, input);
-    if (!matched) {
-      return Effect.succeed({
-        _tag: "NotFound",
+  ): Effect.Effect<NavigationPlan<Routes[number]>, RouteNavigationPlanError> =>
+    Effect.try({
+      try: () => ({
+        href: hrefForRouteInput(input),
+        matched: match(routes, input)
+      }),
+      catch: (cause) => routeNavigationError(input, cause)
+    }).pipe(
+      Effect.flatMap(({
         href,
-        match: undefined,
-        refs: [],
-        resources: { resources: [] }
-      });
-    }
+        matched
+      }): Effect.Effect<NavigationPlan<Routes[number]>, RouteNavigationPlanError> => {
+        if (!matched) {
+          const notFound: NavigationPlan<Routes[number]> = {
+            _tag: "NotFound" as const,
+            href,
+            match: undefined,
+            refs: [],
+            resources: { resources: [] }
+          };
+          return Effect.succeed(notFound);
+        }
 
-    return planPreloadEffect(matched).pipe(
-      Effect.map((plan) => ({
-        _tag: "Matched" as const,
-        href,
-        match: plan.match,
-        refs: plan.refs,
-        resources: plan.resources
-      }))
+        return planPreloadEffect(matched).pipe(
+          Effect.map((plan): NavigationPlan<Routes[number]> => ({
+            _tag: "Matched" as const,
+            href,
+            match: plan.match,
+            refs: plan.refs,
+            resources: plan.resources
+          }))
+        );
+      })
     );
-  };
 
   export const planNavigation = <const Routes extends readonly Definition<string, unknown, unknown>[]>(
     routes: Routes,
     input: string | URL
-  ): Effect.Effect<NavigationPlan<Routes[number]>, unknown> =>
+  ): Effect.Effect<NavigationPlan<Routes[number]>, RouteNavigationPlanError> =>
     planNavigationEffect(routes, input);
 }

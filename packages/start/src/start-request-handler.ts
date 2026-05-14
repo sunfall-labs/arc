@@ -29,11 +29,10 @@ import {
   requestRuntimeDisposeTraceEffect,
   startRequestTraceFactsEffect,
   startRequestTraceTeardown,
-  traceCollectionPreload,
-  traceRoutePlan,
   withStartRequestObservability,
   type StartRequestTraceHandler
 } from "./request-trace.js";
+import { recordStartRequestTracePreload } from "./request-trace-recorder.js";
 import {
   isServerActionRequest,
   isServerRpcRequest,
@@ -167,10 +166,12 @@ export const createRequestHandlerEffect =
           options,
           responseContext
         );
-        traceFacts.routePlan = traceRoutePlan(preloaded.routePlan);
-        traceFacts.collections = [
-          ...traceCollectionPreload(requestRuntime, preloaded.collectionPreload)
-        ];
+        recordStartRequestTracePreload(
+          traceFacts,
+          requestRuntime,
+          preloaded.routePlan,
+          preloaded.collectionPreload
+        );
         const context: StartRenderContext<Routes, Client, ServerServices, ServerError> = {
           app,
           request,

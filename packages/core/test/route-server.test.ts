@@ -11,10 +11,13 @@ import {
   ResponseContext,
   route,
   Route,
+  RouteNavigationError,
+  RoutePreloadError,
   routeParamsFromSegments,
   routePathFromSegments,
   routePathSlug,
-  Server
+  Server,
+  ServerRouteHandlerError
 } from "../src/index.js";
 
 describe("route", () => {
@@ -101,9 +104,39 @@ describe("route", () => {
     const match = ProjectRoute.match("/projects/atlas");
 
     expect(match).toBeDefined();
+    const effect = Route.preloadEffect(match!);
+    expect(preloaded).toBe("");
+
     return Effect.runPromise(
-      Route.preloadEffect(match!).pipe(
+      effect.pipe(
         Effect.tap(() => Effect.sync(() => expect(preloaded).toBe("atlas"))),
+        Effect.asVoid
+      )
+    );
+  });
+
+  it("captures synchronous preload failures inside the returned Effect", () => {
+    const ProjectRoute = route("/projects/:id", {
+      preload: () => {
+        throw "preload-failed";
+      }
+    });
+    const match = ProjectRoute.match("/projects/atlas");
+
+    expect(match).toBeDefined();
+    let effect: Effect.Effect<void, RoutePreloadError> | undefined;
+    expect(() => {
+      effect = Route.preloadEffect(match!);
+    }).not.toThrow();
+
+    return Effect.runPromise(
+      Effect.flip(effect!).pipe(
+        Effect.tap((error) =>
+          Effect.sync(() => {
+            expect(error).toBeInstanceOf(RoutePreloadError);
+            expect(error.cause).toBe("preload-failed");
+          })
+        ),
         Effect.asVoid
       )
     );
@@ -224,6 +257,34 @@ describe("route", () => {
       )
     );
   });
+
+  it("captures route schema decode failures inside navigation effects", () => {
+    const ProjectRoute = route("/projects/:id", {
+      params: Schema.Struct({ id: Schema.Number })
+    });
+
+    let effect:
+      | Effect.Effect<
+          Route.NavigationPlan<typeof ProjectRoute>,
+          Route.NavigationError
+        >
+      | undefined;
+    expect(() => {
+      effect = Route.planNavigationEffect([ProjectRoute] as const, "/projects/atlas");
+    }).not.toThrow();
+
+    return Effect.runPromise(
+      Effect.flip(effect!).pipe(
+        Effect.tap((error) =>
+          Effect.sync(() => {
+            expect(error).toBeInstanceOf(RouteNavigationError);
+            expect(error.input).toBe("/projects/atlas");
+          })
+        ),
+        Effect.asVoid
+      )
+    );
+  });
 });
 
 describe("Server", () => {
@@ -293,6 +354,33 @@ describe("Server", () => {
           expect(effectResponseText).toBe("/effect");
         });
       })
+    );
+  });
+
+  it("suspends server route handlers until the returned Effect runs", () => {
+    let called = 0;
+    const serverRoute = Server.route("GET", "/hello", () => {
+      called++;
+      throw "handler-failed";
+    });
+
+    let effect: Effect.Effect<Response, ServerRouteHandlerError> | undefined;
+    expect(() => {
+      effect = Server.handleRouteEffect(serverRoute, new Request("https://example.com/hello"));
+    }).not.toThrow();
+    expect(called).toBe(0);
+
+    return Effect.runPromise(
+      Effect.flip(effect!).pipe(
+        Effect.tap((error) =>
+          Effect.sync(() => {
+            expect(called).toBe(1);
+            expect(error).toBeInstanceOf(ServerRouteHandlerError);
+            expect(error.cause).toBe("handler-failed");
+          })
+        ),
+        Effect.asVoid
+      )
     );
   });
 

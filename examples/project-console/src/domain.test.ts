@@ -19,95 +19,100 @@ describe("project console domain", () => {
     expect(() => ProjectRoute.match("/projects/Atlas")).toThrow();
   });
 
-  it("loads projects through server functions", async () => {
-    const projects = await Effect.runPromise(
-      Effect.provideService(listProjects.effect("all"), ServerClient, Server.localClient())
-    );
-
-    expect(projects.length).toBeGreaterThan(0);
-  });
-
-  it("renames and reloads a project", async () => {
-    const renamed = await Effect.runPromise(
-      Effect.provideService(
-        renameProject.effect({ id: makeProjectId("atlas"), name: "Atlas Revenue" }),
-        ServerClient,
-        Server.localClient()
-      )
-    );
-    const loaded = await Effect.runPromise(
-      Effect.provideService(
-        getProject.effect({ id: makeProjectId("atlas") }),
-        ServerClient,
-        Server.localClient()
-      )
-    );
-
-    expect(renamed.name).toBe("Atlas Revenue");
-    expect(loaded.name).toBe("Atlas Revenue");
-  });
-
-  it("uses request-scoped context inside server mutations", async () => {
-    const renamed = await Effect.runPromise(
-      provideRequest(
-        new Request("https://example.com/projects/meridian", {
-          headers: {
-            "x-effect-ui-now-label": "request scoped"
-          }
-        })
-      )(
-        Effect.provideService(
-          renameProject.effect({ id: makeProjectId("meridian"), name: "Meridian Insights" }),
+  it("loads projects through server functions", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const projects = yield* Effect.provideService(
+          listProjects.effect("all"),
           ServerClient,
           Server.localClient()
-        )
-      )
-    );
+        );
 
-    expect(renamed.updatedAt).toBe("request scoped");
-  });
+        expect(projects.length).toBeGreaterThan(0);
+      })
+    ));
 
-  it("returns typed validation data for progressive project name submissions", async () => {
-    const result = await Effect.runPromise(
-      Effect.provideService(
-        submitProjectName.effect({ id: makeProjectId("atlas"), name: "At" }),
-        ServerClient,
-        Server.localClient()
-      )
-    );
+  it("renames and reloads a project", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const renamed = yield* Effect.provideService(
+          renameProject.effect({ id: makeProjectId("atlas"), name: "Atlas Revenue" }),
+          ServerClient,
+          Server.localClient()
+        );
+        const loaded = yield* Effect.provideService(
+          getProject.effect({ id: makeProjectId("atlas") }),
+          ServerClient,
+          Server.localClient()
+        );
 
-    expect(result._tag).toBe("ValidationFailure");
-    if (result._tag === "ValidationFailure") {
-      expect(result.fieldErrors.name?.[0]).toContain("three meaningful characters");
-    }
-  });
+        expect(renamed.name).toBe("Atlas Revenue");
+        expect(loaded.name).toBe("Atlas Revenue");
+      })
+    ));
 
-  it("returns a typed redirect after a valid progressive project name submission", async () => {
-    const result = await Effect.runPromise(
-      Effect.provideService(
-        submitProjectName.effect({
-          id: makeProjectId("kepler"),
-          name: "Kepler Discovery",
-          redirectTo: makeProjectReturnTo("/projects/kepler?tab=activity")
-        }),
-        ServerClient,
-        Server.localClient()
-      )
-    );
-    const loaded = await Effect.runPromise(
-      Effect.provideService(
-        getProject.effect({ id: makeProjectId("kepler") }),
-        ServerClient,
-        Server.localClient()
-      )
-    );
+  it("uses request-scoped context inside server mutations", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const renamed = yield* provideRequest(
+          new Request("https://example.com/projects/meridian", {
+            headers: {
+              "x-effect-ui-now-label": "request scoped"
+            }
+          })
+        )(
+          Effect.provideService(
+            renameProject.effect({ id: makeProjectId("meridian"), name: "Meridian Insights" }),
+            ServerClient,
+            Server.localClient()
+          )
+        );
 
-    expect(result).toMatchObject({
-      _tag: "Redirect",
-      location: "/projects/kepler?tab=activity",
-      status: 303,
-      replace: true
-    });
-    expect(loaded.name).toBe("Kepler Discovery");
-  });
+        expect(renamed.updatedAt).toBe("request scoped");
+      })
+    ));
+
+  it("returns typed validation data for progressive project name submissions", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const result = yield* Effect.provideService(
+          submitProjectName.effect({ id: makeProjectId("atlas"), name: "At" }),
+          ServerClient,
+          Server.localClient()
+        );
+
+        expect(result._tag).toBe("ValidationFailure");
+        if (result._tag === "ValidationFailure") {
+          expect(result.fieldErrors.name?.[0]).toContain("three meaningful characters");
+        }
+      })
+    ));
+
+  it("returns a typed redirect after a valid progressive project name submission", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const result = yield* Effect.provideService(
+          submitProjectName.effect({
+            id: makeProjectId("kepler"),
+            name: "Kepler Discovery",
+            redirectTo: makeProjectReturnTo("/projects/kepler?tab=activity")
+          }),
+          ServerClient,
+          Server.localClient()
+        );
+        const loaded = yield* Effect.provideService(
+          getProject.effect({ id: makeProjectId("kepler") }),
+          ServerClient,
+          Server.localClient()
+        );
+
+        expect(result).toMatchObject({
+          _tag: "Redirect",
+          location: "/projects/kepler?tab=activity",
+          status: 303,
+          replace: true
+        });
+        expect(loaded.name).toBe("Kepler Discovery");
+      })
+    ));
 });

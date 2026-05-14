@@ -14,16 +14,32 @@ import {
   type StoredRow
 } from "./collection-state.js";
 
-let nextTransactionId = 0;
+const transactionIdPattern = /^ctx_(\d+)$/;
 
 export const createCollectionTransaction = <A extends object, K extends CollectionKey>(
+  state: CollectionState<A, K, any>,
   collection: string,
   mutations: ReadonlyArray<CollectionMutation<A, K>>
 ): CollectionTransaction<A, K> => ({
-  id: `ctx_${++nextTransactionId}`,
+  id: `ctx_${++state.nextTransactionId}`,
   collection,
   mutations
 });
+
+export const advanceCollectionTransactionIdentity = (
+  state: CollectionState<any, any, any>,
+  id: string
+): void => {
+  const matched = transactionIdPattern.exec(id);
+  if (!matched) {
+    return;
+  }
+
+  const value = Number.parseInt(matched[1] ?? "0", 10);
+  if (Number.isSafeInteger(value) && value > state.nextTransactionId) {
+    state.nextTransactionId = value;
+  }
+};
 
 const rollbackRowSnapshot = <A extends object, K extends CollectionKey>(
   key: K,

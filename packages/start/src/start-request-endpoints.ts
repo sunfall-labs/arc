@@ -26,6 +26,11 @@ import {
   type StartRequestTraceFacts
 } from "./request-trace.js";
 import {
+  recordStartRequestTraceAction,
+  recordStartRequestTraceFailure,
+  recordStartRequestTraceServerFunction
+} from "./request-trace-recorder.js";
+import {
   actionExitResponseEffect,
   actionFailureKindEffect,
   actionFunctionNotFoundResponse,
@@ -65,9 +70,7 @@ export const createServerRpcResponseEffectWithRuntime = <
       Effect.as(undefined),
       Effect.catch((error) =>
         Effect.sync(() => {
-          if (traceFacts) {
-            traceFacts.failureKind = "transport";
-          }
+          recordStartRequestTraceFailure(traceFacts, "transport");
           return rpcTransportRequestFailureResponse(error);
         })
       )
@@ -83,9 +86,7 @@ export const createServerRpcResponseEffectWithRuntime = <
         const payload = yield* readJsonEffect(request).pipe(
           Effect.catch((error) =>
             Effect.sync(() => {
-              if (traceFacts) {
-                traceFacts.failureKind = "protocol";
-              }
+              recordStartRequestTraceFailure(traceFacts, "protocol");
               return protocolFailureResponse(error);
             })
           )
@@ -97,9 +98,7 @@ export const createServerRpcResponseEffectWithRuntime = <
         const decoded = yield* Server.decodeRpcRequest(payload).pipe(
           Effect.catch((error) =>
             Effect.sync(() => {
-              if (traceFacts) {
-                traceFacts.failureKind = "protocol";
-              }
+              recordStartRequestTraceFailure(traceFacts, "protocol");
               return protocolFailureResponse(
                 new ServerRpcProtocolError({
                   message: error.message,
@@ -115,10 +114,7 @@ export const createServerRpcResponseEffectWithRuntime = <
 
         const fn = Server.get(decoded.name);
         if (!fn) {
-          if (traceFacts) {
-            traceFacts.failureKind = "protocol";
-          }
-          traceFacts?.serverFunctions.push({
+          recordStartRequestTraceServerFunction(traceFacts, {
             name: decoded.name,
             status: "failure",
             failureKind: "protocol"
@@ -132,10 +128,7 @@ export const createServerRpcResponseEffectWithRuntime = <
         const failureKind = Exit.isSuccess(exit)
           ? undefined
           : yield* rpcFailureKindEffect(fn, exit);
-        if (failureKind !== undefined && traceFacts) {
-          traceFacts.failureKind = failureKind;
-        }
-        traceFacts?.serverFunctions.push({
+        recordStartRequestTraceServerFunction(traceFacts, {
           name: decoded.name,
           status: Exit.isSuccess(exit) ? "success" : "failure",
           ...(failureKind === undefined ? {} : { failureKind })
@@ -146,9 +139,7 @@ export const createServerRpcResponseEffectWithRuntime = <
     ).pipe(
       Effect.catch((error) =>
         Effect.sync(() => {
-          if (traceFacts) {
-            traceFacts.failureKind = "defect";
-          }
+          recordStartRequestTraceFailure(traceFacts, "defect");
           return rpcRuntimeFailureResponse(error);
         })
       )
@@ -203,9 +194,7 @@ export const createServerActionResponseEffectWithRuntime = <
       Effect.as(undefined),
       Effect.catch((error) =>
         Effect.sync(() => {
-          if (traceFacts) {
-            traceFacts.failureKind = "transport";
-          }
+          recordStartRequestTraceFailure(traceFacts, "transport");
           return actionTransportRequestFailureResponse(error);
         })
       )
@@ -221,9 +210,7 @@ export const createServerActionResponseEffectWithRuntime = <
         const decoded = yield* readStartActionRequestEffect(request).pipe(
           Effect.catch((error) =>
             Effect.sync(() => {
-              if (traceFacts) {
-                traceFacts.failureKind = "protocol";
-              }
+              recordStartRequestTraceFailure(traceFacts, "protocol");
               return actionProtocolFailureResponse(error);
             })
           )
@@ -234,10 +221,7 @@ export const createServerActionResponseEffectWithRuntime = <
 
         const action = makeActionMap(actions).get(decoded.name);
         if (!action) {
-          if (traceFacts) {
-            traceFacts.failureKind = "protocol";
-          }
-          traceFacts?.actions.push({
+          recordStartRequestTraceAction(traceFacts, {
             name: decoded.name,
             state: "Failure",
             failureKind: "protocol"
@@ -248,9 +232,7 @@ export const createServerActionResponseEffectWithRuntime = <
         const input = yield* decodeWithSchema(action.input, decoded.input).pipe(
           Effect.catch((error) =>
             Effect.sync(() => {
-              if (traceFacts) {
-                traceFacts.failureKind = "validation";
-              }
+              recordStartRequestTraceFailure(traceFacts, "validation");
               return actionProtocolFailureResponse(
                 new ServerRpcProtocolError({
                   message: error.message,
@@ -261,7 +243,7 @@ export const createServerActionResponseEffectWithRuntime = <
           )
         );
         if (input instanceof Response) {
-          traceFacts?.actions.push({
+          recordStartRequestTraceAction(traceFacts, {
             name: action.name,
             state: "Failure",
             failureKind: "validation"
@@ -275,10 +257,7 @@ export const createServerActionResponseEffectWithRuntime = <
         );
         const meta = yield* actionResponseMetaEffect(instance.invalidationPlan.get());
         const failureKind = yield* actionFailureKindEffect(action, exit);
-        if (failureKind !== undefined && traceFacts) {
-          traceFacts.failureKind = failureKind;
-        }
-        traceFacts?.actions.push({
+        recordStartRequestTraceAction(traceFacts, {
           name: action.name,
           state: failureKind === undefined ? "Success" : "Failure",
           ...(failureKind === undefined ? {} : { failureKind })
@@ -289,9 +268,7 @@ export const createServerActionResponseEffectWithRuntime = <
     ).pipe(
       Effect.catch((error) =>
         Effect.sync(() => {
-          if (traceFacts) {
-            traceFacts.failureKind = "defect";
-          }
+          recordStartRequestTraceFailure(traceFacts, "defect");
           return actionRuntimeFailureResponse(error);
         })
       )

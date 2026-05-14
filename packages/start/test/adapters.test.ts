@@ -36,9 +36,6 @@ const close = (server: ReturnType<typeof createServer>): Promise<void> =>
     );
   }));
 
-const delay = (millis: number): Promise<"timeout"> =>
-  Effect.runPromise(Effect.sleep(`${millis} millis`).pipe(Effect.as("timeout" as const)));
-
 describe("Start deployment adapters", () => {
   it("converts Node requests into Web requests with forwarded origin and body", async () => {
     const nodeRequest = Readable.from([Buffer.from("hello")]) as IncomingMessage;
@@ -185,7 +182,12 @@ describe("Start deployment adapters", () => {
       const reader = response.body?.getReader();
       expect(reader).toBeDefined();
 
-      const first = await Promise.race([reader!.read(), delay(100)]);
+      const first = await Effect.runPromise(
+        Effect.raceFirst(
+          Effect.tryPromise(() => reader!.read()),
+          Effect.sleep("100 millis").pipe(Effect.as("timeout" as const))
+        )
+      );
       expect(first).not.toBe("timeout");
       expect(first).toMatchObject({
         done: false,

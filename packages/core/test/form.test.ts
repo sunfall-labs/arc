@@ -1,4 +1,4 @@
-import { Context, Data, Effect, Exit, Schema } from "effect";
+import { Context, Data, Deferred, Effect, Exit, Fiber, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import { Form, read } from "../src/index.js";
 
@@ -209,5 +209,80 @@ describe("Form", () => {
       dirty: {},
       touched: {}
     });
+  });
+
+  it("does not commit stale validation failures after field changes", () => {
+    class ProjectNameTooShort extends Data.TaggedError("ProjectNameTooShort")<{
+      readonly minimum: number;
+    }> {}
+
+    const started = Effect.runSync(Deferred.make<void>());
+    const release = Effect.runSync(Deferred.make<void>());
+    const form = Form.make<typeof RenameInput, ProjectNameTooShort>({
+      schema: RenameInput,
+      initial: { id: "atlas", name: "At" },
+      validate: (values, validation) =>
+        Effect.gen(function* () {
+          yield* Deferred.succeed(started, undefined);
+          yield* Deferred.await(release);
+          if (values.name.length < 3) {
+            return yield* Effect.fail(validation.field("name", new ProjectNameTooShort({ minimum: 3 })));
+          }
+        })
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const validation = Effect.runFork(form.validateEffect());
+        yield* Deferred.await(started);
+        form.setField("name", "Atlas Revenue");
+        yield* Deferred.succeed(release, undefined);
+
+        const exit = yield* Fiber.await(validation);
+        const state = read(form.state);
+
+        expect(Exit.isFailure(exit)).toBe(true);
+        expect(state.status).toBe("Idle");
+        expect(state.values.name).toBe("Atlas Revenue");
+        expect(state.fieldErrors).toEqual({});
+      })
+    );
+  });
+
+  it("does not commit stale validation success after reset", () => {
+    const started = Effect.runSync(Deferred.make<void>());
+    const release = Effect.runSync(Deferred.make<void>());
+    const form = Form.make({
+      schema: RenameInput,
+      initial: { id: "atlas", name: "Atlas Billing" },
+      validate: () =>
+        Effect.gen(function* () {
+          yield* Deferred.succeed(started, undefined);
+          yield* Deferred.await(release);
+        })
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const validation = Effect.runFork(form.validateEffect());
+        yield* Deferred.await(started);
+        form.reset({ id: "phoenix", name: "Phoenix Ops" });
+        yield* Deferred.succeed(release, undefined);
+
+        const value = yield* Fiber.join(validation);
+        const state = read(form.state);
+
+        expect(value).toEqual({ id: "atlas", name: "Atlas Billing" });
+        expect(state).toEqual({
+          status: "Idle",
+          initial: { id: "phoenix", name: "Phoenix Ops" },
+          values: { id: "phoenix", name: "Phoenix Ops" },
+          fieldErrors: {},
+          formErrors: [],
+          dirty: {},
+          touched: {}
+        });
+      })
+    );
   });
 });

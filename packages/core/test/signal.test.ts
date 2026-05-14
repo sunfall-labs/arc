@@ -12,6 +12,63 @@ describe("Signal", () => {
     expect(read(doubled)).toBe(6);
   });
 
+  it("deduplicates repeated derived reads of the same source", () => {
+    const count = Signal.make(1);
+    let computes = 0;
+    const repeated = Signal.derive(() => {
+      computes++;
+      return read(count) + read(count);
+    });
+    const values: number[] = [];
+    const unsubscribe = repeated.subscribe(() => {
+      values.push(read(repeated));
+    });
+
+    expect(read(repeated)).toBe(2);
+    count.set(2);
+    unsubscribe();
+
+    expect(read(repeated)).toBe(4);
+    expect(computes).toBe(2);
+    expect(values).toEqual([4]);
+  });
+
+  it("queues derived recomputes triggered during computation", () => {
+    const count = Signal.make(0);
+    let computes = 0;
+    const derived = Signal.derive(() => {
+      computes++;
+      const value = read(count);
+      if (value === 0) {
+        count.set(1);
+      }
+      return value;
+    });
+
+    expect(read(derived)).toBe(1);
+    expect(computes).toBe(2);
+  });
+
+  it("unsubscribes stale conditional derived dependencies", () => {
+    const useLeft = Signal.make(true);
+    const left = Signal.make("left");
+    const right = Signal.make("right");
+    let computes = 0;
+    const selected = Signal.derive(() => {
+      computes++;
+      return read(useLeft) ? read(left) : read(right);
+    });
+
+    expect(read(selected)).toBe("left");
+    useLeft.set(false);
+    expect(read(selected)).toBe("right");
+    left.set("stale");
+    expect(read(selected)).toBe("right");
+    right.set("fresh");
+    expect(read(selected)).toBe("fresh");
+    expect(computes).toBe(3);
+  });
+
   it("notifies subscribers only when values change", () => {
     const count = Signal.make(0);
     let updates = 0;

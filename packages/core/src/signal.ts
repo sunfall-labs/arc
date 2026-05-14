@@ -3,12 +3,14 @@ import type { EffectInput } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
 import { runFork } from "./runtime.js";
 import { getCurrentScope, UiScopeMissing } from "./scope.js";
+import {
+  makeSignalDependencyTracker,
+  trackSignalDependency,
+  withoutSignalDependencyObserver,
+  type Subscribable
+} from "./signal-dependencies.js";
 
 export const SignalTypeId: unique symbol = Symbol.for("@effect-ui/core/Signal") as typeof SignalTypeId;
-
-export interface Subscribable {
-  subscribe(listener: () => void): () => void;
-}
 
 export interface ReadableSignal<A> extends Subscribable {
   readonly [SignalTypeId]: typeof SignalTypeId;
@@ -25,39 +27,13 @@ export interface SignalStreamOptions {
   readonly strategy?: "sliding" | "dropping" | "suspend";
 }
 
-interface Observer {
-  depend(source: Subscribable): void;
-}
-
 export interface WatchOptions<A> {
   readonly immediate?: boolean;
   readonly equals?: (left: A, right: A) => boolean;
 }
 
-let currentObserver: Observer | undefined;
-
 export const trackDependency = (source: Subscribable): void => {
-  currentObserver?.depend(source);
-};
-
-const withObserver = <A>(observer: Observer, f: () => A): A => {
-  const previous = currentObserver;
-  currentObserver = observer;
-  try {
-    return f();
-  } finally {
-    currentObserver = previous;
-  }
-};
-
-const withoutObserver = <A>(f: () => A): A => {
-  const previous = currentObserver;
-  currentObserver = undefined;
-  try {
-    return f();
-  } finally {
-    currentObserver = previous;
-  }
+  trackSignalDependency(source);
 };
 
 const observeDependencies = <A>(
@@ -66,70 +42,24 @@ const observeDependencies = <A>(
   options: WatchOptions<A> = {}
 ): (() => void) => {
   const equals = options.equals ?? Object.is;
-  const cleanups = new Set<() => void>();
-  const sources = new Set<Subscribable>();
-  let disposed = false;
   let initialized = false;
   let previous: A | undefined;
-  let running = false;
-  let queued = false;
 
-  const clearDependencies = (): void => {
-    for (const cleanup of cleanups) {
-      cleanup();
-    }
-    cleanups.clear();
-    sources.clear();
-  };
+  const tracker = makeSignalDependencyTracker(evaluate, (value) => {
+    const changed = !initialized || !equals(previous as A, value);
+    const previousValue = previous;
+    previous = value;
 
-  const run = (): void => {
-    if (disposed) {
-      return;
+    if (changed && (initialized || options.immediate !== false)) {
+      onChange(value, initialized ? previousValue : undefined);
     }
 
-    if (running) {
-      queued = true;
-      return;
-    }
+    initialized = true;
+  });
 
-    running = true;
-    clearDependencies();
+  tracker.run();
 
-    try {
-      const value = withObserver({
-        depend: (source) => {
-          if (sources.has(source)) {
-            return;
-          }
-
-          sources.add(source);
-          cleanups.add(source.subscribe(run));
-        }
-      }, evaluate);
-      const changed = !initialized || !equals(previous as A, value);
-      const previousValue = previous;
-      previous = value;
-
-      if (changed && (initialized || options.immediate !== false)) {
-        onChange(value, initialized ? previousValue : undefined);
-      }
-
-      initialized = true;
-    } finally {
-      running = false;
-      if (queued) {
-        queued = false;
-        run();
-      }
-    }
-  };
-
-  run();
-
-  return () => {
-    disposed = true;
-    clearDependencies();
-  };
+  return () => tracker.dispose();
 };
 
 export const watch = <A, E = unknown>(
@@ -232,13 +162,16 @@ class WritableSignalImpl<A> extends BaseSignal<A> implements WritableSignal<A> {
 
 class DerivedSignalImpl<A> extends BaseSignal<A> {
   private value!: A;
-  private readonly cleanups = new Set<() => void>();
   private initialized = false;
-  private computing = false;
+  private readonly tracker;
 
   constructor(private readonly compute: () => A) {
     super();
-    this.recompute();
+    this.tracker = makeSignalDependencyTracker(
+      compute,
+      (next) => this.applyValue(next)
+    );
+    this.tracker.run();
   }
 
   get(): A {
@@ -246,37 +179,13 @@ class DerivedSignalImpl<A> extends BaseSignal<A> {
     return this.value;
   }
 
-  private depend(source: Subscribable): void {
-    const cleanup = source.subscribe(() => this.recompute());
-    this.cleanups.add(cleanup);
-  }
+  private applyValue(next: A): void {
+    const changed = !this.initialized || !Object.is(this.value, next);
+    this.value = next;
+    this.initialized = true;
 
-  private clearDependencies(): void {
-    for (const cleanup of this.cleanups) {
-      cleanup();
-    }
-    this.cleanups.clear();
-  }
-
-  private recompute(): void {
-    if (this.computing) {
-      return;
-    }
-
-    this.computing = true;
-    this.clearDependencies();
-
-    try {
-      const next = withObserver({ depend: (source) => this.depend(source) }, this.compute);
-      const changed = !this.initialized || !Object.is(this.value, next);
-      this.value = next;
-      this.initialized = true;
-
-      if (changed) {
-        this.notify();
-      }
-    } finally {
-      this.computing = false;
+    if (changed) {
+      this.notify();
     }
   }
 }
@@ -299,9 +208,9 @@ export namespace Signal {
   export const get = <A>(signal: ReadableSignal<A>): A => signal.get();
 
   export const peek = <A>(signal: ReadableSignal<A>): A =>
-    withoutObserver(() => signal.get());
+    withoutSignalDependencyObserver(() => signal.get());
 
-  export const untracked = <A>(f: () => A): A => withoutObserver(f);
+  export const untracked = <A>(f: () => A): A => withoutSignalDependencyObserver(f);
 
   export const set = <A>(signal: WritableSignal<A>, value: A | ((current: A) => A)): void => {
     signal.set(value);

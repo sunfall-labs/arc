@@ -549,6 +549,87 @@ describe("Collection", () => {
     }
   });
 
+  it("advances transaction ids from hydrated pending mutations", async () => {
+    const runtime = makeRuntime();
+    const release = Effect.runSync(Deferred.make<void>());
+    const Projects = Collection.define<Project, string, never>({
+      name: "Projects.pending-id-advance",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 },
+        { id: "phoenix", name: "Phoenix", status: "active", progress: 64 }
+      ],
+      onUpdate: () => Deferred.await(release)
+    });
+    const atlas = { id: "atlas", name: "Atlas", status: "active" as const, progress: 72 };
+    const atlasUpdated = { ...atlas, progress: 80 };
+    let update: Fiber.Fiber<unknown, unknown> | undefined;
+
+    try {
+      await runtime.runPromise(Projects.hydrateEffect({
+        name: "Projects.pending-id-advance",
+        rows: [
+          {
+            key: "atlas",
+            value: atlasUpdated,
+            synced: false,
+            origin: "local"
+          },
+          {
+            key: "phoenix",
+            value: { id: "phoenix", name: "Phoenix", status: "active", progress: 64 },
+            synced: true,
+            origin: "remote"
+          }
+        ],
+        pendingMutations: [
+          {
+            transaction: {
+              id: "ctx_1",
+              collection: "Projects.pending-id-advance",
+              mutations: [
+                {
+                  _tag: "Update",
+                  key: "atlas",
+                  previous: atlas,
+                  value: atlasUpdated,
+                  changes: { progress: 80 }
+                }
+              ]
+            },
+            rollbackRows: [
+              {
+                key: "atlas",
+                row: {
+                  key: "atlas",
+                  value: atlas,
+                  synced: true,
+                  origin: "remote"
+                }
+              }
+            ],
+            createdAt: 1,
+            attempts: 1
+          }
+        ],
+        updatedAt: 1
+      }));
+
+      update = runtime.runFork(Projects.updateEffect("phoenix", { progress: 90 }));
+      await Effect.runPromise(Effect.sleep("10 millis"));
+
+      expect(runWithRuntime(runtime, () =>
+        Projects.pendingMutations().map((pending) => pending.transaction.id)
+      )).toEqual(["ctx_1", "ctx_2"]);
+    } finally {
+      Effect.runSync(Deferred.succeed(release, undefined));
+      if (update !== undefined) {
+        await Effect.runPromise(Fiber.await(update));
+      }
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
   it("flushes restored pending update mutations through the handler", async () => {
     const first = makeRuntime();
     const second = makeRuntime();

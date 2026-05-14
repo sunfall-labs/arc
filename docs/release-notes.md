@@ -332,17 +332,52 @@ Latest full gate on May 14, 2026:
   `summary-facts.ts`, and `causal-graph.ts`, leaving `summary.ts` as the public
   summary facade while keeping app graph projection, runtime fact
   normalization, and causal graph construction separate.
-- The latest `pnpm verify` passed after the Start Request Handler, Core
+- DB Query builder behavior now lives in `query-builder.ts`, and read-only
+  Live Query Collection adaptation now lives in `live-query-collection.ts`, so
+  the DB root re-exports the Query and Collection facades while those
+  implementations have focused Modules.
+- Project-console domain mock/domain tests and the basic starter SSR test now
+  return Effect programs instead of async wrappers; response body text remains a
+  host Promise boundary through `Effect.tryPromise(...)`.
+- Core route/server Effect-returning helpers now defer route preload,
+  navigation match/schema decode, and server route handler invocation until the
+  returned Effect runs, with those boundary failures surfaced as
+  `RoutePreloadError`, `RouteNavigationError`, and `ServerRouteHandlerError`
+  instead of `unknown`. The Start adapter streaming timeout test now coordinates
+  with `Effect.raceFirst(...)` rather than `Promise.race(...)`.
+- Core Signal dependency tracking now uses one internal tracker for both
+  `watch(...)` and `Signal.derive(...)`, de-duping repeated source reads and
+  preserving queued recompute behavior for derived signals.
+- Core Form validation now snapshots values and tracks validation revisions so
+  stale async validation cannot overwrite state after a field change, reset, or
+  newer validation.
+- DB Collection transaction ids are now Collection Store-local and hydrate from
+  restored pending mutations, preventing collisions between restored optimistic
+  work and new local writes.
+- Start manifest mechanics now share `manifest-entry-core.ts` across
+  server-function and action manifests, the Start root no longer wildcard
+  exports internal transport protocol helpers, request trace fact mutation is
+  localized in `request-trace-recorder.ts`, and generated app-graph virtual
+  modules reuse the shared diagnostics policy contract instead of embedding a
+  second policy implementation.
+- The latest `pnpm verify` passed after the DB query/live-query extraction,
+  DB transaction identity locality fix, Core typed route/server Effect seams,
+  Start manifest/trace/diagnostics cleanup, Core Signal Dependency Tracker
+  extraction, and Core Form validation race guard: 9 package builds, workspace
+  typecheck, type tests, 40 root test files / 336 tests, devtools panel verify,
+  devtools extension verify, basic starter verify, project-console starter
+  packaging/typecheck/tests/build, and leak scan.
+- The previous `pnpm verify` passed after the Start Request Handler, Core
   Resource Runtime, and Devtools Summary extractions: 9 package builds,
   workspace typecheck, type tests, 40 root test files / 328 tests, devtools
   panel verify, devtools extension verify, basic starter verify,
   project-console starter packaging/typecheck/tests/build, and leak scan.
-- The previous `pnpm verify` passed after the DB Collection Runtime extraction:
+- The earlier `pnpm verify` passed after the DB Collection Runtime extraction:
   9 package builds, workspace typecheck, type tests, 40 root test files / 328
   tests, devtools panel verify, devtools extension verify, basic starter
   verify, project-console starter packaging/typecheck/tests/build, and leak
   scan.
-- The previous architecture-deepening `pnpm verify` passed:
+- The earlier architecture-deepening `pnpm verify` passed:
   9 package builds, workspace typecheck, type tests, 40 root test files / 328
   tests, devtools panel verify, devtools extension verify, basic starter
   verify, project-console starter packaging/typecheck/tests/build, and leak

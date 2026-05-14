@@ -399,3 +399,289 @@ project-console starter packaging/typecheck/tests/build, and leak scan.
 Open candidates from this pass: none. The next architecture-deepening review
 should start from a fresh scan rather than the fixed Review 4 or Review 5
 findings.
+
+## Review 6: DB Query Builder Follow-Up
+
+Status: fixed for the finding in this pass. No open candidates remain from
+Review 6.
+
+1. Query Builder And Live Query Collection Modules
+   - Status: fixed.
+   - Files: `packages/db/src/index.ts`,
+     `packages/db/src/query-builder.ts`,
+     `packages/db/src/live-query-collection.ts`,
+     `packages/db/src/query-plan.ts`,
+     `packages/db/src/live-query-runtime.ts`,
+     `packages/db/test/collection.test.ts`,
+     `packages/db/test/live-query-collection.test.ts`,
+     `packages/solid-db/test/solid-db.test.ts`.
+   - Problem: after Collection Runtime and Live Query Runtime were extracted,
+     the DB root still owned the immutable Query Builder, aggregate helpers,
+     one-shot query execution, live-query creation, query diagnostics, and
+     read-only Live Query Collection adaptation. That kept Query behavior in a
+     large facade Module instead of near Query Plan, Live Query Runtime, and
+     collection-adapter concepts.
+   - Fix: `query-builder.ts` now owns `QueryBuilder`, the public `Query`
+     namespace implementation, aggregate helpers, source preloading, live query
+     construction, and diagnostics delegation. `live-query-collection.ts` owns
+     the adapter from a Live Query graph to a read-only Collection Definition.
+     `index.ts` re-exports the Query interface and keeps Collection facade
+     behavior.
+   - Benefits: Query DSL, execution, and Live Query Collection adapter bugs now
+     have focused Modules and test surfaces. The DB root keeps public leverage
+     while Query Plan and Live Query Runtime remain the implementation seams for
+     planning and incremental evaluation.
+   - Evidence: `pnpm --filter @effect-ui/db typecheck` and `pnpm typecheck`
+     passed, and
+     `pnpm exec vitest run packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts packages/solid-db/test/solid-db.test.ts`
+     passed: 3 files / 36 tests.
+
+Open candidates from this pass: none. The next architecture-deepening review
+should start from a fresh scan rather than the fixed Review 6 finding.
+
+## Review 7: Core Effect Execution Seam
+
+Status: fixed for the Core execution-seam finding in this pass. Follow-up
+subagent probes are recorded in Review 8.
+
+1. Core Effect Execution Seam
+   - Status: fixed.
+   - Files: `packages/core/src/route.ts`,
+     `packages/core/src/server.ts`,
+     `packages/core/test/route-server.test.ts`.
+   - Problem: `Route.preloadEffect(...)`,
+     `Route.planNavigationEffect(...)`, and
+     `Server.handleRouteEffect(...)` returned Effects while still invoking
+     preload, route matching/schema decode, or route handlers during Effect
+     construction. That made the Module Interface shallow: callers had to know
+     hidden sync ordering and hidden throw modes even when composing Effects.
+   - Fix: route preload invocation, navigation matching/schema decode, and
+     server route handler invocation now run inside the returned Effect.
+     Synchronous preload and handler failures are captured in typed Effect
+     failure channels (`RoutePreloadError`, `RouteNavigationError`, and
+     `ServerRouteHandlerError`), and schema decode failures from navigation
+     planning are observed through the returned Effect instead of
+     construction-time throws. The sync `route.match(...)` Interface remains
+     unchanged.
+   - Benefits: Effect-returning Interfaces now have better Locality and
+     Leverage. Adapters can reason about route/server work as one Effect
+     program, and tests cover the behavior through the public Interface instead
+     of reaching into implementation order.
+   - Evidence: `pnpm --filter @effect-ui/core typecheck` passed, and
+     `pnpm exec vitest run packages/core/test/route-server.test.ts packages/core/test/runtime.test.ts`
+     passed: 2 files / 23 tests.
+
+2. Start Adapter Stream Coordination
+   - Status: fixed.
+   - Files: `packages/start/test/adapters.test.ts`.
+   - Problem: one streaming adapter test still used `Promise.race(...)` for
+     timeout coordination at the test seam.
+   - Fix: replaced the Promise race with `Effect.raceFirst(...)` around an
+     `Effect.tryPromise(...)` host read boundary.
+   - Benefits: the test keeps host `ReadableStream` reads at the Adapter seam
+     while scheduling and timeout coordination stay in Effect.
+   - Evidence: the Promise-method grep over packages, examples, scripts, and
+     type tests is clean. `pnpm --filter @effect-ui/start typecheck` passed,
+     and the escalated
+     `pnpm exec vitest run packages/start/test/adapters.test.ts` passed:
+     1 file / 7 tests.
+
+## Review 8: Fresh Large-Module Deletion-Test Follow-Up
+
+Status: fixed for actionable findings in this pass. The Devtools probe found no
+new Devtools split to make.
+
+1. DB Query Builder And Live Query Collection
+   - Status: fixed.
+   - Files: `packages/db/src/index.ts`,
+     `packages/db/src/query-builder.ts`,
+     `packages/db/src/live-query-collection.ts`,
+     `packages/db/src/query-plan.ts`,
+     `packages/db/src/live-query-runtime.ts`.
+   - Problem: the DB root still owned Query Builder construction, aggregate
+     helpers, one-shot execution, live query creation, diagnostics delegation,
+     and the Live Query Collection adapter. The public root Interface was
+     useful, but the Implementation mixed Collection facade work with Query
+     DSL and adapter behavior.
+   - Fix: `query-builder.ts` now owns the Query Module and `Query` namespace
+     implementation. `live-query-collection.ts` now owns the Adapter that turns
+     a Live Query graph into a read-only Collection Definition. The DB root
+     re-exports the public Query and Collection facades.
+   - Benefits: Query and Live Query Collection behavior now have smaller test
+     surfaces and better Locality while preserving public import leverage.
+   - Evidence: `pnpm --filter @effect-ui/db typecheck` passed, and
+     `pnpm exec vitest run packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
+     passed: 2 files / 35 tests.
+
+2. Start Manifest Entry Core
+   - Status: fixed.
+   - Files: `packages/start/src/manifest-entry-core.ts`,
+     `packages/start/src/server-function-manifest.ts`,
+     `packages/start/src/action-manifest.ts`.
+   - Problem: server-function manifests and action manifests had separate
+     Implementations for the same Manifest Wall mechanics: module id
+     normalization, module classification, deterministic ids, entry validation,
+     sort order, duplicate name/id/export checks, and browser-safe client
+     reference validation.
+   - Fix: `manifest-entry-core.ts` now owns the shared internal Manifest Entry
+     Core. Server functions and actions remain separate public Modules and
+     adapt their extra fields (`hasHandler` and action behavior metadata)
+     through the shared seam.
+   - Benefits: duplicate manifest bugs now have one implementation surface,
+     while the public server-function/action Manifest Interfaces stay distinct.
+   - Evidence: `pnpm --filter @effect-ui/start typecheck` passed, and
+     `pnpm exec vitest run packages/start/test/server-function-manifest.test.ts packages/start/test/action-manifest.test.ts packages/start/test/app-graph.test.ts`
+     passed: 3 files / 21 tests.
+
+3. Start Transport Public Interface
+   - Status: fixed.
+   - Files: `packages/start/src/index.ts`,
+     `packages/start/src/start-transport-protocol.ts`.
+   - Problem: the Start root had a curated transport/form/result export list,
+     but also wildcard-exported `start-transport-protocol.ts`, leaking internal
+     protocol helpers such as low-level request readers, response constructors,
+     failure classifiers, and exit encoders.
+   - Fix: removed the wildcard export. The root still exports the documented
+     transport paths/headers through `rpc.ts`, browser clients, action form
+     bridge, request predicates, invalidation-plan description, and Start
+     action result types.
+   - Benefits: the Start Transport Protocol remains a deep internal Module,
+     while the root public Interface is narrower and easier to keep stable.
+   - Evidence: `pnpm --filter @effect-ui/start typecheck` passed, and
+     `pnpm exec vitest run packages/start/test/rpc.test.ts packages/start/test/start.test.ts`
+     passed: 2 files / 64 tests.
+
+4. Start Request Trace Recorder
+   - Status: fixed.
+   - Files: `packages/start/src/request-trace-recorder.ts`,
+     `packages/start/src/start-request-endpoints.ts`,
+     `packages/start/src/start-request-handler.ts`,
+     `packages/start/src/request-trace.ts`.
+   - Problem: endpoint and handler Modules directly mutated
+     `StartRequestTraceFacts`, spreading failure-kind ordering, action/server
+     function recording, route plan projection, and collection preload
+     projection across request lifecycle code.
+   - Fix: `request-trace-recorder.ts` now owns the mutation Interface for
+     request trace facts. Endpoint and handler code records intent through
+     `recordStartRequestTraceFailure`, server-function/action recorders, and
+     preload recording.
+   - Benefits: trace fact mutation rules have one Locality point without
+     changing the final `StartRequestTrace` contract.
+   - Evidence: `pnpm --filter @effect-ui/start typecheck` passed, and
+     `pnpm exec vitest run packages/start/test/start.test.ts packages/start/test/rpc.test.ts`
+     passed: 2 files / 64 tests.
+
+5. Start App Graph Diagnostics Policy Contract
+   - Status: fixed.
+   - Files: `packages/start/src/app-graph.ts`,
+     `packages/start/src/start-virtual-modules.ts`,
+     `packages/start/test/start.test.ts`.
+   - Problem: app graph diagnostics policy validation lived in
+     `app-graph.ts`, while the generated app graph virtual module embedded a
+     second Implementation of unknown route preload policy violation
+     collection and formatting.
+   - Fix: `app-graph.ts` now exports
+     `collectStartAppGraphDiagnosticsPolicyViolations` and
+     `formatStartAppGraphDiagnosticsPolicyViolation`; the virtual module calls
+     those helpers and reuses the existing unknown-route preload diagnostics
+     functions.
+   - Benefits: diagnostics policy semantics have one Interface whether callers
+     validate in process or through Vite's resolved virtual module.
+   - Evidence: `pnpm --filter @effect-ui/start typecheck` passed, and
+     `pnpm exec vitest run packages/start/test/app-graph.test.ts packages/start/test/start.test.ts packages/start/test/rpc.test.ts`
+     passed: 3 files / 73 tests.
+
+6. Devtools Large-Module Probe
+   - Status: no action.
+   - Files: `packages/devtools/src/index.ts`,
+     `packages/devtools/src/summary.ts`,
+     `packages/devtools/src/causal-graph.ts`.
+   - Deletion test: passed. The Devtools root is a legitimate public
+     contract/facade Module; `summary.ts` now composes focused summary Modules;
+     and `causal-graph.ts` hides a large deterministic graph Implementation
+     behind a small Interface. Splitting it now would expose one-adapter graph
+     builder seams rather than increasing Depth.
+
+Open candidates from this pass: none after the fixes above. Later follow-up
+probes found new candidates, tracked in Review 9.
+
+## Review 9: Core Signal Dependency Tracker Follow-Up
+
+Status: fixed for the Signal Dependency Tracker finding. Other follow-up
+probes still found actionable candidates in Core, DB, Devtools, and Start, so
+this is not a clean-sweep point.
+
+1. Signal Dependency Tracker Module
+   - Status: fixed.
+   - Files: `CONTEXT.md`,
+     `packages/core/src/signal.ts`,
+     `packages/core/src/signal-dependencies.ts`,
+     `packages/core/test/signal.test.ts`,
+     `packages/core/test/scope.test.ts`.
+   - Problem: `watch(...)` and `Signal.derive(...)` each owned a separate
+     dependency-tracking Implementation. `watch(...)` de-duped sources and
+     queued reentrant runs; derived signals subscribed on every source read and
+     dropped reentrant recomputes. A derived signal that read the same source
+     twice could subscribe twice and recompute more than once for one update.
+   - Fix: `signal-dependencies.ts` now owns the shared internal tracker for
+     observer installation, source de-duping, cleanup, untracked reads, and
+     queued reruns. `watch(...)` and `DerivedSignalImpl` are Adapters over the
+     same dependency Interface.
+   - Benefits: signal dependency semantics have one Locality point, while the
+     public Signal Interface stays unchanged. Derived signals now get the same
+     source de-duping and queued recompute behavior as `watch(...)`.
+   - Evidence: `pnpm --filter @effect-ui/core typecheck` passed, and
+     `pnpm exec vitest run packages/core/test/signal.test.ts packages/core/test/scope.test.ts packages/core/test/route-server.test.ts packages/core/test/runtime.test.ts`
+     passed: 4 files / 35 tests.
+
+2. Form Validation Runtime
+   - Status: fixed.
+   - Files: `CONTEXT.md`,
+     `packages/core/src/form.ts`,
+     `packages/core/test/form.test.ts`,
+     `packages/core/test/action-result.test.ts`.
+   - Problem: `Form.validateEffect(...)` read and wrote shared form state
+     across schema/custom validation without an epoch. If `setField(...)`,
+     `reset(...)`, or another validation happened while validation was
+     running, a stale validation could later commit `Valid` or `Invalid` state
+     for old values.
+   - Fix: form controllers now keep a validation revision. Field writes,
+     reset, and validation starts advance the revision. Each validation
+     snapshots values at start and only commits final form state when its
+     revision is still current. Stale validations still return or fail with
+     the captured validation result, but they do not mutate current state.
+   - Benefits: the Form Module now owns async validation race semantics, giving
+     callers a deeper Effect-first Interface and better Locality for future
+     validation policy changes.
+   - Evidence: `pnpm --filter @effect-ui/core typecheck` passed, and
+     `pnpm exec vitest run packages/core/test/form.test.ts packages/core/test/action-result.test.ts`
+     passed: 2 files / 16 tests.
+
+3. Collection Transaction Identity
+   - Status: fixed.
+   - Files: `CONTEXT.md`,
+     `packages/db/src/collection-state.ts`,
+     `packages/db/src/collection-mutation-queue.ts`,
+     `packages/db/src/collection-persistence.ts`,
+     `packages/db/src/collection-runtime.ts`,
+     `packages/db/test/collection.test.ts`.
+   - Problem: collection mutation transaction ids used a module-global
+     counter. Hydrating a pending `ctx_1` into a fresh runtime could collide
+     with the next newly-created transaction id, causing new pending mutations
+     to alias restored mutation facts.
+   - Fix: transaction identity now lives on Collection State. New optimistic
+     mutations allocate ids from the active state, and hydration advances the
+     state-local counter from restored pending transaction ids.
+   - Benefits: optimistic mutation identity now has runtime/request Locality,
+     and restored pending mutation facts cannot be overwritten by subsequent
+     writes in the same Collection Store.
+   - Evidence: `pnpm --filter @effect-ui/db typecheck` passed, and
+     `pnpm exec vitest run packages/db/test/collection.test.ts packages/db/test/persisted-options.test.ts packages/db/test/flush-policy.test.ts`
+     passed: 3 files / 39 tests.
+
+Open candidates still queued from follow-up probes: Core Definition Registry,
+Core Action Submission Controller, Devtools Fact Identity, Devtools Store
+Snapshot Detachment, Devtools Serialization Policy,
+DB Collection Contract Module, DB Collection Registry Locality, DB Collection
+Snapshot Codec, Start callable manifest entry assembly/deserialization, Start
+App Graph Diagnostics Runtime, and Start File Route Path Decoder.

@@ -1,17 +1,23 @@
 import type { ActionConcurrency, ActionDefinition } from "@effect-ui/core";
 import { Data, Effect, Schema } from "effect";
-import { serverActionPath } from "./rpc.js";
 import {
-  classifyServerFunctionModule,
-  isServerFunctionServerOnlyModule,
+  classifyStartManifestModule,
+  compareManifestEntries,
+  isNonEmptyString,
+  isRecord,
+  isStartManifestServerOnlyModule,
   normalizeManifestModuleId,
-  type ServerFunctionModuleKind
-} from "./server-function-manifest.js";
+  stableManifestEntryId,
+  validateManifestDefinition,
+  validateManifestEntrySet,
+  type StartManifestModuleKind
+} from "./manifest-entry-core.js";
+import { serverActionPath } from "./rpc.js";
 
 export const ActionId = Schema.String.pipe(Schema.brand("ActionId"));
 export type ActionId = typeof ActionId.Type;
 
-export type ActionModuleKind = ServerFunctionModuleKind;
+export type ActionModuleKind = StartManifestModuleKind;
 
 export interface ActionManifestDefinition {
   readonly name: string;
@@ -150,40 +156,13 @@ export type ActionManifestError =
   | ActionManifestDuplicateId
   | ActionManifestUnsafeClientReference;
 
-const compareString = (left: string, right: string): number =>
-  left < right ? -1 : left > right ? 1 : 0;
-
 const compareEntries = (
   left: ActionManifestEntry,
   right: ActionManifestEntry
-): number => {
-  const name = compareString(left.name, right.name);
-  return name === 0 ? compareString(left.server.module, right.server.module) : name;
-};
-
-const isNonEmptyString = (value: unknown): value is string =>
-  typeof value === "string" && value.length > 0;
-
-const hashName = (name: string): string => {
-  let hash = 0x811c9dc5;
-  for (let index = 0; index < name.length; index++) {
-    hash ^= name.charCodeAt(index);
-    hash = Math.imul(hash, 0x01000193);
-  }
-  return (hash >>> 0).toString(36);
-};
-
-const slugName = (name: string): string => {
-  const slug = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
-  return slug.length === 0 ? "action" : slug;
-};
+): number => compareManifestEntries(left, right);
 
 export const stableActionId = (name: string): ActionId =>
-  Schema.decodeUnknownSync(ActionId)(`act_${hashName(name)}_${slugName(name)}`);
+  Schema.decodeUnknownSync(ActionId)(stableManifestEntryId("act", "action", name));
 
 export const actionManifestDefinition = (
   action: AnyActionDefinition,
@@ -244,45 +223,10 @@ const validateDefinition = (
     readonly exportName: string;
   },
   ActionManifestInvalidEntry
-> => {
-  if (!isNonEmptyString(definition.name)) {
-    return Effect.fail(
-      new ActionManifestInvalidEntry({
-        index,
-        reason: "MissingName",
-        entry: definition
-      })
-    );
-  }
-
-  const module = normalizeManifestModuleId(definition.module);
-  if (!isNonEmptyString(module)) {
-    return Effect.fail(
-      new ActionManifestInvalidEntry({
-        index,
-        reason: "MissingModule",
-        entry: definition
-      })
-    );
-  }
-
-  const exportName = definition.exportName ?? "default";
-  if (!isNonEmptyString(exportName)) {
-    return Effect.fail(
-      new ActionManifestInvalidEntry({
-        index,
-        reason: "MissingExportName",
-        entry: definition
-      })
-    );
-  }
-
-  return Effect.succeed({
-    name: definition.name,
-    module,
-    exportName
-  });
-};
+> =>
+  validateManifestDefinition(definition, index, (input) =>
+    new ActionManifestInvalidEntry(input)
+  );
 
 const sortActionEntries = (
   entries: readonly ActionManifestEntry[]
@@ -315,7 +259,7 @@ export const makeActionManifestEntry = (
     const server: ActionServerReference = {
       module: validated.module,
       exportName: validated.exportName,
-      moduleKind: classifyServerFunctionModule(validated.module)
+      moduleKind: classifyStartManifestModule(validated.module)
     };
     const wire: ActionWireContract = {
       inputSchema: definition.inputSchema ?? false,
@@ -341,7 +285,7 @@ export const makeActionManifestEntry = (
     }
 
     const clientModule = normalizeManifestModuleId(definition.clientModule);
-    const moduleKind = classifyServerFunctionModule(clientModule);
+    const moduleKind = classifyStartManifestModule(clientModule);
     if (moduleKind === "server-only") {
       return yield* Effect.fail(
         new ActionManifestUnsafeClientReference({
@@ -382,49 +326,11 @@ export const makeActionManifest = (
       index++;
     }
 
-    const byName = new Map<string, ActionManifestEntry>();
-    const byId = new Map<ActionId, ActionManifestEntry>();
-    const byServerExport = new Map<string, ActionManifestEntry>();
-
-    for (const entry of entries) {
-      const existingName = byName.get(entry.name);
-      if (existingName) {
-        return yield* Effect.fail(
-          new ActionManifestDuplicateName({
-            name: entry.name,
-            firstModule: existingName.server.module,
-            secondModule: entry.server.module
-          })
-        );
-      }
-      byName.set(entry.name, entry);
-
-      const existingId = byId.get(entry.id);
-      if (existingId) {
-        return yield* Effect.fail(
-          new ActionManifestDuplicateId({
-            id: entry.id,
-            firstName: existingId.name,
-            secondName: entry.name
-          })
-        );
-      }
-      byId.set(entry.id, entry);
-
-      const exportKey = `${entry.server.module}#${entry.server.exportName}`;
-      const existingExport = byServerExport.get(exportKey);
-      if (existingExport) {
-        return yield* Effect.fail(
-          new ActionManifestDuplicateExport({
-            module: entry.server.module,
-            exportName: entry.server.exportName,
-            firstName: existingExport.name,
-            secondName: entry.name
-          })
-        );
-      }
-      byServerExport.set(exportKey, entry);
-    }
+    yield* validateManifestEntrySet<ActionManifestEntry, ActionManifestError>(entries, {
+      duplicateName: (input) => new ActionManifestDuplicateName(input),
+      duplicateId: (input) => new ActionManifestDuplicateId(input),
+      duplicateExport: (input) => new ActionManifestDuplicateExport(input)
+    });
 
     return {
       version: 1 as const,
@@ -439,7 +345,7 @@ export const clientReferencesForActionManifest = (
 
 export const isBrowserSafeActionClientReference = (
   reference: ActionClientReference
-): boolean => reference._tag === "Post" || !isServerFunctionServerOnlyModule(reference.module);
+): boolean => reference._tag === "Post" || !isStartManifestServerOnlyModule(reference.module);
 
 export const serializeActionManifest = (manifest: ActionManifest): string =>
   JSON.stringify({
@@ -447,9 +353,6 @@ export const serializeActionManifest = (manifest: ActionManifest): string =>
     actionPath: manifest.actionPath,
     entries: sortActionEntries(manifest.entries)
   });
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
 
 const isBehaviorPresence = (value: unknown): value is ActionBehaviorPresence =>
   value === "present" || value === "absent" || value === "unknown";

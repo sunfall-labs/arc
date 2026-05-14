@@ -277,8 +277,10 @@ export namespace Form {
     const state = Signal.make<FormState<Values, E | Schema.SchemaError>>(
       emptyState<Values, E | Schema.SchemaError>(options.initial)
     );
+    let validationRevision = 0;
 
     const setField = <K extends FormFieldKey<Values>>(field: K, value: Values[K]): void => {
+      validationRevision++;
       state.update((current) => ({
         ...current,
         status: "Idle",
@@ -300,6 +302,7 @@ export namespace Form {
     };
 
     const reset = (values: Values = state.get().initial): void => {
+      validationRevision++;
       state.set(emptyState<Values, E | Schema.SchemaError>(values));
     };
 
@@ -308,52 +311,60 @@ export namespace Form {
       FormValidationError<Values, E | Schema.SchemaError>,
       R | FormSchemaServices<S>
     > =>
-      Effect.gen(function* () {
+      Effect.suspend(() => {
+        const revision = ++validationRevision;
+        const values = state.get().values;
         state.update((current) => ({
           ...current,
           status: "Validating"
         }));
 
-        const decoded = yield* (
-          Schema.decodeUnknownEffect(
-            options.schema as Schema.Decoder<Values, FormSchemaServices<S>>
-          )(state.get().values, {
-            errors: "all"
-          })
-        ).pipe(
-          Effect.catch((schemaError) =>
-            Effect.fail(normalizeValidationError(fieldErrorsFromSchemaError<Values>(schemaError)))
-          )
-        );
-
-        if (options.validate) {
-          yield* toEffect(options.validate(decoded, validationTools<Values, E>())).pipe(
-            Effect.catch((error) => Effect.fail(normalizeValidationError(error)))
+        return Effect.gen(function* () {
+          const decoded = yield* (
+            Schema.decodeUnknownEffect(
+              options.schema as Schema.Decoder<Values, FormSchemaServices<S>>
+            )(values, {
+              errors: "all"
+            })
+          ).pipe(
+            Effect.catch((schemaError) =>
+              Effect.fail(normalizeValidationError(fieldErrorsFromSchemaError<Values>(schemaError)))
+            )
           );
-        }
 
-        state.update((current) => ({
-          ...current,
-          status: "Valid",
-          values: decoded,
-          fieldErrors: {},
-          formErrors: []
-        }));
+          if (options.validate) {
+            yield* toEffect(options.validate(decoded, validationTools<Values, E>())).pipe(
+              Effect.catch((error) => Effect.fail(normalizeValidationError(error)))
+            );
+          }
 
-        return decoded;
-      }).pipe(
-        Effect.catch((error: FormValidationError<Values, E | Schema.SchemaError>) =>
-          Effect.sync(() => {
+          if (revision === validationRevision) {
             state.update((current) => ({
               ...current,
-              status: "Invalid",
-              fieldErrors: error.fieldErrors,
-              formErrors: error.formErrors
+              status: "Valid",
+              values: decoded,
+              fieldErrors: {},
+              formErrors: []
             }));
-            return error;
-          }).pipe(Effect.flatMap(Effect.fail))
-        )
-      );
+          }
+
+          return decoded;
+        }).pipe(
+          Effect.catch((error: FormValidationError<Values, E | Schema.SchemaError>) =>
+            Effect.sync(() => {
+              if (revision === validationRevision) {
+                state.update((current) => ({
+                  ...current,
+                  status: "Invalid",
+                  fieldErrors: error.fieldErrors,
+                  formErrors: error.formErrors
+                }));
+              }
+              return error;
+            }).pipe(Effect.flatMap(Effect.fail))
+          )
+        );
+      });
 
     return {
       [FormTypeId]: FormTypeId,

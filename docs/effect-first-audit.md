@@ -785,3 +785,42 @@ interruption.
   typecheck, type tests, 40 root test files / 328 tests, devtools-panel verify,
   devtools-extension verify, basic starter verify, project-console starter
   packaging/typecheck/tests/build, and leak scan.
+- DB Query builder behavior now lives in `packages/db/src/query-builder.ts`,
+  and Live Query Collection adaptation now lives in
+  `packages/db/src/live-query-collection.ts` instead of the DB root facade.
+  Project-console domain mock/domain tests and the basic-starter SSR test now
+  return Effect programs rather than using async wrappers, with host response
+  text reads isolated behind `Effect.tryPromise`. DB typecheck, workspace
+  typecheck/type tests, DB query-focused tests, example typechecks, and focused
+  example tests passed.
+- Core route/server Effect-returning seams now defer preload invocation,
+  navigation match/schema decode, and server route handler invocation until the
+  returned Effect is run. Sync preload/handler/schema failures are observed
+  through typed `RoutePreloadError`, `RouteNavigationError`, and
+  `ServerRouteHandlerError` Effect error channels rather than `unknown`. The
+  last package/example/script/type-test Promise-method coordinator, a Start
+  adapter `Promise.race(...)`, now uses
+  `Effect.raceFirst(...)` around an `Effect.tryPromise(...)` host stream read.
+  Core and Start typechecks plus focused route/runtime and adapter tests passed.
+- DB collection transaction ids now allocate from Collection State and hydrate
+  from restored pending mutations, keeping optimistic mutation identity scoped
+  to the active Collection Store instead of a module-global counter.
+- Full `pnpm verify` passed after the DB query/live-query extraction, Core
+  typed route/server Effect seams, Start manifest/trace/diagnostics cleanup,
+  Core Signal Dependency Tracker extraction, and Core Form validation race
+  guard: 9 package builds, workspace typecheck, type tests, 40 root test files
+  / 336 tests, devtools-panel verify, devtools-extension verify, basic starter
+  verify, project-console starter packaging/typecheck/tests/build, and leak
+  scan.
+- Signal dependency tracking now has one internal tracker for `watch(...)` and
+  `Signal.derive(...)`, so duplicate source reads are de-duped and reentrant
+  updates queue one follow-up computation. Focused Signal and Scope tests plus
+  Core typecheck passed after the extraction.
+- Form validation now snapshots values and uses a validation revision so stale
+  async schema/custom validation results cannot overwrite state after
+  `setField(...)`, `reset(...)`, or a newer validation. Focused Form and
+  ActionResult tests plus Core typecheck passed.
+- Collection mutation transaction ids now live on Collection State and hydrate
+  from restored pending mutation ids, preventing fresh writes from colliding
+  with restored optimistic transactions. Focused DB collection/persistence tests
+  plus DB typecheck passed.

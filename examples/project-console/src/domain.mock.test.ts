@@ -40,32 +40,35 @@ describe("project console contract mocks", () => {
     advance: ({ id }) => Effect.succeed(mockProject({ id, progress: 51 }))
   });
 
-  it("loads resources without importing server handlers", async () => {
-    const value = await Effect.runPromise(
-      Effect.provide(
-        Resource.refreshEffect(ProjectById(makeProjectId("mocked"))),
-        ProjectApiTest
-      )
-    );
+  it("loads resources without importing server handlers", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const value = yield* Effect.provide(
+          Resource.refreshEffect(ProjectById(makeProjectId("mocked"))),
+          ProjectApiTest
+        );
 
-    expect(value.name).toBe("Mocked Resource");
-  });
+        expect(value.name).toBe("Mocked Resource");
+      })
+    ));
 
-  it("preloads the branded project route resources without server handlers", async () => {
+  it("preloads the branded project route resources without server handlers", () => {
     const id = makeProjectId("mocked");
 
-    const collected = await Effect.runPromise(
-      Effect.provide(
-        Resource.collectEffect(preloadProjectRouteEffect({ id })),
-        ProjectApiTest
-      )
-    );
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const collected = yield* Effect.provide(
+          Resource.collectEffect(preloadProjectRouteEffect({ id })),
+          ProjectApiTest
+        );
 
-    expect(collected.refs.map((ref) => ref.key)).toEqual([
-      ProjectsRef.key,
-      ProjectById(id).key
-    ]);
-    expect(Resource.read(ProjectById(id)).name).toBe("Mocked Resource");
+        expect(collected.refs.map((ref) => ref.key)).toEqual([
+          ProjectsRef.key,
+          ProjectById(id).key
+        ]);
+        expect(Resource.read(ProjectById(id)).name).toBe("Mocked Resource");
+      })
+    );
   });
 
   it("builds a progressive action target with branded hidden input", () => {
@@ -86,25 +89,27 @@ describe("project console contract mocks", () => {
     });
   });
 
-  it("runs actions without importing server handlers", async () => {
+  it("runs actions without importing server handlers", () => {
     const ref = ProjectById(makeProjectId("mocked"));
     const action = Action.use(RenameProject);
 
-    const value = await Effect.runPromise(
-      Effect.provide(
-        Effect.gen(function* () {
-          yield* Resource.refreshEffect(ref);
-          return yield* action.submitEffect({ id: makeProjectId("mocked"), name: "Mocked Action" });
-        }),
-        ProjectApiTest
-      )
-    );
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const value = yield* Effect.provide(
+          Effect.gen(function* () {
+            yield* Resource.refreshEffect(ref);
+            return yield* action.submitEffect({ id: makeProjectId("mocked"), name: "Mocked Action" });
+          }),
+          ProjectApiTest
+        );
 
-    expect(value.name).toBe("Mocked Action");
-    expect(read(action.invalidationPlan)?.entries.map((entry) => entry.ref.key)).toContain(ref.key);
+        expect(value.name).toBe("Mocked Action");
+        expect(read(action.invalidationPlan)?.entries.map((entry) => entry.ref.key)).toContain(ref.key);
+      })
+    );
   });
 
-  it("keeps progressive validation in the success channel", async () => {
+  it("keeps progressive validation in the success channel", () => {
     const ProjectApiValidation = ProjectApi.mock({
       list: () => Effect.succeed([]),
       get: (id) => Effect.succeed(mockProject({ id })),
@@ -122,23 +127,25 @@ describe("project console contract mocks", () => {
     });
     const action = Action.use(SubmitProjectName);
 
-    const result = await Effect.runPromise(
-      Effect.provide(
-        action.submitEffect({ id: makeProjectId("mocked"), name: "At" }),
-        ProjectApiValidation
-      )
-    );
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const result = yield* Effect.provide(
+          action.submitEffect({ id: makeProjectId("mocked"), name: "At" }),
+          ProjectApiValidation
+        );
 
-    expect(result._tag).toBe("ValidationFailure");
-    expect(read(action.state)).toMatchObject({
-      _tag: "Success",
-      value: {
-        _tag: "ValidationFailure"
-      }
-    });
+        expect(result._tag).toBe("ValidationFailure");
+        expect(read(action.state)).toMatchObject({
+          _tag: "Success",
+          value: {
+            _tag: "ValidationFailure"
+          }
+        });
+      })
+    );
   });
 
-  it("invalidates project resources after progressive success", async () => {
+  it("invalidates project resources after progressive success", () => {
     let name = "Mocked Resource";
     const ProjectApiStateful = ProjectApi.mock({
       list: () => Effect.succeed([mockProject({ name })]),
@@ -158,22 +165,24 @@ describe("project console contract mocks", () => {
     const ref = ProjectById(makeProjectId("mocked"));
     const action = Action.use(SubmitProjectName);
 
-    const result = await Effect.runPromise(
-      Effect.provide(
-        Effect.gen(function* () {
-          yield* Resource.refreshEffect(ref);
-          return yield* action.submitEffect({ id: makeProjectId("mocked"), name: "Mocked Progressive" });
-        }),
-        ProjectApiStateful
-      )
-    );
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const result = yield* Effect.provide(
+          Effect.gen(function* () {
+            yield* Resource.refreshEffect(ref);
+            return yield* action.submitEffect({ id: makeProjectId("mocked"), name: "Mocked Progressive" });
+          }),
+          ProjectApiStateful
+        );
 
-    expect(result._tag).toBe("Success");
-    expect(Resource.read(ref).name).toBe("Mocked Progressive");
-    expect(read(action.invalidationPlan)?.entries.map((entry) => entry.ref.key)).toContain(ref.key);
+        expect(result._tag).toBe("Success");
+        expect(Resource.read(ref).name).toBe("Mocked Progressive");
+        expect(read(action.invalidationPlan)?.entries.map((entry) => entry.ref.key)).toContain(ref.key);
+      })
+    );
   });
 
-  it("uses the collection action for optimistic client renames", async () => {
+  it("uses the collection action for optimistic client renames", () => {
     const id = makeProjectId("mocked");
     const release = Effect.runSync(Deferred.make<void>());
     let name = "Mocked Resource";
@@ -200,47 +209,56 @@ describe("project console contract mocks", () => {
     const ref = ProjectById(id);
     const action = Action.use(RenameProjectFromCollection, { runtime });
 
-    try {
-      await runtime.runPromise(
-        Effect.all([
-          Resource.refreshEffect(ref),
-          ProjectSummaries.preloadEffect()
-        ])
-      );
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* Effect.scoped(
+          runtime.provide(
+            Effect.all([
+              Resource.refreshEffect(ref),
+              ProjectSummaries.preloadEffect()
+            ])
+          )
+        );
 
-      submission = runtime.runFork(action.submitEffect({
-        id,
-        name: "Collection Rename",
-        redirectTo: makeProjectReturnTo("/projects/mocked?tab=activity")
-      }));
-      await Effect.runPromise(Effect.sleep("10 millis"));
+        const running = runtime.runFork(action.submitEffect({
+          id,
+          name: "Collection Rename",
+          redirectTo: makeProjectReturnTo("/projects/mocked?tab=activity")
+        }));
+        submission = running;
+        yield* Effect.sleep("10 millis");
 
-      expect(started).toBe(true);
-      expect(runWithRuntime(runtime, () => ProjectSummaries.get(id))).toMatchObject({
-        name: "Collection Rename",
-        $synced: false
-      });
+        expect(started).toBe(true);
+        expect(runWithRuntime(runtime, () => ProjectSummaries.get(id))).toMatchObject({
+          name: "Collection Rename",
+          $synced: false
+        });
 
-      Effect.runSync(Deferred.succeed(release, undefined));
-      const result = await Effect.runPromise(Fiber.join(submission));
+        yield* Deferred.succeed(release, undefined);
+        const result = yield* Fiber.join(running);
 
-      expect(result).toMatchObject({
-        _tag: "Redirect",
-        location: "/projects/mocked?tab=activity",
-        replace: true
-      });
-      expect(runWithRuntime(runtime, () => ProjectSummaries.get(id))).toMatchObject({
-        name: "Collection Rename",
-        $synced: true
-      });
-      expect(runWithRuntime(runtime, () => Resource.read(ref)).name).toBe("Collection Rename");
-      expect(read(action.invalidationPlan)?.entries.map((entry) => entry.ref.key)).toContain(ref.key);
-    } finally {
-      Effect.runSync(Deferred.succeed(release, undefined));
-      if (submission !== undefined) {
-        await Effect.runPromise(Fiber.await(submission));
-      }
-      await Effect.runPromise(runtime.disposeEffect);
-    }
+        expect(result).toMatchObject({
+          _tag: "Redirect",
+          location: "/projects/mocked?tab=activity",
+          replace: true
+        });
+        expect(runWithRuntime(runtime, () => ProjectSummaries.get(id))).toMatchObject({
+          name: "Collection Rename",
+          $synced: true
+        });
+        expect(runWithRuntime(runtime, () => Resource.read(ref)).name).toBe("Collection Rename");
+        expect(read(action.invalidationPlan)?.entries.map((entry) => entry.ref.key)).toContain(ref.key);
+      }).pipe(
+        Effect.ensuring(
+          Effect.gen(function* () {
+            yield* Deferred.succeed(release, undefined);
+            if (submission !== undefined) {
+              yield* Fiber.await(submission);
+            }
+            yield* runtime.disposeEffect;
+          })
+        )
+      )
+    );
   });
 });

@@ -49,6 +49,7 @@ export interface CollectionState<A extends object, K extends CollectionKey, E> {
   readonly indexCache: Map<string, CollectionIndexCacheEntry<A, K>>;
   readonly version: WritableSignal<number>;
   readonly loadState: WritableSignal<CollectionLoadState<E>>;
+  nextTransactionId: number;
   initialized: boolean;
   persistenceRestored: boolean;
 }
@@ -59,6 +60,7 @@ export const makeCollectionState = <A extends object, K extends CollectionKey, E
   indexCache: new Map(),
   version: Signal.make(0),
   loadState: Signal.make<CollectionLoadState<E>>({ _tag: "Initial", waiting: false }),
+  nextTransactionId: 0,
   initialized: false,
   persistenceRestored: false
 });
