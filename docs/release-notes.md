@@ -153,8 +153,12 @@ Latest full gate on May 14, 2026:
 - Start action client and hydration runtime options now use opaque
   `EffectUiRuntime<unknown, unknown>` types where the public option only needs a
   runtime boundary, not caller-specific service or error detail.
-- The latest `pnpm verify` passed after the opaque runtime option wildcard
-  cleanup.
+- `pnpm verify` passed after the opaque runtime option wildcard cleanup.
+- Start trace/finalizer helpers and Solid runtime provider/router surfaces now
+  use opaque runtime/source types; the only remaining
+  `EffectUiRuntime<any, any>` source hits are core ambient runtime accessors
+  that preserve caller error typing.
+- The latest `pnpm verify` passed after the runtime helper wildcard cleanup.
 
 ## Notable Limits
 

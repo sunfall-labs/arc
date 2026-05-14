@@ -614,7 +614,7 @@ const traceRoutePlan = (
 });
 
 const collectionTraceState = (
-  runtime: EffectUiRuntime<any, any>,
+  runtime: EffectUiRuntime<unknown, unknown>,
   collection: AnyCollection
 ): string | undefined => {
   try {
@@ -625,7 +625,7 @@ const collectionTraceState = (
 };
 
 const traceCollectionPreload = (
-  runtime: EffectUiRuntime<any, any>,
+  runtime: EffectUiRuntime<unknown, unknown>,
   collectionPreload: StartCollectionPreload
 ): ReadonlyArray<StartRequestTraceCollection> =>
   uniqueCollections([
@@ -701,7 +701,7 @@ const buildStartRequestTrace = (
 });
 
 const requestRuntimeTeardownSnapshot = (
-  runtime: EffectUiRuntime<any, any>
+  runtime: EffectUiRuntime<unknown, unknown>
 ): StartRequestTraceTeardownSnapshot => ({
   fiberCount: runtime.resourceStore.fibers.size,
   familyCount: runtime.resourceStore.families.size,
@@ -710,7 +710,7 @@ const requestRuntimeTeardownSnapshot = (
 });
 
 const requestRuntimeDisposeTraceEffect = (
-  runtime: EffectUiRuntime<any, any>
+  runtime: EffectUiRuntime<unknown, unknown>
 ): Effect.Effect<{
   readonly beforeDispose: StartRequestTraceTeardownSnapshot;
   readonly afterDispose: StartRequestTraceTeardownSnapshot;
@@ -2268,7 +2268,7 @@ const preloadRequestEffectWithRuntime = <
 
 const responseWithRuntimeFinalizer = (
   response: Response,
-  runtime: EffectUiRuntime<any, any>,
+  runtime: EffectUiRuntime<unknown, unknown>,
   options: {
     readonly onFinalize?: (state: {
       readonly stream: StartRequestTraceStream;
@@ -2394,7 +2394,7 @@ const responseWithRuntimeFinalizer = (
 };
 
 const completeRequestRuntimeWithResponse = (
-  runtime: EffectUiRuntime<any, any>,
+  runtime: EffectUiRuntime<unknown, unknown>,
   response: Response,
   options: {
     readonly onFinalize?: (state: {

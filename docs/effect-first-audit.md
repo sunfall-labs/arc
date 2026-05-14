@@ -116,6 +116,9 @@ Effect-native interruption.
   - Start action client options now accept an opaque
     `EffectUiRuntime<unknown, unknown>` because the client boundary only needs
     to run/provide hydration and invalidation Effects.
+  - Start collection trace, request-runtime teardown, response finalizer, and
+    response completion helpers now accept opaque runtimes because they only
+    inspect resource-store state or execute already-built cleanup Effects.
 - `packages/core/src/scope.ts` and `packages/core/src/signal.ts`
   - Scope finalizers, scoped forks, and `Signal.watch(...)` use Effect's own
     Scope and `EffectInput` typing directly, without local Effect assertions.
@@ -128,6 +131,9 @@ Effect-native interruption.
   - Solid Resource hook requirement defaults now use `unknown`, and route outlet
     internals use record/unknown-shaped UI boundaries instead of `Component<any>`
     or `value: any`.
+  - Solid runtime provider/router props, the runtime context, `useRuntime()`,
+    and the Solid-DB collection subscription helper now use opaque
+    runtime/source types outside the core ambient runtime boundary.
 - `packages/start/src/cli.ts`
   - Moved the diagnostics CLI parse/load/render path into
     `runStartDiagnosticsCliEffect`.
@@ -358,6 +364,21 @@ Effect-native interruption.
   tightening opaque Start hydration/action runtime options and the
   project-console UI helper from `any` to `unknown`.
 - Full `pnpm verify` passed after the opaque runtime option wildcard cleanup: 9
+  package builds, workspace typecheck, type tests, 38 root test files / 320
+  tests, devtools-panel verify, devtools-extension verify with 1 extension test
+  file / 6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.
+- `pnpm --filter @effect-ui/start typecheck`,
+  `pnpm --filter @effect-ui/solid typecheck`,
+  `pnpm --filter @effect-ui/solid-db typecheck`, and `pnpm typecheck:types`
+  passed after tightening Start trace/finalizer helpers, Solid runtime
+  provider/router surfaces, `useRuntime()`, and the Solid-DB subscription helper
+  to opaque runtime/source types. The only remaining
+  `EffectUiRuntime<any, any>` source hits are the core ambient runtime accessors
+  that preserve caller error typing for `runFork`, `runPromiseExit`, and
+  resource/action workflows.
+- Full `pnpm verify` passed after the runtime helper wildcard cleanup: 9
   package builds, workspace typecheck, type tests, 38 root test files / 320
   tests, devtools-panel verify, devtools-extension verify with 1 extension test
   file / 6 tests, basic starter verify, project-console starter packaging,

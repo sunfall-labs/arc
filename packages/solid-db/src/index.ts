@@ -51,7 +51,7 @@ export interface LiveQueryHandle<T, E = unknown, R = never> {
 type LiveQueryInput<T, E, R> = QueryFactory<T> | LiveQuery<T, E, R>;
 
 const subscribeCollection = (
-  runtime: EffectUiRuntime<any, any>,
+  runtime: EffectUiRuntime<unknown, unknown>,
   collection: CollectionDefinition<any, any, any, any>,
   notify: () => void
 ): (() => void) => {

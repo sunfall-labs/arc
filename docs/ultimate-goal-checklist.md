@@ -194,6 +194,12 @@ Last evidence pass: May 14, 2026.
     use `EffectUiRuntime<unknown, unknown>` for action client and hydration
     runtime options, while focused Start typecheck, public type tests, and full
     `pnpm verify` passed.
+- [x] Start trace and teardown helpers avoid runtime wildcards except at the
+  core ambient runtime boundary.
+  - Evidence: Start collection trace, request-runtime teardown, response
+    finalizer, and response completion helpers use
+    `EffectUiRuntime<unknown, unknown>`, and focused Start typecheck plus public
+    type tests and full `pnpm verify` passed.
 - [x] Start runtime call sites keep service erasure at runtime/host boundaries.
   - Evidence: `packages/start/src/index.ts` and
     `packages/start/src/hydration.ts` pass request-runtime provision,
@@ -430,6 +436,13 @@ Last evidence pass: May 14, 2026.
   - Evidence: `packages/solid/src/index.ts` defaults Resource hook
     requirements to `unknown` and uses record/unknown-shaped route outlet
     boundaries.
+- [x] Solid runtime provider and router surfaces keep runtime/source details
+  opaque where they only cross UI execution boundaries.
+  - Evidence: `packages/solid/src/index.ts` uses
+    `EffectUiRuntime<unknown, unknown>` and `RuntimeSource<unknown, unknown>` for
+    provider/router/runtime-context surfaces, while `packages/solid-db/src/index.ts`
+    uses an opaque runtime for collection subscription. Solid, Solid-DB, public
+    type tests, and full `pnpm verify` passed.
 - [x] Example UI fire-and-forget helpers keep runtime details opaque.
   - Evidence: `examples/project-console/src/App.tsx` accepts
     `EffectUiRuntime<unknown, unknown>` in the local UI effect helper, and the
@@ -635,13 +648,12 @@ Last evidence pass: May 14, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026 after the opaque
-    runtime option wildcard cleanup: 9 package builds, workspace typecheck, type
-    tests, 38 root test files / 320 tests, devtools-panel verify,
-    devtools-extension verify with 1 extension test file / 6 tests, basic
-    starter verify, project-console starter packaging, project-console
-    typecheck, 4 project-console test files / 23 tests, project-console build,
-    and leak scan.
+  - Evidence: root `pnpm verify` passed on May 14, 2026 after the runtime helper
+    wildcard cleanup: 9 package builds, workspace typecheck, type tests, 38 root
+    test files / 320 tests, devtools-panel verify, devtools-extension verify
+    with 1 extension test file / 6 tests, basic starter verify, project-console
+    starter packaging, project-console typecheck, 4 project-console test files /
+    23 tests, project-console build, and leak scan.
 
 ## Remaining Winning-Bar Items
 

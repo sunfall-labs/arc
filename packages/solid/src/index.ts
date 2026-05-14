@@ -82,7 +82,7 @@ export interface BrowserNavigateOptions {
 
 export interface BrowserRouterOptions {
   readonly initialHref?: string;
-  readonly runtime?: EffectUiRuntime<any, any>;
+  readonly runtime?: EffectUiRuntime<unknown, unknown>;
 }
 
 export interface BrowserRouter<Routes extends readonly AnyRoute[] = readonly AnyRoute[]> {
@@ -102,7 +102,7 @@ export interface BrowserRouter<Routes extends readonly AnyRoute[] = readonly Any
 export interface RouterProviderProps<Routes extends readonly AnyRoute[]> extends RouterOutletProps {
   readonly routes: Routes;
   readonly initialHref?: string;
-  readonly runtime?: EffectUiRuntime<any, any>;
+  readonly runtime?: EffectUiRuntime<unknown, unknown>;
   readonly children?: JSX.Element;
 }
 
@@ -123,21 +123,21 @@ const currentHref = (fallback = "/"): string =>
   canUseBrowser() ? `${window.location.pathname}${window.location.search}` : fallback;
 
 const RouterContext = createContext<BrowserRouter>();
-const RuntimeContext = createContext<EffectUiRuntime<any, any>>();
+const RuntimeContext = createContext<EffectUiRuntime<unknown, unknown>>();
 
 export class RouterContextMissing extends Data.TaggedError("RouterContextMissing")<{
   readonly hook: string;
 }> {}
 
 export interface RuntimeProviderProps {
-  readonly runtime?: EffectUiRuntime<any, any>;
-  readonly source?: RuntimeSource<any, any>;
+  readonly runtime?: EffectUiRuntime<unknown, unknown>;
+  readonly source?: RuntimeSource<unknown, unknown>;
   readonly children?: JSX.Element;
 }
 
 export const createEffectRuntime = makeRuntime;
 
-export const useRuntime = (): EffectUiRuntime<any, any> =>
+export const useRuntime = (): EffectUiRuntime<unknown, unknown> =>
   useContext(RuntimeContext) ?? currentOrDefaultRuntime();
 
 export const RuntimeProvider = (props: RuntimeProviderProps): JSX.Element => {
@@ -322,7 +322,7 @@ const defaultNotFound = (): JSX.Element => undefined;
 const renderRouteState = (
   state: BrowserRouterState,
   props: RouterOutletProps,
-  runtime: EffectUiRuntime<any, any>
+  runtime: EffectUiRuntime<unknown, unknown>
 ): { readonly node: JSX.Element; readonly dispose?: () => void } => {
   switch (state._tag) {
     case "Pending":
