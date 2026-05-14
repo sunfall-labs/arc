@@ -13,6 +13,9 @@ and DB query-builder cleanup sweeps.
 - No package source currently contains raw Promise method choreography such as
   `.then(...)`, `.finally(...)`, `Promise.resolve(...)`, or `new Promise(...)`
   outside tests and host-boundary code.
+- No package, example, script, or type-test source currently contains `as any`
+  or `@ts-ignore`; negative tests use explicit `@ts-expect-error` or
+  `unknown`-to-contract casts for runtime validation shapes.
 - Remaining `as unknown as` casts are concentrated in two intentional
   boundaries:
   - `packages/core/src/runtime.ts`: `ManagedRuntime` run methods erase the
@@ -31,9 +34,19 @@ and DB query-builder cleanup sweeps.
 
 - Sharp grep:
   - `rg -n " as unknown as | as any|throw new Error|throw new TypeError|Promise\\.resolve|new Promise|\\.then\\(|\\.finally\\(" packages/*/src examples/project-console/src -g '*.ts' -g '*.tsx'`
+- Test/source `any` grep:
+  - `rg -n "as any|@ts-ignore" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
 - `pnpm verify` passed after the latest cast cleanup stack: package build,
   workspace typecheck, type tests, 35 package test files / 307 tests, example
   typecheck, 4 example test files / 23 tests, example build, and leak scan.
+- `pnpm exec vitest run packages/devtools/test/devtools.test.ts packages/db/test/server-collection.test.ts packages/start/test/rpc.test.ts packages/start/test/app-graph.test.ts`
+  passed after replacing remaining `as any` test casts: 4 files, 35 tests.
+- `pnpm typecheck` passed after replacing remaining `as any` test casts.
+- `pnpm verify` passed after replacing remaining `as any` test casts: 9
+  package builds, workspace typecheck, type tests, 38 root test files / 316
+  tests, devtools-panel verify, devtools-extension verify, basic starter
+  verify, project-console starter packaging, project-console typecheck, 4
+  project-console test files / 23 tests, project-console build, and leak scan.
 
 ## Follow-Up
 

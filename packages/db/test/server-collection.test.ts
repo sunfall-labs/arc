@@ -7,6 +7,7 @@ import {
   serverCollectionOptions,
   type ServerCollectionDeletePayload,
   type ServerCollectionInsertPayload,
+  type ServerCollectionOptions,
   type ServerCollectionUpdatePayload
 } from "../src/server-collection.js";
 
@@ -21,7 +22,7 @@ describe("serverCollectionOptions", () => {
     try {
       serverCollectionOptions<Project>({
         getKey: (project) => project.id
-      } as any);
+      } as unknown as ServerCollectionOptions<Project>);
       throw new Error("Expected serverCollectionOptions to reject missing identity");
     } catch (error) {
       expect(error).toBeInstanceOf(ServerCollectionMissingIdentity);

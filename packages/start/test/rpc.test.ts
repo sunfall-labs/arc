@@ -29,6 +29,18 @@ const app = defineApp({
   client: {}
 });
 
+interface RpcFailureBody {
+  readonly _tag?: string;
+  readonly error: {
+    readonly _tag?: string;
+    readonly message?: string;
+    readonly payload?: Record<string, unknown>;
+  };
+}
+
+const readRpcFailureBody = async (response: Response): Promise<RpcFailureBody> =>
+  (await response.json()) as RpcFailureBody;
+
 describe("Start RPC transport", () => {
   it("rejects RPC requests with unsupported content-type as typed protocol failures", async () => {
     const response = await Effect.runPromise(
@@ -46,7 +58,7 @@ describe("Start RPC transport", () => {
         })
       )
     );
-    const body = await response.json() as any;
+    const body = await readRpcFailureBody(response);
 
     expect(response.status).toBe(415);
     expect(response.headers.get(startRequestIdHeader)).toBe("req-rpc-content-type");
@@ -79,7 +91,7 @@ describe("Start RPC transport", () => {
         })
       )
     );
-    const body = await response.json() as any;
+    const body = await readRpcFailureBody(response);
 
     expect(response.status).toBe(406);
     expect(body.error).toMatchObject({
@@ -102,7 +114,7 @@ describe("Start RPC transport", () => {
         })
       )
     );
-    const body = await response.json() as any;
+    const body = await readRpcFailureBody(response);
 
     expect(response.status).toBe(405);
     expect(response.headers.get("allow")).toBe("POST");
@@ -128,7 +140,7 @@ describe("Start RPC transport", () => {
         []
       )
     );
-    const body = await response.json() as any;
+    const body = await readRpcFailureBody(response);
 
     expect(response.status).toBe(415);
     expect(response.headers.get(startRequestIdHeader)).toBe("req-action-content-type");
@@ -157,7 +169,7 @@ describe("Start RPC transport", () => {
         []
       )
     );
-    const body = await response.json() as any;
+    const body = await readRpcFailureBody(response);
 
     expect(response.status).toBe(400);
     expect(body.error).toMatchObject({

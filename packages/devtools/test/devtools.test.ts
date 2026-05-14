@@ -1,6 +1,6 @@
 import { Effect, PubSub, Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import { Action, makeRuntime, read as readSignal, Resource, route, Route, Signal, type ActionState } from "@effect-ui/core";
+import { Action, makeRuntime, read as readSignal, Resource, route, Route, Signal, type ActionState, type ResourceInvalidationPlan } from "@effect-ui/core";
 import { Collection } from "@effect-ui/db";
 import {
   DevtoolsActionInvalidationPlanConflict,
@@ -19,6 +19,7 @@ import {
   renderDevtoolsPanelsHtmlEffect,
   toDevtoolsSerializableValue,
   type DevtoolsInvalidationPlan,
+  type DevtoolsRecordActionStateOptions,
   type DevtoolsRequestTrace,
   type DevtoolsStartAppGraphDiagnostics
 } from "../src/index.js";
@@ -29,7 +30,7 @@ describe("devtools invalidation plans", () => {
       describeInvalidationPlan({
         targets: [{}],
         entries: []
-      } as any)
+      } as unknown as ResourceInvalidationPlan)
     ).toThrow(DevtoolsUnknownInvalidationTarget);
 
     const Tag = Resource.tag("Devtools.error-tag");
@@ -49,7 +50,7 @@ describe("devtools invalidation plans", () => {
       store.recordActionState("Devtools.conflict", "Pending", {
         invalidationPlan: Resource.planInvalidation(Tag),
         serializedInvalidationPlan: serialized
-      } as any)
+      } as unknown as DevtoolsRecordActionStateOptions)
     ).toThrow(DevtoolsActionInvalidationPlanConflict);
   });
 

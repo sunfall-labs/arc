@@ -449,7 +449,11 @@ describe("Start app graph", () => {
 
   it("revalidates nested manifests while deserializing the graph", async () => {
     const graph = await makeGraph();
-    const corrupted = JSON.parse(serializeStartAppGraph(graph)) as any;
+    const corrupted = JSON.parse(serializeStartAppGraph(graph)) as {
+      readonly routes: {
+        readonly entries: Array<{ routeId: string }>;
+      };
+    };
     corrupted.routes.entries[0].routeId = "route_wrong";
 
     const exit = await Effect.runPromiseExit(
