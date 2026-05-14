@@ -1755,6 +1755,18 @@ export class QueryBuilder<TContext extends Record<string, any>, TResult> {
     readonly grouping: QueryGrouping<any, any> | undefined = undefined
   ) {}
 
+  private filtersFor<NextContext extends Record<string, any>>(): ReadonlyArray<(row: NextContext) => boolean> {
+    return this.filters as unknown as ReadonlyArray<(row: NextContext) => boolean>;
+  }
+
+  private projectorFor<NextContext extends Record<string, any>, NextResult>(): ((row: NextContext) => NextResult) | undefined {
+    return this.projector as unknown as ((row: NextContext) => NextResult) | undefined;
+  }
+
+  private ordersFor<NextContext extends Record<string, any>>(): ReadonlyArray<QueryOrder<NextContext>> {
+    return this.orders as unknown as ReadonlyArray<QueryOrder<NextContext>>;
+  }
+
   where(predicate: (row: TContext) => boolean): QueryBuilder<TContext, TResult> {
     return new QueryBuilder(
       this.sources,
@@ -1794,9 +1806,9 @@ export class QueryBuilder<TContext extends Record<string, any>, TResult> {
     type NextResult = QueryJoinResult<TContext, TResult, NextContext>;
     return new QueryBuilder<NextContext, NextResult>(
       [...this.sources, [alias, collection] as const],
-      this.filters as unknown as ReadonlyArray<(row: NextContext) => boolean>,
-      this.projector as unknown as ((row: NextContext) => NextResult) | undefined,
-      this.orders as unknown as ReadonlyArray<QueryOrder<NextContext>>,
+      this.filtersFor<NextContext>(),
+      this.projectorFor<NextContext, NextResult>(),
+      this.ordersFor<NextContext>(),
       this.offsetCount,
       this.limitCount,
       [
@@ -1827,9 +1839,9 @@ export class QueryBuilder<TContext extends Record<string, any>, TResult> {
     type NextResult = QueryJoinResult<TContext, TResult, NextContext>;
     return new QueryBuilder<NextContext, NextResult>(
       [...this.sources, [alias, collection] as const],
-      this.filters as unknown as ReadonlyArray<(row: NextContext) => boolean>,
-      this.projector as unknown as ((row: NextContext) => NextResult) | undefined,
-      this.orders as unknown as ReadonlyArray<QueryOrder<NextContext>>,
+      this.filtersFor<NextContext>(),
+      this.projectorFor<NextContext, NextResult>(),
+      this.ordersFor<NextContext>(),
       this.offsetCount,
       this.limitCount,
       [
@@ -1892,7 +1904,7 @@ export class QueryBuilder<TContext extends Record<string, any>, TResult> {
       {
         key: key as (row: Record<string, any>) => Record<string, unknown>,
         aggregates: aggregates as QueryAggregateRecord<Record<string, any>>,
-        sourceFilters: this.filters as unknown as ReadonlyArray<(row: Record<string, any>) => boolean>
+        sourceFilters: this.filtersFor<Record<string, any>>()
       }
     );
   }
