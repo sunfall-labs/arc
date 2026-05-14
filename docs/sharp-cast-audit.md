@@ -41,6 +41,9 @@ Solid adapter, and DB query-builder cleanup sweeps.
   boundary, but ResourceStore injection now has an exact `Exclude<...>` type and
   run-method service erasure is centralized behind `provideManagedServices(...)`
   instead of repeated `as unknown as` casts.
+- Core runtime service erasure now sits at the `ManagedRuntime<any, ER>` value
+  boundary inside `fromManagedRuntime(...)`; the runtime no longer casts provided
+  Effects themselves to satisfy `ManagedRuntime` run methods.
 - `EffectUiRuntime.provide(...)` now returns a scoped Effect, and its
   ManagedRuntime service satisfaction is centralized behind
   `provideRuntimeServices(...)`. Solid router preloads can fork that Effect under
@@ -113,8 +116,7 @@ Solid adapter, and DB query-builder cleanup sweeps.
   through `as never`.
 - Test-only `as unknown as` and `as never` casts have been removed; the broad
   source sharp-cast grep for `as Effect.Effect`, `as unknown as`, `as never`,
-  `as any`, and `@ts-ignore` now reports only the two named core runtime
-  service-erasure boundaries.
+  `as any`, and `@ts-ignore` now reports no hits.
 
 ## Verification Evidence
 
@@ -370,6 +372,16 @@ Solid adapter, and DB query-builder cleanup sweeps.
   passed after the schema, EffectInput, Start preload/adapter, and DB query
   variance cast cleanup: 9 files, 135 tests.
 - `pnpm verify` passed after the broad sharp-cast cleanup: 9 package builds,
+  workspace typecheck, type tests, 38 root test files / 320 tests,
+  devtools-panel verify, devtools-extension verify with 1 extension test file / 6
+  tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.
+- `pnpm --filter @effect-ui/core typecheck`, `pnpm typecheck:types`, and
+  `pnpm exec vitest run packages/core/test/runtime.test.ts packages/core/test/resource.test.ts packages/core/test/action.test.ts packages/core/test/scope.test.ts packages/core/test/server.test.ts`
+  passed after moving core runtime service erasure to the ManagedRuntime value
+  boundary: 5 files, 55 tests.
+- `pnpm verify` passed after the final broad sharp-cast sweep: 9 package builds,
   workspace typecheck, type tests, 38 root test files / 320 tests,
   devtools-panel verify, devtools-extension verify with 1 extension test file / 6
   tests, basic starter verify, project-console starter packaging,

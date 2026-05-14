@@ -45,6 +45,9 @@ Effect-native interruption.
     work under `UiScope` instead of erasing requirements locally.
   - Top-level `runPromise`, `runPromiseExit`, and `runFork` helpers now pass the
     input Effect directly to the active runtime boundary.
+  - ManagedRuntime service erasure is now named at the
+    `ManagedRuntime<any, ER>` value boundary, so runtime helpers no longer cast
+    provided Effect programs.
 - `packages/core/src/effect-like.ts`, `packages/core/src/form.ts`,
   `packages/core/src/server.ts`, and `packages/start/src/index.ts`
   - EffectInput conversion preserves existing Effect generics through the
@@ -290,6 +293,16 @@ Effect-native interruption.
   `pnpm exec vitest run packages/core/test/server.test.ts packages/core/test/form.test.ts packages/core/test/runtime.test.ts packages/core/test/route-server.test.ts packages/start/test/start.test.ts packages/start/test/rpc.test.ts packages/start/test/adapters.test.ts packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
   passed after the broad sharp-cast cleanup: 9 files, 135 tests.
 - Full `pnpm verify` passed after the broad sharp-cast cleanup: 9 package
+  builds, workspace typecheck, type tests, 38 root test files / 320 tests,
+  devtools-panel verify, devtools-extension verify with 1 extension test file / 6
+  tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.
+- `pnpm --filter @effect-ui/core typecheck`, `pnpm typecheck:types`, and
+  `pnpm exec vitest run packages/core/test/runtime.test.ts packages/core/test/resource.test.ts packages/core/test/action.test.ts packages/core/test/scope.test.ts packages/core/test/server.test.ts`
+  passed after moving runtime service erasure to the ManagedRuntime value
+  boundary: 5 files, 55 tests.
+- Full `pnpm verify` passed after the final broad sharp-cast sweep: 9 package
   builds, workspace typecheck, type tests, 38 root test files / 320 tests,
   devtools-panel verify, devtools-extension verify with 1 extension test file / 6
   tests, basic starter verify, project-console starter packaging,

@@ -40,6 +40,8 @@ const fromManagedRuntime = <R, ER>(
   resourceStore: ResourceStoreState = makeResourceStore(),
   options: { readonly disposeManaged: boolean } = { disposeManaged: true }
 ): EffectUiRuntime<R, ER> => {
+  const managedRuntime: ManagedRuntime.ManagedRuntime<any, ER> = managed;
+
   const provideStore = <A, E, RIn>(
     effect: Effect.Effect<A, E, RIn>,
     store: ResourceStoreState = resourceStore
@@ -48,19 +50,19 @@ const fromManagedRuntime = <R, ER>(
 
   const provideManagedServices = <A, E, RIn>(
     effect: Effect.Effect<A, E, RIn>
-  ): Effect.Effect<A, E, R> =>
-    provideStore(effect) as Effect.Effect<A, E, R>;
+  ): Effect.Effect<A, E, any> =>
+    provideStore(effect);
 
   const provideRuntimeServices = <A, E, RIn>(
     effect: Effect.Effect<A, E, RIn>,
     provideOptions?: RuntimeProvideOptions
   ): Effect.Effect<A, E | ER, Scope.Scope> =>
-    Effect.flatMap(managed.contextEffect, (context) =>
+    Effect.flatMap(managedRuntime.contextEffect, (context) =>
       provideStore(
         Effect.provideContext(effect, context),
         provideOptions?.resourceStore
       )
-    ) as Effect.Effect<A, E | ER, Scope.Scope>;
+    );
 
   const disposeStore = disposeResourceStoreEffect(resourceStore);
   const disposeEffect = options.disposeManaged
@@ -68,18 +70,18 @@ const fromManagedRuntime = <R, ER>(
     : disposeStore;
   const runtime: EffectUiRuntime<R, ER> = {
     [RuntimeTypeId]: RuntimeTypeId,
-    managed,
+    managed: managedRuntime,
     resourceStore,
     provide: provideRuntimeServices,
-    runFork: (effect, options) => managed.runFork(provideManagedServices(effect), options),
-    runPromise: (effect, options) => managed.runPromise(provideManagedServices(effect), options),
-    runPromiseExit: (effect, options) => managed.runPromiseExit(provideManagedServices(effect), options),
+    runFork: (effect, options) => managedRuntime.runFork(provideManagedServices(effect), options),
+    runPromise: (effect, options) => managedRuntime.runPromise(provideManagedServices(effect), options),
+    runPromiseExit: (effect, options) => managedRuntime.runPromiseExit(provideManagedServices(effect), options),
     runSync: (effect) =>
       runWithRuntime(runtime, () =>
-        managed.runSync(provideManagedServices(effect))
+        managedRuntime.runSync(provideManagedServices(effect))
       ),
     disposeEffect,
-    dispose: () => managed.runPromise(disposeEffect)
+    dispose: () => managedRuntime.runPromise(disposeEffect)
   };
 
   return runtime;

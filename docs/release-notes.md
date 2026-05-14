@@ -131,10 +131,13 @@ Latest full gate on May 14, 2026:
   needs example-local Effect casts.
 - The latest `pnpm verify` passed after the Start runtime-boundary and example
   UI effect cleanup.
-- The broad sharp-cast grep now reports only the two named core runtime
-  service-erasure boundaries after schema, EffectInput, Start preload/adapter,
-  and DB query variance cleanup.
+- The broad sharp-cast grep now reports no source hits after schema,
+  EffectInput, Start preload/adapter, DB query variance, and core runtime
+  service-erasure cleanup.
 - The latest `pnpm verify` passed after the broad sharp-cast cleanup.
+- Core runtime service erasure now sits at the `ManagedRuntime<any, ER>` value
+  boundary instead of casting provided Effect programs.
+- The latest `pnpm verify` passed after the final broad sharp-cast sweep.
 
 ## Notable Limits
 
