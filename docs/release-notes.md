@@ -254,6 +254,11 @@ Latest full gate on May 14, 2026:
   `Effect.exit(...)`.
 - The latest `pnpm verify` passed after the DB live-query collection async test
   cleanup.
+- DB persisted-options tests now return Effect programs, with runtime-specific
+  Promise calls wrapped by Effect, optimistic mutation work joined through a
+  fiber, and runtime cleanup handled by Effect finalizers.
+- The latest `pnpm verify` passed after the DB persisted-options async test
+  cleanup.
 
 ## Notable Limits
 
