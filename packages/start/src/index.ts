@@ -2269,17 +2269,24 @@ const responseWithRuntimeFinalizer = (
   const reader = response.body.getReader();
   let disposed = false;
   let chunkCount = 0;
-  const dispose = async (
+  const disposeEffect = (
     stream: StartRequestTraceStream,
     status: StartRequestTraceStatus,
     teardownReason: string
-  ): Promise<void> => {
-    if (disposed) {
-      return;
-    }
+  ): Effect.Effect<void> =>
+    Effect.gen(function* () {
+      const shouldDispose = yield* Effect.sync(() => {
+        if (disposed) {
+          return false;
+        }
 
-    disposed = true;
-    const finalizer = Effect.gen(function* () {
+        disposed = true;
+        return true;
+      });
+      if (!shouldDispose) {
+        return;
+      }
+
       const teardown = yield* requestRuntimeDisposeTraceEffect(runtime);
       if (options.onFinalize) {
         yield* options.onFinalize({
@@ -2290,55 +2297,74 @@ const responseWithRuntimeFinalizer = (
         });
       }
     });
-    await runtime.runPromiseExit(finalizer as Effect.Effect<void, never, any>);
-  };
-  const body = new ReadableStream<Uint8Array>({
-    async pull(controller) {
-      try {
-        const result = await reader.read();
-        if (result.done) {
-          await dispose(
-            {
-              name: "response",
-              state: "closed",
-              chunkCount
-            },
-            "success",
-            "stream-close"
-          );
-          controller.close();
-          return;
-        }
 
-        chunkCount += 1;
-        controller.enqueue(result.value);
-      } catch (cause) {
-        await dispose(
-          {
-            name: "response",
-            state: "errored",
-            chunkCount
-          },
-          "failure",
-          "stream-error"
-        );
-        controller.error(cause);
-      }
+  const body = new ReadableStream<Uint8Array>({
+    pull(controller) {
+      return runtime.runPromise(
+        Effect.gen(function* () {
+          const result = yield* Effect.tryPromise({
+            try: () => reader.read(),
+            catch: (cause) => cause
+          });
+          if (result.done) {
+            yield* disposeEffect(
+              {
+                name: "response",
+                state: "closed",
+                chunkCount
+              },
+              "success",
+              "stream-close"
+            );
+            yield* Effect.sync(() => {
+              controller.close();
+            });
+            return;
+          }
+
+          yield* Effect.sync(() => {
+            chunkCount += 1;
+            controller.enqueue(result.value);
+          });
+        }).pipe(
+          Effect.catch((cause) =>
+            Effect.gen(function* () {
+              yield* disposeEffect(
+                {
+                  name: "response",
+                  state: "errored",
+                  chunkCount
+                },
+                "failure",
+                "stream-error"
+              );
+              yield* Effect.sync(() => {
+                controller.error(cause);
+              });
+            })
+          )
+        ) as Effect.Effect<void, never, any>
+      );
     },
-    async cancel(reason) {
-      try {
-        await reader.cancel(reason);
-      } finally {
-        await dispose(
-          {
-            name: "response",
-            state: "cancelled",
-            chunkCount
-          },
-          "cancelled",
-          typeof reason === "string" ? reason : "stream-cancel"
-        );
-      }
+    cancel(reason) {
+      return runtime.runPromise(
+        Effect.tryPromise({
+          try: () => reader.cancel(reason),
+          catch: (cause) => cause
+        }).pipe(
+          Effect.ensuring(
+            disposeEffect(
+              {
+                name: "response",
+                state: "cancelled",
+                chunkCount
+              },
+              "cancelled",
+              typeof reason === "string" ? reason : "stream-cancel"
+            )
+          )
+        ) as Effect.Effect<void, unknown, any>
+      );
     }
   });
 

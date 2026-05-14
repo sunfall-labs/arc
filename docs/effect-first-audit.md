@@ -20,8 +20,11 @@ Effect-native interruption.
 
 - `packages/start/src/index.ts`
   - Kept Web Stream `pull` and `cancel` as host-boundary async callbacks.
-  - Moved response stream finalization into one Effect program that disposes the
-    request runtime and emits request trace facts from the same finalizer.
+  - Moved response stream pull, cancel, error, and finalization lifecycle into
+    Effect programs that the Web Stream host callbacks run through the request
+    runtime.
+  - Runtime disposal and request trace emission happen from the same
+    `disposeEffect` finalizer.
   - Added trace tests for response stream close, cancellation, and request
     failure paths.
 - `packages/core/src/runtime.ts`
@@ -126,3 +129,9 @@ Effect-native interruption.
   CLI"` passed after the CLI Effect runner sweep.
 - `pnpm exec vitest run packages/start/test/start.test.ts`, `pnpm typecheck`,
   and full `pnpm verify` passed after the CLI Effect runner sweep.
+- `pnpm --filter @effect-ui/start typecheck`,
+  `pnpm exec vitest run packages/start/test/start.test.ts -t "stream"`, and
+  `pnpm exec vitest run packages/start/test/start.test.ts` passed after moving
+  response stream pull/cancel lifecycle into Effect programs.
+- Full `pnpm verify` passed after moving response stream pull/cancel lifecycle
+  into Effect programs.
