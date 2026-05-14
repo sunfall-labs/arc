@@ -5,8 +5,8 @@ Last updated: 2026-05-14.
 This audit checks release-tracking docs for claims that no longer match the
 implementation after the request trace, Effect-first, typed-error, package
 hygiene, generated-artifact, public-API, example cleanup, starter packaging,
-devtools extension, inspected-window bridge, release metadata, and Start
-lifecycle sweeps.
+devtools extension, inspected-window bridge, release metadata, Start lifecycle,
+runtime wildcard, route wildcard, `UiScope`, and type-test async cleanup sweeps.
 
 ## Current Sweep Results
 
@@ -28,6 +28,11 @@ lifecycle sweeps.
   ledger after adding private `UNLICENSED` metadata across workspace manifests.
 - Updated sharp-edge audits after removing remaining `as any`, raw throw
   sentinels, and low-friction Promise-method test helpers.
+- Updated release and verification tracking after tightening runtime helper
+  wildcards, replacing ignored conditional-helper `any` placeholders, moving
+  arbitrary route constraints to `unknown`, creating `UiScope` through
+  `Scope.make(...)`, and replacing type-test `async` negative cases with
+  declared Promise values.
 - Updated the progress ledger current-status summary so the clean-sweep gate is
   still open for the right reason: recent sweeps found actionable work beyond
   the earlier benchmark baseline and bridge/metadata slices.

@@ -14,6 +14,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
 - Promise-returning callbacks are rejected at the type boundary for routes,
   resources, collections, actions, forms, server implementations, Start render
   callbacks, and now `onRequestTrace`.
+- Promise-returning negative cases use declared Promise values instead of
+  `async` callback syntax, so compile-time coverage stays focused on the public
+  boundary rather than embedding Promise-shaped framework callbacks.
 - Generated route unions are covered for route ids, route paths, canonical
   params, branded params, href options, and search literal rejection.
 - Start request traces remain structurally assignable to
@@ -25,6 +28,8 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 - `pnpm typecheck:types` passed after the explicit request-trace teardown and
   Promise-return rejection assertions were added.
+- `pnpm typecheck:types` and full `pnpm verify` passed after replacing
+  type-test `async` negative cases with declared Promise values.
 - Existing type-test failure expectations cover public compile-time rejection
   rules for route params/search, server contracts, resource inputs, collection
   rows, live-query selectors, capability implementations, action invalidation,

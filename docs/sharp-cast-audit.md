@@ -19,6 +19,9 @@ Solid adapter, and DB query-builder cleanup sweeps.
   for Node listener/timer host-boundary helpers.
 - No package, example, script, or type-test source currently contains
   `Promise.resolve`, `.then(...)`, or `.finally(...)`.
+- No package source, script, or type-test source currently contains `async`
+  callback syntax or Promise method choreography; example test files keep
+  `async` only at test/host boundaries.
 - No package, example, script, or type-test source currently contains direct
   Promise `.catch(...)` outside Effect's `Effect.catch(...)` operator.
 - The devtools extension transport structurally validates inspected-window
