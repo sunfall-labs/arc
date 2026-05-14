@@ -216,6 +216,10 @@ Latest full gate on May 14, 2026:
   explicitly loads the browser Solid build for happy-dom coverage.
 - The latest `pnpm verify` passed after the core/Solid async test boundary
   cleanup.
+- Core runtime tests now return Effect programs instead of async wrappers while
+  preserving the public Promise boundaries they exercise behind
+  `Effect.promise(...)`.
+- The latest `pnpm verify` passed after the core runtime async test cleanup.
 
 ## Notable Limits
 

@@ -15,30 +15,34 @@ describe("Effect UI runtime", () => {
     save: (value) => Effect.succeed(value + 1)
   });
 
-  it("runs effects with services from a runtime layer", async () => {
+  it("runs effects with services from a runtime layer", () => {
     const runtime = makeRuntime(NumbersLive);
 
-    const value = await runtime.runPromise(
-      Numbers.use((numbers) => numbers.get("atlas"))
+    return runtime.runPromise(
+      Numbers.use((numbers) => numbers.get("atlas")).pipe(
+        Effect.tap((value) => Effect.sync(() => expect(value).toBe(5))),
+        Effect.asVoid,
+        Effect.ensuring(runtime.disposeEffect)
+      )
     );
-
-    expect(value).toBe(5);
-    await runtime.dispose();
   });
 
-  it("uses the current runtime for server function Promise boundaries", async () => {
+  it("uses the current runtime for server function Promise boundaries", () => {
     const runtime = makeRuntime(NumbersLive);
     const getNumber = Server.fn<string, number, never, Numbers>("Number.get", {
       handler: (id) => Numbers.use((numbers) => numbers.get(id))
     });
 
-    const value = await runWithRuntime(runtime, () => getNumber("kepler"));
-
-    expect(value).toBe(6);
-    await runtime.dispose();
+    return Effect.runPromise(
+      Effect.promise(() => runWithRuntime(runtime, () => getNumber("kepler"))).pipe(
+        Effect.tap((value) => Effect.sync(() => expect(value).toBe(6))),
+        Effect.asVoid,
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
   });
 
-  it("routes server function effects through ServerClient when one is provided", async () => {
+  it("routes server function effects through ServerClient when one is provided", () => {
     const getNumber = Server.fn<string, string>("Number.remote", {
       handler: (id) => Effect.succeed(`local:${id}`)
     });
@@ -48,15 +52,24 @@ describe("Effect UI runtime", () => {
       })
     );
 
-    const effectValue = await runtime.runPromise(getNumber.effect("atlas"));
-    const promiseValue = await runWithRuntime(runtime, () => getNumber("kepler"));
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const effectValue = yield* Effect.promise(() =>
+          runtime.runPromise(getNumber.effect("atlas"))
+        );
+        const promiseValue = yield* Effect.promise(() =>
+          runWithRuntime(runtime, () => getNumber("kepler"))
+        );
 
-    expect(effectValue).toBe("remote:atlas");
-    expect(promiseValue).toBe("remote:kepler");
-    await runtime.dispose();
+        yield* Effect.sync(() => {
+          expect(effectValue).toBe("remote:atlas");
+          expect(promiseValue).toBe("remote:kepler");
+        });
+      }).pipe(Effect.ensuring(runtime.disposeEffect))
+    );
   });
 
-  it("dispatches shared server function stubs to local registered handlers", async () => {
+  it("dispatches shared server function stubs to local registered handlers", () => {
     const GetNumber = Server.contract<string, number, never>("Number.local-stub");
     const getNumber = Server.client(GetNumber);
     Server.implement(GetNumber, (id) => Effect.succeed(id.length));
@@ -64,13 +77,16 @@ describe("Effect UI runtime", () => {
       Layer.succeed(ServerClient)(Server.localClient())
     );
 
-    const value = await runtime.runPromise(getNumber.effect("atlas"));
-
-    expect(value).toBe(5);
-    await runtime.dispose();
+    return runtime.runPromise(
+      getNumber.effect("atlas").pipe(
+        Effect.tap((value) => Effect.sync(() => expect(value).toBe(5))),
+        Effect.asVoid,
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
   });
 
-  it("uses the current runtime for resource Promise boundaries", async () => {
+  it("uses the current runtime for resource Promise boundaries", () => {
     const runtime = makeRuntime(NumbersLive);
     const NumberById = Resource.family<string, number, never, Numbers>({
       name: "Runtime.Number.byId",
@@ -78,14 +94,21 @@ describe("Effect UI runtime", () => {
     });
     const ref = NumberById("lumen");
 
-    const value = await runWithRuntime(runtime, () => Resource.prefetch(ref));
-
-    expect(value).toBe(5);
-    expect(runWithRuntime(runtime, () => Resource.read(ref))).toBe(5);
-    await runtime.dispose();
+    return Effect.runPromise(
+      Effect.promise(() => runWithRuntime(runtime, () => Resource.prefetch(ref))).pipe(
+        Effect.tap((value) =>
+          Effect.sync(() => {
+            expect(value).toBe(5);
+            expect(runWithRuntime(runtime, () => Resource.read(ref))).toBe(5);
+          })
+        ),
+        Effect.asVoid,
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
   });
 
-  it("uses an explicit runtime for action event boundaries", async () => {
+  it("uses an explicit runtime for action event boundaries", () => {
     const runtime = makeRuntime(NumbersLive);
     const SaveNumber = Action.define<number, number, never, Numbers>({
       name: "Runtime.Number.save",
@@ -93,7 +116,12 @@ describe("Effect UI runtime", () => {
     });
     const action = Action.use(SaveNumber, { runtime });
 
-    await expect(action.submit(41)).resolves.toBe(42);
-    await runtime.dispose();
+    return Effect.runPromise(
+      Effect.promise(() => action.submit(41)).pipe(
+        Effect.tap((value) => Effect.sync(() => expect(value).toBe(42))),
+        Effect.asVoid,
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
   });
 });
