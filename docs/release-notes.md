@@ -34,6 +34,9 @@ yet.
   flatMap operator instead of an inline bottom-type cast.
 - Core runtime integration with Effect `ManagedRuntime` keeps a documented
   service-erasure cast boundary.
+- Core Capability helpers now use overloads for pure vs Effect-returning
+  `useEffect(...)` callbacks and rely on `Effect.provideService(...)` return
+  typing directly.
 - Browser extension packaging is checked as an example shell, including a live
   inspected-app bridge that reads `globalThis.__EFFECT_UI_DEVTOOLS__`.
 - Platform-specific packages beyond Node/fetch should wait for hosts that need
@@ -86,7 +89,10 @@ Latest full gate on May 14, 2026:
 - DB incremental live-query custom operators now register through a named
   `IOperator` bridge over `@tanstack/db-ivm`'s class-typed `addOperator(...)`
   surface.
-- The latest `pnpm verify` passed after the DB IVM operator bridge cleanup.
+- The latest `pnpm verify` passed after the Core Capability implementation cast
+  cleanup.
+- Capability implementation casts for `useEffect(...)` and `provide(...)` were
+  removed without changing the public pure/Effect callback behavior.
 
 ## Notable Limits
 

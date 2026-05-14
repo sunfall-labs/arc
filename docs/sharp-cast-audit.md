@@ -51,9 +51,13 @@ and DB query-builder cleanup sweeps.
   `never`; the bridge documents the `@tanstack/db-ivm` gap where
   `addOperator(...)` is typed to internal classes while runtime dispatch uses
   the exported structural operator interface.
+- `Capability.define(...)` now expresses `useEffect(...)` with explicit
+  overloads and returns `Effect.provideService(...)` directly, so the
+  capability implementation no longer needs bottom-type casts for callback
+  inference or service provision.
 - Test-only `as unknown as` and `as never` casts have been removed; the broad
   sharp-cast grep now reports only package-source type-id, runtime
-  service-erasure, capability inference, and DB query context-variance seams.
+  service-erasure, and DB query context-variance seams.
 
 ## Verification Evidence
 
@@ -176,6 +180,17 @@ and DB query-builder cleanup sweeps.
   devtools-extension verify with 1 extension test file / 6 tests, basic starter
   verify, project-console starter packaging, project-console typecheck, 4
   project-console test files / 23 tests, project-console build, and leak scan.
+- `pnpm --filter @effect-ui/core typecheck`, `pnpm typecheck:types`, and
+  `pnpm exec vitest run packages/core/test/capability.test.ts` passed after
+  replacing the `Capability.define(...)` implementation bottom casts with
+  typed overloads and direct `Effect.provideService(...)` return typing: 1 test
+  file, 4 tests.
+- `pnpm verify` passed after replacing the `Capability.define(...)`
+  implementation casts: 9 package builds, workspace typecheck, type tests, 38
+  root test files / 320 tests, devtools-panel verify, devtools-extension verify
+  with 1 extension test file / 6 tests, basic starter verify, project-console
+  starter packaging, project-console typecheck, 4 project-console test files /
+  23 tests, project-console build, and leak scan.
 
 ## Follow-Up
 

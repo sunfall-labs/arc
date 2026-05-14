@@ -62,6 +62,9 @@ Release decisions:
   adapter and hook authors that must bridge into the active Runtime Spine. App
   code should use explicit runtime providers, `makeRuntime`, `runWithRuntime`,
   or adapter hooks such as Solid's `useRuntime`.
+- `Capability.useEffect(...)` is public with explicit pure-value and
+  Effect-returning overloads; Promise-returning callbacks remain rejected so
+  host async work is routed through Effect primitives.
 
 ### `@effect-ui/start`
 

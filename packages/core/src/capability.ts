@@ -1,11 +1,5 @@
 import { Context, Effect, Layer } from "effect";
-import type {
-  EffectInput,
-  EffectInputError,
-  EffectInputRequirements,
-  EffectInputValue,
-  EnsureEffectInput
-} from "./effect-like.js";
+import type { EffectInput } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
 
 export const CapabilityTypeId: unique symbol = Symbol.for("@effect-ui/core/Capability") as never;
@@ -17,9 +11,14 @@ export interface Capability<Identifier, Shape> {
   readonly layer: (service: Shape) => Layer.Layer<Identifier>;
   readonly mock: (service: Shape) => Layer.Layer<Identifier>;
   readonly use: <A, E, R>(f: (service: Shape) => Effect.Effect<A, E, R>) => Effect.Effect<A, E, R | Identifier>;
-  readonly useEffect: <Out>(
-    f: (service: Shape) => EnsureEffectInput<Out>
-  ) => Effect.Effect<EffectInputValue<Out>, EffectInputError<Out>, EffectInputRequirements<Out> | Identifier>;
+  readonly useEffect: {
+    <A, E, R>(
+      f: (service: Shape) => Effect.Effect<A, E, R>
+    ): Effect.Effect<A, E, R | Identifier>;
+    <A>(
+      f: (service: Shape) => A extends PromiseLike<unknown> ? never : A
+    ): Effect.Effect<A, never, Identifier>;
+  };
   readonly useSync: <A>(f: (service: Shape) => A) => Effect.Effect<A, never, Identifier>;
   readonly provide: <A, E, R>(
     effect: Effect.Effect<A, E, R>,
@@ -42,6 +41,18 @@ export namespace Capability {
   ): Capability<Shape, Shape> => {
     const tag = Context.Service<Shape>(key);
 
+    function useEffect<A, E, R>(
+      f: (service: Shape) => Effect.Effect<A, E, R>
+    ): Effect.Effect<A, E, R | Shape>;
+    function useEffect<A>(
+      f: (service: Shape) => A extends PromiseLike<unknown> ? never : A
+    ): Effect.Effect<A, never, Shape>;
+    function useEffect<A, E, R>(
+      f: (service: Shape) => Effect.Effect<A, E, R> | A
+    ): Effect.Effect<A, E, R | Shape> {
+      return tag.use((service) => toEffect(f(service) as EffectInput<A, E, R>));
+    }
+
     return {
       [CapabilityTypeId]: CapabilityTypeId,
       key,
@@ -49,15 +60,10 @@ export namespace Capability {
       layer: (service) => Layer.succeed(tag)(service),
       mock: (service) => Layer.succeed(tag)(service),
       use: (f) => tag.use(f),
-      useEffect: (f) =>
-        tag.use((service) => toEffect(f(service) as EffectInput<EffectInputValue<ReturnType<typeof f>>>)) as never,
+      useEffect,
       useSync: (f) => tag.useSync(f),
       provide: (effect, service) =>
-        Effect.provideService(effect, tag, service) as Effect.Effect<
-          never,
-          never,
-          never
-        > as never
+        Effect.provideService(effect, tag, service)
     };
   };
 
