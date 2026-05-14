@@ -48,6 +48,8 @@ Latest full gate on May 14, 2026:
 - 4 project console test files / 23 tests;
 - project console production build;
 - project console server-only leak scan.
+- `pnpm benchmark` refreshed the SSR, route preload, Resource, live query, and
+  RPC transport baselines.
 
 ## Notable Limits
 

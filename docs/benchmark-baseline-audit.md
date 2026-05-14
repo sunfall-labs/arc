@@ -31,15 +31,15 @@ pnpm benchmark
 
 | Benchmark | hz | mean | p99 | samples |
 | --- | ---: | ---: | ---: | ---: |
-| Project console streaming SSR | 1.8285 | 546.88 ms | 549.46 ms | 10 |
-| Start route preload request | 9,623.08 | 0.1039 ms | 0.3685 ms | 4,812 |
-| Resource cold plus cached prefetch | 12,027.82 | 0.0831 ms | 0.2747 ms | 6,014 |
-| Collection live query materialization | 9,077.41 | 0.1102 ms | 0.3000 ms | 4,542 |
-| Start RPC transport success | 10,413.64 | 0.0960 ms | 0.3088 ms | 5,207 |
+| Project console streaming SSR | 1.8275 | 547.21 ms | 548.68 ms | 10 |
+| Start route preload request | 11,106.16 | 0.0900 ms | 0.2975 ms | 5,554 |
+| Resource cold plus cached prefetch | 13,467.57 | 0.0743 ms | 0.2435 ms | 6,734 |
+| Collection live query materialization | 8,743.64 | 0.1144 ms | 0.3080 ms | 4,372 |
+| Start RPC transport success | 8,901.93 | 0.1123 ms | 0.3447 ms | 4,451 |
 
 ## Follow-Up
 
 - Add CI-friendly threshold checks only after several runs establish normal
   variance on the target development machine.
-- Add browser navigation benchmarks after the first devtools UI panel gives a
-  stable browser harness.
+- Add browser navigation benchmarks after the devtools panel app shell grows a
+  stable browser automation harness.
