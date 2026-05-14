@@ -6,10 +6,17 @@ import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   createNodeHandler,
+  nodeRequestOrigin,
   nodeRequestToWebRequest,
   toFetchHandler,
   toFetchHandlerEffect
 } from "../src/adapters.js";
+import {
+  toFetchHandlerEffect as toPackagedFetchHandlerEffect
+} from "@effect-ui/start-fetch";
+import {
+  nodeRequestOrigin as packagedNodeRequestOrigin
+} from "@effect-ui/start-node";
 
 const listen = (server: ReturnType<typeof createServer>): Promise<number> =>
   new Promise((resolve, reject) => {
@@ -234,5 +241,23 @@ describe("Start deployment adapters", () => {
     await expect(
       promiseHandler(new Request("https://example.com/edge", { method: "POST" })).then((response) => response.text())
     ).resolves.toBe("POST");
+  });
+
+  it("exposes host facade packages over the tested adapter implementation", async () => {
+    const nodeRequest = {
+      headers: {
+        host: "node.example.com"
+      }
+    } as IncomingMessage;
+    const effectHandler = toPackagedFetchHandlerEffect((request) =>
+      Effect.succeed(new Response(new URL(request.url).pathname))
+    );
+
+    expect(packagedNodeRequestOrigin(nodeRequest)).toBe(nodeRequestOrigin(nodeRequest));
+    await expect(
+      Effect.runPromise(effectHandler(new Request("https://example.com/from-package")))
+    ).resolves.toMatchObject({
+      status: 200
+    });
   });
 });

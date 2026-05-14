@@ -561,11 +561,10 @@ Last evidence pass: May 14, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026 after the
-    Effect-scoped devtools app-shell mount slice: 9 package builds, workspace
-    typecheck, type tests, 37 root test files / 310 tests, devtools-panel
-    verify, starter verify, example typecheck, 4 example test files / 23 tests,
-    example build, and leak scan.
+  - Evidence: root `pnpm verify` passed on May 14, 2026 after the facade
+    runtime test slice: 9 package builds, workspace typecheck, type tests, 37
+    root test files / 311 tests, devtools-panel verify, starter verify, example
+    typecheck, 4 example test files / 23 tests, example build, and leak scan.
 
 ## Remaining Winning-Bar Items
 

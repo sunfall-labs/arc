@@ -14,6 +14,7 @@ export default defineConfig({
       "@effect-ui/solid": new URL("./packages/solid/src/index.ts", import.meta.url).pathname,
       "@effect-ui/solid-db": new URL("./packages/solid-db/src/index.ts", import.meta.url).pathname,
       "@effect-ui/tsrx": new URL("./packages/tsrx/src/index.ts", import.meta.url).pathname,
+      "@effect-ui/start/adapters": new URL("./packages/start/src/adapters.ts", import.meta.url).pathname,
       "@effect-ui/start": new URL("./packages/start/src/index.ts", import.meta.url).pathname,
       "@effect-ui/start-fetch": new URL("./packages/start-fetch/src/index.ts", import.meta.url).pathname,
       "@effect-ui/start-node": new URL("./packages/start-node/src/index.ts", import.meta.url).pathname,

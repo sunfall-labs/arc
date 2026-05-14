@@ -41,7 +41,7 @@ Latest full gate on May 14, 2026:
 
 - 9 package builds;
 - workspace typecheck and public type tests;
-- 37 root test files / 310 tests;
+- 37 root test files / 311 tests;
 - devtools panel verify;
 - basic starter verify;
 - project console typecheck;
