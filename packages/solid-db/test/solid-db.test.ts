@@ -11,53 +11,56 @@ interface Project {
 }
 
 describe("solid-db", () => {
-  it("adapts collections and live queries to Solid accessors", async () => {
-    const Projects = Collection.define<Project>({
-      name: "SolidDb.projects",
-      getKey: (project) => project.id,
-      indexes: {
-        active: (project) => project.active
-      },
-      initialData: [
-        { id: "atlas", name: "Atlas", active: true },
-        { id: "lumen", name: "Lumen", active: false }
-      ]
-    });
-
+  it("adapts collections and live queries to Solid accessors", () => {
     let dispose: (() => void) | undefined;
-    const handles = createRoot((rootDispose) => {
-      dispose = rootDispose;
-      return {
-        projects: useCollection(Projects, { preload: false }),
-        activeNames: useLiveQuery((query) =>
-          query
-            .from({ project: Projects })
-            .where(({ project }) => project.active)
-            .select(({ project }) => project.name)
-            .orderBy(({ project }) => project.name),
-          { preload: false }
-        )
-      };
-    });
 
-    try {
-      await Effect.runPromise(Effect.sleep("0 millis"));
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const Projects = Collection.define<Project>({
+          name: "SolidDb.projects",
+          getKey: (project) => project.id,
+          indexes: {
+            active: (project) => project.active
+          },
+          initialData: [
+            { id: "atlas", name: "Atlas", active: true },
+            { id: "lumen", name: "Lumen", active: false }
+          ]
+        });
 
-      expect(handles.projects.rows().map((project) => project.name)).toEqual([
-        "Atlas",
-        "Lumen"
-      ]);
-      expect(handles.projects.get("atlas")?.name).toBe("Atlas");
-      expect(handles.projects.index("active", true).map((project) => project.id)).toEqual(["atlas"]);
-      expect(handles.projects.firstByIndex("active", false)?.id).toBe("lumen");
-      expect(handles.activeNames.data()).toEqual(["Atlas"]);
+        const handles = createRoot((rootDispose) => {
+          dispose = rootDispose;
+          return {
+            projects: useCollection(Projects, { preload: false }),
+            activeNames: useLiveQuery((query) =>
+              query
+                .from({ project: Projects })
+                .where(({ project }) => project.active)
+                .select(({ project }) => project.name)
+                .orderBy(({ project }) => project.name),
+              { preload: false }
+            )
+          };
+        });
 
-      await Effect.runPromise(Projects.writeUpdateEffect("lumen", { active: true }));
+        yield* Effect.sleep("0 millis");
 
-      expect(handles.projects.index("active", true).map((project) => project.id)).toEqual(["atlas", "lumen"]);
-      expect(handles.activeNames.data()).toEqual(["Atlas", "Lumen"]);
-    } finally {
-      dispose?.();
-    }
+        expect(handles.projects.rows().map((project) => project.name)).toEqual([
+          "Atlas",
+          "Lumen"
+        ]);
+        expect(handles.projects.get("atlas")?.name).toBe("Atlas");
+        expect(handles.projects.index("active", true).map((project) => project.id)).toEqual(["atlas"]);
+        expect(handles.projects.firstByIndex("active", false)?.id).toBe("lumen");
+        expect(handles.activeNames.data()).toEqual(["Atlas"]);
+
+        yield* Projects.writeUpdateEffect("lumen", { active: true });
+
+        expect(handles.projects.index("active", true).map((project) => project.id)).toEqual(["atlas", "lumen"]);
+        expect(handles.activeNames.data()).toEqual(["Atlas", "Lumen"]);
+      }).pipe(
+        Effect.ensuring(Effect.sync(() => dispose?.()))
+      )
+    );
   });
 });

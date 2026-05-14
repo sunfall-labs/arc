@@ -207,6 +207,9 @@ Latest full gate on May 14, 2026:
   Promise-constructor/method grep reports no hits across packages, examples,
   scripts, and type tests.
 - The latest `pnpm verify` passed after the adapter test Promise helper cleanup.
+- Solid-DB, UiScope, and Resource Store tests now return `Effect.runPromise(...)`
+  programs instead of using async test wrappers for Effect sequencing.
+- The latest `pnpm verify` passed after the small async test wrapper cleanup.
 
 ## Notable Limits
 
