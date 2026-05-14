@@ -33,7 +33,7 @@ yet.
 - DB incremental live queries use a named `IOperator` bridge for the custom IVM
   flatMap operator instead of an inline bottom-type cast.
 - Core runtime integration with Effect `ManagedRuntime` keeps a documented
-  service-erasure cast boundary.
+  service-erasure boundary centralized behind `provideManagedServices(...)`.
 - Core Capability helpers now use overloads for pure vs Effect-returning
   `useEffect(...)` callbacks and rely on `Effect.provideService(...)` return
   typing directly.
@@ -89,10 +89,12 @@ Latest full gate on May 14, 2026:
 - DB incremental live-query custom operators now register through a named
   `IOperator` bridge over `@tanstack/db-ivm`'s class-typed `addOperator(...)`
   surface.
-- The latest `pnpm verify` passed after the Core Capability implementation cast
-  cleanup.
+- The latest `pnpm verify` passed after the Core runtime service-erasure cast
+  consolidation.
 - Capability implementation casts for `useEffect(...)` and `provide(...)` were
   removed without changing the public pure/Effect callback behavior.
+- Runtime run-method service-erasure casts were consolidated behind exact
+  ResourceStore provision typing and one named ManagedRuntime boundary.
 
 ## Notable Limits
 

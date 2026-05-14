@@ -30,16 +30,15 @@ and DB query-builder cleanup sweeps.
 - No package, example, script, or type-test source currently contains `as any`
   or `@ts-ignore`; negative tests use explicit `@ts-expect-error` or
   `unknown`-to-contract casts for runtime validation shapes.
-- Remaining package-source `as unknown as` casts are concentrated in two
-  intentional boundaries:
-  - `packages/core/src/runtime.ts`: `ManagedRuntime` run methods erase the
-    provided service environment after `ResourceStore` is injected. The casts
-    are the runtime spine boundary between the framework's active runtime and
-    Effect's managed runtime.
-  - `packages/db/src/index.ts`: `QueryBuilder` carries predicate, projector,
-    and ordering functions across context-widening joins. The casts are now
-    centralized behind `filtersFor`, `projectorFor`, and `ordersFor`; type
-    tests cover the joined row shape exposed to callers.
+- Remaining package-source `as unknown as` casts are concentrated in the DB
+  query builder boundary: `QueryBuilder` carries predicate, projector, and
+  ordering functions across context-widening joins. The casts are centralized
+  behind `filtersFor`, `projectorFor`, and `ordersFor`; type tests cover the
+  joined row shape exposed to callers.
+- `packages/core/src/runtime.ts` still has a named ManagedRuntime service
+  boundary, but ResourceStore injection now has an exact `Exclude<...>` type and
+  run-method service erasure is centralized behind `provideManagedServices(...)`
+  instead of repeated `as unknown as` casts.
 - The DB default projector cast remains because an unprojected query returns
   the current context shape, while `QueryBuilder` also supports selected result
   shapes through the same class.
@@ -56,8 +55,8 @@ and DB query-builder cleanup sweeps.
   capability implementation no longer needs bottom-type casts for callback
   inference or service provision.
 - Test-only `as unknown as` and `as never` casts have been removed; the broad
-  sharp-cast grep now reports only package-source type-id, runtime
-  service-erasure, and DB query context-variance seams.
+  sharp-cast grep now reports only package-source type-id and DB query
+  context-variance seams.
 
 ## Verification Evidence
 
@@ -191,6 +190,17 @@ and DB query-builder cleanup sweeps.
   with 1 extension test file / 6 tests, basic starter verify, project-console
   starter packaging, project-console typecheck, 4 project-console test files /
   23 tests, project-console build, and leak scan.
+- `pnpm --filter @effect-ui/core typecheck`, `pnpm typecheck:types`, and
+  `pnpm exec vitest run packages/core/test/runtime.test.ts packages/core/test/resource.test.ts packages/core/test/action.test.ts`
+  passed after replacing repeated runtime run-method service-erasure casts with
+  exact ResourceStore provision plus a named `provideManagedServices(...)`
+  boundary: 3 files, 48 tests.
+- `pnpm verify` passed after consolidating runtime service-erasure casts: 9
+  package builds, workspace typecheck, type tests, 38 root test files / 320
+  tests, devtools-panel verify, devtools-extension verify with 1 extension test
+  file / 6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.
 
 ## Follow-Up
 

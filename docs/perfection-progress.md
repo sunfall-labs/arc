@@ -42,10 +42,10 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest full verification gate is green after the Core Capability
-  implementation cast cleanup: 38 root test files / 320 tests plus devtools
-  panel, devtools extension, starter, rich starter packaging, project-console
-  build, and leak-scan gates.
+- The latest full verification gate is green after the Core runtime
+  service-erasure cast consolidation: 38 root test files / 320 tests plus
+  devtools panel, devtools extension, starter, rich starter packaging,
+  project-console build, and leak-scan gates.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
   example, script, and type-test sources while keeping negative runtime
   validation tests explicit.
@@ -76,6 +76,9 @@ or command result that proves it.
 - `Capability.define(...)` now uses overloads for pure vs Effect-returning
   `useEffect(...)` callbacks and direct `Effect.provideService(...)` typing, so
   its implementation no longer needs bottom-type casts.
+- Core runtime ResourceStore injection now has exact service-exclusion typing,
+  and ManagedRuntime service erasure is centralized in a named
+  `provideManagedServices(...)` boundary instead of repeated run-method casts.
 - `@effect-ui/devtools` now exposes scoped app-side bridge helpers so apps can
   install and clean up that global payload provider through Effect.
 - Workspace package manifests now carry `UNLICENSED` metadata while they remain
@@ -209,6 +212,8 @@ or command result that proves it.
 | 118 | Full verification after DB IVM operator bridge cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after replacing the inline custom IVM operator cast with the named `IOperator` bridge: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 | 119 | Core Capability implementation cast cleanup | `packages/core/src/capability.ts`; `docs/sharp-cast-audit.md`; `docs/perfection-progress.md` | Replaced the `Capability.define(...)` `useEffect(...)` and `provide(...)` bottom-type implementation casts with explicit pure/Effect overloads plus direct `Effect.provideService(...)` typing. Core package typecheck, public type tests, and focused Capability tests passed: 1 file / 4 tests. | Run full verification before committing this core cast cleanup. |
 | 120 | Full verification after Core Capability cast cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after replacing the `Capability.define(...)` implementation casts: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
+| 121 | Core runtime service-erasure cast consolidation | `packages/core/src/runtime.ts`; `docs/sharp-cast-audit.md`; `docs/perfection-progress.md` | Replaced repeated runtime run-method `as unknown as` service-erasure casts with exact ResourceStore provision typing and a named `provideManagedServices(...)` boundary for ManagedRuntime service satisfaction. Core package typecheck, public type tests, and focused runtime/resource/action tests passed: 3 files / 48 tests. | Run full verification before committing this runtime cast cleanup. |
+| 122 | Full verification after Core runtime cast consolidation | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after consolidating runtime service-erasure casts: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 
 ## Thirty-Sweep Gate
 
