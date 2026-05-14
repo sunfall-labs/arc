@@ -1,14 +1,22 @@
-import { runWithRuntime } from "@effect-ui/core";
-import { Query, type LiveQuery, type LiveQueryState, type QueryFactory } from "@effect-ui/db";
+import { runWithRuntime, type EffectUiRuntime } from "@effect-ui/core";
+import { Query, type LiveQuery, type LiveQueryState, type QueryEvaluationError, type QueryFactory } from "@effect-ui/db";
 import { useRuntime } from "@effect-ui/solid";
 import { Effect } from "effect";
 import { createMemo, createSignal, onCleanup, type Accessor } from "solid-js";
 import { liveQueryStateError, subscribeCollection } from "./shared.js";
 
+const bindRuntimeEffect = <A, E, R>(
+  runtime: EffectUiRuntime<unknown, never>,
+  effect: Effect.Effect<A, E, R>
+): Effect.Effect<A, E> =>
+  Effect.scoped(runtime.provide(effect));
+
 /** Options for Solid live-query hooks. */
-export interface UseLiveQueryOptions {
+export interface UseLiveQueryOptions<E = never> {
   /** Preload all query sources on mount. Defaults to true. */
   readonly preload?: boolean;
+  /** Observe failures from the automatic mount-time source preload. */
+  readonly onPreloadFailure?: (error: E) => void;
 }
 
 /**
@@ -19,14 +27,15 @@ export interface UseLiveQueryOptions {
  */
 export interface LiveQueryHandle<T, E = never, R = never> {
   readonly data: Accessor<ReadonlyArray<T>>;
-  readonly state: Accessor<LiveQueryState<T, E>>;
+  readonly state: Accessor<LiveQueryState<T, E | QueryEvaluationError>>;
   readonly waiting: Accessor<boolean>;
-  readonly error: Accessor<E | undefined>;
+  readonly error: Accessor<E | QueryEvaluationError | undefined>;
+  readonly preloadFailure: Accessor<E | undefined>;
   preloadEffect(): Effect.Effect<void, E, R>;
   refetchEffect(): Effect.Effect<void, E, R>;
 }
 
-type LiveQueryInput<T, E, R> = QueryFactory<T> | LiveQuery<T, E, R>;
+type LiveQueryInput<T, E, R> = QueryFactory<T, E, R> | LiveQuery<T, E, R>;
 
 /**
  * Subscribes a Solid component to a live query.
@@ -45,10 +54,11 @@ type LiveQueryInput<T, E, R> = QueryFactory<T> | LiveQuery<T, E, R>;
  */
 export const useLiveQuery = <T, E = never, R = never>(
   input: LiveQueryInput<T, E, R>,
-  options: UseLiveQueryOptions = {}
+  options: UseLiveQueryOptions<E> = {}
 ): LiveQueryHandle<T, E, R> => {
   const runtime = useRuntime();
   const [tick, setTick] = createSignal(0);
+  const [preloadFailure, setPreloadFailure] = createSignal<E | undefined>(undefined);
   const live = runWithRuntime(runtime, () =>
     typeof input === "function"
       ? Query.live<T, E, R>(input)
@@ -62,7 +72,13 @@ export const useLiveQuery = <T, E = never, R = never>(
   if (options.preload !== false) {
     void runtime.runFork(
       live.preloadEffect().pipe(
-        Effect.catch(() => Effect.void)
+        Effect.tap(() => Effect.sync(() => setPreloadFailure(undefined))),
+        Effect.catch((error) =>
+          Effect.sync(() => {
+            setPreloadFailure(() => error);
+            options.onPreloadFailure?.(error);
+          })
+        )
       )
     );
   }
@@ -75,33 +91,12 @@ export const useLiveQuery = <T, E = never, R = never>(
 
   const data = () => {
     tick();
-    return runWithRuntime(runtime, () => live.evaluate());
+    return runWithRuntime(runtime, () => live.data.get());
   };
 
-  const state = (): LiveQueryState<T, E> => {
+  const state = (): LiveQueryState<T, E | QueryEvaluationError> => {
     tick();
-    const currentData = data();
-
-    for (const source of live.sources) {
-      const sourceState = runWithRuntime(runtime, () => source.state().get());
-      if (sourceState._tag === "Failure") {
-        return {
-          _tag: "Failure",
-          waiting: false,
-          error: sourceState.error as E,
-          data: currentData
-        };
-      }
-    }
-
-    const waiting = live.sources.some((source) => {
-      const sourceState = runWithRuntime(runtime, () => source.state().get());
-      return sourceState._tag === "Initial" || sourceState._tag === "Pending";
-    });
-
-    return waiting
-      ? { _tag: "Pending", waiting: true, data: currentData }
-      : { _tag: "Success", waiting: false, data: currentData };
+    return runWithRuntime(runtime, () => live.state.get());
   };
 
   return {
@@ -109,7 +104,8 @@ export const useLiveQuery = <T, E = never, R = never>(
     state,
     waiting: createMemo(() => state().waiting),
     error: createMemo(() => liveQueryStateError(state())),
-    preloadEffect: () => live.preloadEffect(),
-    refetchEffect: () => live.refetchEffect()
+    preloadFailure,
+    preloadEffect: () => bindRuntimeEffect(runtime, live.preloadEffect()),
+    refetchEffect: () => bindRuntimeEffect(runtime, live.refetchEffect())
   };
 };

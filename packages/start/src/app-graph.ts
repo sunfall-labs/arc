@@ -1,4 +1,5 @@
 import { Data, Effect } from "effect";
+import { Collection } from "@effect-ui/db";
 import type { ActionManifest, ActionManifestError, ActionManifestParseError } from "./action-manifest.js";
 import { deserializeActionManifest, serializeActionManifest } from "./action-manifest.js";
 import type { FileRouteManifest, FileRouteManifestError, FileRouteManifestParseError } from "./file-routes.js";
@@ -123,6 +124,10 @@ export type StartAppGraphResourceTagDiagnostics =
 
 export type StartAppGraphCollectionDiagnostics =
   import("@effect-ui/db").Collection.DefinitionDiagnostics;
+
+/** Reads collection definition diagnostics through Start's DB dependency. */
+export const startAppGraphCollectionDefinitions = (): readonly StartAppGraphCollectionDiagnostics[] =>
+  Collection.diagnostics().collections;
 
 export interface StartAppGraphMissingSchema {
   readonly kind: "serverFunction" | "action";

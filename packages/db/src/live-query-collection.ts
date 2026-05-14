@@ -17,6 +17,7 @@ import {
   recordCollectionPreload
 } from "./collection-runtime.js";
 import { Query, type LiveQuery, type QueryFactory } from "./query-builder.js";
+import type { QueryEvaluationError } from "./query-plan.js";
 import type {
   AnyCollection,
   CollectionDefinition,
@@ -40,7 +41,7 @@ export interface CollectionLiveQueryOptions<A extends object, K extends Collecti
   readonly name: string;
   readonly getKey: (value: A) => K;
   readonly indexes?: CollectionIndexRecord<A>;
-  readonly query: LiveQuery<A, E, R> | QueryFactory<A>;
+  readonly query: LiveQuery<A, E, R> | QueryFactory<A, E, R>;
 }
 
 export type LiveQueryCollectionRegister = (
@@ -64,7 +65,7 @@ const collectionHashVersion = (values: unknown): number => {
 };
 
 const liveQueryFromInput = <A extends object, E, R>(
-  query: LiveQuery<A, E, R> | QueryFactory<A>
+  query: LiveQuery<A, E, R> | QueryFactory<A, E, R>
 ): LiveQuery<A, E, R> =>
   typeof query === "function"
     ? Query.live<A, E, R>(query)
@@ -81,7 +82,7 @@ export const makeLiveQueryCollectionDefinition = <
 >(
   options: CollectionLiveQueryOptions<A, K, E, R>,
   register: LiveQueryCollectionRegister
-): CollectionDefinition<A, K, E | ReadonlyCollectionMutation, R> => {
+): CollectionDefinition<A, K, E | QueryEvaluationError | ReadonlyCollectionMutation, R> => {
   const live = liveQueryFromInput(options.query);
   const materialized = (): ReadonlyArray<A> => live.data.get();
   const row = (value: A): CollectionRow<A, K> =>
@@ -94,19 +95,19 @@ export const makeLiveQueryCollectionDefinition = <
   const readonlyFail = <Out>(operation: string): Effect.Effect<Out, ReadonlyCollectionMutation> =>
     Effect.fail(readonlyCollectionMutation(options.name, operation));
 
-  let definition: CollectionDefinition<A, K, E | ReadonlyCollectionMutation, R>;
+  let definition: CollectionDefinition<A, K, E | QueryEvaluationError | ReadonlyCollectionMutation, R>;
   definition = {
     [CollectionTypeId]: CollectionTypeId,
     options: {
       name: options.name,
       getKey: options.getKey,
       ...(options.indexes === undefined ? {} : { indexes: options.indexes }),
-      load: () => live.preloadEffect().pipe(Effect.as(live.evaluate()))
+      load: () => live.preloadEffect().pipe(Effect.map(() => live.evaluate()))
     },
     name: options.name,
     getKey: options.getKey,
     state: () =>
-      Signal.derive<CollectionLoadState<E | ReadonlyCollectionMutation>>(() => {
+      Signal.derive<CollectionLoadState<E | QueryEvaluationError | ReadonlyCollectionMutation>>(() => {
         const state = live.state.get();
         switch (state._tag) {
           case "Pending":

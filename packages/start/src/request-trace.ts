@@ -65,7 +65,6 @@ export interface StartRequestTraceResource {
 export interface StartRequestTraceCollection {
   readonly name: string;
   readonly state?: string;
-  readonly eventCount?: number;
 }
 
 export interface StartRequestTraceServerFunction {
@@ -166,7 +165,18 @@ export interface StartCollectionPreloadTraceInput {
 }
 
 /** Best-effort request diagnostics hook. Failures from the hook are ignored. */
-export type StartRequestTraceHandler = (trace: StartRequestTrace) => EffectInput<void, unknown, never>;
+export type StartRequestTraceHandler = (trace: StartRequestTrace) => EffectInput<void, never, never>;
+
+/** Invokes Start best-effort EffectInput callbacks without leaking callback defects. */
+export const invokeStartEffectInputCallbackEffect = <Input>(
+  callback: ((input: Input) => EffectInput<void, never, never>) | undefined,
+  input: Input
+): Effect.Effect<void> =>
+  callback === undefined
+    ? Effect.void
+    : Effect.suspend(() => toEffect(callback(input))).pipe(
+        Effect.catchCause(() => Effect.void)
+      );
 
 export const startRequestCountMetric = Metric.counter("effect_ui_start_requests_total", {
   description: "Total Start requests handled by transport, method, and path.",
@@ -418,8 +428,8 @@ const uniqueCollections = (
   return out;
 };
 
-const collectionTraceState = (
-  runtime: EffectUiRuntime<unknown, unknown>,
+const collectionTraceState = <RuntimeError>(
+  runtime: EffectUiRuntime<unknown, RuntimeError>,
   collection: AnyCollection
 ): string | undefined => {
   try {
@@ -429,8 +439,8 @@ const collectionTraceState = (
   }
 };
 
-export const traceCollectionPreload = (
-  runtime: EffectUiRuntime<unknown, unknown>,
+export const traceCollectionPreload = <RuntimeError>(
+  runtime: EffectUiRuntime<unknown, RuntimeError>,
   collectionPreload: StartCollectionPreloadTraceInput
 ): ReadonlyArray<StartRequestTraceCollection> =>
   uniqueCollections([
@@ -470,11 +480,7 @@ export const emitStartRequestTraceEffect = (
   handler: StartRequestTraceHandler | undefined,
   trace: StartRequestTrace
 ): Effect.Effect<void> =>
-  handler === undefined
-    ? Effect.void
-    : toEffect(handler(trace)).pipe(
-        Effect.catchCause(() => Effect.void)
-      );
+  invokeStartEffectInputCallbackEffect(handler, trace);
 
 export const buildStartRequestTrace = (
   request: Request,
@@ -517,8 +523,8 @@ export const buildStartRequestTrace = (
   };
 };
 
-export const requestRuntimeTeardownSnapshot = (
-  runtime: EffectUiRuntime<unknown, unknown>
+export const requestRuntimeTeardownSnapshot = <RuntimeError>(
+  runtime: EffectUiRuntime<unknown, RuntimeError>
 ): StartRequestTraceTeardownSnapshot => ({
   fiberCount: runtime.resourceStore.fibers.size,
   familyCount: runtime.resourceStore.families.size,
@@ -526,8 +532,8 @@ export const requestRuntimeTeardownSnapshot = (
   tagCount: runtime.resourceStore.tagIndex.size
 });
 
-export const requestRuntimeDisposeTraceEffect = (
-  runtime: EffectUiRuntime<unknown, unknown>
+export const requestRuntimeDisposeTraceEffect = <RuntimeError>(
+  runtime: EffectUiRuntime<unknown, RuntimeError>
 ): Effect.Effect<{
   readonly beforeDispose: StartRequestTraceTeardownSnapshot;
   readonly afterDispose: StartRequestTraceTeardownSnapshot;

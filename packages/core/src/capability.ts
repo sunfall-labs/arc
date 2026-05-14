@@ -1,6 +1,6 @@
 import { Context, Effect, Layer } from "effect";
 import type { EffectInput } from "./effect-like.js";
-import { toEffect } from "./effect-like.js";
+import { EffectInputCallbackError, invokeEffectInput } from "./effect-like.js";
 
 export const CapabilityTypeId: unique symbol = Symbol.for("@effect-ui/core/Capability") as typeof CapabilityTypeId;
 
@@ -24,10 +24,10 @@ export interface Capability<Identifier, Shape> {
   readonly useEffect: {
     <A, E, R>(
       f: (service: Shape) => Effect.Effect<A, E, R>
-    ): Effect.Effect<A, E, R | Identifier>;
+    ): Effect.Effect<A, E | EffectInputCallbackError, R | Identifier>;
     <A>(
       f: (service: Shape) => A extends PromiseLike<unknown> ? never : A
-    ): Effect.Effect<A, never, Identifier>;
+    ): Effect.Effect<A, EffectInputCallbackError, Identifier>;
   };
   readonly useSync: <A>(f: (service: Shape) => A) => Effect.Effect<A, never, Identifier>;
   readonly provide: <A, E, R>(
@@ -66,14 +66,20 @@ export namespace Capability {
 
     function useEffect<A, E, R>(
       f: (service: Shape) => Effect.Effect<A, E, R>
-    ): Effect.Effect<A, E, R | Shape>;
+    ): Effect.Effect<A, E | EffectInputCallbackError, R | Shape>;
     function useEffect<A>(
       f: (service: Shape) => A extends PromiseLike<unknown> ? never : A
-    ): Effect.Effect<A, never, Shape>;
+    ): Effect.Effect<A, EffectInputCallbackError, Shape>;
     function useEffect<A, E, R>(
       f: (service: Shape) => Effect.Effect<A, E, R> | A
-    ): Effect.Effect<A, E, R | Shape> {
-      return tag.use((service) => toEffect(f(service) as EffectInput<A, E, R>));
+    ): Effect.Effect<A, E | EffectInputCallbackError, R | Shape> {
+      return tag.use((service) =>
+        invokeEffectInput(
+          `Capability.useEffect(${key})`,
+          f as (service: Shape) => EffectInput<A, E, R>,
+          service
+        )
+      );
     }
 
     return {

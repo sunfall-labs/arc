@@ -39,9 +39,9 @@ interruption.
 - `packages/start/src/hydration.ts`
   - Hydration sync helpers now run schema/collection hydration Effects directly
     through the selected runtime without local requirement erasure.
-  - Public hydration runtime options are typed as opaque
-    `EffectUiRuntime<unknown, unknown>` values because hydration does not depend
-    on caller-specific runtime service or error details.
+  - Public hydration runtime options are generic over the runtime error channel
+    with a `never` default, so hydration can stay service-opaque without
+    publishing `unknown` as an error type.
 - `packages/core/src/runtime.ts`
   - Replaced Promise `.then(...)` disposal sequencing with a single
     `disposeEffect` program owned by the runtime boundary.
@@ -126,12 +126,12 @@ interruption.
   - Core Action now delegates `Fiber.join`, workflow fibers, and reset
     interruption to the runtime boundary without per-call `Effect.Effect`
     assertions.
-  - Start action client options now accept an opaque
-    `EffectUiRuntime<unknown, unknown>` because the client boundary only needs
-    to run/provide hydration and invalidation Effects.
+  - Start action client options now accept runtime boundaries generic over the
+    runtime error channel with `never` as the default, because the client seam
+    only needs to run/provide hydration and invalidation Effects.
   - Start collection trace, request-runtime teardown, response finalizer, and
-    response completion helpers now accept opaque runtimes because they only
-    inspect resource-store state or execute already-built cleanup Effects.
+    response completion helpers now accept generic runtime error channels where
+    needed and `never` where the seam deliberately erases host failure.
 - `packages/core/src/scope.ts` and `packages/core/src/signal.ts`
   - Scope finalizers, scoped forks, and `Signal.watch(...)` use Effect's own
     Scope and `EffectInput` typing directly, without local Effect assertions.
@@ -857,6 +857,9 @@ interruption.
   normalize failures to `StartRequestHandlerError`, fetch hooks default to
   `never` and map caller failures to `ServerTransportError`, and Vite
   diagnostics loading returns `StartAppGraphDiagnosticsLoadError`.
+- Adjacent helper aliases now follow the same rule: Start request trace hooks,
+  Action runtime options, Solid router preload, and Collection change-feed
+  `emit(...)` no longer expose `unknown` as their Effect failure type.
 - LSP-facing JSDoc now explains the Effect-first registry, action submission,
   snapshot codec, Start action, manifest, app graph, and hydration concepts
   added in the latest cleanup pass.
@@ -875,15 +878,29 @@ interruption.
   the sync host boundary.
 - Start file-route discovery now exposes `discoverFileRoutesEffect(...)` and
   keeps the sync discovery helper as a Vite/host facade.
-- Solid `useResourceSuspense(...)` delegates pending reads to Core
-  `Resource.read(...)`, leaving the Suspense Promise seam in Core.
+- Core `Resource.read(...)` no longer throws Suspense Promises. Missing or
+  expired reads throw typed `ResourcePending`; Solid `useResourceSuspense(...)`
+  owns the UI Suspense Promise by running `Resource.prefetchEffect(...)` through
+  the active Solid runtime.
+- Node server error hooks now accept pure values or Effects through
+  `EffectInput`; Promise-shaped error hooks are rejected in public type tests.
+- DB collection output schema failures now normalize to
+  `CollectionSnapshotCodecError` during load, hydrate, direct writes, change
+  feeds, and Solid DB preload handles instead of exposing raw schema errors.
+- Start document hydration now reports malformed streamed chunks and root
+  payload scripts as typed hydration errors in the Effect path instead of
+  leaking parse throws as defects.
+- Devtools request summaries and panels now preserve teardown snapshots and
+  per-server-function/action failure owners, so inspection stays on structured
+  Effect facts rather than raw event spelunking.
 - Full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,
   LSP-facing JSDoc refresh, EffectInput Promise inference/runtime guards, Start
   diagnostics/file-route/Solid suspense host-seam cleanup, Start host-boundary
-  typed errors, and docs reconciliation work: 9 package builds, workspace
-  typecheck, type tests, 43 root test files / 365 tests, devtools-panel verify,
+  typed errors, helper-alias default error cleanup, Devtools request panel
+  serialization, and docs reconciliation work: 9 package builds, workspace
+  typecheck, type tests, 43 root test files / 366 tests, devtools-panel verify,
   devtools-extension verify, basic starter verify, project-console starter
   packaging/typecheck/tests/build, and leak scan.
 - Full `pnpm verify` passed after the shared Action Submission Controller,

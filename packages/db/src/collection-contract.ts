@@ -35,6 +35,16 @@ export type CollectionLoadState<E = never> =
   | { readonly _tag: "Ready"; readonly waiting: false; readonly updatedAt: number }
   | { readonly _tag: "Failure"; readonly waiting: false; readonly error: E };
 
+/**
+ * Failure channel for collection runtime reads and loads.
+ *
+ * `E` comes from the collection loader or mutation handlers. Snapshot codec
+ * errors cover malformed persisted/hydrated rows and output-schema failures
+ * normalized by the Collection runtime.
+ */
+export type CollectionRuntimeError<E = never> =
+  E | CollectionSnapshotCodecError;
+
 /** A single optimistic mutation captured inside a transaction. */
 export type CollectionMutation<A extends object, K extends CollectionKey> =
   | { readonly _tag: "Insert"; readonly key: K; readonly value: A; readonly previous?: A }
@@ -154,7 +164,7 @@ export interface CollectionDefinition<A extends object, K extends CollectionKey 
   readonly name: string;
   getKey(value: A): K;
   /** Reactive load state signal for the collection. */
-  state(): ReadableSignal<CollectionLoadState<E>>;
+  state(): ReadableSignal<CollectionLoadState<CollectionRuntimeError<E>>>;
   /** Reactive version signal that changes when rows or pending mutations change. */
   version(): ReadableSignal<number>;
   /** Read one row by key from the current in-memory state. */
@@ -166,9 +176,9 @@ export interface CollectionDefinition<A extends object, K extends CollectionKey 
   /** Read the first row from a named secondary index bucket. */
   firstByIndex(index: string, value: CollectionIndexValue): CollectionRow<A, K> | undefined;
   /** Ensure the collection has loaded once. */
-  preloadEffect(): Effect.Effect<void, E | CollectionSnapshotCodecError, R>;
+  preloadEffect(): Effect.Effect<void, CollectionRuntimeError<E>, R>;
   /** Force a fresh load even when the collection is already ready. */
-  refetchEffect(): Effect.Effect<void, E | CollectionSnapshotCodecError, R>;
+  refetchEffect(): Effect.Effect<void, CollectionRuntimeError<E>, R>;
   /** Return queued optimistic mutations waiting for their handlers to commit. */
   pendingMutationsEffect(): Effect.Effect<ReadonlyArray<CollectionPendingMutation<A, K>>>;
   /** Synchronously read queued optimistic mutations from the current runtime store. */
@@ -194,17 +204,17 @@ export interface CollectionDefinition<A extends object, K extends CollectionKey 
     options?: CollectionPersistOptions & CollectionHydrateOptions
   ): Effect.Effect<void, PE | CollectionSnapshotCodecError, PR>;
   /** Optimistically insert rows and run the insert handler. */
-  insertEffect(input: A | ReadonlyArray<A>): Effect.Effect<CollectionTransaction<A, K>, E | CollectionSnapshotCodecError, R>;
+  insertEffect(input: A | ReadonlyArray<A>): Effect.Effect<CollectionTransaction<A, K>, CollectionRuntimeError<E>, R>;
   /** Optimistically update one row and run the update handler. */
-  updateEffect(key: K, update: CollectionUpdate<A>): Effect.Effect<CollectionTransaction<A, K>, E | CollectionRowNotFound | CollectionSnapshotCodecError, R>;
+  updateEffect(key: K, update: CollectionUpdate<A>): Effect.Effect<CollectionTransaction<A, K>, CollectionRuntimeError<E> | CollectionRowNotFound, R>;
   /** Optimistically delete one row and run the delete handler. */
   deleteEffect(key: K): Effect.Effect<CollectionTransaction<A, K>, E | CollectionRowNotFound | CollectionSnapshotCodecError, R>;
   /** Write rows directly without queuing mutation handlers. */
-  writeInsertEffect(input: A | ReadonlyArray<A>, options?: CollectionWriteOptions): Effect.Effect<void, E | CollectionSnapshotCodecError, R>;
+  writeInsertEffect(input: A | ReadonlyArray<A>, options?: CollectionWriteOptions): Effect.Effect<void, CollectionRuntimeError<E>, R>;
   /** Fork `writeInsertEffect` on the current runtime. */
   writeInsert(input: A | ReadonlyArray<A>, options?: CollectionWriteOptions): void;
   /** Write a partial patch directly without queuing mutation handlers. */
-  writeUpdateEffect(key: K, changes: Partial<A>, options?: CollectionWriteOptions): Effect.Effect<void, E | CollectionRowNotFound | CollectionSnapshotCodecError, R>;
+  writeUpdateEffect(key: K, changes: Partial<A>, options?: CollectionWriteOptions): Effect.Effect<void, CollectionRuntimeError<E> | CollectionRowNotFound, R>;
   /** Fork `writeUpdateEffect` on the current runtime. */
   writeUpdate(key: K, changes: Partial<A>, options?: CollectionWriteOptions): void;
   /** Delete a row directly without queuing mutation handlers. */

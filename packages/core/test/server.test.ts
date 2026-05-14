@@ -1,6 +1,6 @@
 import { Effect, Exit, Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import { Server, ServerClient, ServerFunctionNotFound } from "../src/index.js";
+import { EffectInputCallbackError, Server, ServerClient, ServerFunctionNotFound } from "../src/index.js";
 
 describe("Server contracts", () => {
   const User = Schema.Struct({
@@ -47,6 +47,52 @@ describe("Server contracts", () => {
         Effect.asVoid
       )
     ));
+
+  it("captures synchronous mock throws in the Effect error channel", () =>
+    Effect.runPromise(
+      Effect.exit(
+        Server.provideMocks(
+          getUser.effect({ id: "broken" }),
+          Server.mock(GetUser, () => {
+            throw new Error("mock failed");
+          })
+        )
+      ).pipe(
+        Effect.tap((exit) =>
+          Effect.sync(() => {
+            expect(Exit.isFailure(exit)).toBe(true);
+            if (Exit.isFailure(exit)) {
+              const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
+              expect(failure?.error).toBeInstanceOf(EffectInputCallbackError);
+            }
+          })
+        ),
+        Effect.asVoid
+      )
+    ));
+
+  it("captures synchronous local handler throws in the Effect error channel", () => {
+    const Broken = Server.fn<void, string>("Test.Broken.local", {
+      handler: () => {
+        throw new Error("handler failed");
+      }
+    });
+
+    return Effect.runPromise(
+      Effect.exit(Broken.effect(undefined)).pipe(
+        Effect.tap((exit) =>
+          Effect.sync(() => {
+            expect(Exit.isFailure(exit)).toBe(true);
+            if (Exit.isFailure(exit)) {
+              const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
+              expect(failure?.error).toBeInstanceOf(EffectInputCallbackError);
+            }
+          })
+        ),
+        Effect.asVoid
+      )
+    );
+  });
 
   it("fails fast when a server function has no mock", () =>
     Effect.runPromise(

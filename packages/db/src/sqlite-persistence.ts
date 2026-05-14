@@ -80,7 +80,7 @@ export interface SQLitePreparedStatement<
   E = never,
   R = never
 > {
-  readonly run: (...params: Array<SQLiteStatementValue>) => EffectInput<unknown, E, R>;
+  readonly run: (...params: Array<SQLiteStatementValue>) => EffectInput<void, E, R>;
   readonly all: (...params: Array<SQLiteStatementValue>) => EffectInput<ReadonlyArray<Row>, E, R>;
 }
 

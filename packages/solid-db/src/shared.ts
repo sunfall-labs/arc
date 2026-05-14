@@ -2,7 +2,7 @@ import { runWithRuntime, type EffectUiRuntime } from "@effect-ui/core";
 import type { AnyCollection, CollectionLoadState, LiveQueryState } from "@effect-ui/db";
 
 export const subscribeCollection = (
-  runtime: EffectUiRuntime<unknown, unknown>,
+  runtime: EffectUiRuntime<unknown, never>,
   collection: AnyCollection,
   notify: () => void
 ): (() => void) => {

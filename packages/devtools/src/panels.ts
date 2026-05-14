@@ -81,6 +81,25 @@ const requestTraceSeverity = (
   return "ok";
 };
 
+const requestTraceFailureOwners = (
+  trace: DevtoolsSummaryRequestTrace
+): ReadonlyArray<string> => [
+  ...trace.serverFunctions.flatMap((entry) =>
+    entry.failureKind === null ? [] : [`server:${entry.name}:${entry.failureKind}`]
+  ),
+  ...trace.actions.flatMap((entry) =>
+    entry.failureKind === null ? [] : [`action:${entry.name}:${entry.failureKind}`]
+  )
+];
+
+const requestTraceDetail = (trace: DevtoolsSummaryRequestTrace): string => {
+  const status = `${trace.transport} ${trace.status}${trace.failureKind === null ? "" : ` (${trace.failureKind})`}`;
+  const failureOwners = requestTraceFailureOwners(trace);
+  return failureOwners.length === 0
+    ? status
+    : `${status} ${failureOwners.join(", ")}`;
+};
+
 const diagnosticsSeverity = (summary: DevtoolsSummary): DevtoolsPanelSeverity => {
   if (summary.overview.missingSchemaCount > 0) {
     return "error";
@@ -258,23 +277,39 @@ export const describeDevtoolsPanelsWithRuntime = (
           panelItem({
             id: devtoolsRequestPanelItemId(trace),
             label: `${trace.method} ${trace.path}`,
-            detail: `${trace.transport} ${trace.status}${trace.failureKind === null ? "" : ` (${trace.failureKind})`}`,
+            detail: requestTraceDetail(trace),
             severity: requestTraceSeverity(trace),
             metrics: [
               panelMetric("resources", trace.resourceCount),
               panelMetric("collections", trace.collectionCount),
+              panelMetric("server failures", trace.serverFunctions.filter((entry) => entry.failureKind !== null).length),
+              panelMetric("action failures", trace.actions.filter((entry) => entry.failureKind !== null).length),
               panelMetric("actions", trace.actionCount),
               panelMetric("duration", trace.durationMillis ?? "unknown", trace.durationMillis === null ? undefined : "ms"),
               panelMetric("before fibers", trace.beforeDisposeFiberCount ?? "unknown"),
-              panelMetric("after fibers", trace.afterDisposeFiberCount ?? "unknown")
+              panelMetric("after fibers", trace.afterDisposeFiberCount ?? "unknown"),
+              panelMetric("before families", trace.beforeDispose?.familyCount ?? "unknown"),
+              panelMetric("after families", trace.afterDispose?.familyCount ?? "unknown"),
+              panelMetric("before modules", trace.beforeDispose?.moduleCount ?? "unknown"),
+              panelMetric("after modules", trace.afterDispose?.moduleCount ?? "unknown"),
+              panelMetric("before tags", trace.beforeDispose?.tagCount ?? "unknown"),
+              panelMetric("after tags", trace.afterDispose?.tagCount ?? "unknown")
             ],
-            data: {
+            data: runtime.toSerializableValue({
               id: trace.id,
               failureKind: trace.failureKind,
               routeHref: trace.routeHref,
               teardownReason: trace.teardownReason,
-              runtimeDisposed: trace.runtimeDisposed
-            }
+              runtimeDisposed: trace.runtimeDisposed,
+              teardownAt: trace.teardownAt,
+              teardownStartedAt: trace.teardownStartedAt,
+              teardownCompletedAt: trace.teardownCompletedAt,
+              durationMillis: trace.durationMillis,
+              beforeDispose: trace.beforeDispose,
+              afterDispose: trace.afterDispose,
+              serverFunctions: trace.serverFunctions,
+              actions: trace.actions
+            })
           })
         )
       },

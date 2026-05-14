@@ -7,7 +7,7 @@ import {
   UiScope,
   type EffectUiRuntime
 } from "@effect-ui/core";
-import { Data, Effect, Exit, Fiber } from "effect";
+import { Cause, Data, Effect, Exit, Fiber } from "effect";
 import {
   createContext,
   createEffect,
@@ -15,7 +15,6 @@ import {
   createRoot,
   createSignal,
   onCleanup,
-  Show,
   untrack,
   useContext,
   type Accessor,
@@ -27,13 +26,26 @@ import { RuntimeContext, useRuntime } from "./runtime.js";
 
 type AnyRoute = Route.Definition<string, unknown, unknown>;
 
-/** Reactive browser router state emitted while matching and preloading routes. */
+/**
+ * Reactive browser router state emitted while matching and preloading routes.
+ *
+ * `Failure` preserves the typed preload `Cause` from `Route.preloadEffect(...)`
+ * plus the first typed failure value when one is present. Defects stay in the
+ * Cause for error boundaries instead of being widened to an `unknown` value.
+ */
 export type BrowserRouterState<
-  Routes extends readonly AnyRoute[] = readonly AnyRoute[]
+  Routes extends readonly AnyRoute[] = readonly AnyRoute[],
+  ER = never
 > =
   | { readonly _tag: "Pending"; readonly href: string; readonly match: Route.Match<Routes[number]> }
   | { readonly _tag: "Ready"; readonly href: string; readonly match: Route.Match<Routes[number]> }
-  | { readonly _tag: "Failure"; readonly href: string; readonly match: Route.Match<Routes[number]>; readonly error: unknown }
+  | {
+      readonly _tag: "Failure";
+      readonly href: string;
+      readonly match: Route.Match<Routes[number]>;
+      readonly cause: Cause.Cause<Route.PreloadError | ER>;
+      readonly error?: Route.PreloadError | ER;
+    }
   | { readonly _tag: "NotFound"; readonly href: string };
 
 /** Options for router navigation history behavior. */
@@ -42,15 +54,15 @@ export interface BrowserNavigateOptions {
 }
 
 /** Options for creating a Solid browser router. */
-export interface BrowserRouterOptions {
+export interface BrowserRouterOptions<ER = never> {
   readonly initialHref?: string;
-  readonly runtime?: EffectUiRuntime<unknown, unknown>;
+  readonly runtime?: EffectUiRuntime<unknown, ER>;
 }
 
 /** Solid browser router backed by Effect UI route definitions and preload. */
-export interface BrowserRouter<Routes extends readonly AnyRoute[] = readonly AnyRoute[]> {
+export interface BrowserRouter<Routes extends readonly AnyRoute[] = readonly AnyRoute[], ER = never> {
   readonly routes: Routes;
-  readonly state: Accessor<BrowserRouterState<Routes>>;
+  readonly state: Accessor<BrowserRouterState<Routes, ER>>;
   readonly match: Accessor<Route.Match<Routes[number]> | undefined>;
   href<R extends Routes[number]>(definition: R, options: Route.HrefOptions<R>): string;
   navigate<R extends Routes[number]>(
@@ -59,21 +71,26 @@ export interface BrowserRouter<Routes extends readonly AnyRoute[] = readonly Any
     navigateOptions?: BrowserNavigateOptions
   ): void;
   navigateHref(href: string, options?: BrowserNavigateOptions): void;
-  preloadEffect<R extends Routes[number]>(definition: R, options: Route.HrefOptions<R>): Effect.Effect<void, unknown>;
+  preloadEffect<R extends Routes[number]>(definition: R, options: Route.HrefOptions<R>): Effect.Effect<void, Route.PreloadError>;
 }
 
 /** Props for `RouterProvider`, including route definitions and render fallbacks. */
-export interface RouterProviderProps<Routes extends readonly AnyRoute[]> extends RouterOutletProps {
+export interface RouterProviderProps<Routes extends readonly AnyRoute[], ER = never> extends RouterOutletProps<ER> {
   readonly routes: Routes;
   readonly initialHref?: string;
-  readonly runtime?: EffectUiRuntime<unknown, unknown>;
+  readonly runtime?: EffectUiRuntime<unknown, ER>;
   readonly children?: JSX.Element;
 }
 
-/** Render fallbacks for route pending, failure, and not-found states. */
-export interface RouterOutletProps {
+/**
+ * Render fallbacks for route pending, failure, and not-found states.
+ *
+ * The `failure` renderer receives the same typed `BrowserRouterState.Failure`
+ * shape as `router.state()`, including `Cause<Route.PreloadError | ER>`.
+ */
+export interface RouterOutletProps<ER = never> {
   readonly pending?: (state: Extract<BrowserRouterState, { readonly _tag: "Pending" }>) => JSX.Element;
-  readonly failure?: (state: Extract<BrowserRouterState, { readonly _tag: "Failure" }>) => JSX.Element;
+  readonly failure?: (state: Extract<BrowserRouterState<readonly AnyRoute[], ER>, { readonly _tag: "Failure" }>) => JSX.Element;
   readonly notFound?: (state: Extract<BrowserRouterState, { readonly _tag: "NotFound" }>) => JSX.Element;
 }
 
@@ -82,17 +99,20 @@ const canUseBrowser = (): boolean => !isServer && typeof window !== "undefined";
 const currentHref = (fallback = "/"): string =>
   canUseBrowser() ? `${window.location.pathname}${window.location.search}` : fallback;
 
-const RouterContext = createContext<BrowserRouter>();
+const RouterContext = createContext<BrowserRouter<readonly AnyRoute[], unknown>>();
 
 /** Error thrown when router hooks are used outside `RouterProvider`. */
 export class RouterContextMissing extends Data.TaggedError("RouterContextMissing")<{
   readonly hook: string;
 }> {}
 
-const routeStateMatch = <Routes extends readonly AnyRoute[]>(
-  state: BrowserRouterState<Routes>
+const routeStateMatch = <Routes extends readonly AnyRoute[], ER>(
+  state: BrowserRouterState<Routes, ER>
 ): Route.Match<Routes[number]> | undefined =>
   state._tag === "NotFound" ? undefined : state.match;
+
+const firstFailure = <E>(cause: Cause.Cause<E>): E | undefined =>
+  cause.reasons.find(Cause.isFailReason)?.error;
 
 /**
  * Creates a Solid browser router from Effect UI route definitions.
@@ -100,17 +120,23 @@ const routeStateMatch = <Routes extends readonly AnyRoute[]>(
  * Navigation preloads matched route resources in the configured runtime and
  * interrupts stale preload work when navigation changes.
  */
-export const createBrowserRouter = <const Routes extends readonly AnyRoute[]>(
+export const createBrowserRouter = <const Routes extends readonly AnyRoute[], ER = never>(
   routes: Routes,
-  options: BrowserRouterOptions = {}
-): BrowserRouter<Routes> => {
+  options: BrowserRouterOptions<ER> = {}
+): BrowserRouter<Routes, ER> => {
   const runtime = options.runtime ?? defaultRuntime;
   const initialHref = options.initialHref ?? currentHref();
   const initialMatch = Route.match(routes, initialHref);
+  const initialMatchedState = (
+    match: Route.Match<Routes[number]>
+  ): Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Pending" | "Ready" }> =>
+    canUseBrowser()
+      ? { _tag: "Pending", href: initialHref, match }
+      : { _tag: "Ready", href: initialHref, match };
   const [location, setLocation] = createSignal(initialHref);
-  const [state, setState] = createSignal<BrowserRouterState<Routes>>(
+  const [state, setState] = createSignal<BrowserRouterState<Routes, ER>>(
     initialMatch
-      ? { _tag: "Ready", href: initialHref, match: initialMatch }
+      ? initialMatchedState(initialMatch)
       : { _tag: "NotFound", href: initialHref }
   );
 
@@ -167,7 +193,15 @@ export const createBrowserRouter = <const Routes extends readonly AnyRoute[]>(
         if (Exit.isSuccess(exit)) {
           setState({ _tag: "Ready", href, match });
         } else {
-          setState({ _tag: "Failure", href, match, error: exit.cause });
+          const cause = exit.cause as Cause.Cause<Route.PreloadError | ER>;
+          const error = firstFailure(cause);
+          setState({
+            _tag: "Failure",
+            href,
+            match,
+            cause,
+            ...(error === undefined ? {} : { error })
+          });
         }
       })
     );
@@ -181,7 +215,7 @@ export const createBrowserRouter = <const Routes extends readonly AnyRoute[]>(
     disposePreloadScope();
   });
 
-  const router: BrowserRouter<Routes> = {
+  const router: BrowserRouter<Routes, ER> = {
     routes,
     state,
     match: createMemo(() => routeStateMatch(state())),
@@ -219,29 +253,32 @@ export const createBrowserRouter = <const Routes extends readonly AnyRoute[]>(
 
 /** Reads the current router from `RouterProvider`. */
 export const useRouter = <
-  Routes extends readonly AnyRoute[] = readonly AnyRoute[]
->(): BrowserRouter<Routes> => {
+  Routes extends readonly AnyRoute[] = readonly AnyRoute[],
+  ER = never
+>(): BrowserRouter<Routes, ER> => {
   const router = useContext(RouterContext);
   if (!router) {
     throw new RouterContextMissing({ hook: "useRouter" });
   }
 
-  return router as BrowserRouter<Routes>;
+  return router as unknown as BrowserRouter<Routes, ER>;
 };
 
 const defaultPending = (): JSX.Element => undefined;
 
-const defaultFailure = (state: Extract<BrowserRouterState, { readonly _tag: "Failure" }>): JSX.Element => {
-  throw state.error;
+const defaultFailure = <ER>(
+  state: Extract<BrowserRouterState<readonly AnyRoute[], ER>, { readonly _tag: "Failure" }>
+): JSX.Element => {
+  throw state.cause;
 };
 
 const defaultNotFound = (): JSX.Element => undefined;
 
-const renderRouteState = (
-  state: BrowserRouterState,
-  props: RouterOutletProps,
-  runtime: EffectUiRuntime<unknown, unknown>
-): { readonly node: JSX.Element; readonly dispose?: () => void } => {
+const renderRouteState = <ER>(
+  state: BrowserRouterState<readonly AnyRoute[], ER>,
+  props: RouterOutletProps<ER>,
+  runtime: EffectUiRuntime<unknown, ER>
+): { readonly node: JSX.Element; readonly disposeScope?: () => void; readonly disposeSolid?: () => void } => {
   switch (state._tag) {
     case "Pending":
       return {
@@ -249,7 +286,7 @@ const renderRouteState = (
       };
     case "Failure":
       return {
-        node: (props.failure ?? defaultFailure)(state as Extract<BrowserRouterState, { readonly _tag: "Failure" }>)
+        node: (props.failure ?? defaultFailure)(state as Extract<BrowserRouterState<readonly AnyRoute[], ER>, { readonly _tag: "Failure" }>)
       };
     case "NotFound":
       return {
@@ -262,12 +299,12 @@ const renderRouteState = (
       }
 
       const routeScope = new UiScope();
-      let disposeRoute: (() => void) | undefined;
-      const node = createRoot((disposeSolid) => {
-        disposeRoute = () => {
-          disposeSolid();
-          void runFork(routeScope.disposeEffect().pipe(Effect.catch(() => Effect.void)));
-        };
+      const disposeScope = () => {
+        void runFork(routeScope.disposeEffect().pipe(Effect.catch(() => Effect.void)));
+      };
+      let disposeSolid: (() => void) | undefined;
+      const node = createRoot((disposeRoot) => {
+        disposeSolid = disposeRoot;
 
         return runWithRuntime(runtime, () =>
           runWithScope(routeScope, () =>
@@ -280,46 +317,47 @@ const renderRouteState = (
         );
       });
 
-      return disposeRoute ? { node, dispose: disposeRoute } : { node };
+      return disposeSolid ? { node, disposeScope, disposeSolid } : { node, disposeScope };
     }
   }
 };
 
 /** Renders the matched route component and owns its route `UiScope`. */
-export const RouterOutlet = (props: RouterOutletProps): JSX.Element => {
-  const router = useRouter();
-  const runtime = useRuntime();
-  const initial = renderRouteState(router.state(), props, runtime);
+export const RouterOutlet = <ER = never>(props: RouterOutletProps<ER>): JSX.Element => {
+  const router = useRouter<readonly AnyRoute[], ER>();
+  const runtime = useRuntime() as EffectUiRuntime<unknown, ER>;
+  let renderedState = router.state();
+  const initial = renderRouteState(renderedState, props, runtime);
   const [node, setNode] = createSignal<JSX.Element>(initial.node);
-  let disposeRoute: (() => void) | undefined = initial.dispose;
-  let initialized = false;
+  let disposeRouteScope: (() => void) | undefined = initial.disposeScope;
+  let disposeRouteSolid: (() => void) | undefined = initial.disposeSolid;
 
   createEffect(() => {
     const state = router.state();
-    if (!initialized) {
-      initialized = true;
+    if (state === renderedState) {
       return;
     }
 
-    const previousDispose = disposeRoute;
-    const next = renderRouteState(state, props, runtime);
+    const previousDisposeScope = disposeRouteScope;
+    const previousDisposeSolid = disposeRouteSolid;
+    disposeRouteScope = undefined;
+    disposeRouteSolid = undefined;
+    previousDisposeScope?.();
 
+    const next = renderRouteState(state, props, runtime);
+    renderedState = state;
     setNode(() => next.node);
-    previousDispose?.();
-    disposeRoute = next.dispose;
+    previousDisposeSolid?.();
+    disposeRouteScope = next.disposeScope;
+    disposeRouteSolid = next.disposeSolid;
   });
 
   onCleanup(() => {
-    disposeRoute?.();
+    disposeRouteScope?.();
+    disposeRouteSolid?.();
   });
 
-  return createComponent(Show, {
-    get when() {
-      return node();
-    },
-    keyed: true,
-    children: (value: unknown) => value as JSX.Element
-  });
+  return node as unknown as JSX.Element;
 };
 
 /**
@@ -330,23 +368,23 @@ export const RouterOutlet = (props: RouterOutletProps): JSX.Element => {
  * <RouterProvider routes={routes} />
  * ```
  */
-export const RouterProvider = <const Routes extends readonly AnyRoute[]>(
-  props: RouterProviderProps<Routes>
+export const RouterProvider = <const Routes extends readonly AnyRoute[], ER = never>(
+  props: RouterProviderProps<Routes, ER>
 ): JSX.Element => {
-  const runtime = props.runtime ?? useRuntime();
-  const router = createBrowserRouter(
+  const runtime = (props.runtime ?? useRuntime()) as EffectUiRuntime<unknown, ER>;
+  const router = createBrowserRouter<Routes, ER>(
     props.routes,
     props.initialHref === undefined
       ? { runtime }
       : { initialHref: props.initialHref, runtime }
   );
   return createComponent(RuntimeContext.Provider, {
-    value: runtime,
+    value: runtime as EffectUiRuntime<unknown, never>,
     get children() {
       return createComponent(RouterContext.Provider, {
-        value: router,
+        value: router as unknown as BrowserRouter<readonly AnyRoute[], unknown>,
         get children() {
-          return props.children ?? createComponent(RouterOutlet, props);
+          return props.children ?? createComponent(RouterOutlet, props as RouterOutletProps<ER>);
         }
       });
     }

@@ -1,12 +1,41 @@
 import { Data } from "effect";
 import type { ResourceRef } from "./resource.js";
 
-export class ResourceFailure<A = unknown, E = never> extends Data.TaggedError("ResourceFailure")<{
-  readonly ref: ResourceRef<unknown, A, E, unknown>;
+/**
+ * Error thrown by synchronous Resource reads when the latest load failed.
+ *
+ * `previous` is the stale value, when one exists, so UI adapters can decide
+ * whether to render stale content or surface the failure.
+ */
+export class ResourceFailure<I = unknown, A = unknown, E = never, R = unknown> extends Data.TaggedError("ResourceFailure")<{
+  /** Resource ref that was read synchronously. */
+  readonly ref: ResourceRef<I, A, E, R>;
+  /** Typed load failure from the Resource's Effect error channel. */
   readonly error: E;
+  /** Last successful value, when stale data exists. */
   readonly previous: A | undefined;
 }> {}
 
+/**
+ * Error thrown by synchronous Resource reads when no fresh value is available.
+ *
+ * Core uses this typed value instead of throwing a Promise. UI adapters such as
+ * Solid Suspense own the host Promise seam and can use `previous`, `state`, and
+ * `guidance` to choose their display or repair behavior.
+ */
+export class ResourcePending<I = unknown, A = unknown, E = never, R = unknown> extends Data.TaggedError("ResourcePending")<{
+  /** Resource ref that needs preloading before a synchronous read can succeed. */
+  readonly ref: ResourceRef<I, A, E, R>;
+  /** Cache state that made the read unavailable. */
+  readonly state: "Initial" | "Pending" | "Collected";
+  /** Last successful value, when stale data exists. */
+  readonly previous: A | undefined;
+  /** Human-readable repair hint suitable for diagnostics and tests. */
+  readonly guidance: string;
+}> {}
+
+/** Error raised when a keyed Resource ref is constructed without required input. */
 export class MissingResourceInput extends Data.TaggedError("MissingResourceInput")<{
+  /** Stable Resource key that could not be resolved from input. */
   readonly key: string;
 }> {}

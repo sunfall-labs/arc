@@ -1,4 +1,4 @@
-import { Effect, Data } from "effect";
+import { Effect, Data, Schema } from "effect";
 import type {
   CollectionDefinition,
   CollectionHydrateOptions,
@@ -361,6 +361,122 @@ export const validateCollectionSnapshotEffect = <A extends object, K extends Col
   Effect.try({
     try: () => validateCollectionSnapshot<A, K>(value, operation, path),
     catch: catchSnapshotCodecError(operation, path)
+  });
+
+export const decodeCollectionOutputValuesEffect = <A extends object>(
+  schema: unknown,
+  values: ReadonlyArray<A>,
+  operation: CollectionSnapshotCodecOperation,
+  path: string
+): Effect.Effect<ReadonlyArray<A>, CollectionSnapshotCodecError> => {
+  if (!Schema.isSchema(schema)) {
+    return Effect.succeed(values);
+  }
+
+  const decodeValues = Schema.decodeUnknownEffect(schema as Schema.Decoder<ReadonlyArray<A>>)(values);
+  const decodeRows = Effect.all(
+    values.map((value) => Schema.decodeUnknownEffect(schema as Schema.Decoder<A>)(value))
+  ).pipe(Effect.map((decoded) => decoded as ReadonlyArray<A>));
+
+  return decodeValues.pipe(
+    Effect.catch(() => decodeRows),
+    Effect.mapError(catchSnapshotCodecError(operation, path))
+  );
+};
+
+const decodeCollectionDefinitionValuesEffect = <A extends object, K extends CollectionKey, E, R>(
+  definition: CollectionDefinition<A, K, E, R>,
+  values: ReadonlyArray<A>,
+  operation: CollectionSnapshotCodecOperation,
+  path: string
+): Effect.Effect<ReadonlyArray<A>, CollectionSnapshotCodecError> =>
+  decodeCollectionOutputValuesEffect(definition.options.output, values, operation, path);
+
+export const validateCollectionSnapshotDefinitionEffect = <A extends object, K extends CollectionKey, E, R>(
+  definition: CollectionDefinition<A, K, E, R>,
+  value: CollectionSnapshot<A, K>,
+  operation: CollectionSnapshotCodecOperation = "hydrate",
+  path = "$"
+): Effect.Effect<CollectionSnapshot<A, K>, CollectionSnapshotCodecError> =>
+  Effect.gen(function* () {
+    const snapshot = yield* validateCollectionSnapshotEffect<A, K>(value, operation, path);
+    const values: Array<A> = [];
+
+    for (const row of snapshot.rows) {
+      values.push(row.value);
+    }
+    for (const pending of snapshot.pendingMutations) {
+      for (const mutation of pending.transaction.mutations) {
+        switch (mutation._tag) {
+          case "Insert":
+            values.push(mutation.value);
+            if (mutation.previous !== undefined) {
+              values.push(mutation.previous);
+            }
+            break;
+          case "Update":
+            values.push(mutation.previous, mutation.value);
+            break;
+          case "Delete":
+            values.push(mutation.previous);
+            break;
+        }
+      }
+      for (const rollback of pending.rollbackRows) {
+        if (rollback.row) {
+          values.push(rollback.row.value);
+        }
+      }
+    }
+
+    const decoded = yield* decodeCollectionDefinitionValuesEffect(definition, values, operation, path);
+    let index = 0;
+    const nextValue = (): A => decoded[index++] as A;
+    return {
+      ...snapshot,
+      rows: snapshot.rows.map((row) => ({
+        ...row,
+        value: nextValue()
+      })),
+      pendingMutations: snapshot.pendingMutations.map((pending) => ({
+        ...pending,
+        transaction: {
+          ...pending.transaction,
+          mutations: pending.transaction.mutations.map((mutation) => {
+            switch (mutation._tag) {
+              case "Insert": {
+                const value = nextValue();
+                return mutation.previous === undefined
+                  ? { ...mutation, value }
+                  : { ...mutation, value, previous: nextValue() };
+              }
+              case "Update":
+                return {
+                  ...mutation,
+                  previous: nextValue(),
+                  value: nextValue()
+                };
+              case "Delete":
+                return {
+                  ...mutation,
+                  previous: nextValue()
+                };
+            }
+          })
+        },
+        rollbackRows: pending.rollbackRows.map((rollback) =>
+          rollback.row
+            ? {
+                ...rollback,
+                row: {
+                  ...rollback.row,
+                  value: nextValue()
+                }
+              }
+            : rollback
+        )
+      }))
+    };
   });
 
 export const validateCollectionHydrationPayload = (

@@ -7,6 +7,8 @@ export {
   createNodeHandler,
   /** Effect-first Node handler for composing inside Effect runtimes. */
   createNodeHandlerEffect,
+  /** Node `createServer` callback facade that runs the adapter Effect. */
+  createNodeServerHandler,
   /** Resolves request origin from options or forwarded Node headers. */
   nodeRequestOrigin,
   /** Converts Node `IncomingMessage` to a web `Request`. */
@@ -21,6 +23,16 @@ export {
   type StartNodeHandler,
   /** Effect-first Node handler type. */
   type StartNodeHandlerEffect,
+  /** Node `createServer` callback facade type. */
+  type StartNodeServerHandler,
+  /** EffectInput error callback used by the Node server handler facade. */
+  type StartNodeServerErrorHandler,
+  /** Options for Node `createServer` callback facades. */
+  type StartNodeServerHandlerOptions,
+  /** Runtime boundary used by callback-shaped host facades. */
+  type StartForkRuntime,
+  /** Proxy trust policy for resolving Node request origins. */
+  type StartNodeOriginPolicy,
   /** Options for resolving Node request origins. */
   type StartNodeRequestOptions,
   /** Options for writing HEAD responses. */

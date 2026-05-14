@@ -7,7 +7,7 @@ import {
   serverFunctionDefinitionRegistry
 } from "./definition-registry.js";
 import type { EffectInput } from "./effect-like.js";
-import { toEffect } from "./effect-like.js";
+import { EffectInputCallbackError, invokeEffectInput } from "./effect-like.js";
 import { applyResponseContext, makeResponseContext, provideRequest, provideResponse } from "./request-context.js";
 
 export const ServerFunctionTypeId: unique symbol = Symbol.for(
@@ -79,10 +79,10 @@ export interface ServerFunction<I, A, E = never, R = never> {
   readonly output?: unknown;
   readonly error?: unknown;
   readonly hasHandler: boolean;
-  effect(input: I): Effect.Effect<A, E | ServerClientError, R>;
-  local(input: I): Effect.Effect<A, E | ServerFunctionNotFound, R>;
-  invoke(input: unknown): Effect.Effect<unknown, E | ServerClientError, R>;
-  (input: I): Effect.Effect<A, E | ServerClientError, R>;
+  effect(input: I): Effect.Effect<A, E | EffectInputCallbackError | ServerClientError, R>;
+  local(input: I): Effect.Effect<A, E | EffectInputCallbackError | ServerFunctionNotFound, R>;
+  invoke(input: unknown): Effect.Effect<unknown, E | EffectInputCallbackError | ServerClientError, R>;
+  (input: I): Effect.Effect<A, E | EffectInputCallbackError | ServerClientError, R>;
 }
 
 /** HTTP route handler used by server adapters. */
@@ -129,6 +129,7 @@ export class ServerRouteHandlerError extends Data.TaggedError("ServerRouteHandle
 }> {}
 
 export type ServerClientError =
+  | EffectInputCallbackError
   | Schema.SchemaError
   | ServerFunctionNotFound
   | ServerRpcProtocolError
@@ -144,7 +145,7 @@ export interface ServerClient {
   readonly call: <I, A, E, R>(
     fn: ServerFunction<I, A, E, R>,
     input: I
-  ) => Effect.Effect<A, E | ServerClientError, R>;
+  ) => Effect.Effect<A, E | EffectInputCallbackError | ServerClientError, R>;
 }
 
 export const ServerClient = Context.Service<ServerClient>("@effect-ui/core/ServerClient");
@@ -205,9 +206,9 @@ const defineServerFunction = <I, A, E = never, R = never>(
   name: string,
   definition: ServerFunctionDefinitionInput<I, A, E, R>
 ): ServerFunction<I, A, E, R> => {
-  const local = (input: I): Effect.Effect<A, E, R> =>
-    toEffect(definition.handler(input));
-  const effect = (input: I): Effect.Effect<A, E | ServerClientError, R> =>
+  const local = (input: I): Effect.Effect<A, E | EffectInputCallbackError, R> =>
+    invokeEffectInput(`Server.fn(${name}).handler`, definition.handler, input);
+  const effect = (input: I): Effect.Effect<A, E | EffectInputCallbackError | ServerClientError, R> =>
     Effect.gen(function* () {
       const client = yield* Effect.serviceOption(ServerClient);
       if (Option.isSome(client)) {
@@ -215,7 +216,7 @@ const defineServerFunction = <I, A, E = never, R = never>(
       }
       return yield* local(input);
     });
-  const invoke = (input: unknown): Effect.Effect<unknown, E | ServerClientError, R> =>
+  const invoke = (input: unknown): Effect.Effect<unknown, E | EffectInputCallbackError | ServerClientError, R> =>
     Effect.gen(function* () {
       const decoded = yield* decodeWire<I>(definition.input, input);
       const value = yield* local(decoded);
@@ -364,7 +365,7 @@ export namespace Server {
       call: <I, A, E, R>(
         fn: ServerFunction<I, A, E, R>,
         input: I
-      ): Effect.Effect<A, E | ServerClientError, R> =>
+      ): Effect.Effect<A, E | EffectInputCallbackError | ServerClientError, R> =>
         Effect.gen(function* () {
           const mock = mockFor(byName, fn);
           if (!mock) {
@@ -373,7 +374,7 @@ export namespace Server {
 
           const encodedInput = yield* encodeWire(fn.input, input);
           const decodedInput = yield* decodeWire<I>(mock.input, encodedInput);
-          const value = yield* toEffect(mock.handler(decodedInput));
+          const value = yield* invokeEffectInput(`Server.mock(${fn.name}).handler`, mock.handler, decodedInput);
           const encodedOutput = yield* encodeWire(mock.output, value);
           return yield* decodeWire<A>(fn.output, encodedOutput);
         })
@@ -428,7 +429,7 @@ export namespace Server {
     const missing = (): ServerFunctionNotFound => new ServerFunctionNotFound({ functionName: name });
     const local = (_input: I): Effect.Effect<A, ServerFunctionNotFound> =>
       Effect.fail(missing());
-    const effect = (input: I): Effect.Effect<A, E | ServerClientError> =>
+    const effect = (input: I): Effect.Effect<A, E | EffectInputCallbackError | ServerClientError> =>
       Effect.gen(function* () {
         const client = yield* Effect.serviceOption(ServerClient);
         if (Option.isSome(client)) {
@@ -495,10 +496,13 @@ export namespace Server {
     method,
     path,
     handler: (request) =>
-      Effect.try({
-        try: () => handler(request),
-        catch: (cause) => new ServerRouteHandlerError({ method, path, cause })
-      }).pipe(Effect.flatMap(toEffect))
+      invokeEffectInput(`Server.route(${method} ${path}).handler`, handler, request).pipe(
+        Effect.mapError((error) =>
+          error instanceof EffectInputCallbackError
+            ? new ServerRouteHandlerError({ method, path, cause: error.cause })
+            : error
+        )
+      )
   });
 
   /**
@@ -588,7 +592,7 @@ export namespace Server {
     call: <I, A, E, R>(
       fn: ServerFunction<I, A, E, R>,
       input: I
-    ): Effect.Effect<A, E | ServerClientError, R> =>
+    ): Effect.Effect<A, E | EffectInputCallbackError | ServerClientError, R> =>
       Effect.gen(function* () {
         const target = Server.get<I, A, E, R>(fn.name);
         if (!target?.hasHandler) {

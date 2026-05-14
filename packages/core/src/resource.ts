@@ -5,10 +5,11 @@ import {
   Exit,
   Request as EffectRequest,
   RequestResolver,
+  Schema,
   type Schedule
 } from "effect";
-import type { EffectInput } from "./effect-like.js";
-import { toEffect } from "./effect-like.js";
+import type { EffectInput, EnsureEffectInput } from "./effect-like.js";
+import { EffectInputCallbackError, invokeEffectInput } from "./effect-like.js";
 import {
   recordResourceProvidedTags,
   removeResourceRefFromTagIndex
@@ -31,6 +32,20 @@ import { stableStringify } from "./stable-stringify.js";
 import type { ResourceCollected } from "./resource-collector.js";
 import { MissingResourceInput } from "./resource-errors.js";
 import {
+  decodeResourceHydrationPayloadEffect,
+  encodeResourceHydrationPayloadEffect,
+  ResourceHydrationApplyError,
+  type ResourceSnapshotCodecError
+} from "./resource-snapshot-codec.js";
+import {
+  registerResourceDefinition,
+  registerResourceTagDefinition,
+  resourceDefinitionRegistry,
+  resourceDiagnostics,
+  resourceRegistryDiagnostics,
+  resourceTagDefinitionRegistry
+} from "./resource-registry.js";
+import {
   collectResourceEffect,
   currentResourceStore,
   dehydrateResources,
@@ -45,7 +60,6 @@ import {
   readResource,
   refsForResourceTag,
   refreshResourceEffect,
-  registerResourceRuntimeFamily,
   resourceHydrationPayload,
   resourceHydrationPayloadEffect,
   resourceResult,
@@ -62,7 +76,7 @@ export type { DurationInput } from "./resource-duration.js";
 export { ResourceTagTypeId, ResourceTypeId } from "./resource-identifiers.js";
 export { ResourceCollector } from "./resource-collector.js";
 export type { ResourceCollected } from "./resource-collector.js";
-export { MissingResourceInput, ResourceFailure } from "./resource-errors.js";
+export { MissingResourceInput, ResourceFailure, ResourcePending } from "./resource-errors.js";
 
 /** Cache lifecycle policy for a resource family. */
 export interface ResourcePolicy<E = never> {
@@ -204,6 +218,23 @@ export interface ResourceHydrationPayload {
   readonly resources: ReadonlyArray<ResourceHydrationSnapshot>;
 }
 
+export type ResourceHydrationInput = ReadonlyArray<ResourceHydrationSnapshot> | ResourceHydrationPayload;
+
+export type ResourceLoadError<E> = E | EffectInputCallbackError;
+
+export interface ResourceHydrationOptions {
+  /**
+   * How to handle a snapshot whose family is not registered in the active
+   * ResourceStore or global Resource definition registry. Defaults to fail.
+   */
+  readonly missingFamily?: "fail" | "skip";
+  /**
+   * How to handle a snapshot whose decoded input produces a different ref key
+   * than the serialized key. Defaults to fail.
+   */
+  readonly keyMismatch?: "fail" | "skip";
+}
+
 interface ResourceStatusBase<I, A, E, R> {
   readonly ref: ResourceRef<I, A, E, R>;
   readonly name: string;
@@ -259,9 +290,6 @@ export type ResourceStatus<I, A, E = never, R = never> =
       readonly error: E;
     });
 
-const familyDefinitions = new Map<string, AnyResourceFamily>();
-const resourceTagDefinitions = new Map<string, ResourceTagDiagnostics>();
-
 /**
  * Runtime cache and state container for a set of resource refs.
  *
@@ -270,8 +298,7 @@ const resourceTagDefinitions = new Map<string, ResourceTagDiagnostics>();
  */
 export class ResourceFamily<I, A, E = never, R = never> {
   constructor(readonly options: ResourceFamilyOptions<I, A, E, R>) {
-    familyDefinitions.set(options.name, this as AnyResourceFamily);
-    registerResourceRuntimeFamily(this as AnyResourceFamily);
+    registerResourceDefinition(options.name, this as AnyResourceFamily);
   }
 
   #register(store: ResourceStoreState): void {
@@ -318,7 +345,11 @@ export class ResourceFamily<I, A, E = never, R = never> {
           }
 
           const input = inputs.get(key) as I;
-          const load = toEffect(this.options.load(input));
+          const load = invokeEffectInput(
+            `Resource.load(${this.options.name})`,
+            this.options.load,
+            input
+          ) as Effect.Effect<A, E, R>;
           const retry = this.options.policy?.retry;
           return retry ? Effect.retry(load, retry) : load;
         },
@@ -438,32 +469,20 @@ export class ResourceFamily<I, A, E = never, R = never> {
   }
 }
 
-const resourceFamilyDiagnostics = (
-  family: AnyResourceFamily
-): ResourceFamilyDiagnostics => {
-  const policy = family.options.policy;
-  return {
-    name: family.options.name,
-    inputSchema: family.options.input !== undefined,
-    outputSchema: family.options.output !== undefined,
-    errorSchema: family.options.error !== undefined,
-    providesTags: family.options.provides !== undefined,
-    policy: {
-      ...(policy?.staleFor === undefined ? {} : { staleFor: policy.staleFor }),
-      ...(policy?.gcFor === undefined ? {} : { gcFor: policy.gcFor }),
-      retry: policy?.retry !== undefined
-    }
-  };
-};
-
 const makeResourceTag = (name: string, key: string): ResourceTag => ({
   [ResourceTagTypeId]: ResourceTagTypeId,
   name,
   key
 });
 
+type CheckedResourceLoad<I, Definition> = Definition extends {
+  readonly load: (input: I) => infer Out;
+}
+  ? { readonly load: (input: I) => EnsureEffectInput<Out> }
+  : never;
+
 /**
- * Resource helpers for cached Effect data, suspense reads, invalidation, and hydration.
+ * Resource helpers for cached Effect data, synchronous reads, invalidation, and hydration.
  */
 export namespace Resource {
   export type Ref<I, A, E = never, R = never> = ResourceRef<I, A, E, R>;
@@ -478,6 +497,11 @@ export namespace Resource {
   export type InvalidationPlan = ResourceInvalidationPlan;
   export type Snapshot<I = unknown, A = unknown, E = never> = ResourceHydrationSnapshot<I, A, E>;
   export type HydrationPayload = ResourceHydrationPayload;
+  export type HydrationInput = ResourceHydrationInput;
+  export type HydrationOptions = ResourceHydrationOptions;
+  export type SnapshotCodecError = ResourceSnapshotCodecError;
+  export type HydrationApplyError = ResourceHydrationApplyError;
+  export type LoadError<E> = ResourceLoadError<E>;
   export type Status<I, A, E = never, R = never> = ResourceStatus<I, A, E, R>;
   export type StoreEvent = ResourceStoreEvent;
   export type FamilyDiagnostics = ResourceFamilyDiagnostics;
@@ -504,10 +528,18 @@ export namespace Resource {
    * const user = yield* Resource.prefetchEffect(ref);
    * ```
    */
-  export const family = <I, A, E = never, R = never>(
-    options: Omit<ResourceFamilyOptions<I, A, E, R>, "load"> & {
+  export const family = <
+    I,
+    A,
+    E = never,
+    R = never,
+    Definition extends Omit<ResourceFamilyOptions<I, A, E, R>, "load"> & {
+      readonly load: (input: I) => EffectInput<A, E, R>;
+    } = Omit<ResourceFamilyOptions<I, A, E, R>, "load"> & {
       readonly load: (input: I) => EffectInput<A, E, R>;
     }
+  >(
+    options: Definition & CheckedResourceLoad<I, Definition>
   ): ((input: I) => ResourceRef<I, A, E, R>) & { readonly family: ResourceFamily<I, A, E, R> } => {
     const family = new ResourceFamily(options as ResourceFamilyOptions<I, A, E, R>);
     const makeRef = ((input: I) => family.ref(input)) as ((input: I) => ResourceRef<I, A, E, R>) & {
@@ -596,7 +628,7 @@ export namespace Resource {
     name: string,
     options?: { readonly key?: (input: Input) => string }
   ): ResourceTag | ResourceTagDefinition<Input> {
-    resourceTagDefinitions.set(name, {
+    registerResourceTagDefinition(name, {
       name,
       keyed: options !== undefined
     });
@@ -606,17 +638,16 @@ export namespace Resource {
   }
 
   export const definitions = (): ReadonlyMap<string, AnyResourceFamily> =>
-    familyDefinitions;
+    resourceDefinitionRegistry();
 
   export const tagDefinitions = (): ReadonlyMap<string, ResourceTagDiagnostics> =>
-    resourceTagDefinitions;
+    resourceTagDefinitionRegistry();
 
-  export const diagnostics = (): ResourceDiagnostics => ({
-    families: Array.from(familyDefinitions.values(), resourceFamilyDiagnostics)
-      .sort((left, right) => left.name.localeCompare(right.name)),
-    tags: Array.from(resourceTagDefinitions.values())
-      .sort((left, right) => left.name.localeCompare(right.name))
-  });
+  export const diagnostics = (): ResourceDiagnostics =>
+    resourceDiagnostics();
+
+  /** Registry diagnostics, including duplicate resource family/tag registrations. */
+  export const registryDiagnostics = resourceRegistryDiagnostics;
 
   export const refsForTag = (tag: ResourceTag): ReadonlyArray<AnyResourceRef> =>
     refsForResourceTag(tag);
@@ -685,11 +716,11 @@ export namespace Resource {
     collectResourceEffect(effect);
 
   /**
-   * Reads a resource value for render code.
+   * Reads a resource value synchronously after Effect preload.
    *
-   * If the value is missing it throws a Promise for suspense. If loading failed it
-   * throws ResourceFailure. Stale values are returned immediately while refresh runs
-   * in the background.
+   * If the value is missing or the entry has expired it throws ResourcePending.
+   * If loading failed it throws ResourceFailure. Stale values are returned
+   * immediately while refresh runs in the background.
    */
   export const read = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): A => {
     return readResource(ref);
@@ -745,21 +776,36 @@ export namespace Resource {
   ): Effect.Effect<ResourceHydrationPayload> =>
     resourceHydrationPayloadEffect(refs);
 
+  /** Encodes a validated hydration payload as JSON. */
+  export const encodeHydrationPayloadEffect = (
+    payload: ResourceHydrationPayload
+  ): Effect.Effect<string, ResourceSnapshotCodecError> =>
+    encodeResourceHydrationPayloadEffect(payload);
+
+  /** Decodes and validates a hydration payload from JSON. */
+  export const decodeHydrationPayloadEffect = (
+    encoded: string
+  ): Effect.Effect<ResourceHydrationPayload, ResourceSnapshotCodecError> =>
+    decodeResourceHydrationPayloadEffect(encoded);
+
   /**
    * Restores successful resource snapshots into the current ResourceStore.
    *
-   * Unknown families and mismatched keys are skipped, making it safe to hydrate
-   * partial payloads.
+   * Unknown families and key mismatches fail by default with
+   * ResourceHydrationApplyError. Pass an explicit skip policy when a caller
+   * intentionally hydrates a partial payload.
    */
   export const hydrateEffect = (
-    input: ReadonlyArray<ResourceHydrationSnapshot> | ResourceHydrationPayload
-  ): Effect.Effect<void> =>
-    hydrateResourcesEffect(input);
+    input: ResourceHydrationInput,
+    options?: ResourceHydrationOptions
+  ): Effect.Effect<void, ResourceSnapshotCodecError | ResourceHydrationApplyError | Schema.SchemaError> =>
+    hydrateResourcesEffect(input, options);
 
   /** Synchronous runtime boundary for hydrateEffect. */
   export const hydrate = (
-    input: ReadonlyArray<ResourceHydrationSnapshot> | ResourceHydrationPayload
+    input: ResourceHydrationInput,
+    options?: ResourceHydrationOptions
   ): void => {
-    hydrateResources(input);
+    hydrateResources(input, options);
   };
 }

@@ -26,7 +26,7 @@ that were still raw `Error` or `TypeError` throws.
     `SQLitePersistenceUnsupportedStatement`.
   - Errors now expose the invalid table name or SQL operation plus adapter
     repair guidance.
-- `packages/devtools/src/index.ts`
+- `packages/devtools/src/serialization.ts` and `packages/devtools/src/index.ts`
   - Replaced invalidation-target and action-invalidation conflict
     `TypeError`s with `DevtoolsUnknownInvalidationTarget` and
     `DevtoolsActionInvalidationPlanConflict`.
@@ -34,9 +34,10 @@ that were still raw `Error` or `TypeError` throws.
     snapshots.
 - `packages/start/src/hydration.ts`
   - Replaced malformed streamed hydration chunk `Error` with
-    `StartHydrationChunkParseError`.
-  - Error payload includes the stream sequence, malformed value, and guidance
-    to use the Start serialization helpers.
+    `StartHydrationChunkParseError`, and malformed root hydration payloads with
+    `StartHydrationPayloadParseError`.
+  - Error payloads include the stream sequence or script id, malformed value,
+    and guidance to use the Start serialization helpers.
 - `packages/start/src/cli.ts`
   - Replaced the diagnostics CLI usage `Error` subclass with
     `StartDiagnosticsCliUsageError`, a tagged error carrying the message and

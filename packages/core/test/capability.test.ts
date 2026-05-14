@@ -1,6 +1,6 @@
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
-import { Capability, makeRuntime } from "../src/index.js";
+import { Capability, EffectInputCallbackError, makeRuntime } from "../src/index.js";
 
 describe("Capability", () => {
   interface Numbers {
@@ -43,6 +43,32 @@ describe("Capability", () => {
           Effect.map(save(length), (saved) => ({ length, saved }))
         ),
         Effect.tap((value) => Effect.sync(() => expect(value).toEqual({ length: 6, saved: 7 }))),
+        Effect.asVoid
+      )
+    ));
+
+  it("captures synchronous useEffect throws in the Effect error channel", () =>
+    Effect.runPromise(
+      Effect.exit(
+        Numbers.provide(
+          Numbers.useEffect(() => {
+            throw new Error("capability failed");
+          }),
+          {
+            get: (id) => Effect.succeed(id.length),
+            save: (value) => Effect.succeed(value + 1)
+          }
+        )
+      ).pipe(
+        Effect.tap((exit) =>
+          Effect.sync(() => {
+            expect(exit._tag).toBe("Failure");
+            if (exit._tag === "Failure") {
+              const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
+              expect(failure?.error).toBeInstanceOf(EffectInputCallbackError);
+            }
+          })
+        ),
         Effect.asVoid
       )
     ));

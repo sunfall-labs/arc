@@ -47,7 +47,7 @@ export type RuntimeSource<R = never, ER = never> =
   | ManagedRuntime.ManagedRuntime<R, ER>
   | Layer.Layer<R, ER, never>;
 
-export const isEffectUiRuntime = (value: unknown): value is EffectUiRuntime<unknown, unknown> =>
+export const isEffectUiRuntime = (value: unknown): value is EffectUiRuntime<unknown, never> =>
   typeof value === "object" &&
   value !== null &&
   (value as { [RuntimeTypeId]?: unknown })[RuntimeTypeId] === RuntimeTypeId;

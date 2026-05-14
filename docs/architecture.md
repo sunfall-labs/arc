@@ -602,6 +602,10 @@ Start hydration payload through the normal Start hydration transport, so
 resources and DB collection snapshots hydrate together. Consumed DOM chunks are
 marked with `data-effect-ui-hydration-consumed` by default, making repeated
 scans skip the same script unless `markConsumed: false` is passed.
+Malformed root hydration payload scripts fail with
+`StartHydrationPayloadParseError`; malformed streamed chunk scripts fail with
+`StartHydrationChunkParseError`; malformed Resource or Collection snapshots
+fail with the corresponding snapshot codec error.
 
 The DOM renderer still owns its own hydration bootstrap. The Solid example emits
 `generateHydrationScript()` in the document head and the Effect UI resource
@@ -611,7 +615,10 @@ state and Effect `Cache` entries.
 
 `createRequestHandlerEffect(app)` is the native Effect request boundary.
 `createRequestHandler(app)` is an alias for the same Effect-returning handler.
-Hosts run that handler with `runtime.runPromise(...)` at their platform edge.
+Host facades can own the final runtime seam, so ordinary Fetch hosts receive a
+Promise-returning handler and ordinary Node HTTP hosts receive a `createServer`
+callback without repeating `runtime.runPromise(...)` or `runFork(...)` in every
+deployment file.
 When `defineApp({ server })` is present, Start provides it while running SSR
 preload and render work, so app services can be normal Effect `Layer`s.
 Every request gets a fresh Request Runtime, so SSR behaves like TanStack Start's
@@ -621,9 +628,13 @@ Deployment adapter implementations live in `@effect-ui/start/adapters`.
 Application imports should prefer the host-shaped facades:
 `@effect-ui/start-fetch` for Fetch-style hosts and `@effect-ui/start-node` for
 Node HTTP. Edge-style hosts can wrap `createRequestHandlerEffect(app)` with
-`toFetchHandlerEffect`, while Node HTTP servers use `createNodeHandlerEffect` /
-`createNodeHandler`. The Node adapter converts `IncomingMessage` to a Web
-`Request`, honors forwarded origin headers, writes Web `Response`
+`createFetchHandler(handler, { runtime })`, while Node HTTP servers use
+`createNodeServerHandler(handler, { runtime })`. The Effect-first
+`toFetchHandlerEffect`, `toFetchHandler`, `createNodeHandlerEffect`, and
+`createNodeHandler` functions remain the lower interfaces for hosts that want
+custom supervision. The Node adapter converts `IncomingMessage` to a Web
+`Request`, makes forwarded-origin trust explicit with `trustForwardedHeaders`,
+writes Web `Response`
 headers/status back to `ServerResponse`, streams response bodies with Node
 backpressure and Effect interruption through an `AbortSignal`, preserves
 multiple `Set-Cookie` headers, and keeps `HEAD` responses bodyless at the host
@@ -745,14 +756,17 @@ without executing private stores. Builds can enforce static manifest policy with
 `validateStartAppGraphWireSchemasEffect(graph)`, which fails with
 `StartAppGraphMissingWireSchemas` when required input/output schemas are absent;
 projects can opt into requiring error schemas too. Resolved route-module policy
-lives on `StartBuildPolicy.diagnostics`; when `virtual:effect-ui/app-graph` is
-imported, the generated module validates its resolved diagnostics and throws a
-`StartAppGraphDiagnosticsPolicyError` if configured resource or collection
-preload declarations are still unknown. CI scripts can call
-`loadStartAppGraphDiagnostics({ root })` from `@effect-ui/start/vite` to create
-a middleware-mode Vite server, SSR-load the virtual graph, run that policy guard,
-and receive the resolved diagnostics as JSON-safe data. The package binary wraps
-that API as:
+lives on `StartBuildPolicy.diagnostics`. During Vite builds, the Start Vite
+Diagnostics Gate SSR-loads the resolved graph through Vite and fails the build
+if configured resource or collection preload declarations are still unknown,
+even when application code never imports `virtual:effect-ui/app-graph`. The
+generated virtual module exports `diagnosticsPolicyViolations` as a readonly
+`StartAppGraphDiagnosticsPolicyViolation[]` after the diagnostics policy guard
+succeeds; if the guard finds unknown preload declarations, module evaluation
+fails with the diagnostics-bearing policy exception instead.
+CI scripts can call `loadStartAppGraphDiagnostics({ root })` from
+`@effect-ui/start/vite` to run the same gate explicitly and receive the resolved
+diagnostics as JSON-safe data. The package binary wraps that API as:
 
 ```sh
 effect-ui-start diagnostics --root . --json

@@ -8,6 +8,7 @@ import {
   type ActionSubmissionFiber,
   type ActionSubmissionRun,
   type ActionSubmissionState,
+  type EffectUiRuntime,
   type ReadableSignal
 } from "@effect-ui/core";
 import { Effect, Fiber } from "effect";
@@ -44,11 +45,12 @@ interface SubmittedStartAction<D extends StartActionDefinition> {
 
 const submitStartActionTransportEffect = <
   D extends StartActionDefinition,
-  FetchError = never
+  FetchError = never,
+  RuntimeError = never
 >(
   definition: D,
   input: ActionDefinitionInputValue<D>,
-  options: StartActionClientOptions<FetchError> = {}
+  options: StartActionClientOptions<FetchError, RuntimeError> = {}
 ): Effect.Effect<SubmittedStartAction<D>, Server.ClientError, unknown> =>
   Effect.gen(function* () {
     const fetcher = yield* resolveStartFetchEffect(
@@ -128,11 +130,12 @@ const submitStartActionTransportEffect = <
  */
 export const submitStartActionEffect = <
   D extends StartActionDefinition,
-  FetchError = never
+  FetchError = never,
+  RuntimeError = never
 >(
   definition: D,
   input: ActionDefinitionInputValue<D>,
-  options: StartActionClientOptions<FetchError> = {}
+  options: StartActionClientOptions<FetchError, RuntimeError> = {}
 ): Effect.Effect<
   StartActionResultFor<ActionDefinitionOutputValue<D>, ActionDefinitionErrorValue<D>>,
   Server.ClientError,
@@ -187,12 +190,14 @@ export namespace StartAction {
    */
   export const use = <
     D extends StartActionDefinition,
-    FetchError = never
+    FetchError = never,
+    RuntimeError = never
   >(
     definition: D,
-    options: StartActionClientOptions<FetchError> = {}
+    options: StartActionClientOptions<FetchError, RuntimeError> = {}
   ): Instance<D> => {
-    const runtime = options.runtime ?? currentOrDefaultRuntime();
+    const runtime: EffectUiRuntime<unknown, RuntimeError> =
+      options.runtime ?? (currentOrDefaultRuntime() as EffectUiRuntime<unknown, RuntimeError>);
     const hydration = Signal.make<StartHydrationPayload | undefined>(undefined);
     const submissions = makeActionSubmissionController<
       ActionDefinitionInputValue<D>,

@@ -6,12 +6,14 @@ import {
   ServerClient,
   withResourceStore,
   type AppDefinition,
+  type EffectInput,
   type EffectUiRuntime,
   type ResponseContext,
   type Route
 } from "@effect-ui/core";
 import { Effect, Option, type Scope } from "effect";
 import {
+  invokeStartEffectInputCallbackEffect,
   requestRuntimeDisposeTraceEffect,
   type StartRequestTraceStatus,
   type StartRequestTraceStream,
@@ -65,11 +67,11 @@ export const provideRequestRuntime = <A, E, R, RuntimeServices, RuntimeError>(
     )
   );
 
-const responseWithRuntimeFinalizer = (
+const responseWithRuntimeFinalizer = <RuntimeError>(
   response: Response,
-  runtime: EffectUiRuntime<unknown, unknown>,
+  runtime: EffectUiRuntime<unknown, RuntimeError>,
   options: {
-    readonly onFinalize?: (state: RequestRuntimeStreamFinalizeState) => Effect.Effect<void>;
+    readonly onFinalize?: (state: RequestRuntimeStreamFinalizeState) => EffectInput<void, never, never>;
   } = {}
 ): Response => {
   if (!response.body) {
@@ -98,14 +100,12 @@ const responseWithRuntimeFinalizer = (
       }
 
       const teardown = yield* requestRuntimeDisposeTraceEffect(runtime);
-      if (options.onFinalize) {
-        yield* options.onFinalize({
-          stream,
-          status,
-          teardownReason,
-          ...teardown
-        });
-      }
+      yield* invokeStartEffectInputCallbackEffect(options.onFinalize, {
+        stream,
+        status,
+        teardownReason,
+        ...teardown
+      });
     });
 
   const body = new ReadableStream<Uint8Array>({
@@ -185,12 +185,12 @@ const responseWithRuntimeFinalizer = (
   });
 };
 
-export const completeRequestRuntimeWithResponse = (
-  runtime: EffectUiRuntime<unknown, unknown>,
+export const completeRequestRuntimeWithResponse = <RuntimeError>(
+  runtime: EffectUiRuntime<unknown, RuntimeError>,
   response: Response,
   options: {
-    readonly onFinalize?: (state: RequestRuntimeFinalizeState) => Effect.Effect<void>;
-    readonly onStreamFinalize?: (state: RequestRuntimeStreamFinalizeState) => Effect.Effect<void>;
+    readonly onFinalize?: (state: RequestRuntimeFinalizeState) => EffectInput<void, never, never>;
+    readonly onStreamFinalize?: (state: RequestRuntimeStreamFinalizeState) => EffectInput<void, never, never>;
   } = {}
 ): Effect.Effect<Response> =>
   response.body
@@ -205,12 +205,10 @@ export const completeRequestRuntimeWithResponse = (
       )
     : Effect.gen(function* () {
         const teardown = yield* requestRuntimeDisposeTraceEffect(runtime);
-        if (options.onFinalize) {
-          yield* options.onFinalize({
-            status: "success",
-            teardownReason: "response-end",
-            ...teardown
-          });
-        }
+        yield* invokeStartEffectInputCallbackEffect(options.onFinalize, {
+          status: "success",
+          teardownReason: "response-end",
+          ...teardown
+        });
         return response;
       });

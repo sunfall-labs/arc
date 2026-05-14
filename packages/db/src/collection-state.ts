@@ -10,6 +10,7 @@ import type {
   CollectionIndexValue,
   CollectionKey,
   CollectionLoadState,
+  CollectionRuntimeError,
   CollectionOrigin,
   CollectionRow,
   CollectionTransaction,
@@ -48,7 +49,7 @@ export interface CollectionState<A extends object, K extends CollectionKey, E> {
   readonly pendingMutations: Map<string, PendingMutationEntry<A, K>>;
   readonly indexCache: Map<string, CollectionIndexCacheEntry<A, K>>;
   readonly version: WritableSignal<number>;
-  readonly loadState: WritableSignal<CollectionLoadState<E>>;
+  readonly loadState: WritableSignal<CollectionLoadState<CollectionRuntimeError<E>>>;
   nextTransactionId: number;
   initialized: boolean;
   persistenceRestored: boolean;
@@ -59,7 +60,7 @@ export const makeCollectionState = <A extends object, K extends CollectionKey, E
   pendingMutations: new Map(),
   indexCache: new Map(),
   version: Signal.make(0),
-  loadState: Signal.make<CollectionLoadState<E>>({ _tag: "Initial", waiting: false }),
+  loadState: Signal.make<CollectionLoadState<CollectionRuntimeError<E>>>({ _tag: "Initial", waiting: false }),
   nextTransactionId: 0,
   initialized: false,
   persistenceRestored: false

@@ -12,6 +12,7 @@ import {
   formatStartDiagnosticsReport,
   type StartDiagnosticsReport
 } from "./diagnostics-report.js";
+import type { StartAppGraphDiagnosticsPolicyViolation } from "./app-graph.js";
 
 /** Parsed command supported by the `effect-ui-start` CLI. */
 export type StartCliCommand =
@@ -239,13 +240,22 @@ const isStartAppGraphDiagnostics = (
   Array.isArray(value.unknownRoutePreloadResources) &&
   Array.isArray(value.unknownRoutePreloadCollections);
 
+const isStartAppGraphDiagnosticsPolicyViolation = (
+  value: unknown
+): value is StartAppGraphDiagnosticsPolicyViolation =>
+  isRecord(value) &&
+  (value._tag === "UnknownRoutePreloadResources" ||
+    value._tag === "UnknownRoutePreloadCollections") &&
+  typeof value.message === "string" &&
+  Array.isArray(value.routes);
+
 const diagnosticsReportFromError = (cause: unknown): StartDiagnosticsReport | undefined => {
   if (!isRecord(cause) || !isStartAppGraphDiagnostics(cause.diagnostics)) {
     return undefined;
   }
 
   const diagnosticsPolicyViolations = Array.isArray(cause.violations)
-    ? cause.violations
+    ? cause.violations.filter(isStartAppGraphDiagnosticsPolicyViolation)
     : [];
 
   return createStartDiagnosticsReport({

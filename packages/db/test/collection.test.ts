@@ -1,6 +1,6 @@
 import { makeResourceStore, makeRuntime, read, ResourceStore, runWithRuntime } from "@effect-ui/core";
-import { Collection, CollectionRowNotFound, Query, UnknownCollectionIndex, and, eq, gt } from "@effect-ui/db";
-import { Cause, Deferred, Effect, Exit, Fiber, PubSub, Schedule } from "effect";
+import { Collection, CollectionRowNotFound, CollectionStorageError, Query, UnknownCollectionIndex, and, eq, gt } from "@effect-ui/db";
+import { Cause, Deferred, Effect, Exit, Fiber, PubSub, Schedule, Schema } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import { CollectionSnapshotCodecError } from "../src/collection-snapshot-codec.js";
 
@@ -35,6 +35,15 @@ interface SnapshotProject {
     readonly labels: Array<string>;
   };
 }
+
+const ProjectSchema = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  status: Schema.Literals(["active", "blocked"]),
+  progress: Schema.Number
+});
+
+const ProjectRowsSchema = Schema.Array(ProjectSchema);
 
 describe("Collection", () => {
   it("loads rows into a runtime-scoped collection", async () => {
@@ -89,6 +98,30 @@ describe("Collection", () => {
 
     expect(attempts).toBe(3);
     expect(Projects.rows().map((project) => project.id)).toEqual(["atlas"]);
+  });
+
+  it("reports synchronous load callback throws through the Effect error channel", () => {
+    const Projects = Collection.define<Project, string, Error>({
+      name: "Projects.load-sync-throw",
+      getKey: (project) => project.id,
+      load: () => {
+        throw new Error("load failed");
+      }
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const exit = yield* Effect.exit(Projects.preloadEffect());
+        yield* Effect.sync(() => {
+          expect(Exit.isFailure(exit)).toBe(true);
+          const failure = Exit.isFailure(exit)
+            ? exit.cause.reasons.find(Cause.isFailReason)?.error
+            : undefined;
+          expect(failure).toBeInstanceOf(Error);
+          expect(failure).toMatchObject({ message: "load failed" });
+        });
+      })
+    );
   });
 
   it("describes collection definitions for app graph diagnostics", () => {
@@ -669,6 +702,254 @@ describe("Collection", () => {
     );
   });
 
+  it("fails hydration payloads when a snapshot has no matching collection definition", () => {
+    const runtime = makeRuntime();
+    const Projects = Collection.define<Project>({
+      name: "Projects.payload-missing-definition",
+      getKey: (project) => project.id
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const exit = yield* Effect.exit(
+          runtime.provide(
+            Collection.hydratePayloadEffect([Projects], {
+              collections: [
+                {
+                  name: "Projects.payload-missing-definition",
+                  rows: [
+                    {
+                      key: "atlas",
+                      value: { id: "atlas", name: "Atlas", status: "active", progress: 72 },
+                      synced: true,
+                      origin: "remote"
+                    }
+                  ],
+                  pendingMutations: [],
+                  updatedAt: 1
+                },
+                {
+                  name: "Tasks.payload-missing-definition",
+                  rows: [],
+                  pendingMutations: [],
+                  updatedAt: 1
+                }
+              ]
+            })
+          )
+        );
+
+        yield* Effect.sync(() => {
+          expect(Exit.isFailure(exit)).toBe(true);
+          const failure = Exit.isFailure(exit)
+            ? exit.cause.reasons.find(Cause.isFailReason)?.error
+            : undefined;
+          expect(failure).toBeInstanceOf(CollectionSnapshotCodecError);
+          expect(failure).toMatchObject({
+            _tag: "CollectionSnapshotCodecError",
+            operation: "hydrate",
+            path: "$.collections[1].name"
+          });
+          expect(runWithRuntime(runtime, () => Projects.rows())).toEqual([]);
+        });
+      }).pipe(
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
+  it("preserves collection output schema failures while hydrating, loading, and writing rows", () => {
+    const runtime = makeRuntime();
+    const Projects = Collection.define<Project>({
+      name: "Projects.schema-validation",
+      output: ProjectRowsSchema,
+      getKey: (project) => project.id
+    });
+    const PersistedProjects = Collection.define<Project>({
+      name: "Projects.schema-validation-persisted",
+      output: ProjectRowsSchema,
+      getKey: (project) => project.id
+    });
+    const LoadingProjects = Collection.define<Project>({
+      name: "Projects.schema-validation-load",
+      output: ProjectRowsSchema,
+      getKey: (project) => project.id,
+      load: () => Effect.succeed<ReadonlyArray<Project>>([
+        {
+          id: "atlas",
+          name: "Atlas",
+          status: "active",
+          progress: "bad"
+        } as unknown as Project
+      ])
+    });
+    const RefetchProjects = Collection.define<Project>({
+      name: "Projects.schema-validation-refetch",
+      output: ProjectRowsSchema,
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+      ],
+      load: () => Effect.succeed<ReadonlyArray<Project>>([
+        {
+          id: "lumen",
+          name: "Lumen",
+          status: "blocked",
+          progress: "bad"
+        } as unknown as Project
+      ])
+    });
+    const invalidProject = {
+      id: "atlas",
+      name: "Atlas",
+      status: "active",
+      progress: "bad"
+    } as unknown as Project;
+    const storage = Collection.memoryStorage([[
+      "projects-schema-validation",
+      JSON.stringify({
+        name: "Projects.schema-validation-persisted",
+        rows: [
+          {
+            key: "atlas",
+            value: invalidProject,
+            synced: true,
+            origin: "remote"
+          }
+        ],
+        pendingMutations: [],
+        updatedAt: 1
+      })
+    ]]);
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const [
+          hydrateFailure,
+          restoreFailure,
+          preloadFailure,
+          refetchFailure,
+          insertFailure,
+          writeInsertFailure,
+          applyChangesFailure,
+          changeFeedFailure
+        ] = yield* Effect.all([
+          Effect.flip(runtime.provide(
+            Projects.hydrateEffect({
+              name: "Projects.schema-validation",
+              rows: [
+                {
+                  key: "atlas",
+                  value: invalidProject,
+                  synced: true,
+                  origin: "remote"
+                }
+              ],
+              pendingMutations: [],
+              updatedAt: 1
+            })
+          )),
+          Effect.flip(runtime.provide(
+            PersistedProjects.restoreEffect(storage, { key: "projects-schema-validation" })
+          )),
+          Effect.flip(runtime.provide(LoadingProjects.preloadEffect())),
+          Effect.flip(runtime.provide(RefetchProjects.refetchEffect())),
+          Effect.flip(runtime.provide(Projects.insertEffect(invalidProject))),
+          Effect.flip(runtime.provide(Projects.writeInsertEffect(invalidProject))),
+          Effect.flip(runtime.provide(Collection.applyChangesEffect(Projects, [
+            { _tag: "Upsert", value: invalidProject }
+          ]))),
+          Effect.flip(runtime.provide(Effect.scoped(
+            Collection.subscribeChangesEffect(Projects, {
+              name: "Projects.schema-validation-feed",
+              subscribe: ({ emit }) =>
+                emit([{ _tag: "Upsert", value: invalidProject }])
+            })
+          )))
+        ]);
+
+        yield* runtime.provide(Projects.writeInsertEffect({
+          id: "atlas",
+          name: "Atlas",
+          status: "active",
+          progress: 72
+        }));
+        const updateFailure = yield* Effect.flip(
+          runtime.provide(Projects.updateEffect("atlas", { progress: "bad" } as unknown as Partial<Project>))
+        );
+        const writeUpdateFailure = yield* Effect.flip(
+          runtime.provide(
+            Projects.writeUpdateEffect("atlas", { progress: "bad" } as unknown as Partial<Project>)
+          )
+        );
+
+        yield* Effect.sync(() => {
+          for (const failure of [
+            hydrateFailure,
+            restoreFailure,
+            preloadFailure,
+            refetchFailure,
+            insertFailure,
+            writeInsertFailure,
+            applyChangesFailure,
+            changeFeedFailure,
+            updateFailure,
+            writeUpdateFailure
+          ]) {
+            expect(failure).toBeInstanceOf(CollectionSnapshotCodecError);
+            expect(failure.reason).toContain("progress");
+          }
+          expect(runWithRuntime(runtime, () => LoadingProjects.state().get())).toMatchObject({
+            _tag: "Failure",
+            error: preloadFailure
+          });
+          expect(runWithRuntime(runtime, () => RefetchProjects.state().get())).toMatchObject({
+            _tag: "Failure",
+            error: refetchFailure
+          });
+          expect(runWithRuntime(runtime, () => Projects.rows())).toMatchObject([
+            { id: "atlas", progress: 72 }
+          ]);
+        });
+      }).pipe(
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
+  it("accepts collection output schemas as row schemas", () => {
+    const runtime = makeRuntime();
+    const Projects = Collection.define<Project>({
+      name: "Projects.row-schema-validation",
+      output: ProjectSchema,
+      getKey: (project) => project.id,
+      load: () => Effect.succeed<ReadonlyArray<Project>>([
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+      ])
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* runtime.provide(Projects.preloadEffect());
+        yield* runtime.provide(Projects.writeInsertEffect({
+          id: "kepler",
+          name: "Kepler",
+          status: "blocked",
+          progress: 34
+        }));
+
+        yield* Effect.sync(() => {
+          expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.id))).toEqual([
+            "atlas",
+            "kepler"
+          ]);
+        });
+      }).pipe(
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
   it("does not roll back a committed mutation when post-commit persistence fails", () => {
     const runtime = makeRuntime();
     let writes = 0;
@@ -722,6 +1003,51 @@ describe("Collection", () => {
       )
     );
   });
+
+  it("reports sync storage adapter throws through the persistence error channel", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const Projects = Collection.define<Project>({
+          name: "Projects.sync-storage-error",
+          getKey: (project) => project.id,
+          initialData: [
+            { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+          ]
+        });
+        const setStorage = Collection.storage({
+          getItem: () => null,
+          setItem: () => {
+            throw new Error("quota exceeded");
+          }
+        });
+        const getStorage = Collection.storage({
+          getItem: () => {
+            throw new Error("blocked");
+          },
+          setItem: () => undefined
+        });
+
+        const setFailure = yield* Effect.flip(
+          Projects.persistEffect(setStorage, { key: "projects-cache" })
+        );
+        const getFailure = yield* Effect.flip(
+          Projects.restoreEffect(getStorage, { key: "projects-cache" })
+        );
+
+        yield* Effect.sync(() => {
+          expect(setFailure).toBeInstanceOf(CollectionStorageError);
+          expect(setFailure).toMatchObject({
+            operation: "setItem",
+            key: "projects-cache"
+          });
+          expect(getFailure).toBeInstanceOf(CollectionStorageError);
+          expect(getFailure).toMatchObject({
+            operation: "getItem",
+            key: "projects-cache"
+          });
+        });
+      })
+    ));
 
   it("persists and restores pending mutation queue entries", async () => {
     const second = makeRuntime();
@@ -1118,6 +1444,34 @@ describe("Collection", () => {
       $synced: true,
       $origin: "remote"
     });
+  });
+
+  it("reports synchronous mutation callback throws through the Effect error channel", () => {
+    const Projects = Collection.define<Project, string, Error>({
+      name: "Projects.mutation-sync-throw",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+      ],
+      onUpdate: () => {
+        throw new Error("offline");
+      }
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const failure = yield* Effect.flip(Projects.updateEffect("atlas", { progress: 80 }));
+        yield* Effect.sync(() => {
+          expect(failure).toBeInstanceOf(Error);
+          expect(failure).toMatchObject({ message: "offline" });
+          expect(Projects.pendingMutations()).toEqual([]);
+          expect(Projects.get("atlas")).toMatchObject({
+            progress: 72,
+            $synced: true
+          });
+        });
+      })
+    );
   });
 
   it("fails typed updates when the row is missing", async () => {

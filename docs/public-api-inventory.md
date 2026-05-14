@@ -28,6 +28,8 @@ unless this document explicitly promotes them.
 | `@effect-ui/start` | `./adapters` | `packages/start/src/adapters.ts` | Public | Keep for Node/fetch host integration. |
 | `@effect-ui/start` | `./virtual` | `packages/start/src/virtual-modules.d.ts` | Expert public | Keep as type-only virtual module declarations. |
 | `@effect-ui/start` | `effect-ui-start` bin | `packages/start/src/cli.ts` | Expert public | Keep for app graph diagnostics automation. |
+| `@effect-ui/start-node` | `.` | `packages/start-node/src/index.ts` | Public | Keep as the Node HTTP adapter facade. |
+| `@effect-ui/start-fetch` | `.` | `packages/start-fetch/src/index.ts` | Public | Keep as the generic Fetch-host adapter facade. |
 | `@effect-ui/db` | `.` | `packages/db/src/index.ts` | Public | Keep as the collection/live-query surface. |
 | `@effect-ui/devtools` | `.` | `packages/devtools/src/index.ts` | Public | Keep as the JSON-safe inspection contract. |
 | `@effect-ui/solid` | `.` | `packages/solid/src/index.ts` | Public | Keep as the Solid adapter surface. |
@@ -84,6 +86,8 @@ The root export includes:
 
 - hydration, streaming, server-function manifest, action manifest, app graph,
   diagnostics report, file-route module helpers, and file-route definitions;
+- hydration error contracts: `StartHydrationError`,
+  `StartHydrationChunkParseError`, and `StartHydrationPayloadParseError`;
 - request handler APIs: `createRequestHandler`, `createRequestHandlerEffect`,
   `createServerHandler`, `preloadRequest`, `preloadRequestEffect`, and the
   `onRequestTrace` hook;
@@ -111,6 +115,8 @@ Subpath exports:
   request handler.
 - `./diagnostics-report` owns grouped repair reports with owner/edit guidance.
 - `./adapters` owns Node/fetch adapter conversion and response writing.
+  Node server error hooks accept pure values or Effects, not Promise-shaped
+  callbacks.
 - `./virtual` owns virtual module typings only.
 - `effect-ui-start` owns diagnostics CLI execution. The internal runner is
   Effect-native; Promise-returning helpers are bin/host wrappers.
@@ -137,7 +143,8 @@ The root export includes the Node HTTP adapter facade:
 - `createNodeHandlerEffect`, `createNodeHandler`,
   `nodeRequestToWebRequestEffect`, `nodeRequestToWebRequest`,
   `writeNodeResponseEffect`, `writeNodeResponse`, `nodeRequestOrigin`, and the
-  related Node adapter types.
+  related Node adapter types. `StartNodeServerErrorHandler` is an EffectInput
+  seam for host error rendering.
 
 Release decisions:
 
@@ -211,7 +218,7 @@ The root export includes:
 - `RuntimeProvider`, `createEffectRuntime`, `useRuntime`, component scopes, and
   core re-exports used by Solid apps;
 - router APIs: `createBrowserRouter`, `RouterProvider`, `RouterOutlet`,
-  `useRouter`;
+  `useRouter`, `BrowserRouterState`, and typed route failure renderers;
 - hooks for signals, streams, resources, suspense, and actions.
 
 Release decisions:

@@ -252,10 +252,7 @@ export const createServerActionResponseEffectWithRuntime = <
           return input;
         }
 
-        const instance = Action.use(
-          action as unknown as ActionDefinition<any, any, never, any>,
-          { runtime }
-        );
+        const instance = Action.use(action as unknown as ActionDefinition<any, any, never, any>);
         const exit = yield* Effect.exit(
           withStartActionObservability(action.name, instance.submitEffect(input))
         );

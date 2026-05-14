@@ -154,7 +154,13 @@ describe("project console full-stack golden path", () => {
       })
     );
 
-    const BoundaryResource = Resource.family({
+    interface BoundaryProject {
+      readonly id: string;
+      readonly name: string;
+      readonly requestPath: string;
+    }
+
+    const BoundaryResource = Resource.family<string, BoundaryProject, Server.ClientError>({
       name: "ProjectConsoleGolden.boundary.resource",
       input: Schema.String,
       output: Schema.Struct({

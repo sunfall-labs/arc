@@ -2,7 +2,8 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
-import { Data, Effect } from "effect";
+import { defaultRuntime, toEffect, type EffectInput } from "@effect-ui/core";
+import { Cause, Data, Effect } from "effect";
 import { StartRequestHandlerError } from "./start-request-handler.js";
 
 export { StartRequestHandlerError } from "./start-request-handler.js";
@@ -13,8 +14,18 @@ export class StartNodeAdapterError extends Data.TaggedError("StartNodeAdapterErr
   readonly error: unknown;
 }> {}
 
+/** Proxy trust policy used while resolving a Node request's public origin. */
+export interface StartNodeOriginPolicy {
+  /**
+   * Whether `x-forwarded-proto` and `x-forwarded-host` may define the public
+   * request origin. Defaults to `true` for compatibility with existing proxy
+   * deployments.
+   */
+  readonly trustForwardedHeaders?: boolean;
+}
+
 /** Options for translating a Node `IncomingMessage` into a web `Request`. */
-export interface StartNodeRequestOptions {
+export interface StartNodeRequestOptions extends StartNodeOriginPolicy {
   /** Public origin used to resolve relative Node request URLs. */
   readonly origin?: string | ((request: IncomingMessage) => string);
 }
@@ -33,6 +44,56 @@ export type StartNodeHandlerEffect = (
 
 /** Node HTTP handler returned by `createNodeHandler`. */
 export type StartNodeHandler = StartNodeHandlerEffect;
+
+/** Runtime boundary needed by Promise-shaped host adapter facades. */
+export interface StartPromiseRuntime {
+  readonly runPromise: <A, E, R>(
+    effect: Effect.Effect<A, E, R>,
+    options?: Effect.RunOptions
+  ) => Promise<A>;
+}
+
+/** Runtime boundary used by callback-shaped host adapter facades. */
+export interface StartForkRuntime {
+  readonly runFork: <A, E, R>(
+    effect: Effect.Effect<A, E, R>,
+    options?: Effect.RunOptions
+  ) => unknown;
+}
+
+/** Options for host-shaped fetch handlers that run Effects to Promises. */
+export interface StartFetchPromiseHandlerOptions {
+  readonly runtime?: StartPromiseRuntime;
+  readonly runOptions?: Effect.RunOptions;
+}
+
+/** Promise-returning fetch handler for Fetch-native hosts. */
+export type StartFetchPromiseHandler = (request: Request) => Promise<Response>;
+
+/**
+ * Error callback used by Node server handler facades.
+ *
+ * Return a pure value or an Effect. Promise-shaped cleanup should be adapted
+ * explicitly with `Effect.tryPromise(...)` before it reaches this seam.
+ */
+export type StartNodeServerErrorHandler = (
+  error: unknown,
+  request: IncomingMessage,
+  response: ServerResponse
+) => EffectInput<void, never, never>;
+
+/** Options for Node `createServer`-style host handlers. */
+export interface StartNodeServerHandlerOptions extends StartNodeRequestOptions {
+  readonly runtime?: StartForkRuntime;
+  readonly runOptions?: Effect.RunOptions;
+  readonly onError?: StartNodeServerErrorHandler;
+}
+
+/** Node `createServer` callback that runs the adapter Effect internally. */
+export type StartNodeServerHandler = (
+  request: IncomingMessage,
+  response: ServerResponse
+) => void;
 
 /** Effect-first Fetch handler returned by `toFetchHandlerEffect`. */
 export type StartFetchHandlerEffect = (
@@ -81,8 +142,13 @@ export const nodeRequestOrigin = (
     return options.origin;
   }
 
-  const protocol = forwardedHeader(request, "x-forwarded-proto") ?? "http";
-  const host = forwardedHeader(request, "x-forwarded-host") ?? request.headers.host ?? "localhost";
+  const trustForwardedHeaders = options.trustForwardedHeaders ?? true;
+  const protocol = trustForwardedHeaders
+    ? forwardedHeader(request, "x-forwarded-proto") ?? "http"
+    : "http";
+  const host = trustForwardedHeaders
+    ? forwardedHeader(request, "x-forwarded-host") ?? request.headers.host ?? "localhost"
+    : request.headers.host ?? "localhost";
   return `${protocol}://${host}`;
 };
 
@@ -142,12 +208,27 @@ const endNodeResponseEffect = (
     catch: (error) => new StartNodeAdapterError({ operation: "write-response", error })
   });
 
+const cancelResponseBodyEffect = (
+  response: Response,
+  reason: string
+): Effect.Effect<void, StartNodeAdapterError> =>
+  response.body
+    ? Effect.tryPromise({
+        try: () => response.body!.cancel(reason),
+        catch: (error) => new StartNodeAdapterError({ operation: "write-response", error })
+      })
+    : Effect.void;
+
 const writeStreamBodyEffect = (
   target: ServerResponse,
   response: Response,
   headOnly: boolean
 ): Effect.Effect<void, StartNodeAdapterError> =>
-  headOnly || !response.body
+  headOnly
+    ? cancelResponseBodyEffect(response, "head-response").pipe(
+        Effect.andThen(endNodeResponseEffect(target))
+      )
+    : !response.body
     ? endNodeResponseEffect(target)
     : Effect.tryPromise({
         try: (signal) =>
@@ -218,6 +299,36 @@ export const toFetchHandler = <HandlerError = never>(
 ): StartFetchHandler =>
   toFetchHandlerEffect(handler);
 
+const runPromiseWithRuntime = <A, E, R>(
+  effect: Effect.Effect<A, E, R>,
+  options: StartFetchPromiseHandlerOptions = {}
+): Promise<A> =>
+  options.runtime === undefined
+    ? defaultRuntime.runPromise(effect, options.runOptions)
+    : options.runtime.runPromise(effect, options.runOptions);
+
+const runForkWithRuntime = <A, E, R>(
+  effect: Effect.Effect<A, E, R>,
+  options: StartNodeServerHandlerOptions = {}
+): unknown =>
+  options.runtime === undefined
+    ? defaultRuntime.runFork(effect, options.runOptions)
+    : options.runtime.runFork(effect, options.runOptions);
+
+/**
+ * Creates a Promise-returning fetch handler for Fetch-native hosts.
+ *
+ * The lower adapter remains Effect-first; this facade owns the runtime-to-
+ * Promise host seam for workers, edge runtimes, Bun, and similar platforms.
+ */
+export const createFetchHandler = <HandlerError = never>(
+  handler: StartRequestHandlerInput<HandlerError>,
+  options: StartFetchPromiseHandlerOptions = {}
+): StartFetchPromiseHandler => {
+  const effectHandler = toFetchHandlerEffect(handler);
+  return (request) => runPromiseWithRuntime(effectHandler(request), options);
+};
+
 /**
  * Creates an Effect-first Node HTTP handler from a Start request handler.
  *
@@ -251,3 +362,59 @@ export const createNodeHandler = <HandlerError = never>(
   options: StartNodeRequestOptions = {}
 ): StartNodeHandler =>
   createNodeHandlerEffect(handler, options);
+
+const defaultNodeServerErrorHandler: StartNodeServerErrorHandler = (
+  error,
+  _request,
+  response
+) => {
+  if (response.writableEnded) {
+    return;
+  }
+  if (response.headersSent) {
+    response.destroy(error instanceof Error ? error : undefined);
+    return;
+  }
+  response.statusCode = 500;
+  response.setHeader("content-type", "text/plain; charset=utf-8");
+  response.end("Internal Server Error");
+};
+
+const reportNodeServerErrorEffect = (
+  error: unknown,
+  request: IncomingMessage,
+  response: ServerResponse,
+  onError: StartNodeServerErrorHandler = defaultNodeServerErrorHandler
+): Effect.Effect<void, never, never> =>
+  Effect.suspend(() => toEffect(onError(error, request, response))).pipe(
+    Effect.catchCause((cause) =>
+      Effect.sync(() => {
+        defaultNodeServerErrorHandler(Cause.squash(cause), request, response);
+      })
+    ),
+    Effect.catchCause(() => Effect.void)
+  );
+
+/**
+ * Creates a Node `createServer` callback that runs the adapter Effect.
+ *
+ * This keeps `createNodeHandlerEffect` available for Effect-first hosts while
+ * giving ordinary Node HTTP integrations a host-shaped callback facade.
+ */
+export const createNodeServerHandler = <HandlerError = never>(
+  handler: StartRequestHandlerInput<HandlerError>,
+  options: StartNodeServerHandlerOptions = {}
+): StartNodeServerHandler => {
+  const effectHandler = createNodeHandlerEffect(handler, options);
+  return (request, response) => {
+    void runForkWithRuntime(
+      effectHandler(request, response).pipe(
+        Effect.asVoid,
+        Effect.catchCause((cause) =>
+          reportNodeServerErrorEffect(Cause.squash(cause), request, response, options.onError)
+        )
+      ),
+      options
+    );
+  };
+};

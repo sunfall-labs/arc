@@ -42,8 +42,8 @@ export interface ResourceMatch<A, E, B> {
  * Solid-facing handle for an Effect UI resource.
  *
  * Accessors track resource state reactively. `refreshEffect` and
- * `prefetchEffect` keep resource work in Effect so callers can compose it with
- * the active runtime instead of starting Promise work implicitly.
+ * `prefetchEffect` keep resource work in Effect and are bound to the nearest
+ * Solid runtime.
  */
 export interface ResourceHandle<I, A, E, R = unknown> {
   readonly ref: Accessor<ResourceRef<I, A, E, R>>;
@@ -74,6 +74,12 @@ const stateHasValue = <A, E>(state: ResourceState<A, E>): boolean => {
       return false;
   }
 };
+
+const bindRuntimeEffect = <A, E, R>(
+  runtime: EffectUiRuntime<unknown, never>,
+  effect: Effect.Effect<A, E, R>
+): Effect.Effect<A, E> =>
+  Effect.scoped(runtime.provide(effect));
 
 /** Bridges an Effect UI readable signal into a Solid accessor. */
 export const useSignal = <A>(signal: ReadableSignal<A>): Accessor<A> => {
@@ -189,8 +195,8 @@ export const useResource = <I, A, E, R = unknown>(ref: ResourceInput<I, A, E, R>
     waiting,
     refreshing,
     hasValue,
-    refreshEffect: () => Resource.refreshEffect(getRef()),
-    prefetchEffect: () => Resource.prefetchEffect(getRef()),
+    refreshEffect: () => bindRuntimeEffect(runtime, Resource.refreshEffect(getRef())),
+    prefetchEffect: () => bindRuntimeEffect(runtime, Resource.prefetchEffect(getRef())),
     match: (cases) => {
       const current = state();
       switch (current._tag) {
@@ -207,31 +213,39 @@ export const useResource = <I, A, E, R = unknown>(ref: ResourceInput<I, A, E, R>
   };
 };
 
-/** Suspense-style resource accessor that throws pending work or failures. */
+/**
+ * Suspense-style resource accessor for Solid render code.
+ *
+ * Cached values are returned synchronously. Failed loads throw `ResourceFailure`
+ * with the stale value when available. Pending or expired reads start
+ * `Resource.prefetchEffect(...)` in the active runtime and throw the Promise
+ * Solid Suspense expects at this UI Adapter seam.
+ */
 export const useResourceSuspense = <I, A, E, R = unknown>(ref: ResourceInput<I, A, E, R>): Accessor<A> => {
   const runtime = useRuntime();
   const getRef = resourceAccessor(ref);
   const state = useResourceResult(getRef);
   return createMemo(() => {
+    const currentRef = getRef();
     const current = state();
-    const value = Resource.value(current);
-    if (value !== undefined) {
-      return value;
+    const status = Resource.status(currentRef);
+    if (status.hasValue && !status.isGcExpired) {
+      return status.value as A;
     }
 
     if (current._tag === "Failure") {
       throw new ResourceFailure({
-        ref: getRef() as ResourceRef<unknown, A, E, unknown>,
+        ref: currentRef,
         error: current.error,
         previous: current.previous
       });
     }
 
-    return runWithRuntime(runtime, () => Resource.read(getRef()));
+    throw runtime.runPromise(Resource.prefetchEffect(currentRef));
   });
 };
 
 /** Creates an Action instance bound to the nearest Solid runtime. */
 export const useAction = <I, A, E, R>(
   definition: Action.Definition<I, A, E, R>
-): ActionInstance<I, A, E, R> => Action.use(definition, { runtime: useRuntime() as EffectUiRuntime<R, unknown> });
+): ActionInstance<I, A, E, R> => Action.use(definition, { runtime: useRuntime() as EffectUiRuntime<R, never> });

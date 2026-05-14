@@ -4,19 +4,25 @@ import type { AddressInfo } from "node:net";
 import { Readable } from "node:stream";
 import { Deferred, Effect } from "effect";
 import { describe, expect, it } from "vitest";
+import { defineApp, route } from "@effect-ui/core";
 import {
+  createFetchHandler,
   createNodeHandler,
+  createNodeServerHandler,
   nodeRequestOrigin,
   nodeRequestToWebRequest,
   toFetchHandler,
   toFetchHandlerEffect
 } from "../src/adapters.js";
 import {
+  createFetchHandler as createPackagedFetchHandler,
   toFetchHandlerEffect as toPackagedFetchHandlerEffect
 } from "@effect-ui/start-fetch";
 import {
+  createNodeServerHandler as createPackagedNodeServerHandler,
   nodeRequestOrigin as packagedNodeRequestOrigin
 } from "@effect-ui/start-node";
+import { createRequestHandler } from "../src/start-request-handler.js";
 
 const listen = (server: ReturnType<typeof createServer>): Promise<number> =>
   Effect.runPromise(Effect.callback<number, unknown>((resume) => {
@@ -58,8 +64,30 @@ describe("Start deployment adapters", () => {
     await expect(request.text()).resolves.toBe("hello");
   });
 
+  it("makes Node forwarded origin trust explicit", () => {
+    const nodeRequest = {
+      method: "GET",
+      url: "/settings",
+      headers: {
+        host: "internal.local",
+        "x-forwarded-proto": "https",
+        "x-forwarded-host": "public.example.com"
+      }
+    } as IncomingMessage;
+
+    expect(nodeRequestOrigin(nodeRequest, { trustForwardedHeaders: true })).toBe(
+      "https://public.example.com"
+    );
+    expect(nodeRequestOrigin(nodeRequest, { trustForwardedHeaders: false })).toBe(
+      "http://internal.local"
+    );
+    expect(nodeRequestToWebRequest(nodeRequest, { trustForwardedHeaders: false }).url).toBe(
+      "http://internal.local/settings"
+    );
+  });
+
   it("adapts an Effect request handler to a Node HTTP server", async () => {
-    const nodeHandler = createNodeHandler((request) =>
+    const nodeHandler = createNodeServerHandler((request) =>
       Effect.gen(function* () {
         const body = yield* Effect.tryPromise(() => request.text());
         return new Response(
@@ -78,18 +106,7 @@ describe("Start deployment adapters", () => {
         );
       })
     );
-    const server = createServer((request, response) => {
-      void Effect.runFork(
-        nodeHandler(request, response).pipe(
-          Effect.catch((error) =>
-            Effect.sync(() => {
-              response.statusCode = 500;
-              response.end(String(error));
-            })
-          )
-        )
-      );
-    });
+    const server = createServer(nodeHandler);
     const port = await listen(server);
 
     try {
@@ -109,6 +126,31 @@ describe("Start deployment adapters", () => {
       });
       expect(response.status).toBe(201);
       expect(response.headers.get("x-effect-ui-adapter")).toBe("node");
+    } finally {
+      await close(server);
+    }
+  });
+
+  it("runs Node server error hooks as Effects", async () => {
+    const nodeHandler = createNodeServerHandler(
+      () => Effect.fail("boom"),
+      {
+        onError: (_error, _request, response) =>
+          Effect.sync(() => {
+            response.statusCode = 503;
+            response.setHeader("content-type", "text/plain; charset=utf-8");
+            response.end("custom failure");
+          })
+      }
+    );
+    const server = createServer(nodeHandler);
+    const port = await listen(server);
+
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/failure`);
+
+      expect(response.status).toBe(503);
+      await expect(response.text()).resolves.toBe("custom failure");
     } finally {
       await close(server);
     }
@@ -138,6 +180,64 @@ describe("Start deployment adapters", () => {
       expect(response.status).toBe(200);
       expect(response.headers.get("x-effect-ui-adapter")).toBe("node-head");
       await expect(response.text()).resolves.toBe("");
+    } finally {
+      await close(server);
+    }
+  });
+
+  it("cancels HEAD response bodies so request runtime finalizers run", async () => {
+    const traces: Array<{ readonly status?: string; readonly teardown?: { readonly runtimeDisposed?: boolean; readonly reason?: string } }> = [];
+    let cancelled: unknown;
+    const Home = route("/", {});
+    const app = defineApp({
+      routes: [Home] as const,
+      client: {}
+    });
+    const startHandler = createRequestHandler(app, {
+      onRequestTrace: (trace) =>
+        Effect.sync(() => {
+          traces.push(trace);
+        }),
+      render: () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode("body"));
+            },
+            cancel(reason) {
+              cancelled = reason;
+            }
+          }),
+          {
+            headers: {
+              "content-type": "text/html"
+            }
+          }
+        )
+    });
+    const nodeHandler = createNodeHandler(startHandler);
+    const server = createServer((request, response) => {
+      void Effect.runFork(nodeHandler(request, response));
+    });
+    const port = await listen(server);
+
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/`, {
+        method: "HEAD"
+      });
+      await expect(response.text()).resolves.toBe("");
+      await Effect.runPromise(Effect.sleep("20 millis"));
+
+      expect(cancelled).toBe("head-response");
+      expect(traces).toEqual([
+        expect.objectContaining({
+          status: "cancelled",
+          teardown: expect.objectContaining({
+            runtimeDisposed: true,
+            reason: "head-response"
+          })
+        })
+      ]);
     } finally {
       await close(server);
     }
@@ -245,6 +345,18 @@ describe("Start deployment adapters", () => {
     const fetchHandler = toFetchHandler((request) =>
       Effect.succeed(new Response(request.method))
     );
+    let runtimeCalls = 0;
+    const promiseHandler = createFetchHandler(
+      (request) => Effect.succeed(new Response(new URL(request.url).pathname)),
+      {
+        runtime: {
+          runPromise: (effect, options) => {
+            runtimeCalls += 1;
+            return Effect.runPromise(effect, options);
+          }
+        }
+      }
+    );
 
     await expect(
       Effect.runPromise(effectHandler(new Request("https://example.com/edge")))
@@ -257,6 +369,9 @@ describe("Start deployment adapters", () => {
     await expect(
       response.text()
     ).resolves.toBe("POST");
+    const promiseResponse = await promiseHandler(new Request("https://example.com/promise"));
+    await expect(promiseResponse.text()).resolves.toBe("/promise");
+    expect(runtimeCalls).toBe(1);
   });
 
   it("exposes host facade packages over the tested adapter implementation", async () => {
@@ -270,6 +385,14 @@ describe("Start deployment adapters", () => {
     );
 
     expect(packagedNodeRequestOrigin(nodeRequest)).toBe(nodeRequestOrigin(nodeRequest));
+    expect(typeof createPackagedNodeServerHandler(() => Effect.succeed(new Response("ok")))).toBe("function");
+    await expect(
+      createPackagedFetchHandler((request) =>
+        Effect.succeed(new Response(new URL(request.url).pathname))
+      )(new Request("https://example.com/from-fetch-package"))
+    ).resolves.toMatchObject({
+      status: 200
+    });
     await expect(
       Effect.runPromise(effectHandler(new Request("https://example.com/from-package")))
     ).resolves.toMatchObject({

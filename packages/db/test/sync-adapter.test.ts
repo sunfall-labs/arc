@@ -108,6 +108,44 @@ describe("Collection.syncOptions", () => {
     );
   });
 
+  it("keeps synchronous sync adapter throws in the Effect error channel", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const loadFailure = new Error("load exploded");
+        const insertFailure = new Error("insert exploded");
+        const LoadProjects = Collection.define(Collection.syncOptions<Project, string, Error>({
+          name: "Projects.sync.throw.load",
+          getKey: (project) => project.id,
+          sync: {
+            name: "throwing-load",
+            load: () => {
+              throw loadFailure;
+            }
+          }
+        }));
+        const InsertProjects = Collection.define(Collection.syncOptions<Project, string, Error>({
+          name: "Projects.sync.throw.insert",
+          getKey: (project) => project.id,
+          sync: {
+            name: "throwing-insert",
+            insert: () => {
+              throw insertFailure;
+            }
+          }
+        }));
+
+        const loadError = yield* Effect.flip(LoadProjects.preloadEffect());
+        const insertError = yield* Effect.flip(
+          InsertProjects.insertEffect({ id: "atlas", name: "Atlas", archived: false })
+        );
+
+        expect(loadError).toBe(loadFailure);
+        expect(insertError).toBe(insertFailure);
+        expect(InsertProjects.pendingMutations()).toEqual([]);
+        expect(InsertProjects.rows()).toEqual([]);
+      })
+    ));
+
   it("composes server sync adapters through the generic sync options seam", () => {
     return Effect.runPromise(
       Effect.gen(function* () {

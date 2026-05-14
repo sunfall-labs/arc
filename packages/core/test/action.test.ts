@@ -1,6 +1,6 @@
 import { Deferred, Effect, Fiber, Schedule } from "effect";
 import { describe, expect, it, vi } from "vitest";
-import { Action, makeRuntime, read, Resource, runWithRuntime, Signal } from "../src/index.js";
+import { Action, EffectInputCallbackError, makeRuntime, read, Resource, runWithRuntime, Signal } from "../src/index.js";
 
 describe("Action", () => {
   it("tracks status transitions", async () => {
@@ -35,6 +35,28 @@ describe("Action", () => {
       _tag: "Success",
       value: { name: "Grace" }
     });
+  });
+
+  it("captures synchronous run throws in the Effect error channel", async () => {
+    const Rename = Action.define<string, string>({
+      name: "rename.sync-throw",
+      run: () => {
+        throw new Error("rename failed");
+      }
+    });
+    const action = Action.use(Rename);
+
+    const exit = await Effect.runPromise(Effect.exit(action.submitEffect("Ada")));
+
+    expect(exit._tag).toBe("Failure");
+    if (exit._tag === "Failure") {
+      const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
+      expect(failure?.error).toBeInstanceOf(EffectInputCallbackError);
+      expect(action.state.get()).toMatchObject({
+        _tag: "Failure",
+        input: "Ada"
+      });
+    }
   });
 
   it("invalidates typed resource refs on success", async () => {

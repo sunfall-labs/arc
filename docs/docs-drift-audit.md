@@ -14,6 +14,13 @@ sweeps.
 
 - Updated request-trace docs that still described richer teardown facts as a
   future gap.
+- Updated devtools panel docs after request items started carrying full
+  teardown snapshots plus per-server-function/action failure owners.
+- Updated Start hydration docs/error audit after root payload and streamed
+  chunk parse failures became typed hydration errors.
+- Updated virtual app graph docs to clarify that readonly
+  `diagnosticsPolicyViolations` is available only after the diagnostics policy
+  guard succeeds.
 - Updated the release-candidate slice list so it no longer asks for removed
   Promise `.then(...)` internals or already-shipped teardown facts.
 - Updated the cleanup backlog so the generated artifact determinism audit points
@@ -43,6 +50,8 @@ sweeps.
 - Updated the progress ledger current-status summary so the clean-sweep gate is
   still open for the right reason: recent sweeps found actionable work beyond
   the earlier benchmark baseline and bridge/metadata slices.
+- Updated the current verification gate evidence from the stale 38/320 and
+  40/328 package-test counts to the current 43/365 gate.
 - Left older checkpoint counts in place only where they explicitly describe
   historical evidence from that checkpoint; current verification counts are
   recorded in the verification gate and progress ledger.

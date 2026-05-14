@@ -1,9 +1,9 @@
 # Deployment
 
 Effect UI deployment currently centers on the Start request boundary:
-`createRequestHandlerEffect(app)`. Host adapters should stay thin. They convert
-platform requests into Web `Request` values, run the Effect handler through the
-app runtime, and write the Web `Response` back to the host.
+`createRequestHandlerEffect(app)`. Host adapters stay thin, but the public
+facades own the host-shaped runtime seam: Fetch hosts get a Promise-returning
+handler, and Node HTTP gets a `createServer` callback.
 
 The tested adapter implementation lives in `@effect-ui/start/adapters`.
 Deployment-facing package facades are split by host shape:
@@ -12,7 +12,25 @@ Node HTTP.
 
 ## Fetch And Edge-Style Hosts
 
-Use the Effect form when the host integration can run through the app runtime:
+Use `createFetchHandler` when the host expects
+`(request: Request) => Promise<Response>`:
+
+```ts
+import { createRequestHandlerEffect } from "@effect-ui/start";
+import { createFetchHandler } from "@effect-ui/start-fetch";
+import { app } from "./app-definition.js";
+
+const fetch = createFetchHandler(createRequestHandlerEffect(app), {
+  runtime: app.runtime
+});
+
+export default {
+  fetch
+};
+```
+
+The lower `toFetchHandlerEffect` and `toFetchHandler` adapters remain
+Effect-first when a host integration needs custom supervision:
 
 ```ts
 import { createRequestHandlerEffect } from "@effect-ui/start";
@@ -20,66 +38,39 @@ import { toFetchHandlerEffect } from "@effect-ui/start-fetch";
 import { app } from "./app-definition.js";
 
 const fetchEffect = toFetchHandlerEffect(createRequestHandlerEffect(app));
-
-export default {
-  fetch(request: Request): Promise<Response> {
-    return app.runtime.runPromise(fetchEffect(request));
-  }
-};
-```
-
-`toFetchHandler` is the same Effect-shaped adapter for the public
-`createRequestHandler` alias:
-
-```ts
-import { createRequestHandler } from "@effect-ui/start";
-import { toFetchHandler } from "@effect-ui/start-fetch";
-import { app } from "./app-definition.js";
-
-const fetchEffect = toFetchHandler(createRequestHandler(app));
-
-export default {
-  fetch(request: Request): Promise<Response> {
-    return app.runtime.runPromise(fetchEffect(request));
-  }
-};
 ```
 
 ## Node HTTP
 
-Use `createNodeHandlerEffect` or its `createNodeHandler` alias to build an
-Effect program. The `node:http` callback is the host boundary that runs it.
+Use `createNodeServerHandler` for the ordinary `node:http` callback shape:
 
 ```ts
 import { createServer } from "node:http";
-import { Effect } from "effect";
 import { createRequestHandlerEffect } from "@effect-ui/start";
-import { createNodeHandler } from "@effect-ui/start-node";
+import { createNodeServerHandler } from "@effect-ui/start-node";
 import { app } from "./app-definition.js";
 
-const handler = createNodeHandler(createRequestHandlerEffect(app), {
-  origin: (request) =>
-    `${request.headers["x-forwarded-proto"] ?? "http"}://${request.headers["x-forwarded-host"] ?? request.headers.host ?? "localhost"}`
+const handler = createNodeServerHandler(createRequestHandlerEffect(app), {
+  runtime: app.runtime,
+  trustForwardedHeaders: true
 });
 
-createServer((request, response) => {
-  void app.runtime.runPromise(
-    handler(request, response).pipe(
-      Effect.catch((error) =>
-        Effect.sync(() => {
-          response.statusCode = 500;
-          response.end(String(error));
-        })
-      )
-    )
-  );
-}).listen(3000);
+createServer(handler).listen(3000);
 ```
+
+`trustForwardedHeaders` defaults to `true` for compatibility with existing
+proxy deployments. Set it to `false` when `x-forwarded-proto` and
+`x-forwarded-host` are not supplied by a trusted proxy, or pass `origin` when a
+deployment has a fixed public origin.
+
+The lower `createNodeHandlerEffect` and `createNodeHandler` adapters remain
+available for hosts that want to run, fork, or recover the Effect program
+themselves.
 
 The Node adapter is covered for:
 
-- forwarded origin handling through `x-forwarded-proto` and
-  `x-forwarded-host`;
+- trusted and untrusted forwarded origin handling through
+  `trustForwardedHeaders`;
 - request bodies for non-`GET`/`HEAD` methods;
 - bodyless `HEAD` responses;
 - streaming Web `Response` bodies through Node backpressure;
@@ -92,15 +83,15 @@ should start from the generic Fetch facade:
 
 ```ts
 import { createRequestHandlerEffect } from "@effect-ui/start";
-import { toFetchHandlerEffect } from "@effect-ui/start-fetch";
+import { createFetchHandler } from "@effect-ui/start-fetch";
 import { app } from "./app-definition.js";
 
-const fetchEffect = toFetchHandlerEffect(createRequestHandlerEffect(app));
+const fetch = createFetchHandler(createRequestHandlerEffect(app), {
+  runtime: app.runtime
+});
 
 export default {
-  fetch(request: Request): Promise<Response> {
-    return app.runtime.runPromise(fetchEffect(request));
-  }
+  fetch
 };
 ```
 
@@ -108,13 +99,15 @@ Bun's HTTP server can use the same Fetch-shaped boundary:
 
 ```ts
 import { createRequestHandlerEffect } from "@effect-ui/start";
-import { toFetchHandlerEffect } from "@effect-ui/start-fetch";
+import { createFetchHandler } from "@effect-ui/start-fetch";
 import { app } from "./app-definition.js";
 
-const fetchEffect = toFetchHandlerEffect(createRequestHandlerEffect(app));
+const fetch = createFetchHandler(createRequestHandlerEffect(app), {
+  runtime: app.runtime
+});
 
 Bun.serve({
-  fetch: (request) => app.runtime.runPromise(fetchEffect(request))
+  fetch
 });
 ```
 

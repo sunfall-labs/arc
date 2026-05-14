@@ -1,6 +1,7 @@
 import {
+  EffectInputCallbackError,
   isServerFunction,
-  toEffect,
+  invokeEffectInput,
   type EffectInput,
   type ServerClientError,
   type ServerFunction
@@ -76,7 +77,7 @@ export type ServerCollectionOptions<
 > = ServerCollectionIdentity & {
   readonly input?: unknown;
   readonly output?: unknown;
-  readonly policy?: CollectionPolicy<E | ServerClientError>;
+  readonly policy?: CollectionPolicy<E | EffectInputCallbackError | ServerClientError>;
   readonly getKey: (value: A) => K;
   readonly indexes?: CollectionIndexRecord<A>;
   readonly initialData?: ReadonlyArray<A>;
@@ -96,11 +97,6 @@ export class ServerCollectionMissingIdentity extends Data.TaggedError(
   readonly guidance: string;
 }> {}
 
-const serverCollectionResultToEffect = <A, E, R>(
-  result: ServerCollectionResult<A, E, R>
-): Effect.Effect<A, E, R> =>
-  toEffect(result as EffectInput<A, E, R>);
-
 const isServerCollectionFunction = <I, A, E, R>(
   operation: ServerCollectionOperation<I, A, E, R>
 ): operation is ServerFunction<I, A, E, R> =>
@@ -109,13 +105,13 @@ const isServerCollectionFunction = <I, A, E, R>(
 const runOperation = <I, A, E, R>(
   operation: ServerCollectionOperation<I, A, E, R>,
   input: I
-): Effect.Effect<A, E | ServerClientError, R> =>
+): Effect.Effect<A, E | EffectInputCallbackError | ServerClientError, R> =>
   Effect.suspend(() => {
     if (isServerCollectionFunction(operation)) {
       return operation.effect(input);
     }
 
-    return serverCollectionResultToEffect(operation(input));
+    return invokeEffectInput("Collection.server.operation", operation, input);
   });
 
 const serverCollectionName = <
@@ -148,7 +144,7 @@ export const serverCollectionSyncAdapter = <
   R = never
 >(
   options: ServerCollectionOptions<A, K, E, R>
-): CollectionSyncAdapter<A, K, E | ServerClientError, R> => ({
+): CollectionSyncAdapter<A, K, E | EffectInputCallbackError | ServerClientError, R> => ({
   name: serverCollectionName(options),
   ...(options.load === undefined
     ? {}
@@ -198,7 +194,7 @@ export const serverCollectionOptions = <
   R = never
 >(
   options: ServerCollectionOptions<A, K, E, R>
-): CollectionOptions<A, K, E | ServerClientError, R> =>
+): CollectionOptions<A, K, E | EffectInputCallbackError | ServerClientError, R> =>
   collectionSyncOptions({
     name: serverCollectionName(options),
     getKey: options.getKey,

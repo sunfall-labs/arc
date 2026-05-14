@@ -1,8 +1,29 @@
-import { Effect, Metric, Request as EffectRequest, RequestResolver, Schema } from "effect";
-import { Action, ActionResult, Capability, Form, Resource, Route, Server, Signal, defineApp, makeRuntime, route } from "@effect-ui/core";
+import { Cause, Effect, Metric, Request as EffectRequest, RequestResolver, Schema, Scope } from "effect";
+import {
+  Action,
+  ActionResult,
+  Capability,
+  Form,
+  Resource,
+  ResourceFailure,
+  ResourceHydrationApplyError,
+  ResourcePending,
+  ResourceSnapshotCodecError,
+  Route,
+  Server,
+  Signal,
+  defineApp,
+  makeRuntime,
+  read,
+  route,
+  type EffectInput
+} from "@effect-ui/core";
 import {
   Collection,
   Query,
+  CollectionSnapshotCodecError,
+  CollectionStorageError,
+  QueryEvaluationError,
   createLiveQueryCollection,
   eq,
   flushCollectionsPendingMutationsEffect,
@@ -10,6 +31,7 @@ import {
   serverCollectionOptions
 } from "@effect-ui/db";
 import { useCollection, useLiveQuery } from "@effect-ui/solid-db";
+import { useResourceSuspense, type BrowserRouterState, type RouterOutletProps } from "@effect-ui/solid";
 import {
   describeDevtoolsPanels,
   effectUiDevtoolsBridgeGlobal,
@@ -26,7 +48,8 @@ import {
   type DevtoolsPanelUiInput,
   type DevtoolsPanels,
   type DevtoolsRequestTrace,
-  type DevtoolsRequestTraceTeardown
+  type DevtoolsRequestTraceTeardown,
+  type DevtoolsSerializableValue
 } from "@effect-ui/devtools";
 import {
   createRequestHandler,
@@ -48,15 +71,19 @@ import {
   startRequestStatusMetric,
   type StartActionInvalidationPlan,
   type StartEffectRpcCompatibilityArtifact,
+  type StartHydrationError,
   type StartRequestHandler,
+  type StartRequestHandlerError,
   type StartRequestTrace,
   type StartRequestTraceTeardown,
   streamHydrationConsumedAttribute,
   submitStartActionEffect
 } from "@effect-ui/start";
 import { effectUiStart, type EffectUiStartPlugin, type StartSsrRequestHandler } from "@effect-ui/start/vite";
+import "@effect-ui/start/virtual";
 import {
   createNodeHandlerEffect,
+  createNodeServerHandler,
   nodeRequestToWebRequestEffect,
   toFetchHandlerEffect
 } from "@effect-ui/start/adapters";
@@ -71,6 +98,10 @@ import {
 import {
   makeProjectId as makeProjectConsoleProjectId
 } from "../examples/project-console/src/domain.contract.js";
+import "@effect-ui/start/virtual";
+import {
+  diagnosticsPolicyViolations as virtualDiagnosticsPolicyViolations
+} from "virtual:effect-ui/app-graph";
 import type {
   FileRouteHrefOptionsById as ProjectConsoleFileRouteHrefOptionsById,
   FileRouteHrefOptionsByPath as ProjectConsoleFileRouteHrefOptionsByPath,
@@ -118,6 +149,23 @@ Route.href(ProjectRoute, {
 
 // @ts-expect-error missing route param
 Route.href(ProjectRoute, { params: {} });
+
+declare const projectRouterFailure: Extract<
+  BrowserRouterState<readonly [typeof ProjectRoute]>,
+  { readonly _tag: "Failure" }
+>;
+const projectRouterFailureCause: Cause.Cause<Route.PreloadError> = projectRouterFailure.cause;
+const projectRouterFailureError: Route.PreloadError | undefined = projectRouterFailure.error;
+void projectRouterFailureCause;
+void projectRouterFailureError;
+const projectRouterFailureRenderer: NonNullable<RouterOutletProps<ProjectError>["failure"]> = (state) => {
+  const cause: Cause.Cause<Route.PreloadError | ProjectError> = state.cause;
+  const error: Route.PreloadError | ProjectError | undefined = state.error;
+  void cause;
+  void error;
+  return undefined;
+};
+void projectRouterFailureRenderer;
 
 Route.href(ProjectRoute, {
   params: { id: "atlas" },
@@ -268,10 +316,39 @@ const ProjectById = Resource.family<string, Project, ProjectError | Server.Clien
 });
 
 Resource.prefetchEffect(ProjectById("atlas"));
+const projectRead: Project = Resource.read(ProjectById("atlas"));
+const projectReadViaHelper: Project = read(ProjectById("atlas"));
+const projectSuspenseRead: Project = useResourceSuspense(ProjectById("atlas"))();
+const projectResourcePending = new ResourcePending({
+  ref: ProjectById("atlas"),
+  state: "Pending",
+  previous: undefined as Project | undefined,
+  guidance: "Preload before reading."
+});
+const projectResourcePendingState: "Initial" | "Pending" | "Collected" = projectResourcePending.state;
+const projectResourcePendingPrevious: Project | undefined = projectResourcePending.previous;
+const projectResourceFailure = new ResourceFailure({
+  ref: ProjectById("atlas"),
+  error: { _tag: "ProjectError", message: "not found" } as ProjectError | Server.ClientError,
+  previous: undefined as Project | undefined
+});
+const projectResourceFailureError: ProjectError | Server.ClientError = projectResourceFailure.error;
+void projectRead;
+void projectReadViaHelper;
+void projectSuspenseRead;
+void projectResourcePendingState;
+void projectResourcePendingPrevious;
+void projectResourceFailureError;
 
 Resource.family<string, Project>({
   name: "Project.asyncResource",
   // @ts-expect-error resource loaders must return Effect or a pure value, not Promise
+  load: () => promisedProject
+});
+
+Resource.family({
+  name: "Project.asyncResourceInferred",
+  // @ts-expect-error unannotated resource loaders must return Effect or a pure value, not Promise
   load: () => promisedProject
 });
 
@@ -286,6 +363,14 @@ Resource.prefetchEffect(BrandedProjectById(atlasProjectId));
 
 // @ts-expect-error branded resource inputs reject accidental plain strings
 Resource.prefetchEffect(BrandedProjectById("atlas"));
+
+const resourceHydrateEffect: Effect.Effect<
+  void,
+  ResourceSnapshotCodecError | ResourceHydrationApplyError | Schema.SchemaError
+> =
+  Resource.hydrateEffect({ resources: [] });
+const resourceDecodeEffect: Effect.Effect<Resource.HydrationPayload, ResourceSnapshotCodecError> =
+  Resource.decodeHydrationPayloadEffect("{\"resources\":[]}");
 
 interface ProjectRequest extends EffectRequest.Request<Project, ProjectError> {
   readonly _tag: "ProjectRequest";
@@ -366,6 +451,13 @@ ProjectsCollection.persistEffect(projectMemoryStorage, { key: "projects" });
 ProjectsCollection.restoreEffect(projectMemoryStorage, { key: "projects", replace: false });
 Collection.persistEffect(ProjectsCollection, projectMemoryStorage);
 Collection.restoreEffect(ProjectsCollection, projectMemoryStorage);
+const projectBrowserStorage = Collection.storage({
+  getItem: () => null,
+  setItem: () => undefined
+});
+const projectBrowserPersistEffect: Effect.Effect<void, CollectionStorageError | CollectionSnapshotCodecError> =
+  Collection.persistEffect(ProjectsCollection, projectBrowserStorage);
+void projectBrowserPersistEffect;
 
 const ListProjectsForCollection = Server.fn<void, readonly Project[], ProjectError>("Projects.collection.list", {
   handler: () => Effect.succeed([{ id: "atlas", name: "Atlas" }])
@@ -491,17 +583,34 @@ Collection.applyChangesEffect(ProjectsCollection, collectionChanges, {
   origin: "remote",
   synced: true
 });
-const changeFeedAdapter: Collection.ChangeFeedAdapter<Project> = {
+const changeFeedAdapter: Collection.ChangeFeedAdapter<
+  Project,
+  string,
+  never,
+  never,
+  ProjectError | Server.ClientError,
+  ProjectApi
+> = {
   name: "projects-feed",
   subscribe: (context) => {
     context.collection.toUpperCase();
-    context.emit([{ _tag: "Upsert", value: { id: "atlas", name: "Atlas" } }]);
+    const emitted: EffectInput<
+      void,
+      ProjectError | Server.ClientError | CollectionSnapshotCodecError,
+      ProjectApi
+    > = context.emit([{ _tag: "Upsert", value: { id: "atlas", name: "Atlas" } }]);
+    void emitted;
     return {
       unsubscribe: () => undefined
     };
   }
 };
-Collection.subscribeChangesEffect(ProjectsCollection, changeFeedAdapter);
+const changeFeedSubscriptionEffect: Effect.Effect<
+  void,
+  ProjectError | Server.ClientError | CollectionSnapshotCodecError,
+  Scope.Scope | ProjectApi
+> = Collection.subscribeChangesEffect(ProjectsCollection, changeFeedAdapter);
+void changeFeedSubscriptionEffect;
 Effect.map(flushCollectionsPendingMutationsEffect([ProjectsCollection], {
   skip: ({ collection }) => collection.name === "Projects.collection"
 }), (results) => results.map((result) => result._tag));
@@ -646,6 +755,16 @@ createRequestHandler(StartApp, {
     return "";
   }
 });
+virtualDiagnosticsPolicyViolations.map((violation) => {
+  violation.message.toUpperCase();
+  violation.routes.map((route) => route.routePath.toUpperCase());
+  if (violation._tag === "UnknownRoutePreloadResources") {
+    violation.routes.map((route) => route.preloadResources.families.length);
+  }
+  if (violation._tag === "UnknownRoutePreloadCollections") {
+    violation.routes.map((route) => route.preloadCollections.collections.length);
+  }
+});
 createRequestHandler(StartApp, {
   // @ts-expect-error Start render callbacks must return Effect or a pure value, not Promise
   render: () => promisedString
@@ -661,6 +780,8 @@ const startRequestHandler: StartRequestHandler = () => Effect.succeed(new Respon
 // @ts-expect-error root Start request handlers must return Effect, not plain Response
 const syncStartRequestHandler: StartRequestHandler = () => new Response("ok");
 const viteStartSsrRequestHandler: StartSsrRequestHandler = () => new Response("ok");
+// @ts-expect-error Vite dev SSR handlers must return Response or Effect, not Promise
+const promiseViteStartSsrRequestHandler: StartSsrRequestHandler = () => startResponsePromise;
 const startVitePlugin: EffectUiStartPlugin = effectUiStart();
 startVitePlugin.resolveId("virtual:effect-ui/app-graph");
 startVitePlugin.transform("", "/src/domain.server.ts", { ssr: true });
@@ -682,6 +803,7 @@ effectRpcCompatibility.procedures.map((procedure) => procedure.schemas.payload.v
 void startRequestHandler;
 void syncStartRequestHandler;
 void viteStartSsrRequestHandler;
+void promiseViteStartSsrRequestHandler;
 void startVitePlugin;
 preloadRequestEffect(StartApp, new Request("https://example.com/projects/atlas"), {
   collections: [ProjectsCollection]
@@ -691,6 +813,16 @@ Effect.map(preloadRequest(StartApp, new Request("https://example.com/projects/at
 );
 toFetchHandlerEffect(createRequestHandlerEffect(StartApp));
 createNodeHandlerEffect(createRequestHandlerEffect(StartApp));
+createNodeServerHandler(createRequestHandlerEffect(StartApp), {
+  onError: (_error, _request, response) =>
+    Effect.sync(() => {
+      response.statusCode = 500;
+    })
+});
+createNodeServerHandler<StartRequestHandlerError>(createRequestHandlerEffect(StartApp), {
+  // @ts-expect-error Node server error hooks must return Effect or a pure value, not Promise
+  onError: () => promisedVoid
+});
 nodeRequestToWebRequestEffect({ method: "GET", url: "/", headers: {} } as import("node:http").IncomingMessage);
 const packagedFetchHandlerEffect: PackagedStartFetchHandlerEffect = toPackagedFetchHandlerEffect(
   createRequestHandlerEffect(StartApp)
@@ -722,6 +854,11 @@ hydrateFromDocument(hydrationDocument, undefined, {
 hydrationRuntime.runSync(hydrateFromDocumentEffect(hydrationDocument, undefined, {
   collections: [ProjectsCollection]
 }));
+const startHydrationEffect: Effect.Effect<unknown, StartHydrationError> =
+  hydrateFromDocumentEffect(hydrationDocument, undefined, {
+    collections: [ProjectsCollection]
+  });
+void startHydrationEffect;
 const streamHydrationDocument = {
   querySelectorAll: () => [
     {
@@ -769,6 +906,37 @@ const ProjectNames = Query.live((query) =>
     .where(({ project }) => eq(project.id, "atlas"))
     .select(({ project }) => project.name)
 );
+const projectNamesPreloadEffect: Effect.Effect<
+  void,
+  ProjectError | Server.ClientError | CollectionSnapshotCodecError,
+  ProjectApi
+> = ProjectNames.preloadEffect();
+const projectNamesRefetchEffect: Effect.Effect<
+  void,
+  ProjectError | Server.ClientError | CollectionSnapshotCodecError,
+  ProjectApi
+> = ProjectNames.refetchEffect();
+const projectNamesOnceEffect: Effect.Effect<
+  ReadonlyArray<string>,
+  ProjectError | Server.ClientError | CollectionSnapshotCodecError | QueryEvaluationError,
+  ProjectApi
+> = Query.onceEffect((query) =>
+  query
+    .from({ project: ProjectsCollection })
+    .select(({ project }) => project.name)
+);
+void projectNamesPreloadEffect;
+void projectNamesRefetchEffect;
+void projectNamesOnceEffect;
+const projectNamesState = ProjectNames.state.get();
+if (projectNamesState._tag === "Failure") {
+  const projectNamesError:
+    | ProjectError
+    | Server.ClientError
+    | CollectionSnapshotCodecError
+    | QueryEvaluationError = projectNamesState.error;
+  void projectNamesError;
+}
 
 ProjectNames.data.get().map((name) => name.toUpperCase());
 
@@ -786,6 +954,56 @@ const ProjectNameCards = Collection.liveQuery<{ readonly id: string; readonly na
         name: project.name
       }))
 });
+const solidProjects = useCollection(ProjectsCollection, {
+  preload: false,
+  onPreloadFailure: (error) => {
+    const typedError: ProjectError | Server.ClientError | CollectionSnapshotCodecError = error;
+    void typedError;
+  }
+});
+const solidProjectPreloadEffect: Effect.Effect<
+  void,
+  ProjectError | Server.ClientError | CollectionSnapshotCodecError,
+  ProjectApi
+> = solidProjects.preloadEffect();
+const solidProjectPreloadFailure:
+  | ProjectError
+  | Server.ClientError
+  | CollectionSnapshotCodecError
+  | undefined = solidProjects.preloadFailure();
+void solidProjectPreloadEffect;
+void solidProjectPreloadFailure;
+const solidProjectNames = useLiveQuery((query) =>
+  query
+    .from({ project: ProjectsCollection })
+    .select(({ project }) => project.name),
+  {
+    preload: false,
+    onPreloadFailure: (error) => {
+      const typedError: ProjectError | Server.ClientError | CollectionSnapshotCodecError = error;
+      void typedError;
+    }
+  }
+);
+const solidProjectNamesPreloadEffect: Effect.Effect<
+  void,
+  ProjectError | Server.ClientError | CollectionSnapshotCodecError,
+  ProjectApi
+> = solidProjectNames.preloadEffect();
+const solidProjectNamesError:
+  | ProjectError
+  | Server.ClientError
+  | CollectionSnapshotCodecError
+  | QueryEvaluationError
+  | undefined = solidProjectNames.error();
+const solidProjectNamesPreloadFailure:
+  | ProjectError
+  | Server.ClientError
+  | CollectionSnapshotCodecError
+  | undefined = solidProjectNames.preloadFailure();
+void solidProjectNamesPreloadEffect;
+void solidProjectNamesError;
+void solidProjectNamesPreloadFailure;
 
 ProjectNameCards.rows().map((project) => {
   project.name.toUpperCase();
@@ -1058,7 +1276,11 @@ devtoolsPanels.panels.map((panel) => {
   panel.id;
   panel.severity;
   panel.metrics.map((metric) => metric.label);
-  panel.items.map((item) => item.severity);
+  panel.items.map((item) => {
+    item.severity;
+    const itemData: DevtoolsSerializableValue | undefined = item.data;
+    void itemData;
+  });
 });
 describeDevtoolsPanels({ summary: devtoolsStore.getSummary() }).panels.map((panel) => panel.title);
 renderDevtoolsPanelsHtml(devtoolsPanelUiInput).toUpperCase();

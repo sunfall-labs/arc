@@ -102,18 +102,19 @@ The causal graph answers questions like:
 Graph IDs are deterministic and stable enough for tests, agent inspection, and
 incremental UI rendering.
 
-When `StartBuildPolicy.diagnostics` is configured, the generated
-`virtual:effect-ui/app-graph` module also exports `diagnosticsPolicyViolations`
-and throws if resolved route-module diagnostics violate the policy. This lets a
-devtools/CI import turn missing `preloadResources` or `preloadCollections`
-declarations into a hard gate. Use `loadStartAppGraphDiagnostics(...)` from
-`@effect-ui/start/vite` when a CI script wants to run the same resolved
-diagnostics gate through Vite and consume the resulting `diagnostics` object.
-The same path is available as `effect-ui-start diagnostics --root .`; pass
-`--json` when the caller wants the resolved graph payload. The default CLI
-output is an agent-readable repair report grouped by source owner, with concrete
-edits for missing wire schemas, unknown action behavior metadata, and route
-preload resource/collection declarations.
+When `StartBuildPolicy.diagnostics` is configured, the Start Vite Diagnostics
+Gate runs during Vite builds and fails if resolved route-module diagnostics
+violate the policy, even when the app does not import
+`virtual:effect-ui/app-graph`. The generated virtual module also exports typed
+`diagnosticsPolicyViolations` for devtools and agent consumers. Use
+`loadStartAppGraphDiagnostics(...)` from `@effect-ui/start/vite` when a CI
+script wants to run the same resolved diagnostics gate through Vite and consume
+the resulting `diagnostics` object. The same path is available as
+`effect-ui-start diagnostics --root .`; pass `--json` when the caller wants the
+resolved graph payload. The default CLI output is an agent-readable repair
+report grouped by source owner, with concrete edits for missing wire schemas,
+unknown action behavior metadata, and route preload resource/collection
+declarations.
 
 ## Golden Path
 
@@ -178,7 +179,9 @@ rendering:
 
 Each panel carries a stable `id`, title, short summary, severity, metrics, and
 serializable items. Request items include the richer teardown facts from Start:
-duration, runtime disposal, teardown reason, and before/after fiber counts.
+duration, runtime disposal, teardown reason, before/after fiber, family, module,
+and tag counts, serialized teardown snapshots, and per-server-function/action
+failure owners.
 
 ## Browser Panel Renderer
 

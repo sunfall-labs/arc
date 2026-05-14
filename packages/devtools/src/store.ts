@@ -71,6 +71,90 @@ export const makeDevtoolsStoreWithRuntime = (
   ): ReadonlyArray<DevtoolsRuntimeEvent> =>
     events.slice(-eventLimit);
 
+  const nextRuntimeEventSequence = (
+    events: ReadonlyArray<DevtoolsRuntimeEvent> | undefined
+  ): number =>
+    events?.reduce(
+      (next, event, index) => Math.max(next, (event.sequence ?? index) + 1),
+      0
+    ) ?? 0;
+
+  const requestTraceSequence = (id: string | undefined): number | undefined => {
+    if (id === undefined || !id.startsWith("trace:")) {
+      return undefined;
+    }
+
+    const sequence = Number(id.slice("trace:".length));
+    return Number.isInteger(sequence) && sequence >= 0 ? sequence : undefined;
+  };
+
+  const requestTraceFingerprint = (trace: DevtoolsRequestTrace): string =>
+    JSON.stringify([
+      trace.request.method,
+      trace.request.url,
+      trace.request.path,
+      trace.request.transport
+    ]);
+
+  const normalizeImportedRequestTraceFacts = (
+    copied: DevtoolsSnapshot
+  ): DevtoolsSnapshot => {
+    let sequence = 0;
+    const importedIdsByFingerprint = new Map<string, Array<string>>();
+    const seedSequence = (trace: DevtoolsRequestTrace): void => {
+      const traceSequence = requestTraceSequence(trace.request.id);
+      if (traceSequence !== undefined) {
+        sequence = Math.max(sequence, traceSequence + 1);
+      }
+    };
+
+    for (const trace of copied.requestTraces ?? []) {
+      seedSequence(trace);
+    }
+    for (const event of copied.events ?? []) {
+      if (event._tag === "RequestTrace") {
+        seedSequence(event.trace);
+      }
+    }
+
+    const allocateId = (): string => `trace:${sequence++}`;
+    const normalizeTrace = (trace: DevtoolsRequestTrace): DevtoolsRequestTrace => {
+      if (trace.request.id !== undefined) {
+        return trace;
+      }
+
+      return ensureRequestTraceId(trace, allocateId());
+    };
+    const requestTraces = copied.requestTraces?.map((trace) => {
+      const normalized = normalizeTrace(trace);
+      const fingerprint = requestTraceFingerprint(trace);
+      const ids = importedIdsByFingerprint.get(fingerprint) ?? [];
+      ids.push(normalized.request.id!);
+      importedIdsByFingerprint.set(fingerprint, ids);
+      return normalized;
+    });
+    const events = copied.events?.map((event) => {
+      if (event._tag !== "RequestTrace" || event.trace.request.id !== undefined) {
+        return event;
+      }
+
+      const fingerprint = requestTraceFingerprint(event.trace);
+      const importedIds = importedIdsByFingerprint.get(fingerprint);
+      const importedId = importedIds?.shift();
+      return {
+        ...event,
+        trace: ensureRequestTraceId(event.trace, importedId ?? allocateId())
+      };
+    });
+
+    nextRequestTraceSequence = sequence;
+    return {
+      ...copied,
+      ...(requestTraces === undefined ? {} : { requestTraces }),
+      ...(events === undefined ? {} : { events })
+    };
+  };
+
   const withSequence = (event: DevtoolsRuntimeEvent): DevtoolsRuntimeEvent => {
     if (event.sequence !== undefined) {
       nextEventSequence = Math.max(nextEventSequence, event.sequence + 1);
@@ -225,7 +309,8 @@ export const makeDevtoolsStoreWithRuntime = (
   const getSnapshotEffect = () => Effect.sync(() => copyDevtoolsSnapshot(snapshot));
   const setSnapshotEffect = (next: DevtoolsSnapshot) =>
     Effect.sync(() => {
-      snapshot = copyDevtoolsSnapshot(next);
+      snapshot = normalizeImportedRequestTraceFacts(copyDevtoolsSnapshot(next));
+      nextEventSequence = nextRuntimeEventSequence(snapshot.events);
     });
   const setAppGraphDiagnosticsEffect = (appGraph: DevtoolsStartAppGraphDiagnostics) =>
     Effect.sync(() => {

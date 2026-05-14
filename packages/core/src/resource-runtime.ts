@@ -1,4 +1,4 @@
-import { Clock, Effect, Fiber, Option, PubSub, Scope } from "effect";
+import { Clock, Effect, Fiber, Option, PubSub, Schema, Scope } from "effect";
 import {
   planResourceInvalidationTargets,
   recordResourceProvidedTags,
@@ -6,7 +6,16 @@ import {
 } from "./resource-dependency-graph.js";
 import { describeResourceStoreInvalidationCause, publishResourceStoreEvent } from "./resource-events.js";
 import { ResourceCollector, type ResourceCollected } from "./resource-collector.js";
-import { ResourceFailure } from "./resource-errors.js";
+import { ResourceFailure, ResourcePending } from "./resource-errors.js";
+import { lookupResourceHydrationFamily } from "./resource-registry.js";
+import {
+  decodeResourceHydrationInputEffect,
+  decodeResourceHydrationStateEffect,
+  ResourceHydrationApplyError,
+  resourceHydrationSnapshotFromRef,
+  type ResourceSnapshotCodecError,
+  validateResourceHydrationInputEffect
+} from "./resource-snapshot-codec.js";
 import {
   clearResourceInFlight,
   inspectResourceStatus,
@@ -25,8 +34,9 @@ import { ResourceStore, type ResourceStore as ResourceStoreState, type ResourceS
 import { currentOrDefaultRuntime, runFork } from "./runtime.js";
 import type { ReadableSignal } from "./signal.js";
 import type {
-  AnyResourceFamily,
   AnyResourceRef,
+  ResourceHydrationInput,
+  ResourceHydrationOptions,
   ResourceHydrationPayload,
   ResourceHydrationSnapshot,
   ResourceInvalidationPlan,
@@ -177,29 +187,31 @@ export const collectResourceEffect = <A, E, R>(
     };
   });
 
-const suspensePromise = <I, A, E, R>(
+const resourcePending = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-  entry: ReturnType<ResourceRef<I, A, E, R>["family"]["entry"]>
-): Promise<A> => {
-  const runtime = currentOrDefaultRuntime();
-  return entry.inFlight
-    ? runtime.runPromise(Fiber.join(entry.inFlight.fiber))
-    : runtime.runPromise(prefetchResourceEffect(ref));
-};
+  state: "Initial" | "Pending" | "Collected",
+  previous: A | undefined
+): ResourcePending<I, A, E, R> =>
+  new ResourcePending({
+    ref,
+    state,
+    previous,
+    guidance: "Resource.read(...) is synchronous and Effect-first. Run Resource.prefetchEffect(...) before reading, or use a UI adapter such as Solid useResourceSuspense(...) for Suspense."
+  });
 
 export const readResource = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): A => {
   const entry = ref.family.entry(ref, currentResourceStore());
   const state = entry.state.get();
 
   if (state._tag === "Initial") {
-    throw suspensePromise(ref, entry);
+    throw resourcePending(ref, "Initial", undefined);
   }
 
   if (state._tag === "Pending") {
     if ("previous" in state) {
       return state.previous as A;
     }
-    throw suspensePromise(ref, entry);
+    throw resourcePending(ref, "Pending", undefined);
   }
 
   if (state._tag === "Failure") {
@@ -212,7 +224,7 @@ export const readResource = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): A => {
 
   if (isResourceStateCollected(ref as ResourceRef<unknown, A, E, unknown>, state)) {
     resetResourceEntry(entry);
-    throw suspensePromise(ref, entry);
+    throw resourcePending(ref, "Collected", state.value);
   }
 
   if (isResourceStateStale(ref as ResourceRef<unknown, A, E, unknown>, state)) {
@@ -289,12 +301,7 @@ export const dehydrateResources = (
   for (const ref of refs) {
     const state = ref.family.entry(ref, store).state.get() as ResourceState<unknown, unknown>;
     if (state._tag === "Success") {
-      snapshot.push({
-        name: ref.family.options.name,
-        key: ref.key,
-        input: ref.input,
-        state
-      });
+      snapshot.push(resourceHydrationSnapshotFromRef(ref, state));
     }
   }
 
@@ -315,41 +322,55 @@ export const resourceHydrationPayloadEffect = (
 ): Effect.Effect<ResourceHydrationPayload> =>
   Effect.map(dehydrateResourcesEffect(refs), (resources) => ({ resources }));
 
-const snapshotsFrom = (
-  input: ReadonlyArray<ResourceHydrationSnapshot> | ResourceHydrationPayload
-): ReadonlyArray<ResourceHydrationSnapshot> =>
-  "resources" in input ? input.resources : input;
-
 export const hydrateResourcesEffect = (
-  input: ReadonlyArray<ResourceHydrationSnapshot> | ResourceHydrationPayload
-): Effect.Effect<void> =>
+  input: ResourceHydrationInput,
+  options: ResourceHydrationOptions = {}
+): Effect.Effect<void, ResourceSnapshotCodecError | ResourceHydrationApplyError | Schema.SchemaError> =>
   Effect.gen(function* () {
     const store = yield* resourceStoreEffect;
-    for (const snapshot of snapshotsFrom(input)) {
-      const family =
-        store.families.get(snapshot.name) as AnyResourceFamily | undefined ??
-        familyDefinitions.get(snapshot.name);
+    const snapshots = yield* validateResourceHydrationInputEffect(input, "hydrate");
+    let index = 0;
+    for (const snapshot of snapshots) {
+      const path = `$.resources[${index}]`;
+      index++;
+      const family = lookupResourceHydrationFamily(snapshot.name, store);
       if (!family) {
-        continue;
+        if (options.missingFamily === "skip") {
+          continue;
+        }
+        return yield* Effect.fail(new ResourceHydrationApplyError({
+          reason: "MissingFamily",
+          path,
+          name: snapshot.name,
+          key: snapshot.key,
+          guidance: "Register the Resource family before hydration, or pass { missingFamily: \"skip\" } to opt into dropping that snapshot."
+        }));
       }
 
-      const ref = family.ref(snapshot.input);
+      const input = yield* decodeResourceHydrationInputEffect(family, snapshot);
+      const ref = family.ref(input);
       if (ref.key !== snapshot.key) {
-        continue;
+        if (options.keyMismatch === "skip") {
+          continue;
+        }
+        return yield* Effect.fail(new ResourceHydrationApplyError({
+          reason: "KeyMismatch",
+          path,
+          name: snapshot.name,
+          key: snapshot.key,
+          expectedKey: ref.key,
+          guidance: "Hydration snapshot keys must match the registered Resource family's key function for the decoded input, or pass { keyMismatch: \"skip\" } to opt into dropping that snapshot."
+        }));
       }
 
-      yield* family.hydrate(ref, snapshot.state as Extract<ResourceState<any, any>, { readonly _tag: "Success" }>, store);
+      const state = yield* decodeResourceHydrationStateEffect(family, snapshot);
+      yield* family.hydrate(ref, state as Extract<ResourceState<any, any>, { readonly _tag: "Success" }>, store);
     }
   });
 
 export const hydrateResources = (
-  input: ReadonlyArray<ResourceHydrationSnapshot> | ResourceHydrationPayload
+  input: ResourceHydrationInput,
+  options?: ResourceHydrationOptions
 ): void => {
-  currentOrDefaultRuntime().runSync(hydrateResourcesEffect(input));
-};
-
-const familyDefinitions = new Map<string, AnyResourceFamily>();
-
-export const registerResourceRuntimeFamily = (family: AnyResourceFamily): void => {
-  familyDefinitions.set(family.options.name, family);
+  currentOrDefaultRuntime().runSync(hydrateResourcesEffect(input, options));
 };

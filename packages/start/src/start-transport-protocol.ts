@@ -42,9 +42,9 @@ import type { ServerRpcClientOptions } from "./start-fetch.js";
  * Extends RPC options with optional collection hydration settings. Supplying a
  * runtime runs action response hydration in that runtime.
  */
-export interface StartActionClientOptions<FetchError = never>
+export interface StartActionClientOptions<FetchError = never, RuntimeError = never>
   extends ServerRpcClientOptions<FetchError>, StartCollectionHydrationOptions {
-  readonly runtime?: EffectUiRuntime<unknown, unknown>;
+  readonly runtime?: EffectUiRuntime<unknown, RuntimeError>;
 }
 
 /** JSON payload accepted by the Start action transport. */
@@ -444,7 +444,7 @@ export const readStartActionRequestEffect = (
 
 export const makeActionMap = (
   actions?: Iterable<StartActionDefinition>,
-  registry?: CoreDefinitionRegistry<StartActionDefinition, ServerFunction<unknown, unknown, unknown, unknown>>
+  registry?: CoreDefinitionRegistry<StartActionDefinition, ServerFunction<any, any, any, any>>
 ): ReadonlyMap<string, StartActionDefinition> =>
   actions === undefined
     ? registry?.actions ?? Action.definitions()
@@ -460,9 +460,9 @@ const firstDefect = <E>(cause: Cause.Cause<E>): unknown | undefined => {
   return reason?.defect;
 };
 
-export const rpcFailureKindEffect = (
-  fn: ServerFunction<unknown, unknown, unknown, unknown>,
-  exit: Exit.Exit<unknown, unknown>
+export const rpcFailureKindEffect = <FnError>(
+  fn: ServerFunction<unknown, unknown, FnError, unknown>,
+  exit: Exit.Exit<unknown, FnError>
 ): Effect.Effect<StartRequestTraceFailureKind> => {
   if (Exit.isSuccess(exit)) {
     return Effect.succeed("domain");
@@ -500,9 +500,9 @@ const actionResultFailureKind = (
   return undefined;
 };
 
-export const actionFailureKindEffect = (
+export const actionFailureKindEffect = <ActionError>(
   action: StartActionDefinition,
-  exit: Exit.Exit<unknown, unknown>
+  exit: Exit.Exit<unknown, ActionError>
 ): Effect.Effect<StartRequestTraceFailureKind | undefined> => {
   if (Exit.isSuccess(exit)) {
     return Effect.succeed(actionResultFailureKind(exit.value));
@@ -551,9 +551,9 @@ export const functionNotFoundResponse = (functionName: string): Response =>
     404
   );
 
-export const exitToRpcResponse = (
-  fn: ServerFunction<unknown, unknown, unknown, unknown>,
-  exit: Exit.Exit<unknown, unknown>
+export const exitToRpcResponse = <FnError>(
+  fn: ServerFunction<unknown, unknown, FnError, unknown>,
+  exit: Exit.Exit<unknown, FnError>
 ): Effect.Effect<Response, never> => {
   if (Exit.isSuccess(exit)) {
     return Effect.succeed(
@@ -842,9 +842,9 @@ const actionResultResponseEffect = (
   });
 };
 
-export const actionExitResponseEffect = (
+export const actionExitResponseEffect = <ActionError>(
   action: StartActionDefinition,
-  exit: Exit.Exit<unknown, unknown>,
+  exit: Exit.Exit<unknown, ActionError>,
   meta: StartActionResponseMeta = {},
   mode: "json" | "redirect" = "redirect"
 ): Effect.Effect<Response, never> => {
@@ -1098,9 +1098,9 @@ const dieOnActionHydrationFailure = <E, R>(
 ): Effect.Effect<void, never, R> =>
   effect.pipe(Effect.catch((error: E) => Effect.die(error)));
 
-export const hydrateActionResponseEffect = <FetchError = never>(
+export const hydrateActionResponseEffect = <FetchError = never, RuntimeError = never>(
   body: StartActionResponseBody,
-  options: StartActionClientOptions<FetchError>
+  options: StartActionClientOptions<FetchError, RuntimeError>
 ): Effect.Effect<void, never, unknown> => {
   const invalidationTargets = "invalidation" in body && body.invalidation
     ? body.invalidation.targets.flatMap((target): ReadonlyArray<ResourceInvalidation> =>

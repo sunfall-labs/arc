@@ -54,14 +54,24 @@ declare module "virtual:effect-ui/routes" {
 }
 
 declare module "virtual:effect-ui/app-graph" {
+  /** Static app graph generated from file routes, server functions, and actions. */
   export type StartAppGraph = import("./app-graph.js").StartAppGraph;
+  /** Runtime diagnostics layered onto the generated app graph. */
   export type StartAppGraphDiagnostics = import("./app-graph.js").StartAppGraphDiagnostics;
+  /** Diagnostics policy violation raised before the virtual module is usable. */
+  export type StartAppGraphDiagnosticsPolicyViolation = import("./app-graph.js").StartAppGraphDiagnosticsPolicyViolation;
 
+  /** Generated static app graph. */
   export const graph: StartAppGraph;
+  /** Runtime-aware diagnostics for routes, resources, collections, actions, and server functions. */
   export const diagnostics: StartAppGraphDiagnostics;
-  export const diagnosticsPolicyViolations: readonly unknown[];
+  /** Policy violations after the virtual module's Effect guard succeeds. */
+  export const diagnosticsPolicyViolations: readonly StartAppGraphDiagnosticsPolicyViolation[];
+  /** Generated route graph entries. */
   export const routes: StartAppGraph["routes"];
+  /** Generated server-function graph entries. */
   export const serverFunctions: StartAppGraph["serverFunctions"];
+  /** Generated action graph entries. */
   export const actions: StartAppGraph["actions"];
   export default graph;
 }

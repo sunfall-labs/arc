@@ -1,6 +1,7 @@
 import type {
   StartAppGraphActionDiagnostics,
   StartAppGraphDiagnostics,
+  StartAppGraphDiagnosticsPolicyViolation,
   StartAppGraphServerFunctionDiagnostics,
   StartAppGraphWireSchemaField
 } from "./app-graph.js";
@@ -52,7 +53,7 @@ export interface StartDiagnosticsReport {
 
 export interface StartDiagnosticsReportInput {
   readonly diagnostics: StartAppGraphDiagnostics;
-  readonly diagnosticsPolicyViolations?: readonly unknown[];
+  readonly diagnosticsPolicyViolations?: readonly StartAppGraphDiagnosticsPolicyViolation[];
 }
 
 const ownerForServerFunction = (
@@ -119,30 +120,16 @@ const unknownBehaviorFields = (
 const actionBehaviorEdit = (fields: readonly string[]): string =>
   `Declare action behavior metadata for ${quotedList(fields)} by generating the manifest from \`Action.define(...)\`, or set the matching fields on the hand-written action manifest entry.`;
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
-
-const stringField = (
-  value: Record<string, unknown>,
-  field: string
-): string | undefined =>
-  typeof value[field] === "string" ? value[field] : undefined;
-
 const policyViolationFinding = (
-  violation: unknown,
-  index: number
+  violation: StartAppGraphDiagnosticsPolicyViolation
 ): StartDiagnosticsReportFinding => {
-  const record = isRecord(violation) ? violation : undefined;
-  const tag = record ? stringField(record, "_tag") : undefined;
-  const message = record ? stringField(record, "message") : undefined;
-
   return {
     kind: "policy-violation",
     owner: "StartBuildPolicy.diagnostics",
-    subject: tag ?? `policy violation ${index + 1}`,
-    issue: message ?? "Resolved app graph diagnostics violated the configured build policy.",
+    subject: violation._tag,
+    issue: violation.message,
     edit: "Fix the underlying diagnostic finding, or relax `StartBuildPolicy.diagnostics` if this route policy is intentionally not required.",
-    details: tag === undefined ? [] : [`tag: ${tag}`]
+    details: [`tag: ${violation._tag}`]
   };
 };
 

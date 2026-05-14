@@ -112,7 +112,7 @@ describe("Effect UI runtime", () => {
     });
     const action = Action.use(SaveNumber, { runtime });
 
-    return runtime.runPromise(
+    return Effect.runPromise(
       action.submitEffect(41).pipe(
         Effect.tap((value) => Effect.sync(() => expect(value).toBe(42))),
         Effect.asVoid,

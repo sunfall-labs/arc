@@ -2,16 +2,37 @@ import { stableStringify } from "@effect-ui/core";
 import { Data } from "effect";
 import type {
   AnyCollection,
+  CollectionError,
   CollectionIndexValue,
+  CollectionRequirements,
   CollectionRow,
   CollectionRowValue
 } from "./collection-contract.js";
+import type { CollectionSnapshotCodecError } from "./collection-snapshot-codec.js";
 
 /**
  * Error raised when the query builder cannot be represented as a live query.
  */
 export class UnsupportedLiveQuery extends Data.TaggedError("UnsupportedLiveQuery")<{
   readonly reason: string;
+}> {}
+
+export type QueryEvaluationOperation =
+  | "filter"
+  | "join"
+  | "aggregate"
+  | "order"
+  | "projection"
+  | "evaluate";
+
+/**
+ * Error raised when user-provided synchronous query callbacks throw during
+ * evaluation.
+ */
+export class QueryEvaluationError extends Data.TaggedError("QueryEvaluationError")<{
+  readonly operation: QueryEvaluationOperation;
+  readonly message: string;
+  readonly cause: unknown;
 }> {}
 
 export type QuerySortDirection = "asc" | "desc";
@@ -22,6 +43,12 @@ export type QueryJoinStrategy = "collection-scan" | "collection-index";
 export type SourceRecord = Record<string, AnyCollection>;
 export type AnyQueryContext = Record<string, any>;
 export type AnyCollectionRow = CollectionRow<any, any>;
+
+export type QuerySourcesError<Sources extends SourceRecord> =
+  CollectionError<Sources[keyof Sources]> | CollectionSnapshotCodecError;
+
+export type QuerySourcesRequirements<Sources extends SourceRecord> =
+  CollectionRequirements<Sources[keyof Sources]>;
 
 export type QueryContext<Sources extends SourceRecord> = {
   readonly [Key in keyof Sources]: CollectionRowValue<Sources[Key]>;
@@ -135,6 +162,29 @@ export const projectCurrentContext = <TContext, TResult>(row: TContext): TResult
   return value as TResult;
 };
 
+export const toQueryEvaluationError = (
+  operation: QueryEvaluationOperation,
+  cause: unknown
+): QueryEvaluationError =>
+  cause instanceof QueryEvaluationError
+    ? cause
+    : new QueryEvaluationError({
+      operation,
+      cause,
+      message: cause instanceof Error ? cause.message : String(cause)
+    });
+
+export const evaluateQueryOperation = <A>(
+  operation: QueryEvaluationOperation,
+  evaluate: () => A
+): A => {
+  try {
+    return evaluate();
+  } catch (cause) {
+    throw toQueryEvaluationError(operation, cause);
+  }
+};
+
 export const joinKey = (value: QueryJoinKey): string =>
   value instanceof Date ? `Date:${value.toISOString()}` : stableStringify(value);
 
@@ -192,13 +242,14 @@ export const buildQueryExecution = <TContext extends AnyQueryContext>(
     const leftRows = contexts.length;
     const rightRows = join.collection.rows().length;
     for (const context of contexts) {
-      const leftValue = join.leftKey(context);
+      const leftValue = evaluateQueryOperation("join", () => join.leftKey(context));
       const left = joinKey(leftValue);
       const rows = join.rightIndex
         ? join.collection.index(join.rightIndex, leftValue as CollectionIndexValue)
         : join.collection.rows();
       for (const row of rows) {
-        if (join.rightKeys(row).some((rightValue) => left === joinKey(rightValue))) {
+        const rightKeys = evaluateQueryOperation("join", () => join.rightKeys(row));
+        if (rightKeys.some((rightValue) => left === joinKey(rightValue))) {
           joined.push({
             ...context,
             [join.alias]: row
@@ -251,11 +302,13 @@ export const groupContexts = (
   }>();
 
   for (const context of contexts) {
-    if (!grouping.sourceFilters.every((filter) => filter(context))) {
+    if (!grouping.sourceFilters.every((filter) =>
+      evaluateQueryOperation("filter", () => filter(context))
+    )) {
       continue;
     }
 
-    const key = grouping.key(context);
+    const key = evaluateQueryOperation("aggregate", () => grouping.key(context));
     const keyString = stableStringify(key);
     const existing = groups.get(keyString);
     if (existing) {
@@ -268,9 +321,13 @@ export const groupContexts = (
   return Array.from(groups.values(), (group) => {
     const result: Record<string, unknown> = { ...group.key };
     for (const [name, aggregate] of Object.entries(grouping.aggregates)) {
-      const values = group.values.map((value) => [aggregate.preMap(value), 1] as [unknown, number]);
-      const reduced = aggregate.reduce(values);
-      result[name] = aggregate.postMap ? aggregate.postMap(reduced) : reduced;
+      const values = group.values.map((value) =>
+        [evaluateQueryOperation("aggregate", () => aggregate.preMap(value)), 1] as [unknown, number]
+      );
+      const reduced = evaluateQueryOperation("aggregate", () => aggregate.reduce(values));
+      result[name] = aggregate.postMap
+        ? evaluateQueryOperation("aggregate", () => aggregate.postMap!(reduced))
+        : reduced;
     }
     return result;
   });
@@ -295,7 +352,9 @@ export const compareRows = <TContext>(
 ): number => {
   for (const order of orders) {
     const direction = order.direction === "asc" ? 1 : -1;
-    const comparison = compareValue(order.selector(left), order.selector(right));
+    const leftValue = evaluateQueryOperation("order", () => order.selector(left));
+    const rightValue = evaluateQueryOperation("order", () => order.selector(right));
+    const comparison = compareValue(leftValue, rightValue);
     if (comparison !== 0) {
       return comparison * direction;
     }

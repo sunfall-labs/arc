@@ -68,9 +68,11 @@ import {
 import { UnknownCollectionIndex } from "./collection-state.js";
 import {
   collectionStorageFromSync,
-  makeCollectionMemoryStorage
+  makeCollectionMemoryStorage,
+  CollectionStorageError
 } from "./collection-persistence.js";
 import { Query } from "./query-builder.js";
+import type { QueryEvaluationError } from "./query-plan.js";
 import {
   makeLiveQueryCollectionDefinition,
   type CollectionLiveQueryOptions
@@ -132,6 +134,7 @@ import type {
   CollectionRow,
   CollectionRowSnapshot,
   CollectionRowValue,
+  CollectionRuntimeError,
   CollectionSnapshot,
   CollectionStorageLike,
   CollectionStore,
@@ -192,6 +195,7 @@ export type {
   CollectionRow,
   CollectionRowSnapshot,
   CollectionRowValue,
+  CollectionRuntimeError,
   CollectionSnapshot,
   CollectionStorageLike,
   CollectionStore,
@@ -235,11 +239,12 @@ export type {
   CollectionPreloadCollected,
   CollectionPreloadCollector as CollectionPreloadCollectorState
 } from "./collection-preload.js";
-export { UnsupportedLiveQuery } from "./query-plan.js";
+export { QueryEvaluationError, UnsupportedLiveQuery } from "./query-plan.js";
 export type {
   QueryAggregate,
   QueryAggregateRecord,
   QueryAggregateResult,
+  QueryEvaluationOperation,
   QueryJoinKey,
   QueryJoinStrategy,
   QueryPlanDiagnostics,
@@ -288,7 +293,7 @@ export const makeLiveQueryCollection = <
 >(
   options: CollectionLiveQueryOptions<A, K, E, R>,
   registry: CollectionDefinitionRegistryAdapter = defaultCollectionDefinitionRegistry
-): CollectionDefinition<A, K, E | ReadonlyCollectionMutation, R> =>
+): CollectionDefinition<A, K, E | QueryEvaluationError | ReadonlyCollectionMutation, R> =>
   makeLiveQueryCollectionDefinition(options, (name, definition) => {
     registry.register(name, definition);
   });
@@ -314,6 +319,7 @@ export namespace Collection {
   export type Key = CollectionKey;
   export type Origin = CollectionOrigin;
   export type State<E = never> = CollectionLoadState<E>;
+  export type RuntimeError<E = never> = CollectionRuntimeError<E>;
   export type Mutation<A extends object, K extends CollectionKey> = CollectionMutation<A, K>;
   export type Transaction<A extends object, K extends CollectionKey> = CollectionTransaction<A, K>;
   export type RollbackRow<A extends object, K extends CollectionKey> = CollectionRollbackRow<A, K>;
@@ -382,10 +388,17 @@ export namespace Collection {
     CollectionQuerySyncAdapterOptions<A, K, E, R>;
   export type ChangeFeedUnsubscribe = CollectionChangeFeedUnsubscribe;
   export type ChangeFeedSubscription = CollectionChangeFeedSubscription;
-  export type ChangeFeedContext<A extends object, K extends CollectionKey = string> =
-    CollectionChangeFeedContext<A, K>;
-  export type ChangeFeedAdapter<A extends object, K extends CollectionKey = string, E = never, R = never> =
-    CollectionChangeFeedAdapter<A, K, E, R>;
+  export type ChangeFeedContext<A extends object, K extends CollectionKey = string, E = never, R = never> =
+    CollectionChangeFeedContext<A, K, E, R>;
+  export type ChangeFeedAdapter<
+    A extends object,
+    K extends CollectionKey = string,
+    E = never,
+    R = never,
+    CollectionError = never,
+    CollectionRequirements = never
+  > =
+    CollectionChangeFeedAdapter<A, K, E, R, CollectionError, CollectionRequirements>;
   export type ChangeFeedSubscribeOptions = CollectionChangeFeedSubscribeOptions;
   export type SyncInsertPayload<A extends object, K extends CollectionKey> = CollectionSyncInsertPayload<A, K>;
   export type SyncUpdatePayload<A extends object, K extends CollectionKey> = CollectionSyncUpdatePayload<A, K>;
@@ -518,7 +531,7 @@ export namespace Collection {
   /** Reactive load state signal for a collection. */
   export const state = <A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>
-  ): ReadableSignal<CollectionLoadState<E>> => definition.state();
+  ): ReadableSignal<CollectionLoadState<CollectionRuntimeError<E>>> => definition.state();
 
   /** Reactive version signal that changes when rows or pending mutations change. */
   export const version = <A extends object, K extends CollectionKey, E, R>(
@@ -558,14 +571,14 @@ export namespace Collection {
    */
   export const preloadEffect = <A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>
-  ): Effect.Effect<void, E | CollectionSnapshotCodecError, R> => definition.preloadEffect();
+  ): Effect.Effect<void, CollectionRuntimeError<E>, R> => definition.preloadEffect();
 
   /**
    * Force a fresh load for a collection.
    */
   export const refetchEffect = <A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>
-  ): Effect.Effect<void, E | CollectionSnapshotCodecError, R> => definition.refetchEffect();
+  ): Effect.Effect<void, CollectionRuntimeError<E>, R> => definition.refetchEffect();
 
   /**
    * Run an Effect and collect any collections it preloads.
@@ -661,7 +674,7 @@ export namespace Collection {
     definition: CollectionDefinition<A, K, E, R>,
     changes: ReadonlyArray<CollectionChange<A, K>>,
     options?: CollectionWriteOptions
-  ): Effect.Effect<void, E | CollectionSnapshotCodecError, R> => applyCollectionChangesEffect(definition, changes, options);
+  ): Effect.Effect<void, CollectionRuntimeError<E>, R> => applyCollectionChangesEffect(definition, changes, options);
 
   /** Fork `applyChangesEffect` on the current runtime. */
   export const applyChanges = <A extends object, K extends CollectionKey, E, R>(
@@ -687,9 +700,9 @@ export namespace Collection {
     FeedRequirements = never
   >(
     definition: CollectionDefinition<A, K, E, R>,
-    adapter: CollectionChangeFeedAdapter<A, K, FeedError, FeedRequirements>,
+    adapter: CollectionChangeFeedAdapter<A, K, FeedError, FeedRequirements, E, R>,
     options?: CollectionChangeFeedSubscribeOptions
-  ): Effect.Effect<void, E | FeedError, R | FeedRequirements | Scope.Scope> =>
+  ): Effect.Effect<void, CollectionRuntimeError<E> | FeedError, R | FeedRequirements | Scope.Scope> =>
     subscribeCollectionChangesEffect(definition, adapter, options);
 
   /**
@@ -717,7 +730,7 @@ export namespace Collection {
     makeCollectionMemoryStorage(initial);
 
   /** Adapt synchronous Web Storage style APIs to Effect-aware persistence storage. */
-  export const storage = (storage: CollectionStorageLike): CollectionPersistenceStorage<never, never> =>
+  export const storage = (storage: CollectionStorageLike): CollectionPersistenceStorage<CollectionStorageError, never> =>
     collectionStorageFromSync(storage);
 
   /** Access the current runtime collection store as an Effect. */
@@ -741,4 +754,5 @@ export const createLiveQuery = Query.live;
 export const createLiveQueryCollection = Collection.liveQuery;
 export * from "./flush-policy.js";
 export * from "./server-collection.js";
+export { CollectionStorageError } from "./collection-persistence.js";
 export * from "./sqlite-persistence.js";

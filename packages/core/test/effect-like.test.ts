@@ -1,6 +1,11 @@
 import { Cause, Effect, Exit } from "effect";
 import { describe, expect, it } from "vitest";
-import { EffectInputPromiseRejected, toEffect } from "../src/index.js";
+import {
+  EffectInputCallbackError,
+  EffectInputPromiseRejected,
+  invokeEffectInput,
+  toEffect
+} from "../src/index.js";
 
 describe("EffectInput", () => {
   it("accepts pure values", () =>
@@ -22,6 +27,25 @@ describe("EffectInput", () => {
           const defect = exit.cause.reasons.find(Cause.isDieReason)?.defect;
           expect(defect).toBeInstanceOf(EffectInputPromiseRejected);
           expect((defect as EffectInputPromiseRejected).guidance).toContain("Effect.tryPromise");
+        }
+      })
+    ));
+
+  it("captures synchronous callback throws as typed Effect failures", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const exit = yield* Effect.exit(
+          invokeEffectInput("test.callback", () => {
+            throw new Error("boom");
+          })
+        );
+
+        expect(Exit.isFailure(exit)).toBe(true);
+        if (Exit.isFailure(exit)) {
+          const failure = exit.cause.reasons.find(Cause.isFailReason)?.error;
+          expect(failure).toBeInstanceOf(EffectInputCallbackError);
+          expect((failure as EffectInputCallbackError).operation).toBe("test.callback");
+          expect((failure as EffectInputCallbackError).cause).toBeInstanceOf(Error);
         }
       })
     ));

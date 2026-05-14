@@ -158,9 +158,9 @@ Latest full gate on May 14, 2026:
 - Solid Resource hook requirement defaults now use `unknown`, and route outlet
   UI internals avoid `Component<any>` / `value: any` boundaries.
 - `pnpm verify` passed after the Solid UI wildcard cleanup.
-- Start action client and hydration runtime options now use opaque
-  `EffectUiRuntime<unknown, unknown>` types where the public option only needs a
-  runtime boundary, not caller-specific service or error detail.
+- Start action client and hydration runtime options now keep runtime services
+  opaque while carrying a generic runtime error channel with `never` defaults,
+  so public seams no longer publish `unknown` as an error type.
 - `pnpm verify` passed after the opaque runtime option wildcard cleanup.
 - Start trace/finalizer helpers and Solid runtime provider/router surfaces now
   use opaque runtime/source types; the only remaining
@@ -417,6 +417,9 @@ Latest full gate on May 14, 2026:
   request handling, Node/fetch adapters, fetch transport hooks, and Vite/CLI
   diagnostics loading use `never` defaults or tagged errors/unions rather than
   publishing `unknown` failures.
+- Start request trace hooks, Action runtime options, Solid router preload, and
+  Collection change-feed `emit(...)` now also avoid `unknown` Effect failure
+  channels in helper aliases.
 - LSP-facing JSDoc now describes the Core Definition Registry, app registry
   snapshots, shared Action submission concurrency semantics, Action/Server
   registration helpers, DB Collection registry diagnostics, snapshot codec
@@ -433,15 +436,30 @@ Latest full gate on May 14, 2026:
   snapshot instead of later process globals.
 - Start app-graph diagnostics policy validation and file-route discovery now
   expose Effect-first Interfaces, with sync facades only at Vite host hooks.
-- Solid Resource Suspense now delegates pending reads to Core `Resource.read(...)`
-  so the Suspense Promise seam has one owner.
+- Core `Resource.read(...)` now stays Effect-first by throwing typed
+  `ResourcePending` for missing or expired data instead of Suspense Promises.
+  Solid `useResourceSuspense(...)` owns the UI Suspense Promise at the adapter
+  seam.
+- Solid router failure state now preserves typed preload Causes, so failure
+  renderers receive `Route.PreloadError | ER` instead of an `unknown` slot.
+- Devtools request summaries and panels now keep teardown snapshots plus
+  per-server-function/action failure owners, with hover docs on the public panel
+  model.
+- Start hydration now documents and reports typed chunk/root payload parse
+  errors alongside Resource and Collection snapshot codec errors.
+- DB collection output schema validation now reports
+  `CollectionSnapshotCodecError` across load, hydrate, direct-write,
+  change-feed, and Solid DB preload surfaces.
+- Node server error hooks are EffectInput-only; host Promise work must be
+  adapted explicitly with `Effect.tryPromise(...)`.
 - The latest `pnpm verify` passed after Core Definition Registry, DB Collection
   registry locality, Start app graph runtime diagnostics, stale Start action
   hydration guard, DB direct hydration/post-commit persistence fixes, default
   generic error cleanup, LSP-facing JSDoc refresh, and EffectInput Promise
   inference/runtime guards, Start diagnostics/file-route/Solid suspense
-  host-seam cleanup, and Start host-boundary typed errors: 9 package builds,
-  workspace typecheck, type tests, 43 root test files / 365 tests, devtools
+  host-seam cleanup, Start host-boundary typed errors, helper-alias default
+  error cleanup, and Devtools request panel serialization: 9 package builds,
+  workspace typecheck, type tests, 43 root test files / 366 tests, devtools
   panel verify, devtools extension verify, basic starter verify, project-console
   starter packaging/typecheck/tests/build, and leak scan.
 - The previous `pnpm verify` passed after the shared Action Submission

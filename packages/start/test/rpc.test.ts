@@ -1,4 +1,4 @@
-import { Cause, Effect, Exit, Layer, Schema } from "effect";
+import { Cause, Data, Effect, Exit, Layer, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   defineApp,
@@ -39,8 +39,15 @@ interface RpcFailureBody {
   };
 }
 
-const readRpcFailureBodyEffect = (response: Response): Effect.Effect<RpcFailureBody, unknown> =>
-  Effect.tryPromise(() => response.json() as Promise<RpcFailureBody>);
+class RpcFailureBodyReadError extends Data.TaggedError("RpcFailureBodyReadError")<{
+  readonly cause: unknown;
+}> {}
+
+const readRpcFailureBodyEffect = (response: Response): Effect.Effect<RpcFailureBody, RpcFailureBodyReadError> =>
+  Effect.tryPromise({
+    try: () => response.json() as Promise<RpcFailureBody>,
+    catch: (cause) => new RpcFailureBodyReadError({ cause })
+  });
 
 describe("Start RPC transport", () => {
   it("rejects RPC requests with unsupported content-type as typed protocol failures", () => {

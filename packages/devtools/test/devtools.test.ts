@@ -1183,9 +1183,39 @@ describe("devtools invalidation plans", () => {
         streamCount: 1,
         runtimeDisposed: true,
         teardownReason: "response-end",
+        teardownAt: 123,
+        teardownStartedAt: 100,
+        teardownCompletedAt: 123,
         durationMillis: 23,
+        beforeDispose: {
+          fiberCount: 2,
+          familyCount: 1,
+          moduleCount: 1,
+          tagCount: 1
+        },
+        afterDispose: {
+          fiberCount: 0,
+          familyCount: 1,
+          moduleCount: 0,
+          tagCount: 1
+        },
         beforeDisposeFiberCount: 2,
         afterDisposeFiberCount: 0,
+        serverFunctions: [
+          {
+            name: "Project.load",
+            status: "success",
+            failureKind: null
+          }
+        ],
+        actions: [
+          {
+            name: "Project.rename",
+            state: "Success",
+            failureKind: null,
+            invalidationIndexes: [0]
+          }
+        ],
         routeHref: "/projects/atlas?tab=activity"
       }
     ]);
@@ -1213,15 +1243,54 @@ describe("devtools invalidation plans", () => {
             {
               label: "after fibers",
               value: 0
+            },
+            {
+              label: "before families",
+              value: 1
+            },
+            {
+              label: "after modules",
+              value: 0
             }
           ]),
-          data: {
+          data: expect.objectContaining({
             id: "req-project-atlas",
             failureKind: null,
             routeHref: "/projects/atlas?tab=activity",
             teardownReason: "response-end",
-            runtimeDisposed: true
-          }
+            runtimeDisposed: true,
+            teardownAt: 123,
+            teardownStartedAt: 100,
+            teardownCompletedAt: 123,
+            durationMillis: 23,
+            beforeDispose: {
+              fiberCount: 2,
+              familyCount: 1,
+              moduleCount: 1,
+              tagCount: 1
+            },
+            afterDispose: {
+              fiberCount: 0,
+              familyCount: 1,
+              moduleCount: 0,
+              tagCount: 1
+            },
+            serverFunctions: [
+              {
+                name: "Project.load",
+                status: "success",
+                failureKind: null
+              }
+            ],
+            actions: [
+              {
+                name: "Project.rename",
+                state: "Success",
+                failureKind: null,
+                invalidationIndexes: [0]
+              }
+            ]
+          })
         })
       ]
     });
@@ -1295,6 +1364,133 @@ describe("devtools invalidation plans", () => {
     expect(JSON.parse(JSON.stringify(summary))).toEqual(summary);
   });
 
+  it("preserves request owner failures in summaries and panels", async () => {
+    const store = makeDevtoolsStore();
+    const trace: DevtoolsRequestTrace = {
+      request: {
+        id: "req-project-failure",
+        method: "POST",
+        url: "https://example.test/__effect-ui/action",
+        path: "/__effect-ui/action",
+        transport: "action"
+      },
+      services: ["ProjectApi"],
+      resources: [],
+      collections: [],
+      serverFunctions: [
+        {
+          name: "Project.load",
+          status: "failure",
+          failureKind: "domain"
+        }
+      ],
+      actions: [
+        {
+          name: "Project.rename",
+          state: "Failure",
+          failureKind: "validation",
+          invalidationIndexes: [2]
+        }
+      ],
+      fibers: [],
+      streams: [],
+      status: "failure",
+      failureKind: "validation",
+      teardown: {
+        runtimeDisposed: true,
+        reason: "action-end",
+        completedAt: 42,
+        durationMillis: 12,
+        beforeDispose: {
+          fiberCount: 1,
+          familyCount: 2,
+          moduleCount: 3,
+          tagCount: 4
+        },
+        afterDispose: {
+          fiberCount: 0,
+          familyCount: 2,
+          moduleCount: 1,
+          tagCount: 4
+        }
+      }
+    };
+
+    await Effect.runPromise(store.recordRequestTraceEffect(trace));
+
+    const summary = store.getSummary();
+    expect(summary.requests.traces[0]).toMatchObject({
+      failureKind: "validation",
+      beforeDispose: {
+        fiberCount: 1,
+        familyCount: 2,
+        moduleCount: 3,
+        tagCount: 4
+      },
+      afterDispose: {
+        fiberCount: 0,
+        familyCount: 2,
+        moduleCount: 1,
+        tagCount: 4
+      },
+      serverFunctions: [
+        {
+          name: "Project.load",
+          status: "failure",
+          failureKind: "domain"
+        }
+      ],
+      actions: [
+        {
+          name: "Project.rename",
+          state: "Failure",
+          failureKind: "validation",
+          invalidationIndexes: [2]
+        }
+      ]
+    });
+
+    const requestPanel = store.getPanels().panels.find((panel) => panel.id === "requests");
+    expect(requestPanel?.items[0]).toMatchObject({
+      detail: "action failure (validation) server:Project.load:domain, action:Project.rename:validation",
+      metrics: expect.arrayContaining([
+        {
+          label: "server failures",
+          value: 1
+        },
+        {
+          label: "action failures",
+          value: 1
+        },
+        {
+          label: "before modules",
+          value: 3
+        },
+        {
+          label: "after modules",
+          value: 1
+        }
+      ]),
+      data: expect.objectContaining({
+        serverFunctions: [
+          {
+            name: "Project.load",
+            status: "failure",
+            failureKind: "domain"
+          }
+        ],
+        actions: [
+          {
+            name: "Project.rename",
+            state: "Failure",
+            failureKind: "validation",
+            invalidationIndexes: [2]
+          }
+        ]
+      })
+    });
+  });
+
   it("stamps id-less request traces before runtime-event summarization", () => {
     const store = makeDevtoolsStore();
     const trace: DevtoolsRequestTrace = {
@@ -1345,6 +1541,138 @@ describe("devtools invalidation plans", () => {
         target: "request-trace:trace:0"
       })
     );
+  });
+
+  it("normalizes imported id-less request traces before allocating new trace ids", () => {
+    const store = makeDevtoolsStore();
+    const requestTrace = (
+      path: string,
+      id?: string
+    ): DevtoolsRequestTrace => ({
+      request: {
+        ...(id === undefined ? {} : { id }),
+        method: "GET",
+        url: `https://example.test${path}`,
+        path,
+        transport: "ssr"
+      },
+      response: { status: 200 },
+      services: [],
+      resources: [],
+      collections: [],
+      serverFunctions: [],
+      actions: [],
+      fibers: [],
+      streams: [],
+      status: "success"
+    });
+    const importedTrace = requestTrace("/projects/imported");
+
+    store.setSnapshot({
+      resources: [],
+      actions: [],
+      invalidations: [],
+      routePlans: [],
+      requestTraces: [
+        importedTrace,
+        requestTrace("/projects/existing", "trace:7")
+      ],
+      events: [
+        {
+          _tag: "RequestTrace",
+          sequence: 3,
+          trace: importedTrace
+        }
+      ]
+    });
+    store.recordRequestTrace(requestTrace("/projects/runtime"));
+
+    const snapshot = store.getSnapshot();
+    expect(snapshot.requestTraces?.map((trace) => trace.request.id)).toEqual([
+      "trace:8",
+      "trace:7",
+      "trace:9"
+    ]);
+    expect(snapshot.events?.map((event) =>
+      event._tag === "RequestTrace" ? event.trace.request.id : null
+    )).toEqual([
+      "trace:8",
+      "trace:9"
+    ]);
+
+    expect(store.getSummary().requests.traces.map((trace) => trace.id)).toEqual([
+      "trace:8",
+      "trace:7",
+      "trace:9"
+    ]);
+    expect(
+      store.getCausalGraph().nodes
+        .filter((node) => node.kind === "RequestTrace")
+        .map((node) => node.id)
+    ).toEqual([
+      "request-trace:trace:7",
+      "request-trace:trace:8",
+      "request-trace:trace:9"
+    ]);
+    expect(store.getCausalGraph().edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "Observes",
+        source: "runtime-event:3:RequestTrace",
+        target: "request-trace:trace:8"
+      }),
+      expect.objectContaining({
+        kind: "Observes",
+        source: "runtime-event:4:RequestTrace",
+        target: "request-trace:trace:9"
+      })
+    ]));
+  });
+
+  it("seeds runtime event sequence ids from imported snapshots", () => {
+    const store = makeDevtoolsStore();
+
+    store.setSnapshot({
+      resources: [],
+      actions: [],
+      invalidations: [],
+      routePlans: [],
+      events: [
+        {
+          _tag: "Custom",
+          sequence: 4,
+          name: "imported"
+        }
+      ]
+    });
+    store.recordRuntimeEvent({
+      _tag: "Custom",
+      name: "runtime"
+    });
+
+    expect(store.getSnapshot().events).toEqual([
+      {
+        _tag: "Custom",
+        sequence: 4,
+        name: "imported"
+      },
+      {
+        _tag: "Custom",
+        sequence: 5,
+        name: "runtime"
+      }
+    ]);
+    expect(store.getCausalGraph().nodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: "runtime-event:4:Custom",
+        kind: "RuntimeEvent",
+        label: "imported"
+      }),
+      expect.objectContaining({
+        id: "runtime-event:5:Custom",
+        kind: "RuntimeEvent",
+        label: "runtime"
+      })
+    ]));
   });
 
   it("detaches caller snapshots at the store seam", () => {

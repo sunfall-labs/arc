@@ -1284,13 +1284,21 @@ Start host-boundary typed errors.
 
 5. Solid Resource Suspense Locality
    - Status: fixed.
-   - Files: `packages/solid/src/hooks.ts`.
-   - Problem: `useResourceSuspense(...)` duplicated Core's Suspense Promise Seam
-     by throwing `runtime.runPromise(Resource.prefetchEffect(...))` directly.
-   - Fix: the Solid hook now delegates missing-value reads to
-     `Resource.read(...)` inside the active Solid Runtime Spine.
-   - Benefits: host Promise knowledge for Resource Suspense stays in Core, and
-     Solid remains a UI Adapter over the Resource Interface.
+   - Files: `packages/core/src/resource-errors.ts`,
+     `packages/core/src/resource-runtime.ts`, `packages/core/src/resource.ts`,
+     `packages/core/src/read.ts`, `packages/core/test/resource.test.ts`,
+     `packages/solid/src/hooks.ts`, `packages/solid/test/router.test.ts`.
+   - Problem: Core `Resource.read(...)` still owned the Suspense Promise Seam by
+     throwing a `runtime.runPromise(...)` value for missing or GC-expired
+     resources. That made the Core Resource Module depend on a UI/host
+     Adapter shape.
+   - Fix: Core `Resource.read(...)` is now synchronous and Effect-first: missing
+     or expired data throws typed `ResourcePending`, failed data throws
+     `ResourceFailure`, and explicit preloading stays in
+     `Resource.prefetchEffect(...)`. Solid `useResourceSuspense(...)` is now the
+     Adapter that throws the host Suspense Promise from the active runtime.
+   - Benefits: Promise locality moves to the Solid UI Adapter, while Core keeps
+     its Resource Interface expressed as values, typed errors, and Effects.
 
 6. Start Host Error Contract
    - Status: fixed.
@@ -1300,9 +1308,9 @@ Start host-boundary typed errors.
      `packages/start/src/adapters.ts`, `packages/start/src/vite.ts`,
      `packages/start/src/cli.ts`,
      `packages/start/src/start-transport-protocol.ts`.
-   - Problem: Start host-facing Interfaces still published
-     `Effect.Effect<..., unknown, ...>` for request preload, request handlers,
-     adapter handlers, fetch hooks, and diagnostics loading. That made the
+   - Problem: Start host-facing Interfaces still published raw, untyped host
+     failure channels for request preload, request handlers, adapter handlers,
+     fetch hooks, and diagnostics loading. That made the
      error Interface as complex as the Implementation and contradicted the
      `never`-by-default error policy.
    - Fix: preload failures now use `StartPreloadError`, request handlers and
@@ -1314,6 +1322,25 @@ Start host-boundary typed errors.
    - Benefits: host error behavior now has one typed Seam per Adapter, while raw
      `unknown` remains payload/cause data instead of the public Effect error
      channel.
+
+7. Helper Alias Error Defaults
+   - Status: fixed.
+   - Files: `packages/core/src/action.ts`, `packages/db/src/sync-adapter.ts`,
+     `packages/db/src/collection-runtime.ts`, `packages/db/src/index.ts`,
+     `packages/solid/src/router.ts`, `packages/start/src/request-trace.ts`,
+     `packages/devtools/src/panels.ts`,
+     `packages/devtools/test/devtools.test.ts`, `type-tests/framework.test-d.ts`.
+   - Problem: after the direct Effect error-channel cleanup, adjacent helper
+     aliases still let `unknown` leak into callback or runtime failure types.
+   - Fix: Start request trace handlers no longer accept arbitrary Effect
+     failures, `Action.use(...)` runtime error defaults are `never`, Solid
+     router preload exposes `Route.PreloadError`, and Collection change-feed
+     `emit(...)` exposes collection/write codec errors instead of `unknown`.
+     Devtools request panel data now serializes richer teardown snapshots before
+     storing them in the panel item data field.
+   - Benefits: the typed-error rule now applies consistently across the helper
+     Interfaces callers compose with Effect workflows, not only raw
+     `Effect.Effect<...>` annotations.
 
 Workspace evidence for this pass: `pnpm typecheck` passed,
 `pnpm --filter @effect-ui/core typecheck` passed,
@@ -1327,4 +1354,120 @@ permission (`1` file / `7` tests), and the direct `unknown` error-slot grep
 over source/type tests. Full `pnpm verify` passed: 9 package builds, workspace
 typecheck, type tests, 43 root test files / 365 tests, devtools-panel verify,
 devtools-extension verify, basic starter verify, project-console starter
-packaging/typecheck/tests/build, and leak scan.
+packaging/typecheck/tests/build, and leak scan. The helper-alias follow-up
+passed workspace typecheck/type tests, focused DB/Start tests
+(`3` files / `100` tests), focused Devtools tests (`1` file / `22` tests), and
+the helper-alias unknown-error grep. Full `pnpm verify` passed after this
+follow-up: 9 package builds, workspace typecheck, type tests, 43 root test files
+/ 366 tests, devtools-panel verify, devtools-extension verify, basic starter
+verify, project-console starter packaging/typecheck/tests/build, and leak scan.
+
+## Review 20: Resource Read Boundary, Trace Projection, And Start Docs Follow-Up
+
+1. Core Resource Read Boundary / Solid Suspense Adapter
+   - Status: fixed.
+   - Files: `packages/core/src/resource-errors.ts`,
+     `packages/core/src/resource-runtime.ts`, `packages/core/src/resource.ts`,
+     `packages/core/src/read.ts`, `packages/solid/src/hooks.ts`,
+     `packages/core/test/resource.test.ts`.
+   - Problem: the Core Resource Module still carried a UI-shaped Promise
+     Seam for pending reads. The Interface forced callers to know that missing
+     data might throw a Suspense Promise even outside a UI Adapter.
+   - Fix: Core reads now throw typed `ResourcePending` for missing, pending,
+     collected, or GC-expired reads, and typed `ResourceFailure` for failed
+     reads. Those error constructors preserve the actual Resource ref
+     input/runtime generics. Explicit loading remains
+     `Resource.prefetchEffect(...)`. Solid `useResourceSuspense(...)` is now
+     the Adapter that converts pending reads into the Suspense Promise expected
+     by Solid.
+   - Benefits: Promise locality sits at the UI host Seam. Core Resource keeps a
+     smaller Effect-first Interface with better leverage for non-Solid callers
+     and clearer tests.
+
+2. Solid Router Failure State
+   - Status: fixed.
+   - Files: `packages/solid/src/router.ts`,
+     `packages/solid/test/router.test.ts`, `type-tests/framework.test-d.ts`.
+   - Problem: router failure state exposed `error: unknown` even though the
+     Implementation gets a concrete `Route.PreloadError` Cause from
+     `Route.preloadEffect(...)`.
+   - Fix: `BrowserRouterState` now exposes
+     `Cause.Cause<Route.PreloadError | ER>` plus an optional first typed
+     failure value. Type tests assert the public failure state preserves the
+     route preload error Interface.
+   - Benefits: route failure handling has typed Locality at the Solid Adapter,
+     rather than pushing unknown narrowing into every UI caller.
+
+3. Devtools Request Trace Projection Depth
+   - Status: fixed.
+   - Files: `packages/devtools/src/index.ts`,
+     `packages/devtools/src/summary-facts.ts`,
+     `packages/devtools/src/panels.ts`,
+     `packages/devtools/src/bridge.ts`,
+     `packages/devtools/test/devtools.test.ts`.
+   - Problem: raw request traces carried teardown snapshots and per-owner
+     server/action failures, but the summary and panel Interfaces flattened
+     them to a few counts and one top-level failure kind.
+   - Fix: summaries and panels now preserve teardown timing, before/after
+     Resource Store snapshots, server-function failure owners, action failure
+     owners, and detailed trace data. JSDoc was added at the public DTO and
+     bridge declaration sites.
+   - Benefits: devtools inspection has higher leverage: callers can answer
+     which Module failed without falling back to raw event history, and LSP
+     hover docs explain the projection contracts.
+
+4. Start Diagnostics, Hydration, And Generated Artifact Contracts
+   - Status: fixed.
+   - Files: `packages/start/src/virtual-modules.d.ts`,
+     `packages/start/src/vite.ts`, `packages/start/src/hydration.ts`,
+     `packages/start/test/start.test.ts`,
+     `packages/start/test/file-route-modules.test.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: `diagnosticsPolicyViolations` crossed the virtual-module Seam as
+     `unknown[]`, Start hydration error docs lived away from the declarations
+     they described, malformed collection hydration needed a Start-level
+     regression, and generated app-graph/file-route artifacts had grown past
+     fragment-only assertions.
+   - Fix: diagnostics policy violations now use the concrete
+     `StartAppGraphDiagnosticsPolicyViolation` type in the virtual/Vite
+     Interfaces; hydration exports document `StartHydrationError` and the
+     payload/chunk helpers at declaration sites; malformed streamed chunks and
+     root hydration payloads now fail with typed parse errors in the Effect
+     path; Start tests assert malformed collection snapshots fail with
+     `CollectionSnapshotCodecError`; generated module tests now include inline
+     golden snapshots.
+   - Benefits: Start's generated and hydration contracts have better LSP
+     discoverability and better review leverage when generated output changes.
+
+5. DB Change Feed And Node Error Hook EffectInput Seams
+   - Status: fixed.
+   - Files: `packages/db/src/collection-contract.ts`,
+     `packages/db/src/collection-snapshot-codec.ts`,
+     `packages/db/src/collection-persistence.ts`,
+     `packages/db/src/collection-runtime.ts`,
+     `packages/db/src/sync-adapter.ts`, `packages/db/src/index.ts`,
+     `packages/solid-db/src/collection.ts`, `packages/start/src/adapters.ts`,
+     `packages/start/test/adapters.test.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: Collection change-feed `emit(...)`, collection output schema
+     validation, and Node server error hooks were helper Interfaces adjacent to
+     Effect workflows, but their failure or async contracts still blurred the
+     implementation seam.
+   - Fix: change-feed `emit(...)` now exposes collection and snapshot-codec
+     errors explicitly; collection output schema failures during load, hydrate,
+     direct writes, and Solid DB preloads normalize to
+     `CollectionSnapshotCodecError`; and Node server error hooks now accept pure
+     values or Effects, rejecting Promise-shaped hooks through the same
+     EffectInput rule as the rest of the library.
+   - Benefits: helper Interfaces now follow the same Effect-first rule as the
+     main Modules, increasing Locality around storage/write failures and host
+     error handling.
+
+Workspace evidence for this pass: `pnpm --filter @effect-ui/start typecheck`
+passed, `pnpm typecheck` passed, `pnpm --filter @effect-ui/db build` passed,
+`pnpm exec vitest run packages/start/test/adapters.test.ts` passed, DB focused
+tests passed: 5 files / 65 tests, and the focused multi-package regression
+suite passed: 7 files / 139 tests. Earlier in the same tranche, the snapshot
+update run passed for Start file-route/app-graph virtual module coverage. The
+source-only Promise-method and non-Effect `.catch(...)` greps were clean. Full
+`pnpm verify` is still the next gate before recording a new green checkpoint.

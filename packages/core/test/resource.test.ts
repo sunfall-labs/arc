@@ -1,6 +1,15 @@
 import { Deferred, Effect, Exit, Fiber, PubSub, Request, RequestResolver, Schedule, Schema } from "effect";
 import { describe, expect, it, vi } from "vitest";
-import { makeRuntime, read, Resource, ResourceFailure, runWithRuntime } from "../src/index.js";
+import {
+  makeRuntime,
+  read,
+  Resource,
+  EffectInputCallbackError,
+  ResourceFailure,
+  ResourcePending,
+  ResourceSnapshotCodecError,
+  runWithRuntime
+} from "../src/index.js";
 
 describe("Resource", () => {
   it("loads on first read and returns cached values afterward", async () => {
@@ -11,7 +20,7 @@ describe("Resource", () => {
     });
 
     const ref = User("1");
-    expect(() => read(ref)).toThrow();
+    expect(() => read(ref)).toThrow(ResourcePending);
     await Effect.runPromise(Resource.prefetchEffect(ref));
 
     expect(read(ref)).toEqual({ id: "1", name: "Ada" });
@@ -501,14 +510,8 @@ describe("Resource", () => {
 
       await vi.advanceTimersByTimeAsync(11);
 
-      let pending: Promise<number> | undefined;
-      try {
-        read(ref);
-      } catch (error) {
-        pending = error as Promise<number>;
-      }
-
-      await pending;
+      expect(() => read(ref)).toThrow(ResourcePending);
+      await Effect.runPromise(Resource.prefetchEffect(ref));
       expect(read(ref)).toBe(2);
     } finally {
       vi.useRealTimers();
@@ -528,14 +531,8 @@ describe("Resource", () => {
 
     await Effect.runPromise(Count.family.deleteEffect(ref));
 
-    let pending: Promise<number> | undefined;
-    try {
-      read(ref);
-    } catch (error) {
-      pending = error as Promise<number>;
-    }
-
-    await pending;
+    expect(() => read(ref)).toThrow(ResourcePending);
+    await Effect.runPromise(Resource.prefetchEffect(ref));
     expect(read(ref)).toBe(2);
     expect(count).toBe(2);
   });
@@ -662,6 +659,33 @@ describe("Resource", () => {
     expect(read(ref)).toEqual({ id: "retry" });
   });
 
+  it("captures synchronous resource loader throws in the Effect error channel", async () => {
+    const User = Resource.family({
+      name: "User.sync-loader-throw",
+      load: (_id: string) => {
+        throw new Error("loader exploded");
+      }
+    });
+    const ref = User("1");
+
+    await expect(Effect.runPromise(Resource.prefetchEffect(ref))).rejects.toMatchObject({
+      _tag: "EffectInputCallbackError",
+      operation: "Resource.load(User.sync-loader-throw)",
+      cause: expect.any(Error)
+    });
+
+    expect(() => read(ref)).toThrow(ResourceFailure);
+    try {
+      read(ref);
+      expect.fail("expected failure");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ResourceFailure);
+      expect((error as ResourceFailure<string, unknown, EffectInputCallbackError>).error).toBeInstanceOf(
+        EffectInputCallbackError
+      );
+    }
+  });
+
   it("throws typed resource failures with previous data", async () => {
     let shouldFail = false;
     const Item = Resource.family({
@@ -713,6 +737,272 @@ describe("Resource", () => {
     expect(read(ref)).toEqual({ id: "1", name: "Hydrated" });
     await expect(Effect.runPromise(Resource.prefetchEffect(ref))).resolves.toEqual({ id: "1", name: "Hydrated" });
     expect(load).not.toHaveBeenCalled();
+  });
+
+  it("fails invalid hydration payloads through typed snapshot codec errors", async () => {
+    await expect(
+      Effect.runPromise(
+        Resource.hydrateEffect({
+          resources: [
+            {
+              name: "User.invalid-hydrate",
+              key: "User.invalid-hydrate:1",
+              input: "1",
+              state: {
+                _tag: "Pending",
+                waiting: true
+              }
+            } as never
+          ]
+        })
+      )
+    ).rejects.toMatchObject({
+      _tag: "ResourceSnapshotCodecError",
+      operation: "hydrate",
+      path: "$.resources[0].state._tag"
+    });
+  });
+
+  it("fails hydration when a snapshot family is not registered", async () => {
+    await expect(
+      Effect.runPromise(
+        Resource.hydrateEffect({
+          resources: [
+            {
+              name: "User.missing-hydration-family",
+              key: "User.missing-hydration-family:1",
+              input: "1",
+              state: {
+                _tag: "Success",
+                waiting: false,
+                value: { id: "1" },
+                updatedAt: Date.now()
+              }
+            }
+          ]
+        })
+      )
+    ).rejects.toMatchObject({
+      _tag: "ResourceHydrationApplyError",
+      reason: "MissingFamily",
+      name: "User.missing-hydration-family",
+      key: "User.missing-hydration-family:1"
+    });
+  });
+
+  it("fails hydration when a decoded input does not match the snapshot key", async () => {
+    const User = Resource.family({
+      name: "User.hydration-key-mismatch",
+      load: (input: { readonly id: string }) => Effect.succeed(input),
+      key: (input) => input.id
+    });
+
+    await expect(
+      Effect.runPromise(
+        Resource.hydrateEffect({
+          resources: [
+            {
+              name: "User.hydration-key-mismatch",
+              key: "User.hydration-key-mismatch:wrong",
+              input: { id: "1" },
+              state: {
+                _tag: "Success",
+                waiting: false,
+                value: { id: "1" },
+                updatedAt: Date.now()
+              }
+            }
+          ]
+        })
+      )
+    ).rejects.toMatchObject({
+      _tag: "ResourceHydrationApplyError",
+      reason: "KeyMismatch",
+      name: "User.hydration-key-mismatch",
+      key: "User.hydration-key-mismatch:wrong",
+      expectedKey: User({ id: "1" }).key
+    });
+  });
+
+  it("can explicitly skip missing hydration families and key mismatches", async () => {
+    const User = Resource.family({
+      name: "User.hydration-explicit-skip",
+      load: (input: { readonly id: string }) => Effect.succeed(input),
+      key: (input) => input.id
+    });
+
+    await expect(
+      Effect.runPromise(
+        Resource.hydrateEffect({
+          resources: [
+            {
+              name: "User.hydration-explicit-skip-missing",
+              key: "User.hydration-explicit-skip-missing:1",
+              input: { id: "1" },
+              state: {
+                _tag: "Success",
+                waiting: false,
+                value: { id: "1" },
+                updatedAt: Date.now()
+              }
+            },
+            {
+              name: "User.hydration-explicit-skip",
+              key: "User.hydration-explicit-skip:wrong",
+              input: { id: "1" },
+              state: {
+                _tag: "Success",
+                waiting: false,
+                value: { id: "1" },
+                updatedAt: Date.now()
+              }
+            }
+          ]
+        }, {
+          missingFamily: "skip",
+          keyMismatch: "skip"
+        })
+      )
+    ).resolves.toBeUndefined();
+
+    expect(() => read(User({ id: "1" }))).toThrow(ResourcePending);
+  });
+
+  it("decodes schema-backed hydration inputs and outputs", async () => {
+    const User = Resource.family({
+      name: "User.hydration-schema",
+      input: Schema.Struct({ id: Schema.String }),
+      output: Schema.Struct({ id: Schema.String, name: Schema.String }),
+      load: (input: { readonly id: string }) => Effect.succeed({ id: input.id, name: "Loaded" }),
+      key: (input) => input.id
+    });
+    const ref = User({ id: "1" });
+
+    await Effect.runPromise(
+      Resource.hydrateEffect({
+        resources: [
+          {
+            name: "User.hydration-schema",
+            key: ref.key,
+            input: { id: "1" },
+            state: {
+              _tag: "Success",
+              waiting: false,
+              value: { id: "1", name: "Hydrated", extra: "ignored" },
+              updatedAt: Date.now()
+            }
+          }
+        ]
+      })
+    );
+
+    expect(read(ref)).toEqual({ id: "1", name: "Hydrated" });
+  });
+
+  it("preserves resource hydration schema errors in the Effect channel", async () => {
+    const User = Resource.family({
+      name: "User.hydration-schema-error",
+      input: Schema.Struct({ id: Schema.String }),
+      output: Schema.Struct({ id: Schema.String, name: Schema.String }),
+      load: (input: { readonly id: string }) => Effect.succeed({ id: input.id, name: "Loaded" }),
+      key: (input) => input.id
+    });
+    const ref = User({ id: "1" });
+
+    await expect(
+      Effect.runPromise(
+        Resource.hydrateEffect({
+          resources: [
+            {
+              name: "User.hydration-schema-error",
+              key: ref.key,
+              input: { id: "1" },
+              state: {
+                _tag: "Success",
+                waiting: false,
+                value: { id: "1" },
+                updatedAt: Date.now()
+              }
+            }
+          ]
+        })
+      )
+    ).rejects.toBeInstanceOf(Schema.SchemaError);
+  });
+
+  it("clones resource snapshots at dehydration and hydration seams", async () => {
+    const User = Resource.family({
+      name: "User.snapshot-clone",
+      load: (input: { readonly id: string }) =>
+        Effect.succeed({
+          id: input.id,
+          profile: { name: "Loaded" }
+        })
+    });
+    const ref = User({ id: "1" });
+
+    await Effect.runPromise(Resource.prefetchEffect(ref));
+    const dehydrated = Resource.dehydrate([ref]);
+    (dehydrated[0]?.state.value as { profile: { name: string } }).profile.name = "Mutated";
+
+    expect(read(ref)).toEqual({
+      id: "1",
+      profile: { name: "Loaded" }
+    });
+
+    const hydratedValue = {
+      id: "1",
+      profile: { name: "Hydrated" }
+    };
+    await Effect.runPromise(
+      Resource.hydrateEffect({
+        resources: [
+          {
+            name: "User.snapshot-clone",
+            key: ref.key,
+            input: { id: "1" },
+            state: {
+              _tag: "Success",
+              waiting: false,
+              value: hydratedValue,
+              updatedAt: Date.now()
+            }
+          }
+        ]
+      })
+    );
+    hydratedValue.profile.name = "Mutated";
+
+    expect(read(ref)).toEqual({
+      id: "1",
+      profile: { name: "Hydrated" }
+    });
+  });
+
+  it("encodes and decodes resource hydration payloads through the snapshot codec", async () => {
+    const payload: Resource.HydrationPayload = {
+      resources: [
+        {
+          name: "User.encode-hydrate",
+          key: "User.encode-hydrate:1",
+          input: "1",
+          state: {
+            _tag: "Success",
+            waiting: false,
+            value: { id: "1" },
+            updatedAt: 1
+          }
+        }
+      ]
+    };
+
+    const encoded = await Effect.runPromise(Resource.encodeHydrationPayloadEffect(payload));
+    const decoded = await Effect.runPromise(Resource.decodeHydrationPayloadEffect(encoded));
+
+    expect(decoded).toEqual(payload);
+    await expect(Effect.runPromise(Resource.decodeHydrationPayloadEffect("{"))).rejects.toBeInstanceOf(
+      ResourceSnapshotCodecError
+    );
   });
 
   it("collects resources touched during Effect preload", async () => {

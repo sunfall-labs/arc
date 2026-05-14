@@ -3,9 +3,10 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { build } from "vite";
 import { describe, expect, it } from "vitest";
 import { Action, ActionResult, defineApp, makeRuntime, Resource, ResponseContext, route, Route, runWithRuntime, Server, ServerClient } from "@effect-ui/core";
-import { Collection } from "@effect-ui/db";
+import { Collection, CollectionSnapshotCodecError } from "@effect-ui/db";
 import type { DevtoolsRequestTrace } from "@effect-ui/devtools";
 import {
   createServerActionResponseEffect,
@@ -18,6 +19,8 @@ import {
   startRequestDurationMetric,
   startRequestStatusMetric,
   hydrateFromDocument,
+  hydrateFromDocumentEffect,
+  hydrateStartPayloadEffect,
   hydrateStartHydrationChunksFromDocument,
   hydrateStartHydrationChunksFromDocumentEffect,
   makeRpcClient,
@@ -30,6 +33,7 @@ import {
   streamHydrationSequenceAttribute,
   startActionForm,
   StartHydrationChunkParseError,
+  StartHydrationPayloadParseError,
   StartAction,
   type StartFetch,
   submitStartActionEffect,
@@ -39,6 +43,10 @@ import {
   createStartDiagnosticsReport,
   formatStartDiagnosticsReport
 } from "../src/diagnostics-report.js";
+import {
+  completeRequestRuntimeWithResponse,
+  makeRequestRuntime
+} from "../src/request-runtime.js";
 import {
   parseStartDiagnosticsCliArgs,
   runStartDiagnosticsCli,
@@ -68,6 +76,7 @@ import {
   serverFunctionManifestVirtualModuleId,
   StartAppGraphMissingWireSchemas,
   StartAppGraphUnknownActionBehavior,
+  StartDevServerError,
   StartHandlerNotFound,
   StartServerOnlyModuleError,
   validateStartBuildPolicyEffect,
@@ -113,6 +122,72 @@ describe("Effect UI Start", () => {
     });
 
     expect(Route.href(ProjectRoute, { params: { id: "atlas" } })).toBe("/projects/atlas");
+  });
+
+  it("ignores synchronous throws from request trace callbacks", async () => {
+    const Home = route("/", {});
+    const app = defineApp({
+      routes: [Home] as const,
+      client: {}
+    });
+    const handler = createRequestHandler(app, {
+      onRequestTrace: () => {
+        throw new Error("trace callback failed");
+      },
+      render: () => new Response(null, { status: 204 })
+    });
+
+    const response = await Effect.runPromise(handler(new Request("https://example.com/")));
+
+    expect(response.status).toBe(204);
+  });
+
+  it("ignores synchronous throws from request runtime finalizers", async () => {
+    const Home = route("/", {});
+    const app = defineApp({
+      routes: [Home] as const,
+      client: {}
+    });
+    const runtime = makeRequestRuntime(app);
+
+    const response = await Effect.runPromise(
+      completeRequestRuntimeWithResponse(runtime, new Response(null, { status: 204 }), {
+        onFinalize: () => {
+          throw new Error("finalizer callback failed");
+        }
+      })
+    );
+
+    expect(response.status).toBe(204);
+  });
+
+  it("ignores synchronous throws from request runtime stream finalizers", async () => {
+    const Home = route("/", {});
+    const app = defineApp({
+      routes: [Home] as const,
+      client: {}
+    });
+    const runtime = makeRequestRuntime(app);
+    const response = await Effect.runPromise(
+      completeRequestRuntimeWithResponse(
+        runtime,
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode("stream body"));
+              controller.close();
+            }
+          })
+        ),
+        {
+          onStreamFinalize: () => {
+            throw new Error("stream finalizer callback failed");
+          }
+        }
+      )
+    );
+
+    await expect(response.text()).resolves.toBe("stream body");
   });
 
   it("preloads matched route resources into a hydration payload", async () => {
@@ -332,6 +407,7 @@ describe("Effect UI Start", () => {
   });
 
   it("dehydrates DB collections from the SSR request runtime", async () => {
+    const traces: DevtoolsRequestTrace[] = [];
     const Projects = Collection.define<{ readonly id: string; readonly name: string; readonly sequence: number }>({
       name: "Start.Collection.request-store",
       getKey: (project) => project.id
@@ -352,6 +428,10 @@ describe("Effect UI Start", () => {
     });
     const handler = createRequestHandler(app, {
       collections: [Projects],
+      onRequestTrace: (trace) =>
+        Effect.sync(() => {
+          traces.push(trace);
+        }),
       render: ({ collections, hydrationScript }) => {
         const project = Projects.rows()[0];
         return `<html><body><main>${project?.id}:${project?.sequence}</main><aside>${collections.collections[0]?.rows.length}</aside>${hydrationScript}</body></html>`;
@@ -367,6 +447,13 @@ describe("Effect UI Start", () => {
     expect(firstHtml).toContain("<aside>1</aside>");
     expect(firstHtml).toContain("Start.Collection.request-store");
     expect(firstHtml).toContain("\"collections\"");
+    expect(traces[0]?.collections).toEqual([
+      {
+        name: "Start.Collection.request-store",
+        state: "Initial"
+      }
+    ]);
+    expect(traces[0]?.collections[0]).not.toHaveProperty("eventCount");
     expect(secondHtml).toContain("<main>atlas:2</main>");
   });
 
@@ -1960,6 +2047,71 @@ describe("Effect UI Start", () => {
     });
   });
 
+  it("surfaces collection snapshot codec failures from Start hydration effects", async () => {
+    const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
+      name: "Start.Collection.invalid-hydration",
+      getKey: (project) => project.id
+    });
+
+    const exit = await Effect.runPromiseExit(
+      hydrateStartPayloadEffect(
+        {
+          resources: [],
+          collections: [
+            {
+              name: "Start.Collection.invalid-hydration",
+              rows: "not-rows",
+              pendingMutations: [],
+              updatedAt: 1
+            } as never
+          ]
+        },
+        {
+          collections: [Projects]
+        }
+      )
+    );
+
+    expect(Exit.isFailure(exit)).toBe(true);
+    expect(firstFailure(exit.cause)).toBeInstanceOf(CollectionSnapshotCodecError);
+  });
+
+  it("surfaces malformed document hydration JSON through the Effect error channel", async () => {
+    const document = {
+      getElementById: (id: string) =>
+        id === "__EFFECT_UI_HYDRATION__"
+          ? { textContent: "{" }
+          : null,
+      querySelectorAll: () => []
+    };
+
+    const exit = await Effect.runPromiseExit(
+      hydrateFromDocumentEffect(document as Parameters<typeof hydrateFromDocumentEffect>[0])
+    );
+
+    expect(Exit.isFailure(exit)).toBe(true);
+    expect(firstFailure(exit.cause)).toBeInstanceOf(StartHydrationPayloadParseError);
+  });
+
+  it("surfaces malformed streamed hydration JSON through the Effect error channel", async () => {
+    const element = {
+      textContent: "{",
+      getAttribute: (name: string) =>
+        name === streamHydrationSequenceAttribute ? "2" : null
+    };
+    const document = {
+      querySelectorAll: (selector: string) =>
+        selector === `[${streamHydrationAttribute}]` ? [element] : []
+    };
+
+    const exit = await Effect.runPromiseExit(
+      hydrateStartHydrationChunksFromDocumentEffect(document)
+    );
+
+    expect(Exit.isFailure(exit)).toBe(true);
+    expect(firstFailure(exit.cause)).toBeInstanceOf(StartHydrationChunkParseError);
+  });
+
   it("hydrates browser payloads in an explicit runtime", async () => {
     const runtime = makeRuntime();
     try {
@@ -2225,6 +2377,46 @@ describe("Effect UI Start", () => {
 
     expect(() => hydrateStartHydrationChunksFromDocument(document)).toThrow(
       StartHydrationChunkParseError
+    );
+  });
+
+  it("surfaces streamed hydration chunk parse failures from Effect helpers", async () => {
+    const element = {
+      textContent: "{",
+      getAttribute: (name: string) =>
+        name === streamHydrationSequenceAttribute ? "2" : null
+    };
+    const document = {
+      querySelectorAll: (selector: string) =>
+        selector === `[${streamHydrationAttribute}]` ? [element] : []
+    };
+
+    const exit = await Effect.runPromiseExit(
+      hydrateStartHydrationChunksFromDocumentEffect(document)
+    );
+
+    expect(Exit.isFailure(exit)).toBe(true);
+    if (Exit.isFailure(exit)) {
+      const error = exit.cause.reasons.find(Cause.isFailReason)?.error;
+      expect(error).toBeInstanceOf(StartHydrationChunkParseError);
+      expect(error).toMatchObject({
+        sequence: 2,
+        value: "{"
+      });
+    }
+  });
+
+  it("rejects malformed root hydration payloads with typed repair guidance", () => {
+    const document = {
+      getElementById: (id: string) =>
+        id === "__EFFECT_UI_HYDRATION__"
+          ? { textContent: JSON.stringify({ resources: "invalid" }) }
+          : null,
+      querySelectorAll: () => []
+    };
+
+    expect(() => hydrateFromDocument(document as Parameters<typeof hydrateFromDocument>[0])).toThrow(
+      StartHydrationPayloadParseError
     );
   });
 
@@ -2630,17 +2822,55 @@ describe("Effect UI Start", () => {
       }
     });
     expect(resolved).toBe(`\0${appGraphVirtualModuleId}`);
+    expect(String(loaded)).toMatchInlineSnapshot(`
+      "import { Effect } from "effect";
+      import { Resource, Route } from "@effect-ui/core";
+      import { describeStartAppGraphRuntimeDiagnostics, startAppGraphCollectionDefinitions, validateStartAppGraphDiagnosticsPolicyExceptionEffect } from "@effect-ui/start";
+
+      import { Route as route_root } from "/src/routes/index.js";
+      import { Route as route_projects_$id } from "/src/routes/projects/$id.js";
+
+      export const graph = {"version":1,"routes":{"version":1,"routeDirectory":"src/routes","entries":[{"id":"index","routeId":"route_root","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","routePath":"/","segments":[],"params":[]},{"id":"projects/$id","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}]}],"modules":[{"id":"index","kind":"Route","routeId":"route_root","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","routePath":"/","segments":[],"params":[],"exportName":"Route"},{"id":"projects/$id","kind":"Route","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}],"exportName":"Route"}]},"serverFunctions":{"version":1,"rpcPath":"/__effect-ui/rpc","entries":[{"id":"sf_1pkzsl7_start-project-appgraph","name":"Start.Project.appGraph","server":{"module":"/src/project/project.server.ts","exportName":"getProject","moduleKind":"server-only","hasHandler":true},"client":{"_tag":"Rpc","id":"sf_1pkzsl7_start-project-appgraph","name":"Start.Project.appGraph","rpcPath":"/__effect-ui/rpc"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false}}]},"actions":{"version":1,"actionPath":"/__effect-ui/action","entries":[{"id":"act_11c8g85_start-project-appgraph-rename","name":"Start.Project.appGraph.rename","server":{"module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"client":{"_tag":"Post","id":"act_11c8g85_start-project-appgraph-rename","name":"Start.Project.appGraph.rename","actionPath":"/__effect-ui/action"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false},"behavior":{"invalidates":"unknown","optimistic":"unknown","retry":"unknown","concurrency":"unknown"}}]}};
+      const resourceDiagnostics = Resource.diagnostics();
+      const collectionDefinitions = startAppGraphCollectionDefinitions();
+      const routeModuleCandidates = [
+      {
+          entry: graph.routes.entries[0],
+          route: route_root,
+          preloadResources: Route.describePreloadResources(route_root),
+          preloadCollections: Route.describePreloadCollections(route_root)
+        },
+      {
+          entry: graph.routes.entries[1],
+          route: route_projects_$id,
+          preloadResources: Route.describePreloadResources(route_projects_$id),
+          preloadCollections: Route.describePreloadCollections(route_projects_$id)
+        }
+      ];
+      export const diagnostics = describeStartAppGraphRuntimeDiagnostics(graph, {
+        routeModules: routeModuleCandidates,
+        resourceFamilies: resourceDiagnostics.families,
+        resourceTags: resourceDiagnostics.tags,
+        collectionDefinitions
+      });
+      const diagnosticsPolicy = null;
+      export const diagnosticsPolicyViolations = Effect.runSync(validateStartAppGraphDiagnosticsPolicyExceptionEffect(diagnostics, diagnosticsPolicy));
+      export const routes = graph.routes;
+      export const serverFunctions = graph.serverFunctions;
+      export const actions = graph.actions;
+      export default graph;"
+    `);
     expect(String(loaded)).toContain("export const graph = ");
     expect(String(loaded)).toContain("export const diagnostics = describeStartAppGraphRuntimeDiagnostics(graph, {");
     expect(String(loaded)).toContain('import { Resource, Route } from "@effect-ui/core";');
-    expect(String(loaded)).toContain('import { Collection } from "@effect-ui/db";');
+    expect(String(loaded)).toContain("startAppGraphCollectionDefinitions");
     expect(String(loaded)).toContain("describeStartAppGraphRuntimeDiagnostics");
     expect(String(loaded)).toContain("validateStartAppGraphDiagnosticsPolicyExceptionEffect");
     expect(String(loaded)).toContain('import { Effect } from "effect";');
     expect(String(loaded)).toContain('import { Route as route_root } from "/src/routes/index.js";');
     expect(String(loaded)).toContain('import { Route as route_projects_$id } from "/src/routes/projects/$id.js";');
     expect(String(loaded)).toContain("const resourceDiagnostics = Resource.diagnostics();");
-    expect(String(loaded)).toContain("const collectionDiagnostics = Collection.diagnostics();");
+    expect(String(loaded)).toContain("const collectionDefinitions = startAppGraphCollectionDefinitions();");
     expect(String(loaded)).toContain("const routeModuleCandidates = [");
     expect(String(loaded)).toContain("entry: graph.routes.entries[1]");
     expect(String(loaded)).toContain("route: route_projects_$id");
@@ -2649,7 +2879,7 @@ describe("Effect UI Start", () => {
     expect(String(loaded)).toContain("routeModules: routeModuleCandidates,");
     expect(String(loaded)).toContain("resourceFamilies: resourceDiagnostics.families");
     expect(String(loaded)).toContain("resourceTags: resourceDiagnostics.tags");
-    expect(String(loaded)).toContain("collectionDefinitions: collectionDiagnostics.collections");
+    expect(String(loaded)).toContain("collectionDefinitions");
     expect(String(loaded)).not.toContain("routeModulePresence");
     expect(String(loaded)).toContain("export const routes = graph.routes;");
     expect(String(loaded)).toContain("Start.Project.appGraph.rename");
@@ -2678,6 +2908,37 @@ describe("Effect UI Start", () => {
     const resolved = plugin.resolveId(appGraphVirtualModuleId);
     const loaded = resolved === null ? undefined : plugin.load(resolved);
 
+    expect(String(loaded)).toMatchInlineSnapshot(`
+      "import { Effect } from "effect";
+      import { Resource, Route } from "@effect-ui/core";
+      import { describeStartAppGraphRuntimeDiagnostics, startAppGraphCollectionDefinitions, validateStartAppGraphDiagnosticsPolicyExceptionEffect } from "@effect-ui/start";
+
+      import { Route as route_projects_$id } from "/src/routes/projects/$id.js";
+
+      export const graph = {"version":1,"routes":{"version":1,"routeDirectory":"src/routes","entries":[{"id":"projects/$id","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}]}],"modules":[{"id":"projects/$id","kind":"Route","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}],"exportName":"Route"}]},"serverFunctions":{"version":1,"rpcPath":"/__effect-ui/rpc","entries":[]},"actions":{"version":1,"actionPath":"/__effect-ui/action","entries":[]}};
+      const resourceDiagnostics = Resource.diagnostics();
+      const collectionDefinitions = startAppGraphCollectionDefinitions();
+      const routeModuleCandidates = [
+      {
+          entry: graph.routes.entries[0],
+          route: route_projects_$id,
+          preloadResources: Route.describePreloadResources(route_projects_$id),
+          preloadCollections: Route.describePreloadCollections(route_projects_$id)
+        }
+      ];
+      export const diagnostics = describeStartAppGraphRuntimeDiagnostics(graph, {
+        routeModules: routeModuleCandidates,
+        resourceFamilies: resourceDiagnostics.families,
+        resourceTags: resourceDiagnostics.tags,
+        collectionDefinitions
+      });
+      const diagnosticsPolicy = {"routePreloadResources":{"requireDeclaredForPreload":true},"routePreloadCollections":{"requireDeclaredForPreload":true}};
+      export const diagnosticsPolicyViolations = Effect.runSync(validateStartAppGraphDiagnosticsPolicyExceptionEffect(diagnostics, diagnosticsPolicy));
+      export const routes = graph.routes;
+      export const serverFunctions = graph.serverFunctions;
+      export const actions = graph.actions;
+      export default graph;"
+    `);
     expect(String(loaded)).toContain(
       '"routePreloadResources":{"requireDeclaredForPreload":true}'
     );
@@ -2814,6 +3075,72 @@ describe("Effect UI Start", () => {
       ).rejects.toMatchObject({
         name: "StartAppGraphDiagnosticsPolicyError"
       });
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 20000);
+
+  it("fails the Vite build diagnostics gate without importing the app graph virtual module", async () => {
+    const root = mkdtempSync(join(tmpdir(), "effect-ui-diagnostics-build-gate-"));
+
+    try {
+      mkdirSync(join(root, "src/routes"), { recursive: true });
+      writeFileSync(
+        join(root, "index.html"),
+        [
+          "<!doctype html>",
+          "<html>",
+          "  <body>",
+          "    <script type=\"module\" src=\"/src/main.ts\"></script>",
+          "  </body>",
+          "</html>"
+        ].join("\n")
+      );
+      writeFileSync(join(root, "src/main.ts"), "export const mounted = true;\n");
+      writeFileSync(
+        join(root, "src/routes/index.ts"),
+        [
+          "import { route } from \"@effect-ui/core\";",
+          "export const Route = route(\"/\", {",
+          "  preload: () => undefined",
+          "});"
+        ].join("\n")
+      );
+
+      let buildError: unknown;
+      try {
+        await build({
+          root,
+          configFile: false,
+          logLevel: "silent",
+          ...startDiagnosticsRunnerViteConfig(),
+          plugins: [
+            effectUiStart({
+              fileRoutes: ["src/routes/index.ts"],
+              fileRouteOptions: {
+                routeDirectory: "src/routes"
+              },
+              buildPolicy: {
+                wireSchemas: false,
+                diagnostics: {
+                  routePreloadResources: {
+                    requireDeclaredForPreload: true
+                  },
+                  routePreloadCollections: {
+                    requireDeclaredForPreload: true
+                  }
+                }
+              }
+            })
+          ]
+        });
+      } catch (error) {
+        buildError = error;
+      }
+
+      expect(buildError).toBeDefined();
+      expect(String(buildError)).toContain("preloadResources");
+      expect(String(buildError)).toContain("preloadCollections");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -3105,7 +3432,13 @@ describe("Effect UI Start", () => {
     };
     const failure = Object.assign(new Error("Routes with preload must declare preloadResources."), {
       name: "StartAppGraphDiagnosticsPolicyError",
-      violations: [{ _tag: "UnknownRoutePreloadResources" }],
+      violations: [
+        {
+          _tag: "UnknownRoutePreloadResources",
+          message: "Routes with preload must declare preloadResources.",
+          routes: [unknownPreloadRoute]
+        }
+      ],
       diagnostics: {
         version: 1 as const,
         routeCount: 1,
@@ -3326,6 +3659,32 @@ describe("Effect UI Start", () => {
         handleSsrDevRequestEffect(server, new Request("https://example.com/projects/kepler"))
       )
     ).resolves.toBeInstanceOf(Response);
+  });
+
+  it("rejects Promise-returning dev SSR handlers at the EffectInput seam", async () => {
+    const server = {
+      ssrLoadModule: (_id: string) =>
+        Effect.runPromise(
+          Effect.succeed({
+            default: () => Effect.runPromise(Effect.succeed(new Response("promise")))
+          })
+        ),
+      transformIndexHtml: (_url: string, html: string) =>
+        Effect.runPromise(Effect.succeed(html))
+    };
+
+    const exit = await Effect.runPromiseExit(
+      handleSsrDevRequestEffect(server, new Request("https://example.com/promise"))
+    );
+    const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
+
+    expect(failure).toBeInstanceOf(StartDevServerError);
+    expect(failure).toMatchObject({
+      operation: "run-handler",
+      error: expect.objectContaining({
+        _tag: "EffectInputPromiseRejected"
+      })
+    });
   });
 
   it("runs Vite dev middleware control flow through Effect", async () => {

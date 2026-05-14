@@ -26,6 +26,7 @@ import {
 } from "./collection-state.js";
 import {
   cloneStoredRow,
+  decodeCollectionOutputValuesEffect,
   type CollectionSnapshotCodecError,
   restoreStoredRows
 } from "./collection-snapshot-codec.js";
@@ -73,6 +74,7 @@ import type {
   CollectionPersistenceStorage,
   CollectionPersistOptions,
   CollectionRow,
+  CollectionRuntimeError,
   CollectionSnapshot,
   CollectionStore,
   CollectionStoreEvent,
@@ -152,6 +154,14 @@ export const collectionInputEffect = <A, E, R>(
 ): Effect.Effect<A, E, R> =>
   toEffect(input);
 
+export const collectionInputCallbackEffect = <A, E, R>(
+  callback: () => EffectInput<A, E, R>
+): Effect.Effect<A, E, R> =>
+  Effect.try({
+    try: callback,
+    catch: (error) => error as E
+  }).pipe(Effect.flatMap(collectionInputEffect));
+
 export const recordCollectionPreload = (
   definition: AnyCollection
 ): Effect.Effect<void> =>
@@ -170,6 +180,17 @@ const publishStoreEvent = (
 
 const toArray = <A>(input: A | ReadonlyArray<A>): ReadonlyArray<A> =>
   Array.isArray(input) ? input as ReadonlyArray<A> : [input as A];
+
+const validateCollectionOutputValuesEffect = <A extends object, K extends CollectionKey, E, R>(
+  definition: CollectionDefinition<A, K, E, R>,
+  values: ReadonlyArray<A>
+): Effect.Effect<ReadonlyArray<A>, CollectionSnapshotCodecError> =>
+  decodeCollectionOutputValuesEffect(
+    definition.options.output,
+    values,
+    "hydrate",
+    `$.collections[${definition.name}].rows`
+  );
 
 const collectionState = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
@@ -265,7 +286,7 @@ const restoreBeforePreloadEffect = <A extends object, K extends CollectionKey, E
   definition: CollectionDefinition<A, K, E, R>,
   state: CollectionState<A, K, E>,
   store: RuntimeCollectionStore
-): Effect.Effect<boolean, E | CollectionSnapshotCodecError, R> =>
+): Effect.Effect<boolean, CollectionRuntimeError<E>, R> =>
   restoreCollectionBeforePreloadWithStoreEffect(definition, state, store, collectionStoreEffect);
 
 export const dehydrateCollections = (
@@ -302,11 +323,11 @@ export const subscribeCollectionChangesEffect = <
   FeedRequirements = never
 >(
   definition: CollectionDefinition<A, K, E, R>,
-  adapter: CollectionChangeFeedAdapter<A, K, FeedError, FeedRequirements>,
+  adapter: CollectionChangeFeedAdapter<A, K, FeedError, FeedRequirements, E, R>,
   options: CollectionChangeFeedSubscribeOptions = {}
-): Effect.Effect<void, E | FeedError, R | FeedRequirements | Scope.Scope> =>
+): Effect.Effect<void, CollectionRuntimeError<E> | FeedError, R | FeedRequirements | Scope.Scope> =>
   Effect.acquireRelease(
-    toEffect(adapter.subscribe({
+    collectionInputCallbackEffect(() => adapter.subscribe({
       collection: definition.name,
       emit: (changes, writeOptions) =>
         applyCollectionChangesEffect(definition, changes, writeOptions ?? options.write)
@@ -314,7 +335,7 @@ export const subscribeCollectionChangesEffect = <
     (subscription) => {
       const unsubscribe = changeFeedUnsubscribe(subscription);
       return unsubscribe
-        ? toEffect(unsubscribe())
+        ? collectionInputCallbackEffect(() => unsubscribe())
         : Effect.void;
     }
   ).pipe(Effect.asVoid);
@@ -326,6 +347,26 @@ const withCollectionRetry = <A, E, R>(
   const retry = definition.options.policy?.retry;
   return retry ? Effect.retry(effect, retry) : effect;
 };
+
+const failCollectionLoadEffect = <A extends object, K extends CollectionKey, E, R, Cause>(
+  dbStore: RuntimeCollectionStore,
+  definition: CollectionDefinition<A, K, E, R>,
+  state: CollectionState<A, K, E>,
+  error: Cause
+): Effect.Effect<never, Cause> =>
+  Effect.gen(function* () {
+    state.loadState.set({
+      _tag: "Failure",
+      waiting: false,
+      error: error as CollectionRuntimeError<E>
+    });
+    yield* publishStoreEvent(dbStore, {
+      _tag: "CollectionLoadFailure",
+      collection: definition.name,
+      error
+    });
+    return yield* Effect.fail(error);
+  });
 
 const mutationHandler = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
@@ -362,13 +403,13 @@ const mutationHandler = <A extends object, K extends CollectionKey, E, R>(
 
     const context: CollectionMutationContext<A, K> = { transaction };
     if (inserts.length > 0 && definition.options.onInsert) {
-      yield* collectionInputEffect(definition.options.onInsert(inserts, context));
+      yield* collectionInputCallbackEffect(() => definition.options.onInsert!(inserts, context));
     }
     if (updates.length > 0 && definition.options.onUpdate) {
-      yield* collectionInputEffect(definition.options.onUpdate(updates, context));
+      yield* collectionInputCallbackEffect(() => definition.options.onUpdate!(updates, context));
     }
     if (deletes.length > 0 && definition.options.onDelete) {
-      yield* collectionInputEffect(definition.options.onDelete(deletes, context));
+      yield* collectionInputCallbackEffect(() => definition.options.onDelete!(deletes, context));
     }
   });
 
@@ -465,7 +506,7 @@ const flushCollectionPendingMutationsEffect = <A extends object, K extends Colle
       }
 
       const handler = mutationHandler(definition, pending.transaction);
-      const transaction = yield* runPendingMutation(definition, state, dbStore, pending, handler);
+      const transaction = yield* runPendingMutation<A, K, E, R>(definition, state, dbStore, pending, handler);
       flushed.push(transaction);
     }
 
@@ -475,11 +516,13 @@ const flushCollectionPendingMutationsEffect = <A extends object, K extends Colle
 const loadCollectionEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   options: { readonly force: boolean }
-): Effect.Effect<void, E | CollectionSnapshotCodecError, R> =>
+): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
   Effect.gen(function* () {
     const dbStore = yield* collectionStoreEffect;
     const state = collectionState(definition, dbStore);
-    const restored = yield* restoreBeforePreloadEffect(definition, state, dbStore);
+    const restored = yield* restoreBeforePreloadEffect(definition, state, dbStore).pipe(
+      Effect.catch((error: CollectionRuntimeError<E>) => failCollectionLoadEffect(dbStore, definition, state, error))
+    );
     const current = state.loadState.get();
     const shouldLoadAfterRestore =
       restored &&
@@ -499,27 +542,20 @@ const loadCollectionEffect = <A extends object, K extends CollectionKey, E, R>(
     }
 
     state.loadState.set({ _tag: "Pending", waiting: true });
-    const load = collectionInputEffect(definition.options.load());
+    const load = collectionInputCallbackEffect(() => definition.options.load!());
     const values = yield* withCollectionRetry(definition, load).pipe(
-      Effect.catch((error: E) =>
-        Effect.gen(function* () {
-          state.loadState.set({ _tag: "Failure", waiting: false, error });
-          yield* publishStoreEvent(dbStore, {
-            _tag: "CollectionLoadFailure",
-            collection: definition.name,
-            error
-          });
-          return yield* Effect.fail(error);
-        })
-      )
+      Effect.catch((error: E) => failCollectionLoadEffect(dbStore, definition, state, error))
+    );
+    const decodedValues = yield* validateCollectionOutputValuesEffect(definition, values).pipe(
+      Effect.catch((error) => failCollectionLoadEffect(dbStore, definition, state, error))
     );
     const updatedAt = yield* Clock.currentTimeMillis;
-    replaceCollectionRows(definition, state, values);
+    replaceCollectionRows(definition, state, decodedValues);
     state.loadState.set({ _tag: "Ready", waiting: false, updatedAt });
     yield* publishStoreEvent(dbStore, {
       _tag: "CollectionLoaded",
       collection: definition.name,
-      count: values.length,
+      count: decodedValues.length,
       updatedAt
     });
     yield* persistForReasonEffect(definition, dbStore, "load");
@@ -529,11 +565,11 @@ const writeRows = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   input: A | ReadonlyArray<A>,
   options: CollectionWriteOptions = {}
-): Effect.Effect<void, E | CollectionSnapshotCodecError, R> =>
+): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
   Effect.gen(function* () {
     const dbStore = yield* collectionStoreEffect;
     const state = collectionState(definition, dbStore);
-    const values = toArray(input);
+    const values = yield* validateCollectionOutputValuesEffect(definition, toArray(input));
     for (const value of values) {
       const key = definition.getKey(value);
       state.rows.set(key, {
@@ -557,7 +593,7 @@ const writeUpdateRow = <A extends object, K extends CollectionKey, E, R>(
   key: K,
   changes: Partial<A>,
   options: CollectionWriteOptions = {}
-): Effect.Effect<void, E | CollectionRowNotFound | CollectionSnapshotCodecError, R> =>
+): Effect.Effect<void, CollectionRuntimeError<E> | CollectionRowNotFound, R> =>
   Effect.gen(function* () {
     const dbStore = yield* collectionStoreEffect;
     const state = collectionState(definition, dbStore);
@@ -566,7 +602,9 @@ const writeUpdateRow = <A extends object, K extends CollectionKey, E, R>(
       return yield* new CollectionRowNotFound({ collection: definition.name, key });
     }
 
-    row.value = { ...row.value, ...changes };
+    const values = yield* validateCollectionOutputValuesEffect(definition, [{ ...row.value, ...changes }]);
+    const value = values[0] as A;
+    row.value = value;
     row.synced = options.synced ?? true;
     row.origin = options.origin ?? "remote";
     bumpCollectionState(state);
@@ -599,7 +637,7 @@ export const applyCollectionChangesEffect = <A extends object, K extends Collect
   definition: CollectionDefinition<A, K, E, R>,
   changes: ReadonlyArray<CollectionChange<A, K>>,
   options: CollectionWriteOptions = {}
-): Effect.Effect<void, E | CollectionSnapshotCodecError, R> =>
+): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
   Effect.gen(function* () {
     const upserts: Array<A> = [];
     const deletes: Array<K> = [];
@@ -690,7 +728,7 @@ export const defineCollection = <
       Effect.gen(function* () {
         const dbStore = yield* collectionStoreEffect;
         const state = collectionState(definition, dbStore);
-        const values = toArray(input);
+        const values = yield* validateCollectionOutputValuesEffect(definition, toArray(input));
         const snapshots = new Map<K, StoredRow<A, K> | undefined>();
         const mutations: Array<CollectionMutation<A, K>> = [];
 
@@ -705,7 +743,7 @@ export const defineCollection = <
 
         const tx = createCollectionTransaction(state, definition.name, mutations);
         const handler = definition.options.onInsert
-          ? collectionInputEffect(definition.options.onInsert(values, { transaction: tx }))
+          ? collectionInputCallbackEffect(() => definition.options.onInsert!(values, { transaction: tx }))
           : Effect.succeed(undefined);
         return yield* runMutation(definition, tx, snapshots, handler);
       }),
@@ -720,7 +758,9 @@ export const defineCollection = <
 
         const previous = cloneStoredRow(row);
         const updated = applyCollectionUpdate(row.value, update);
-        row.value = updated.value;
+        const decodedValues = yield* validateCollectionOutputValuesEffect(definition, [updated.value]);
+        const decodedValue = decodedValues[0] as A;
+        row.value = decodedValue;
         row.synced = false;
         row.origin = "local";
         bumpCollectionState(state);
@@ -730,14 +770,14 @@ export const defineCollection = <
           _tag: "Update",
           key,
           previous: previous.value,
-          value: updated.value,
+          value: decodedValue,
           changes: updated.changes
         }]);
         const handler = definition.options.onUpdate
-          ? collectionInputEffect(definition.options.onUpdate([{
+          ? collectionInputCallbackEffect(() => definition.options.onUpdate!([{
               key,
               previous: previous.value,
-              value: updated.value,
+              value: decodedValue,
               changes: updated.changes
             }], { transaction: tx }))
           : Effect.succeed(undefined);
@@ -763,7 +803,7 @@ export const defineCollection = <
           previous: previous.value
         }]);
         const handler = definition.options.onDelete
-          ? collectionInputEffect(definition.options.onDelete([{ key, previous: previous.value }], { transaction: tx }))
+          ? collectionInputCallbackEffect(() => definition.options.onDelete!([{ key, previous: previous.value }], { transaction: tx }))
           : Effect.succeed(undefined);
         return yield* runMutation(definition, tx, snapshots, handler);
       }),

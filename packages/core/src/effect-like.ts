@@ -48,6 +48,21 @@ export class EffectInputPromiseRejected extends Data.TaggedError(
   readonly guidance: string;
 }> {}
 
+/**
+ * Typed failure raised when an EffectInput callback throws synchronously.
+ *
+ * The callback is invoked inside Effect so public Effect-returning APIs can
+ * preserve the failure in the Effect error channel instead of surfacing it as a
+ * construction-time throw or Effect defect.
+ */
+export class EffectInputCallbackError extends Data.TaggedError(
+  "EffectInputCallbackError"
+)<{
+  readonly operation: string;
+  readonly cause: unknown;
+  readonly guidance: string;
+}> {}
+
 const isPromiseLike = (value: unknown): value is PromiseLike<unknown> => {
   if (value === null) {
     return false;
@@ -82,3 +97,30 @@ export const toEffect = <A, E = never, R = never>(
 
   return Effect.succeed(value as A);
 };
+
+/**
+ * Invokes an EffectInput-returning callback inside Effect and normalizes the
+ * returned value through `toEffect(...)`.
+ */
+export const invokeEffectInput = <
+  Args extends ReadonlyArray<unknown>,
+  A,
+  E = never,
+  R = never
+>(
+  operation: string,
+  callback: (...args: Args) => EffectInput<A, E, R>,
+  ...args: Args
+): Effect.Effect<A, E | EffectInputCallbackError, R> =>
+  Effect.flatMap(
+    Effect.try({
+      try: () => callback(...args),
+      catch: (cause) =>
+        new EffectInputCallbackError({
+          operation,
+          cause,
+          guidance: "EffectInput callbacks must return values or Effects. Synchronous callback throws are reported in the Effect error channel."
+        })
+    }),
+    toEffect
+  );

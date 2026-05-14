@@ -157,22 +157,26 @@ export type DevtoolsRequestTraceFailureKind =
 export type DevtoolsRequestTraceStreamState = "open" | "closed" | "cancelled" | "errored";
 export type DevtoolsRequestTraceFiberStatus = "running" | "done" | "interrupted" | "failed";
 
+/** Typed error thrown when callers provide both live and serialized invalidation plans. */
 export class DevtoolsActionInvalidationPlanConflict extends Data.TaggedError(
   "DevtoolsActionInvalidationPlanConflict"
 )<{
   readonly guidance: string;
 }> {}
 
+/** Header captured for request inspection; sensitive values should already be redacted upstream. */
 export interface DevtoolsRequestTraceHeader {
   readonly name: string;
   readonly value: string;
 }
 
+/** Cookie fact captured for request inspection; values should be redacted before recording. */
 export interface DevtoolsRequestTraceCookie {
   readonly name: string;
   readonly value: string;
 }
 
+/** HTTP request facts recorded by Start or another compatible server adapter. */
 export interface DevtoolsRequestTraceRequest {
   readonly id?: string;
   readonly traceparent?: string;
@@ -184,6 +188,7 @@ export interface DevtoolsRequestTraceRequest {
   readonly cookies?: ReadonlyArray<DevtoolsRequestTraceCookie>;
 }
 
+/** HTTP response facts recorded for a request trace. */
 export interface DevtoolsRequestTraceResponse {
   readonly status: number;
   readonly statusText?: string;
@@ -191,6 +196,7 @@ export interface DevtoolsRequestTraceResponse {
   readonly setCookieCount?: number;
 }
 
+/** Resource fact touched, loaded, or serialized during one request. */
 export interface DevtoolsRequestTraceResource {
   readonly key: string;
   readonly family: string;
@@ -198,18 +204,21 @@ export interface DevtoolsRequestTraceResource {
   readonly state?: string;
 }
 
+/** Collection fact touched, loaded, or serialized during one request. */
 export interface DevtoolsRequestTraceCollection {
   readonly name: string;
   readonly state?: string;
   readonly eventCount?: number;
 }
 
+/** Server function call observed during one request. */
 export interface DevtoolsRequestTraceServerFunction {
   readonly name: string;
   readonly status?: DevtoolsRequestTraceStatus;
   readonly failureKind?: DevtoolsRequestTraceFailureKind;
 }
 
+/** Start Action call observed during one request. */
 export interface DevtoolsRequestTraceAction {
   readonly name: string;
   readonly state?: string;
@@ -217,17 +226,20 @@ export interface DevtoolsRequestTraceAction {
   readonly invalidationIndexes?: ReadonlyArray<number>;
 }
 
+/** Fiber fact for work owned by a request runtime. */
 export interface DevtoolsRequestTraceFiber {
   readonly name: string;
   readonly status: DevtoolsRequestTraceFiberStatus;
 }
 
+/** Stream fact for response or hydration streams owned by a request. */
 export interface DevtoolsRequestTraceStream {
   readonly name: string;
   readonly state: DevtoolsRequestTraceStreamState;
   readonly chunkCount?: number;
 }
 
+/** Resource Store counts captured before or after request-runtime disposal. */
 export interface DevtoolsRequestTraceTeardownSnapshot {
   readonly fiberCount: number;
   readonly familyCount: number;
@@ -235,6 +247,7 @@ export interface DevtoolsRequestTraceTeardownSnapshot {
   readonly tagCount: number;
 }
 
+/** Request-runtime disposal facts used to detect leaks after streamed responses close. */
 export interface DevtoolsRequestTraceTeardown {
   readonly runtimeDisposed: boolean;
   readonly reason?: string;
@@ -246,6 +259,13 @@ export interface DevtoolsRequestTraceTeardown {
   readonly afterDispose?: DevtoolsRequestTraceTeardownSnapshot;
 }
 
+/**
+ * Structural request trace contract consumed by Devtools.
+ *
+ * Start emits this shape without depending on `@effect-ui/devtools`; adapters
+ * can record compatible traces when they preserve the same failure and teardown
+ * semantics.
+ */
 export interface DevtoolsRequestTrace {
   readonly request: DevtoolsRequestTraceRequest;
   readonly response?: DevtoolsRequestTraceResponse;
@@ -610,28 +630,92 @@ export interface DevtoolsSummaryResource {
   readonly invalidationIndexes: ReadonlyArray<number>;
 }
 
-export interface DevtoolsSummaryRequestTrace {
-  readonly index: number;
-  readonly id: string;
-  readonly method: string;
-  readonly path: string;
-  readonly url: string;
-  readonly transport: DevtoolsRequestTraceTransport;
-  readonly status: DevtoolsRequestTraceStatus;
-  readonly failureKind: DevtoolsRequestTraceFailureKind | null;
-  readonly responseStatus: number | null;
-  readonly serviceCount: number;
-  readonly resourceCount: number;
-  readonly collectionCount: number;
-  readonly serverFunctionCount: number;
-  readonly actionCount: number;
+/** Request-runtime store counts captured before or after teardown. */
+export interface DevtoolsSummaryRequestTraceTeardownSnapshot {
+  /** Live fibers visible in the request runtime store at the snapshot point. */
   readonly fiberCount: number;
+  /** Registered resource families visible in the request runtime store. */
+  readonly familyCount: number;
+  /** Registered resource modules visible in the request runtime store. */
+  readonly moduleCount: number;
+  /** Registered resource tags visible in the request runtime store. */
+  readonly tagCount: number;
+}
+
+/** Server-function activity summarized from one request trace. */
+export interface DevtoolsSummaryRequestTraceServerFunction {
+  readonly name: string;
+  readonly status: DevtoolsRequestTraceStatus | null;
+  readonly failureKind: DevtoolsRequestTraceFailureKind | null;
+}
+
+/** Action activity summarized from one request trace. */
+export interface DevtoolsSummaryRequestTraceAction {
+  readonly name: string;
+  readonly state: string | null;
+  readonly failureKind: DevtoolsRequestTraceFailureKind | null;
+  readonly invalidationIndexes: ReadonlyArray<number>;
+}
+
+/** Request trace row used by summaries and panel UIs. */
+export interface DevtoolsSummaryRequestTrace {
+  /** Stable ordinal within the summary input. */
+  readonly index: number;
+  /** Request trace id emitted by the Start request runtime. */
+  readonly id: string;
+  /** HTTP method for the traced request. */
+  readonly method: string;
+  /** URL path without query string. */
+  readonly path: string;
+  /** Original request URL when available. */
+  readonly url: string;
+  /** Start transport seam that produced the trace. */
+  readonly transport: DevtoolsRequestTraceTransport;
+  /** Terminal request status. */
+  readonly status: DevtoolsRequestTraceStatus;
+  /** Normalized failure owner/category, when the request failed. */
+  readonly failureKind: DevtoolsRequestTraceFailureKind | null;
+  /** HTTP response status, when one was produced. */
+  readonly responseStatus: number | null;
+  /** Services provided to the request runtime. */
+  readonly serviceCount: number;
+  /** Resource refs touched by request preload/render work. */
+  readonly resourceCount: number;
+  /** Collection definitions touched by request preload/render work. */
+  readonly collectionCount: number;
+  /** Server functions invoked during this request. */
+  readonly serverFunctionCount: number;
+  /** Actions invoked during this request. */
+  readonly actionCount: number;
+  /** Fibers observed before teardown. */
+  readonly fiberCount: number;
+  /** Response streams tracked by the request runtime. */
   readonly streamCount: number;
+  /** Whether request runtime disposal completed. */
   readonly runtimeDisposed: boolean | null;
+  /** Disposal reason reported by the Start request runtime. */
   readonly teardownReason: string | null;
+  /** Timestamp reported by older teardown emitters, when present. */
+  readonly teardownAt: number | null;
+  /** Teardown start timestamp emitted by Start request handlers. */
+  readonly teardownStartedAt: number | null;
+  /** Teardown completion timestamp emitted by Start request handlers. */
+  readonly teardownCompletedAt: number | null;
+  /** Elapsed time from request start to response/teardown when available. */
   readonly durationMillis: number | null;
+  /** Resource Store snapshot before runtime disposal. */
+  readonly beforeDispose: DevtoolsSummaryRequestTraceTeardownSnapshot | null;
+  /** Resource Store snapshot after runtime disposal. */
+  readonly afterDispose: DevtoolsSummaryRequestTraceTeardownSnapshot | null;
+  /** Back-compat shortcut for `beforeDispose.fiberCount`. */
   readonly beforeDisposeFiberCount: number | null;
+  /** Back-compat shortcut for `afterDispose.fiberCount`. */
   readonly afterDisposeFiberCount: number | null;
+  /** Per-server-function request activity, including owner failure kind. */
+  readonly serverFunctions: ReadonlyArray<DevtoolsSummaryRequestTraceServerFunction>;
+  /** Per-action request activity, including owner failure kind and invalidations. */
+  readonly actions: ReadonlyArray<DevtoolsSummaryRequestTraceAction>;
+  /** Matched route href for SSR traces, when available. */
   readonly routeHref: string | null;
 }
 
@@ -867,29 +951,46 @@ export type DevtoolsPanelId =
 export type DevtoolsPanelSeverity = "ok" | "info" | "warning" | "error";
 
 export interface DevtoolsPanelMetric {
+  /** Human-readable metric label. */
   readonly label: string;
+  /** Metric value already projected for panel display. */
   readonly value: string | number;
+  /** Optional unit suffix such as `ms`. */
   readonly unit?: string;
 }
 
 export interface DevtoolsPanelItem {
+  /** Stable item id for DOM keys, routing, and snapshot tests. */
   readonly id: string;
+  /** Human-readable primary label. */
   readonly label: string;
+  /** Highest diagnostic severity represented by this item. */
   readonly severity: DevtoolsPanelSeverity;
+  /** Optional short diagnostic text for the item. */
   readonly detail?: string;
+  /** Small numeric/string facts rendered beside the item. */
   readonly metrics?: ReadonlyArray<DevtoolsPanelMetric>;
+  /** JSON-safe structured detail for richer renderers and agents. */
   readonly data?: DevtoolsSerializableValue;
 }
 
+/** One ordered UI panel derived from a Devtools summary. */
 export interface DevtoolsPanel {
+  /** Stable panel id used by renderers, tests, and browser routing. */
   readonly id: DevtoolsPanelId;
+  /** Human-readable panel title. */
   readonly title: string;
+  /** One-line aggregate state for the panel. */
   readonly summary: string;
+  /** Highest diagnostic severity represented by this panel. */
   readonly severity: DevtoolsPanelSeverity;
+  /** Aggregate metrics for the whole panel. */
   readonly metrics: ReadonlyArray<DevtoolsPanelMetric>;
+  /** Ordered diagnostic rows for the panel. */
   readonly items: ReadonlyArray<DevtoolsPanelItem>;
 }
 
+/** Complete JSON-safe panel model consumed by browser panels and agents. */
 export interface DevtoolsPanels {
   readonly version: 1;
   readonly panels: ReadonlyArray<DevtoolsPanel>;
@@ -925,11 +1026,13 @@ const devtoolsPanelsRuntime = {
   toSerializableValue: toDevtoolsSerializableValue
 };
 
+/** Projects snapshots, diagnostics, and runtime facts into stable panel data. */
 export const describeDevtoolsPanels = (
   input: DevtoolsPanelsInput = {}
 ): DevtoolsPanels =>
   describeDevtoolsPanelsWithRuntime(input, devtoolsPanelsRuntime);
 
+/** Effect wrapper for `describeDevtoolsPanels(...)`. */
 export const describeDevtoolsPanelsEffect = (
   input: DevtoolsPanelsInput = {}
 ): Effect.Effect<DevtoolsPanels> =>
@@ -938,21 +1041,25 @@ export const describeDevtoolsPanelsEffect = (
 const resolveDevtoolsPanels = (input: DevtoolsPanelUiInput): DevtoolsPanels =>
   input.panels ?? describeDevtoolsPanels(input);
 
+/** Renders the stable panel contract to deterministic embeddable HTML. */
 export const renderDevtoolsPanelsHtml = (
   input: DevtoolsPanelUiInput = {}
 ): string =>
   renderDevtoolsPanelsHtmlWithResolver(input, resolveDevtoolsPanels);
 
+/** Effect wrapper for deterministic panel HTML rendering. */
 export const renderDevtoolsPanelsHtmlEffect = (
   input: DevtoolsPanelUiInput = {}
 ): Effect.Effect<string> =>
   Effect.succeed(renderDevtoolsPanelsHtml(input));
 
+/** Mounts the panel renderer into a host DOM root and returns update/unmount controls. */
 export const mountDevtoolsPanels = (
   options: DevtoolsPanelMountOptions
 ): DevtoolsPanelMount =>
   mountDevtoolsPanelsWithResolver(options, resolveDevtoolsPanels);
 
+/** Scoped Effect mount helper that unmounts the panel renderer when the Scope closes. */
 export const mountDevtoolsPanelsEffect = (
   options: DevtoolsPanelMountOptions
 ): Effect.Effect<DevtoolsPanelMount, never, Scope.Scope> =>
@@ -971,5 +1078,6 @@ const devtoolsStoreRuntime = {
   describeCausalGraph: describeDevtoolsCausalGraph
 };
 
+/** Creates a bounded, detached Devtools Store for snapshots, traces, panels, and causal graphs. */
 export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}) =>
   makeDevtoolsStoreWithRuntime(options, devtoolsStoreRuntime);

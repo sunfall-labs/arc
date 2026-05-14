@@ -20,8 +20,10 @@ import {
   UnsupportedLiveQuery,
   compareRows,
   compareValue,
+  evaluateQueryOperation,
   joinKey,
   type AnyCollectionRow,
+  type AnyQueryAggregateRecord,
   type AnyQueryContext,
   type AnyQueryGrouping,
   type QueryJoin,
@@ -65,6 +67,30 @@ const contextKeySymbol: unique symbol = Symbol.for("@effect-ui/db/QueryContextKe
 const crossJoinKey = "__effect_ui_db_all__";
 
 type IvmRuntimeOperator = IOperator<unknown>;
+
+const wrapIvmGrouping = (grouping: AnyQueryGrouping): AnyQueryGrouping => ({
+  key: (row) => evaluateQueryOperation("aggregate", () => grouping.key(row)),
+  sourceFilters: grouping.sourceFilters.map((filter) =>
+    (row) => evaluateQueryOperation("filter", () => filter(row))
+  ),
+  aggregates: Object.fromEntries(
+    Object.entries(grouping.aggregates).map(([name, aggregate]) => [
+      name,
+      {
+        preMap: (row: AnyQueryContext) =>
+          evaluateQueryOperation("aggregate", () => aggregate.preMap(row)),
+        reduce: (values: Array<[unknown, number]>) =>
+          evaluateQueryOperation("aggregate", () => aggregate.reduce(values)),
+        ...(aggregate.postMap
+          ? {
+            postMap: (value: unknown) =>
+              evaluateQueryOperation("aggregate", () => aggregate.postMap!(value))
+          }
+          : {})
+      }
+    ])
+  ) as AnyQueryAggregateRecord
+});
 
 const addIvmRuntimeOperator = (
   graph: IStreamBuilder<unknown>["graph"],
@@ -187,13 +213,13 @@ class IvmLiveQueryRuntime<TContext extends AnyQueryContext, TResult> implements 
 
       const keyedLeft = stream.pipe(
         ivmMap(([_, context]) =>
-          [joinKey(join.leftKey(context)), context] satisfies KeyValue<string, IvmContext>
+          [joinKey(evaluateQueryOperation("join", () => join.leftKey(context))), context] satisfies KeyValue<string, IvmContext>
         )
       );
       const keyedRight = source.input.pipe(
         ivmFlatMap(([_, context]) => {
           const row = context[join.alias] as AnyCollectionRow;
-          return join.rightKeys(row).map((rightKey) =>
+          return evaluateQueryOperation("join", () => join.rightKeys(row)).map((rightKey) =>
             [joinKey(rightKey), context] satisfies KeyValue<string, IvmContext>
           );
         })
@@ -210,7 +236,7 @@ class IvmLiveQueryRuntime<TContext extends AnyQueryContext, TResult> implements 
 
     let resultStream: IStreamBuilder<KeyValue<string, TContext>>;
     if (this.builder.grouping) {
-      const grouping = this.builder.grouping as AnyQueryGrouping;
+      const grouping = wrapIvmGrouping(this.builder.grouping as AnyQueryGrouping);
       resultStream = stream.pipe(
         ivmFilter(([_, context]) =>
           grouping.sourceFilters.every((filter) => filter(context))
@@ -218,7 +244,9 @@ class IvmLiveQueryRuntime<TContext extends AnyQueryContext, TResult> implements 
         ivmMap(([_, context]) => context as AnyQueryContext),
         ivmGroupBy(grouping.key, grouping.aggregates),
         ivmFilter(([_, group]) =>
-          this.builder.filters.every((filter) => filter(group as TContext))
+          this.builder.filters.every((filter) =>
+            evaluateQueryOperation("filter", () => filter(group as TContext))
+          )
         ),
         ivmMap(([key, group]) =>
           [key, group as TContext] satisfies KeyValue<string, TContext>
@@ -227,7 +255,9 @@ class IvmLiveQueryRuntime<TContext extends AnyQueryContext, TResult> implements 
     } else {
       resultStream = stream.pipe(
         ivmFilter(([_, context]) =>
-          this.builder.filters.every((filter) => filter(context as TContext))
+          this.builder.filters.every((filter) =>
+            evaluateQueryOperation("filter", () => filter(context as TContext))
+          )
         ),
         ivmMap(([_, context]) =>
           [context[contextKeySymbol], context as TContext] satisfies KeyValue<string, TContext>

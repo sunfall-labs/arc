@@ -1,5 +1,5 @@
 import { Cause, Data, Effect } from "effect";
-import { runFork } from "@effect-ui/core";
+import { runFork, toEffect, type EffectInput } from "@effect-ui/core";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve as resolvePath } from "node:path";
 import { createServer, type InlineConfig, type UserConfig } from "vite";
@@ -7,14 +7,17 @@ import { nodeRequestToWebRequestEffect, writeNodeResponseEffect } from "./adapte
 import type {
   StartAppGraph,
   StartAppGraphDiagnostics,
-  StartAppGraphDiagnosticsPolicyException
+  StartAppGraphDiagnosticsPolicyException,
+  StartAppGraphDiagnosticsPolicyViolation
 } from "./app-graph.js";
+import { deserializeStartAppGraph } from "./app-graph.js";
 import type { StartRequestHandlerError } from "./start-request-handler.js";
 import {
   createStartManifestWallDefineValues,
   defaultServerEntry,
   makeStartBuildAppGraphEffect,
   makeStartFileRouteManifestEffect,
+  normalizeStartBuildPolicy,
   withDiscoveredFileRoutes,
   type EffectUiStartOptions
 } from "./start-manifest-wall.js";
@@ -86,12 +89,19 @@ export {
   validateStartAppGraphRoutePreloadResourcesDiagnosticsEffect
 } from "./app-graph.js";
 
+/** Vite resolved config fields used by the Start plugin. */
+export interface EffectUiStartResolvedConfig {
+  readonly root: string;
+  readonly command?: "build" | "serve";
+  readonly mode?: string;
+}
+
 /** Vite plugin shape returned by `effectUiStart`. */
 export interface EffectUiStartPlugin {
   readonly name: "effect-ui-start";
   readonly config: (config?: UserConfig) => UserConfig;
-  readonly configResolved: (config: { readonly root: string }) => void;
-  readonly buildStart: () => void;
+  readonly configResolved: (config: EffectUiStartResolvedConfig) => void;
+  readonly buildStart: () => void | Promise<void>;
   readonly resolveId: (id: string) => string | null;
   readonly load: (id: string) => string | null;
   readonly transform: (
@@ -144,7 +154,7 @@ export interface LoadStartAppGraphDiagnosticsOptions {
 export interface LoadedStartAppGraphDiagnostics {
   readonly graph: StartAppGraph;
   readonly diagnostics: StartAppGraphDiagnostics;
-  readonly diagnosticsPolicyViolations: readonly unknown[];
+  readonly diagnosticsPolicyViolations: readonly StartAppGraphDiagnosticsPolicyViolation[];
 }
 
 /** Error reported when diagnostics cannot be loaded through a Vite server. */
@@ -180,24 +190,175 @@ export interface HandleSsrDevRequestOptions {
   readonly handlerExport?: string;
 }
 
-const startAppGraphDiagnosticsFromModule = (
+interface EffectUiStartVirtualModulesPlugin {
+  readonly name: "effect-ui-start-virtual-modules";
+  readonly configResolved: (config: { readonly root: string }) => void;
+  readonly resolveId: (id: string) => string | null;
+  readonly load: (id: string) => string | null;
+}
+
+const effectUiStartVirtualModules = (
+  options: EffectUiStartOptions = {}
+): EffectUiStartVirtualModulesPlugin => {
+  const serverEntry = options.serverEntry ?? defaultServerEntry;
+  let viteRoot = process.cwd();
+  const currentOptions = (): EffectUiStartOptions =>
+    withDiscoveredFileRoutes({ ...options, serverEntry }, viteRoot);
+
+  return {
+    name: "effect-ui-start-virtual-modules",
+    configResolved(config) {
+      viteRoot = config.root;
+    },
+    resolveId(id) {
+      return resolveStartVirtualModuleId(id);
+    },
+    load(id) {
+      return Effect.runSync(loadStartVirtualModuleEffect(id, currentOptions()));
+    }
+  };
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const isStartPluginRecord = (value: unknown): value is { readonly name: string } =>
+  isRecord(value) &&
+  (value.name === "effect-ui-start" || value.name === "effect-ui-start-virtual-modules");
+
+const removeStartPlugins = (pluginOption: unknown): unknown => {
+  if (Array.isArray(pluginOption)) {
+    return pluginOption
+      .map(removeStartPlugins)
+      .filter((plugin) => plugin !== undefined && !isStartPluginRecord(plugin));
+  }
+  return isStartPluginRecord(pluginOption) ? undefined : pluginOption;
+};
+
+const pluginOptionArray = (
+  plugins: InlineConfig["plugins"] | undefined
+): NonNullable<InlineConfig["plugins"]> extends readonly (infer Plugin)[] ? readonly Plugin[] : readonly unknown[] =>
+  plugins === undefined ? [] : Array.isArray(plugins) ? plugins : [plugins];
+
+const startDiagnosticsInlineConfig = (
+  config: UserConfig,
+  root: string,
+  mode: string | undefined
+): InlineConfig => {
+  const plugins = removeStartPlugins(config.plugins) as InlineConfig["plugins"] | undefined;
+  return {
+    ...config,
+    root,
+    configFile: false,
+    ...(mode === undefined ? {} : { mode }),
+    logLevel: config.logLevel ?? "silent",
+    ...(plugins === undefined ? {} : { plugins })
+  };
+};
+
+const isStringArray = (value: unknown): value is readonly string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === "string");
+
+const isStartAppGraphDiagnostics = (
+  value: unknown
+): value is StartAppGraphDiagnostics =>
+  isRecord(value) &&
+  value.version === 1 &&
+  typeof value.routeCount === "number" &&
+  typeof value.serverFunctionCount === "number" &&
+  typeof value.actionCount === "number" &&
+  isStringArray(value.routePaths) &&
+  Array.isArray(value.routeModules) &&
+  Array.isArray(value.serverFunctionModules) &&
+  Array.isArray(value.actionModules) &&
+  Array.isArray(value.resourceFamilies) &&
+  Array.isArray(value.resourceTags) &&
+  Array.isArray(value.collectionDefinitions) &&
+  isStringArray(value.serverOnlyModules) &&
+  isStringArray(value.browserClientModules) &&
+  typeof value.rpcPath === "string" &&
+  typeof value.actionPath === "string" &&
+  isRecord(value.schemaCoverage) &&
+  Array.isArray(value.missingSchemas) &&
+  Array.isArray(value.unknownActionBehavior) &&
+  Array.isArray(value.unknownRoutePreloadResources) &&
+  Array.isArray(value.unknownRoutePreloadCollections);
+
+const isStartAppGraphDiagnosticsPolicyViolation = (
+  value: unknown
+): value is StartAppGraphDiagnosticsPolicyViolation =>
+  isRecord(value) &&
+  (value._tag === "UnknownRoutePreloadResources" ||
+    value._tag === "UnknownRoutePreloadCollections") &&
+  typeof value.message === "string" &&
+  Array.isArray(value.routes);
+
+const decodeStartAppGraphFromModuleEffect = (
+  value: unknown
+): Effect.Effect<StartAppGraph, StartAppGraphDiagnosticsLoadError> =>
+  Effect.try({
+    try: () => JSON.stringify(value),
+    catch: (cause) =>
+      diagnosticsRunnerError(
+        "The loaded Effect UI app graph virtual module exported a graph that could not be serialized for validation.",
+        cause
+      )
+  }).pipe(
+    Effect.flatMap((serialized) =>
+      deserializeStartAppGraph(serialized).pipe(
+        Effect.mapError((cause) =>
+          diagnosticsRunnerError(
+            "The loaded Effect UI app graph virtual module did not match the Start app graph contract.",
+            cause
+          )
+        )
+      )
+    )
+  );
+
+const startAppGraphDiagnosticsFromModuleEffect = (
   module: Record<string, unknown>
-): LoadedStartAppGraphDiagnostics => ({
-  graph: module.graph as StartAppGraph,
-  diagnostics: module.diagnostics as StartAppGraphDiagnostics,
-  diagnosticsPolicyViolations: Array.isArray(module.diagnosticsPolicyViolations)
-    ? module.diagnosticsPolicyViolations
-    : []
-});
+): Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsLoadError> =>
+  Effect.gen(function* () {
+    const graph = yield* decodeStartAppGraphFromModuleEffect(module.graph);
+
+    if (!isStartAppGraphDiagnostics(module.diagnostics)) {
+      return yield* Effect.fail(
+        diagnosticsRunnerError(
+          "The loaded Effect UI app graph virtual module did not export valid diagnostics.",
+          module.diagnostics
+        )
+      );
+    }
+
+    if (
+      !Array.isArray(module.diagnosticsPolicyViolations) ||
+      !module.diagnosticsPolicyViolations.every(isStartAppGraphDiagnosticsPolicyViolation)
+    ) {
+      return yield* Effect.fail(
+        diagnosticsRunnerError(
+          "The loaded Effect UI app graph virtual module did not export valid diagnostics policy violations.",
+          module.diagnosticsPolicyViolations
+        )
+      );
+    }
+
+    return {
+      graph,
+      diagnostics: module.diagnostics,
+      diagnosticsPolicyViolations: module.diagnosticsPolicyViolations
+    };
+  });
 
 const loadStartAppGraphDiagnosticsRawEffect = (
   options: LoadStartAppGraphDiagnosticsOptions = {}
 ): Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsLoadError> =>
   Effect.gen(function* () {
     const inlineConfig = options.vite ?? {};
+    const inlinePlugins = removeStartPlugins(inlineConfig.plugins) as InlineConfig["plugins"] | undefined;
     const plugins = [
-      ...(inlineConfig.plugins ?? []),
-      ...(options.start === undefined ? [] : [effectUiStart(options.start)])
+      ...pluginOptionArray(inlinePlugins),
+      ...(options.start === undefined ? [] : [effectUiStartVirtualModules(options.start)])
     ];
     const root = options.root ?? inlineConfig.root;
     const configFile = options.configFile ?? inlineConfig.configFile;
@@ -232,7 +393,7 @@ const loadStartAppGraphDiagnosticsRawEffect = (
           cause
         )
     }).pipe(
-      Effect.map(startAppGraphDiagnosticsFromModule),
+      Effect.flatMap(startAppGraphDiagnosticsFromModuleEffect),
       Effect.ensuring(
         Effect.tryPromise({
           try: () => server.close(),
@@ -258,6 +419,15 @@ export const loadStartAppGraphDiagnosticsEffect = (
   options: LoadStartAppGraphDiagnosticsOptions = {}
 ): Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsLoadError> =>
   loadStartAppGraphDiagnosticsRawEffect(options);
+
+/**
+ * Runs the resolved Start diagnostics policy through Vite without requiring
+ * application code to import `virtual:effect-ui/app-graph`.
+ */
+export const runStartViteDiagnosticsGateEffect = (
+  options: LoadStartAppGraphDiagnosticsOptions = {}
+): Effect.Effect<void, StartAppGraphDiagnosticsLoadError> =>
+  Effect.asVoid(loadStartAppGraphDiagnosticsRawEffect(options));
 
 /** Error raised when a dev SSR module does not export the configured handler. */
 export class StartHandlerNotFound extends Data.TaggedError("StartHandlerNotFound")<{
@@ -340,9 +510,30 @@ export const handleSsrDevMiddlewareEffect = (
 export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStartPlugin => {
   const serverEntry = options.serverEntry ?? defaultServerEntry;
   let viteRoot = process.cwd();
+  let viteUserConfig: UserConfig = {};
+  let viteCommand: "build" | "serve" | undefined;
+  let viteMode: string | undefined;
 
   const currentOptions = (): EffectUiStartOptions =>
     withDiscoveredFileRoutes({ ...options, serverEntry }, viteRoot);
+
+  const shouldRunDiagnosticsGate = (): boolean => {
+    const policy = normalizeStartBuildPolicy(options.buildPolicy);
+    return viteCommand === "build" &&
+      policy?.diagnostics !== undefined &&
+      policy.diagnostics !== false;
+  };
+
+  const runCurrentDiagnosticsGate = (): Promise<void> =>
+    Effect.runPromise(
+      runStartViteDiagnosticsGateEffect({
+        root: viteRoot,
+        configFile: false,
+        ...(viteMode === undefined ? {} : { mode: viteMode }),
+        start: currentOptions(),
+        vite: startDiagnosticsInlineConfig(viteUserConfig, viteRoot, viteMode)
+      })
+    );
 
   const writeCurrentFileRouteDefinitions = (): FileRouteDefinitionsFileWriteResult | undefined => {
     const activeOptions = currentOptions();
@@ -360,6 +551,7 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
   return {
     name: "effect-ui-start",
     config(config: UserConfig = {}) {
+      viteUserConfig = config;
       viteRoot = resolvePath(config.root ?? process.cwd());
       const activeOptions = currentOptions();
       const graph = Effect.runSync(makeStartBuildAppGraphEffect(activeOptions));
@@ -371,10 +563,15 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
     },
     configResolved(config) {
       viteRoot = config.root;
+      viteCommand = config.command;
+      viteMode = config.mode;
       writeCurrentFileRouteDefinitions();
     },
     buildStart() {
       writeCurrentFileRouteDefinitions();
+      if (shouldRunDiagnosticsGate()) {
+        return runCurrentDiagnosticsGate();
+      }
     },
     resolveId(id) {
       return resolveStartVirtualModuleId(id);
@@ -495,17 +692,29 @@ const handlerResultEffect = <HandlerError = StartRequestHandlerError>(
   handler: StartSsrRequestHandler<HandlerError>,
   request: Request
 ): Effect.Effect<Response, StartDevServerError, unknown> =>
-  Effect.try({
-    try: () => handler(request),
-    catch: (error) => new StartDevServerError({ operation: "run-handler", error })
-  }).pipe(
-    Effect.flatMap((response) =>
-      Effect.isEffect(response)
-        ? response.pipe(
-            Effect.mapError((error) => new StartDevServerError({ operation: "run-handler", error }))
-          )
-        : Effect.succeed(response)
+  Effect.suspend(() =>
+    Effect.try({
+      try: () => handler(request),
+      catch: (error) => new StartDevServerError({ operation: "run-handler", error })
+    }).pipe(
+      Effect.flatMap((result) =>
+        toEffect(result as EffectInput<Response, HandlerError, never>)
+      ),
+      Effect.mapError((error) =>
+        error instanceof StartDevServerError
+          ? error
+          : new StartDevServerError({ operation: "run-handler", error })
+      )
     )
+  ).pipe(
+    Effect.catchCause((cause) => {
+      const failure = cause.reasons.find(Cause.isFailReason)?.error;
+      return Effect.fail(
+        failure instanceof StartDevServerError
+          ? failure
+          : new StartDevServerError({ operation: "run-handler", error: Cause.squash(cause) })
+      );
+    })
   );
 
 /**

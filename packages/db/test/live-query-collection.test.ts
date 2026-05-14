@@ -1,4 +1,4 @@
-import { Collection, Query, ReadonlyCollectionMutation, eq } from "@effect-ui/db";
+import { Collection, Query, QueryEvaluationError, ReadonlyCollectionMutation, eq } from "@effect-ui/db";
 import { Effect, Exit } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
@@ -16,6 +16,110 @@ interface ProjectCard {
 }
 
 describe("Collection.liveQuery", () => {
+  it("reports synchronous query callback throws as typed evaluation errors", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const Projects = Collection.define<Project>({
+          name: "Projects.query-evaluation-errors",
+          getKey: (project) => project.id,
+          initialData: [
+            { id: "atlas", name: "Atlas", status: "active", progress: 72 },
+            { id: "lumen", name: "Lumen", status: "blocked", progress: 34 }
+          ]
+        });
+        const Cards = Collection.define<ProjectCard>({
+          name: "ProjectCards.query-evaluation-errors",
+          getKey: (card) => card.id,
+          initialData: [
+            { id: "atlas", name: "Atlas", progress: 72 }
+          ]
+        });
+        const throwError = (message: string): never => {
+          throw new Error(message);
+        };
+        const cases = [
+          {
+            operation: "filter",
+            effect: Query.onceEffect((query) =>
+              query
+                .from({ project: Projects })
+                .where(() => throwError("filter failed"))
+            )
+          },
+          {
+            operation: "projection",
+            effect: Query.onceEffect((query) =>
+              query
+                .from({ project: Projects })
+                .select(() => throwError("projection failed"))
+            )
+          },
+          {
+            operation: "order",
+            effect: Query.onceEffect((query) =>
+              query
+                .from({ project: Projects })
+                .orderBy(() => throwError("order failed"))
+            )
+          },
+          {
+            operation: "join",
+            effect: Query.onceEffect((query) =>
+              query
+                .from({ project: Projects })
+                .join("card", Cards, () => throwError("join failed"), (card) => card.id)
+            )
+          },
+          {
+            operation: "aggregate",
+            effect: Query.onceEffect((query) =>
+              query
+                .from({ project: Projects })
+                .groupBy(
+                  ({ project }) => ({ status: project.status }),
+                  { total: Query.sum(() => throwError("aggregate failed")) }
+                )
+            )
+          }
+        ] as const;
+
+        for (const entry of cases) {
+          const failure = yield* Effect.flip(entry.effect);
+          yield* Effect.sync(() => {
+            expect(failure).toBeInstanceOf(QueryEvaluationError);
+            expect(failure).toMatchObject({ operation: entry.operation });
+          });
+        }
+      })
+    ));
+
+  it("represents live query evaluation failures in state without throwing from data", () => {
+    const Projects = Collection.define<Project>({
+      name: "Projects.live-query-evaluation-state",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+      ]
+    });
+    const live = Query.live((query) =>
+      query
+        .from({ project: Projects })
+        .where(() => {
+          throw new Error("filter failed");
+        })
+        .select(({ project }) => project.name)
+    );
+
+    expect(() => live.data.get()).not.toThrow();
+    expect(live.data.get()).toEqual([]);
+    expect(live.state.get()).toMatchObject({
+      _tag: "Failure",
+      waiting: false,
+      error: { _tag: "QueryEvaluationError", operation: "filter" },
+      data: []
+    });
+  });
+
   it("exposes live query results as a read-only collection", () => {
     const Projects = Collection.define<Project>({
       name: "Projects.live-query-collection.source",

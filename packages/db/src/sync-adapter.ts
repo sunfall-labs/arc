@@ -10,6 +10,7 @@ import type {
   CollectionTransaction,
   CollectionWriteOptions
 } from "./collection-contract.js";
+import type { CollectionSnapshotCodecError } from "./collection-snapshot-codec.js";
 
 /**
  * Insert payload delivered to a collection sync adapter.
@@ -119,7 +120,7 @@ export interface CollectionQuerySyncClient<A extends object, E = never, R = neve
   readonly fetchQuery: (options: CollectionQuerySyncFetchOptions<A, E, R>) =>
     EffectInput<ReadonlyArray<A>, E, R>;
   readonly invalidateQueries?: (options: CollectionQuerySyncInvalidateOptions) =>
-    EffectInput<unknown, E, R>;
+    EffectInput<void, E, R>;
 }
 
 /**
@@ -156,16 +157,21 @@ export type CollectionChangeFeedSubscription =
 
 /**
  * Context passed to change-feed adapters.
+ *
+ * `emit` writes through the target Collection runtime, so adapters that call it
+ * must account for the Collection write and snapshot-codec error channel.
  */
 export interface CollectionChangeFeedContext<
   A extends object,
-  K extends CollectionKey = string
+  K extends CollectionKey = string,
+  E = never,
+  R = never
 > {
   readonly collection: string;
   readonly emit: (
     changes: ReadonlyArray<CollectionChange<A, K>>,
     options?: CollectionWriteOptions
-  ) => EffectInput<void, unknown, unknown>;
+  ) => EffectInput<void, E | CollectionSnapshotCodecError, R>;
 }
 
 /**
@@ -173,16 +179,21 @@ export interface CollectionChangeFeedContext<
  *
  * Use with `Collection.subscribeChangesEffect`; the subscription is released
  * when the provided Scope closes.
+ *
+ * `E` and `R` describe the feed subscription itself. `CollectionError` and
+ * `CollectionRequirements` describe the `context.emit(...)` write seam.
  */
 export interface CollectionChangeFeedAdapter<
   A extends object,
   K extends CollectionKey = string,
   E = never,
-  R = never
+  R = never,
+  CollectionError = never,
+  CollectionRequirements = never
 > {
   readonly name: string;
   readonly subscribe: (
-    context: CollectionChangeFeedContext<A, K>
+    context: CollectionChangeFeedContext<A, K, CollectionError, CollectionRequirements>
   ) => EffectInput<CollectionChangeFeedSubscription, E, R>;
 }
 
@@ -197,6 +208,14 @@ const runSyncInput = <A, E, R>(
   input: EffectInput<A, E, R>
 ): Effect.Effect<A, E, R> =>
   toEffect(input);
+
+const runSyncCallback = <A, E, R>(
+  callback: () => EffectInput<A, E, R>
+): Effect.Effect<A, E, R> =>
+  Effect.try({
+    try: callback,
+    catch: (error) => error as E
+  }).pipe(Effect.flatMap(runSyncInput));
 
 const queryKeyName = (queryKey: CollectionQuerySyncKey): string => {
   const [first] = queryKey;
@@ -215,7 +234,7 @@ const syncLoad = <A extends object, K extends CollectionKey, E, R>(
   return () =>
     Effect.gen(function* () {
       const operation = loaded && adapter.refetch ? adapter.refetch : initial;
-      const rows = yield* runSyncInput(operation());
+      const rows = yield* runSyncCallback(() => operation());
       loaded = true;
       return rows;
     });
@@ -262,7 +281,7 @@ export const collectionSyncOptions = <
       ? {}
       : {
           onInsert: (values, context) =>
-            runSyncInput(options.sync.insert!({
+            runSyncCallback(() => options.sync.insert!({
               values,
               transaction: context.transaction
             }))
@@ -271,7 +290,7 @@ export const collectionSyncOptions = <
       ? {}
       : {
           onUpdate: (updates, context) =>
-            runSyncInput(options.sync.update!({
+            runSyncCallback(() => options.sync.update!({
               updates,
               transaction: context.transaction
             }))
@@ -280,7 +299,7 @@ export const collectionSyncOptions = <
       ? {}
       : {
           onDelete: (deletes, context) =>
-            runSyncInput(options.sync.delete!({
+            runSyncCallback(() => options.sync.delete!({
               deletes,
               transaction: context.transaction
             }))
@@ -327,14 +346,14 @@ export const collectionQuerySyncAdapter = <
   options: CollectionQuerySyncAdapterOptions<A, K, E, R>
 ): CollectionSyncAdapter<A, K, E, R> => {
   const fetch = (): Effect.Effect<ReadonlyArray<A>, E, R> =>
-    runSyncInput(options.queryClient.fetchQuery({
+    runSyncCallback(() => options.queryClient.fetchQuery({
       queryKey: options.queryKey,
       queryFn: options.queryFn
     }));
   const invalidate = (): Effect.Effect<void, E, R> =>
     options.queryClient.invalidateQueries
       ? Effect.flatMap(
-          runSyncInput(options.queryClient.invalidateQueries({ queryKey: options.queryKey })),
+          runSyncCallback(() => options.queryClient.invalidateQueries!({ queryKey: options.queryKey })),
           () => Effect.void
         )
       : Effect.succeed(undefined);
@@ -354,7 +373,7 @@ export const collectionQuerySyncAdapter = <
       : {
           insert: (payload: CollectionSyncInsertPayload<A, K>): Effect.Effect<void, E, R> =>
             Effect.gen(function* () {
-              yield* runSyncInput(options.insert!(payload));
+              yield* runSyncCallback(() => options.insert!(payload));
               if (options.invalidateOnMutation !== false) {
                 yield* invalidate();
               }
@@ -365,7 +384,7 @@ export const collectionQuerySyncAdapter = <
       : {
           update: (payload: CollectionSyncUpdatePayload<A, K>): Effect.Effect<void, E, R> =>
             Effect.gen(function* () {
-              yield* runSyncInput(options.update!(payload));
+              yield* runSyncCallback(() => options.update!(payload));
               if (options.invalidateOnMutation !== false) {
                 yield* invalidate();
               }
@@ -376,7 +395,7 @@ export const collectionQuerySyncAdapter = <
       : {
           delete: (payload: CollectionSyncDeletePayload<A, K>): Effect.Effect<void, E, R> =>
             Effect.gen(function* () {
-              yield* runSyncInput(options.delete!(payload));
+              yield* runSyncCallback(() => options.delete!(payload));
               if (options.invalidateOnMutation !== false) {
                 yield* invalidate();
               }
@@ -408,10 +427,17 @@ export namespace CollectionSync {
     CollectionQuerySyncAdapterOptions<A, K, E, R>;
   export type ChangeFeedUnsubscribe = CollectionChangeFeedUnsubscribe;
   export type ChangeFeedSubscription = CollectionChangeFeedSubscription;
-  export type ChangeFeedContext<A extends object, K extends CollectionKey = string> =
-    CollectionChangeFeedContext<A, K>;
-  export type ChangeFeedAdapter<A extends object, K extends CollectionKey = string, E = never, R = never> =
-    CollectionChangeFeedAdapter<A, K, E, R>;
+  export type ChangeFeedContext<A extends object, K extends CollectionKey = string, E = never, R = never> =
+    CollectionChangeFeedContext<A, K, E, R>;
+  export type ChangeFeedAdapter<
+    A extends object,
+    K extends CollectionKey = string,
+    E = never,
+    R = never,
+    CollectionError = never,
+    CollectionRequirements = never
+  > =
+    CollectionChangeFeedAdapter<A, K, E, R, CollectionError, CollectionRequirements>;
   export type ChangeFeedSubscribeOptions = CollectionChangeFeedSubscribeOptions;
 
   /** Convert a sync adapter into `Collection.define` options. */

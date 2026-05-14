@@ -26,6 +26,12 @@ serialization, source attribution, and browser-safe references.
   - Existing tests cover deterministic graph composition and typed diagnostics.
   - Cleaned the generated route diagnostics source template indentation so the
     emitted module stays readable as well as deterministic.
+- Golden snapshots
+  - Added inline golden snapshots for generated file-route definition modules,
+    including route metadata and layout/error/metadata module facts.
+  - Added inline golden snapshots for Start app-graph virtual modules with the
+    runtime diagnostics imports, route-module candidates, and diagnostics
+    policy guard.
 
 ## Verification Evidence
 
@@ -38,7 +44,7 @@ serialization, source attribution, and browser-safe references.
 
 ## Follow-Up
 
-- Add golden-file snapshots if generated module shape grows beyond readable
-  inline assertions.
+- Promote inline snapshots to fixture files if generated module output becomes
+  too large to review comfortably in test diffs.
 - Re-run this audit whenever a new virtual module, manifest field, or generated
   route helper is introduced.

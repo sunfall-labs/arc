@@ -15,7 +15,7 @@ import {
   registerActionDefinition
 } from "./definition-registry.js";
 import type { EffectInput, EnsureEffectInput } from "./effect-like.js";
-import { toEffect } from "./effect-like.js";
+import { EffectInputCallbackError, invokeEffectInput, toEffect } from "./effect-like.js";
 import { Resource, type ResourceInvalidation, type ResourceInvalidationPlan } from "./resource.js";
 import { currentOrDefaultRuntime, getCurrentRuntime, type EffectUiRuntime } from "./runtime.js";
 import { Signal, type ReadableSignal, type WritableSignal } from "./signal.js";
@@ -90,15 +90,15 @@ export interface ActionOptions<I, A, E = never, R = never> {
  */
 export interface ActionInstance<I, A, E = never, R = never> {
   readonly definition: ActionDefinition<I, A, E, R>;
-  readonly state: ReadableSignal<ActionState<I, A, E>>;
+  readonly state: ReadableSignal<ActionState<I, A, E | EffectInputCallbackError>>;
   readonly invalidationPlan: ReadableSignal<ResourceInvalidationPlan | undefined>;
   /** Runs the action workflow as an Effect, preserving typed errors and requirements. */
-  submitEffect(input: I): Effect.Effect<A, E | ActionInterrupted, R>;
+  submitEffect(input: I): Effect.Effect<A, E | EffectInputCallbackError | ActionInterrupted, R>;
   resetEffect(): Effect.Effect<void>;
   reset(): void;
 }
 
-export interface ActionUseOptions<R = never, ER = unknown> {
+export interface ActionUseOptions<R = never, ER = never> {
   readonly runtime?: EffectUiRuntime<R, ER>;
 }
 
@@ -358,21 +358,53 @@ export namespace Action {
    *
    * The returned instance submits through submitEffect.
    */
-  export const use = <I, A, E = never, R = never>(
+  export const use = <I, A, E = never, R = never, ER = never>(
     definition: ActionDefinition<I, A, E, R>,
-    options: ActionUseOptions<R> = {}
+    options: ActionUseOptions<R, ER> = {}
   ): ActionInstance<I, A, E, R> => {
-    const runtime = options.runtime ?? getCurrentRuntime() ?? currentOrDefaultRuntime();
-    const submissions = makeActionSubmissionController<I, A, E>(
+    const ambientRuntime = getCurrentRuntime();
+    const runtime = options.runtime ?? ambientRuntime ?? currentOrDefaultRuntime();
+    const shouldRunOnCapturedRuntime = options.runtime !== undefined || ambientRuntime !== undefined;
+    const submissions = makeActionSubmissionController<I, A, E | EffectInputCallbackError>(
       definition.policy?.concurrency === undefined
         ? { actionName: definition.name }
         : { actionName: definition.name, concurrency: definition.policy.concurrency }
     );
 
-    const runEffect = (input: I): Effect.Effect<A, E, R> => {
-      const effect = toEffect(definition.run(input));
-      const retry = definition.policy?.retry;
-      return retry ? Effect.retry(effect, retry) : effect;
+    const runOnCapturedRuntime = <Value, Error, Requirements>(
+      effect: Effect.Effect<Value, Error, Requirements>
+    ): Effect.Effect<Value, Error> =>
+      Effect.acquireUseRelease(
+        Effect.sync(() => runtime.runFork(effect)),
+        Fiber.join,
+        (fiber) => Fiber.interrupt(fiber).pipe(Effect.asVoid)
+      );
+
+    const runAtActionBoundary = <Value, Error, Requirements>(
+      effect: Effect.Effect<Value, Error, Requirements>
+    ): Effect.Effect<Value, Error, Requirements> =>
+      shouldRunOnCapturedRuntime
+        ? runOnCapturedRuntime(effect) as Effect.Effect<Value, Error, Requirements>
+        : effect;
+
+    const runEffect = (input: I): Effect.Effect<A, E | EffectInputCallbackError, R> => {
+      const operation = `Action.run(${definition.name})`;
+      return Effect.flatMap(
+        Effect.try({
+          try: () => definition.run(input),
+          catch: (cause) =>
+            new EffectInputCallbackError({
+              operation,
+              cause,
+              guidance: "EffectInput callbacks must return values or Effects. Synchronous callback throws are reported in the Effect error channel."
+            })
+        }),
+        (result) => {
+          const effect = toEffect(result);
+          const retry = definition.policy?.retry;
+          return retry ? Effect.retry(effect, retry) : effect;
+        }
+      );
     };
 
     const applyOptimistic = (
@@ -392,8 +424,8 @@ export namespace Action {
 
     const runWorkflow = (
       input: I,
-      submission: ActionSubmissionRun<A, E>
-    ): Effect.Effect<A, E | ActionInterrupted, R> =>
+      submission: ActionSubmissionRun<A, E | EffectInputCallbackError>
+    ): Effect.Effect<A, E | EffectInputCallbackError | ActionInterrupted, R> =>
       Effect.suspend(() => {
         let rollback: ActionRollback<R> = Effect.void as ActionRollback<R>;
 
@@ -429,23 +461,26 @@ export namespace Action {
           Effect.suspend(() => rollback)
         );
       }).pipe(
-        Effect.catch((error: E | ActionInterrupted): Effect.Effect<never, E | ActionInterrupted> => {
+        Effect.catch((
+          error: E | EffectInputCallbackError | ActionInterrupted
+        ): Effect.Effect<never, E | EffectInputCallbackError | ActionInterrupted> => {
           if (error instanceof ActionInterrupted) {
             return Effect.fail(error);
           }
 
-          return submissions.failureEffect(submission, input, error as E).pipe(
-            Effect.andThen(Effect.fail(error as E))
+          return submissions.failureEffect(submission, input, error).pipe(
+            Effect.andThen(Effect.fail(error))
           );
         })
       );
 
-    const resetEffect = submissions.resetEffect;
+    const resetEffect = (): Effect.Effect<void> =>
+      runAtActionBoundary(submissions.resetEffect());
 
-    const submitEffect = (input: I): Effect.Effect<A, E | ActionInterrupted, R> =>
-      Effect.suspend(() => {
+    const submitEffect = (input: I): Effect.Effect<A, E | EffectInputCallbackError | ActionInterrupted, R> =>
+      runAtActionBoundary(Effect.suspend(() => {
         return Effect.withFiber((fiber) => {
-          const submissionFiber = fiber as ActionSubmissionFiber<A, E>;
+          const submissionFiber = fiber as ActionSubmissionFiber<A, E | EffectInputCallbackError>;
 
           return submissions.beginEffect(submissionFiber).pipe(
             Effect.flatMap((submission) => {
@@ -463,7 +498,7 @@ export namespace Action {
             })
           );
         });
-      });
+      }));
 
     return {
       definition,

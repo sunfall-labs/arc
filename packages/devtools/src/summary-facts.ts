@@ -15,6 +15,7 @@ import type {
   DevtoolsInvalidationPlan,
   DevtoolsInvalidationTarget,
   DevtoolsRequestTrace,
+  DevtoolsRequestTraceTeardownSnapshot,
   DevtoolsRoutePlan,
   DevtoolsRuntimeEvent,
   DevtoolsSerializableValue,
@@ -22,6 +23,9 @@ import type {
   DevtoolsSummaryInvalidationCause,
   DevtoolsSummaryInvalidationPlan,
   DevtoolsSummaryInvalidationTarget,
+  DevtoolsSummaryRequestTraceAction,
+  DevtoolsSummaryRequestTraceServerFunction,
+  DevtoolsSummaryRequestTraceTeardownSnapshot,
   DevtoolsSummaryRequestTrace,
   DevtoolsSummaryResource,
   DevtoolsSummaryResourceRef,
@@ -99,6 +103,35 @@ export const summarizeRoutePlan = (
   resources: plan.resources.map(summarizeResourceRef)
 });
 
+const summarizeTeardownSnapshot = (
+  snapshot: DevtoolsRequestTraceTeardownSnapshot | undefined
+): DevtoolsSummaryRequestTraceTeardownSnapshot | null =>
+  snapshot === undefined
+    ? null
+    : {
+        fiberCount: snapshot.fiberCount,
+        familyCount: snapshot.familyCount,
+        moduleCount: snapshot.moduleCount,
+        tagCount: snapshot.tagCount
+      };
+
+const summarizeTraceServerFunction = (
+  entry: DevtoolsRequestTrace["serverFunctions"][number]
+): DevtoolsSummaryRequestTraceServerFunction => ({
+  name: entry.name,
+  status: entry.status ?? null,
+  failureKind: entry.failureKind ?? null
+});
+
+const summarizeTraceAction = (
+  entry: DevtoolsRequestTrace["actions"][number]
+): DevtoolsSummaryRequestTraceAction => ({
+  name: entry.name,
+  state: entry.state ?? null,
+  failureKind: entry.failureKind ?? null,
+  invalidationIndexes: [...(entry.invalidationIndexes ?? [])]
+});
+
 export const summarizeRequestTrace = (
   trace: DevtoolsRequestTrace,
   index: number
@@ -121,9 +154,16 @@ export const summarizeRequestTrace = (
   streamCount: trace.streams.length,
   runtimeDisposed: trace.teardown?.runtimeDisposed ?? null,
   teardownReason: trace.teardown?.reason ?? null,
+  teardownAt: trace.teardown?.at ?? null,
+  teardownStartedAt: trace.teardown?.startedAt ?? null,
+  teardownCompletedAt: trace.teardown?.completedAt ?? null,
   durationMillis: trace.teardown?.durationMillis ?? null,
+  beforeDispose: summarizeTeardownSnapshot(trace.teardown?.beforeDispose),
+  afterDispose: summarizeTeardownSnapshot(trace.teardown?.afterDispose),
   beforeDisposeFiberCount: trace.teardown?.beforeDispose?.fiberCount ?? null,
   afterDisposeFiberCount: trace.teardown?.afterDispose?.fiberCount ?? null,
+  serverFunctions: trace.serverFunctions.map(summarizeTraceServerFunction),
+  actions: trace.actions.map(summarizeTraceAction),
   routeHref: trace.routePlan?.href ?? null
 });
 

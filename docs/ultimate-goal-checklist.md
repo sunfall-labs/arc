@@ -255,15 +255,16 @@ Last evidence pass: May 14, 2026.
 - [x] Start client and hydration runtime options keep caller details opaque
   where the runtime is only an execution boundary.
   - Evidence: `packages/start/src/index.ts` and `packages/start/src/hydration.ts`
-    use `EffectUiRuntime<unknown, unknown>` for action client and hydration
-    runtime options, while focused Start typecheck, public type tests, and full
-    `pnpm verify` passed.
+    keep services opaque while carrying generic runtime error parameters with
+    `never` defaults for action client and hydration runtime options. Focused
+    Start typecheck, public type tests, and full `pnpm verify` passed.
 - [x] Start trace and teardown helpers avoid runtime wildcards except at the
   core ambient runtime boundary.
   - Evidence: Start collection trace, request-runtime teardown, response
     finalizer, and response completion helpers use
-    `EffectUiRuntime<unknown, unknown>`, and focused Start typecheck plus public
-    type tests and full `pnpm verify` passed.
+    generic runtime error parameters or `never` where host failures are
+    intentionally erased, and focused Start typecheck plus public type tests and
+    full `pnpm verify` passed.
 - [x] Start runtime call sites keep service erasure at runtime/host boundaries.
   - Evidence: `packages/start/src/index.ts` and
     `packages/start/src/hydration.ts` pass request-runtime provision,
@@ -503,14 +504,16 @@ Last evidence pass: May 14, 2026.
 - [x] Solid runtime provider and router surfaces keep runtime/source details
   opaque where they only cross UI execution boundaries.
   - Evidence: `packages/solid/src/index.ts` uses
-    `EffectUiRuntime<unknown, unknown>` and `RuntimeSource<unknown, unknown>` for
-    provider/router/runtime-context surfaces, while `packages/solid-db/src/index.ts`
-    uses an opaque runtime for collection subscription. Solid, Solid-DB, public
-    type tests, and full `pnpm verify` passed.
+    generic runtime/source parameters with `never` defaults for
+    provider/router surfaces and a `never` runtime-error context, while
+    `packages/solid-db/src/index.ts` uses an opaque runtime for collection
+    subscription. Solid, Solid-DB, public type tests, and full `pnpm verify`
+    passed.
 - [x] Example UI fire-and-forget helpers keep runtime details opaque.
   - Evidence: `examples/project-console/src/App.tsx` accepts
-    `EffectUiRuntime<unknown, unknown>` in the local UI effect helper, and the
-    project-console typecheck and full `pnpm verify` passed.
+    an opaque runtime service channel with a generic runtime error parameter in
+    the local UI effect helper, and the project-console typecheck and full
+    `pnpm verify` passed.
 - [x] Example app uses schema-branded route params and domain ids.
   - Evidence: `examples/project-console/src/domain.contract.ts`,
     `domain.test.ts`, and generated route type tests.
@@ -575,7 +578,7 @@ Last evidence pass: May 14, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Evidence: `pnpm verify` ran all root package tests: 38 test files, 320
+  - Evidence: `pnpm verify` ran all root package tests: 43 test files, 365
     tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
@@ -714,7 +717,7 @@ Last evidence pass: May 14, 2026.
 - [x] `pnpm verify` final result recorded.
   - Evidence: root `pnpm verify` passed on May 14, 2026 after the Start
     Request Handler, Core Resource Runtime, and Devtools Summary extractions:
-    9 package builds, workspace typecheck, type tests, 40 root test files / 328 tests,
+    9 package builds, workspace typecheck, type tests, 43 root test files / 365 tests,
     devtools-panel verify, devtools-extension verify with 1 extension test file
     / 6 tests, basic starter verify, project-console starter packaging,
     project-console typecheck, 4 project-console test files / 23 tests,
