@@ -404,6 +404,8 @@ Last evidence pass: May 14, 2026.
 - [x] `docs/invariants.md` captures non-negotiable product guarantees.
 - [x] `docs/competitiveness.md` explains the competitive and winning bars.
 - [x] `docs/devtools.md` documents observable facts and target panels.
+- [x] `docs/migration-notes.md` maps common source-framework patterns onto the
+  Effect UI golden path.
 - [x] `docs/db.md` explains collections, live queries, persistence, sync, and
   hydration.
   - Evidence: docs were inspected in the final pass; their terminology matches

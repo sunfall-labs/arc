@@ -27,6 +27,7 @@ surface, examples, diagnostics, and release gates are being hardened.
 - [Deployment](docs/deployment.md)
 - [Framework perfection charter](docs/framework-perfection-charter.md)
 - [Basic starter](docs/starter.md)
+- [Migration notes](docs/migration-notes.md)
 - [Public API inventory](docs/public-api-inventory.md)
 - [Devtools panel example](examples/devtools-panel/README.md)
 - [Project console example](examples/project-console/README.md)

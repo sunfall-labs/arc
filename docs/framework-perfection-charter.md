@@ -182,6 +182,7 @@ Goal: prove that a user can copy the framework's intended path.
   - Evidence: `@effect-ui/start-node` and `@effect-ui/start-fetch`.
 - Add migration notes from TanStack Query, TanStack Start, Remix-style forms,
   and ad hoc service mocks.
+  - Evidence: `docs/migration-notes.md`.
 - Ensure every docs code sample is typechecked or explicitly illustrative.
 
 Exit bar:
