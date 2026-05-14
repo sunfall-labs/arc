@@ -798,6 +798,24 @@ const protocolErrorBody = (error: ServerRpcProtocolError): StartActionResponseBo
   error: Server.serializeServerError(error)
 });
 
+const rpcRuntimeFailureResponse = (error: unknown): Response =>
+  rpcJson(
+    {
+      _tag: "Defect",
+      defect: Server.serializeDefect(error)
+    },
+    500
+  );
+
+const actionRuntimeFailureResponse = (error: unknown): Response =>
+  actionJson(
+    {
+      _tag: "Defect",
+      defect: Server.serializeDefect(error)
+    },
+    500
+  );
+
 const actionProtocolFailureResponse = (
   error: ServerRpcProtocolError,
   status = 400
@@ -1100,9 +1118,9 @@ const createServerRpcResponseEffectWithRuntime = <
           status: Exit.isSuccess(exit) ? "success" : "failure"
         });
         return yield* exitToRpcResponse(fn, exit);
-      }),
+      }).pipe(Effect.catch((error) => Effect.succeed(rpcRuntimeFailureResponse(error)))),
       responseContext
-    ) as Effect.Effect<Response, never, unknown>;
+    );
 
     return withStartTransportDiagnostics(response, diagnostics);
   });
@@ -1490,9 +1508,9 @@ const createServerActionResponseEffectWithRuntime = <
           state: Exit.isSuccess(exit) ? "Success" : "Failure"
         });
         return yield* actionExitResponseEffect(action, exit, meta, actionResponseMode(request));
-      }),
+      }).pipe(Effect.catch((error) => Effect.succeed(actionRuntimeFailureResponse(error)))),
       responseContext
-    ) as Effect.Effect<Response, never, unknown>;
+    );
 
     return withStartTransportDiagnostics(response, diagnostics);
   });
@@ -1748,7 +1766,7 @@ const hydrateActionResponseEffect = (
   });
 
   return options.runtime
-    ? options.runtime.provide(effect) as Effect.Effect<void, never, unknown>
+    ? options.runtime.provide(effect).pipe(Effect.catch((error) => Effect.die(error)))
     : effect;
 };
 

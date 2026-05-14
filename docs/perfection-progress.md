@@ -113,10 +113,15 @@ or command result that proves it.
   response stream pull/cancel programs, and hydration sync helpers now pass
   Effects directly through runtime/Effect primitives instead of local
   requirement-erasure casts.
-- The latest full verification gate is green after the Start runtime call-site
-  cast cleanup: 38 root test files / 320 tests plus devtools panel, devtools
-  extension, starter, rich starter packaging, project-console build, and
-  leak-scan gates.
+- Start RPC/action runtime-boundary failures now produce explicit defect
+  responses through Effect error handling, action response hydration converts
+  runtime provision failures through `Effect.die(...)`, and project-console UI
+  fire-and-forget Effects no longer need local `Effect.Effect<..., any>`
+  assertions.
+- The latest full verification gate is green after the Start runtime-boundary
+  and example UI effect cleanup: 38 root test files / 320 tests plus devtools
+  panel, devtools extension, starter, rich starter packaging, project-console
+  build, and leak-scan gates.
 - The final no-new-improvements clean-sweep gate is still open because the
   latest sweeps still found actionable implementation and docs work. Start the
   clean-sweep counter only after full code/docs/test passes stop finding
@@ -266,6 +271,8 @@ or command result that proves it.
 | 138 | Full verification after DB collection EffectInput cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after the DB collection EffectInput cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 | 139 | Start runtime call-site cast cleanup | `packages/start/src/index.ts`; `packages/start/src/hydration.ts`; `docs/sharp-cast-audit.md`; `docs/effect-first-audit.md`; `docs/perfection-progress.md` | Removed local requirement-erasure casts around Start request-runtime provision, local server client provision, StartAction `Fiber.join`/workflow launch paths, response stream pull/cancel programs, request-handler runners, and hydration sync execution. Start package typecheck, public type tests, and focused Start adapter/action/stream tests passed: 2 files / 20 selected tests. | Run full verification before committing this Start cast cleanup. |
 | 140 | Full verification after Start runtime call-site cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/effect-first-audit.md` | Escalated full verification passed after the Start runtime call-site cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
+| 141 | Start runtime-boundary and example UI effect cleanup | `packages/start/src/index.ts`; `examples/project-console/src/App.tsx`; `docs/sharp-cast-audit.md`; `docs/effect-first-audit.md`; `docs/perfection-progress.md` | Replaced Start RPC/action request-runtime casts with explicit defect-response error handling, converted action hydration runtime provision failures with `Effect.die(...)`, and made the project-console UI effect runner generic enough to remove the last example-source `Effect.Effect<..., any>` assertions. Start and project-console typechecks plus focused Start/project-console tests passed: 7 files / 42 selected tests. | Run full verification before committing this cast cleanup. |
+| 142 | Full verification after Start runtime-boundary and example cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/effect-first-audit.md` | Escalated full verification passed after the Start runtime-boundary and example UI effect cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 
 ## Thirty-Sweep Gate
 

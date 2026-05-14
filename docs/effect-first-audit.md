@@ -27,6 +27,9 @@ Effect-native interruption.
     fiber joins/workflow launches, and stream pull/cancel programs now hand
     Effects directly to runtime/Effect primitives instead of adding local
     requirement-erasure casts.
+  - RPC and action request-runtime failures are handled inside the Effect
+    pipeline as protocol defect responses, and action response hydration uses
+    Effect error handling to convert runtime provision failures to defects.
   - Runtime disposal and request trace emission happen from the same
     `disposeEffect` finalizer.
   - Added trace tests for response stream close, cancellation, and request
@@ -119,6 +122,10 @@ Effect-native interruption.
 - `scripts/package-project-console-starter.mjs`
   - Replaced the remaining raw async path-existence adapter with
     `Effect.tryPromise`, `Effect.as`, and typed `ENOENT` handling.
+- `examples/project-console/src/App.tsx`
+  - UI fire-and-forget effects now use a generic runtime helper and
+    `Effect.catch(...)` directly instead of erasing Effect errors and
+    requirements at each call site.
 - Test and example host-boundary helpers
   - Replaced remaining low-friction `Promise.resolve(...)`, `.then(...)`,
     `.catch(...)`, and `.finally(...)` test conveniences with Effect-backed
@@ -256,3 +263,14 @@ Effect-native interruption.
   file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
+- `pnpm --filter @effect-ui/start typecheck`,
+  `pnpm --filter @effect-ui/example-project-console typecheck`, and
+  `pnpm exec vitest run packages/start/test/start.test.ts packages/start/test/rpc.test.ts packages/start/test/adapters.test.ts examples/project-console/src/*.test.ts -t "server function|RPC|action|StartAction|request handler|hydration|adapter|App"`
+  passed after the Start runtime-boundary and project-console UI effect cast
+  cleanup: 7 files, 42 selected tests.
+- Full `pnpm verify` passed after the Start runtime-boundary and example UI
+  effect cleanup: 9 package builds, workspace typecheck, type tests, 38 root
+  test files / 320 tests, devtools-panel verify, devtools-extension verify with
+  1 extension test file / 6 tests, basic starter verify, project-console
+  starter packaging, project-console typecheck, 4 project-console test files /
+  23 tests, project-console build, and leak scan.

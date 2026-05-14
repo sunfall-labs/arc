@@ -126,6 +126,12 @@ Latest full gate on May 14, 2026:
   requirement-erasure casts.
 - The latest `pnpm verify` passed after the Start runtime call-site cast
   cleanup.
+- Start RPC/action runtime-boundary failures now become explicit defect
+  responses, action hydration runtime provision failures are converted through
+  Effect error handling, and project-console UI fire-and-forget work no longer
+  needs example-local Effect casts.
+- The latest `pnpm verify` passed after the Start runtime-boundary and example
+  UI effect cleanup.
 
 ## Notable Limits
 

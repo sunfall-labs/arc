@@ -86,13 +86,11 @@ const healthLabel = (health: ProjectHealth): string => {
 
 const formatSpend = (spend: number): string => `${spend}%`;
 
-function runUiEffect<A>(
+function runUiEffect<A, E, R>(
   runtime: EffectUiRuntime<any, any>,
-  effect: Effect.Effect<A, unknown, any>
+  effect: Effect.Effect<A, E, R>
 ): void {
-  void runtime.runPromise(
-    effect.pipe(Effect.catch(() => Effect.void)) as Effect.Effect<A | void, never, any>
-  );
+  void runtime.runPromise(effect.pipe(Effect.catch(() => Effect.void)));
 }
 
 const SearchIcon = () => (
@@ -202,7 +200,7 @@ function AppShell() {
         Effect.gen(function* () {
           yield* Resource.invalidateEffect(id ? [ProjectsRef, ProjectById(id)] : ProjectsRef);
           yield* ProjectSummaries.refetchEffect();
-        }) as Effect.Effect<void, unknown, any>
+        })
       );
     };
 

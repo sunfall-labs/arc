@@ -67,6 +67,13 @@ Solid adapter, and DB query-builder cleanup sweeps.
   submission fibers, response stream pull/cancel programs, and hydration sync
   helpers now pass Effects directly through `EffectUiRuntime`/Effect primitives
   instead of erasing requirements at each call site.
+- Start RPC/action request-runtime failures now become explicit protocol defect
+  responses through Effect error handling, and Start action hydration runtime
+  failures are converted with `Effect.die(...)` instead of a local
+  never-error assertion.
+- Project-console UI fire-and-forget work now flows through a generic
+  `runUiEffect(...)` helper and `Effect.catch(...)` without example-local
+  `Effect.Effect<..., any>` assertions.
 - DB sync adapters, SQLite persistence helpers, flush policies, and server
   collection adapters now rely on typed `toEffect(...)` wrappers, explicit method
   return types, or a named server-collection PromiseLike bridge instead of
@@ -332,6 +339,17 @@ Solid adapter, and DB query-builder cleanup sweeps.
   builds, workspace typecheck, type tests, 38 root test files / 320 tests,
   devtools-panel verify, devtools-extension verify with 1 extension test file / 6
   tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.
+- `pnpm --filter @effect-ui/start typecheck`,
+  `pnpm --filter @effect-ui/example-project-console typecheck`, and
+  `pnpm exec vitest run packages/start/test/start.test.ts packages/start/test/rpc.test.ts packages/start/test/adapters.test.ts examples/project-console/src/*.test.ts -t "server function|RPC|action|StartAction|request handler|hydration|adapter|App"`
+  passed after the Start runtime-boundary and project-console UI effect cast
+  cleanup: 7 files, 42 selected tests.
+- `pnpm verify` passed after the Start runtime-boundary and example UI effect
+  cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files
+  / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension
+  test file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
 
