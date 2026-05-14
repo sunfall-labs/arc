@@ -42,10 +42,10 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest full verification gate is green after the package-description
-  metadata sweep: 38 root test files / 315 tests plus devtools panel, devtools
-  extension, starter, rich starter packaging, project-console build, and
-  leak-scan gates.
+- The latest full verification gate is green after the Vite dev middleware body
+  moved into `handleSsrDevMiddlewareEffect`: 38 root test files / 316 tests plus
+  devtools panel, devtools extension, starter, rich starter packaging,
+  project-console build, and leak-scan gates.
 - The final no-new-improvements clean-sweep gate is still open because the
   latest sweeps still found actionable implementation and docs work. Start the
   clean-sweep counter only after full code/docs/test passes stop finding
@@ -144,6 +144,8 @@ or command result that proves it.
 | 87 | Full verification after starter packaging script cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md` | Escalated full verification passed after the starter packaging script Effect cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files / 315 tests, devtools-panel verify, devtools-extension verify, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next implementation sweep. |
 | 88 | Package description metadata | `packages/*/package.json`; `docs/package-hygiene-audit.md`; `docs/public-api-inventory.md`; `docs/release-notes.md` | Added descriptions to all 9 framework package manifests, confirmed the description sweep, ran `pnpm build`, and package-local dry-run packs passed for every framework package. | Final npm publication still needs `private` flipped plus repository/license decisions. |
 | 89 | Full verification after package descriptions | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/package-hygiene-audit.md` | Escalated full verification passed after adding package descriptions: 9 package builds, workspace typecheck, type tests, 38 root test files / 315 tests, devtools-panel verify, devtools-extension verify, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next implementation sweep. |
+| 90 | Vite dev middleware Effect boundary | `packages/start/src/vite.ts`; `packages/start/test/start.test.ts`; `docs/effect-first-audit.md`; `docs/perfection-progress.md` | Moved Vite dev middleware request conversion, SSR handler loading, response writing, and error forwarding into `handleSsrDevMiddlewareEffect`, leaving the middleware callback as a launcher. The async/Promise-method grep across package source and scripts now finds no hits. Start package typecheck, the focused middleware test, and the full Start test file passed. | Run full verification before committing this Effect-first slice. |
+| 91 | Full verification after Vite dev middleware Effect boundary | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/effect-first-audit.md` | Escalated full verification passed after moving the Vite dev middleware body into Effect: 9 package builds, workspace typecheck, type tests, 38 root test files / 316 tests, devtools-panel verify, devtools-extension verify, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next implementation sweep. |
 
 ## Thirty-Sweep Gate
 

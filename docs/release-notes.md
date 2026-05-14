@@ -43,7 +43,7 @@ Latest full gate on May 14, 2026:
 
 - 9 package builds;
 - workspace typecheck and public type tests;
-- 38 root test files / 315 tests;
+- 38 root test files / 316 tests;
 - devtools panel verify;
 - devtools extension verify;
 - basic starter verify;
@@ -60,6 +60,8 @@ Latest full gate on May 14, 2026:
   passed for all 9 framework packages.
 - The Start diagnostics CLI now runs its parse/load/render flow through an
   Effect-native runner with Promise helpers kept at the bin boundary.
+- The Vite dev SSR middleware now keeps request conversion, handler loading,
+  response writing, and error forwarding inside an Effect program.
 
 ## Notable Limits
 

@@ -1,5 +1,6 @@
 import { Cause, Context, Deferred, Effect, Exit, Fiber, Layer, Schema } from "effect";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -49,6 +50,7 @@ import {
   fileRouteDefinitionsVirtualModuleId,
   fileRouteManifestVirtualModuleId,
   handleSsrDevRequest,
+  handleSsrDevMiddlewareEffect,
   handleSsrDevRequestEffect,
   isServerOnlyModule,
   loadStartAppGraphDiagnostics,
@@ -3056,6 +3058,59 @@ describe("Effect UI Start", () => {
         handleSsrDevRequestEffect(server, new Request("https://example.com/projects/kepler"))
       )
     ).resolves.toBeInstanceOf(Response);
+  });
+
+  it("runs Vite dev middleware control flow through Effect", async () => {
+    let nextCalls = 0;
+    await Effect.runPromise(
+      handleSsrDevMiddlewareEffect(
+        {
+          ssrLoadModule: async () => {
+            throw new Error("should not load static requests");
+          },
+          transformIndexHtml: async (_url, html) => html
+        },
+        {
+          headers: {},
+          method: "GET",
+          url: "/src/main.ts"
+        } as IncomingMessage,
+        {} as ServerResponse,
+        () => {
+          nextCalls += 1;
+        }
+      )
+    );
+
+    expect(nextCalls).toBe(1);
+
+    const fixedErrors: Array<Error> = [];
+    const nextErrors: Array<unknown> = [];
+    await Effect.runPromise(
+      handleSsrDevMiddlewareEffect(
+        {
+          ssrLoadModule: async () => ({}),
+          transformIndexHtml: async (_url, html) => html,
+          ssrFixStacktrace: (error) => {
+            fixedErrors.push(error);
+          }
+        },
+        {
+          headers: { host: "example.com" },
+          method: "GET",
+          url: "/projects/atlas"
+        } as IncomingMessage,
+        {} as ServerResponse,
+        (error) => {
+          nextErrors.push(error);
+        },
+        { serverEntry: "/src/server.tsx" }
+      )
+    );
+
+    expect(nextErrors).toHaveLength(1);
+    expect(nextErrors[0]).toBeInstanceOf(StartHandlerNotFound);
+    expect(fixedErrors).toEqual([nextErrors[0]]);
   });
 });
 

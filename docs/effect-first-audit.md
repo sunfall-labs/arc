@@ -12,7 +12,7 @@ Effect-native interruption.
 
 | Class | Rule | Examples |
 | --- | --- | --- |
-| Host boundary | Promise is acceptable because the platform API requires it. | Web Stream `pull`/`cancel`, Vite middleware, Node/fetch adapters, public browser callbacks. |
+| Host boundary | Promise is acceptable because the platform API requires it. | Web Stream `pull`/`cancel`, Vite callback launchers, Node/fetch adapters, public browser callbacks. |
 | Public convenience | Promise is acceptable when an Effect-first API exists beside it. | `Resource.prefetch(...)` beside `Resource.prefetchEffect(...)`, `createRequestHandler(...)` beside `createRequestHandlerEffect(...)`. |
 | Internal follow-up | Convert to Effect unless there is a concrete host-boundary reason. | Promise state machines, `.then(...)` lifecycle sequencing, unstructured async helpers. |
 
@@ -74,6 +74,9 @@ Effect-native interruption.
   - The Promise API now runs that Effect program, while
     `loadStartAppGraphDiagnosticsEffect` maps failures into
     `StartAppGraphDiagnosticsRunnerError`.
+  - Moved Vite dev middleware request conversion, SSR handler loading,
+    response writing, and error forwarding into `handleSsrDevMiddlewareEffect`;
+    the Vite middleware callback now only launches that Effect program.
 - `scripts/package-project-console-starter.mjs`
   - Replaced the remaining raw async path-existence adapter with
     `Effect.tryPromise`, `Effect.as`, and typed `ENOENT` handling.
@@ -88,9 +91,8 @@ Effect-native interruption.
     fire-and-forget write helpers for whether they should expose Effect-first
     error observation.
 - `packages/start/src/vite.ts` and `packages/start/src/adapters.ts`
-  - Promise use is mostly Vite, Node, and fetch host-boundary work. Keep
-    auditing any helper that can become an Effect program before it crosses the
-    host boundary.
+  - Promise use is Vite, Node, and fetch host-boundary work. Keep any future
+    helper as an Effect program before it crosses the host boundary.
 - `packages/start/src/cli.ts`
   - Remaining Promise helpers are bin-entry wrappers over
     `runStartDiagnosticsCliEffect` and `runStartDiagnosticsCliMainEffect`.
@@ -98,10 +100,10 @@ Effect-native interruption.
   - The project-console starter packaging script keeps filesystem checks inside
     Effect programs; no raw async or Promise method chains remain there.
 - Source grep follow-up:
-  - `rg -n "Promise\\.resolve\\(|new Promise|\\.then\\(|\\.finally\\(" packages/*/src -g '*.ts'`
-    currently finds no package source hits.
-  - `rg -n "\\.catch\\(" packages/*/src -g '*.ts' | rg -v "Effect\\.catch"`
-    currently finds no package source hits.
+  - `rg -n "\\basync\\b|new Promise|Promise\\.resolve|\\.then\\(|\\.finally\\(" packages/*/src scripts -g '*.ts' -g '*.mjs'`
+    currently finds no package source or tooling script hits.
+  - `rg -n "\\.catch\\(" packages/*/src scripts -g '*.ts' -g '*.mjs' | rg -v "Effect\\.catch"`
+    currently finds no non-Effect catch hits.
 
 ## Verification Evidence
 
@@ -157,3 +159,9 @@ Effect-native interruption.
   packaging path-existence adapter with an Effect program.
 - Full `pnpm verify` passed after replacing the starter packaging
   path-existence adapter with an Effect program.
+- `pnpm --filter @effect-ui/start typecheck`,
+  `pnpm exec vitest run packages/start/test/start.test.ts -t "Vite dev
+  middleware"`, and `pnpm exec vitest run packages/start/test/start.test.ts`
+  passed after moving the Vite dev middleware body into an Effect program.
+- Full `pnpm verify` passed after moving the Vite dev middleware body into an
+  Effect program.

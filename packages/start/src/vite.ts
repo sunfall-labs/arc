@@ -1,10 +1,10 @@
-import { Data, Effect } from "effect";
+import { Cause, Data, Effect } from "effect";
 import { isPromiseLike, runPromise, type ActionDefinition, type ServerFunction } from "@effect-ui/core";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import type { IncomingMessage } from "node:http";
+import type { IncomingMessage, ServerResponse } from "node:http";
 import { dirname, isAbsolute, relative as relativePath, resolve as resolvePath } from "node:path";
 import { createServer, type InlineConfig, type PluginOption, type UserConfig } from "vite";
-import { nodeRequestToWebRequest, writeNodeResponse } from "./adapters.js";
+import { nodeRequestToWebRequestEffect, writeNodeResponseEffect } from "./adapters.js";
 import { serverActionPath, serverRpcPath } from "./rpc.js";
 import {
   makeServerFunctionManifest,
@@ -745,6 +745,47 @@ export class StartServerOnlyModuleError extends Data.TaggedError("StartServerOnl
   readonly id: string;
 }> {}
 
+export type StartDevMiddlewareNext = (error?: unknown) => void;
+
+const reportSsrDevMiddlewareError = (
+  server: StartDevServer,
+  next: StartDevMiddlewareNext,
+  error: unknown
+): Effect.Effect<void> =>
+  Effect.sync(() => {
+    if (error instanceof Error) {
+      server.ssrFixStacktrace?.(error);
+    }
+    next(error);
+  });
+
+export const handleSsrDevMiddlewareEffect = (
+  server: StartDevServer,
+  request: IncomingMessage,
+  response: ServerResponse,
+  next: StartDevMiddlewareNext,
+  options: HandleSsrDevRequestOptions = {}
+): Effect.Effect<void> =>
+  Effect.gen(function* () {
+    if (!shouldHandleSsrRequest(request)) {
+      yield* Effect.sync(() => {
+        next();
+      });
+      return;
+    }
+
+    const webRequest = yield* nodeRequestToWebRequestEffect(request);
+    const webResponse = yield* handleSsrDevRequestEffect(server, webRequest, options);
+    yield* writeNodeResponseEffect(response, webResponse, {
+      headOnly: request.method === "HEAD"
+    });
+  }).pipe(
+    Effect.catch((error) => reportSsrDevMiddlewareError(server, next, error)),
+    Effect.catchCause((cause) =>
+      reportSsrDevMiddlewareError(server, next, Cause.squash(cause))
+    )
+  );
+
 export const effectUiStart = (options: EffectUiStartOptions = {}): PluginOption => {
   const serverEntry = options.serverEntry ?? defaultServerEntry;
   let viteRoot = process.cwd();
@@ -855,28 +896,18 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): PluginOption 
     },
     configureServer(server) {
       return () => {
-        server.middlewares.use(async (request, response, next) => {
-          try {
-            if (!shouldHandleSsrRequest(request)) {
-              next();
-              return;
-            }
-
-            const webRequest = nodeRequestToWebRequest(request);
-            const webResponse = await handleSsrDevRequest(
+        server.middlewares.use((request, response, next) => {
+          void Effect.runPromise(
+            handleSsrDevMiddlewareEffect(
               server,
-              webRequest,
+              request,
+              response,
+              next,
               options.handlerExport === undefined
                 ? { serverEntry }
                 : { serverEntry, handlerExport: options.handlerExport }
-            );
-            await writeNodeResponse(response, webResponse, { headOnly: request.method === "HEAD" });
-          } catch (error) {
-            if (error instanceof Error) {
-              server.ssrFixStacktrace(error);
-            }
-            next(error);
-          }
+            )
+          );
         });
       };
     }
