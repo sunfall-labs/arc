@@ -37,6 +37,12 @@ that were still raw `Error` or `TypeError` throws.
     `StartHydrationChunkParseError`.
   - Error payload includes the stream sequence, malformed value, and guidance
     to use the Start serialization helpers.
+- `packages/start/src/cli.ts`
+  - Replaced the diagnostics CLI usage `Error` subclass with
+    `StartDiagnosticsCliUsageError`, a tagged error carrying the message and
+    CLI usage guidance.
+  - Invalid CLI input now stays on the Effect runner path and returns a
+    structured usage result instead of relying on an untyped exception shape.
 
 ## Verification Evidence
 
@@ -48,6 +54,15 @@ that were still raw `Error` or `TypeError` throws.
 - `pnpm verify` passed after the typed-error sweep: package build, workspace
   typecheck, type tests, 34 package test files / 298 tests, example typecheck,
   4 example test files / 23 tests, example build, and leak scan.
+- `rg -n "throw new (TypeError|Error)|extends Error" packages/*/src -g '*.ts'`
+  found no remaining raw package-source throws or raw `Error` subclasses after
+  the CLI usage-error sweep.
+- `pnpm --filter @effect-ui/start typecheck` and
+  `pnpm exec vitest run packages/start/test/start.test.ts -t "Start diagnostics
+  CLI"` passed after the CLI usage-error sweep.
+- Full `pnpm verify` passed after the CLI usage-error sweep: 38 root test files
+  / 315 tests plus devtools panel, devtools extension, starter, rich starter
+  packaging, project-console build, and leak-scan gates.
 
 ## Follow-Up
 

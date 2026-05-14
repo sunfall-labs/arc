@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { pathToFileURL } from "node:url";
-import { Effect } from "effect";
+import { Data, Effect } from "effect";
 import {
   loadStartAppGraphDiagnosticsEffect,
   type LoadedStartAppGraphDiagnostics,
@@ -44,9 +44,12 @@ export interface StartDiagnosticsCliResult {
   readonly exitCode: number;
 }
 
-export class StartDiagnosticsCliUsageError extends Error {
-  override readonly name = "StartDiagnosticsCliUsageError";
-}
+export class StartDiagnosticsCliUsageError extends Data.TaggedError(
+  "StartDiagnosticsCliUsageError"
+)<{
+  readonly message: string;
+  readonly guidance: string;
+}> {}
 
 export const startDiagnosticsCliUsage = [
   "Usage: effect-ui-start diagnostics [options]",
@@ -67,7 +70,10 @@ const readOptionValue = (
 ): readonly [string, number] => {
   const value = args[index + 1];
   if (value === undefined || value.startsWith("-")) {
-    throw new StartDiagnosticsCliUsageError(`Expected a value after ${flag}.`);
+    throw new StartDiagnosticsCliUsageError({
+      message: `Expected a value after ${flag}.`,
+      guidance: startDiagnosticsCliUsage
+    });
   }
   return [value, index + 1] as const;
 };
@@ -81,7 +87,10 @@ export const parseStartDiagnosticsCliArgs = (
 
   const command = args[0];
   if (command !== "diagnostics") {
-    throw new StartDiagnosticsCliUsageError(`Unknown command "${command}".`);
+    throw new StartDiagnosticsCliUsageError({
+      message: `Unknown command "${command}".`,
+      guidance: startDiagnosticsCliUsage
+    });
   }
 
   let root: string | undefined;
@@ -136,7 +145,10 @@ export const parseStartDiagnosticsCliArgs = (
       continue;
     }
 
-    throw new StartDiagnosticsCliUsageError(`Unknown option "${arg}".`);
+    throw new StartDiagnosticsCliUsageError({
+      message: `Unknown option "${arg}".`,
+      guidance: startDiagnosticsCliUsage
+    });
   }
 
   return {
@@ -159,6 +171,9 @@ const diagnosticOptions = (
   ...(options.mode === undefined ? {} : { mode: options.mode })
 });
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
 const errorPayload = (cause: unknown): Record<string, unknown> => {
   if (cause instanceof Error) {
     return {
@@ -168,14 +183,23 @@ const errorPayload = (cause: unknown): Record<string, unknown> => {
     };
   }
 
+  if (isRecord(cause) && typeof cause.message === "string") {
+    return {
+      name: typeof cause.name === "string"
+        ? cause.name
+        : typeof cause._tag === "string"
+          ? cause._tag
+          : "Error",
+      message: cause.message,
+      ...("violations" in cause ? { violations: cause.violations } : {})
+    };
+  }
+
   return {
     name: "UnknownError",
     message: String(cause)
   };
 };
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
 
 const isStringArray = (value: unknown): value is readonly string[] =>
   Array.isArray(value) && value.every((item) => typeof item === "string");

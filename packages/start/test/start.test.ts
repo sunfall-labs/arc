@@ -2619,6 +2619,21 @@ describe("Effect UI Start", () => {
     });
   });
 
+  it("returns a usage result for invalid Start diagnostics CLI input", async () => {
+    const stderr: string[] = [];
+    const result = await Effect.runPromise(
+      runStartDiagnosticsCliEffect(["unknown"], {
+        stdout: () => undefined,
+        stderr: (text) => stderr.push(text),
+        loadDiagnosticsEffect: () => Effect.die("unreachable")
+      })
+    );
+
+    expect(result.exitCode).toBe(1);
+    expect(stderr.join("\n")).toContain('Unknown command "unknown".');
+    expect(stderr.join("\n")).toContain("Usage: effect-ui-start diagnostics");
+  });
+
   it("prints an agent-readable Start diagnostics repair report", async () => {
     const loadedDiagnostics = {
       graph: {

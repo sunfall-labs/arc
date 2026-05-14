@@ -154,7 +154,8 @@ Last evidence pass: May 14, 2026.
   `Error`/`TypeError` throws.
   - Evidence: `docs/error-message-audit.md`,
     `packages/core/test/stable-stringify.test.ts`, and focused DB/devtools/Start
-    tests added in the typed-error sweep.
+    tests added in the typed-error sweep; `StartDiagnosticsCliUsageError` now
+    covers invalid diagnostics CLI input with usage guidance.
 
 ## Full-Stack Start Layer
 
@@ -433,7 +434,7 @@ Last evidence pass: May 14, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Evidence: `pnpm verify` ran all root package tests: 38 test files, 314
+  - Evidence: `pnpm verify` ran all root package tests: 38 test files, 315
     tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
@@ -566,9 +567,9 @@ Last evidence pass: May 14, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026 after the devtools
-    extension shell slice: 9 package builds, workspace typecheck, type tests,
-    38 root test files / 314 tests, devtools-panel verify,
+  - Evidence: root `pnpm verify` passed on May 14, 2026 after the tagged Start
+    diagnostics CLI usage-error slice: 9 package builds, workspace typecheck,
+    type tests, 38 root test files / 315 tests, devtools-panel verify,
     devtools-extension verify, basic starter verify, project-console starter
     packaging, project-console typecheck, 4 project-console test files / 23
     tests, project-console build, and leak scan.
