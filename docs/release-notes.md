@@ -270,6 +270,9 @@ Latest full gate on May 14, 2026:
   response checks, browser client transport success, and non-JSON transport
   failures are asserted inside Effect pipelines, with only platform JSON
   parsing isolated behind `Effect.tryPromise(...)`.
+- Start streaming tests now return Effect programs. Stream collection, sequence
+  checks, typed stream failures, and interruption assertions stay inside Effect
+  pipelines, with `Response.text()` isolated as the host Promise.
 
 ## Notable Limits
 

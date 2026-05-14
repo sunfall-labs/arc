@@ -676,3 +676,8 @@ interruption.
   converting Start RPC protocol tests to returned Effect programs. Platform JSON
   parsing is isolated behind `Effect.tryPromise(...)`; transport success and
   failure assertions now stay inside Effect pipelines.
+- `pnpm --filter @effect-ui/start typecheck` and
+  `pnpm exec vitest run packages/start/test/streaming.test.ts` passed after
+  converting Start streaming tests to returned Effect programs. Stream
+  collection, sequencing, typed failure, and interruption checks now stay inside
+  Effect pipelines; `Response.text()` remains the host Promise seam.
