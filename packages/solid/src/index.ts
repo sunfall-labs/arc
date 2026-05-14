@@ -30,6 +30,7 @@ import {
   createSignal,
   onCleanup,
   Show,
+  untrack,
   useContext,
   type Accessor,
   type Component,
@@ -216,7 +217,7 @@ export const createBrowserRouter = <const Routes extends readonly AnyRoute[]>(
     const href = location();
     const match = Route.match(routes, href);
     const navigationId = ++navigation;
-    const currentState = state();
+    const currentState = untrack(state);
 
     disposePreloadScope();
 

@@ -42,10 +42,10 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest full verification gate is green after the example
-  fire-and-forget Promise cleanup: 38 root test files / 320 tests plus devtools
-  panel, devtools extension, starter, rich starter packaging, project-console
-  build, and leak-scan gates.
+- The latest full verification gate is green after the core/Solid async test
+  boundary cleanup: 39 root test files / 321 tests plus devtools panel,
+  devtools extension, starter, rich starter packaging, project-console build,
+  and leak-scan gates.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
   example, script, and type-test sources while keeping negative runtime
   validation tests explicit.
@@ -333,6 +333,8 @@ or command result that proves it.
 | 180 | Full verification after adapter test Promise helper cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/effect-first-audit.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after the adapter test Promise helper cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 | 181 | Small async test wrapper cleanup | `packages/solid-db/test/solid-db.test.ts`; `packages/core/test/scope.test.ts`; `packages/core/test/resource-store.test.ts`; `docs/effect-first-audit.md`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md` | Converted low-risk async test wrappers to returned `Effect.runPromise(...)` programs so Solid-DB, UiScope, and Resource Store tests keep their sequencing inside Effect. Core and Solid-DB typechecks, public type tests, and the 3 touched test files / 6 tests passed. | Run full verification before committing this async test wrapper cleanup. |
 | 182 | Full verification after small async test wrapper cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/effect-first-audit.md` | Escalated full verification passed after the small async test wrapper cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
+| 183 | Core and Solid async test boundary cleanup | `packages/core/test/capability.test.ts`; `packages/core/test/server.test.ts`; `packages/solid/src/index.ts`; `packages/solid/test/router.test.ts`; `package.json`; `pnpm-lock.yaml`; `docs/effect-first-audit.md`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md` | Converted Capability, Server contract, and Solid router tests from async wrappers to returned Effect programs, moved assertions inside `Effect.sync(...)`, moved runtime/root cleanup behind Effect finalizers, kept the Solid router effect from subscribing to its own state updates, and made the happy-dom router test explicitly load Solid's browser build. Core/Solid typechecks and the 3 touched test files / 9 tests passed. | Run full verification before committing this async test boundary cleanup. |
+| 184 | Full verification after core/Solid async test boundary cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/effect-first-audit.md` | Escalated full verification passed after the core/Solid async test boundary cleanup: 9 package builds, workspace typecheck, type tests, 39 root test files / 321 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 
 ## Thirty-Sweep Gate
 

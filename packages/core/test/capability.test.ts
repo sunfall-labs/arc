@@ -10,7 +10,7 @@ describe("Capability", () => {
 
   const Numbers = Capability.define<Numbers>("@effect-ui/core/test/Capability/Numbers");
 
-  it("defines an Effect service with layer helpers", async () => {
+  it("defines an Effect service with layer helpers", () => {
     const runtime = makeRuntime(
       Numbers.layer({
         get: (id) => Effect.succeed(id.length),
@@ -18,16 +18,17 @@ describe("Capability", () => {
       })
     );
 
-    const value = await runtime.runPromise(
-      Numbers.use((numbers) => numbers.get("atlas"))
+    return runtime.runPromise(
+      Numbers.use((numbers) => numbers.get("atlas")).pipe(
+        Effect.tap((value) => Effect.sync(() => expect(value).toBe(5))),
+        Effect.asVoid,
+        Effect.ensuring(runtime.disposeEffect)
+      )
     );
-
-    expect(value).toBe(5);
-    await runtime.dispose();
   });
 
-  it("supports pure and Effect-returning accessors", async () => {
-    const value = await Effect.runPromise(
+  it("supports pure and Effect-returning accessors", () =>
+    Effect.runPromise(
       Numbers.provide(
         Effect.all([
           Numbers.useEffect((numbers) => numbers.get("kepler")),
@@ -40,30 +41,30 @@ describe("Capability", () => {
       ).pipe(
         Effect.flatMap(([length, save]) =>
           Effect.map(save(length), (saved) => ({ length, saved }))
-        )
+        ),
+        Effect.tap((value) => Effect.sync(() => expect(value).toEqual({ length: 6, saved: 7 }))),
+        Effect.asVoid
       )
-    );
+    ));
 
-    expect(value).toEqual({ length: 6, saved: 7 });
-  });
-
-  it("exposes mock layers for tests", async () => {
+  it("exposes mock layers for tests", () => {
     const TestNumbers = Numbers.mock({
       get: (id) => Effect.succeed(id.length * 2),
       save: (value) => Effect.succeed(value)
     });
 
-    const value = await Effect.runPromise(
+    return Effect.runPromise(
       Effect.provide(
         Numbers.use((numbers) => numbers.get("ada")),
         TestNumbers
+      ).pipe(
+        Effect.tap((value) => Effect.sync(() => expect(value).toBe(6))),
+        Effect.asVoid
       )
     );
-
-    expect(value).toBe(6);
   });
 
-  it("composes with ordinary Effect layers", async () => {
+  it("composes with ordinary Effect layers", () => {
     interface Names {
       readonly normalize: (name: string) => string;
     }
@@ -80,13 +81,14 @@ describe("Capability", () => {
       )
     );
 
-    const value = await runtime.runPromise(
+    return runtime.runPromise(
       Names.useEffect((names) =>
         Numbers.use((numbers) => numbers.get(names.normalize("  ATLAS  ")))
+      ).pipe(
+        Effect.tap((value) => Effect.sync(() => expect(value).toBe(5))),
+        Effect.asVoid,
+        Effect.ensuring(runtime.disposeEffect)
       )
     );
-
-    expect(value).toBe(5);
-    await runtime.dispose();
   });
 });

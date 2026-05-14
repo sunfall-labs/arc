@@ -19,54 +19,66 @@ describe("Server contracts", () => {
 
   const getUser = Server.client(GetUser);
 
-  it("provides typed mocks without registering a server handler", async () => {
-    const value = await Effect.runPromise(
+  it("provides typed mocks without registering a server handler", () =>
+    Effect.runPromise(
       Server.provideMocks(
         getUser.effect({ id: "ada" }),
         Server.mock(GetUser, ({ id }) => Effect.succeed({ id, name: "Ada" }))
+      ).pipe(
+        Effect.tap((value) =>
+          Effect.sync(() => {
+            expect(value).toEqual({ id: "ada", name: "Ada" });
+            expect(Server.get(GetUser.name)?.hasHandler).toBe(false);
+          })
+        ),
+        Effect.asVoid
       )
-    );
+    ));
 
-    expect(value).toEqual({ id: "ada", name: "Ada" });
-    expect(Server.get(GetUser.name)?.hasHandler).toBe(false);
-  });
-
-  it("exposes a mock layer for runtime dependency injection", async () => {
-    const value = await Effect.runPromise(
+  it("exposes a mock layer for runtime dependency injection", () =>
+    Effect.runPromise(
       Effect.provide(
         getUser.effect({ id: "grace" }),
         Server.mockLayer(
           Server.mock(GetUser, ({ id }) => Effect.succeed({ id, name: "Grace" }))
         )
+      ).pipe(
+        Effect.tap((value) => Effect.sync(() => expect(value.name).toBe("Grace"))),
+        Effect.asVoid
       )
-    );
+    ));
 
-    expect(value.name).toBe("Grace");
-  });
+  it("fails fast when a server function has no mock", () =>
+    Effect.runPromise(
+      Effect.exit(
+        Effect.provideService(getUser.effect({ id: "missing" }), ServerClient, Server.mockClient())
+      ).pipe(
+        Effect.tap((exit) =>
+          Effect.sync(() => {
+            expect(Exit.isFailure(exit)).toBe(true);
+            if (Exit.isFailure(exit)) {
+              const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
+              expect(failure?.error).toBeInstanceOf(ServerFunctionNotFound);
+            }
+          })
+        ),
+        Effect.asVoid
+      )
+    ));
 
-  it("fails fast when a server function has no mock", async () => {
-    const exit = await Effect.runPromiseExit(
-      Effect.provideService(getUser.effect({ id: "missing" }), ServerClient, Server.mockClient())
-    );
-
-    expect(Exit.isFailure(exit)).toBe(true);
-    if (Exit.isFailure(exit)) {
-      const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
-      expect(failure?.error).toBeInstanceOf(ServerFunctionNotFound);
-    }
-  });
-
-  it("validates mock output against the contract schema", async () => {
-    const exit = await Effect.runPromiseExit(
-      Server.provideMocks(
-        getUser.effect({ id: "broken" }),
-        Server.mock(GetUser, ({ id }) =>
-          // @ts-expect-error invalid mock output is rejected by the contract schema at runtime
-          Effect.succeed({ id, name: 42 })
+  it("validates mock output against the contract schema", () =>
+    Effect.runPromise(
+      Effect.exit(
+        Server.provideMocks(
+          getUser.effect({ id: "broken" }),
+          Server.mock(GetUser, ({ id }) =>
+            // @ts-expect-error invalid mock output is rejected by the contract schema at runtime
+            Effect.succeed({ id, name: 42 })
+          )
         )
+      ).pipe(
+        Effect.tap((exit) => Effect.sync(() => expect(Exit.isFailure(exit)).toBe(true))),
+        Effect.asVoid
       )
-    );
-
-    expect(Exit.isFailure(exit)).toBe(true);
-  });
+    ));
 });

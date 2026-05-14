@@ -537,3 +537,18 @@ Effect-native interruption.
   file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
+- `pnpm --filter @effect-ui/core typecheck`,
+  `pnpm --filter @effect-ui/solid typecheck`, and
+  `pnpm exec vitest run packages/core/test/capability.test.ts packages/core/test/server.test.ts packages/solid/test/router.test.ts`
+  passed after converting Capability, Server contract, and Solid router tests
+  to returned Effect programs with assertions in `Effect.sync(...)` and cleanup
+  in Effect finalizers. The Solid router effect now reads previous state with
+  `untrack(...)` so its own state updates do not relaunch preloads, and the
+  Solid router test explicitly loads Solid's browser build for its happy-dom
+  client-router coverage.
+- Full `pnpm verify` passed after the core/Solid async test boundary cleanup:
+  9 package builds, workspace typecheck, type tests, 39 root test files / 321
+  tests, devtools-panel verify, devtools-extension verify with 1 extension test
+  file / 6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.

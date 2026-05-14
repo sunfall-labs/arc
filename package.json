@@ -42,6 +42,7 @@
     "@tsrx/vite-plugin-solid": "0.0.37",
     "@types/node": "^25.7.0",
     "@typescript/native-preview": "7.0.0-dev.20260513.1",
+    "happy-dom": "^20.9.0",
     "solid-js": "^1.9.12",
     "typescript": "^5.9.3",
     "vite": "^8.0.12",

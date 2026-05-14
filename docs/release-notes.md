@@ -55,7 +55,7 @@ Latest full gate on May 14, 2026:
 
 - 9 package builds;
 - workspace typecheck and public type tests;
-- 38 root test files / 320 tests;
+- 39 root test files / 321 tests;
 - devtools panel verify;
 - devtools extension verify;
 - basic starter verify;
@@ -210,6 +210,12 @@ Latest full gate on May 14, 2026:
 - Solid-DB, UiScope, and Resource Store tests now return `Effect.runPromise(...)`
   programs instead of using async test wrappers for Effect sequencing.
 - The latest `pnpm verify` passed after the small async test wrapper cleanup.
+- Core Capability, Server contract, and Solid router tests now return Effect
+  programs instead of using async wrappers for Effect sequencing; the Solid
+  router effect avoids subscribing to its own state updates, and the router test
+  explicitly loads the browser Solid build for happy-dom coverage.
+- The latest `pnpm verify` passed after the core/Solid async test boundary
+  cleanup.
 
 ## Notable Limits
 
