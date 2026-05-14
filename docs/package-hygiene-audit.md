@@ -47,6 +47,14 @@ exports. It supports the release-engineering charter workstream.
   typecheck, 4 example test files / 23 tests, example build, and leak scan.
 - `pnpm build` and `pnpm typecheck` passed after the package publish metadata
   hardening sweep.
+- Individual package dry-run packs passed after refreshing workspace links:
+  - `pnpm --filter @effect-ui/core pack --dry-run`
+  - `pnpm --filter @effect-ui/db pack --dry-run`
+  - `pnpm --filter @effect-ui/devtools pack --dry-run`
+  - `pnpm --filter @effect-ui/start pack --dry-run`
+  - `pnpm --filter @effect-ui/solid pack --dry-run`
+  - `pnpm --filter @effect-ui/solid-db pack --dry-run`
+  - `pnpm --filter @effect-ui/tsrx pack --dry-run`
 
 ## Follow-Up
 
@@ -55,3 +63,6 @@ exports. It supports the release-engineering charter workstream.
 - If packages become public on npm, flip `private`, add final package
   descriptions/repository/license metadata, and revisit whether framework
   package dependencies should be direct dependencies or peer dependencies.
+- Use package-local dry-run pack checks for publication rehearsal; recursive
+  workspace pack is not the release signal while workspace protocol replacement
+  is still a pnpm publication concern.
