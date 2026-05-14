@@ -119,6 +119,9 @@ Effect-native interruption.
     crossing the Solid/browser `runPromise` boundary.
   - Solid Resource and Solid-DB collection/live-query helpers now pass the
     underlying `*Effect` operations directly to the active runtime.
+  - Solid Resource hook requirement defaults now use `unknown`, and route outlet
+    internals use record/unknown-shaped UI boundaries instead of `Component<any>`
+    or `value: any`.
 - `packages/start/src/cli.ts`
   - Moved the diagnostics CLI parse/load/render path into
     `runStartDiagnosticsCliEffect`.
@@ -328,6 +331,15 @@ Effect-native interruption.
   passed after removing explicit `Effect.Effect<..., any>` annotations: 5 files,
   55 tests.
 - Full `pnpm verify` passed after the explicit Effect-any cleanup: 9 package
+  builds, workspace typecheck, type tests, 38 root test files / 320 tests,
+  devtools-panel verify, devtools-extension verify with 1 extension test file / 6
+  tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.
+- `pnpm --filter @effect-ui/solid typecheck` and `pnpm typecheck:types` passed
+  after tightening Solid Resource hook requirement defaults and route outlet UI
+  wildcard types.
+- Full `pnpm verify` passed after the Solid UI wildcard cleanup: 9 package
   builds, workspace typecheck, type tests, 38 root test files / 320 tests,
   devtools-panel verify, devtools-extension verify with 1 extension test file / 6
   tests, basic starter verify, project-console starter packaging,

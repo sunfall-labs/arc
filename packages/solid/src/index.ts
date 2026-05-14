@@ -37,7 +37,7 @@ import {
 } from "solid-js";
 import { createComponent, isServer } from "solid-js/web";
 
-type ResourceInput<I, A, E, R = any> = ResourceRef<I, A, E, R> | (() => ResourceRef<I, A, E, R>);
+type ResourceInput<I, A, E, R = unknown> = ResourceRef<I, A, E, R> | (() => ResourceRef<I, A, E, R>);
 
 type AnyRoute = Route.Definition<string, any, any>;
 
@@ -53,7 +53,7 @@ export interface ResourceMatch<A, E, B> {
   readonly failure: (error: E, previous: A | undefined) => B;
 }
 
-export interface ResourceHandle<I, A, E, R = any> {
+export interface ResourceHandle<I, A, E, R = unknown> {
   readonly ref: Accessor<ResourceRef<I, A, E, R>>;
   readonly state: Accessor<ResourceState<A, E>>;
   readonly value: Accessor<A | undefined>;
@@ -338,7 +338,7 @@ const renderRouteState = (
         node: (props.notFound ?? defaultNotFound)(state)
       };
     case "Ready": {
-      const component = state.match.route.options.component as Component<any> | undefined;
+      const component = state.match.route.options.component as Component<Record<string, unknown>> | undefined;
       if (!component) {
         return { node: undefined };
       }
@@ -399,7 +399,7 @@ export const RouterOutlet = (props: RouterOutletProps): JSX.Element => {
       return node();
     },
     keyed: true,
-    children: (value: any) => value as JSX.Element
+    children: (value: unknown) => value as JSX.Element
   });
 };
 
@@ -448,7 +448,7 @@ export const useStream = <A>(
     return useSignal(signal);
   });
 
-export const useResourceResult = <I, A, E, R = any>(
+export const useResourceResult = <I, A, E, R = unknown>(
   ref: ResourceInput<I, A, E, R>
 ): Accessor<ResourceState<A, E>> => {
   const runtime = useRuntime();
@@ -482,21 +482,21 @@ export const useResourceResult = <I, A, E, R = any>(
   return state;
 };
 
-export const useResourceValue = <I, A, E, R = any>(
+export const useResourceValue = <I, A, E, R = unknown>(
   ref: ResourceInput<I, A, E, R>
 ): Accessor<A | undefined> => {
   const state = useResourceResult(ref);
   return createMemo(() => Resource.value(state()));
 };
 
-export const useResourceError = <I, A, E, R = any>(
+export const useResourceError = <I, A, E, R = unknown>(
   ref: ResourceInput<I, A, E, R>
 ): Accessor<E | undefined> => {
   const state = useResourceResult(ref);
   return createMemo(() => Resource.error(state()));
 };
 
-export const useResource = <I, A, E, R = any>(ref: ResourceInput<I, A, E, R>): ResourceHandle<I, A, E, R> => {
+export const useResource = <I, A, E, R = unknown>(ref: ResourceInput<I, A, E, R>): ResourceHandle<I, A, E, R> => {
   const runtime = useRuntime();
   const getRef = resourceAccessor(ref);
   const state = useResourceResult(getRef);
@@ -537,7 +537,7 @@ export const useResource = <I, A, E, R = any>(ref: ResourceInput<I, A, E, R>): R
   };
 };
 
-export const useResourceSuspense = <I, A, E, R = any>(ref: ResourceInput<I, A, E, R>): Accessor<A> => {
+export const useResourceSuspense = <I, A, E, R = unknown>(ref: ResourceInput<I, A, E, R>): Accessor<A> => {
   const runtime = useRuntime();
   const getRef = resourceAccessor(ref);
   const state = useResourceResult(getRef);

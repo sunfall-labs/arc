@@ -419,6 +419,11 @@ Last evidence pass: May 14, 2026.
   - Evidence: `packages/solid/src/index.ts` exports `RuntimeProvider`,
     `RouterProvider`, `useResource`, `useAction`, `useSignal`; example app uses
     them directly.
+- [x] Solid hook wildcard defaults avoid UI-local `any` where requirements are
+  opaque.
+  - Evidence: `packages/solid/src/index.ts` defaults Resource hook
+    requirements to `unknown` and uses record/unknown-shaped route outlet
+    boundaries.
 - [x] Example app uses schema-branded route params and domain ids.
   - Evidence: `examples/project-console/src/domain.contract.ts`,
     `domain.test.ts`, and generated route type tests.
@@ -620,8 +625,8 @@ Last evidence pass: May 14, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026 after the explicit
-    Effect-any cleanup: 9 package builds, workspace typecheck, type tests,
+  - Evidence: root `pnpm verify` passed on May 14, 2026 after the Solid UI
+    wildcard cleanup: 9 package builds, workspace typecheck, type tests,
     38 root test files / 320 tests, devtools-panel verify,
     devtools-extension verify with 1 extension test file / 6 tests, basic starter
     verify, project-console starter packaging, project-console typecheck, 4

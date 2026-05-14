@@ -147,6 +147,9 @@ Latest full gate on May 14, 2026:
   example, script, and type-test source; Resource invalidation Effects now carry
   a generic requirement parameter for refreshed refs.
 - The latest `pnpm verify` passed after the explicit Effect-any cleanup.
+- Solid Resource hook requirement defaults now use `unknown`, and route outlet
+  UI internals avoid `Component<any>` / `value: any` boundaries.
+- The latest `pnpm verify` passed after the Solid UI wildcard cleanup.
 
 ## Notable Limits
 
