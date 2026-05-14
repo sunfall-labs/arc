@@ -42,26 +42,13 @@ interface SubmittedStartAction<D extends StartActionDefinition> {
   >;
 }
 
-/**
- * Submits a Start action over the action transport.
- *
- * The returned Effect encodes input, performs `fetch` when run, decodes the
- * result, hydrates any returned resources or collections, and invalidates stale
- * resources. Use this from Effect workflows; run it with a runtime at UI or
- * platform boundaries.
- *
- * @example
- * ```ts
- * const result = yield* submitStartActionEffect(RenameProject, {
- *   id: "atlas",
- *   name: "Atlas"
- * });
- * ```
- */
-const submitStartActionTransportEffect = <D extends StartActionDefinition>(
+const submitStartActionTransportEffect = <
+  D extends StartActionDefinition,
+  FetchError = never
+>(
   definition: D,
   input: ActionDefinitionInputValue<D>,
-  options: StartActionClientOptions = {}
+  options: StartActionClientOptions<FetchError> = {}
 ): Effect.Effect<SubmittedStartAction<D>, Server.ClientError, unknown> =>
   Effect.gen(function* () {
     const fetcher = yield* resolveStartFetchEffect(
@@ -123,10 +110,29 @@ const submitStartActionTransportEffect = <D extends StartActionDefinition>(
     };
   });
 
-export const submitStartActionEffect = <D extends StartActionDefinition>(
+/**
+ * Submits a Start action over the action transport.
+ *
+ * The returned Effect encodes input, performs `fetch` when run, decodes the
+ * action result, hydrates returned resources or collections, and invalidates
+ * stale resources. Use this from Effect workflows; run it with a runtime at UI
+ * or platform boundaries.
+ *
+ * @example
+ * ```ts
+ * const result = yield* submitStartActionEffect(RenameProject, {
+ *   id: "atlas",
+ *   name: "Atlas"
+ * });
+ * ```
+ */
+export const submitStartActionEffect = <
+  D extends StartActionDefinition,
+  FetchError = never
+>(
   definition: D,
   input: ActionDefinitionInputValue<D>,
-  options: StartActionClientOptions = {}
+  options: StartActionClientOptions<FetchError> = {}
 ): Effect.Effect<
   StartActionResultFor<ActionDefinitionOutputValue<D>, ActionDefinitionErrorValue<D>>,
   Server.ClientError,
@@ -179,9 +185,12 @@ export namespace StartAction {
    * const result = yield* rename.submitEffect({ id: "atlas", name: "Atlas" });
    * ```
    */
-  export const use = <D extends StartActionDefinition>(
+  export const use = <
+    D extends StartActionDefinition,
+    FetchError = never
+  >(
     definition: D,
-    options: StartActionClientOptions = {}
+    options: StartActionClientOptions<FetchError> = {}
   ): Instance<D> => {
     const runtime = options.runtime ?? currentOrDefaultRuntime();
     const hydration = Signal.make<StartHydrationPayload | undefined>(undefined);

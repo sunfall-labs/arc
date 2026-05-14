@@ -3,12 +3,21 @@ import type { ResourceInvalidationPlan } from "./resource.js";
 import type { EffectUiRuntime } from "./runtime.js";
 import { Signal, type ReadableSignal } from "./signal.js";
 
+/**
+ * Submission concurrency policy shared by Core Actions and Start Actions.
+ *
+ * `latest` interrupts the previous run and only the newest run may update
+ * state; `parallel` lets each run execute but only the latest state update is
+ * accepted; `exhaust` joins the in-flight run instead of starting another.
+ */
 export type ActionSubmissionConcurrency = "latest" | "parallel" | "exhaust";
 
+/** Typed interruption used when a stale `latest` submission tries to continue. */
 export class ActionInterrupted extends Data.TaggedError("ActionInterrupted")<{
   readonly actionName: string;
 }> {}
 
+/** Visible submission state exposed by action client instances. */
 export type ActionSubmissionState<I, A, E = never, P = ResourceInvalidationPlan> =
   | { readonly _tag: "Idle" }
   | { readonly _tag: "Pending"; readonly input: I; readonly previous?: A }
@@ -35,6 +44,13 @@ export type ActionSubmissionDecision<A, E> =
   | { readonly _tag: "Join"; readonly fiber: ActionSubmissionFiber<A, E> }
   | ActionSubmissionRun<A, E>;
 
+/**
+ * State and concurrency controller for a stateful action client instance.
+ *
+ * The controller owns visible state, invalidation-plan state, current fiber
+ * tracking, stale-submission checks, and reset behavior while callers keep the
+ * domain-specific workflow local.
+ */
 export interface ActionSubmissionController<I, A, E, P = ResourceInvalidationPlan> {
   readonly state: ReadableSignal<ActionSubmissionState<I, A, E, P>>;
   readonly invalidationPlan: ReadableSignal<P | undefined>;
@@ -68,7 +84,9 @@ export interface ActionSubmissionController<I, A, E, P = ResourceInvalidationPla
 }
 
 export interface ActionSubmissionControllerOptions {
+  /** Human-readable action name included in interruption diagnostics. */
   readonly actionName: string;
+  /** Submission concurrency policy. Defaults to `latest`. */
   readonly concurrency?: ActionSubmissionConcurrency | undefined;
 }
 
@@ -84,6 +102,7 @@ const previousFromState = <I, A, E, P>(state: ActionSubmissionState<I, A, E, P>)
   }
 };
 
+/** Creates the shared submission controller used by Action and StartAction clients. */
 export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidationPlan>(
   options: ActionSubmissionControllerOptions
 ): ActionSubmissionController<I, A, E, P> => {

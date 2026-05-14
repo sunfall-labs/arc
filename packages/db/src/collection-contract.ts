@@ -327,6 +327,13 @@ export interface CollectionMemoryStorage extends CollectionPersistenceStorage<ne
   clear(): void;
 }
 
+/**
+ * Static metadata extracted from a Collection Definition for manifests and
+ * diagnostics.
+ *
+ * Boolean fields report whether schemas, handlers, sync, persistence, or retry
+ * policy were declared; they do not represent runtime health.
+ */
 export interface CollectionDefinitionDiagnostics {
   readonly name: string;
   readonly inputSchema: boolean;

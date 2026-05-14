@@ -187,6 +187,13 @@ export interface StartAppGraphDiagnostics {
   readonly unknownRoutePreloadCollections: readonly StartAppGraphUnknownRoutePreloadCollectionsEntry[];
 }
 
+/**
+ * Runtime route candidate used to enrich static app graph diagnostics with
+ * route-module features discovered from loaded route definitions.
+ *
+ * Includes preload resource and collection diagnostics from the runtime route
+ * object.
+ */
 export interface StartAppGraphRouteDiagnosticsRuntimeCandidate {
   readonly entry: FileRouteManifest["entries"][number];
   readonly route: {
@@ -593,6 +600,14 @@ export const describeStartAppGraph = (
   };
 };
 
+/**
+ * Rebuilds app graph diagnostics from static manifest data plus runtime
+ * definition facts.
+ *
+ * Runtime route candidates replace static route-module feature placeholders and
+ * unknown preload-resource/preload-collection diagnostics are recomputed from
+ * that runtime evidence.
+ */
 export const describeStartAppGraphRuntimeDiagnostics = (
   graph: StartAppGraph,
   candidates: StartAppGraphDiagnosticsRuntimeCandidates = {}
@@ -800,6 +815,19 @@ export const enforceStartAppGraphDiagnosticsPolicy = (
   }
 
   return violations;
+};
+
+export const validateStartAppGraphDiagnosticsPolicyExceptionEffect = (
+  diagnostics: StartAppGraphDiagnostics,
+  policy: StartAppGraphDiagnosticsPolicy | false | null | undefined
+): Effect.Effect<readonly StartAppGraphDiagnosticsPolicyViolation[], StartAppGraphDiagnosticsPolicyException> => {
+  const violations = collectStartAppGraphDiagnosticsPolicyViolations(
+    diagnostics,
+    policy
+  );
+  return violations.length > 0
+    ? Effect.fail(createStartAppGraphDiagnosticsPolicyException(diagnostics, violations))
+    : Effect.succeed(violations);
 };
 
 export const validateStartAppGraphRoutePreloadCollectionsDiagnosticsEffect = (

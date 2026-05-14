@@ -113,7 +113,7 @@ export const createServerRpcResponseEffectWithRuntime = <
           return decoded;
         }
 
-        const fn = app.registry.serverFunctions.get(decoded.name) ?? Server.get(decoded.name);
+        const fn = app.registry.serverFunctions.get(decoded.name);
         if (!fn) {
           recordStartRequestTraceServerFunction(traceFacts, {
             name: decoded.name,

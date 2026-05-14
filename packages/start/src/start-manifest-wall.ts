@@ -1,11 +1,13 @@
 import type { ActionDefinition, ServerFunction } from "@effect-ui/core";
-import { Effect } from "effect";
+import { Data, Effect } from "effect";
 import { existsSync, readdirSync } from "node:fs";
 import { isAbsolute, relative as relativePath, resolve as resolvePath } from "node:path";
 import {
   createStartAppGraph,
+  describeStartAppGraph,
   serializeStartAppGraph as serializeStartAppGraphArtifact,
   validateStartAppGraphActionBehaviorEffect,
+  validateStartAppGraphDiagnosticsPolicyEffect,
   validateStartAppGraphWireSchemasEffect,
   type StartAppGraph,
   type StartAppGraphActionBehaviorPolicy,
@@ -109,6 +111,13 @@ export interface FileRouteDiscoveryOptions {
   readonly extensions?: readonly string[];
 }
 
+export class FileRouteDiscoveryError extends Data.TaggedError(
+  "FileRouteDiscoveryError"
+)<{
+  readonly directory: string;
+  readonly cause: unknown;
+}> {}
+
 export type StartAppGraphError =
   | ServerFunctionManifestError
   | ActionManifestError
@@ -155,8 +164,7 @@ export const absoluteFileRouteDirectory = (
     ? routeDirectory
     : resolvePath(root, routeDirectory);
 
-/** Recursively discovers route module files under the configured route directory. */
-export const discoverFileRoutes = (
+const discoverFileRoutesSync = (
   options: FileRouteDiscoveryOptions = {}
 ): readonly string[] => {
   const root = resolvePath(options.root ?? process.cwd());
@@ -190,6 +198,26 @@ export const discoverFileRoutes = (
   visit(directory);
   return discovered.sort();
 };
+
+/** Recursively discovers route module files under the configured route directory. */
+export const discoverFileRoutesEffect = (
+  options: FileRouteDiscoveryOptions = {}
+): Effect.Effect<readonly string[], FileRouteDiscoveryError> => {
+  const root = resolvePath(options.root ?? process.cwd());
+  const routeDirectory = options.routeDirectory ?? defaultFileRouteDirectory;
+  const directory = absoluteFileRouteDirectory(root, routeDirectory);
+
+  return Effect.try({
+    try: () => discoverFileRoutesSync(options),
+    catch: (cause) => new FileRouteDiscoveryError({ directory, cause })
+  });
+};
+
+/** Synchronous facade for Vite hooks and other sync host boundaries. */
+export const discoverFileRoutes = (
+  options: FileRouteDiscoveryOptions = {}
+): readonly string[] =>
+  Effect.runSync(discoverFileRoutesEffect(options));
 
 const serverFunctionDefinitionsFromOptions = (
   options: EffectUiStartOptions,
@@ -297,16 +325,21 @@ const withDefaultFileRouteDirectory = (
 export const withDiscoveredFileRoutes = (
   options: EffectUiStartOptions,
   root: string
-): EffectUiStartOptions => {
+): EffectUiStartOptions =>
+  Effect.runSync(withDiscoveredFileRoutesEffect(options, root));
+
+export const withDiscoveredFileRoutesEffect = (
+  options: EffectUiStartOptions,
+  root: string
+): Effect.Effect<EffectUiStartOptions, FileRouteDiscoveryError> => {
   const next = withDefaultFileRouteDirectory(options);
   if (next.fileRouteManifest !== undefined || next.fileRoutes !== undefined) {
-    return next;
+    return Effect.succeed(next);
   }
 
   const fileRouteOptions = next.fileRouteOptions;
-  return {
-    ...next,
-    fileRoutes: discoverFileRoutes({
+  return Effect.map(
+    discoverFileRoutesEffect({
       root,
       ...(fileRouteOptions?.routeDirectory === undefined
         ? {}
@@ -314,8 +347,12 @@ export const withDiscoveredFileRoutes = (
       ...(fileRouteOptions?.extensions === undefined
         ? {}
         : { extensions: fileRouteOptions.extensions })
+    }),
+    (fileRoutes) => ({
+      ...next,
+      fileRoutes
     })
-  };
+  );
 };
 
 /** Builds or validates the Start file-route manifest from plugin options. */
@@ -402,6 +439,14 @@ export const validateStartBuildPolicyEffect = (
     const actionBehavior = policy.actionBehavior;
     if (actionBehavior !== undefined && actionBehavior !== false) {
       yield* validateStartAppGraphActionBehaviorEffect(graph, actionBehavior);
+    }
+
+    const diagnostics = policy.diagnostics;
+    if (diagnostics !== undefined && diagnostics !== false) {
+      yield* validateStartAppGraphDiagnosticsPolicyEffect(
+        describeStartAppGraph(graph),
+        diagnostics
+      );
     }
   });
 

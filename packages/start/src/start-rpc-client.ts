@@ -19,7 +19,9 @@ import { parseRpcResponse } from "./start-transport-protocol.js";
  * Calls remain Effects. The HTTP request is performed only when the server
  * function Effect is run.
  */
-export const makeRpcClient = (options: ServerRpcClientOptions = {}): ServerClient => ({
+export const makeRpcClient = <FetchError = never>(
+  options: ServerRpcClientOptions<FetchError> = {}
+): ServerClient => ({
   call: (fn, input) =>
     Effect.gen(function* () {
       const fetcher = yield* resolveStartFetchEffect(
@@ -95,7 +97,9 @@ export const makeRpcClient = (options: ServerRpcClientOptions = {}): ServerClien
 });
 
 /** Layer that provides a Start RPC-backed `ServerClient`. */
-export const makeRpcClientLayer = (options: ServerRpcClientOptions = {}) =>
+export const makeRpcClientLayer = <FetchError = never>(
+  options: ServerRpcClientOptions<FetchError> = {}
+) =>
   Layer.succeed(ServerClient)(makeRpcClient(options));
 
 /** Default browser RPC layer using `globalThis.fetch` and the Start RPC path. */

@@ -4,7 +4,12 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve as resolvePath } from "node:path";
 import { createServer, type InlineConfig, type UserConfig } from "vite";
 import { nodeRequestToWebRequestEffect, writeNodeResponseEffect } from "./adapters.js";
-import type { StartAppGraph, StartAppGraphDiagnostics } from "./app-graph.js";
+import type {
+  StartAppGraph,
+  StartAppGraphDiagnostics,
+  StartAppGraphDiagnosticsPolicyException
+} from "./app-graph.js";
+import type { StartRequestHandlerError } from "./start-request-handler.js";
 import {
   createStartManifestWallDefineValues,
   defaultServerEntry,
@@ -32,6 +37,8 @@ export {
   defaultStartBuildPolicy,
   defaultStartBuildWireSchemaPolicy,
   discoverFileRoutes,
+  discoverFileRoutesEffect,
+  FileRouteDiscoveryError,
   makeStartActionManifestEffect,
   makeStartAppGraphEffect,
   makeStartBuildAppGraphEffect,
@@ -113,9 +120,9 @@ export interface EffectUiStartPlugin {
  * Dev SSR accepts a plain `Response` or an Effect so server entries can stay
  * Effect-first without adding a Promise wrapper inside application code.
  */
-export type StartSsrRequestHandler = (
+export type StartSsrRequestHandler<HandlerError = StartRequestHandlerError> = (
   request: Request
-) => Response | Effect.Effect<Response, unknown, unknown>;
+) => Response | Effect.Effect<Response, HandlerError, unknown>;
 
 /** Minimal Vite dev server surface used by Start SSR middleware. */
 export interface StartDevServer {
@@ -148,6 +155,25 @@ export class StartAppGraphDiagnosticsRunnerError extends Data.TaggedError(
   readonly cause?: unknown;
 }> {}
 
+export type StartAppGraphDiagnosticsLoadError =
+  | StartAppGraphDiagnosticsRunnerError
+  | StartAppGraphDiagnosticsPolicyException;
+
+const isStartAppGraphDiagnosticsPolicyException = (
+  cause: unknown
+): cause is StartAppGraphDiagnosticsPolicyException =>
+  typeof cause === "object" &&
+  cause !== null &&
+  (cause as { readonly name?: unknown }).name === "StartAppGraphDiagnosticsPolicyError";
+
+const diagnosticsRunnerError = (
+  message: string,
+  cause: unknown
+): StartAppGraphDiagnosticsLoadError =>
+  isStartAppGraphDiagnosticsPolicyException(cause)
+    ? cause
+    : new StartAppGraphDiagnosticsRunnerError({ message, cause });
+
 /** Options for resolving the SSR handler export in Vite dev. */
 export interface HandleSsrDevRequestOptions {
   readonly serverEntry?: string;
@@ -166,7 +192,7 @@ const startAppGraphDiagnosticsFromModule = (
 
 const loadStartAppGraphDiagnosticsRawEffect = (
   options: LoadStartAppGraphDiagnosticsOptions = {}
-): Effect.Effect<LoadedStartAppGraphDiagnostics, unknown> =>
+): Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsLoadError> =>
   Effect.gen(function* () {
     const inlineConfig = options.vite ?? {};
     const plugins = [
@@ -191,12 +217,20 @@ const loadStartAppGraphDiagnosticsRawEffect = (
             hmr: false
           }
         }),
-      catch: (cause) => cause
+      catch: (cause) =>
+        diagnosticsRunnerError(
+          "Could not create the temporary Vite server for Effect UI app graph diagnostics.",
+          cause
+        )
     });
 
     return yield* Effect.tryPromise({
       try: () => server.ssrLoadModule(appGraphVirtualModuleId),
-      catch: (cause) => cause
+      catch: (cause) =>
+        diagnosticsRunnerError(
+          "Could not load resolved Effect UI app graph diagnostics through Vite.",
+          cause
+        )
     }).pipe(
       Effect.map(startAppGraphDiagnosticsFromModule),
       Effect.ensuring(
@@ -216,21 +250,14 @@ const loadStartAppGraphDiagnosticsRawEffect = (
  */
 export const loadStartAppGraphDiagnostics = (
   options: LoadStartAppGraphDiagnosticsOptions = {}
-): Effect.Effect<LoadedStartAppGraphDiagnostics, unknown> =>
+): Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsLoadError> =>
   loadStartAppGraphDiagnosticsRawEffect(options);
 
-/** Same as `loadStartAppGraphDiagnostics`, with runner errors normalized. */
+/** Same as `loadStartAppGraphDiagnostics`, with a concrete load-error channel. */
 export const loadStartAppGraphDiagnosticsEffect = (
   options: LoadStartAppGraphDiagnosticsOptions = {}
-): Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsRunnerError> =>
-  loadStartAppGraphDiagnosticsRawEffect(options).pipe(
-    Effect.mapError((cause) =>
-      new StartAppGraphDiagnosticsRunnerError({
-        message: "Could not load resolved Effect UI app graph diagnostics through Vite.",
-        cause
-      })
-    )
-  );
+): Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsLoadError> =>
+  loadStartAppGraphDiagnosticsRawEffect(options);
 
 /** Error raised when a dev SSR module does not export the configured handler. */
 export class StartHandlerNotFound extends Data.TaggedError("StartHandlerNotFound")<{
@@ -464,8 +491,8 @@ const tryDevPromise = <A>(
     catch: (error) => new StartDevServerError({ operation, error })
   });
 
-const handlerResultEffect = (
-  handler: StartSsrRequestHandler,
+const handlerResultEffect = <HandlerError = StartRequestHandlerError>(
+  handler: StartSsrRequestHandler<HandlerError>,
   request: Request
 ): Effect.Effect<Response, StartDevServerError, unknown> =>
   Effect.try({

@@ -3,6 +3,7 @@ import { pathToFileURL } from "node:url";
 import { Data, Effect } from "effect";
 import {
   loadStartAppGraphDiagnosticsEffect,
+  type StartAppGraphDiagnosticsLoadError,
   type LoadedStartAppGraphDiagnostics,
   type LoadStartAppGraphDiagnosticsOptions
 } from "./vite.js";
@@ -42,7 +43,7 @@ export interface StartDiagnosticsCliIo {
   readonly stderr?: (text: string) => void;
   readonly loadDiagnosticsEffect?: (
     options: LoadStartAppGraphDiagnosticsOptions
-  ) => Effect.Effect<LoadedStartAppGraphDiagnostics, unknown>;
+  ) => Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsLoadError>;
 }
 
 /** Result returned by CLI runners after printing output. */
@@ -257,7 +258,7 @@ const loadDiagnosticsFromIo = (
   io: StartDiagnosticsCliIo
 ): ((
   options: LoadStartAppGraphDiagnosticsOptions
-) => Effect.Effect<LoadedStartAppGraphDiagnostics, unknown>) => {
+) => Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsLoadError>) => {
   if (io.loadDiagnosticsEffect) {
     return io.loadDiagnosticsEffect;
   }

@@ -134,9 +134,10 @@ export const createStartAppGraphVirtualModule = (
     ].join("\n")
   );
   return [
+    "import { Effect } from \"effect\";",
     "import { Resource, Route } from \"@effect-ui/core\";",
     "import { Collection } from \"@effect-ui/db\";",
-    "import { describeStartAppGraphRuntimeDiagnostics, enforceStartAppGraphDiagnosticsPolicy } from \"@effect-ui/start\";",
+    "import { describeStartAppGraphRuntimeDiagnostics, validateStartAppGraphDiagnosticsPolicyExceptionEffect } from \"@effect-ui/start\";",
     ...(routeModuleImports.length > 0 ? [""] : []),
     ...routeModuleImports,
     ...(routeModuleImports.length > 0 ? [""] : []),
@@ -153,7 +154,7 @@ export const createStartAppGraphVirtualModule = (
     "  collectionDefinitions: collectionDiagnostics.collections",
     "});",
     `const diagnosticsPolicy = ${diagnosticsPolicy};`,
-    "export const diagnosticsPolicyViolations = enforceStartAppGraphDiagnosticsPolicy(diagnostics, diagnosticsPolicy);",
+    "export const diagnosticsPolicyViolations = Effect.runSync(validateStartAppGraphDiagnosticsPolicyExceptionEffect(diagnostics, diagnosticsPolicy));",
     "export const routes = graph.routes;",
     "export const serverFunctions = graph.serverFunctions;",
     "export const actions = graph.actions;",

@@ -227,7 +227,7 @@ export const useResourceSuspense = <I, A, E, R = unknown>(ref: ResourceInput<I, 
       });
     }
 
-    throw runtime.runPromise(Resource.prefetchEffect(getRef()));
+    return runWithRuntime(runtime, () => Resource.read(getRef()));
   });
 };
 

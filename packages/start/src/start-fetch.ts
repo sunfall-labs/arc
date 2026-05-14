@@ -13,23 +13,23 @@ export type StartFetchInput = Parameters<typeof globalThis.fetch>[0];
 export type StartFetchInit = Parameters<typeof globalThis.fetch>[1];
 
 /** Effect hook used by Start clients to perform fetch-shaped transport work. */
-export type StartFetch = (
+export type StartFetch<E = never> = (
   input: StartFetchInput,
   init?: StartFetchInit
-) => Effect.Effect<Response, unknown>;
+) => Effect.Effect<Response, E>;
 
 /** Options for clients that call Start server functions over HTTP RPC. */
-export interface ServerRpcClientOptions {
+export interface ServerRpcClientOptions<FetchError = never> {
   /** RPC endpoint. Defaults to the Start server function path. */
   readonly endpoint?: string | URL;
   /** Fetch implementation for browsers, tests, edge runtimes, or Effect handlers. */
-  readonly fetch?: StartFetch;
+  readonly fetch?: StartFetch<FetchError>;
   /** Static or lazily computed headers added to every RPC request. */
   readonly headers?: HeadersInit | (() => HeadersInit);
 }
 
-export const getStartTransportHeadersEffect = (
-  options: ServerRpcClientOptions
+export const getStartTransportHeadersEffect = <FetchError = never>(
+  options: ServerRpcClientOptions<FetchError>
 ): Effect.Effect<Headers> =>
   Effect.gen(function* () {
     const headers = new Headers(
@@ -43,18 +43,18 @@ export const getStartTransportHeadersEffect = (
     return headers;
   });
 
-export const callStartFetchEffect = (
-  fetcher: StartFetch,
+export const callStartFetchEffect = <FetchError>(
+  fetcher: StartFetch<FetchError>,
   input: StartFetchInput,
   init: StartFetchInit,
-  onError: (cause: unknown) => ServerTransportError
+  onError: (cause: FetchError) => ServerTransportError
 ): Effect.Effect<Response, ServerTransportError> =>
   fetcher(input, init).pipe(Effect.mapError(onError));
 
-export const resolveStartFetchEffect = (
-  fetcher: StartFetch | undefined,
+export const resolveStartFetchEffect = <FetchError = never>(
+  fetcher: StartFetch<FetchError> | undefined,
   unavailableMessage: string
-): Effect.Effect<StartFetch, ServerTransportError> => {
+): Effect.Effect<StartFetch<FetchError | ServerTransportError>, ServerTransportError> => {
   if (fetcher) {
     return Effect.succeed(fetcher);
   }
@@ -71,7 +71,12 @@ export const resolveStartFetchEffect = (
   return Effect.succeed((input, init) =>
     Effect.tryPromise({
       try: () => globalThis.fetch(input, init),
-      catch: (cause) => cause
+      catch: (cause) =>
+        new ServerTransportError({
+          reason: "Network",
+          message: "Global fetch request failed.",
+          cause
+        })
     })
   );
 };

@@ -25,8 +25,9 @@ export type AppDefinitionRegistryInput = CoreDefinitionRegistryInput<
 /**
  * Complete app description shared by adapters and integrations.
  *
- * Carries route definitions, the client root, and the runtime used to provide
- * server-side Effect services when the app is running full stack.
+ * Carries route definitions, the client root, the runtime used for full-stack
+ * Effect services, and a snapshot of named actions and server functions for
+ * integrations that build manifests or diagnostics.
  */
 export interface AppDefinition<
   Routes extends readonly RouteDefinition<string, unknown, unknown>[],
@@ -66,6 +67,13 @@ export const defineApp = <
   readonly routes: Routes;
   readonly client: Client;
   readonly server?: RuntimeSource<ServerServices, ServerError>;
+  /**
+   * Explicit action/server-function registry.
+   *
+   * Defaults to a snapshot of the process-wide registries populated by
+   * `Action.define(...)`, `Server.fn(...)`, `Server.stub(...)`, and
+   * `Server.client(...)`.
+   */
   readonly registry?: AppDefinitionRegistryInput;
 }): AppDefinition<Routes, Client, ServerServices, ServerError> => {
   const runtime = makeRuntime(config.server);

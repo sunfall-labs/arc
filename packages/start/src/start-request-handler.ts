@@ -9,7 +9,7 @@ import {
   type EffectUiRuntime,
   type ResourceStore as ResourceStoreState
 } from "@effect-ui/core";
-import { Effect, Exit } from "effect";
+import { Data, Effect, Exit } from "effect";
 import {
   createHydrationScript,
   type PreloadRequestOptions,
@@ -53,6 +53,7 @@ export {
   createServerRpcResponseEffect
 } from "./start-request-endpoints.js";
 export {
+  StartPreloadError,
   preloadRequest,
   preloadRequestEffect
 } from "./start-request-preload.js";
@@ -103,8 +104,33 @@ export interface CreateRequestHandlerOptions<
   readonly onRequestTrace?: StartRequestTraceHandler;
 }
 
+/** Error raised when a Start request handler fails before producing a response. */
+export class StartRequestHandlerError extends Data.TaggedError("StartRequestHandlerError")<{
+  readonly operation: "handle-request";
+  readonly request: {
+    readonly method: string;
+    readonly url: string;
+  };
+  readonly cause: unknown;
+}> {}
+
+const requestHandlerError = (
+  request: Request,
+  cause: unknown
+): StartRequestHandlerError =>
+  cause instanceof StartRequestHandlerError
+    ? cause
+    : new StartRequestHandlerError({
+        operation: "handle-request",
+        request: {
+          method: request.method,
+          url: request.url
+        },
+        cause
+      });
+
 /** Effect-returning request handler used by the Start SSR/RPC/action pipeline. */
-export type StartRequestHandlerEffect = (request: Request) => Effect.Effect<Response, unknown, unknown>;
+export type StartRequestHandlerEffect = (request: Request) => Effect.Effect<Response, StartRequestHandlerError, unknown>;
 /** Public handler type consumed by platform adapters and server entries. */
 export type StartRequestHandler = StartRequestHandlerEffect;
 
@@ -132,7 +158,7 @@ export const createRequestHandlerEffect =
     app: AppDefinition<Routes, Client, ServerServices, ServerError>,
     options: CreateRequestHandlerOptions<Routes, Client, ServerServices, ServerError> = {}
   ): StartRequestHandlerEffect =>
-  (request: Request): Effect.Effect<Response, unknown, unknown> =>
+  (request: Request): Effect.Effect<Response, StartRequestHandlerError, unknown> =>
     Effect.gen(function* () {
       const requestRuntime = makeRequestRuntime(app);
       const responseContext = makeResponseContext();
@@ -288,7 +314,9 @@ export const createRequestHandlerEffect =
           );
         })
       );
-    });
+    }).pipe(
+      Effect.mapError((cause) => requestHandlerError(request, cause))
+    );
 
 /** Primary Start request handler factory for server entry modules. */
 export const createRequestHandler =

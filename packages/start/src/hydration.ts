@@ -42,11 +42,23 @@ export interface HydrateStartPayloadOptions extends HydrateStartPayloadEffectOpt
   readonly runtime?: EffectUiRuntime<unknown, unknown>;
 }
 
+/**
+ * Options for reading streamed hydration chunks from a rendered document.
+ *
+ * By default consumed chunks are skipped; `includeConsumed` rereads them, and
+ * `consumedAttribute` customizes the marker attribute.
+ */
 export interface ReadStartHydrationChunksOptions {
   readonly includeConsumed?: boolean;
   readonly consumedAttribute?: string;
 }
 
+/**
+ * Options for applying streamed hydration chunks from a document.
+ *
+ * `markConsumed` defaults to true when hydrating from a document so repeated
+ * hydration passes skip chunks that were already applied.
+ */
 export interface HydrateStartHydrationChunksFromDocumentEffectOptions
   extends HydrateStartPayloadEffectOptions, ReadStartHydrationChunksOptions {
   readonly markConsumed?: boolean;

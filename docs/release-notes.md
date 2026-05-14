@@ -59,7 +59,7 @@ Latest full gate on May 14, 2026:
 
 - 9 package builds;
 - workspace typecheck and public type tests;
-- 42 root test files / 361 tests;
+- 43 root test files / 365 tests;
 - devtools panel verify;
 - devtools extension verify;
 - basic starter verify;
@@ -413,13 +413,37 @@ Latest full gate on May 14, 2026:
 - Default generic error parameters now use `never` across Core, DB, Solid DB,
   and Start action inference so omitted error channels are infallible by
   default instead of `unknown`.
+- Start host-boundary errors now have concrete Effect channels: preload,
+  request handling, Node/fetch adapters, fetch transport hooks, and Vite/CLI
+  diagnostics loading use `never` defaults or tagged errors/unions rather than
+  publishing `unknown` failures.
+- LSP-facing JSDoc now describes the Core Definition Registry, app registry
+  snapshots, shared Action submission concurrency semantics, Action/Server
+  registration helpers, DB Collection registry diagnostics, snapshot codec
+  errors, Start action submission hydration, callable manifest entry assembly,
+  runtime app graph diagnostics, and streamed hydration chunk consumption.
+- `EffectInput` Promise-like return guards now reject unannotated
+  `Action.define(...)` and `Server.fn(...)` callbacks that return Promises, so
+  Promise work cannot hide behind inferred action or server-function output
+  types.
+- `toEffect(...)` now rejects thenables with `EffectInputPromiseRejected`, so
+  host Promise work must be adapted explicitly with `Effect.tryPromise(...)`.
+- Core Definition Registry duplicate registrations are now diagnosable through
+  an isolated Registry Adapter, while Start RPC dispatch uses the app registry
+  snapshot instead of later process globals.
+- Start app-graph diagnostics policy validation and file-route discovery now
+  expose Effect-first Interfaces, with sync facades only at Vite host hooks.
+- Solid Resource Suspense now delegates pending reads to Core `Resource.read(...)`
+  so the Suspense Promise seam has one owner.
 - The latest `pnpm verify` passed after Core Definition Registry, DB Collection
   registry locality, Start app graph runtime diagnostics, stale Start action
-  hydration guard, DB direct hydration/post-commit persistence fixes, and
-  default generic error cleanup: 9 package builds, workspace typecheck, type
-  tests, 42 root test files / 361 tests, devtools panel verify, devtools
-  extension verify, basic starter verify, project-console starter packaging/
-  typecheck/tests/build, and leak scan.
+  hydration guard, DB direct hydration/post-commit persistence fixes, default
+  generic error cleanup, LSP-facing JSDoc refresh, and EffectInput Promise
+  inference/runtime guards, Start diagnostics/file-route/Solid suspense
+  host-seam cleanup, and Start host-boundary typed errors: 9 package builds,
+  workspace typecheck, type tests, 43 root test files / 365 tests, devtools
+  panel verify, devtools extension verify, basic starter verify, project-console
+  starter packaging/typecheck/tests/build, and leak scan.
 - The previous `pnpm verify` passed after the shared Action Submission
   Controller, DB Collection contract/registry extraction, typed
   `CollectionSnapshotCodecError` propagation, Devtools graph/fact/serialization

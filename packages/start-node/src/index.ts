@@ -1,4 +1,6 @@
 export {
+  /** Handler error normalized by Start host adapters. */
+  StartRequestHandlerError,
   /** Adapter error for Node request conversion or response writing failures. */
   StartNodeAdapterError,
   /** Effect-shaped Node handler for Start request handlers. */

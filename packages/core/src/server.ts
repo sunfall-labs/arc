@@ -1,6 +1,7 @@
 import { Context, Data, Effect, Layer, Option, Schema } from "effect";
 import {
   clearServerFunctionDefinitionRegistryUnsafe,
+  coreDefinitionRegistryDiagnostics,
   getServerFunctionDefinition,
   registerServerFunctionDefinition,
   serverFunctionDefinitionRegistry
@@ -149,12 +150,23 @@ export interface ServerClient {
 export const ServerClient = Context.Service<ServerClient>("@effect-ui/core/ServerClient");
 
 type FromContract<T> = [T][T extends unknown ? 0 : never];
+type CheckedServerFunctionHandler<I, Definition> = Definition extends {
+  readonly handler: (input: I) => infer Out;
+}
+  ? Out extends PromiseLike<unknown>
+    ? { readonly handler: (input: I) => never }
+    : unknown
+  : never;
 type ServerContractInput<Contract> =
   Contract extends ServerFunctionContract<infer I, infer _A, infer _E> ? I : never;
 type ServerContractOutput<Contract> =
   Contract extends ServerFunctionContract<infer _I, infer A, infer _E> ? A : never;
 type ServerContractError<Contract> =
   Contract extends ServerFunctionContract<infer _I, infer _A, infer E> ? E : never;
+type ServerFunctionDefinitionInput<I, A, E, R> =
+  Omit<ServerFunctionDefinition<I, A, E, R>, "handler"> & {
+    readonly handler: (input: I) => EffectInput<A, E, R>;
+  };
 
 type AnyServerFunction = ServerFunction<any, any, any, any>;
 type AnyServerFunctionMock = ServerFunctionMock<any, any, any, any>;
@@ -188,6 +200,45 @@ export const isServerFunctionContract = (
   value !== null &&
   (value as { [ServerFunctionContractTypeId]?: unknown })[ServerFunctionContractTypeId] ===
     ServerFunctionContractTypeId;
+
+const defineServerFunction = <I, A, E = never, R = never>(
+  name: string,
+  definition: ServerFunctionDefinitionInput<I, A, E, R>
+): ServerFunction<I, A, E, R> => {
+  const local = (input: I): Effect.Effect<A, E, R> =>
+    toEffect(definition.handler(input));
+  const effect = (input: I): Effect.Effect<A, E | ServerClientError, R> =>
+    Effect.gen(function* () {
+      const client = yield* Effect.serviceOption(ServerClient);
+      if (Option.isSome(client)) {
+        return yield* client.value.call(callable, input);
+      }
+      return yield* local(input);
+    });
+  const invoke = (input: unknown): Effect.Effect<unknown, E | ServerClientError, R> =>
+    Effect.gen(function* () {
+      const decoded = yield* decodeWire<I>(definition.input, input);
+      const value = yield* local(decoded);
+      return yield* encodeWire(definition.output, value);
+    });
+  const callable = ((input: I) =>
+    effect(input)) as ServerFunction<I, A, E, R>;
+
+  Object.defineProperties(callable, {
+    [ServerFunctionTypeId]: { value: ServerFunctionTypeId },
+    name: { value: name },
+    input: { value: definition.input, enumerable: true },
+    output: { value: definition.output, enumerable: true },
+    error: { value: definition.error, enumerable: true },
+    hasHandler: { value: true, enumerable: true },
+    effect: { value: effect, enumerable: true },
+    local: { value: local, enumerable: true },
+    invoke: { value: invoke, enumerable: true }
+  });
+
+  registerServerFunctionDefinition(callable);
+  return callable;
+};
 
 /** Helpers for contracts, client stubs, server implementations, mocks, and routes. */
 export namespace Server {
@@ -255,16 +306,17 @@ export namespace Server {
     ServerContractError<Contract>,
     R
   > =>
-    fn<
-      ServerContractInput<Contract>,
-      ServerContractOutput<Contract>,
-      ServerContractError<Contract>,
-      R
-    >(contract.name, {
+    defineServerFunction(contract.name, {
       input: contract.input,
       output: contract.output,
       error: contract.error,
-      handler
+      handler: handler as (
+        input: ServerContractInput<Contract>
+      ) => EffectInput<
+        ServerContractOutput<Contract>,
+        ServerContractError<Contract>,
+        R
+      >
     });
 
   /** Creates a mock handler for a contract, suitable for Server.mockClient or mockLayer. */
@@ -340,52 +392,35 @@ export namespace Server {
     Effect.provideService(effect, ServerClient, mockClient(...mocks));
 
   /**
-   * Defines a callable server function directly.
+   * Defines and registers a callable server function with a local handler.
    *
    * Prefer Server.contract plus Server.client/implement when the declaration is
-   * shared across client and server bundles.
+   * shared across client and server bundles. Registered functions are available
+   * through `Server.functions()`, `Server.get(...)`, and the default
+   * `defineApp(...)` registry snapshot.
    */
-  export const fn = <I, A, E = never, R = never>(
-    name: string,
-    definition: Omit<ServerFunctionDefinition<I, A, E, R>, "handler"> & {
+  export const fn = <
+    I,
+    A,
+    E = never,
+    R = never,
+    Definition extends Omit<ServerFunctionDefinition<I, A, E, R>, "handler"> & {
+      readonly handler: (input: I) => EffectInput<A, E, R>;
+    } = Omit<ServerFunctionDefinition<I, A, E, R>, "handler"> & {
       readonly handler: (input: I) => EffectInput<A, E, R>;
     }
-  ): ServerFunction<I, A, E, R> => {
-    const local = (input: I): Effect.Effect<A, E, R> =>
-      toEffect(definition.handler(input));
-    const effect = (input: I): Effect.Effect<A, E | ServerClientError, R> =>
-      Effect.gen(function* () {
-        const client = yield* Effect.serviceOption(ServerClient);
-        if (Option.isSome(client)) {
-          return yield* client.value.call(callable, input);
-        }
-        return yield* local(input);
-      });
-    const invoke = (input: unknown): Effect.Effect<unknown, E | ServerClientError, R> =>
-      Effect.gen(function* () {
-        const decoded = yield* decodeWire<I>(definition.input, input);
-        const value = yield* local(decoded);
-        return yield* encodeWire(definition.output, value);
-      });
-    const callable = ((input: I) =>
-      effect(input)) as ServerFunction<I, A, E, R>;
+  >(
+    name: string,
+    definition: Definition & CheckedServerFunctionHandler<I, Definition>
+  ): ServerFunction<I, A, E, R> =>
+    defineServerFunction(name, definition);
 
-    Object.defineProperties(callable, {
-      [ServerFunctionTypeId]: { value: ServerFunctionTypeId },
-      name: { value: name },
-      input: { value: definition.input, enumerable: true },
-      output: { value: definition.output, enumerable: true },
-      error: { value: definition.error, enumerable: true },
-      hasHandler: { value: true, enumerable: true },
-      effect: { value: effect, enumerable: true },
-      local: { value: local, enumerable: true },
-      invoke: { value: invoke, enumerable: true }
-    });
-
-    registerServerFunctionDefinition(callable);
-    return callable;
-  };
-
+  /**
+   * Creates and registers a client-only server function stub.
+   *
+   * Calls require a provided `ServerClient`; without one, the stub fails with
+   * `ServerFunctionNotFound`.
+   */
   export const stub = <I, A, E = never>(
     name: string,
     definition: Omit<ServerFunctionDefinition<I, A, E, never>, "handler">
@@ -422,17 +457,29 @@ export namespace Server {
     return callable;
   };
 
+  /** Registered server functions keyed by function name. */
   export const functions = (): ReadonlyMap<string, ServerFunction<unknown, unknown, unknown, unknown>> =>
     serverFunctionDefinitionRegistry<ServerFunction<unknown, unknown, unknown, unknown>>();
 
+  /** Alias for `Server.functions()`, useful for registry-oriented adapters. */
   export const definitions = (): ReadonlyMap<string, ServerFunction<unknown, unknown, unknown, unknown>> =>
     functions();
 
+  /** Looks up a registered server function by function name. */
   export const get = <I = unknown, A = unknown, E = never, R = never>(
     name: string
   ): ServerFunction<I, A, E, R> | undefined =>
     getServerFunctionDefinition<ServerFunction<I, A, E, R>>(name);
 
+  /** Registry diagnostics, including duplicate action/server registrations. */
+  export const registryDiagnostics = coreDefinitionRegistryDiagnostics;
+
+  /**
+   * Test-only reset for registered server functions.
+   *
+   * Unsafe because it mutates process-wide state observed by later
+   * `defineApp(...)` calls.
+   */
   export const clearRegistryUnsafe = (): void => {
     clearServerFunctionDefinitionRegistryUnsafe();
   };

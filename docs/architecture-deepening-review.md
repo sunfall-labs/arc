@@ -1144,17 +1144,37 @@ Full verification evidence: escalated `pnpm verify` passed after this tranche:
 tests, devtools-panel verify, devtools-extension verify, basic starter verify,
 project-console starter packaging/typecheck/tests/build, and leak scan.
 
-Open candidates still queued: Start host-boundary error wrappers for request
-handlers, fetch hooks, Vite/CLI diagnostics loaders, and adapter handler Effects.
-The Thirty-Sweep Gate is still not satisfied because this pass found and fixed
-new work.
+Historical follow-up candidate from this pass: Start host-boundary error
+wrappers for request handlers, fetch hooks, Vite/CLI diagnostics loaders, and
+adapter handler Effects. Review 19 fixed that candidate. The Thirty-Sweep Gate
+is still not satisfied because later passes still found and fixed new work.
 
 ## Review 18: Effect-First And Documentation Reconciliation
 
-Status: fixed for docs drift found by the follow-up audit; no new source
-Promise-based internals were found in this pass.
+Status: fixed for the EffectInput Promise inference gap and docs drift found by
+the follow-up audit.
 
-1. Effect-First Promise Audit
+1. EffectInput Promise Inference Guard
+   - Status: fixed.
+   - Files: `packages/core/src/effect-like.ts`,
+     `packages/core/src/action.ts`, `packages/core/src/server.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: `Action.define(...)` and `Server.fn(...)` rejected explicitly typed
+     Promise callbacks, but unannotated callbacks could infer their output type
+     as `Promise<T>` and satisfy the value branch of `EffectInput`. The helper
+     also had a `never extends A` conditional-type trap that made Promise-like
+     return values look assignable after `EffectInputValue<Promise<T>>`
+     collapsed to `never`.
+   - Fix: `EnsureEffectInput` and `EnsureEffectInputValue` now reject
+     Promise-like output before value compatibility checks. `Action.define(...)`
+     and `Server.fn(...)` infer the raw callback return and intersect it with
+     that guard, and type tests cover unannotated Promise-returning action and
+     server-function callbacks.
+   - Benefits: Promise work must be adapted explicitly at host seams with
+     Effect, rather than hiding behind inferred action or server-function
+     success types.
+
+2. Effect-First Promise Method Audit
    - Status: clean.
    - Files: `packages/`, `examples/`, `scripts/`, `type-tests/`.
    - Problem: the previous user review specifically rejected Promise-based
@@ -1167,7 +1187,7 @@ Promise-based internals were found in this pass.
    - Evidence: `rg -n "Promise\\.all|Promise\\.race|Promise\\.resolve|new Promise|\\.then\\(|\\.finally\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
      reported no hits.
 
-2. Architecture Documentation Locality
+3. Architecture Documentation Locality
    - Status: fixed.
    - Files: `CONTEXT.md`, `docs/architecture-deepening-review.md`,
      `docs/effect-first-audit.md`, `docs/perfection-progress.md`,
@@ -1186,11 +1206,125 @@ Promise-based internals were found in this pass.
      resolved candidates are not rediscovered as active work, and Promise policy
      evidence matches the current Effect-first code.
 
-Workspace evidence for this pass: `pnpm typecheck` passed, the focused
-cross-package regression run passed: 11 files / 176 tests, `git diff --check`
-passed, and escalated `pnpm verify` passed: 9 package builds, workspace
-typecheck, type tests, 42 root test files / 361 tests, devtools-panel verify,
+Workspace evidence for this pass: `pnpm typecheck` passed, root tests passed:
+43 files / 365 tests, and escalated `pnpm verify` passed: 9 package builds,
+workspace typecheck, type tests, 43 root test files / 365 tests,
+devtools-panel verify, devtools-extension verify, basic starter verify,
+project-console starter packaging/typecheck/tests/build, and leak scan.
+
+## Review 19: EffectInput, Registry Adapter, And Host-Seam Follow-Up
+
+Status: fixed for the additional subagent findings around Promise-shaped
+EffectInput values, Start diagnostics policy validation, Core registry duplicate
+diagnostics, Start file-route discovery, Solid resource suspense locality, and
+Start host-boundary typed errors.
+
+1. EffectInput Promise Guard
+   - Status: fixed.
+   - Files: `packages/core/src/effect-like.ts`,
+     `packages/core/test/effect-like.test.ts`.
+   - Problem: public type helpers rejected Promise-returning callbacks, but the
+     deepest `toEffect(...)` Seam still treated thenables as pure values. A JS
+     caller, `any`, or cast could make Promise-shaped work look like successful
+     data.
+   - Fix: `toEffect(...)` now detects thenables and dies with
+     `EffectInputPromiseRejected`, whose guidance points callers to
+     `Effect.tryPromise(...)` at the host Adapter Seam.
+   - Benefits: all Modules that normalize `EffectInput` get one high-leverage
+     guard, so Promise-shaped internals cannot silently enter Action, Resource,
+     Server, DB, or Start Implementations as values.
+
+2. Start Diagnostics Policy Effect Seam
+   - Status: fixed.
+   - Files: `packages/start/src/app-graph.ts`,
+     `packages/start/src/start-virtual-modules.ts`,
+     `packages/start/test/app-graph.test.ts`,
+     `packages/start/test/start.test.ts`.
+   - Problem: generated app-graph Modules called a sync throwing diagnostics
+     policy helper directly. Typed validation existed, but the generated Vite
+     Adapter still owned an ad hoc throw path.
+   - Fix: Start App Graph now exposes
+     `validateStartAppGraphDiagnosticsPolicyExceptionEffect(...)`, returning
+     policy violations or failing with the diagnostics-bearing policy exception.
+     The generated Vite module runs that Effect at the sync host boundary.
+   - Benefits: diagnostics policy validation is Effect-first and reusable, while
+     the Vite Adapter remains the only place that turns a typed policy failure
+     into a synchronous build-time throw.
+
+3. Core Definition Registry Adapter
+   - Status: fixed.
+   - Files: `packages/core/src/definition-registry.ts`,
+     `packages/core/src/action.ts`, `packages/core/src/server.ts`,
+     `packages/start/src/start-request-endpoints.ts`,
+     `packages/core/test/definition-registry.test.ts`.
+   - Problem: Core Action and Server function registration still used silent
+     overwrites, and Start RPC dispatch could fall back from an app registry
+     snapshot to later process globals.
+   - Fix: Core now has a Definition Registry Adapter with isolated construction,
+     duplicate policy, duplicate diagnostics, and default `replace` semantics to
+     preserve `Server.client(...)` followed by `Server.implement(...)`. Start RPC
+     dispatch uses the app registry snapshot.
+   - Benefits: duplicate registration facts have Locality and diagnostics, while
+     Start request dispatch no longer observes definitions registered after app
+     construction.
+
+4. Start File Route Discovery Effect
+   - Status: fixed.
+   - Files: `packages/start/src/start-manifest-wall.ts`,
+     `packages/start/src/vite.ts`.
+   - Problem: route discovery walked the filesystem synchronously in framework
+     internals. Permission and read failures crossed the Seam as thrown defects,
+     and filesystem behavior was not represented as an Effect Adapter.
+   - Fix: `discoverFileRoutesEffect(...)` and
+     `withDiscoveredFileRoutesEffect(...)` now own route discovery as typed
+     Effects with `FileRouteDiscoveryError`. The old sync functions are facades
+     for Vite hooks and other sync host boundaries.
+   - Benefits: route discovery has an Effect-first Interface and typed failure
+     Locality without removing the sync Vite integration point.
+
+5. Solid Resource Suspense Locality
+   - Status: fixed.
+   - Files: `packages/solid/src/hooks.ts`.
+   - Problem: `useResourceSuspense(...)` duplicated Core's Suspense Promise Seam
+     by throwing `runtime.runPromise(Resource.prefetchEffect(...))` directly.
+   - Fix: the Solid hook now delegates missing-value reads to
+     `Resource.read(...)` inside the active Solid Runtime Spine.
+   - Benefits: host Promise knowledge for Resource Suspense stays in Core, and
+     Solid remains a UI Adapter over the Resource Interface.
+
+6. Start Host Error Contract
+   - Status: fixed.
+   - Files: `packages/start/src/start-fetch.ts`,
+     `packages/start/src/start-request-preload.ts`,
+     `packages/start/src/start-request-handler.ts`,
+     `packages/start/src/adapters.ts`, `packages/start/src/vite.ts`,
+     `packages/start/src/cli.ts`,
+     `packages/start/src/start-transport-protocol.ts`.
+   - Problem: Start host-facing Interfaces still published
+     `Effect.Effect<..., unknown, ...>` for request preload, request handlers,
+     adapter handlers, fetch hooks, and diagnostics loading. That made the
+     error Interface as complex as the Implementation and contradicted the
+     `never`-by-default error policy.
+   - Fix: preload failures now use `StartPreloadError`, request handlers and
+     Node/fetch adapters normalize caller failures to `StartRequestHandlerError`,
+     fetch hooks default to `never` and map caller failures to
+     `ServerTransportError`, Vite/CLI diagnostics loading returns
+     `StartAppGraphDiagnosticsLoadError`, and Start action result defaults use
+     `never` for omitted validation/domain errors.
+   - Benefits: host error behavior now has one typed Seam per Adapter, while raw
+     `unknown` remains payload/cause data instead of the public Effect error
+     channel.
+
+Workspace evidence for this pass: `pnpm typecheck` passed,
+`pnpm --filter @effect-ui/core typecheck` passed,
+`pnpm --filter @effect-ui/start typecheck` passed,
+`pnpm --filter @effect-ui/solid typecheck` passed, and
+`pnpm exec vitest run packages/core/test/effect-like.test.ts packages/core/test/definition-registry.test.ts packages/start/test/app-graph.test.ts packages/start/test/start.test.ts`
+passed: 4 files / 77 tests. The Start host-boundary follow-up also passed
+workspace typecheck/type tests, focused Start/RPC/app-graph tests
+(`3` files / `77` tests), the Start adapter suite with localhost binding
+permission (`1` file / `7` tests), and the direct `unknown` error-slot grep
+over source/type tests. Full `pnpm verify` passed: 9 package builds, workspace
+typecheck, type tests, 43 root test files / 365 tests, devtools-panel verify,
 devtools-extension verify, basic starter verify, project-console starter
-packaging/typecheck/tests/build, and leak scan. The non-escalated `pnpm verify`
-failed only at Node adapter tests because the sandbox denied `listen` on
-`127.0.0.1`; the same gate passed when run with localhost binding permission.
+packaging/typecheck/tests/build, and leak scan.

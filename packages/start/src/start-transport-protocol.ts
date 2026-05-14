@@ -42,7 +42,8 @@ import type { ServerRpcClientOptions } from "./start-fetch.js";
  * Extends RPC options with optional collection hydration settings. Supplying a
  * runtime runs action response hydration in that runtime.
  */
-export interface StartActionClientOptions extends ServerRpcClientOptions, StartCollectionHydrationOptions {
+export interface StartActionClientOptions<FetchError = never>
+  extends ServerRpcClientOptions<FetchError>, StartCollectionHydrationOptions {
   readonly runtime?: EffectUiRuntime<unknown, unknown>;
 }
 
@@ -117,7 +118,7 @@ export type StartActionResponseBody =
   | { readonly _tag: "Defect"; readonly defect: unknown };
 
 /** Decoded client result for a Start action submission. */
-export type StartActionResult<A, Values extends object = Record<string, unknown>, ValidationError = unknown, E = unknown> =
+export type StartActionResult<A, Values extends object = Record<string, unknown>, ValidationError = never, E = never> =
   | ({ readonly _tag: "Success"; readonly value: A } & StartActionResponseMeta)
   | ({
       readonly _tag: "ValidationFailure";
@@ -152,12 +153,12 @@ type StartActionOutputValues<A> =
 
 type StartActionOutputValidationError<A> =
   [Extract<A, { readonly _tag: "ValidationFailure"; readonly formErrors: readonly unknown[] }>] extends [never]
-    ? unknown
+    ? never
     : Extract<A, { readonly _tag: "ValidationFailure"; readonly formErrors: readonly unknown[] }> extends {
     readonly formErrors: readonly (infer ValidationError)[];
   }
     ? ValidationError
-    : unknown;
+    : never;
 
 type StartActionOutputFailure<A, E> =
   [Extract<A, { readonly _tag: "Failure"; readonly error: unknown }>] extends [never]
@@ -1009,7 +1010,7 @@ const hasActionResultTag = (
 const normalizeDecodedActionResult = (
   decoded: Extract<StartActionResponseBody, { readonly _tag: "Success" | "ValidationFailure" | "Redirect" | "Failure" }>,
   meta: StartActionResponseMeta
-): StartActionResult<unknown> => {
+): StartActionResult<unknown, Record<string, unknown>, unknown, unknown> => {
   switch (decoded._tag) {
     case "Success":
       return {
@@ -1047,7 +1048,10 @@ const decodeActionOutputResultEffect = (
   definition: StartActionDefinition,
   body: Extract<StartActionResponseBody, { readonly _tag: "Success" | "ValidationFailure" | "Redirect" | "Failure" }>,
   meta: StartActionResponseMeta
-): Effect.Effect<StartActionResult<unknown>, Schema.SchemaError> =>
+): Effect.Effect<
+  StartActionResult<unknown, Record<string, unknown>, unknown, unknown>,
+  Schema.SchemaError
+> =>
   Effect.gen(function* () {
     const decoded = yield* Effect.exit(decodeWithSchema(definition.output, body));
     if (Exit.isSuccess(decoded) && hasActionResultTag(decoded.value)) {
@@ -1089,9 +1093,14 @@ export const decodeStartActionResponseEffect = <D extends StartActionDefinition>
     >
   );
 
-export const hydrateActionResponseEffect = (
+const dieOnActionHydrationFailure = <E, R>(
+  effect: Effect.Effect<void, E, R>
+): Effect.Effect<void, never, R> =>
+  effect.pipe(Effect.catch((error: E) => Effect.die(error)));
+
+export const hydrateActionResponseEffect = <FetchError = never>(
   body: StartActionResponseBody,
-  options: StartActionClientOptions
+  options: StartActionClientOptions<FetchError>
 ): Effect.Effect<void, never, unknown> => {
   const invalidationTargets = "invalidation" in body && body.invalidation
     ? body.invalidation.targets.flatMap((target): ReadonlyArray<ResourceInvalidation> =>
@@ -1123,8 +1132,7 @@ export const hydrateActionResponseEffect = (
     }
   });
 
-  const hydrated: Effect.Effect<void, unknown, unknown> = options.runtime
-    ? options.runtime.provide(effect)
-    : effect;
-  return hydrated.pipe(Effect.catch((error) => Effect.die(error)));
+  return options.runtime
+    ? dieOnActionHydrationFailure(options.runtime.provide(effect))
+    : dieOnActionHydrationFailure(effect);
 };

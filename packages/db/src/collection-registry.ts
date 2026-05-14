@@ -5,12 +5,21 @@ import type {
   CollectionDiagnostics
 } from "./collection-contract.js";
 
+/**
+ * Duplicate-name handling for a Collection registry.
+ *
+ * `keep-first` retains the original definition; `replace` stores the latest
+ * definition. Duplicate attempts are recorded in diagnostics for both policies.
+ */
 export type CollectionDefinitionDuplicatePolicy = "keep-first" | "replace";
 
+/** Options for an isolated Collection Definition Registry Adapter. */
 export interface CollectionDefinitionRegistryOptions {
+  /** Duplicate-name handling. Defaults to `keep-first`. */
   readonly duplicates?: CollectionDefinitionDuplicatePolicy;
 }
 
+/** Result of registering a Collection Definition. */
 export interface CollectionDefinitionRegistration {
   readonly name: string;
   readonly definition: AnyCollection;
@@ -19,6 +28,7 @@ export interface CollectionDefinitionRegistration {
   readonly retained: AnyCollection;
 }
 
+/** Diagnostic fact describing one duplicate Collection registration attempt. */
 export interface CollectionDefinitionDuplicateDiagnostics {
   readonly name: string;
   readonly policy: CollectionDefinitionDuplicatePolicy;
@@ -26,10 +36,16 @@ export interface CollectionDefinitionDuplicateDiagnostics {
   readonly discarded: number;
 }
 
+/** Collection diagnostics plus duplicate registration facts. */
 export interface CollectionDefinitionRegistryDiagnostics extends CollectionDiagnostics {
   readonly duplicates: readonly CollectionDefinitionDuplicateDiagnostics[];
 }
 
+/**
+ * Registry abstraction used by Collection factories to register named
+ * definitions, inspect retained definitions, and report duplicate
+ * registrations.
+ */
 export interface CollectionDefinitionRegistryAdapter {
   register(name: string, definition: AnyCollection): CollectionDefinitionRegistration;
   definitions(): ReadonlyMap<string, AnyCollection>;
@@ -48,6 +64,7 @@ interface CollectionDefinitionDuplicateEntry {
   readonly discarded: number;
 }
 
+/** Static diagnostics extracted from a Collection Definition. */
 export const collectionDefinitionDiagnostics = (
   definition: AnyCollection
 ): CollectionDefinitionDiagnostics => {
@@ -86,6 +103,7 @@ export const collectionDefinitionDiagnostics = (
   };
 };
 
+/** Creates an isolated Collection Definition Registry Adapter. */
 export const makeCollectionDefinitionRegistry = (
   options: CollectionDefinitionRegistryOptions = {}
 ): CollectionDefinitionRegistryAdapter => {

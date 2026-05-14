@@ -19,6 +19,14 @@ export interface StartManifestValidatedDefinition {
   readonly exportName: string;
 }
 
+/**
+ * Minimal definition shape shared by action and server-function manifest
+ * builders.
+ *
+ * `clientModule` opts into an importable browser client reference; absent
+ * `clientModule` creates a transport client entry. Schema booleans describe
+ * wire validation coverage.
+ */
 export interface StartCallableManifestDefinitionLike extends StartManifestDefinitionLike {
   readonly clientModule?: string;
   readonly clientExportName?: string;
@@ -52,6 +60,13 @@ export interface StartCallableManifestImportClientInput<Id>
   readonly moduleKind: Exclude<StartManifestModuleKind, "server-only">;
 }
 
+/**
+ * Callbacks and policy hooks used to assemble a callable manifest entry.
+ *
+ * Action and server-function manifests provide their branded id function,
+ * transport path, client/server entry builders, and domain-specific validation
+ * errors while sharing the same callable manifest grammar.
+ */
 export interface AssembleCallableManifestEntryOptions<
   Definition extends StartCallableManifestDefinitionLike,
   Id,

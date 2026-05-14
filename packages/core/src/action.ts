@@ -10,10 +10,11 @@ import {
 import {
   actionDefinitionRegistry,
   clearActionDefinitionRegistryUnsafe,
+  coreDefinitionRegistryDiagnostics,
   getActionDefinition,
   registerActionDefinition
 } from "./definition-registry.js";
-import type { EffectInput } from "./effect-like.js";
+import type { EffectInput, EnsureEffectInput } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
 import { Resource, type ResourceInvalidation, type ResourceInvalidationPlan } from "./resource.js";
 import { currentOrDefaultRuntime, getCurrentRuntime, type EffectUiRuntime } from "./runtime.js";
@@ -113,6 +114,11 @@ export {
 } from "./action-submission.js";
 
 type AnyActionDefinition = ActionDefinition<any, any, any, any>;
+type CheckedActionRun<I, Definition> = Definition extends {
+  readonly run: (input: I) => infer Out;
+}
+  ? { readonly run: (input: I) => EnsureEffectInput<Out> }
+  : never;
 
 export const isActionDefinition = (value: unknown): value is ActionDefinition<unknown, unknown> =>
   typeof value === "object" &&
@@ -263,9 +269,12 @@ export namespace Action {
     Resource.planInvalidation(invalidationsFor(definition, value, input));
 
   /**
-   * Defines a reusable action without binding it to UI state.
+   * Defines and registers a reusable action without binding it to UI state.
    *
-   * Use Action.use to create an instance for a component or interaction boundary.
+   * Registered actions are available through `Action.definitions()`,
+   * `Action.get(...)`, and the default `defineApp(...)` registry snapshot. Use
+   * `Action.use(...)` to create an instance for a component or interaction
+   * boundary.
    *
    * @example
    * ```ts
@@ -275,16 +284,35 @@ export namespace Action {
    * });
    * ```
    */
-  export const define = <I, A, E = never, R = never>(
-    definition: Omit<ActionOptions<I, A, E, R>, "run" | "optimistic"> & {
+  export const define = <
+    I,
+    A,
+    E = never,
+    R = never,
+    Definition extends Omit<ActionOptions<I, A, E, R>, "run" | "optimistic"> & {
+      readonly run: (input: I) => EffectInput<A, E, R>;
+      readonly optimistic?: (
+        input: I,
+        transaction: ActionOptimisticTransaction
+      ) => Effect.Effect<ActionRollback<R>, never, R>;
+    } = Omit<ActionOptions<I, A, E, R>, "run" | "optimistic"> & {
       readonly run: (input: I) => EffectInput<A, E, R>;
       readonly optimistic?: (
         input: I,
         transaction: ActionOptimisticTransaction
       ) => Effect.Effect<ActionRollback<R>, never, R>;
     }
+  >(
+    definition: Definition & CheckedActionRun<I, Definition>
   ): ActionDefinition<I, A, E, R> => {
-    const { run, optimistic, ...rest } = definition;
+    const options = definition as Omit<ActionOptions<I, A, E, R>, "run" | "optimistic"> & {
+      readonly run: (input: I) => EffectInput<A, E, R>;
+      readonly optimistic?: (
+        input: I,
+        transaction: ActionOptimisticTransaction
+      ) => Effect.Effect<ActionRollback<R>, never, R>;
+    };
+    const { run, optimistic, ...rest } = options;
 
     const action: ActionDefinition<I, A, E, R> = {
       ...rest,
@@ -304,12 +332,23 @@ export namespace Action {
     return action;
   };
 
+  /** Registered action definitions keyed by action name. */
   export const definitions = (): ReadonlyMap<string, AnyActionDefinition> =>
     actionDefinitionRegistry<AnyActionDefinition>();
 
+  /** Looks up a registered action definition by action name. */
   export const get = (name: string): AnyActionDefinition | undefined =>
     getActionDefinition<AnyActionDefinition>(name);
 
+  /** Registry diagnostics, including duplicate action/server registrations. */
+  export const registryDiagnostics = coreDefinitionRegistryDiagnostics;
+
+  /**
+   * Test-only reset for registered action definitions.
+   *
+   * Unsafe because it mutates process-wide state observed by later
+   * `defineApp(...)` calls.
+   */
   export const clearRegistryUnsafe = (): void => {
     clearActionDefinitionRegistryUnsafe();
   };

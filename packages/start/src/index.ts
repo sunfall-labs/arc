@@ -79,6 +79,8 @@ export {
 } from "./file-routes.js";
 
 export {
+  StartPreloadError,
+  StartRequestHandlerError,
   createRequestHandler,
   createRequestHandlerEffect,
   createServerActionResponseEffect,

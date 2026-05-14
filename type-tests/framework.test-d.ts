@@ -241,6 +241,11 @@ Server.implement(GetProject, ({ id }) => ({ id }));
 // @ts-expect-error server implementations must return Effect or a pure value, not Promise
 Server.implement(GetProject, () => promisedProject);
 
+Server.fn("Project.promiseServer", {
+  // @ts-expect-error unannotated server functions must return Effect or a pure value, not Promise
+  handler: () => promisedProject
+});
+
 const ProjectTag = Resource.tag<{ readonly id: string }>("Project", {
   key: ({ id }) => id
 });
@@ -1145,6 +1150,12 @@ Action.define<{ readonly id: string }, Project>({
 Action.define<{ readonly id: string }, Project>({
   name: "Project.asyncAction",
   // @ts-expect-error actions must return Effect or a pure value, not Promise
+  run: () => promisedProject
+});
+
+Action.define({
+  name: "Project.asyncAction.inferred",
+  // @ts-expect-error unannotated actions must return Effect or a pure value, not Promise
   run: () => promisedProject
 });
 

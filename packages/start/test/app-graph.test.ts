@@ -16,6 +16,7 @@ import {
   unknownRoutePreloadCollectionsForDiagnostics,
   unknownRoutePreloadResourcesForDiagnostics,
   validateStartAppGraphActionBehaviorEffect,
+  validateStartAppGraphDiagnosticsPolicyExceptionEffect,
   validateStartAppGraphDiagnosticsPolicyEffect,
   validateStartAppGraphRoutePreloadCollectionsDiagnosticsEffect,
   validateStartAppGraphRoutePreloadResourcesDiagnosticsEffect,
@@ -387,6 +388,24 @@ describe("Start app graph", () => {
           routePreloadResources: {
             requireDeclaredForPreload: true
           }
+        });
+
+        const policyExit = yield* Effect.exit(
+          validateStartAppGraphDiagnosticsPolicyExceptionEffect(withUnknownPreloadResources, {
+            routePreloadResources: {
+              requireDeclaredForPreload: true
+            }
+          })
+        );
+        const failure = firstFailure(policyExit);
+        expect(failure).toMatchObject({
+          name: "StartAppGraphDiagnosticsPolicyError",
+          diagnostics: withUnknownPreloadResources,
+          violations: [
+            expect.objectContaining({
+              _tag: "UnknownRoutePreloadResources"
+            })
+          ]
         });
       })
     );

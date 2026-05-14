@@ -25,6 +25,12 @@ export type CollectionSnapshotCodecOperation =
   | "hydrate"
   | "snapshot";
 
+/**
+ * Typed failure for invalid collection snapshots or hydration payloads.
+ *
+ * `operation` identifies the codec phase, `path` is a JSONPath-like location
+ * in the payload, and `reason` describes the validation failure.
+ */
 export class CollectionSnapshotCodecError extends Data.TaggedError(
   "CollectionSnapshotCodecError"
 )<{

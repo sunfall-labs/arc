@@ -741,7 +741,10 @@ describe("Effect UI Start", () => {
           })
         )
       )
-    ).rejects.toBe("render-failed");
+    ).rejects.toMatchObject({
+      _tag: "StartRequestHandlerError",
+      cause: "render-failed"
+    });
 
     expect(traces).toEqual([
       expect.objectContaining({
@@ -2632,7 +2635,8 @@ describe("Effect UI Start", () => {
     expect(String(loaded)).toContain('import { Resource, Route } from "@effect-ui/core";');
     expect(String(loaded)).toContain('import { Collection } from "@effect-ui/db";');
     expect(String(loaded)).toContain("describeStartAppGraphRuntimeDiagnostics");
-    expect(String(loaded)).toContain("enforceStartAppGraphDiagnosticsPolicy");
+    expect(String(loaded)).toContain("validateStartAppGraphDiagnosticsPolicyExceptionEffect");
+    expect(String(loaded)).toContain('import { Effect } from "effect";');
     expect(String(loaded)).toContain('import { Route as route_root } from "/src/routes/index.js";');
     expect(String(loaded)).toContain('import { Route as route_projects_$id } from "/src/routes/projects/$id.js";');
     expect(String(loaded)).toContain("const resourceDiagnostics = Resource.diagnostics();");
@@ -2680,7 +2684,7 @@ describe("Effect UI Start", () => {
     expect(String(loaded)).toContain(
       '"routePreloadCollections":{"requireDeclaredForPreload":true}'
     );
-    expect(String(loaded)).toContain("export const diagnosticsPolicyViolations = enforceStartAppGraphDiagnosticsPolicy(diagnostics, diagnosticsPolicy);");
+    expect(String(loaded)).toContain("export const diagnosticsPolicyViolations = Effect.runSync(validateStartAppGraphDiagnosticsPolicyExceptionEffect(diagnostics, diagnosticsPolicy));");
     expect(String(loaded)).not.toContain("formatStartAppGraphDiagnosticsPolicyViolation");
     expect(String(loaded)).not.toContain("new Error(`Effect UI app graph diagnostics policy failed");
   });

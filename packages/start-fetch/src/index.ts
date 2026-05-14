@@ -1,4 +1,6 @@
 export {
+  /** Handler error normalized by Start fetch adapters. */
+  StartRequestHandlerError,
   /** Effect-shaped fetch adapter for Start request handlers. */
   toFetchHandler,
   /** Effect-first fetch adapter for composing Start handlers. */

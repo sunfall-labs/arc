@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import { Action, defineApp, Server } from "../src/index.js";
+import { Action, defineApp, makeCoreDefinitionRegistryAdapter, Server } from "../src/index.js";
 
 let registryTestId = 0;
 
@@ -85,5 +85,68 @@ describe("Core definition registry", () => {
     expect(app.registry.serverFunctions.has(globalServer.name)).toBe(false);
     expect(Action.definitions().get(GlobalAction.name)).toBe(GlobalAction);
     expect(Server.definitions().get(globalServer.name)).toBe(globalServer);
+  });
+
+  it("replaces duplicate global definitions and records diagnostics", () => {
+    const actionName = registryName("duplicate-action");
+    const FirstAction = Action.define({
+      name: actionName,
+      run: () => Effect.succeed("first")
+    });
+    const SecondAction = Action.define({
+      name: actionName,
+      run: () => Effect.succeed("second")
+    });
+    const serverName = registryName("duplicate-server");
+    const firstServer = Server.fn(serverName, {
+      handler: () => Effect.succeed("first")
+    });
+    const secondServer = Server.fn(serverName, {
+      handler: () => Effect.succeed("second")
+    });
+
+    expect(Action.get(actionName)).not.toBe(FirstAction);
+    expect(Action.get(actionName)).toBe(SecondAction);
+    expect(Server.get(serverName)).not.toBe(firstServer);
+    expect(Server.get(serverName)).toBe(secondServer);
+    expect(Action.registryDiagnostics().duplicates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "action",
+          name: actionName,
+          policy: "replace"
+        }),
+        expect.objectContaining({
+          kind: "serverFunction",
+          name: serverName,
+          policy: "replace"
+        })
+      ])
+    );
+  });
+
+  it("can create an isolated replacing registry adapter", () => {
+    const registry = makeCoreDefinitionRegistryAdapter<
+      { readonly name: string; readonly version: number },
+      { readonly name: string; readonly version: number }
+    >({ duplicates: "replace" });
+    const first = { name: registryName("isolated-action"), version: 1 };
+    const second = { name: first.name, version: 2 };
+
+    registry.registerAction(first);
+    const registration = registry.registerAction(second);
+
+    expect(registration).toMatchObject({
+      duplicate: true,
+      retained: second
+    });
+    expect(registry.definitions().actions.get(first.name)).toBe(second);
+    expect(registry.diagnostics().duplicates).toEqual([
+      expect.objectContaining({
+        kind: "action",
+        name: first.name,
+        policy: "replace"
+      })
+    ]);
   });
 });

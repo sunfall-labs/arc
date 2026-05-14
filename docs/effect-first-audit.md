@@ -852,14 +852,38 @@ interruption.
 - Default generic error parameters now use `never` across Core, DB, Solid DB,
   and Start action inference; callers must spell concrete error channels when
   partial generics would otherwise hide failures.
+- Start host-boundary Effect error channels now use typed failures instead of
+  `unknown`: preload uses `StartPreloadError`, request handlers and adapters
+  normalize failures to `StartRequestHandlerError`, fetch hooks default to
+  `never` and map caller failures to `ServerTransportError`, and Vite
+  diagnostics loading returns `StartAppGraphDiagnosticsLoadError`.
+- LSP-facing JSDoc now explains the Effect-first registry, action submission,
+  snapshot codec, Start action, manifest, app graph, and hydration concepts
+  added in the latest cleanup pass.
+- `EffectInput` now guards Promise-like inferred callback returns before the
+  `never extends A` conditional-type trap can accept them. Public type tests
+  cover unannotated Promise-returning `Action.define(...)` and `Server.fn(...)`
+  callbacks.
 - The latest Promise-method audit across packages, examples, scripts, and type
   tests reports no `Promise.all`, `Promise.race`, `Promise.resolve`,
   `new Promise`, `.then(...)`, or `.finally(...)` hits.
-- Escalated `pnpm verify` passed after the Start stale action hydration guard,
+- `toEffect(...)` now rejects thenables with `EffectInputPromiseRejected`, so
+  Promise-shaped values cannot slip through `EffectInput` as successful pure
+  values when callers use JavaScript, casts, or loose inference.
+- Start app-graph diagnostics policy validation now has an Effect-returning
+  exception-preserving seam, and the generated Vite module runs that Effect at
+  the sync host boundary.
+- Start file-route discovery now exposes `discoverFileRoutesEffect(...)` and
+  keeps the sync discovery helper as a Vite/host facade.
+- Solid `useResourceSuspense(...)` delegates pending reads to Core
+  `Resource.read(...)`, leaving the Suspense Promise seam in Core.
+- Full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,
-  and docs reconciliation work: 9 package builds, workspace typecheck, type
-  tests, 42 root test files / 361 tests, devtools-panel verify,
+  LSP-facing JSDoc refresh, EffectInput Promise inference/runtime guards, Start
+  diagnostics/file-route/Solid suspense host-seam cleanup, Start host-boundary
+  typed errors, and docs reconciliation work: 9 package builds, workspace
+  typecheck, type tests, 43 root test files / 365 tests, devtools-panel verify,
   devtools-extension verify, basic starter verify, project-console starter
   packaging/typecheck/tests/build, and leak scan.
 - Full `pnpm verify` passed after the shared Action Submission Controller,

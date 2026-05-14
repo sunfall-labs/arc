@@ -3,7 +3,9 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
 import { Data, Effect } from "effect";
-import type { StartRequestHandler, StartRequestHandlerEffect } from "./start-request-handler.js";
+import { StartRequestHandlerError } from "./start-request-handler.js";
+
+export { StartRequestHandlerError } from "./start-request-handler.js";
 
 /** Error raised while converting Node requests or writing Node responses. */
 export class StartNodeAdapterError extends Data.TaggedError("StartNodeAdapterError")<{
@@ -27,7 +29,7 @@ export interface WriteNodeResponseOptions {
 export type StartNodeHandlerEffect = (
   request: IncomingMessage,
   response: ServerResponse
-) => Effect.Effect<Response, unknown, unknown>;
+) => Effect.Effect<Response, StartNodeAdapterError | StartRequestHandlerError, unknown>;
 
 /** Node HTTP handler returned by `createNodeHandler`. */
 export type StartNodeHandler = StartNodeHandlerEffect;
@@ -35,7 +37,7 @@ export type StartNodeHandler = StartNodeHandlerEffect;
 /** Effect-first Fetch handler returned by `toFetchHandlerEffect`. */
 export type StartFetchHandlerEffect = (
   request: Request
-) => Effect.Effect<Response, unknown, unknown>;
+) => Effect.Effect<Response, StartRequestHandlerError, unknown>;
 
 /** Fetch handler returned by `toFetchHandler`. */
 export type StartFetchHandler = StartFetchHandlerEffect;
@@ -47,6 +49,25 @@ const forwardedHeader = (
   const value = request.headers[name];
   return Array.isArray(value) ? value[0] : value;
 };
+
+type StartRequestHandlerInput<E = never> = (
+  request: Request
+) => Effect.Effect<Response, E, unknown>;
+
+const startRequestHandlerError = (
+  request: Request,
+  cause: unknown
+): StartRequestHandlerError =>
+  cause instanceof StartRequestHandlerError
+    ? cause
+    : new StartRequestHandlerError({
+        operation: "handle-request",
+        request: {
+          method: request.method,
+          url: request.url
+        },
+        cause
+      });
 
 /** Resolves the absolute request origin from explicit options or forwarded headers. */
 export const nodeRequestOrigin = (
@@ -183,16 +204,19 @@ export const writeNodeResponse = (
   writeNodeResponseEffect(target, response, options);
 
 /** Adapts a Start request handler to the fetch adapter's Effect handler shape. */
-export const toFetchHandlerEffect = (
-  handler: StartRequestHandlerEffect
+export const toFetchHandlerEffect = <HandlerError = never>(
+  handler: StartRequestHandlerInput<HandlerError>
 ): StartFetchHandlerEffect =>
-  (request) => handler(request);
+  (request) =>
+    handler(request).pipe(
+      Effect.mapError((cause) => startRequestHandlerError(request, cause))
+    );
 
 /** Adapts a public Start request handler to the fetch adapter Effect shape. */
-export const toFetchHandler = (
-  handler: StartRequestHandler
+export const toFetchHandler = <HandlerError = never>(
+  handler: StartRequestHandlerInput<HandlerError>
 ): StartFetchHandler =>
-  (request) => handler(request);
+  toFetchHandlerEffect(handler);
 
 /**
  * Creates an Effect-first Node HTTP handler from a Start request handler.
@@ -205,14 +229,16 @@ export const toFetchHandler = (
  * const nodeHandler = createNodeHandlerEffect(startHandler);
  * ```
  */
-export const createNodeHandlerEffect = (
-  handler: StartRequestHandlerEffect,
+export const createNodeHandlerEffect = <HandlerError = never>(
+  handler: StartRequestHandlerInput<HandlerError>,
   options: StartNodeRequestOptions = {}
 ): StartNodeHandlerEffect =>
   (request, response) =>
     Effect.gen(function* () {
       const webRequest = yield* nodeRequestToWebRequestEffect(request, options);
-      const webResponse = yield* handler(webRequest);
+      const webResponse = yield* handler(webRequest).pipe(
+        Effect.mapError((cause) => startRequestHandlerError(webRequest, cause))
+      );
       yield* writeNodeResponseEffect(response, webResponse, {
         headOnly: request.method === "HEAD"
       });
@@ -220,8 +246,8 @@ export const createNodeHandlerEffect = (
     });
 
 /** Alias for `createNodeHandlerEffect`. */
-export const createNodeHandler = (
-  handler: StartRequestHandlerEffect,
+export const createNodeHandler = <HandlerError = never>(
+  handler: StartRequestHandlerInput<HandlerError>,
   options: StartNodeRequestOptions = {}
 ): StartNodeHandler =>
   createNodeHandlerEffect(handler, options);

@@ -12,21 +12,27 @@ export type EffectInput<A, E = never, R = never> =
 
 export type EffectInputValue<Out> = Out extends PromiseLike<unknown>
   ? never
-  : Out extends Effect.Effect<infer A, unknown, unknown>
+  : Out extends Effect.Effect<infer A, infer _E, infer _R>
     ? A
     : Out;
 
-export type EffectInputError<Out> = Out extends Effect.Effect<unknown, infer E, unknown> ? E : never;
+export type EffectInputError<Out> = Out extends Effect.Effect<infer _A, infer E, infer _R> ? E : never;
 
-export type EffectInputRequirements<Out> = Out extends Effect.Effect<unknown, unknown, infer R> ? R : never;
+export type EffectInputRequirements<Out> = Out extends Effect.Effect<infer _A, infer _E, infer R> ? R : never;
 
-export type EnsureEffectInputValue<Out, A> = EffectInputValue<Out> extends A ? Out : never;
+type HasPromiseLike<Out> = unknown extends Out
+  ? false
+  : Extract<Out, PromiseLike<unknown>> extends never ? false : true;
 
-export type EnsureEffectInput<Out> = Out extends PromiseLike<unknown> ? never : Out;
+export type EnsureEffectInputValue<Out, A> =
+  HasPromiseLike<Out> extends true ? never : EffectInputValue<Out> extends A ? Out : never;
+
+export type EnsureEffectInput<Out> =
+  HasPromiseLike<Out> extends true ? never : Out;
 
 export function isEffectLike<A, E, R>(value: EffectInput<A, E, R>): value is Effect.Effect<A, E, R>;
-export function isEffectLike(value: unknown): value is Effect.Effect<unknown, unknown, unknown>;
-export function isEffectLike(value: unknown): value is Effect.Effect<unknown, unknown, unknown> {
+export function isEffectLike(value: unknown): value is Effect.Effect<unknown, never, never>;
+export function isEffectLike(value: unknown): value is Effect.Effect<unknown, never, never> {
   return Effect.isEffect(value);
 }
 
