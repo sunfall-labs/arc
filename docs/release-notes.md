@@ -173,6 +173,11 @@ Latest full gate on May 14, 2026:
   callbacks for negative Promise-return checks, keeping type coverage without
   Promise-shaped callback examples.
 - The latest `pnpm verify` passed after the type-test async callback cleanup.
+- Arbitrary Action, Server, Resource family, and collection transaction
+  wildcard boundaries are now named through local `Any*` aliases instead of
+  repeated inline wildcard type applications.
+- The latest `pnpm verify` passed after the named arbitrary wildcard boundary
+  cleanup.
 
 ## Notable Limits
 

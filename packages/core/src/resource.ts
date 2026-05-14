@@ -77,6 +77,7 @@ export interface ResourceRef<I = unknown, A = unknown, E = unknown, R = never> {
   readonly key: string;
 }
 
+export type AnyResourceFamily = ResourceFamily<any, any, any, any>;
 export type AnyResourceRef<R = any> = ResourceRef<any, any, any, R>;
 export type ResourceInvalidation = AnyResourceRef<any> | ResourceTag;
 export type ResourceInvalidationTarget = ResourceInvalidation | ReadonlyArray<ResourceInvalidation>;
@@ -180,7 +181,7 @@ interface ResourceInFlight<A, E> {
   fiber: Fiber.Fiber<A, E> | undefined;
 }
 
-const familyDefinitions = new Map<string, ResourceFamily<any, any, any, any>>();
+const familyDefinitions = new Map<string, AnyResourceFamily>();
 const resourceTagDefinitions = new Map<string, ResourceTagDiagnostics>();
 const familyIds = new WeakMap<object, number>();
 let nextFamilyId = 0;
@@ -201,7 +202,7 @@ export class UnsupportedDuration extends Data.TaggedError("UnsupportedDuration")
 
 export class ResourceFamily<I, A, E = unknown, R = never> {
   constructor(readonly options: ResourceFamilyOptions<I, A, E, R>) {
-    familyDefinitions.set(options.name, this as ResourceFamily<any, any, any, any>);
+    familyDefinitions.set(options.name, this as AnyResourceFamily);
   }
 
   #register(store: ResourceStoreState): void {
@@ -382,7 +383,7 @@ const publishStoreEvent = (
 ): Effect.Effect<void> =>
   PubSub.publish(store.events, event).pipe(Effect.asVoid);
 
-const familyStoreId = (family: ResourceFamily<any, any, any, any>): number => {
+const familyStoreId = (family: AnyResourceFamily): number => {
   const existing = familyIds.get(family);
   if (existing !== undefined) {
     return existing;
@@ -418,7 +419,7 @@ const parseDuration = (duration: DurationInput | undefined): number => {
 };
 
 const resourceFamilyDiagnostics = (
-  family: ResourceFamily<any, any, any, any>
+  family: AnyResourceFamily
 ): ResourceFamilyDiagnostics => {
   const policy = family.options.policy;
   return {
@@ -882,7 +883,7 @@ export namespace Resource {
       : makeTagDefinition(name, options);
   }
 
-  export const definitions = (): ReadonlyMap<string, ResourceFamily<any, any, any, any>> =>
+  export const definitions = (): ReadonlyMap<string, AnyResourceFamily> =>
     familyDefinitions;
 
   export const tagDefinitions = (): ReadonlyMap<string, ResourceTagDiagnostics> =>
@@ -1194,7 +1195,7 @@ export namespace Resource {
       const store = yield* resourceStoreEffect;
       for (const snapshot of snapshotsFrom(input)) {
         const family =
-          store.families.get(snapshot.name) as ResourceFamily<any, any, any, any> | undefined ??
+          store.families.get(snapshot.name) as AnyResourceFamily | undefined ??
           familyDefinitions.get(snapshot.name);
         if (!family) {
           continue;

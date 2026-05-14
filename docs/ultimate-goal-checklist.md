@@ -173,6 +173,12 @@ Last evidence pass: May 14, 2026.
     parameters; focused package typechecks and public type tests passed, and the
     placeholder grep reports no hits. Full `pnpm verify` passed after this
     cleanup.
+- [x] Remaining arbitrary wildcard boundaries are named where they are part of
+  public assignability.
+  - Evidence: core Action/Server/Resource, DB flush-policy, Solid-DB, and Start
+    action surfaces use local `Any*` aliases or existing exported aliases for
+    arbitrary definitions instead of repeated inline wildcard applications;
+    focused typechecks, public type tests, and full `pnpm verify` passed.
 - [x] Package source avoids raw Promise method lifecycle cleanup.
   - Evidence: action and Start action submitters use `Effect.ensuring` for
     in-flight cleanup; Solid/Solid DB background preloads catch inside Effect;
@@ -669,12 +675,13 @@ Last evidence pass: May 14, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026 after the audit doc
-    drift refresh: 9 package builds, workspace typecheck, type tests, 38 root
-    test files / 320 tests, devtools-panel verify, devtools-extension verify
-    with 1 extension test file / 6 tests, basic starter verify, project-console
-    starter packaging, project-console typecheck, 4 project-console test files /
-    23 tests, project-console build, and leak scan.
+  - Evidence: root `pnpm verify` passed on May 14, 2026 after the named
+    arbitrary wildcard boundary cleanup: 9 package builds, workspace typecheck,
+    type tests, 38 root test files / 320 tests, devtools-panel verify,
+    devtools-extension verify with 1 extension test file / 6 tests, basic
+    starter verify, project-console starter packaging, project-console
+    typecheck, 4 project-console test files / 23 tests, project-console build,
+    and leak scan.
 
 ## Remaining Winning-Bar Items
 

@@ -4,8 +4,8 @@ import { toEffect } from "./effect-like.js";
 import {
   Resource,
   isResourceRef,
+  type AnyResourceFamily,
   type AnyResourceRef,
-  type ResourceFamily,
   type ResourceHydrationPayload
 } from "./resource.js";
 import { runPromise } from "./runtime.js";
@@ -50,13 +50,13 @@ export type ParamsForPath<Path extends string> = [PathParamNames<Path>] extends 
 
 export type RoutePreloadResourceInput =
   | string
-  | ResourceFamily<any, any, any, any>
+  | AnyResourceFamily
   | AnyResourceRef
   | {
       readonly name: string;
     }
   | {
-      readonly family: ResourceFamily<any, any, any, any>;
+      readonly family: AnyResourceFamily;
     };
 
 export type RoutePreloadCollectionInput =

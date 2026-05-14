@@ -1716,7 +1716,7 @@ const decodeActionOutputResultEffect = (
     }
   });
 
-const decodeStartActionResponseEffect = <D extends ActionDefinition<any, any, any, any>>(
+const decodeStartActionResponseEffect = <D extends StartActionDefinition>(
   definition: D,
   body: Extract<StartActionResponseBody, { readonly _tag: "Success" | "ValidationFailure" | "Redirect" | "Failure" }>
 ): Effect.Effect<
@@ -1770,7 +1770,7 @@ const hydrateActionResponseEffect = (
     : effect;
 };
 
-export const submitStartActionEffect = <D extends ActionDefinition<any, any, any, any>>(
+export const submitStartActionEffect = <D extends StartActionDefinition>(
   definition: D,
   input: ActionDefinitionInputValue<D>,
   options: StartActionClientOptions = {}
@@ -1840,7 +1840,7 @@ export const submitStartActionEffect = <D extends ActionDefinition<any, any, any
     return decoded;
   });
 
-export const submitStartAction = <D extends ActionDefinition<any, any, any, any>>(
+export const submitStartAction = <D extends StartActionDefinition>(
   definition: D,
   input: ActionDefinitionInputValue<D>,
   options: StartActionClientOptions = {}
@@ -1864,13 +1864,13 @@ const previousStartActionValue = <I, A, E>(
 };
 
 export namespace StartAction {
-  export type Result<D extends ActionDefinition<any, any, any, any>> =
+  export type Result<D extends StartActionDefinition> =
     StartActionResultFor<ActionDefinitionOutputValue<D>, ActionDefinitionErrorValue<D>>;
 
-  export type State<D extends ActionDefinition<any, any, any, any>> =
+  export type State<D extends StartActionDefinition> =
     ActionState<ActionDefinitionInputValue<D>, Result<D>, Server.ClientError>;
 
-  export interface Instance<D extends ActionDefinition<any, any, any, any>> {
+  export interface Instance<D extends StartActionDefinition> {
     readonly definition: D;
     readonly state: ReadableSignal<State<D>>;
     readonly invalidation: ReadableSignal<StartActionInvalidationPlan | undefined>;
@@ -1881,7 +1881,7 @@ export namespace StartAction {
     reset(): void;
   }
 
-  export const use = <D extends ActionDefinition<any, any, any, any>>(
+  export const use = <D extends StartActionDefinition>(
     definition: D,
     options: StartActionClientOptions = {}
   ): Instance<D> => {

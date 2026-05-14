@@ -28,8 +28,10 @@ export interface ActionManifestDefinition {
   readonly concurrency?: ActionConcurrency;
 }
 
+type AnyActionDefinition = ActionDefinition<any, any, any, any>;
+
 export interface ActionManifestSource {
-  readonly action: ActionDefinition<any, any, any, any>;
+  readonly action: AnyActionDefinition;
   readonly module: string;
   readonly exportName?: string;
   readonly clientModule?: string;
@@ -184,7 +186,7 @@ export const stableActionId = (name: string): ActionId =>
   Schema.decodeUnknownSync(ActionId)(`act_${hashName(name)}_${slugName(name)}`);
 
 export const actionManifestDefinition = (
-  action: ActionDefinition<any, any, any, any>,
+  action: AnyActionDefinition,
   source: Omit<ActionManifestSource, "action">
 ): ActionManifestDefinition => {
   const behavior = {

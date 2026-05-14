@@ -65,6 +65,9 @@ Effect-native interruption.
   - Server, Route, Capability, DB collection/query aggregate, and Start action
     result extraction helpers now use inferred placeholder type parameters
     instead of `any` placeholders.
+  - Arbitrary Action, Server, Resource family, and collection transaction
+    boundaries are named through local `Any*` aliases instead of repeated inline
+    wildcard type applications.
 - `packages/core/src/route.ts`, `packages/core/src/app.ts`,
   `packages/solid/src/index.ts`, `packages/start/src/index.ts`, and
   `packages/start/src/virtual-modules.d.ts`
@@ -434,6 +437,18 @@ Effect-native interruption.
   package source, scripts, and type tests now reports no hits.
 - Full `pnpm verify` passed after the type-test async callback cleanup: 9
   package builds, workspace typecheck, type tests, 38 root test files / 320
+  tests, devtools-panel verify, devtools-extension verify with 1 extension test
+  file / 6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.
+- `pnpm --filter @effect-ui/core typecheck`,
+  `pnpm --filter @effect-ui/db typecheck`,
+  `pnpm --filter @effect-ui/solid-db typecheck`,
+  `pnpm --filter @effect-ui/start typecheck`, and `pnpm typecheck:types` passed
+  after naming arbitrary Action, Server, Resource family, and collection
+  transaction wildcard boundaries.
+- Full `pnpm verify` passed after the named arbitrary wildcard boundary cleanup:
+  9 package builds, workspace typecheck, type tests, 38 root test files / 320
   tests, devtools-panel verify, devtools-extension verify with 1 extension test
   file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,

@@ -62,11 +62,13 @@ export interface FileRouteGenerationOptions
   readonly outputFile?: string | false;
 }
 
+type AnyActionDefinition = ActionDefinition<any, any, any, any>;
+
 export interface EffectUiStartOptions {
   readonly serverFunctions?: ReadonlyArray<ServerFunction<unknown, unknown>>;
   readonly serverFunctionManifest?: Iterable<ServerFunctionManifestDefinition>;
   readonly serverFunctionSources?: Iterable<ServerFunctionManifestSource>;
-  readonly actions?: ReadonlyArray<ActionDefinition<any, any, any, any>>;
+  readonly actions?: ReadonlyArray<AnyActionDefinition>;
   readonly actionManifest?: Iterable<ActionManifestDefinition>;
   readonly actionSources?: Iterable<ActionManifestSource>;
   readonly fileRoutes?: Iterable<string>;

@@ -121,10 +121,13 @@ type ServerContractOutput<Contract> =
 type ServerContractError<Contract> =
   Contract extends ServerFunctionContract<infer _I, infer _A, infer E> ? E : never;
 
-const serverFunctionRegistry = new Map<string, ServerFunction<any, any, any, any>>();
+type AnyServerFunction = ServerFunction<any, any, any, any>;
+type AnyServerFunctionMock = ServerFunctionMock<any, any, any, any>;
+
+const serverFunctionRegistry = new Map<string, AnyServerFunction>();
 
 const mockFor = <I, A, E, R>(
-  mocks: ReadonlyMap<string, ServerFunctionMock<any, any, any, any>>,
+  mocks: ReadonlyMap<string, AnyServerFunctionMock>,
   fn: ServerFunction<I, A, E, R>
 ): ServerFunctionMock<I, A, E, R> | undefined =>
   mocks.get(fn.name) as ServerFunctionMock<I, A, E, R> | undefined;
@@ -233,9 +236,9 @@ export namespace Server {
   });
 
   export const mockClient = (
-    ...mocks: readonly ServerFunctionMock<any, any, any, any>[]
+    ...mocks: readonly AnyServerFunctionMock[]
   ): ServerClient => {
-    const byName = new Map<string, ServerFunctionMock<any, any, any, any>>(
+    const byName = new Map<string, AnyServerFunctionMock>(
       mocks.map((mock) => [mock.name, mock])
     );
 
@@ -260,13 +263,13 @@ export namespace Server {
   };
 
   export const mockLayer = (
-    ...mocks: readonly ServerFunctionMock<any, any, any, any>[]
+    ...mocks: readonly AnyServerFunctionMock[]
   ): Layer.Layer<ServerClient> =>
     Layer.succeed(ServerClient)(mockClient(...mocks));
 
   export const provideMocks = <A, E, R>(
     effect: Effect.Effect<A, E, R>,
-    ...mocks: readonly ServerFunctionMock<any, any, any, any>[]
+    ...mocks: readonly AnyServerFunctionMock[]
   ): Effect.Effect<A, E, Exclude<R, ServerClient>> =>
     Effect.provideService(effect, ServerClient, mockClient(...mocks));
 

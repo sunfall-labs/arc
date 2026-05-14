@@ -27,10 +27,12 @@ export interface FlushCollectionsPendingMutationsOptions<SkipError = never, Skip
   readonly skip?: FlushCollectionPendingMutationsSkip<SkipError, SkipRequirements>;
 }
 
+type AnyCollectionTransaction = CollectionTransaction<any, any>;
+
 export interface FlushCollectionPendingMutationsFlushedResult {
   readonly _tag: "Flushed";
   readonly collection: string;
-  readonly transactions: ReadonlyArray<CollectionTransaction<any, any>>;
+  readonly transactions: ReadonlyArray<AnyCollectionTransaction>;
 }
 
 export interface FlushCollectionPendingMutationsSkippedResult {
@@ -57,7 +59,7 @@ export type CollectionBackgroundSyncTrigger = "manual" | "online" | "visibility"
 
 export interface CollectionBackgroundSyncPending {
   readonly collection: string;
-  readonly transactions: ReadonlyArray<CollectionTransaction<any, any>>;
+  readonly transactions: ReadonlyArray<AnyCollectionTransaction>;
 }
 
 export interface CollectionBackgroundSyncAdapterContext {

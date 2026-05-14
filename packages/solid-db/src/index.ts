@@ -2,6 +2,7 @@ import { runWithRuntime, type EffectUiRuntime } from "@effect-ui/core";
 import {
   Collection,
   Query,
+  type AnyCollection,
   type CollectionDefinition,
   type CollectionIndexValue,
   type CollectionKey,
@@ -52,7 +53,7 @@ type LiveQueryInput<T, E, R> = QueryFactory<T> | LiveQuery<T, E, R>;
 
 const subscribeCollection = (
   runtime: EffectUiRuntime<unknown, unknown>,
-  collection: CollectionDefinition<any, any, any, any>,
+  collection: AnyCollection,
   notify: () => void
 ): (() => void) => {
   const version = runWithRuntime(runtime, () => collection.version());

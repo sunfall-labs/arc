@@ -83,7 +83,9 @@ export class ActionInterrupted extends Data.TaggedError("ActionInterrupted")<{
   readonly actionName: string;
 }> {}
 
-const actionRegistry = new Map<string, ActionDefinition<any, any, any, any>>();
+type AnyActionDefinition = ActionDefinition<any, any, any, any>;
+
+const actionRegistry = new Map<string, AnyActionDefinition>();
 
 export const isActionDefinition = (value: unknown): value is ActionDefinition<unknown, unknown> =>
   typeof value === "object" &&
@@ -270,10 +272,10 @@ export namespace Action {
     return action;
   };
 
-  export const definitions = (): ReadonlyMap<string, ActionDefinition<any, any, any, any>> =>
+  export const definitions = (): ReadonlyMap<string, AnyActionDefinition> =>
     actionRegistry;
 
-  export const get = (name: string): ActionDefinition<any, any, any, any> | undefined =>
+  export const get = (name: string): AnyActionDefinition | undefined =>
     actionRegistry.get(name);
 
   export const clearRegistryUnsafe = (): void => {
