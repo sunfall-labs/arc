@@ -1246,7 +1246,7 @@ describe("Effect UI Start", () => {
       run: ({ id, name }) => Effect.succeed({ id, name })
     });
     const badFetch: typeof fetch = () =>
-      Promise.resolve(
+      Effect.runPromise(Effect.succeed(
         new Response(
           JSON.stringify({
             _tag: "Success",
@@ -1259,7 +1259,7 @@ describe("Effect UI Start", () => {
             headers: { "content-type": "application/json" }
           }
         )
-      );
+      ));
 
     const exit = await Effect.runPromiseExit(
       submitStartActionEffect(

@@ -41,7 +41,7 @@ describe("solid-db", () => {
     });
 
     try {
-      await Promise.resolve();
+      await Effect.runPromise(Effect.sleep("0 millis"));
 
       expect(handles.projects.rows().map((project) => project.name)).toEqual([
         "Atlas",

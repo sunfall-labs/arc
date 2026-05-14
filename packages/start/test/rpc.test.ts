@@ -187,11 +187,11 @@ describe("Start RPC transport", () => {
     let observedHeaders: Headers | undefined;
     const fetcher: typeof globalThis.fetch = (_input, init) => {
       observedHeaders = new Headers(init?.headers);
-      return Promise.resolve(
+      return Effect.runPromise(Effect.succeed(
         new Response(JSON.stringify({ _tag: "Success", value: "ok" }), {
           headers: { "content-type": startJsonMediaType }
         })
-      );
+      ));
     };
     const runtime = Layer.succeed(ServerClient)(
       makeRpcClient({
@@ -221,12 +221,12 @@ describe("Start RPC transport", () => {
     const runtime = Layer.succeed(ServerClient)(
       makeRpcClient({
         fetch: () =>
-          Promise.resolve(
+          Effect.runPromise(Effect.succeed(
             new Response("not json", {
               status: 200,
               headers: { "content-type": "text/plain" }
             })
-          )
+          ))
       })
     );
     const exit = await Effect.runPromise(

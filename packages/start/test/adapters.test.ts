@@ -2,7 +2,7 @@ import { Buffer } from "node:buffer";
 import { createServer, type IncomingMessage } from "node:http";
 import type { AddressInfo } from "node:net";
 import { Readable } from "node:stream";
-import { Effect } from "effect";
+import { Deferred, Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   createNodeHandler,
@@ -139,10 +139,7 @@ describe("Start deployment adapters", () => {
   });
 
   it("streams Web response bodies through the Node adapter", async () => {
-    let releaseSecond!: () => void;
-    const secondChunk = new Promise<void>((resolve) => {
-      releaseSecond = resolve;
-    });
+    const secondChunk = Effect.runSync(Deferred.make<void>());
     const encoder = new TextEncoder();
     const nodeHandler = createNodeHandler(() =>
       Effect.succeed(
@@ -150,10 +147,16 @@ describe("Start deployment adapters", () => {
           new ReadableStream<Uint8Array>({
             start(controller) {
               controller.enqueue(encoder.encode("first"));
-              void secondChunk.then(() => {
-                controller.enqueue(encoder.encode("second"));
-                controller.close();
-              });
+              void Effect.runPromise(
+                Deferred.await(secondChunk).pipe(
+                  Effect.andThen(
+                    Effect.sync(() => {
+                      controller.enqueue(encoder.encode("second"));
+                      controller.close();
+                    })
+                  )
+                )
+              );
             }
           }),
           {
@@ -181,7 +184,7 @@ describe("Start deployment adapters", () => {
         value: encoder.encode("first")
       });
 
-      releaseSecond();
+      Effect.runSync(Deferred.succeed(secondChunk, undefined));
       const second = await reader!.read();
       const end = await reader!.read();
       expect(second).toMatchObject({
@@ -190,7 +193,7 @@ describe("Start deployment adapters", () => {
       });
       expect(end).toMatchObject({ done: true });
     } finally {
-      releaseSecond();
+      Effect.runSync(Deferred.succeed(secondChunk, undefined));
       await close(server);
     }
   });
@@ -230,7 +233,7 @@ describe("Start deployment adapters", () => {
       Effect.succeed(new Response(new URL(request.url).pathname))
     );
     const promiseHandler = toFetchHandler((request) =>
-      Promise.resolve(new Response(request.method))
+      Effect.runPromise(Effect.succeed(new Response(request.method)))
     );
 
     await expect(
@@ -238,8 +241,11 @@ describe("Start deployment adapters", () => {
     ).resolves.toMatchObject({
       status: 200
     });
+    const promiseResponse = await promiseHandler(
+      new Request("https://example.com/edge", { method: "POST" })
+    );
     await expect(
-      promiseHandler(new Request("https://example.com/edge", { method: "POST" })).then((response) => response.text())
+      promiseResponse.text()
     ).resolves.toBe("POST");
   });
 

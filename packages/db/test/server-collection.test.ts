@@ -40,7 +40,7 @@ describe("serverCollectionOptions", () => {
       ])
     );
     const refetch = vi.fn(() =>
-      Promise.resolve<ReadonlyArray<Project>>([
+      Effect.succeed<ReadonlyArray<Project>>([
         { id: "lumen", name: "Lumen", archived: true }
       ])
     );

@@ -80,6 +80,12 @@ Effect-native interruption.
 - `scripts/package-project-console-starter.mjs`
   - Replaced the remaining raw async path-existence adapter with
     `Effect.tryPromise`, `Effect.as`, and typed `ENOENT` handling.
+- Test and example host-boundary helpers
+  - Replaced remaining low-friction `Promise.resolve(...)`, `.then(...)`, and
+    `.finally(...)` test conveniences with Effect-backed helpers or direct
+    `await`.
+  - Remaining `new Promise(...)` sites are confined to Node server/listener and
+    timer host-boundary helpers in adapter tests.
 
 ## Remaining Promise Sites To Review
 
@@ -104,6 +110,8 @@ Effect-native interruption.
     currently finds no package source or tooling script hits.
   - `rg -n "\\.catch\\(" packages/*/src scripts -g '*.ts' -g '*.mjs' | rg -v "Effect\\.catch"`
     currently finds no non-Effect catch hits.
+  - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts -g '*.ts' -g '*.tsx' -g '*.mjs'`
+    currently finds no package, example, or script hits.
 
 ## Verification Evidence
 
@@ -165,3 +173,10 @@ Effect-native interruption.
   passed after moving the Vite dev middleware body into an Effect program.
 - Full `pnpm verify` passed after moving the Vite dev middleware body into an
   Effect program.
+- `pnpm exec vitest run packages/start/test/adapters.test.ts packages/solid-db/test/solid-db.test.ts packages/db/test/server-collection.test.ts packages/start/test/rpc.test.ts packages/start/test/start.test.ts`
+  passed after replacing remaining test Promise-method conveniences: 5 files,
+  73 tests.
+- `pnpm typecheck` passed after replacing remaining test Promise-method
+  conveniences.
+- Full `pnpm verify` passed after replacing remaining test Promise-method
+  conveniences.
