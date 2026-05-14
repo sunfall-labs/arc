@@ -419,7 +419,7 @@ Last evidence pass: May 14, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Evidence: `pnpm verify` ran all package tests: 34 test files, 300 tests.
+  - Evidence: `pnpm verify` ran all package tests: 35 test files, 302 tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.
@@ -429,7 +429,8 @@ Last evidence pass: May 14, 2026.
 - [x] Example build passes.
   - Evidence: Vite production build completed inside `pnpm verify`.
 - [x] Example leak scan passes.
-  - Evidence: `! rg "seedProjects|Move invoice preview|Webhook replay|domain\\.server" examples/project-console/dist -n` returned no matches.
+  - Evidence: example-local `pnpm leak-scan` returned no matches for
+    server-only seed data or server module sentinels.
 - [x] `pnpm verify` passes from the repo root.
   - Evidence: approved rerun completed successfully. The first sandboxed run
     reached tests and failed only because local `127.0.0.1` listener binding was
@@ -546,7 +547,10 @@ Last evidence pass: May 14, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for this docs-only pass.
 - [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026.
+  - Evidence: root `pnpm verify` passed on May 14, 2026 after the benchmark
+    baseline sweep: package build, workspace typecheck, type tests, 35 package
+    test files / 302 tests, example typecheck, 4 example test files / 23 tests,
+    example build, and leak scan.
 
 ## Remaining Winning-Bar Items
 
@@ -554,8 +558,10 @@ Last evidence pass: May 14, 2026.
   UI once the trace payload is stable.
 - [ ] Add external starter/deployment docs and host-specific adapter packages
   when the framework is ready for users outside this repo.
-- [ ] Add benchmarks for SSR, route preload, resource cache behavior, DB live
+- [x] Add benchmarks for SSR, route preload, resource cache behavior, DB live
   query behavior, and RPC/action transport.
+  - Evidence: `benchmarks/framework-baseline.bench.ts` and
+    `docs/benchmark-baseline-audit.md`.
 
 ## Next Recommended Workstreams
 

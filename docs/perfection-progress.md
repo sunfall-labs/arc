@@ -39,8 +39,10 @@ or command result that proves it.
 - The current operating window is recorded as work until 8:00 AM
   America/Denver on May 14, 2026, with Effect-first implementation as a standing
   requirement.
-- The full charter is not complete. Benchmark baselines, remaining audits, and
-  the 30 clean-sweep gate are still open.
+- The cleanup backlog is checked through the benchmark baseline audit, and the
+  latest full verification gate is green.
+- The final no-new-improvements clean-sweep gate is still open: sweep 30 found
+  and added benchmark work, so it cannot count as a no-op clean sweep.
 
 ## Sweep Ledger
 
@@ -75,12 +77,15 @@ or command result that proves it.
 | 27 | Type-test coverage audit | `type-tests/framework.test-d.ts`; `docs/type-test-coverage-audit.md`; `docs/framework-perfection-charter.md` | Added explicit request-trace teardown type assertions, kept Start teardown assignable to devtools, and rejected Promise-returning `onRequestTrace` handlers at compile time. | Run type-test verification before committing. |
 | 28 | Runtime leak and teardown audit | `packages/core/src/resource-store.ts`; `packages/core/test/resource-store.test.ts`; `docs/runtime-leak-teardown-audit.md` | Resource Store disposal now shuts down its event `PubSub` through `Effect.ensuring`, including the module-finalizer failure path. | Run focused Resource Store tests and keep the browser/server leak audit separate. |
 | 29 | Example copyability and leak audit | `examples/project-console/README.md`; `examples/project-console/package.json`; `examples/project-console/src/server.test.ts`; `docs/example-copyability-and-leak-audit.md` | Example-owned test/leak/verify scripts, local Vitest dependency, copy guidance, and stronger server-module leak sentinels make the app easier to lift out safely. Example-local verify and root delegated example scripts passed. | Keep replacing workspace caveats with published package versions near RC. |
+| 30 | Benchmark baseline audit | `benchmarks/framework-baseline.bench.ts`; `package.json`; `docs/benchmark-baseline-audit.md`; `docs/framework-perfection-charter.md` | Added the first repeatable Vitest benchmark suite for SSR, route preload, Resource cache behavior, live query materialization, and RPC transport. `pnpm benchmark`, `pnpm typecheck`, and full `pnpm verify` passed. | Begin no-new-improvements clean sweeps only after the remaining release-candidate hardening work stabilizes. |
 
 ## Thirty-Sweep Gate
 
 The final goal requires 30 full code sweeps without finding more improvements.
-This ledger currently records 29 sweeps. One more clean sweep is required by
-the gate; keep using the remaining concern list to decide scope:
+This ledger records 30 implementation/audit sweeps, but it does not satisfy the
+final no-new-improvements gate yet because the latest sweeps still found
+actionable work. Start the clean-sweep counter only when a full code/docs/test
+pass finds no improvements to make.
 
 - Devtools UI/docs polish around the richer request trace teardown facts.
 - Promise-shaped internals that can be pushed down into Effect programs.
@@ -89,14 +94,14 @@ the gate; keep using the remaining concern list to decide scope:
 - Golden-file snapshots for generated artifacts if inline assertions stop being
   enough.
 - Package publish metadata and export hygiene before npm publication.
-- Benchmark baselines for SSR, preload, collections, live queries, and transport.
 
 ## Open Release-Candidate Slices
 
 1. Build the first devtools UI/panel surface against `DevtoolsSummary` and the
    richer request trace payload.
-2. Add a benchmark baseline artifact before calling release engineering done.
-3. Re-run the public API inventory after any rename/removal work and update
+2. Re-run the public API inventory after any rename/removal work and update
    migration notes.
-4. Run full `pnpm verify` and record the result before any handoff that claims
+3. Run full `pnpm verify` and record the result before any handoff that claims
    release-candidate status.
+4. After the remaining release-candidate slices stabilize, run the required
+   no-new-improvements clean-sweep sequence.

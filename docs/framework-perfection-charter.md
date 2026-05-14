@@ -237,7 +237,10 @@ the audit finds them.
 - [x] Browser/server leak audit beyond the current example scan.
   - Evidence: `docs/example-copyability-and-leak-audit.md`; leak assertions now
     include server module sentinels in package-local scripts and tests.
-- [ ] Benchmark baseline audit.
+- [x] Benchmark baseline audit.
+  - Evidence: `docs/benchmark-baseline-audit.md`; `pnpm benchmark` now covers
+    SSR, route preload, Resource cache behavior, live query materialization,
+    and RPC transport.
 
 ## Must-Fix Workstreams
 
