@@ -81,7 +81,7 @@ export const useCollection = <A extends object, K extends CollectionKey, E = unk
   const unsubscribe = subscribeCollection(runtime, collection, () => setTick((value) => value + 1));
   if (options.preload !== false) {
     void runtime.runPromise(
-      (collection.preloadEffect() as Effect.Effect<void, E, any>).pipe(
+      collection.preloadEffect().pipe(
         Effect.catch(() => Effect.void)
       )
     );
@@ -115,9 +115,9 @@ export const useCollection = <A extends object, K extends CollectionKey, E = unk
       return runWithRuntime(runtime, () => collection.firstByIndex(index, value));
     },
     preloadEffect: () => collection.preloadEffect(),
-    preload: () => runtime.runPromise(collection.preloadEffect() as Effect.Effect<void, E, any>),
+    preload: () => runtime.runPromise(collection.preloadEffect()),
     refetchEffect: () => collection.refetchEffect(),
-    refetch: () => runtime.runPromise(collection.refetchEffect() as Effect.Effect<void, E, any>)
+    refetch: () => runtime.runPromise(collection.refetchEffect())
   };
 };
 
@@ -139,7 +139,7 @@ export const useLiveQuery = <T, E = unknown, R = never>(
 
   if (options.preload !== false) {
     void runtime.runPromise(
-      (live.preloadEffect() as Effect.Effect<void, E, any>).pipe(
+      live.preloadEffect().pipe(
         Effect.catch(() => Effect.void)
       )
     );
@@ -188,9 +188,9 @@ export const useLiveQuery = <T, E = unknown, R = never>(
     waiting: createMemo(() => state().waiting),
     error: createMemo(() => liveStateError(state())),
     preloadEffect: () => live.preloadEffect(),
-    preload: () => runtime.runPromise(live.preloadEffect() as Effect.Effect<void, E, any>),
+    preload: () => runtime.runPromise(live.preloadEffect()),
     refetchEffect: () => live.refetchEffect(),
-    refetch: () => runtime.runPromise(live.refetchEffect() as Effect.Effect<void, E, any>)
+    refetch: () => runtime.runPromise(live.refetchEffect())
   };
 };
 

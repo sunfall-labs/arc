@@ -369,7 +369,9 @@ Last evidence pass: May 14, 2026.
 - [x] TSRX typechecking uses `tsrx-tsc` with the TypeScript plugin.
   - Evidence: `examples/project-console/package.json`, `pnpm example:typecheck`.
 - [x] Solid runtime adapter owns component scopes and route scopes.
-  - Evidence: `packages/solid/src/index.ts` and Solid adapter tests.
+  - Evidence: `packages/solid/src/index.ts` forks runtime-provided scoped route
+    preload Effects under `UiScope`; Solid-DB adapter tests cover collection and
+    live-query hooks.
 - [x] Component APIs stay compact and ergonomic.
   - Evidence: `packages/solid/src/index.ts` exports `RuntimeProvider`,
     `RouterProvider`, `useResource`, `useAction`, `useSignal`; example app uses
@@ -567,13 +569,12 @@ Last evidence pass: May 14, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026 after the type ID
-    bottom-cast cleanup: 9 package builds, workspace
+  - Evidence: root `pnpm verify` passed on May 14, 2026 after the runtime
+    scoped-provide and Solid adapter cast cleanup: 9 package builds, workspace
     typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify,
-    devtools-extension verify with 1 extension test file / 6 tests, basic
-    starter verify, project-console starter packaging, project-console
-    typecheck, 4 project-console test files / 23 tests, project-console build,
-    and leak scan.
+    devtools-extension verify with 1 extension test file / 6 tests, basic starter
+    verify, project-console starter packaging, project-console typecheck, 4
+    project-console test files / 23 tests, project-console build, and leak scan.
 
 ## Remaining Winning-Bar Items
 

@@ -30,6 +30,9 @@ Effect-native interruption.
 - `packages/core/src/runtime.ts`
   - Replaced Promise `.then(...)` disposal sequencing with a single
     `disposeEffect` run from the public `dispose()` host-boundary method.
+  - `EffectUiRuntime.provide(...)` now exposes a scoped Effect backed by a named
+    `provideRuntimeServices(...)` boundary, so UI adapters can fork provided
+    work under `UiScope` instead of erasing requirements locally.
 - `packages/db/src/index.ts`
   - Replaced live-query collection `Promise.resolve(...)` no-ops with
     `runPromise(definition.*Effect(...))` so public Promise helpers still
@@ -63,6 +66,8 @@ Effect-native interruption.
   - Moved router preload completion, background resource preload, collection
     preload, and live-query preload error handling into Effect programs before
     crossing the Solid/browser `runPromise` boundary.
+  - Solid Resource and Solid-DB collection/live-query helpers now pass the
+    underlying `*Effect` operations directly to the active runtime.
 - `packages/start/src/cli.ts`
   - Moved the diagnostics CLI parse/load/render path into
     `runStartDiagnosticsCliEffect`.

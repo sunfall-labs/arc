@@ -4,7 +4,7 @@ Last updated: 2026-05-14.
 
 This audit records the remaining package-source casts that broad grep still
 finds after the typed-error, route decode, action-result, Start CLI, runtime,
-and DB query-builder cleanup sweeps.
+Solid adapter, and DB query-builder cleanup sweeps.
 
 ## Current Sweep Results
 
@@ -42,6 +42,13 @@ and DB query-builder cleanup sweeps.
   boundary, but ResourceStore injection now has an exact `Exclude<...>` type and
   run-method service erasure is centralized behind `provideManagedServices(...)`
   instead of repeated `as unknown as` casts.
+- `EffectUiRuntime.provide(...)` now returns a scoped Effect, and its
+  ManagedRuntime service satisfaction is centralized behind
+  `provideRuntimeServices(...)`. Solid router preloads can fork that Effect under
+  `UiScope` without a local service-erasure cast.
+- Solid Resource and Solid-DB collection/live-query Promise helpers now call the
+  underlying `*Effect` operations directly through the active runtime instead of
+  erasing requirements at each hook method.
 - The DB default projector cast remains because an unprojected query returns
   the current context shape, while `QueryBuilder` also supports selected result
   shapes through the same class.
@@ -226,6 +233,18 @@ and DB query-builder cleanup sweeps.
   package builds, workspace typecheck, type tests, 38 root test files / 320
   tests, devtools-panel verify, devtools-extension verify with 1 extension test
   file / 6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.
+- `pnpm --filter @effect-ui/core typecheck`,
+  `pnpm --filter @effect-ui/solid typecheck`,
+  `pnpm --filter @effect-ui/solid-db typecheck`, `pnpm typecheck:types`, and
+  `pnpm exec vitest run packages/solid-db/test/solid-db.test.ts packages/core/test/runtime.test.ts`
+  passed after moving runtime-provided scoped Effects into the core runtime
+  boundary and removing Solid/Solid-DB hook call-site casts: 2 files, 7 tests.
+- `pnpm verify` passed after the runtime scoped-provide and Solid adapter cast
+  cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files /
+  320 tests, devtools-panel verify, devtools-extension verify with 1 extension
+  test file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
 

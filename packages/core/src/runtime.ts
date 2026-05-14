@@ -1,4 +1,4 @@
-import { Effect, Fiber, Layer, ManagedRuntime, type Exit } from "effect";
+import { Effect, Fiber, Layer, ManagedRuntime, type Exit, type Scope } from "effect";
 import {
   disposeResourceStoreEffect,
   makeResourceStore,
@@ -12,7 +12,7 @@ export interface EffectUiRuntime<R = never, ER = never> {
   readonly [RuntimeTypeId]: typeof RuntimeTypeId;
   readonly managed: ManagedRuntime.ManagedRuntime<any, ER>;
   readonly resourceStore: ResourceStoreState;
-  provide<A, E, RIn>(effect: Effect.Effect<A, E, RIn>, options?: RuntimeProvideOptions): Effect.Effect<A, E | ER, any>;
+  provide<A, E, RIn>(effect: Effect.Effect<A, E, RIn>, options?: RuntimeProvideOptions): Effect.Effect<A, E | ER, Scope.Scope>;
   runFork<A, E, RIn>(effect: Effect.Effect<A, E, RIn>, options?: Effect.RunOptions): Fiber.Fiber<A, E | ER>;
   runPromise<A, E, RIn>(effect: Effect.Effect<A, E, RIn>, options?: Effect.RunOptions): Promise<A>;
   runPromiseExit<A, E, RIn>(effect: Effect.Effect<A, E, RIn>, options?: Effect.RunOptions): Promise<Exit.Exit<A, E | ER>>;
@@ -51,6 +51,17 @@ const fromManagedRuntime = <R, ER>(
   ): Effect.Effect<A, E, R> =>
     provideStore(effect) as Effect.Effect<A, E, R>;
 
+  const provideRuntimeServices = <A, E, RIn>(
+    effect: Effect.Effect<A, E, RIn>,
+    provideOptions?: RuntimeProvideOptions
+  ): Effect.Effect<A, E | ER, Scope.Scope> =>
+    Effect.flatMap(managed.contextEffect, (context) =>
+      provideStore(
+        Effect.provideContext(effect, context),
+        provideOptions?.resourceStore
+      )
+    ) as Effect.Effect<A, E | ER, Scope.Scope>;
+
   const disposeStore = disposeResourceStoreEffect(resourceStore);
   const disposeEffect = options.disposeManaged
     ? Effect.andThen(disposeStore, managed.disposeEffect)
@@ -59,13 +70,7 @@ const fromManagedRuntime = <R, ER>(
     [RuntimeTypeId]: RuntimeTypeId,
     managed,
     resourceStore,
-    provide: (effect, provideOptions) =>
-      Effect.flatMap(managed.contextEffect, (context) =>
-        provideStore(
-          Effect.provideContext(effect, context),
-          provideOptions?.resourceStore
-        )
-      ),
+    provide: provideRuntimeServices,
     runFork: (effect, options) => managed.runFork(provideManagedServices(effect), options),
     runPromise: (effect, options) => managed.runPromise(provideManagedServices(effect), options),
     runPromiseExit: (effect, options) => managed.runPromiseExit(provideManagedServices(effect), options),

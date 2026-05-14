@@ -21,7 +21,7 @@ import {
   type ResourceState,
   type RuntimeSource
 } from "@effect-ui/core";
-import { Data, Effect, Exit, Fiber, type Scope, type Stream } from "effect";
+import { Data, Effect, Exit, Fiber, type Stream } from "effect";
 import {
   createContext,
   createEffect,
@@ -231,9 +231,7 @@ export const createBrowserRouter = <const Routes extends readonly AnyRoute[]>(
       setState({ _tag: "Pending", href, match });
     }
 
-    const fiber = scope.fork(
-      runtime.provide(Route.preloadEffect(match)) as Effect.Effect<void, unknown, Scope.Scope>
-    );
+    const fiber = scope.fork(runtime.provide(Route.preloadEffect(match)));
 
     void runtime.runPromise(
       Effect.gen(function* () {
@@ -252,7 +250,7 @@ export const createBrowserRouter = <const Routes extends readonly AnyRoute[]>(
         } else {
           setState({ _tag: "Failure", href, match, error: exit.cause });
         }
-      }) as Effect.Effect<void, never, any>
+      })
     );
   });
 
@@ -294,7 +292,7 @@ export const createBrowserRouter = <const Routes extends readonly AnyRoute[]>(
     preload: (definition, options) => {
       const match = definition.match(Route.href(definition, options));
       return match
-        ? runtime.runPromise(Route.preloadEffect(match) as Effect.Effect<void, unknown, any>)
+        ? runtime.runPromise(Route.preloadEffect(match))
         : runtime.runPromise(Effect.void);
     }
   };
@@ -470,7 +468,7 @@ export const useResourceResult = <I, A, E, R = any>(
 
     if (result.get()._tag === "Initial") {
       void runtime.runPromise(
-        (Resource.prefetchEffect(currentRef) as Effect.Effect<A, E, any>).pipe(
+        Resource.prefetchEffect(currentRef).pipe(
           Effect.catch(() => Effect.void)
         )
       );
@@ -520,9 +518,9 @@ export const useResource = <I, A, E, R = any>(ref: ResourceInput<I, A, E, R>): R
     refreshing,
     hasValue,
     refreshEffect: () => Resource.refreshEffect(getRef()),
-    refresh: () => runtime.runPromise(Resource.refreshEffect(getRef()) as Effect.Effect<A, E, any>),
+    refresh: () => runtime.runPromise(Resource.refreshEffect(getRef())),
     prefetchEffect: () => Resource.prefetchEffect(getRef()),
-    prefetch: () => runtime.runPromise(Resource.prefetchEffect(getRef()) as Effect.Effect<A, E, any>),
+    prefetch: () => runtime.runPromise(Resource.prefetchEffect(getRef())),
     match: (cases) => {
       const current = state();
       switch (current._tag) {
@@ -558,7 +556,7 @@ export const useResourceSuspense = <I, A, E, R = any>(ref: ResourceInput<I, A, E
       });
     }
 
-    throw runtime.runPromise(Resource.prefetchEffect(getRef()) as Effect.Effect<A, E, any>);
+    throw runtime.runPromise(Resource.prefetchEffect(getRef()));
   });
 };
 

@@ -38,7 +38,9 @@ yet.
 - Core and DB type-id declarations preserve `unique symbol` types with
   self-type assertions instead of `as never` bottom casts.
 - Core runtime integration with Effect `ManagedRuntime` keeps a documented
-  service-erasure boundary centralized behind `provideManagedServices(...)`.
+  service-erasure boundary centralized behind `provideManagedServices(...)` and
+  `provideRuntimeServices(...)`; `EffectUiRuntime.provide(...)` exposes a scoped
+  Effect for UI-scope forking.
 - Core Capability helpers now use overloads for pure vs Effect-returning
   `useEffect(...)` callbacks and rely on `Effect.provideService(...)` return
   typing directly.
@@ -102,6 +104,8 @@ Latest full gate on May 14, 2026:
 - The DB query builder projector variance helper no longer uses a broad
   `unknown` bridge.
 - Type-id declarations no longer appear in the broad `as never` cast sweep.
+- The latest `pnpm verify` passed after tightening runtime-provided scoped
+  Effects and removing Solid/Solid-DB hook call-site requirement erasure.
 
 ## Notable Limits
 

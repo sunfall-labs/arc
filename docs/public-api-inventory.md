@@ -64,6 +64,10 @@ Release decisions:
   adapter and hook authors that must bridge into the active Runtime Spine. App
   code should use explicit runtime providers, `makeRuntime`, `runWithRuntime`,
   or adapter hooks such as Solid's `useRuntime`.
+- `EffectUiRuntime.provide(...)` is expert-public runtime plumbing: it satisfies
+  the runtime's managed services and returns a scoped Effect suitable for
+  UI-scope forking, while Promise host boundaries should prefer
+  `runtime.runPromise(...)`.
 - `Capability.useEffect(...)` is public with explicit pure-value and
   Effect-returning overloads; Promise-returning callbacks remain rejected so
   host async work is routed through Effect primitives.
