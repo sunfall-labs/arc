@@ -1,5 +1,5 @@
 import { Collection, Query, ReadonlyCollectionMutation, eq } from "@effect-ui/db";
-import { Effect } from "effect";
+import { Effect, Exit } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 interface Project {
@@ -16,7 +16,7 @@ interface ProjectCard {
 }
 
 describe("Collection.liveQuery", () => {
-  it("exposes live query results as a read-only collection", async () => {
+  it("exposes live query results as a read-only collection", () => {
     const Projects = Collection.define<Project>({
       name: "Projects.live-query-collection.source",
       getKey: (project) => project.id,
@@ -52,17 +52,24 @@ describe("Collection.liveQuery", () => {
       }
     ]);
 
-    await Effect.runPromise(Projects.writeUpdateEffect("lumen", { status: "active", progress: 48 }));
-
-    expect(ActiveProjectCards.rows().map((project) => project.id)).toEqual(["atlas", "lumen"]);
-    expect(ActiveProjectCards.get("lumen")).toMatchObject({
-      name: "Lumen",
-      progress: 48,
-      $key: "lumen"
-    });
+    return Effect.runPromise(
+      Projects.writeUpdateEffect("lumen", { status: "active", progress: 48 }).pipe(
+        Effect.tap(() =>
+          Effect.sync(() => {
+            expect(ActiveProjectCards.rows().map((project) => project.id)).toEqual(["atlas", "lumen"]);
+            expect(ActiveProjectCards.get("lumen")).toMatchObject({
+              name: "Lumen",
+              progress: 48,
+              $key: "lumen"
+            });
+          })
+        ),
+        Effect.asVoid
+      )
+    );
   });
 
-  it("supports indexes on derived live query collections", async () => {
+  it("supports indexes on derived live query collections", () => {
     const Projects = Collection.define<Project>({
       name: "Projects.live-query-collection.index-source",
       getKey: (project) => project.id,
@@ -94,12 +101,19 @@ describe("Collection.liveQuery", () => {
       $collection: "ProjectCards.live-query-collection.indexed"
     });
 
-    await Effect.runPromise(Projects.writeUpdateEffect("lumen", { progress: 58 }));
-
-    expect(ProjectCards.index("progressBand", "high").map((project) => project.id)).toEqual(["atlas", "lumen"]);
+    return Effect.runPromise(
+      Projects.writeUpdateEffect("lumen", { progress: 58 }).pipe(
+        Effect.tap(() =>
+          Effect.sync(() =>
+            expect(ProjectCards.index("progressBand", "high").map((project) => project.id)).toEqual(["atlas", "lumen"])
+          )
+        ),
+        Effect.asVoid
+      )
+    );
   });
 
-  it("can be used as a source for another live query", async () => {
+  it("can be used as a source for another live query", () => {
     const Projects = Collection.define<Project>({
       name: "Projects.live-query-collection.nested-source",
       getKey: (project) => project.id,
@@ -130,12 +144,15 @@ describe("Collection.liveQuery", () => {
 
     expect(Names.evaluate()).toEqual(["Atlas"]);
 
-    await Effect.runPromise(Projects.writeUpdateEffect("lumen", { status: "active" }));
-
-    expect(Names.evaluate()).toEqual(["Atlas", "Lumen"]);
+    return Effect.runPromise(
+      Projects.writeUpdateEffect("lumen", { status: "active" }).pipe(
+        Effect.tap(() => Effect.sync(() => expect(Names.evaluate()).toEqual(["Atlas", "Lumen"]))),
+        Effect.asVoid
+      )
+    );
   });
 
-  it("preloads source collections before materializing rows", async () => {
+  it("preloads source collections before materializing rows", () => {
     const load = vi.fn(() =>
       Effect.succeed<ReadonlyArray<Project>>([
         { id: "atlas", name: "Atlas", status: "active", progress: 72 }
@@ -159,13 +176,20 @@ describe("Collection.liveQuery", () => {
           }))
     });
 
-    await ActiveProjectCards.preload();
-
-    expect(load).toHaveBeenCalledTimes(1);
-    expect(ActiveProjectCards.rows().map((project) => project.id)).toEqual(["atlas"]);
+    return Effect.runPromise(
+      Effect.promise(() => ActiveProjectCards.preload()).pipe(
+        Effect.tap(() =>
+          Effect.sync(() => {
+            expect(load).toHaveBeenCalledTimes(1);
+            expect(ActiveProjectCards.rows().map((project) => project.id)).toEqual(["atlas"]);
+          })
+        ),
+        Effect.asVoid
+      )
+    );
   });
 
-  it("rejects local mutations because derived collections are read-only", async () => {
+  it("rejects local mutations because derived collections are read-only", () => {
     const Projects = Collection.define<Project>({
       name: "Projects.live-query-collection.readonly-source",
       getKey: (project) => project.id,
@@ -186,8 +210,24 @@ describe("Collection.liveQuery", () => {
           }))
     });
 
-    await expect(ActiveProjectCards.update("atlas", { progress: 90 }))
-      .rejects
-      .toBeInstanceOf(ReadonlyCollectionMutation);
+    return Effect.runPromise(
+      Effect.exit(
+        Effect.tryPromise({
+          try: () => ActiveProjectCards.update("atlas", { progress: 90 }),
+          catch: (error) => error
+        })
+      ).pipe(
+        Effect.tap((exit) =>
+          Effect.sync(() => {
+            expect(Exit.isFailure(exit)).toBe(true);
+            const failure = Exit.isFailure(exit)
+              ? exit.cause.reasons.find((reason) => reason._tag === "Fail")
+              : undefined;
+            expect(failure?.error).toBeInstanceOf(ReadonlyCollectionMutation);
+          })
+        ),
+        Effect.asVoid
+      )
+    );
   });
 });

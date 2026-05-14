@@ -641,3 +641,14 @@ Effect-native interruption.
   file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
+- `pnpm --filter @effect-ui/db typecheck` and
+  `pnpm exec vitest run packages/db/test/live-query-collection.test.ts` passed
+  after converting live-query collection tests to returned Effect programs.
+  Read-only mutation rejection is captured through `Effect.tryPromise(...)` and
+  `Effect.exit(...)`.
+- Full `pnpm verify` passed after the DB live-query collection async test
+  cleanup: 9 package builds, workspace typecheck, type tests, 39 root test
+  files / 321 tests, devtools-panel verify, devtools-extension verify with 1
+  extension test file / 6 tests, basic starter verify, project-console starter
+  packaging, project-console typecheck, 4 project-console test files / 23
+  tests, project-console build, and leak scan.

@@ -249,6 +249,11 @@ Latest full gate on May 14, 2026:
   collection Promise APIs under test through `Effect.promise(...)`.
 - The latest `pnpm verify` passed after the DB server-collection async test
   cleanup.
+- DB live-query collection tests now return Effect programs, including
+  read-only mutation rejection captured through `Effect.tryPromise(...)` and
+  `Effect.exit(...)`.
+- The latest `pnpm verify` passed after the DB live-query collection async test
+  cleanup.
 
 ## Notable Limits
 
