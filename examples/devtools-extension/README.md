@@ -25,5 +25,6 @@ yield* installDevtoolsBridgeEffect(() => ({
 }))
 ```
 
-The extension reads that value with `chrome.devtools.inspectedWindow.eval` and
-updates the mounted panel through the public renderer contract.
+The extension reads that value with `chrome.devtools.inspectedWindow.eval`,
+structurally validates the public panel contract, and updates the mounted panel
+through the public renderer.

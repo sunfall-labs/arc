@@ -21,11 +21,14 @@ and DB query-builder cleanup sweeps.
   `Promise.resolve`, `.then(...)`, or `.finally(...)`.
 - No package, example, script, or type-test source currently contains direct
   Promise `.catch(...)` outside Effect's `Effect.catch(...)` operator.
+- The devtools extension transport structurally validates inspected-window
+  `DevtoolsPanels` payloads before rendering them, so the bridge normalizer no
+  longer needs a raw panel payload cast.
 - No package, example, script, or type-test source currently contains `as any`
   or `@ts-ignore`; negative tests use explicit `@ts-expect-error` or
   `unknown`-to-contract casts for runtime validation shapes.
-- Remaining `as unknown as` casts are concentrated in two intentional
-  boundaries:
+- Remaining package-source `as unknown as` casts are concentrated in two
+  intentional boundaries:
   - `packages/core/src/runtime.ts`: `ManagedRuntime` run methods erase the
     provided service environment after `ResourceStore` is injected. The casts
     are the runtime spine boundary between the framework's active runtime and
@@ -37,6 +40,8 @@ and DB query-builder cleanup sweeps.
 - The DB default projector cast remains because an unprojected query returns
   the current context shape, while `QueryBuilder` also supports selected result
   shapes through the same class.
+- Test-only `as unknown as` casts remain for negative runtime-validation inputs
+  and legacy Effect Cause shape inspection.
 
 ## Verification Evidence
 
@@ -101,6 +106,19 @@ and DB query-builder cleanup sweeps.
   with 1 extension test file / 6 tests, basic starter verify, project-console
   starter packaging, project-console typecheck, 4 project-console test files /
   23 tests, project-console build, and leak scan.
+- `pnpm --filter @effect-ui/example-devtools-extension typecheck` and
+  `pnpm --filter @effect-ui/example-devtools-extension test` passed after
+  replacing the inspected-window bridge payload cast with structural
+  `DevtoolsPanels` validation.
+- `pnpm --filter @effect-ui/example-devtools-extension verify` passed after
+  replacing the inspected-window bridge payload cast with structural
+  `DevtoolsPanels` validation.
+- `pnpm verify` passed after structurally validating devtools extension bridge
+  payloads: 9 package builds, workspace typecheck, type tests, 38 root test
+  files / 320 tests, devtools-panel verify, devtools-extension verify with 1
+  extension test file / 6 tests, basic starter verify, project-console starter
+  packaging, project-console typecheck, 4 project-console test files / 23
+  tests, project-console build, and leak scan.
 
 ## Follow-Up
 

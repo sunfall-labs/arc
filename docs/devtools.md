@@ -230,8 +230,10 @@ from `globalThis.__EFFECT_UI_DEVTOOLS__` through
 `chrome.devtools.inspectedWindow.eval`. The bridge accepts either a
 `DevtoolsPanels` payload wrapper or a provider function returning that wrapper,
 uses the shared `effectUiDevtoolsBridgeGlobal` key from `@effect-ui/devtools`,
-keeps the sample payload as a fallback, and verifies the manifest, panel
-registration, transport, render output, typecheck, and production build.
+structurally validates the panel ids, severities, metrics, items, and
+JSON-safe item data before rendering inspected-window data, keeps the sample
+payload as a fallback, and verifies the manifest, panel registration,
+transport, render output, typecheck, and production build.
 
 ## Target Panels
 

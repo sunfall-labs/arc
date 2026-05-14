@@ -88,6 +88,29 @@ describe("devtools extension example", () => {
     });
     expect(normalizeEffectUiDevtoolsBridgePayload(null)).toBeUndefined();
     expect(normalizeEffectUiDevtoolsBridgePayload({ panels: { version: 2, panels: [] } })).toBeUndefined();
+    expect(
+      normalizeEffectUiDevtoolsBridgePayload({
+        panels: {
+          version: 1,
+          panels: [
+            {
+              id: "not-a-panel",
+              title: "Bad",
+              summary: "Bad",
+              severity: "ok",
+              metrics: [],
+              items: []
+            }
+          ]
+        }
+      })
+    ).toBeUndefined();
+    expect(
+      normalizeEffectUiDevtoolsBridgePayload({
+        panels,
+        selectedPanelId: "not-a-panel"
+      })
+    ).toEqual({ panels });
   });
 
   it("returns no live payload when the inspected-window bridge is unavailable", async () => {

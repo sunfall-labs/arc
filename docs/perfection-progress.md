@@ -42,8 +42,8 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest full verification gate is green after the test Promise-catch
-  cleanup: 38 root test files / 320 tests plus devtools panel, devtools
+- The latest full verification gate is green after the devtools extension bridge
+  validation slice: 38 root test files / 320 tests plus devtools panel, devtools
   extension, starter, rich starter packaging, project-console build, and
   leak-scan gates.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
@@ -60,6 +60,8 @@ or command result that proves it.
   `.catch(...)` outside Effect's `Effect.catch(...)` operator.
 - The devtools extension now has a checked inspected-window bridge for live
   `DevtoolsPanels` payloads exposed as `globalThis.__EFFECT_UI_DEVTOOLS__`.
+- The devtools extension transport now structurally validates inspected-window
+  `DevtoolsPanels` payloads before rendering live bridge data.
 - `@effect-ui/devtools` now exposes scoped app-side bridge helpers so apps can
   install and clean up that global payload provider through Effect.
 - Workspace package manifests now carry `UNLICENSED` metadata while they remain
@@ -181,6 +183,8 @@ or command result that proves it.
 | 106 | Full verification after type-test Promise-method cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/effect-first-audit.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after replacing type-test Promise method syntax: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 | 107 | Test Promise-catch cleanup | `packages/core/test/action.test.ts`; `packages/start/test/adapters.test.ts`; `examples/project-console/src/domain.mock.test.ts`; `docs/effect-first-audit.md`; `docs/sharp-cast-audit.md`; `docs/perfection-progress.md` | Replaced remaining direct Promise `.catch(...)` suppression/reporting in tests with Effect-run helpers or Effect-owned host callback handling. The non-Effect catch grep across packages, examples, scripts, and type tests now finds no hits. Focused tests passed: 3 files / 32 tests, and `pnpm typecheck` passed. | Run full verification before committing this sharp-edge cleanup. |
 | 108 | Full verification after test Promise-catch cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/effect-first-audit.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after replacing direct Promise catch suppression in tests: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
+| 109 | Devtools extension bridge payload validation | `examples/devtools-extension/src/transport.ts`; `examples/devtools-extension/src/extension.test.ts`; `docs/devtools.md`; `examples/devtools-extension/README.md`; `docs/sharp-cast-audit.md`; `docs/perfection-progress.md` | Replaced the inspected-window bridge payload cast with structural validation for panel ids, severities, metrics, items, and JSON-safe item data before live payloads reach the renderer. Extension typecheck and extension tests passed: 1 file / 6 tests, and `pnpm --filter @effect-ui/example-devtools-extension verify` passed. | Run full verification before committing this transport hardening slice. |
+| 110 | Full verification after devtools bridge payload validation | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after structurally validating devtools extension bridge payloads: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 
 ## Thirty-Sweep Gate
 

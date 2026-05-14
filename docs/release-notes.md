@@ -71,6 +71,8 @@ Latest full gate on May 14, 2026:
 - The latest `pnpm verify` also covers the private `UNLICENSED` workspace
   metadata sweep, the type-test Promise-method cleanup, and the test
   Promise-catch cleanup.
+- The devtools extension now structurally validates inspected-window
+  `DevtoolsPanels` bridge payloads before rendering live data.
 
 ## Notable Limits
 
