@@ -11,6 +11,10 @@
     "devtools-panel:test": "pnpm --filter @effect-ui/example-devtools-panel test",
     "devtools-panel:typecheck": "pnpm --filter @effect-ui/example-devtools-panel typecheck",
     "devtools-panel:verify": "pnpm --filter @effect-ui/example-devtools-panel verify",
+    "devtools-extension:build": "pnpm --filter @effect-ui/example-devtools-extension build",
+    "devtools-extension:test": "pnpm --filter @effect-ui/example-devtools-extension test",
+    "devtools-extension:typecheck": "pnpm --filter @effect-ui/example-devtools-extension typecheck",
+    "devtools-extension:verify": "pnpm --filter @effect-ui/example-devtools-extension verify",
     "example:build": "pnpm --filter @effect-ui/example-project-console build",
     "example:dev": "pnpm --filter @effect-ui/example-project-console dev",
     "example:leak-scan": "pnpm --filter @effect-ui/example-project-console leak-scan",
@@ -26,7 +30,7 @@
     "test": "vitest run",
     "typecheck": "tsgo -b tsconfig.json --pretty false && pnpm typecheck:types",
     "typecheck:types": "tsgo -p tsconfig.type-tests.json --noEmit --pretty false",
-    "verify": "pnpm build && pnpm typecheck && pnpm test && pnpm devtools-panel:verify && pnpm starter:verify && pnpm starter:project-console:package && pnpm example:typecheck && pnpm example:test && pnpm example:build && pnpm example:leak-scan"
+    "verify": "pnpm build && pnpm typecheck && pnpm test && pnpm devtools-panel:verify && pnpm devtools-extension:verify && pnpm starter:verify && pnpm starter:project-console:package && pnpm example:typecheck && pnpm example:test && pnpm example:build && pnpm example:leak-scan"
   },
   "dependencies": {
     "effect": "^4.0.0-beta.66"

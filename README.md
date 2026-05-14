@@ -15,7 +15,8 @@ surface, examples, diagnostics, and release gates are being hardened.
 - Local-first Collections with persistence, sync adapter seams, optimistic
   mutation queues, and live query materialization.
 - JSON-safe devtools summaries, causal graphs, request traces, panel data
-  models, a browser-embeddable panel renderer, and a checked panel app shell.
+  models, a browser-embeddable panel renderer, a checked panel app shell, and a
+  checked browser-extension shell.
 - Deterministic Start manifests and build diagnostics with repair guidance.
 - A copyable project console example and a minimal starter with SSR,
   hydration, route-owned Resource preload, checked rich-starter packaging, and
@@ -32,6 +33,7 @@ surface, examples, diagnostics, and release gates are being hardened.
 - [Public API inventory](docs/public-api-inventory.md)
 - [Release notes draft](docs/release-notes.md)
 - [Devtools panel example](examples/devtools-panel/README.md)
+- [Devtools extension example](examples/devtools-extension/README.md)
 - [Project console example](examples/project-console/README.md)
 
 ## Development
@@ -56,6 +58,7 @@ pnpm typecheck
 pnpm test
 pnpm benchmark
 pnpm devtools-panel:verify
+pnpm devtools-extension:verify
 pnpm starter:verify
 pnpm starter:project-console:package
 pnpm example:typecheck

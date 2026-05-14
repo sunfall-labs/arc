@@ -279,6 +279,8 @@ Progress:
     devtools tests and public type tests.
 - [x] Checked app-shell integration for the browser panel renderer.
   - Evidence: `examples/devtools-panel`.
+- [x] Checked browser-extension integration for the browser panel renderer.
+  - Evidence: `examples/devtools-extension`.
 
 Deliver:
 

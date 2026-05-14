@@ -206,6 +206,13 @@ The checked app-shell integration lives at
 public facts through `mountDevtoolsPanelsEffect(...)` and verifies typecheck,
 render output, and production build.
 
+The checked browser-extension shell lives at
+[`examples/devtools-extension`](../examples/devtools-extension). It emits a
+Manifest V3 devtools page, registers `panel.html` through the browser devtools
+panel host, mounts the same public panel contract through
+`mountDevtoolsPanelsEffect(...)`, and verifies the manifest, panel registration,
+render output, typecheck, and production build.
+
 ## Target Panels
 
 The devtools product should grow in this order:

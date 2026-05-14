@@ -16,6 +16,6 @@ pnpm --filter @effect-ui/example-devtools-panel verify
 ```
 
 The example mounts `DevtoolsPanels` into the DOM through
-`mountDevtoolsPanels(...)`. It is intentionally smaller than a browser
-extension; it proves the package renderer can be used by an app shell without
-private runtime access.
+`mountDevtoolsPanelsEffect(...)` inside an Effect scope. Use
+[`../devtools-extension`](../devtools-extension) for the checked browser
+extension shell.

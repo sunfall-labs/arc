@@ -124,6 +124,8 @@ or command result that proves it.
 | 74 | Full verification after rich starter packaging | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md` | Escalated full verification passed after adding the project-console starter packaging gate: 9 package builds, workspace typecheck, type tests, 37 root test files / 311 tests, devtools-panel verify, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next implementation sweep. |
 | 75 | Start diagnostics CLI Effect runner | `packages/start/src/cli.ts`; `packages/start/test/start.test.ts`; `docs/effect-first-audit.md`; `docs/public-api-inventory.md`; `docs/perfection-progress.md` | Added `runStartDiagnosticsCliEffect` and `runStartDiagnosticsCliMainEffect`, moved CLI parse/load/render control flow into Effect, and left Promise helpers as bin/host wrappers. Start package typecheck, focused Start diagnostics CLI tests, full Start integration tests, workspace typecheck, and full `pnpm verify` passed. | Keep the CLI Promise helpers as thin bin boundaries over Effect runners. |
 | 76 | Full verification after CLI Effect runner | `pnpm verify`; `docs/perfection-progress.md` | Escalated full verification passed after the Start diagnostics CLI runner moved into Effect: 9 package builds, workspace typecheck, type tests, 37 root test files / 311 tests, devtools-panel verify, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next implementation sweep. |
+| 77 | Devtools browser extension shell | `examples/devtools-extension`; `examples/devtools-panel/README.md`; `package.json`; `pnpm-lock.yaml`; `docs/devtools.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md` | Added `@effect-ui/example-devtools-extension`, a Manifest V3 devtools-page package that registers `panel.html`, mounts `DevtoolsPanels` through `mountDevtoolsPanelsEffect(...)`, and verifies manifest shape, panel registration, render output, typecheck, and production build. `pnpm devtools-extension:verify` passed. | Keep the extension sample-data shell aligned with the future inspected-app transport. |
+| 78 | Full verification after devtools extension shell | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md` | Escalated full verification passed after wiring the extension package into the root gate: 9 package builds, workspace typecheck, type tests, 38 root test files / 314 tests, devtools-panel verify, devtools-extension verify, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next implementation sweep. |
 
 ## Thirty-Sweep Gate
 
@@ -142,13 +144,11 @@ pass finds no improvements to make.
 
 ## Open Release-Candidate Slices
 
-1. Package the devtools browser renderer as an extension only if productizing
-   beyond the checked app-shell example.
-2. Add platform-specific adapter packages only where a host needs behavior
+1. Add platform-specific adapter packages only where a host needs behavior
    beyond the generic Node/fetch facades and documented recipes.
-3. Re-run the public API inventory after any rename/removal work and update
+2. Re-run the public API inventory after any rename/removal work and update
    migration notes.
-4. Run full `pnpm verify` and record the result before any handoff that claims
+3. Run full `pnpm verify` and record the result before any handoff that claims
    release-candidate status.
-5. After the remaining release-candidate slices stabilize, run the required
+4. After the remaining release-candidate slices stabilize, run the required
    no-new-improvements clean-sweep sequence.

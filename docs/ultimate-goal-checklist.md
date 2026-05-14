@@ -433,7 +433,7 @@ Last evidence pass: May 14, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Evidence: `pnpm verify` ran all root package tests: 37 test files, 311
+  - Evidence: `pnpm verify` ran all root package tests: 38 test files, 314
     tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
@@ -558,8 +558,7 @@ Last evidence pass: May 14, 2026.
   - Evidence: every checked item above has path/test/command evidence.
 - [x] Remaining unchecked competitive-bar items listed.
   - Evidence: platform-specific deployment packages beyond generic Node/fetch
-    and optional devtools browser extension packaging remain future
-    production-readiness items from `docs/winning-spec.md`.
+    remain future production-readiness items from `docs/winning-spec.md`.
 - [x] Remaining unchecked winning-bar items listed.
   - Evidence: next section.
 - [x] Next recommended workstreams listed.
@@ -567,12 +566,12 @@ Last evidence pass: May 14, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026 after the Start
-    diagnostics CLI Effect runner slice: 9 package builds, workspace typecheck,
-    type tests, 37 root test files / 311 tests, devtools-panel verify, basic
-    starter verify, project-console starter packaging, project-console
-    typecheck, 4 project-console test files / 23 tests, project-console build,
-    and leak scan.
+  - Evidence: root `pnpm verify` passed on May 14, 2026 after the devtools
+    extension shell slice: 9 package builds, workspace typecheck, type tests,
+    38 root test files / 314 tests, devtools-panel verify,
+    devtools-extension verify, basic starter verify, project-console starter
+    packaging, project-console typecheck, 4 project-console test files / 23
+    tests, project-console build, and leak scan.
 
 ## Remaining Winning-Bar Items
 
@@ -583,8 +582,10 @@ Last evidence pass: May 14, 2026.
 - [x] Integrate the browser panel renderer into a dedicated app shell.
   - Evidence: `examples/devtools-panel` mounts the renderer in a Vite app shell
     and `pnpm devtools-panel:verify` passed.
-- [ ] Package the devtools panel as a browser extension if productizing beyond
-  the checked app-shell example.
+- [x] Package the devtools panel as a browser extension.
+  - Evidence: `examples/devtools-extension` builds a Manifest V3 devtools page
+    and panel page around the public renderer, verifies panel registration and
+    manifest shape, and `pnpm devtools-extension:verify` passed.
 - [x] Add richer starter packaging for the project console.
   - Evidence: `scripts/package-project-console-starter.mjs` generates
     `.test-dist/starters/project-console`, rewrites workspace protocol
@@ -610,11 +611,9 @@ Use [`docs/framework-perfection-charter.md`](./framework-perfection-charter.md)
 as the several-week cleanup, improvement, iteration, and release-candidate
 quality goal.
 
-1. Package the devtools panel as a browser extension if productizing beyond the
-   checked app-shell example.
-2. Extend request traces with any missing response context, collection, and
+1. Extend request traces with any missing response context, collection, and
    request-fiber details uncovered by real panel usage.
-3. Add platform-specific adapter packages only where a host needs behavior
+2. Add platform-specific adapter packages only where a host needs behavior
    beyond the generic Node/fetch facades and documented recipes.
-4. Keep the project-console starter packaging aligned with published package
+3. Keep the project-console starter packaging aligned with published package
    versions once package publication is finalized.

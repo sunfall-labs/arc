@@ -13,7 +13,8 @@ yet.
 - Node and Fetch host facades: `@effect-ui/start-node` and
   `@effect-ui/start-fetch`.
 - Devtools data contracts: snapshots, summaries, causal graphs, request traces,
-  panel models, deterministic HTML rendering, and the checked panel app shell.
+  panel models, deterministic HTML rendering, the checked panel app shell, and
+  the checked browser-extension shell.
 - Local-first DB surface: Collections, live queries, persistence, sync adapter
   seams, mutation queues, and flush policies.
 - Solid adapters: runtime provider, router, Resource hooks, Action hooks,
@@ -31,8 +32,8 @@ yet.
   joined context variance and the default projector.
 - Core runtime integration with Effect `ManagedRuntime` keeps a documented
   service-erasure cast boundary.
-- Browser extension packaging for devtools is not committed; the checked app
-  shell proves the renderer integration first.
+- Browser extension packaging is checked as an example shell; connecting it to
+  a live inspected app transport remains the next product step.
 - Platform-specific packages beyond Node/fetch should wait for hosts that need
   real behavior beyond the generic facades and documented recipes.
 
@@ -42,8 +43,9 @@ Latest full gate on May 14, 2026:
 
 - 9 package builds;
 - workspace typecheck and public type tests;
-- 37 root test files / 311 tests;
+- 38 root test files / 314 tests;
 - devtools panel verify;
+- devtools extension verify;
 - basic starter verify;
 - project console starter packaging;
 - project console typecheck;
@@ -53,14 +55,15 @@ Latest full gate on May 14, 2026:
 - `pnpm benchmark` refreshed the SSR, route preload, Resource, live query, and
   RPC transport baselines.
 - The latest `pnpm verify` includes the rich project-console starter packaging
-  gate.
+  gate and the devtools extension verify gate.
 - The Start diagnostics CLI now runs its parse/load/render flow through an
   Effect-native runner with Promise helpers kept at the bin boundary.
 
 ## Notable Limits
 
 - Packages are still private and versioned `0.0.0-alpha.0`.
-- No browser extension package exists for devtools yet.
+- The browser extension shell currently renders checked public sample facts;
+  live inspected-app transport is not committed yet.
 - The generated rich starter still uses pre-release `0.0.0-alpha.0`
   `@effect-ui/*` package placeholders until package publication is finalized.
 - Cloudflare, Vercel, Netlify, Bun, and static deployment currently use recipes
