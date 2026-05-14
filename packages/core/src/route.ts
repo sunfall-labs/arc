@@ -241,7 +241,7 @@ const decode = <A>(schema: unknown, input: unknown): A => {
     return input as A;
   }
 
-  return (Schema.decodeUnknownSync as any)(schema)(input) as A;
+  return Schema.decodeUnknownSync(schema as Schema.Decoder<A>)(input);
 };
 
 const matchPath = (
