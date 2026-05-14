@@ -237,6 +237,7 @@ export interface CollectionDefinition<A extends object, K extends CollectionKey 
 }
 
 export type AnyCollection = CollectionDefinition<any, any, any, any>;
+type AnyCollectionRow = CollectionRow<any, any>;
 export type CollectionValue<C> = C extends CollectionDefinition<infer A, infer _K, infer _E, infer _R> ? A : never;
 export type CollectionRowValue<C> = C extends CollectionDefinition<infer A, infer K, infer _E, infer _R> ? CollectionRow<A, K> : never;
 export type CollectionError<C> = C extends CollectionDefinition<infer _A, infer _K, infer E, infer _R> ? E : never;
@@ -1660,11 +1661,12 @@ export type QueryJoinKey = string | number | boolean | Date | null | undefined;
 export type QueryJoinStrategy = "collection-scan" | "collection-index";
 
 type SourceRecord = Record<string, AnyCollection>;
+type AnyQueryContext = Record<string, any>;
 type QueryContext<Sources extends SourceRecord> = {
   readonly [Key in keyof Sources]: CollectionRowValue<Sources[Key]>;
 };
 type QueryJoinedContext<
-  TContext extends Record<string, any>,
+  TContext extends AnyQueryContext,
   Alias extends string,
   C extends AnyCollection
 > = TContext & {
@@ -1685,8 +1687,8 @@ interface QueryOrder<TContext> {
 interface QueryJoin {
   readonly alias: string;
   readonly collection: AnyCollection;
-  readonly leftKey: (row: Record<string, any>) => QueryJoinKey;
-  readonly rightKeys: (row: CollectionRow<any, any>) => ReadonlyArray<QueryJoinKey>;
+  readonly leftKey: (row: AnyQueryContext) => QueryJoinKey;
+  readonly rightKeys: (row: AnyCollectionRow) => ReadonlyArray<QueryJoinKey>;
   readonly rightIndex?: string;
 }
 
@@ -1730,18 +1732,21 @@ export interface QueryAggregate<TContext, R, V = unknown> {
 }
 
 export type QueryAggregateRecord<TContext> = Record<string, QueryAggregate<TContext, any, any>>;
+type AnyQueryAggregateRecord = QueryAggregateRecord<any>;
 export type QueryAggregateResult<
   TKey extends Record<string, unknown>,
-  Aggregates extends QueryAggregateRecord<any>
+  Aggregates extends AnyQueryAggregateRecord
 > = TKey & {
   readonly [Key in keyof Aggregates]: Aggregates[Key] extends QueryAggregate<infer _Context, infer R, infer _Value> ? R : never;
 };
 
-interface QueryGrouping<TSource extends Record<string, any>, TResult extends Record<string, unknown>> {
+interface QueryGrouping<TSource extends AnyQueryContext, TResult extends Record<string, unknown>> {
   readonly key: (row: TSource) => Record<string, unknown>;
   readonly aggregates: QueryAggregateRecord<TSource>;
   readonly sourceFilters: ReadonlyArray<(row: TSource) => boolean>;
 }
+
+type AnyQueryGrouping = QueryGrouping<AnyQueryContext, Record<string, unknown>>;
 
 interface QueryProjectOptions {
   readonly filter?: boolean;
@@ -1754,7 +1759,7 @@ const projectCurrentContext = <TContext, TResult>(row: TContext): TResult => {
   return value as TResult;
 };
 
-export class QueryBuilder<TContext extends Record<string, any>, TResult> {
+export class QueryBuilder<TContext extends AnyQueryContext, TResult> {
   constructor(
     readonly sources: ReadonlyArray<readonly [string, AnyCollection]>,
     readonly filters: ReadonlyArray<(row: TContext) => boolean> = [],
@@ -1763,14 +1768,14 @@ export class QueryBuilder<TContext extends Record<string, any>, TResult> {
     readonly offsetCount = 0,
     readonly limitCount: number | undefined = undefined,
     readonly joins: ReadonlyArray<QueryJoin> = [],
-    readonly grouping: QueryGrouping<any, any> | undefined = undefined
+    readonly grouping: AnyQueryGrouping | undefined = undefined
   ) {}
 
   private filtersFor<NextContext extends TContext>(): ReadonlyArray<(row: NextContext) => boolean> {
     return this.filters;
   }
 
-  private projectorFor<NextContext extends Record<string, any>, NextResult>(): ((row: NextContext) => NextResult) | undefined {
+  private projectorFor<NextContext extends AnyQueryContext, NextResult>(): ((row: NextContext) => NextResult) | undefined {
     return this.projector as ((row: NextContext) => NextResult) | undefined;
   }
 
@@ -1827,9 +1832,9 @@ export class QueryBuilder<TContext extends Record<string, any>, TResult> {
         {
           alias,
           collection,
-          leftKey: leftKey as (row: Record<string, any>) => QueryJoinKey,
-          rightKeys: (row: CollectionRow<any, any>) => [
-            (rightKey as (row: CollectionRow<any, any>) => QueryJoinKey)(row)
+          leftKey: leftKey as (row: AnyQueryContext) => QueryJoinKey,
+          rightKeys: (row: AnyCollectionRow) => [
+            (rightKey as (row: AnyCollectionRow) => QueryJoinKey)(row)
           ]
         }
       ],
@@ -1860,8 +1865,8 @@ export class QueryBuilder<TContext extends Record<string, any>, TResult> {
         {
           alias,
           collection,
-          leftKey: leftKey as (row: Record<string, any>) => QueryJoinKey,
-          rightKeys: (row: CollectionRow<any, any>) => indexJoinKeys(collection, index, row),
+          leftKey: leftKey as (row: AnyQueryContext) => QueryJoinKey,
+          rightKeys: (row: AnyCollectionRow) => indexJoinKeys(collection, index, row),
           rightIndex: index
         }
       ],
@@ -1913,9 +1918,9 @@ export class QueryBuilder<TContext extends Record<string, any>, TResult> {
       undefined,
       this.joins,
       {
-        key: key as (row: Record<string, any>) => Record<string, unknown>,
-        aggregates: aggregates as QueryAggregateRecord<Record<string, any>>,
-        sourceFilters: this.filters
+        key: key as (row: AnyQueryContext) => Record<string, unknown>,
+        aggregates: aggregates as AnyQueryAggregateRecord,
+        sourceFilters: this.filters as ReadonlyArray<(row: AnyQueryContext) => boolean>
       }
     );
   }
@@ -1992,7 +1997,9 @@ export class QueryBuilder<TContext extends Record<string, any>, TResult> {
   }
 }
 
-export type QueryFactory<TResult> = (query: QueryRoot) => QueryBuilder<any, TResult>;
+type AnyQueryBuilder<TResult = any> = QueryBuilder<any, TResult>;
+
+export type QueryFactory<TResult> = (query: QueryRoot) => AnyQueryBuilder<TResult>;
 
 export interface QueryRoot {
   from<const Sources extends SourceRecord>(sources: Sources): QueryBuilder<QueryContext<Sources>, QueryContext<Sources>>;
@@ -2004,7 +2011,7 @@ export type LiveQueryState<T, E = unknown> =
   | { readonly _tag: "Failure"; readonly waiting: false; readonly error: E; readonly data: ReadonlyArray<T> };
 
 export interface LiveQuery<T, E = unknown, R = never> {
-  readonly builder: QueryBuilder<any, T>;
+  readonly builder: AnyQueryBuilder<T>;
   readonly data: ReadableSignal<ReadonlyArray<T>>;
   readonly state: ReadableSignal<LiveQueryState<T, E>>;
   readonly sources: ReadonlyArray<AnyCollection>;
@@ -2023,7 +2030,7 @@ const queryRoot: QueryRoot = {
   )
 };
 
-const buildContexts = <TContext extends Record<string, any>>(
+const buildContexts = <TContext extends AnyQueryContext>(
   sources: ReadonlyArray<readonly [string, AnyCollection]>
 ): Array<TContext> => {
   if (sources.length === 0) {
@@ -2054,12 +2061,12 @@ const buildContexts = <TContext extends Record<string, any>>(
   return contexts;
 };
 
-const buildQueryContexts = <TContext extends Record<string, any>>(
+const buildQueryContexts = <TContext extends AnyQueryContext>(
   builder: QueryBuilder<TContext, unknown>
 ): Array<TContext> =>
   buildQueryExecution(builder).contexts;
 
-const buildQueryExecution = <TContext extends Record<string, any>>(
+const buildQueryExecution = <TContext extends AnyQueryContext>(
   builder: QueryBuilder<TContext, unknown>
 ): QueryExecution<TContext> => {
   const joinAliases = new Set(builder.joins.map((join) => join.alias));
@@ -2070,10 +2077,10 @@ const buildQueryExecution = <TContext extends Record<string, any>>(
     rows: collection.rows().length
   }));
   const joins: Array<QueryPlanJoinDiagnostics> = [];
-  let contexts = buildContexts<Record<string, any>>(baseSources);
+  let contexts = buildContexts<AnyQueryContext>(baseSources);
 
   for (const join of builder.joins) {
-    const joined: Array<Record<string, any>> = [];
+    const joined: Array<AnyQueryContext> = [];
     const leftRows = contexts.length;
     const rightRows = join.collection.rows().length;
     for (const context of contexts) {
@@ -2104,7 +2111,7 @@ const buildQueryExecution = <TContext extends Record<string, any>>(
     contexts = joined;
   }
 
-  let resultContexts: Array<Record<string, any>>;
+  let resultContexts: Array<AnyQueryContext>;
   if (builder.grouping) {
     resultContexts = groupContexts(contexts, builder.grouping);
   } else {
@@ -2127,12 +2134,12 @@ const buildQueryExecution = <TContext extends Record<string, any>>(
 };
 
 const groupContexts = (
-  contexts: ReadonlyArray<Record<string, any>>,
-  grouping: QueryGrouping<Record<string, any>, Record<string, unknown>>
+  contexts: ReadonlyArray<AnyQueryContext>,
+  grouping: AnyQueryGrouping
 ): Array<Record<string, unknown>> => {
   const groups = new Map<string, {
     readonly key: Record<string, unknown>;
-    readonly values: Array<Record<string, any>>;
+    readonly values: Array<AnyQueryContext>;
   }>();
 
   for (const context of contexts) {
@@ -2189,7 +2196,7 @@ const compareRows = <TContext>(
   return leftIndex - rightIndex;
 };
 
-const compareIvmContexts = <TContext extends Record<string, any>>(
+const compareIvmContexts = <TContext extends AnyQueryContext>(
   orders: ReadonlyArray<QueryOrder<TContext>>
 ) => (left: TContext, right: TContext): number => {
   const comparison = compareRows(left, right, 0, 0, orders);
@@ -2203,7 +2210,7 @@ const compareIvmContexts = <TContext extends Record<string, any>>(
   );
 };
 
-const querySources = (builder: QueryBuilder<any, any>): ReadonlyArray<AnyCollection> =>
+const querySources = (builder: AnyQueryBuilder): ReadonlyArray<AnyCollection> =>
   builder.sources.map(([, collection]) => collection);
 
 const contextKeySymbol: unique symbol = Symbol.for("@effect-ui/db/QueryContextKey") as typeof contextKeySymbol;
@@ -2255,7 +2262,7 @@ interface IvmSource {
   readonly alias: string;
   readonly collection: AnyCollection;
   readonly input: RootStreamBuilder<KeyValue<string, IvmContext>>;
-  readonly previous: Map<string, { readonly row: CollectionRow<any, any>; readonly hash: string }>;
+  readonly previous: Map<string, { readonly row: AnyCollectionRow; readonly hash: string }>;
 }
 
 interface IvmOutputRow<TContext> {
@@ -2263,7 +2270,7 @@ interface IvmOutputRow<TContext> {
   readonly order: string | undefined;
 }
 
-class IvmLiveQueryEngine<TContext extends Record<string, any>, TResult> {
+class IvmLiveQueryEngine<TContext extends AnyQueryContext, TResult> {
   readonly #graph = new D2();
   readonly #sources: ReadonlyArray<IvmSource>;
   readonly #rows = new Map<string, { context: TContext; count: number; order: string | undefined }>();
@@ -2340,7 +2347,7 @@ class IvmLiveQueryEngine<TContext extends Record<string, any>, TResult> {
       );
       const keyedRight = source.input.pipe(
         ivmFlatMap(([_, context]) => {
-          const row = context[join.alias] as CollectionRow<any, any>;
+          const row = context[join.alias] as AnyCollectionRow;
           return join.rightKeys(row).map((rightKey) =>
             [joinKey(rightKey), context] satisfies KeyValue<string, IvmContext>
           );
@@ -2358,12 +2365,12 @@ class IvmLiveQueryEngine<TContext extends Record<string, any>, TResult> {
 
     let resultStream: IStreamBuilder<KeyValue<string, TContext>>;
     if (this.builder.grouping) {
-      const grouping = this.builder.grouping as QueryGrouping<Record<string, any>, Record<string, unknown>>;
+      const grouping = this.builder.grouping as AnyQueryGrouping;
       resultStream = stream.pipe(
         ivmFilter(([_, context]) =>
           grouping.sourceFilters.every((filter) => filter(context))
         ),
-        ivmMap(([_, context]) => context as Record<string, any>),
+        ivmMap(([_, context]) => context as AnyQueryContext),
         ivmGroupBy(grouping.key, grouping.aggregates),
         ivmFilter(([_, group]) =>
           this.builder.filters.every((filter) => filter(group as TContext))
@@ -2443,7 +2450,7 @@ class IvmLiveQueryEngine<TContext extends Record<string, any>, TResult> {
   }
 
   #syncSource(source: IvmSource): void {
-    const current = new Map<string, { readonly row: CollectionRow<any, any>; readonly hash: string }>();
+    const current = new Map<string, { readonly row: AnyCollectionRow; readonly hash: string }>();
     const deltas: Array<[KeyValue<string, IvmContext>, number]> = [];
 
     for (const row of source.collection.rows()) {
@@ -2483,7 +2490,7 @@ class IvmLiveQueryEngine<TContext extends Record<string, any>, TResult> {
 
 const sourceContext = (
   alias: string,
-  row: CollectionRow<any, any>
+  row: AnyCollectionRow
 ): KeyValue<string, IvmContext> => [
   crossJoinKey,
   {
@@ -3136,7 +3143,7 @@ export namespace Collection {
 }
 
 export namespace Query {
-  export type Builder<TContext extends Record<string, any>, TResult> = QueryBuilder<TContext, TResult>;
+  export type Builder<TContext extends AnyQueryContext, TResult> = QueryBuilder<TContext, TResult>;
   export type Factory<TResult> = QueryFactory<TResult>;
   export type Live<T, E = unknown, R = never> = LiveQuery<T, E, R>;
   export type LiveState<T, E = unknown> = LiveQueryState<T, E>;
@@ -3149,7 +3156,7 @@ export namespace Query {
   export type Aggregates<TContext> = QueryAggregateRecord<TContext>;
   export type AggregateResult<
     TKey extends Record<string, unknown>,
-    Aggregates extends QueryAggregateRecord<any>
+    Aggregates extends AnyQueryAggregateRecord
   > = QueryAggregateResult<TKey, Aggregates>;
 
   export const from = queryRoot.from;
@@ -3159,7 +3166,7 @@ export namespace Query {
   export const min = aggregateMin;
   export const max = aggregateMax;
 
-  export const build = <T>(factory: QueryFactory<T>): QueryBuilder<any, T> =>
+  export const build = <T>(factory: QueryFactory<T>): AnyQueryBuilder<T> =>
     factory(queryRoot);
 
   export const diagnostics = <T>(factory: QueryFactory<T>): QueryPlanDiagnostics =>

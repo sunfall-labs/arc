@@ -453,3 +453,12 @@ Effect-native interruption.
   file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
+- `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck:types`, and
+  `pnpm exec vitest run packages/db/test/*.test.ts` passed after naming the DB
+  query engine's heterogeneous row/context wildcard boundaries.
+- Full `pnpm verify` passed after the DB query wildcard boundary cleanup: 9
+  package builds, workspace typecheck, type tests, 38 root test files / 320
+  tests, devtools-panel verify, devtools-extension verify with 1 extension test
+  file / 6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.

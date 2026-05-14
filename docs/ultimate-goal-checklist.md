@@ -179,6 +179,12 @@ Last evidence pass: May 14, 2026.
     action surfaces use local `Any*` aliases or existing exported aliases for
     arbitrary definitions instead of repeated inline wildcard applications;
     focused typechecks, public type tests, and full `pnpm verify` passed.
+- [x] DB query context erasure is named at runtime graph boundaries.
+  - Evidence: `packages/db/src/index.ts` uses local `AnyCollectionRow`,
+    `AnyQueryContext`, `AnyQueryAggregateRecord`, `AnyQueryGrouping`, and
+    `AnyQueryBuilder` aliases around live-query joins, group-by, and IVM
+    execution; DB typecheck, public type tests, DB Vitest files, and full
+    `pnpm verify` passed.
 - [x] Package source avoids raw Promise method lifecycle cleanup.
   - Evidence: action and Start action submitters use `Effect.ensuring` for
     in-flight cleanup; Solid/Solid DB background preloads catch inside Effect;
@@ -675,9 +681,9 @@ Last evidence pass: May 14, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026 after the named
-    arbitrary wildcard boundary cleanup: 9 package builds, workspace typecheck,
-    type tests, 38 root test files / 320 tests, devtools-panel verify,
+  - Evidence: root `pnpm verify` passed on May 14, 2026 after the DB query
+    wildcard boundary cleanup: 9 package builds, workspace typecheck, type
+    tests, 38 root test files / 320 tests, devtools-panel verify,
     devtools-extension verify with 1 extension test file / 6 tests, basic
     starter verify, project-console starter packaging, project-console
     typecheck, 4 project-console test files / 23 tests, project-console build,
