@@ -1479,8 +1479,14 @@ export const persistedCollectionOptions = <
   PR = never
 >(
   options: CollectionPersistedOptions<A, K, E, R, PE, PR>
-): CollectionOptions<A, K, E | PE, R | PR> =>
-  options as unknown as CollectionOptions<A, K, E | PE, R | PR>;
+): CollectionOptions<A, K, E | PE, R | PR> => {
+  const { policy, persistence, ...rest } = options;
+  return {
+    ...rest,
+    ...(policy === undefined ? {} : { policy: policy as CollectionPolicy<E | PE> }),
+    persistence
+  };
+};
 
 const readonlyCollectionMutation = (
   collection: string,
