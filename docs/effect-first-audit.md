@@ -48,14 +48,18 @@ Effect-native interruption.
     Effect fiber record.
   - Runtime disposal, hydration, and resource deletion now interrupt tracked
     public prefetch/refresh fibers instead of only clearing a Promise handle.
+- `packages/core/src/action.ts` and `packages/start/src/index.ts`
+  - Replaced public action submit `Promise.finally(...)` cleanup with tokened
+    in-flight submission records and `Effect.ensuring`.
+  - Stale action fibers can no longer clear newer submissions, and reset still
+    interrupts the tracked fiber.
+- `packages/solid/src/index.ts` and `packages/solid-db/src/index.ts`
+  - Moved router preload completion, background resource preload, collection
+    preload, and live-query preload error handling into Effect programs before
+    crossing the Solid/browser `runPromise` boundary.
 
 ## Remaining Promise Sites To Review
 
-- `packages/core/src/action.ts`
-  - Uses a Promise to represent the public `submit(...)` host boundary and
-    action concurrency state. Review whether the internal state machine can
-    track `Fiber` plus Effect state more directly while keeping `submit(...)` as
-    a convenience API.
 - `packages/solid/src/index.ts`
   - Uses Promises at Solid/browser boundaries for preload, suspense throws, and
     ignored background prefetches. Keep only where Solid expects a Promise.
@@ -67,6 +71,11 @@ Effect-native interruption.
   - Promise use is mostly Vite, Node, and fetch host-boundary work. Keep
     auditing any helper that can become an Effect program before it crosses the
     host boundary.
+- Source grep follow-up:
+  - `rg -n "Promise\\.resolve\\(|new Promise|\\.then\\(|\\.finally\\(" packages/*/src -g '*.ts'`
+    currently finds no package source hits.
+  - `rg -n "\\.catch\\(" packages/*/src -g '*.ts' | rg -v "Effect\\.catch"`
+    currently finds no package source hits.
 
 ## Verification Evidence
 
@@ -83,5 +92,11 @@ Effect-native interruption.
   Resource in-flight fiber sweep: 1 file, 24 tests.
 - `pnpm typecheck` passed after the Resource in-flight fiber sweep.
 - `pnpm verify` passed after the Resource in-flight fiber sweep: package build,
+  workspace typecheck, type tests, 34 package test files / 300 tests, example
+  typecheck, 4 example test files / 23 tests, example build, and leak scan.
+- `pnpm exec vitest run packages/core/test/action.test.ts packages/core/test/resource.test.ts packages/start/test/start.test.ts packages/solid-db/test/solid-db.test.ts`
+  passed after the Promise-method cleanup: 4 files, 92 tests.
+- `pnpm typecheck` passed after the Promise-method cleanup.
+- `pnpm verify` passed after the Promise-method cleanup: package build,
   workspace typecheck, type tests, 34 package test files / 300 tests, example
   typecheck, 4 example test files / 23 tests, example build, and leak scan.

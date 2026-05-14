@@ -1091,7 +1091,11 @@ export namespace Resource {
     }
 
     if (isStale(ref as ResourceRef<unknown, A, E, unknown>, state)) {
-      void refresh(ref).catch(() => undefined);
+      void runPromise(
+        (refreshEffect(ref) as Effect.Effect<A, E, any>).pipe(
+          Effect.catch(() => Effect.void)
+        )
+      );
     }
 
     return state.value;
@@ -1132,8 +1136,10 @@ export namespace Resource {
   ): void => {
     const store = currentResourceStore();
     void runPromise(
-      Effect.provideService(runInvalidationPlanEffect(plan), ResourceStore, store)
-    ).catch(() => undefined);
+      Effect.provideService(runInvalidationPlanEffect(plan), ResourceStore, store).pipe(
+        Effect.catch(() => Effect.void)
+      )
+    );
   };
 
   const dehydrateWithStore = (

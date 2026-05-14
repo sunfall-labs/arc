@@ -288,8 +288,13 @@ export namespace Action {
     const invalidationPlan = Signal.make<ResourceInvalidationPlan | undefined>(undefined);
     const runtime = options.runtime ?? getCurrentRuntime() ?? currentOrDefaultRuntime();
     let version = 0;
-    let currentFiber: Fiber.Fiber<A, E | ActionInterrupted> | undefined;
-    let currentPromise: Promise<A> | undefined;
+    let currentSubmission:
+      | {
+          readonly token: object;
+          fiber?: Fiber.Fiber<A, E | ActionInterrupted>;
+          promise?: Promise<A>;
+        }
+      | undefined;
 
     const runEffect = (input: I): Effect.Effect<A, E, R> => {
       const effect = toEffect(definition.run(input));
@@ -401,23 +406,28 @@ export namespace Action {
         state.set({ _tag: "Idle" });
       });
 
-    const clearCurrent = (fiber: Fiber.Fiber<A, E | ActionInterrupted>): void => {
-      if (currentFiber === fiber) {
-        currentFiber = undefined;
-        currentPromise = undefined;
-      }
-    };
+    const clearCurrentEffect = (token: object): Effect.Effect<void> =>
+      Effect.sync(() => {
+        if (currentSubmission?.token === token) {
+          currentSubmission = undefined;
+        }
+      });
 
     const submit = (input: I): Promise<A> => {
       const concurrency = definition.policy?.concurrency ?? "latest";
 
-      if (concurrency === "exhaust" && currentPromise) {
-        return currentPromise;
+      if (concurrency === "exhaust" && currentSubmission?.promise) {
+        return currentSubmission.promise;
       }
 
-      const previousFiber = concurrency === "latest" ? currentFiber : undefined;
+      const previousFiber = concurrency === "latest" ? currentSubmission?.fiber : undefined;
 
       const token = ++version;
+      const submissionToken = {};
+      if (concurrency !== "parallel") {
+        currentSubmission = { token: submissionToken };
+      }
+
       const fiber = runtime.runFork(
         Effect.gen(function* () {
           if (previousFiber) {
@@ -431,11 +441,15 @@ export namespace Action {
         }) as Effect.Effect<A, E | ActionInterrupted, R>
       ) as Fiber.Fiber<A, E | ActionInterrupted>;
 
-      const promise = runtime.runPromise(Fiber.join(fiber) as Effect.Effect<A, E | ActionInterrupted, R>).finally(() => clearCurrent(fiber));
+      const promise = runtime.runPromise(
+        (Fiber.join(fiber) as Effect.Effect<A, E | ActionInterrupted, R>).pipe(
+          Effect.ensuring(clearCurrentEffect(submissionToken))
+        )
+      );
 
-      if (concurrency !== "parallel") {
-        currentFiber = fiber;
-        currentPromise = promise;
+      if (concurrency !== "parallel" && currentSubmission?.token === submissionToken) {
+        currentSubmission.fiber = fiber;
+        currentSubmission.promise = promise;
       }
 
       return promise;
@@ -449,11 +463,11 @@ export namespace Action {
       submit,
       resetEffect,
       reset: () => {
-        if (currentFiber) {
-          void runtime.runPromise(Fiber.interrupt(currentFiber) as Effect.Effect<void, never, R>);
-          currentFiber = undefined;
-          currentPromise = undefined;
+        const submission = currentSubmission;
+        if (submission?.fiber) {
+          void runtime.runPromise(Fiber.interrupt(submission.fiber) as Effect.Effect<void, never, R>);
         }
+        currentSubmission = undefined;
         runtime.runSync(resetEffect());
       }
     };

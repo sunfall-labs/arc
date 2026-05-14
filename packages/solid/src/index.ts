@@ -235,22 +235,25 @@ export const createBrowserRouter = <const Routes extends readonly AnyRoute[]>(
       runtime.provide(Route.preloadEffect(match)) as Effect.Effect<void, unknown, Scope.Scope>
     );
 
-    void runtime.runPromise(Effect.exit(Fiber.join(fiber)) as Effect.Effect<Exit.Exit<void, unknown>, never, any>).then((exit) => {
-      if (navigationId !== navigation) {
-        return;
-      }
+    void runtime.runPromise(
+      Effect.gen(function* () {
+        const exit = yield* Effect.exit(Fiber.join(fiber));
+        if (navigationId !== navigation) {
+          return;
+        }
 
-      if (preloadScope === scope) {
-        preloadScope = undefined;
-      }
-      void scope.dispose();
+        if (preloadScope === scope) {
+          preloadScope = undefined;
+        }
+        yield* scope.disposeEffect().pipe(Effect.catch(() => Effect.void));
 
-      if (Exit.isSuccess(exit)) {
-        setState({ _tag: "Ready", href, match });
-      } else {
-        setState({ _tag: "Failure", href, match, error: exit.cause });
-      }
-    });
+        if (Exit.isSuccess(exit)) {
+          setState({ _tag: "Ready", href, match });
+        } else {
+          setState({ _tag: "Failure", href, match, error: exit.cause });
+        }
+      }) as Effect.Effect<void, never, any>
+    );
   });
 
   onCleanup(() => {
@@ -466,7 +469,11 @@ export const useResourceResult = <I, A, E, R = any>(
     unsubscribe = result.subscribe(() => setState(() => result.get()));
 
     if (result.get()._tag === "Initial") {
-      void runtime.runPromise(Resource.prefetchEffect(currentRef) as Effect.Effect<A, E, any>).catch(() => undefined);
+      void runtime.runPromise(
+        (Resource.prefetchEffect(currentRef) as Effect.Effect<A, E, any>).pipe(
+          Effect.catch(() => Effect.void)
+        )
+      );
     }
   });
 

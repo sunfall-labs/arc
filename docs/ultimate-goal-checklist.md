@@ -139,6 +139,11 @@ Last evidence pass: May 14, 2026.
   - Evidence: `packages/core/src/resource.ts` stores in-flight public
     prefetch/refresh work as a `Fiber`; `packages/core/test/resource.test.ts`
     covers dedupe and runtime-disposal interruption.
+- [x] Package source avoids raw Promise method lifecycle cleanup.
+  - Evidence: action and Start action submitters use `Effect.ensuring` for
+    in-flight cleanup; Solid/Solid DB background preloads catch inside Effect;
+    source grep finds no `.then(...)`, `.finally(...)`, or non-Effect
+    `.catch(...)` calls in package source.
 - [x] Compile-time rejection rules have type tests.
   - Evidence: `type-tests/framework.test-d.ts` and `pnpm typecheck:types`.
 - [x] Runtime lifecycle guarantees have behavioral tests.
@@ -494,6 +499,20 @@ Last evidence pass: May 14, 2026.
 - Evidence:
   - `pnpm exec vitest run packages/core/test/resource.test.ts` passed: 1 file,
     24 tests.
+  - `pnpm typecheck` passed.
+  - `pnpm verify` passed: 34 package test files / 300 tests, example
+    typecheck, 4 example test files / 23 tests, example build, and leak scan.
+
+### Promise Method Slice
+
+- Completed:
+  - Removed remaining package-source `.then(...)`, `.finally(...)`, and
+    non-Effect `.catch(...)` calls.
+  - Moved action, Start action, Solid router, Solid resource preload, and
+    Solid DB preload cleanup/error handling into Effect programs.
+- Evidence:
+  - `pnpm exec vitest run packages/core/test/action.test.ts packages/core/test/resource.test.ts packages/start/test/start.test.ts packages/solid-db/test/solid-db.test.ts`
+    passed: 4 files, 92 tests.
   - `pnpm typecheck` passed.
   - `pnpm verify` passed: 34 package test files / 300 tests, example
     typecheck, 4 example test files / 23 tests, example build, and leak scan.
