@@ -60,7 +60,7 @@ export interface ServerFunction<I, A, E = unknown, R = never> {
   readonly hasHandler: boolean;
   effect(input: I): Effect.Effect<A, E | ServerClientError, R>;
   local(input: I): Effect.Effect<A, E | ServerFunctionNotFound, R>;
-  invoke(input: unknown): Effect.Effect<unknown, unknown, R>;
+  invoke(input: unknown): Effect.Effect<unknown, E | ServerClientError, R>;
   (input: I): Promise<A>;
 }
 
@@ -108,7 +108,7 @@ export interface ServerClient {
   readonly call: <I, A, E, R>(
     fn: ServerFunction<I, A, E, R>,
     input: I
-  ) => Effect.Effect<A, E | ServerClientError>;
+  ) => Effect.Effect<A, E | ServerClientError, R>;
 }
 
 export const ServerClient = Context.Service<ServerClient>("@effect-ui/core/ServerClient");
@@ -122,6 +122,12 @@ type ServerContractError<Contract> =
   Contract extends ServerFunctionContract<any, any, infer E> ? E : never;
 
 const serverFunctionRegistry = new Map<string, ServerFunction<any, any, any, any>>();
+
+const mockFor = <I, A, E, R>(
+  mocks: ReadonlyMap<string, ServerFunctionMock<any, any, any, any>>,
+  fn: ServerFunction<I, A, E, R>
+): ServerFunctionMock<I, A, E, R> | undefined =>
+  mocks.get(fn.name) as ServerFunctionMock<I, A, E, R> | undefined;
 
 export const isServerFunction = (value: unknown): value is ServerFunction<unknown, unknown> =>
   typeof value === "function" &&
@@ -237,19 +243,19 @@ export namespace Server {
       call: <I, A, E, R>(
         fn: ServerFunction<I, A, E, R>,
         input: I
-      ): Effect.Effect<A, E | ServerClientError> =>
+      ): Effect.Effect<A, E | ServerClientError, R> =>
         Effect.gen(function* () {
-          const mock = byName.get(fn.name);
+          const mock = mockFor(byName, fn);
           if (!mock) {
             return yield* Effect.fail(new ServerFunctionNotFound({ functionName: fn.name }));
           }
 
           const encodedInput = yield* encodeWire(fn.input, input);
-          const decodedInput = yield* decodeWire(mock.input, encodedInput);
+          const decodedInput = yield* decodeWire<I>(mock.input, encodedInput);
           const value = yield* toEffect(mock.handler(decodedInput));
           const encodedOutput = yield* encodeWire(mock.output, value);
-          return yield* decodeWire(fn.output, encodedOutput) as Effect.Effect<A, Schema.SchemaError>;
-        }) as Effect.Effect<A, E | ServerClientError>
+          return yield* decodeWire<A>(fn.output, encodedOutput);
+        })
     };
   };
 
@@ -262,11 +268,7 @@ export namespace Server {
     effect: Effect.Effect<A, E, R>,
     ...mocks: readonly ServerFunctionMock<any, any, any, any>[]
   ): Effect.Effect<A, E, Exclude<R, ServerClient>> =>
-    Effect.provideService(effect, ServerClient, mockClient(...mocks)) as Effect.Effect<
-      A,
-      E,
-      Exclude<R, ServerClient>
-    >;
+    Effect.provideService(effect, ServerClient, mockClient(...mocks));
 
   export const fn = <I, A, E = unknown, R = never>(
     name: string,
@@ -275,7 +277,7 @@ export namespace Server {
     }
   ): ServerFunction<I, A, E, R> => {
     const local = (input: I): Effect.Effect<A, E, R> =>
-      toEffect(definition.handler(input) as EffectInput<A, E, R>);
+      toEffect(definition.handler(input));
     const effect = (input: I): Effect.Effect<A, E | ServerClientError, R> =>
       Effect.gen(function* () {
         const client = yield* Effect.serviceOption(ServerClient);
@@ -284,10 +286,10 @@ export namespace Server {
         }
         return yield* local(input);
       });
-    const invoke = (input: unknown): Effect.Effect<unknown, unknown, R> =>
+    const invoke = (input: unknown): Effect.Effect<unknown, E | ServerClientError, R> =>
       Effect.gen(function* () {
-        const decoded = yield* decodeWire(definition.input, input);
-        const value = yield* local(decoded as I);
+        const decoded = yield* decodeWire<I>(definition.input, input);
+        const value = yield* local(decoded);
         return yield* encodeWire(definition.output, value);
       });
     const callable = ((input: I) =>
@@ -348,8 +350,10 @@ export namespace Server {
   export const functions = (): ReadonlyMap<string, ServerFunction<unknown, unknown, unknown, unknown>> =>
     serverFunctionRegistry;
 
-  export const get = (name: string): ServerFunction<unknown, unknown, unknown, unknown> | undefined =>
-    serverFunctionRegistry.get(name);
+  export const get = <I = unknown, A = unknown, E = unknown, R = unknown>(
+    name: string
+  ): ServerFunction<I, A, E, R> | undefined =>
+    serverFunctionRegistry.get(name) as ServerFunction<I, A, E, R> | undefined;
 
   export const clearRegistryUnsafe = (): void => {
     serverFunctionRegistry.clear();
@@ -396,59 +400,59 @@ export namespace Server {
     fn: ServerFunction<I, A, E, R>,
     input: I
   ): Effect.Effect<unknown, Schema.SchemaError> =>
-    encodeWire(fn.input, input) as Effect.Effect<unknown, Schema.SchemaError>;
+    encodeWire(fn.input, input);
 
   export const decodeInput = <I, A, E, R>(
     fn: ServerFunction<I, A, E, R>,
     input: unknown
   ): Effect.Effect<I, Schema.SchemaError> =>
-    decodeWire(fn.input, input) as Effect.Effect<I, Schema.SchemaError>;
+    decodeWire<I>(fn.input, input);
 
   export const encodeOutput = <I, A, E, R>(
     fn: ServerFunction<I, A, E, R>,
     output: A
   ): Effect.Effect<unknown, Schema.SchemaError> =>
-    encodeWire(fn.output, output) as Effect.Effect<unknown, Schema.SchemaError>;
+    encodeWire(fn.output, output);
 
   export const decodeOutput = <I, A, E, R>(
     fn: ServerFunction<I, A, E, R>,
     output: unknown
   ): Effect.Effect<A, Schema.SchemaError> =>
-    decodeWire(fn.output, output) as Effect.Effect<A, Schema.SchemaError>;
+    decodeWire<A>(fn.output, output);
 
   export const encodeError = <I, A, E, R>(
     fn: ServerFunction<I, A, E, R>,
     error: E
   ): Effect.Effect<unknown, Schema.SchemaError> =>
-    encodeWire(fn.error, error) as Effect.Effect<unknown, Schema.SchemaError>;
+    encodeWire(fn.error, error);
 
   export const decodeError = <I, A, E, R>(
     fn: ServerFunction<I, A, E, R>,
     error: unknown
   ): Effect.Effect<E, Schema.SchemaError> =>
-    decodeWire(fn.error, error) as Effect.Effect<E, Schema.SchemaError>;
+    decodeWire<E>(fn.error, error);
 
   export const decodeRpcRequest = (input: unknown): Effect.Effect<ServerRpcRequest, Schema.SchemaError> =>
-    decodeWire(ServerRpcRequestSchema, input) as Effect.Effect<ServerRpcRequest, Schema.SchemaError>;
+    decodeWire<ServerRpcRequest>(ServerRpcRequestSchema, input);
 
   export const decodeRpcResponse = (input: unknown): Effect.Effect<ServerRpcResponse, Schema.SchemaError> =>
-    decodeWire(ServerRpcResponseSchema, input) as Effect.Effect<ServerRpcResponse, Schema.SchemaError>;
+    decodeWire<ServerRpcResponse>(ServerRpcResponseSchema, input);
 
   export const localClient = (): ServerClient => ({
     call: <I, A, E, R>(
       fn: ServerFunction<I, A, E, R>,
       input: I
-    ): Effect.Effect<A, E | ServerClientError> =>
+    ): Effect.Effect<A, E | ServerClientError, R> =>
       Effect.gen(function* () {
-        const target = Server.get(fn.name);
+        const target = Server.get<I, A, E, R>(fn.name);
         if (!target?.hasHandler) {
           return yield* Effect.fail(new ServerFunctionNotFound({ functionName: fn.name }));
         }
 
         const encodedInput = yield* Server.encodeInput(fn, input);
-        const encodedOutput = yield* (target.invoke(encodedInput) as Effect.Effect<unknown, E | ServerClientError>);
+        const encodedOutput = yield* target.invoke(encodedInput);
         return yield* Server.decodeOutput(fn, encodedOutput);
-      }) as Effect.Effect<A, E | ServerClientError>
+      })
   });
 
   export const serializeDefect = (defect: unknown): unknown => {
@@ -518,11 +522,11 @@ const ServerRpcResponseSchema = Schema.TaggedUnion({
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
-const decodeWire = (schema: unknown, input: unknown): Effect.Effect<unknown, Schema.SchemaError> => {
+const decodeWire = <A = unknown>(schema: unknown, input: unknown): Effect.Effect<A, Schema.SchemaError> => {
   if (!Schema.isSchema(schema)) {
-    return Effect.succeed(input);
+    return Effect.succeed(input as A);
   }
-  return Schema.decodeUnknownEffect(schema)(input) as Effect.Effect<unknown, Schema.SchemaError>;
+  return Schema.decodeUnknownEffect(schema)(input) as Effect.Effect<A, Schema.SchemaError>;
 };
 
 const encodeWire = (schema: unknown, input: unknown): Effect.Effect<unknown, Schema.SchemaError> => {

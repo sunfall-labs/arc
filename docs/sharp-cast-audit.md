@@ -57,6 +57,12 @@ Solid adapter, and DB query-builder cleanup sweeps.
   it to the active runtime, `UiScope` finalizer/fork plumbing relies on Effect's
   Scope typing directly, and `Signal.watch(...)` forks `EffectInput` work without
   a local scoped-Effect assertion.
+- Core server schema wrappers now carry typed `decodeWire<T>(...)` results through
+  `Server.encode*/decode*` helpers without repeated call-site casts. `ServerClient`
+  preserves each server function's requirements, so local and mock clients no
+  longer need outer generator assertions.
+- `runEffectInput(...)` and route preload effects now pass their converted
+  `EffectInput` values through Effect/runtime helpers directly.
 - The DB default projector cast remains because an unprojected query returns
   the current context shape, while `QueryBuilder` also supports selected result
   shapes through the same class.
@@ -275,6 +281,17 @@ Solid adapter, and DB query-builder cleanup sweeps.
   file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
+- `pnpm --filter @effect-ui/core typecheck`, `pnpm --filter @effect-ui/start
+  typecheck`, `pnpm typecheck:types`, and
+  `pnpm exec vitest run packages/core/test/server.test.ts packages/core/test/route-server.test.ts packages/start/test/rpc.test.ts packages/start/test/start.test.ts -t "server function|Server|RPC|browser runtimes call server functions"`
+  passed after tightening `ServerClient` requirement typing and centralizing
+  server schema decode casts: 4 files, 20 selected tests.
+- `pnpm verify` passed after the server/effect-input cast cleanup: 9 package
+  builds, workspace typecheck, type tests, 38 root test files / 320 tests,
+  devtools-panel verify, devtools-extension verify with 1 extension test file / 6
+  tests, basic starter verify, project-console starter packaging, project-console
+  typecheck, 4 project-console test files / 23 tests, project-console build, and
+  leak scan.
 
 ## Follow-Up
 

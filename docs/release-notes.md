@@ -106,6 +106,9 @@ Latest full gate on May 14, 2026:
   boundary instead of erasing requirements at each call site.
 - Core runtime helpers, `UiScope`, and `Signal.watch(...)` now rely on Effect
   primitive typing directly where TypeScript can already prove the scope shape.
+- Core server wire helpers now centralize typed schema decoding, and
+  `ServerClient.call(...)` preserves server function requirements for local/mock
+  Effect execution.
 - The DB query builder projector variance helper no longer uses a broad
   `unknown` bridge.
 - Type-id declarations no longer appear in the broad `as never` cast sweep.

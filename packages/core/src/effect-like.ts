@@ -48,4 +48,4 @@ export const toEffect = <A, E = unknown, R = never>(
 export const runEffectInput = <A, E = unknown, R = never>(
   value: EffectInput<A, E, R>
 ): Promise<A> =>
-  runPromise(toEffect(value) as Effect.Effect<A, E, R>);
+  runPromise(toEffect(value));

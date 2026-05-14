@@ -487,7 +487,7 @@ export namespace Route {
       return Effect.void;
     }
 
-    return toEffect(preload(match)).pipe(Effect.asVoid) as Effect.Effect<void, unknown>;
+    return toEffect(preload(match)).pipe(Effect.asVoid);
   };
 
   export const preload = <R extends Definition<string, any, any>>(

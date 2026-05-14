@@ -39,6 +39,12 @@ Effect-native interruption.
   - Replaced live-query collection `Promise.resolve(...)` no-ops with
     `runPromise(definition.*Effect(...))` so public Promise helpers still
     delegate to Effect-native methods.
+- `packages/core/src/effect-like.ts`, `packages/core/src/route.ts`, and
+  `packages/core/src/server.ts`
+  - Effect-input and route preload helpers now hand converted Effects directly to
+    Effect/runtime APIs.
+  - Server local/mock client calls preserve function requirements in the returned
+    Effect, keeping server test/local work inside the Effect service model.
 - `packages/solid/src/index.ts`
   - Replaced unmatched router preload `Promise.resolve()` with
     `runtime.runPromise(Effect.void)` so the public Promise path stays behind

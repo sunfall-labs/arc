@@ -71,6 +71,10 @@ Release decisions:
 - `Capability.useEffect(...)` is public with explicit pure-value and
   Effect-returning overloads; Promise-returning callbacks remain rejected so
   host async work is routed through Effect primitives.
+- `ServerClient.call(...)` preserves the target server function's requirement
+  type in its returned Effect. Browser RPC clients can still satisfy that with
+  `never`, while local/mock clients can run functions that depend on test or app
+  services.
 
 ### `@effect-ui/start`
 
