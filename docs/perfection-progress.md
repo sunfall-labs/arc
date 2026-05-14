@@ -79,6 +79,7 @@ or command result that proves it.
 | 29 | Example copyability and leak audit | `examples/project-console/README.md`; `examples/project-console/package.json`; `examples/project-console/src/server.test.ts`; `docs/example-copyability-and-leak-audit.md` | Example-owned test/leak/verify scripts, local Vitest dependency, copy guidance, and stronger server-module leak sentinels make the app easier to lift out safely. Example-local verify and root delegated example scripts passed. | Keep replacing workspace caveats with published package versions near RC. |
 | 30 | Benchmark baseline audit | `benchmarks/framework-baseline.bench.ts`; `package.json`; `docs/benchmark-baseline-audit.md`; `docs/framework-perfection-charter.md` | Added the first repeatable Vitest benchmark suite for SSR, route preload, Resource cache behavior, live query materialization, and RPC transport. `pnpm benchmark`, `pnpm typecheck`, and full `pnpm verify` passed. | Begin no-new-improvements clean sweeps only after the remaining release-candidate hardening work stabilizes. |
 | 31 | Devtools panel model | `packages/devtools/src/index.ts`; `packages/devtools/test/devtools.test.ts`; `docs/devtools.md`; `docs/public-api-inventory.md`; `type-tests/framework.test-d.ts` | Added `DevtoolsPanels`, `describeDevtoolsPanels`, Effect wrappers, and store `getPanels` accessors so a UI can render stable app graph, route, resource, action, collection, request, diagnostics, and causal graph panels without private reads. Focused devtools tests, workspace typecheck, and full `pnpm verify` passed. | Continue toward a browser/app UI only after product surface work resumes. |
+| 32 | Package publish metadata hardening | `packages/*/package.json`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md` | Added `main`, `types`, `files`, and `sideEffects` metadata to framework packages while keeping them private until the npm publication decision. Package build and workspace typecheck passed. | Final npm publication still needs `private` flipped plus descriptions/repository/license decisions. |
 
 ## Thirty-Sweep Gate
 
@@ -94,7 +95,6 @@ pass finds no improvements to make.
 - Docs drift against current implementation.
 - Golden-file snapshots for generated artifacts if inline assertions stop being
   enough.
-- Package publish metadata and export hygiene before npm publication.
 
 ## Open Release-Candidate Slices
 

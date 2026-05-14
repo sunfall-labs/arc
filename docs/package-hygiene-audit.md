@@ -7,6 +7,12 @@ exports. It supports the release-engineering charter workstream.
 
 ## Current Sweep Results
 
+- Package manifests now include publish-readiness metadata while remaining
+  private until the actual npm publication decision:
+  - `main` and `types` point at the root built entrypoint for older tooling.
+  - `files: ["dist"]` limits publication payloads to build output.
+  - `sideEffects: false` documents that framework package modules are intended
+    to be tree-shakable.
 - `@effect-ui/start`
   - Source entrypoints import `effect` directly in runtime, manifests, Vite,
     adapters, hydration, routing, and streaming modules.
@@ -44,6 +50,6 @@ exports. It supports the release-engineering charter workstream.
 
 - Re-run this audit after adding a new package export path, adapter, or runtime
   dependency.
-- If packages become public on npm, add publish metadata and revisit whether
-  framework package dependencies should be direct dependencies or peer
-  dependencies.
+- If packages become public on npm, flip `private`, add final package
+  descriptions/repository/license metadata, and revisit whether framework
+  package dependencies should be direct dependencies or peer dependencies.
