@@ -1664,6 +1664,12 @@ type QueryJoinedContext<
 > = TContext & {
   readonly [Key in Alias]: CollectionRowValue<C>;
 };
+type QueryJoinResult<TContext, TResult, TNextContext> =
+  [TResult] extends [TContext]
+    ? [TContext] extends [TResult]
+      ? TNextContext
+      : TResult
+    : TResult;
 
 interface QueryOrder<TContext> {
   readonly direction: QuerySortDirection;
@@ -1780,12 +1786,17 @@ export class QueryBuilder<TContext extends Record<string, any>, TResult> {
     collection: C,
     leftKey: (row: TContext) => QueryJoinKey,
     rightKey: (row: CollectionRowValue<C>) => QueryJoinKey
-  ): QueryBuilder<QueryJoinedContext<TContext, Alias, C>, TResult> {
-    return new QueryBuilder(
+  ): QueryBuilder<
+    QueryJoinedContext<TContext, Alias, C>,
+    QueryJoinResult<TContext, TResult, QueryJoinedContext<TContext, Alias, C>>
+  > {
+    type NextContext = QueryJoinedContext<TContext, Alias, C>;
+    type NextResult = QueryJoinResult<TContext, TResult, NextContext>;
+    return new QueryBuilder<NextContext, NextResult>(
       [...this.sources, [alias, collection] as const],
-      this.filters as unknown as ReadonlyArray<(row: QueryJoinedContext<TContext, Alias, C>) => boolean>,
-      this.projector as unknown as ((row: QueryJoinedContext<TContext, Alias, C>) => TResult) | undefined,
-      this.orders as unknown as ReadonlyArray<QueryOrder<QueryJoinedContext<TContext, Alias, C>>>,
+      this.filters as unknown as ReadonlyArray<(row: NextContext) => boolean>,
+      this.projector as unknown as ((row: NextContext) => NextResult) | undefined,
+      this.orders as unknown as ReadonlyArray<QueryOrder<NextContext>>,
       this.offsetCount,
       this.limitCount,
       [
@@ -1808,12 +1819,17 @@ export class QueryBuilder<TContext extends Record<string, any>, TResult> {
     collection: C,
     leftKey: (row: TContext) => QueryJoinKey,
     index: string
-  ): QueryBuilder<QueryJoinedContext<TContext, Alias, C>, TResult> {
-    return new QueryBuilder(
+  ): QueryBuilder<
+    QueryJoinedContext<TContext, Alias, C>,
+    QueryJoinResult<TContext, TResult, QueryJoinedContext<TContext, Alias, C>>
+  > {
+    type NextContext = QueryJoinedContext<TContext, Alias, C>;
+    type NextResult = QueryJoinResult<TContext, TResult, NextContext>;
+    return new QueryBuilder<NextContext, NextResult>(
       [...this.sources, [alias, collection] as const],
-      this.filters as unknown as ReadonlyArray<(row: QueryJoinedContext<TContext, Alias, C>) => boolean>,
-      this.projector as unknown as ((row: QueryJoinedContext<TContext, Alias, C>) => TResult) | undefined,
-      this.orders as unknown as ReadonlyArray<QueryOrder<QueryJoinedContext<TContext, Alias, C>>>,
+      this.filters as unknown as ReadonlyArray<(row: NextContext) => boolean>,
+      this.projector as unknown as ((row: NextContext) => NextResult) | undefined,
+      this.orders as unknown as ReadonlyArray<QueryOrder<NextContext>>,
       this.offsetCount,
       this.limitCount,
       [
@@ -1835,7 +1851,10 @@ export class QueryBuilder<TContext extends Record<string, any>, TResult> {
     collection: C,
     leftKey: (row: TContext) => QueryJoinKey,
     rightKey: (row: CollectionRowValue<C>) => QueryJoinKey
-  ): QueryBuilder<QueryJoinedContext<TContext, Alias, C>, TResult> {
+  ): QueryBuilder<
+    QueryJoinedContext<TContext, Alias, C>,
+    QueryJoinResult<TContext, TResult, QueryJoinedContext<TContext, Alias, C>>
+  > {
     return this.join(alias, collection, leftKey, rightKey);
   }
 
@@ -1844,7 +1863,10 @@ export class QueryBuilder<TContext extends Record<string, any>, TResult> {
     collection: C,
     leftKey: (row: TContext) => QueryJoinKey,
     index: string
-  ): QueryBuilder<QueryJoinedContext<TContext, Alias, C>, TResult> {
+  ): QueryBuilder<
+    QueryJoinedContext<TContext, Alias, C>,
+    QueryJoinResult<TContext, TResult, QueryJoinedContext<TContext, Alias, C>>
+  > {
     return this.joinIndexed(alias, collection, leftKey, index);
   }
 

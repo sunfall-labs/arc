@@ -739,6 +739,14 @@ const IndexedProjectTaskTitles = Query.live((query) =>
 
 IndexedProjectTaskTitles.data.get().map((title) => title.toUpperCase());
 
+const ProjectTaskRows = Query.live((query) =>
+  query
+    .from({ project: ProjectsCollection })
+    .join("task", TasksCollection, ({ project }) => project.id, (task) => task.projectId)
+);
+
+ProjectTaskRows.data.get().map(({ project, task }) => `${project.name}:${task.title}`);
+
 Query.live((query) =>
   query
     .from({ project: ProjectsCollection })
