@@ -619,3 +619,14 @@ Effect-native interruption.
   file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
+- `pnpm --filter @effect-ui/start typecheck` and
+  `pnpm exec vitest run packages/start/test/route-manifest.test.ts packages/start/test/file-routes.test.ts`
+  passed after converting route-manifest and file-route manifest tests to
+  returned Effect programs. Parse and duplicate failures now stay behind
+  `Effect.exit(...)`, with artifact assertions inside `Effect.sync(...)`.
+- Full `pnpm verify` passed after the Start route/file-route async test cleanup:
+  9 package builds, workspace typecheck, type tests, 39 root test files / 321
+  tests, devtools-panel verify, devtools-extension verify with 1 extension test
+  file / 6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.

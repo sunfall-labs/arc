@@ -8,56 +8,71 @@ import {
 } from "../src/file-routes.js";
 
 describe("validated file route manifest", () => {
-  it("rejects files that collapse to the same route path", async () => {
-    const exit = await Effect.runPromiseExit(
-      generateValidatedFileRouteManifestEffect(
-        [
-          "src/routes/(app)/index.tsx",
-          "src/routes/(marketing)/index.tsx"
-        ],
-        { routeDirectory: "src/routes" }
-      )
-    );
-
-    expect(firstFailure(exit)).toBeInstanceOf(FileRouteManifestDuplicateRoutePath);
-  });
-
-  it("rejects malformed dynamic route params", async () => {
-    const exit = await Effect.runPromiseExit(
-      generateValidatedFileRouteManifestEffect(
-        ["src/routes/projects/$123.tsx"],
-        { routeDirectory: "src/routes" }
-      )
-    );
-
-    expect(firstFailure(exit)).toBeInstanceOf(FileRouteManifestInvalidSegment);
-  });
-
-  it("returns a validated manifest artifact", async () => {
-    await expect(
-      Effect.runPromise(
-        generateValidatedFileRouteManifestArtifactEffect(
+  it("rejects files that collapse to the same route path", () => {
+    return Effect.runPromise(
+      Effect.exit(
+        generateValidatedFileRouteManifestEffect(
           [
-            "src/routes/projects/$id.tsx",
-            "src/routes/index.tsx"
+            "src/routes/(app)/index.tsx",
+            "src/routes/(marketing)/index.tsx"
           ],
           { routeDirectory: "src/routes" }
         )
+      ).pipe(
+        Effect.tap((exit) =>
+          Effect.sync(() => expect(firstFailure(exit)).toBeInstanceOf(FileRouteManifestDuplicateRoutePath))
+        ),
+        Effect.asVoid
       )
-    ).resolves.toMatchObject({
-      version: 1,
-      routeDirectory: "src/routes",
-      entries: [
-        {
-          routeId: "route_root",
-          routePath: "/"
-        },
-        {
-          routeId: "route_projects_$id",
-          routePath: "/projects/:id"
-        }
-      ]
-    });
+    );
+  });
+
+  it("rejects malformed dynamic route params", () => {
+    return Effect.runPromise(
+      Effect.exit(
+        generateValidatedFileRouteManifestEffect(
+          ["src/routes/projects/$123.tsx"],
+          { routeDirectory: "src/routes" }
+        )
+      ).pipe(
+        Effect.tap((exit) =>
+          Effect.sync(() => expect(firstFailure(exit)).toBeInstanceOf(FileRouteManifestInvalidSegment))
+        ),
+        Effect.asVoid
+      )
+    );
+  });
+
+  it("returns a validated manifest artifact", () => {
+    return Effect.runPromise(
+      generateValidatedFileRouteManifestArtifactEffect(
+        [
+          "src/routes/projects/$id.tsx",
+          "src/routes/index.tsx"
+        ],
+        { routeDirectory: "src/routes" }
+      ).pipe(
+        Effect.tap((manifest) =>
+          Effect.sync(() =>
+            expect(manifest).toMatchObject({
+              version: 1,
+              routeDirectory: "src/routes",
+              entries: [
+                {
+                  routeId: "route_root",
+                  routePath: "/"
+                },
+                {
+                  routeId: "route_projects_$id",
+                  routePath: "/projects/:id"
+                }
+              ]
+            })
+          )
+        ),
+        Effect.asVoid
+      )
+    );
   });
 });
 

@@ -235,22 +235,27 @@ describe("file route manifest generation", () => {
     );
   });
 
-  it("rejects duplicate support modules for the same route scope", async () => {
-    const duplicate = await Effect.runPromiseExit(
-      generateValidatedFileRouteManifestArtifactEffect(
-        [
-          "src/routes/index.tsx",
-          "src/routes/projects/layout.tsx",
-          "src/routes/projects/_layout.tsx"
-        ],
-        options
+  it("rejects duplicate support modules for the same route scope", () => {
+    return Effect.runPromise(
+      Effect.exit(
+        generateValidatedFileRouteManifestArtifactEffect(
+          [
+            "src/routes/index.tsx",
+            "src/routes/projects/layout.tsx",
+            "src/routes/projects/_layout.tsx"
+          ],
+          options
+        )
+      ).pipe(
+        Effect.tap((duplicate) =>
+          Effect.sync(() => expect(firstFailure(duplicate)).toBeInstanceOf(FileRouteManifestDuplicateModuleRole))
+        ),
+        Effect.asVoid
       )
     );
-
-    expect(firstFailure(duplicate)).toBeInstanceOf(FileRouteManifestDuplicateModuleRole);
   });
 
-  it("round-trips a branded route manifest artifact", async () => {
+  it("round-trips a branded route manifest artifact", () => {
     const manifest = generateFileRouteManifestArtifact(
       [
         "src/routes/projects/_layout.tsx",
@@ -259,37 +264,49 @@ describe("file route manifest generation", () => {
       ],
       options
     );
-    const roundTrip = await Effect.runPromise(
-      deserializeFileRouteManifest(serializeFileRouteManifest(manifest))
-    );
 
-    expect(roundTrip).toEqual(manifest);
-    expect(roundTrip.modules).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ kind: "Layout", routePath: "/projects" }),
-        expect.objectContaining({ kind: "Route", routePath: "/projects/:id" })
-      ])
+    return Effect.runPromise(
+      deserializeFileRouteManifest(serializeFileRouteManifest(manifest)).pipe(
+        Effect.tap((roundTrip) =>
+          Effect.sync(() => {
+            expect(roundTrip).toEqual(manifest);
+            expect(roundTrip.modules).toEqual(
+              expect.arrayContaining([
+                expect.objectContaining({ kind: "Layout", routePath: "/projects" }),
+                expect.objectContaining({ kind: "Route", routePath: "/projects/:id" })
+              ])
+            );
+          })
+        ),
+        Effect.asVoid
+      )
     );
   });
 
-  it("rejects route manifests whose ids do not match their segments", async () => {
+  it("rejects route manifests whose ids do not match their segments", () => {
     const manifest = generateFileRouteManifestArtifact(
       ["src/routes/projects/$id.tsx"],
       options
     );
-    const invalid = await Effect.runPromiseExit(
-      deserializeFileRouteManifest(
-        JSON.stringify({
-          ...manifest,
-          entries: manifest.entries.map((entry) => ({
-            ...entry,
-            routeId: "route_projects_wrong"
-          }))
-        })
+
+    return Effect.runPromise(
+      Effect.exit(
+        deserializeFileRouteManifest(
+          JSON.stringify({
+            ...manifest,
+            entries: manifest.entries.map((entry) => ({
+              ...entry,
+              routeId: "route_projects_wrong"
+            }))
+          })
+        )
+      ).pipe(
+        Effect.tap((invalid) =>
+          Effect.sync(() => expect(firstFailure(invalid)).toBeInstanceOf(FileRouteManifestParseError))
+        ),
+        Effect.asVoid
       )
     );
-
-    expect(firstFailure(invalid)).toBeInstanceOf(FileRouteManifestParseError);
   });
 });
 

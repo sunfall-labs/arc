@@ -241,6 +241,10 @@ Latest full gate on May 14, 2026:
   with duplicate/parse/client-reference failures captured through
   `Effect.exit(...)`.
 - The latest `pnpm verify` passed after the Start manifest async test cleanup.
+- Start route-manifest and file-route manifest tests now return Effect programs,
+  with parse/duplicate failures captured through `Effect.exit(...)`.
+- The latest `pnpm verify` passed after the Start route/file-route async test
+  cleanup.
 
 ## Notable Limits
 
