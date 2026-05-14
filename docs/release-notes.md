@@ -277,6 +277,8 @@ Latest full gate on May 14, 2026:
 - Start streaming tests now return Effect programs. Stream collection, sequence
   checks, typed stream failures, and interruption assertions stay inside Effect
   pipelines, with `Response.text()` isolated as the host Promise.
+- Start app-graph tests now return Effect programs, and graph fixture
+  construction composes manifest Effects directly.
 
 ## Notable Limits
 

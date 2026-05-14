@@ -690,3 +690,9 @@ interruption.
   tests, devtools-panel verify, devtools-extension verify, basic starter
   verify, project-console starter packaging/typecheck/tests/build, and leak
   scan.
+- `pnpm --filter @effect-ui/start typecheck` and
+  `pnpm exec vitest run packages/start/test/app-graph.test.ts` passed after
+  converting Start app-graph tests to returned Effect programs. Manifest
+  construction now composes Effects directly, policy failures are captured with
+  `Effect.exit(...)`, and the file no longer uses async wrappers or Promise
+  matcher assertions.
