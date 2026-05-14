@@ -223,6 +223,10 @@ Latest full gate on May 14, 2026:
 - Core Signal stream tests now return scoped Effect programs instead of async
   wrappers, with stream collection assertions inside `Effect.sync(...)`.
 - The latest `pnpm verify` passed after the core Signal async test cleanup.
+- Core Form validation tests now return Effect programs instead of async
+  wrappers or Promise `.resolves` assertions, with expected failures captured by
+  `Effect.exit(...)`.
+- The latest `pnpm verify` passed after the core Form async test cleanup.
 
 ## Notable Limits
 

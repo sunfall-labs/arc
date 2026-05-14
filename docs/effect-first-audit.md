@@ -573,3 +573,14 @@ Effect-native interruption.
   6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
+- `pnpm --filter @effect-ui/core typecheck` and
+  `pnpm exec vitest run packages/core/test/form.test.ts` passed after
+  converting Form validation tests to returned Effect programs. Success and
+  failure assertions now run inside `Effect.sync(...)`, with expected validation
+  failures captured through `Effect.exit(...)`.
+- Full `pnpm verify` passed after the core Form async test cleanup: 9 package
+  builds, workspace typecheck, type tests, 39 root test files / 321 tests,
+  devtools-panel verify, devtools-extension verify with 1 extension test file /
+  6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.

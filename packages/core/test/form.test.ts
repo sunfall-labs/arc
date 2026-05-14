@@ -63,25 +63,37 @@ describe("Form", () => {
     });
   });
 
-  it("validates successfully with Effect Schema and resets errors", async () => {
+  it("validates successfully with Effect Schema and resets errors", () => {
     const form = Form.make({
       schema: RenameInput,
       initial: { id: "atlas", name: "Atlas Billing" }
     });
 
-    await expect(Effect.runPromise(form.validateEffect())).resolves.toEqual({
-      id: "atlas",
-      name: "Atlas Billing"
-    });
-
-    expect(read(form.state)).toMatchObject({
-      status: "Valid",
-      fieldErrors: {},
-      formErrors: []
-    });
+    return Effect.runPromise(
+      form.validateEffect().pipe(
+        Effect.tap((value) =>
+          Effect.sync(() =>
+            expect(value).toEqual({
+              id: "atlas",
+              name: "Atlas Billing"
+            })
+          )
+        ),
+        Effect.tap(() =>
+          Effect.sync(() =>
+            expect(read(form.state)).toMatchObject({
+              status: "Valid",
+              fieldErrors: {},
+              formErrors: []
+            })
+          )
+        ),
+        Effect.asVoid
+      )
+    );
   });
 
-  it("maps schema failures to field errors", async () => {
+  it("maps schema failures to field errors", () => {
     const form = Form.make({
       schema: RenameInput,
       initial: { id: "atlas", name: "Atlas Billing" }
@@ -89,15 +101,23 @@ describe("Form", () => {
 
     // @ts-expect-error invalid field value is rejected by schema validation at runtime
     form.setField("name", 42);
-    const exit = await Effect.runPromiseExit(form.validateEffect());
 
-    expect(Exit.isFailure(exit)).toBe(true);
-    const state = read(form.state);
-    expect(state.status).toBe("Invalid");
-    expect(state.fieldErrors.name?.[0]).toBeInstanceOf(Schema.SchemaError);
+    return Effect.runPromise(
+      Effect.exit(form.validateEffect()).pipe(
+        Effect.tap((exit) =>
+          Effect.sync(() => {
+            expect(Exit.isFailure(exit)).toBe(true);
+            const state = read(form.state);
+            expect(state.status).toBe("Invalid");
+            expect(state.fieldErrors.name?.[0]).toBeInstanceOf(Schema.SchemaError);
+          })
+        ),
+        Effect.asVoid
+      )
+    );
   });
 
-  it("preserves typed domain validation errors per field", async () => {
+  it("preserves typed domain validation errors per field", () => {
     class ProjectNameTooShort extends Data.TaggedError("ProjectNameTooShort")<{
       readonly minimum: number;
     }> {}
@@ -111,17 +131,24 @@ describe("Form", () => {
           : Effect.void
     });
 
-    const exit = await Effect.runPromiseExit(form.validateEffect());
-
-    expect(Exit.isFailure(exit)).toBe(true);
-    const error = read(form.state).fieldErrors.name?.[0];
-    expect(error).toBeInstanceOf(ProjectNameTooShort);
-    if (error instanceof ProjectNameTooShort) {
-      expect(error.minimum).toBe(3);
-    }
+    return Effect.runPromise(
+      Effect.exit(form.validateEffect()).pipe(
+        Effect.tap((exit) =>
+          Effect.sync(() => {
+            expect(Exit.isFailure(exit)).toBe(true);
+            const error = read(form.state).fieldErrors.name?.[0];
+            expect(error).toBeInstanceOf(ProjectNameTooShort);
+            if (error instanceof ProjectNameTooShort) {
+              expect(error.minimum).toBe(3);
+            }
+          })
+        ),
+        Effect.asVoid
+      )
+    );
   });
 
-  it("keeps domain validation dependency-injected through Effect services", async () => {
+  it("keeps domain validation dependency-injected through Effect services", () => {
     interface ReservedNames {
       readonly has: (name: string) => Effect.Effect<boolean>;
     }
@@ -147,14 +174,21 @@ describe("Form", () => {
         )
     });
 
-    const exit = await Effect.runPromiseExit(
-      Effect.provideService(form.validateEffect(), ReservedNames, {
-        has: () => Effect.succeed(true)
-      })
+    return Effect.runPromise(
+      Effect.exit(
+        Effect.provideService(form.validateEffect(), ReservedNames, {
+          has: () => Effect.succeed(true)
+        })
+      ).pipe(
+        Effect.tap((exit) =>
+          Effect.sync(() => {
+            expect(Exit.isFailure(exit)).toBe(true);
+            expect(read(form.state).fieldErrors.name?.[0]).toBeInstanceOf(ProjectNameReserved);
+          })
+        ),
+        Effect.asVoid
+      )
     );
-
-    expect(Exit.isFailure(exit)).toBe(true);
-    expect(read(form.state).fieldErrors.name?.[0]).toBeInstanceOf(ProjectNameReserved);
   });
 
   it("resets values and validation state", () => {
