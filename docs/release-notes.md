@@ -54,6 +54,8 @@ Latest full gate on May 14, 2026:
   RPC transport baselines.
 - The latest `pnpm verify` includes the rich project-console starter packaging
   gate.
+- The Start diagnostics CLI now runs its parse/load/render flow through an
+  Effect-native runner with Promise helpers kept at the bin boundary.
 
 ## Notable Limits
 

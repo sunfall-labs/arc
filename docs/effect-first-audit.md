@@ -60,6 +60,11 @@ Effect-native interruption.
   - Moved router preload completion, background resource preload, collection
     preload, and live-query preload error handling into Effect programs before
     crossing the Solid/browser `runPromise` boundary.
+- `packages/start/src/cli.ts`
+  - Moved the diagnostics CLI parse/load/render path into
+    `runStartDiagnosticsCliEffect`.
+  - The Promise-returning CLI helpers now only run that Effect program at the
+    bin/host boundary.
 
 ## Remaining Promise Sites To Review
 
@@ -74,6 +79,9 @@ Effect-native interruption.
   - Promise use is mostly Vite, Node, and fetch host-boundary work. Keep
     auditing any helper that can become an Effect program before it crosses the
     host boundary.
+- `packages/start/src/cli.ts`
+  - Remaining Promise helpers are bin-entry wrappers over
+    `runStartDiagnosticsCliEffect` and `runStartDiagnosticsCliMainEffect`.
 - Source grep follow-up:
   - `rg -n "Promise\\.resolve\\(|new Promise|\\.then\\(|\\.finally\\(" packages/*/src -g '*.ts'`
     currently finds no package source hits.
@@ -113,3 +121,8 @@ Effect-native interruption.
   build, workspace typecheck, type tests, 35 package test files / 306 tests,
   example typecheck, 4 example test files / 23 tests, example build, and leak
   scan.
+- `pnpm --filter @effect-ui/start typecheck` and
+  `pnpm exec vitest run packages/start/test/start.test.ts -t "Start diagnostics
+  CLI"` passed after the CLI Effect runner sweep.
+- `pnpm exec vitest run packages/start/test/start.test.ts`, `pnpm typecheck`,
+  and full `pnpm verify` passed after the CLI Effect runner sweep.

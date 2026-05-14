@@ -89,6 +89,8 @@ Subpath exports:
 - `./diagnostics-report` owns grouped repair reports with owner/edit guidance.
 - `./adapters` owns Node/fetch adapter conversion and response writing.
 - `./virtual` owns virtual module typings only.
+- `effect-ui-start` owns diagnostics CLI execution. The internal runner is
+  Effect-native; Promise-returning helpers are bin/host wrappers.
 
 Release decisions:
 

@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 import { pathToFileURL } from "node:url";
+import { Effect } from "effect";
 import {
-  loadStartAppGraphDiagnostics,
+  loadStartAppGraphDiagnosticsEffect,
   type LoadedStartAppGraphDiagnostics,
   type LoadStartAppGraphDiagnosticsOptions
 } from "./vite.js";
@@ -31,6 +32,9 @@ export interface StartDiagnosticsCliOptions {
 export interface StartDiagnosticsCliIo {
   readonly stdout?: (text: string) => void;
   readonly stderr?: (text: string) => void;
+  readonly loadDiagnosticsEffect?: (
+    options: LoadStartAppGraphDiagnosticsOptions
+  ) => Effect.Effect<LoadedStartAppGraphDiagnostics, unknown>;
   readonly loadDiagnostics?: (
     options: LoadStartAppGraphDiagnosticsOptions
   ) => Promise<LoadedStartAppGraphDiagnostics>;
@@ -216,58 +220,129 @@ const diagnosticsReportFromError = (cause: unknown): StartDiagnosticsReport | un
   });
 };
 
-export const runStartDiagnosticsCli = async (
+const loadDiagnosticsFromIo = (
+  io: StartDiagnosticsCliIo
+): ((
+  options: LoadStartAppGraphDiagnosticsOptions
+) => Effect.Effect<LoadedStartAppGraphDiagnostics, unknown>) => {
+  if (io.loadDiagnosticsEffect) {
+    return io.loadDiagnosticsEffect;
+  }
+
+  const loadDiagnostics = io.loadDiagnostics;
+  if (loadDiagnostics) {
+    return (options) =>
+      Effect.tryPromise({
+        try: () => loadDiagnostics(options),
+        catch: (cause) => cause
+      });
+  }
+
+  return loadStartAppGraphDiagnosticsEffect;
+};
+
+const writeLineEffect = (
+  write: (text: string) => void,
+  text: string
+): Effect.Effect<void> =>
+  Effect.sync(() => {
+    write(text);
+  });
+
+export const runStartDiagnosticsCliEffect = (
   args: readonly string[],
   io: StartDiagnosticsCliIo = {}
-): Promise<StartDiagnosticsCliResult> => {
-  const stdout = io.stdout ?? ((text) => process.stdout.write(`${text}\n`));
-  const stderr = io.stderr ?? ((text) => process.stderr.write(`${text}\n`));
-  const load = io.loadDiagnostics ?? loadStartAppGraphDiagnostics;
+): Effect.Effect<StartDiagnosticsCliResult> =>
+  Effect.gen(function* () {
+    const stdout = io.stdout ?? ((text) => process.stdout.write(`${text}\n`));
+    const stderr = io.stderr ?? ((text) => process.stderr.write(`${text}\n`));
+    const load = loadDiagnosticsFromIo(io);
 
-  let command: StartCliCommand;
-  try {
-    command = parseStartDiagnosticsCliArgs(args);
-  } catch (cause) {
-    const payload = errorPayload(cause);
-    stderr(`${payload.message}\n\n${startDiagnosticsCliUsage}`);
-    return { exitCode: 1 };
-  }
+    const parsed = yield* Effect.try({
+      try: () => parseStartDiagnosticsCliArgs(args),
+      catch: (cause) => cause
+    }).pipe(
+      Effect.map((command) => ({ _tag: "Success" as const, command })),
+      Effect.catch((cause) => Effect.succeed({ _tag: "Failure" as const, cause }))
+    );
 
-  if (command._tag === "Help") {
-    stdout(startDiagnosticsCliUsage);
-    return { exitCode: 0 };
-  }
-
-  try {
-    const result = await load(diagnosticOptions(command.options));
-    if (command.options.json) {
-      stdout(JSON.stringify(result, null, command.options.pretty ? 2 : 0));
-    } else {
-      stdout(formatStartDiagnosticsReport(createStartDiagnosticsReport(result)));
+    if (parsed._tag === "Failure") {
+      const payload = errorPayload(parsed.cause);
+      yield* writeLineEffect(stderr, `${payload.message}\n\n${startDiagnosticsCliUsage}`);
+      return { exitCode: 1 };
     }
-    return { exitCode: 0 };
-  } catch (cause) {
+
+    const command = parsed.command;
+
+    if (command._tag === "Help") {
+      yield* writeLineEffect(stdout, startDiagnosticsCliUsage);
+      return { exitCode: 0 };
+    }
+
+    const loaded = yield* load(diagnosticOptions(command.options)).pipe(
+      Effect.map((result) => ({ _tag: "Success" as const, result })),
+      Effect.catch((cause) => Effect.succeed({ _tag: "Failure" as const, cause }))
+    );
+
+    if (loaded._tag === "Success") {
+      const result = loaded.result;
+      if (command.options.json) {
+        yield* writeLineEffect(
+          stdout,
+          JSON.stringify(result, null, command.options.pretty ? 2 : 0)
+        );
+      } else {
+        yield* writeLineEffect(
+          stdout,
+          formatStartDiagnosticsReport(createStartDiagnosticsReport(result))
+        );
+      }
+      return { exitCode: 0 };
+    }
+
+    const cause = loaded.cause;
     const payload = errorPayload(cause);
     const report = diagnosticsReportFromError(cause);
     if (command.options.json) {
-      stderr(JSON.stringify({ ok: false, error: payload, ...(report === undefined ? {} : { report }) }, null, command.options.pretty ? 2 : 0));
+      yield* writeLineEffect(
+        stderr,
+        JSON.stringify(
+          { ok: false, error: payload, ...(report === undefined ? {} : { report }) },
+          null,
+          command.options.pretty ? 2 : 0
+        )
+      );
     } else {
-      stderr(
+      yield* writeLineEffect(
+        stderr,
         report === undefined
           ? `Effect UI Start diagnostics failed: ${payload.message}`
           : `Effect UI Start diagnostics failed: ${payload.message}\n\n${formatStartDiagnosticsReport(report)}`
       );
     }
     return { exitCode: 1 };
-  }
-};
+  });
 
-export const runStartDiagnosticsCliMain = async (
+export const runStartDiagnosticsCli = (
+  args: readonly string[],
+  io: StartDiagnosticsCliIo = {}
+): Promise<StartDiagnosticsCliResult> =>
+  Effect.runPromise(runStartDiagnosticsCliEffect(args, io));
+
+export const runStartDiagnosticsCliMainEffect = (
   args: readonly string[] = process.argv.slice(2)
-): Promise<void> => {
-  const result = await runStartDiagnosticsCli(args);
-  process.exitCode = result.exitCode;
-};
+): Effect.Effect<void> =>
+  Effect.gen(function* () {
+    const result = yield* runStartDiagnosticsCliEffect(args);
+    yield* Effect.sync(() => {
+      process.exitCode = result.exitCode;
+    });
+  });
+
+export const runStartDiagnosticsCliMain = (
+  args: readonly string[] = process.argv.slice(2)
+): Promise<void> =>
+  Effect.runPromise(runStartDiagnosticsCliMainEffect(args));
 
 const isMain = process.argv[1] !== undefined &&
   import.meta.url === pathToFileURL(process.argv[1]).href;

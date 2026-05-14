@@ -36,7 +36,8 @@ import {
 } from "../src/diagnostics-report.js";
 import {
   parseStartDiagnosticsCliArgs,
-  runStartDiagnosticsCli
+  runStartDiagnosticsCli,
+  runStartDiagnosticsCliEffect
 } from "../src/cli.js";
 import {
   actionManifestVirtualModuleId,
@@ -2567,44 +2568,46 @@ describe("Effect UI Start", () => {
 
     const stdout: string[] = [];
     const stderr: string[] = [];
-    const result = await runStartDiagnosticsCli(["diagnostics", "--json"], {
-      stdout: (text) => stdout.push(text),
-      stderr: (text) => stderr.push(text),
-      loadDiagnostics: async () => ({
-        graph: {
-          version: 1,
-          routes: { version: 1, entries: [], modules: [], routeDirectory: "src/routes" },
-          serverFunctions: { version: 1, rpcPath: "/__effect-ui/rpc", entries: [] },
-          actions: { version: 1, actionPath: "/__effect-ui/action", entries: [] }
-        },
-        diagnostics: {
-          version: 1,
-          routeCount: 0,
-          serverFunctionCount: 0,
-          actionCount: 0,
-          routePaths: [],
-          routeModules: [],
-          serverFunctionModules: [],
-          actionModules: [],
-          resourceFamilies: [],
-          resourceTags: [],
-          collectionDefinitions: [],
-          serverOnlyModules: [],
-          browserClientModules: [],
-          rpcPath: "/__effect-ui/rpc",
-          actionPath: "/__effect-ui/action",
-          schemaCoverage: {
-            serverFunctions: { total: 0, input: 0, output: 0, error: 0 },
-            actions: { total: 0, input: 0, output: 0, error: 0 }
+    const result = await Effect.runPromise(
+      runStartDiagnosticsCliEffect(["diagnostics", "--json"], {
+        stdout: (text) => stdout.push(text),
+        stderr: (text) => stderr.push(text),
+        loadDiagnosticsEffect: () => Effect.succeed({
+          graph: {
+            version: 1,
+            routes: { version: 1, entries: [], modules: [], routeDirectory: "src/routes" },
+            serverFunctions: { version: 1, rpcPath: "/__effect-ui/rpc", entries: [] },
+            actions: { version: 1, actionPath: "/__effect-ui/action", entries: [] }
           },
-          missingSchemas: [],
-          unknownActionBehavior: [],
-          unknownRoutePreloadResources: [],
-          unknownRoutePreloadCollections: []
-        },
-        diagnosticsPolicyViolations: []
+          diagnostics: {
+            version: 1,
+            routeCount: 0,
+            serverFunctionCount: 0,
+            actionCount: 0,
+            routePaths: [],
+            routeModules: [],
+            serverFunctionModules: [],
+            actionModules: [],
+            resourceFamilies: [],
+            resourceTags: [],
+            collectionDefinitions: [],
+            serverOnlyModules: [],
+            browserClientModules: [],
+            rpcPath: "/__effect-ui/rpc",
+            actionPath: "/__effect-ui/action",
+            schemaCoverage: {
+              serverFunctions: { total: 0, input: 0, output: 0, error: 0 },
+              actions: { total: 0, input: 0, output: 0, error: 0 }
+            },
+            missingSchemas: [],
+            unknownActionBehavior: [],
+            unknownRoutePreloadResources: [],
+            unknownRoutePreloadCollections: []
+          },
+          diagnosticsPolicyViolations: []
+        })
       })
-    });
+    );
 
     expect(result.exitCode).toBe(0);
     expect(stderr).toEqual([]);
