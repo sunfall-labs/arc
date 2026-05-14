@@ -126,10 +126,13 @@ or command result that proves it.
 - The project-console starter packaging script now keeps success/failure
   reporting inside the Effect pipeline instead of a top-level Promise
   `try`/`catch`.
-- The latest full verification gate is green after the starter packaging script
-  entrypoint cleanup: 38 root test files / 320 tests plus devtools panel,
-  devtools extension, starter, rich starter packaging, project-console build,
-  and leak-scan gates.
+- Explicit `Effect.Effect<..., any>` annotations have been removed from package,
+  example, script, and type-test source; Resource invalidation now carries a
+  generic requirement parameter for refreshed refs.
+- The latest full verification gate is green after the explicit Effect-any
+  cleanup: 38 root test files / 320 tests plus devtools panel, devtools
+  extension, starter, rich starter packaging, project-console build, and
+  leak-scan gates.
 - The final no-new-improvements clean-sweep gate is still open because the
   latest sweeps still found actionable implementation and docs work. Start the
   clean-sweep counter only after full code/docs/test passes stop finding
@@ -287,6 +290,8 @@ or command result that proves it.
 | 146 | Full verification after final broad sharp-cast sweep | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/effect-first-audit.md` | Escalated full verification passed after the final broad sharp-cast sweep: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 | 147 | Starter packaging script entrypoint Effect cleanup | `scripts/package-project-console-starter.mjs`; `docs/effect-first-audit.md`; `docs/perfection-progress.md` | Moved success and failure reporting for the project-console starter packaging script into the Effect pipeline, leaving top-level await as the Node host boundary. `pnpm starter:project-console:package` passed and verified 17 required files. | Run full verification before committing this script Effect cleanup. |
 | 148 | Full verification after starter packaging script entrypoint cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/effect-first-audit.md` | Escalated full verification passed after the starter packaging script entrypoint cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
+| 149 | Explicit Effect-any cleanup | `packages/core/src/effect-like.ts`; `packages/core/src/runtime.ts`; `packages/core/src/resource.ts`; `docs/effect-first-audit.md`; `docs/perfection-progress.md` | Replaced EffectInput wildcard `any` with `unknown`, tightened runtime service-erasure helper output to `unknown`, and made Resource invalidation Effects generic over refreshed-ref requirements instead of hard-coding `any`. Core package typecheck, public type tests, and focused runtime/resource/action/scope/server tests passed: 5 files / 55 tests. The explicit `Effect.Effect<..., any>` grep now reports no source hits. | Run full verification before committing this Effect type-boundary cleanup. |
+| 150 | Full verification after explicit Effect-any cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/effect-first-audit.md` | Escalated full verification passed after the explicit Effect-any cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 
 ## Thirty-Sweep Gate
 

@@ -1101,17 +1101,17 @@ export namespace Resource {
     return state.value;
   };
 
-  export const invalidateEffect = (
+  export const invalidateEffect = <R = any>(
     target: ResourceInvalidationTarget
-  ): Effect.Effect<void, never, any> =>
+  ): Effect.Effect<void, never, R> =>
     Effect.gen(function* () {
       const store = yield* resourceStoreEffect;
       yield* runInvalidationPlanEffect(planInvalidationTargets(target, store));
     });
 
-  export const runInvalidationPlanEffect = (
+  export const runInvalidationPlanEffect = <R = any>(
     plan: ResourceInvalidationPlan
-  ): Effect.Effect<void, never, any> =>
+  ): Effect.Effect<void, never, R> =>
     Effect.gen(function* () {
       const store = yield* resourceStoreEffect;
       for (const entry of plan.entries) {

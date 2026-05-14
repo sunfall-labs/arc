@@ -7,13 +7,13 @@ export type EffectInput<A, E = unknown, R = never> =
 
 export type EffectInputValue<Out> = Out extends PromiseLike<unknown>
   ? never
-  : Out extends Effect.Effect<infer A, any, any>
+  : Out extends Effect.Effect<infer A, unknown, unknown>
     ? A
     : Out;
 
-export type EffectInputError<Out> = Out extends Effect.Effect<any, infer E, any> ? E : never;
+export type EffectInputError<Out> = Out extends Effect.Effect<unknown, infer E, unknown> ? E : never;
 
-export type EffectInputRequirements<Out> = Out extends Effect.Effect<any, any, infer R> ? R : never;
+export type EffectInputRequirements<Out> = Out extends Effect.Effect<unknown, unknown, infer R> ? R : never;
 
 export type EnsureEffectInputValue<Out, A> = EffectInputValue<Out> extends A ? Out : never;
 

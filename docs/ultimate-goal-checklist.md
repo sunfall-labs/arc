@@ -161,6 +161,10 @@ Last evidence pass: May 14, 2026.
   - Evidence: `packages/core/src/server.ts`, `packages/core/src/form.ts`, and
     `packages/core/src/effect-like.ts` no longer cast whole Effect programs for
     schema decoding/encoding or EffectInput conversion.
+- [x] Core Effect helper types avoid explicit Effect-any annotations.
+  - Evidence: `packages/core/src/effect-like.ts`, `packages/core/src/runtime.ts`,
+    and `packages/core/src/resource.ts` removed explicit
+    `Effect.Effect<..., any>` annotations from package source.
 - [x] Package source avoids raw Promise method lifecycle cleanup.
   - Evidence: action and Start action submitters use `Effect.ensuring` for
     in-flight cleanup; Solid/Solid DB background preloads catch inside Effect;
@@ -616,9 +620,8 @@ Last evidence pass: May 14, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026 after the starter
-    packaging script entrypoint cleanup: 9 package builds, workspace typecheck,
-    type tests,
+  - Evidence: root `pnpm verify` passed on May 14, 2026 after the explicit
+    Effect-any cleanup: 9 package builds, workspace typecheck, type tests,
     38 root test files / 320 tests, devtools-panel verify,
     devtools-extension verify with 1 extension test file / 6 tests, basic starter
     verify, project-console starter packaging, project-console typecheck, 4

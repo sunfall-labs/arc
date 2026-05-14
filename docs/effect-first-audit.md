@@ -55,6 +55,10 @@ Effect-native interruption.
     resolved value instead of casting the whole Effect, and schema helpers assert
     decoder/encoder views at the schema boundary instead of asserting Effect
     program shapes.
+  - EffectInput type helpers use `unknown` wildcards instead of `any`, runtime
+    service-erasure helpers return `unknown` requirements, and Resource
+    invalidation Effects expose a generic requirement parameter for refreshed
+    refs instead of hard-coding `any`.
 - `packages/db/src/index.ts`
   - Replaced live-query collection `Promise.resolve(...)` no-ops with
     `runPromise(definition.*Effect(...))` so public Promise helpers still
@@ -319,3 +323,13 @@ Effect-native interruption.
   with 1 extension test file / 6 tests, basic starter verify,
   project-console starter packaging, project-console typecheck, 4
   project-console test files / 23 tests, project-console build, and leak scan.
+- `pnpm --filter @effect-ui/core typecheck`, `pnpm typecheck:types`, and
+  `pnpm exec vitest run packages/core/test/runtime.test.ts packages/core/test/resource.test.ts packages/core/test/action.test.ts packages/core/test/scope.test.ts packages/core/test/server.test.ts`
+  passed after removing explicit `Effect.Effect<..., any>` annotations: 5 files,
+  55 tests.
+- Full `pnpm verify` passed after the explicit Effect-any cleanup: 9 package
+  builds, workspace typecheck, type tests, 38 root test files / 320 tests,
+  devtools-panel verify, devtools-extension verify with 1 extension test file / 6
+  tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.

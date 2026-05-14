@@ -50,7 +50,7 @@ const fromManagedRuntime = <R, ER>(
 
   const provideManagedServices = <A, E, RIn>(
     effect: Effect.Effect<A, E, RIn>
-  ): Effect.Effect<A, E, any> =>
+  ): Effect.Effect<A, E, unknown> =>
     provideStore(effect);
 
   const provideRuntimeServices = <A, E, RIn>(

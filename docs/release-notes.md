@@ -143,6 +143,10 @@ Latest full gate on May 14, 2026:
   host boundary.
 - The latest `pnpm verify` passed after the starter packaging script entrypoint
   cleanup.
+- Explicit `Effect.Effect<..., any>` annotations have been removed from package,
+  example, script, and type-test source; Resource invalidation Effects now carry
+  a generic requirement parameter for refreshed refs.
+- The latest `pnpm verify` passed after the explicit Effect-any cleanup.
 
 ## Notable Limits
 
