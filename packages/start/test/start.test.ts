@@ -1,4 +1,4 @@
-import { Cause, Context, Effect, Exit, Layer, Schema, type Fiber } from "effect";
+import { Cause, Context, Deferred, Effect, Exit, Fiber, Layer, Schema } from "effect";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -1395,6 +1395,60 @@ describe("Effect UI Start", () => {
           _tag: "Success",
           value: { value: "TRANSPORT" }
         }
+      });
+    } finally {
+      await runtime.dispose();
+    }
+  });
+
+  it("applies action concurrency to native StartAction submissions", async () => {
+    const release = Effect.runSync(Deferred.make<void>());
+    let requests = 0;
+    const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
+      name: "Start.action.client.native-exhaust",
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+      policy: {
+        concurrency: "exhaust"
+      },
+      run: ({ value }) => Effect.succeed({ value })
+    });
+    const fetcher: typeof fetch = async () => {
+      const requestNumber = ++requests;
+      await Effect.runPromise(Deferred.await(release));
+      return new Response(
+        JSON.stringify({
+          _tag: "Success",
+          value: { value: `response-${requestNumber}` }
+        }),
+        {
+          headers: {
+            "content-type": "application/json"
+          }
+        }
+      );
+    };
+    const runtime = makeRuntime();
+    const action = StartAction.use(Ping, { fetch: fetcher, runtime });
+
+    try {
+      const first = runtime.runFork(action.submitEffect({ value: "first" }));
+      await Effect.runPromise(Effect.sleep("10 millis"));
+      const second = runtime.runFork(action.submitEffect({ value: "second" }));
+      Effect.runSync(Deferred.succeed(release, undefined));
+
+      await expect(runtime.runPromise(Fiber.join(first))).resolves.toMatchObject({
+        _tag: "Success",
+        value: { value: "response-1" }
+      });
+      await expect(runtime.runPromise(Fiber.join(second))).resolves.toMatchObject({
+        _tag: "Success",
+        value: { value: "response-1" }
+      });
+      expect(requests).toBe(1);
+      expect(action.state.get()).toMatchObject({
+        _tag: "Success",
+        input: { value: "first" }
       });
     } finally {
       await runtime.dispose();

@@ -53,6 +53,9 @@ Effect-native interruption.
     in-flight submission records and `Effect.ensuring`.
   - Stale action fibers can no longer clear newer submissions, and reset still
     interrupts the tracked fiber.
+  - Native `submitEffect` calls now participate in the same tracked submission
+    fiber model as public `submit` calls, including `latest` interruption and
+    `exhaust` joining semantics.
 - `packages/solid/src/index.ts` and `packages/solid-db/src/index.ts`
   - Moved router preload completion, background resource preload, collection
     preload, and live-query preload error handling into Effect programs before
@@ -100,3 +103,13 @@ Effect-native interruption.
 - `pnpm verify` passed after the Promise-method cleanup: package build,
   workspace typecheck, type tests, 34 package test files / 300 tests, example
   typecheck, 4 example test files / 23 tests, example build, and leak scan.
+- `pnpm exec vitest run packages/core/test/action.test.ts` passed after the
+  native action concurrency sweep: 1 file, 18 tests.
+- `pnpm exec vitest run packages/start/test/start.test.ts -t "StartAction"`
+  passed after the native StartAction concurrency sweep: 1 file, 2 selected
+  tests.
+- `pnpm typecheck` passed after the native action concurrency sweep.
+- `pnpm verify` passed after the native action concurrency sweep: package
+  build, workspace typecheck, type tests, 35 package test files / 306 tests,
+  example typecheck, 4 example test files / 23 tests, example build, and leak
+  scan.

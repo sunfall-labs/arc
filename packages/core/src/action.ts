@@ -391,13 +391,37 @@ export namespace Action {
         })
       );
 
-    const submitEffect = (input: I): Effect.Effect<A, E | ActionInterrupted, R> => {
-      const token = ++version;
-      return runWorkflow(input, token, {
-        interruptStale: true,
-        updateOnlyLatest: true
+    const submitEffect = (input: I): Effect.Effect<A, E | ActionInterrupted, R> =>
+      Effect.suspend(() => {
+        const concurrency = definition.policy?.concurrency ?? "latest";
+        const current = currentSubmission;
+        if (concurrency === "exhaust" && current?.fiber) {
+          return Fiber.join(current.fiber) as Effect.Effect<A, E | ActionInterrupted, R>;
+        }
+
+        const previousFiber = concurrency === "latest" ? current?.fiber : undefined;
+        const token = ++version;
+        const submissionToken = {};
+        return Effect.withFiber((fiber) => {
+          if (concurrency !== "parallel") {
+            currentSubmission = {
+              token: submissionToken,
+              fiber: fiber as Fiber.Fiber<A, E | ActionInterrupted>
+            };
+          }
+
+          return Effect.gen(function* () {
+            if (previousFiber && previousFiber !== fiber) {
+              yield* Fiber.interrupt(previousFiber);
+            }
+
+            return yield* runWorkflow(input, token, {
+              interruptStale: concurrency === "latest",
+              updateOnlyLatest: true
+            });
+          }).pipe(Effect.ensuring(clearCurrentEffect(submissionToken)));
+        }) as Effect.Effect<A, E | ActionInterrupted, R>;
       });
-    };
 
     const resetEffect = (): Effect.Effect<void> =>
       Effect.sync(() => {
@@ -416,8 +440,16 @@ export namespace Action {
     const submit = (input: I): Promise<A> => {
       const concurrency = definition.policy?.concurrency ?? "latest";
 
-      if (concurrency === "exhaust" && currentSubmission?.promise) {
-        return currentSubmission.promise;
+      if (concurrency === "exhaust") {
+        const current = currentSubmission;
+        if (current?.promise) {
+          return current.promise;
+        }
+        if (current?.fiber) {
+          return runtime.runPromise(
+            Fiber.join(current.fiber) as Effect.Effect<A, E | ActionInterrupted, R>
+          );
+        }
       }
 
       const previousFiber = concurrency === "latest" ? currentSubmission?.fiber : undefined;

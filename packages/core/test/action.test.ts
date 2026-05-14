@@ -1,4 +1,4 @@
-import { Deferred, Effect, Schedule } from "effect";
+import { Deferred, Effect, Fiber, Schedule } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import { Action, makeRuntime, read, Resource, runWithRuntime, Signal } from "../src/index.js";
 
@@ -191,6 +191,34 @@ describe("Action", () => {
     });
   });
 
+  it("interrupts the previous native Effect submission", async () => {
+    let interrupted = false;
+    const Finish = Action.define({
+      name: "finish.effect-interrupt",
+      run: (value: string) =>
+        value === "first"
+          ? Effect.ensuring(
+              Effect.never,
+              Effect.sync(() => {
+                interrupted = true;
+              })
+            )
+          : Effect.succeed(value)
+    });
+    const action = Action.use(Finish);
+
+    const first = Effect.runFork(action.submitEffect("first"));
+    await Effect.runPromise(Effect.sleep("10 millis"));
+    await expect(Effect.runPromise(action.submitEffect("second"))).resolves.toBe("second");
+    await Effect.runPromise(Effect.exit(Fiber.join(first)));
+
+    expect(interrupted).toBe(true);
+    expect(read(action.state)).toMatchObject({
+      _tag: "Success",
+      value: "second"
+    });
+  });
+
   it("uses Effect schedules for retry policy", async () => {
     let attempts = 0;
     const Finish = Action.define({
@@ -342,6 +370,65 @@ describe("Action", () => {
       input: "first",
       value: "first"
     });
+  });
+
+  it("supports exhaust concurrency for native Effect submissions", async () => {
+    const release = Effect.runSync(Deferred.make<void>());
+    let runs = 0;
+    const Finish = Action.define({
+      name: "finish.effect-exhaust",
+      policy: {
+        concurrency: "exhaust"
+      },
+      run: (value: string) =>
+        Effect.gen(function* () {
+          runs++;
+          yield* Deferred.await(release);
+          return value;
+        })
+    });
+    const action = Action.use(Finish);
+
+    const first = Effect.runFork(action.submitEffect("first"));
+    await Effect.runPromise(Effect.sleep("10 millis"));
+    const second = Effect.runFork(action.submitEffect("second"));
+    Effect.runSync(Deferred.succeed(release, undefined));
+
+    await expect(Effect.runPromise(Fiber.join(first))).resolves.toBe("first");
+    await expect(Effect.runPromise(Fiber.join(second))).resolves.toBe("first");
+    expect(runs).toBe(1);
+    expect(read(action.state)).toMatchObject({
+      _tag: "Success",
+      input: "first",
+      value: "first"
+    });
+  });
+
+  it("lets event exhaust submissions join a native Effect submission", async () => {
+    const release = Effect.runSync(Deferred.make<void>());
+    let runs = 0;
+    const Finish = Action.define({
+      name: "finish.effect-event-exhaust",
+      policy: {
+        concurrency: "exhaust"
+      },
+      run: (value: string) =>
+        Effect.gen(function* () {
+          runs++;
+          yield* Deferred.await(release);
+          return value;
+        })
+    });
+    const action = Action.use(Finish);
+
+    const first = Effect.runFork(action.submitEffect("first"));
+    await Effect.runPromise(Effect.sleep("10 millis"));
+    const second = action.submit("second");
+    Effect.runSync(Deferred.succeed(release, undefined));
+
+    await expect(Effect.runPromise(Fiber.join(first))).resolves.toBe("first");
+    await expect(second).resolves.toBe("first");
+    expect(runs).toBe(1);
   });
 
   it("supports parallel concurrency without interrupting older submissions", async () => {
