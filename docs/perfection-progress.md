@@ -74,11 +74,13 @@ or command result that proves it.
 | 26 | Docs drift audit | `docs/docs-drift-audit.md`; `docs/ultimate-goal-checklist.md`; `docs/perfection-progress.md` | Removed stale follow-ups for already-shipped richer teardown facts and package-source Promise-method cleanup while preserving historical checkpoint counts as historical evidence. | Re-run before release-candidate handoff. |
 | 27 | Type-test coverage audit | `type-tests/framework.test-d.ts`; `docs/type-test-coverage-audit.md`; `docs/framework-perfection-charter.md` | Added explicit request-trace teardown type assertions, kept Start teardown assignable to devtools, and rejected Promise-returning `onRequestTrace` handlers at compile time. | Run type-test verification before committing. |
 | 28 | Runtime leak and teardown audit | `packages/core/src/resource-store.ts`; `packages/core/test/resource-store.test.ts`; `docs/runtime-leak-teardown-audit.md` | Resource Store disposal now shuts down its event `PubSub` through `Effect.ensuring`, including the module-finalizer failure path. | Run focused Resource Store tests and keep the browser/server leak audit separate. |
+| 29 | Example copyability and leak audit | `examples/project-console/README.md`; `examples/project-console/package.json`; `examples/project-console/src/server.test.ts`; `docs/example-copyability-and-leak-audit.md` | Example-owned test/leak/verify scripts, local Vitest dependency, copy guidance, and stronger server-module leak sentinels make the app easier to lift out safely. Example-local verify and root delegated example scripts passed. | Keep replacing workspace caveats with published package versions near RC. |
 
 ## Thirty-Sweep Gate
 
 The final goal requires 30 full code sweeps without finding more improvements.
-This ledger currently records 28 sweeps. The remaining 2 should cover:
+This ledger currently records 29 sweeps. One more clean sweep is required by
+the gate; keep using the remaining concern list to decide scope:
 
 - Devtools UI/docs polish around the richer request trace teardown facts.
 - Promise-shaped internals that can be pushed down into Effect programs.
@@ -86,9 +88,7 @@ This ledger currently records 28 sweeps. The remaining 2 should cover:
 - Docs drift against current implementation.
 - Golden-file snapshots for generated artifacts if inline assertions stop being
   enough.
-- Example app copyability and starter extraction.
 - Package publish metadata and export hygiene before npm publication.
-- Browser/server boundary leak checks beyond the existing example scan.
 - Benchmark baselines for SSR, preload, collections, live queries, and transport.
 
 ## Open Release-Candidate Slices

@@ -228,11 +228,15 @@ the audit finds them.
 - [x] Runtime leak and teardown audit.
   - Evidence: `docs/runtime-leak-teardown-audit.md`; Resource Store disposal now
     shuts down event channels even when module finalizers fail.
-- [ ] Example app copyability audit.
+- [x] Example app copyability audit.
+  - Evidence: `docs/example-copyability-and-leak-audit.md`; the example now has
+    local test/build/leak-scan/verify scripts plus copy guidance.
 - [x] Package export and dependency hygiene audit.
   - Evidence: `docs/package-hygiene-audit.md`; `@effect-ui/start` now declares
     its direct `effect` dependency.
-- [ ] Browser/server leak audit beyond the current example scan.
+- [x] Browser/server leak audit beyond the current example scan.
+  - Evidence: `docs/example-copyability-and-leak-audit.md`; leak assertions now
+    include server module sentinels in package-local scripts and tests.
 - [ ] Benchmark baseline audit.
 
 ## Must-Fix Workstreams

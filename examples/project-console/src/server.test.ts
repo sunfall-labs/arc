@@ -210,5 +210,7 @@ describe("project console SSR", () => {
     expect(bundleText).not.toContain("seedProjects");
     expect(bundleText).not.toContain("Move invoice preview");
     expect(bundleText).not.toContain("Webhook replay still manual");
+    expect(bundleText).not.toContain("domain.server");
+    expect(bundleText).not.toContain("/src/domain.server.ts");
   });
 });

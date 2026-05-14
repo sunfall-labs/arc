@@ -385,8 +385,8 @@ Last evidence pass: May 14, 2026.
 - [x] Example app demonstrates no-JS form fallback.
   - Evidence: plain form POST tests in `examples/project-console/src/server.test.ts`.
 - [x] Example app production build passes server-only leak scan.
-  - Evidence: `pnpm example:build` and `pnpm example:leak-scan` passed inside
-    `pnpm verify`.
+  - Evidence: example-local `pnpm build` and `pnpm leak-scan` scripts are
+    delegated by root scripts and passed inside `pnpm verify`.
 
 ## Docs, Product, And Developer Experience
 
@@ -404,7 +404,8 @@ Last evidence pass: May 14, 2026.
     current source/test surfaces.
 - [x] Examples in docs are copyable or clearly illustrative.
   - Evidence: docs use APIs covered by `type-tests/framework.test-d.ts` and
-    package tests.
+    package tests; `examples/project-console/README.md` now records the
+    copyable example path and monorepo-only alias caveat.
 - [x] New architectural decisions are recorded in docs or ADRs.
   - Evidence: no new architecture decision was introduced in this pass; existing
     decisions remain in docs. No ADR needed.

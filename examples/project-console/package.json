@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsrx-tsc -p tsconfig.json --noEmit && vite build",
-    "typecheck": "tsrx-tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsrx-tsc -p tsconfig.json --noEmit",
+    "test": "vitest run src/*.test.ts",
+    "leak-scan": "! rg \"seedProjects|Move invoice preview|Webhook replay|domain\\\\.server|/src/domain\\\\.server\\\\.ts\" dist -n",
+    "verify": "pnpm typecheck && pnpm test && pnpm build && pnpm leak-scan"
   },
   "dependencies": {
     "@effect-ui/core": "workspace:*",
@@ -22,6 +25,7 @@
     "@tsrx/typescript-plugin": "^0.3.58",
     "@types/node": "^25.7.0",
     "typescript": "^5.9.3",
-    "vite": "^8.0.12"
+    "vite": "^8.0.12",
+    "vitest": "^4.1.6"
   }
 }
