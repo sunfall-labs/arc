@@ -1028,9 +1028,9 @@ export namespace Resource {
     const fiber = runtime.runFork(
       Effect.provideService(effect, ResourceStore, store).pipe(
         Effect.ensuring(clearInFlightResource(entry, store, token))
-      ) as Effect.Effect<A, E, any>
+      )
     );
-    const promise = runtime.runPromise(Fiber.join(fiber) as Effect.Effect<A, E, any>);
+    const promise = runtime.runPromise(Fiber.join(fiber));
 
     if (entry.inFlight?.token === token) {
       entry.inFlight.fiber = fiber;
@@ -1092,7 +1092,7 @@ export namespace Resource {
 
     if (isStale(ref as ResourceRef<unknown, A, E, unknown>, state)) {
       void runPromise(
-        (refreshEffect(ref) as Effect.Effect<A, E, any>).pipe(
+        refreshEffect(ref).pipe(
           Effect.catch(() => Effect.void)
         )
       );

@@ -101,6 +101,9 @@ Latest full gate on May 14, 2026:
   removed without changing the public pure/Effect callback behavior.
 - Runtime run-method service-erasure casts were consolidated behind exact
   ResourceStore provision typing and one named ManagedRuntime boundary.
+- Core Action and Resource Promise helpers now delegate workflow fibers,
+  `Fiber.join`, stale refresh, and interruption Effects directly to that runtime
+  boundary instead of erasing requirements at each call site.
 - The DB query builder projector variance helper no longer uses a broad
   `unknown` bridge.
 - Type-id declarations no longer appear in the broad `as never` cast sweep.

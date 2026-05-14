@@ -396,7 +396,7 @@ export namespace Action {
         const concurrency = definition.policy?.concurrency ?? "latest";
         const current = currentSubmission;
         if (concurrency === "exhaust" && current?.fiber) {
-          return Fiber.join(current.fiber) as Effect.Effect<A, E | ActionInterrupted, R>;
+          return Fiber.join(current.fiber);
         }
 
         const previousFiber = concurrency === "latest" ? current?.fiber : undefined;
@@ -420,7 +420,7 @@ export namespace Action {
               updateOnlyLatest: true
             });
           }).pipe(Effect.ensuring(clearCurrentEffect(submissionToken)));
-        }) as Effect.Effect<A, E | ActionInterrupted, R>;
+        });
       });
 
     const resetEffect = (): Effect.Effect<void> =>
@@ -446,9 +446,7 @@ export namespace Action {
           return current.promise;
         }
         if (current?.fiber) {
-          return runtime.runPromise(
-            Fiber.join(current.fiber) as Effect.Effect<A, E | ActionInterrupted, R>
-          );
+          return runtime.runPromise(Fiber.join(current.fiber));
         }
       }
 
@@ -470,11 +468,11 @@ export namespace Action {
             interruptStale: concurrency === "latest",
             updateOnlyLatest: true
           });
-        }) as Effect.Effect<A, E | ActionInterrupted, R>
-      ) as Fiber.Fiber<A, E | ActionInterrupted>;
+        })
+      );
 
       const promise = runtime.runPromise(
-        (Fiber.join(fiber) as Effect.Effect<A, E | ActionInterrupted, R>).pipe(
+        Fiber.join(fiber).pipe(
           Effect.ensuring(clearCurrentEffect(submissionToken))
         )
       );
@@ -497,7 +495,7 @@ export namespace Action {
       reset: () => {
         const submission = currentSubmission;
         if (submission?.fiber) {
-          void runtime.runPromise(Fiber.interrupt(submission.fiber) as Effect.Effect<void, never, R>);
+          void runtime.runPromise(Fiber.interrupt(submission.fiber));
         }
         currentSubmission = undefined;
         runtime.runSync(resetEffect());

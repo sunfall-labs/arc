@@ -54,6 +54,9 @@ Effect-native interruption.
     Effect fiber record.
   - Runtime disposal, hydration, and resource deletion now interrupt tracked
     public prefetch/refresh fibers instead of only clearing a Promise handle.
+  - Public prefetch/refresh, in-flight `Fiber.join`, and stale refresh paths now
+    pass Effects directly through the runtime boundary without local requirement
+    erasure.
 - `packages/core/src/action.ts` and `packages/start/src/index.ts`
   - Replaced public action submit `Promise.finally(...)` cleanup with tokened
     in-flight submission records and `Effect.ensuring`.
@@ -62,6 +65,9 @@ Effect-native interruption.
   - Native `submitEffect` calls now participate in the same tracked submission
     fiber model as public `submit` calls, including `latest` interruption and
     `exhaust` joining semantics.
+  - Core Action now delegates `Fiber.join`, workflow fibers, and reset
+    interruption to the runtime boundary without per-call `Effect.Effect`
+    assertions.
 - `packages/solid/src/index.ts` and `packages/solid-db/src/index.ts`
   - Moved router preload completion, background resource preload, collection
     preload, and live-query preload error handling into Effect programs before

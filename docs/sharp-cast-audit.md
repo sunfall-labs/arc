@@ -49,6 +49,10 @@ Solid adapter, and DB query-builder cleanup sweeps.
 - Solid Resource and Solid-DB collection/live-query Promise helpers now call the
   underlying `*Effect` operations directly through the active runtime instead of
   erasing requirements at each hook method.
+- Core Action and Resource public Promise helpers now pass `Fiber.join`,
+  interruption, in-flight Resource refresh, and scoped workflow Effects directly
+  to the runtime instead of casting each call site to a runtime-erased
+  `Effect.Effect<..., any>`.
 - The DB default projector cast remains because an unprojected query returns
   the current context shape, while `QueryBuilder` also supports selected result
   shapes through the same class.
@@ -245,6 +249,16 @@ Solid adapter, and DB query-builder cleanup sweeps.
   cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files /
   320 tests, devtools-panel verify, devtools-extension verify with 1 extension
   test file / 6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.
+- `pnpm --filter @effect-ui/core typecheck`, `pnpm typecheck:types`, and
+  `pnpm exec vitest run packages/core/test/action.test.ts packages/core/test/resource.test.ts packages/core/test/runtime.test.ts`
+  passed after removing Action/Resource runtime call-site casts: 3 files, 48
+  tests.
+- `pnpm verify` passed after removing Action/Resource runtime call-site casts: 9
+  package builds, workspace typecheck, type tests, 38 root test files / 320
+  tests, devtools-panel verify, devtools-extension verify with 1 extension test
+  file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
 
