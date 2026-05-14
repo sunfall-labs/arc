@@ -31,10 +31,13 @@ and DB query-builder cleanup sweeps.
   or `@ts-ignore`; negative tests use explicit `@ts-expect-error` or
   `unknown`-to-contract casts for runtime validation shapes.
 - Remaining package-source `as unknown as` casts are concentrated in the DB
-  query builder boundary: `QueryBuilder` carries predicate, projector, and
-  ordering functions across context-widening joins. The casts are centralized
-  behind `filtersFor`, `projectorFor`, and `ordersFor`; type tests cover the
-  joined row shape exposed to callers.
+  query builder boundary: `QueryBuilder` carries predicate and ordering
+  functions across context-widening joins, and it still has an identity
+  projection branch for unprojected queries. The join variance casts are
+  centralized behind `filtersFor` and `ordersFor`; type tests cover the joined
+  row shape exposed to callers.
+- `QueryBuilder.projectorFor(...)` now carries selected projectors across joins
+  with a direct function assertion instead of a broad `unknown` bridge.
 - `packages/core/src/runtime.ts` still has a named ManagedRuntime service
   boundary, but ResourceStore injection now has an exact `Exclude<...>` type and
   run-method service erasure is centralized behind `provideManagedServices(...)`
@@ -201,6 +204,16 @@ and DB query-builder cleanup sweeps.
   file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
+- `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck:types`, and
+  `pnpm exec vitest run packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
+  passed after replacing the `QueryBuilder.projectorFor(...)` broad `unknown`
+  bridge with a direct projector assertion: 2 files, 35 tests.
+- `pnpm verify` passed after replacing the `QueryBuilder.projectorFor(...)`
+  broad `unknown` bridge: 9 package builds, workspace typecheck, type tests, 38
+  root test files / 320 tests, devtools-panel verify, devtools-extension verify
+  with 1 extension test file / 6 tests, basic starter verify, project-console
+  starter packaging, project-console typecheck, 4 project-console test files /
+  23 tests, project-console build, and leak scan.
 
 ## Follow-Up
 

@@ -1761,7 +1761,7 @@ export class QueryBuilder<TContext extends Record<string, any>, TResult> {
   }
 
   private projectorFor<NextContext extends Record<string, any>, NextResult>(): ((row: NextContext) => NextResult) | undefined {
-    return this.projector as unknown as ((row: NextContext) => NextResult) | undefined;
+    return this.projector as ((row: NextContext) => NextResult) | undefined;
   }
 
   private ordersFor<NextContext extends Record<string, any>>(): ReadonlyArray<QueryOrder<NextContext>> {

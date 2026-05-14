@@ -32,6 +32,9 @@ yet.
   joined context variance and the default projector.
 - DB incremental live queries use a named `IOperator` bridge for the custom IVM
   flatMap operator instead of an inline bottom-type cast.
+- DB query joins now carry selected projectors with a narrower direct function
+  assertion; the remaining broad query casts are limited to predicate/order
+  variance and the unprojected identity branch.
 - Core runtime integration with Effect `ManagedRuntime` keeps a documented
   service-erasure boundary centralized behind `provideManagedServices(...)`.
 - Core Capability helpers now use overloads for pure vs Effect-returning
@@ -89,12 +92,14 @@ Latest full gate on May 14, 2026:
 - DB incremental live-query custom operators now register through a named
   `IOperator` bridge over `@tanstack/db-ivm`'s class-typed `addOperator(...)`
   surface.
-- The latest `pnpm verify` passed after the Core runtime service-erasure cast
-  consolidation.
+- The latest `pnpm verify` passed after the DB query projector variance cast
+  cleanup.
 - Capability implementation casts for `useEffect(...)` and `provide(...)` were
   removed without changing the public pure/Effect callback behavior.
 - Runtime run-method service-erasure casts were consolidated behind exact
   ResourceStore provision typing and one named ManagedRuntime boundary.
+- The DB query builder projector variance helper no longer uses a broad
+  `unknown` bridge.
 
 ## Notable Limits
 
