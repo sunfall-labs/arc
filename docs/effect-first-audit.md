@@ -671,3 +671,8 @@ interruption.
   `EffectInput` operations now run through `toEffect(...)`, runtime-specific
   collection round trips stay behind `Effect.promise(...)`, and teardown uses
   Effect finalizers.
+- `pnpm --filter @effect-ui/start typecheck` and
+  `pnpm exec vitest run packages/start/test/rpc.test.ts` passed after
+  converting Start RPC protocol tests to returned Effect programs. Platform JSON
+  parsing is isolated behind `Effect.tryPromise(...)`; transport success and
+  failure assertions now stay inside Effect pipelines.

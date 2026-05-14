@@ -266,6 +266,10 @@ Latest full gate on May 14, 2026:
 - DB SQLite persistence tests now return Effect programs, with storage
   `EffectInput` work run through `toEffect(...)` and Promise matcher assertions
   replaced by explicit Effect assertions.
+- Start RPC protocol tests now return Effect programs. Server RPC/action
+  response checks, browser client transport success, and non-JSON transport
+  failures are asserted inside Effect pipelines, with only platform JSON
+  parsing isolated behind `Effect.tryPromise(...)`.
 
 ## Notable Limits
 
