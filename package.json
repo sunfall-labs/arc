@@ -1,6 +1,7 @@
 {
   "name": "effect-ui-workspace",
   "private": true,
+  "license": "UNLICENSED",
   "type": "module",
   "packageManager": "pnpm@10.33.2",
   "scripts": {

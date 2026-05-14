@@ -11,6 +11,8 @@ exports. It supports the release-engineering charter workstream.
   private until the actual npm publication decision:
   - `description` summarizes each package's public role for registry and
     generated starter surfaces.
+  - `license: "UNLICENSED"` avoids implying a public license while the
+    workspace remains private and no root LICENSE file exists.
   - `main` and `types` point at the root built entrypoint for older tooling.
   - `files: ["dist"]` limits publication payloads to build output.
   - `sideEffects: false` documents that framework package modules are intended
@@ -44,11 +46,14 @@ exports. It supports the release-engineering charter workstream.
   - root `package.json`
   - `packages/*/package.json`
   - `examples/basic-starter/package.json`
+  - `examples/devtools-extension/package.json`
   - `examples/devtools-panel/package.json`
   - `examples/project-console/package.json`
   - `pnpm-lock.yaml`
 - Description sweep:
   - `rg -n '"description"' packages/*/package.json`
+- License sweep:
+  - `rg -n '"license": "UNLICENSED"' package.json packages/*/package.json examples/*/package.json`
 - `pnpm install --lockfile-only --offline` completed successfully after the
   manifest change.
 - `pnpm install --lockfile-only --offline` completed successfully after adding
@@ -63,8 +68,8 @@ exports. It supports the release-engineering charter workstream.
 - `pnpm build` passed after adding package descriptions.
 - `pnpm build` and `pnpm typecheck` passed after moving package
   `.tsbuildinfo` outputs out of `dist`.
-- Individual package dry-run packs passed after refreshing workspace links and
-  again after adding package descriptions:
+- Individual package dry-run packs passed after refreshing workspace links,
+  after adding package descriptions, and after adding `UNLICENSED` metadata:
   - `pnpm --filter @effect-ui/core pack --dry-run`
   - `pnpm --filter @effect-ui/db pack --dry-run`
   - `pnpm --filter @effect-ui/devtools pack --dry-run`
@@ -86,14 +91,22 @@ exports. It supports the release-engineering charter workstream.
   devtools-panel verify, devtools-extension verify, basic starter verify,
   project-console starter packaging, project-console typecheck, 4
   project-console test files / 23 tests, project-console build, and leak scan.
+- `pnpm build` passed after adding `UNLICENSED` metadata to the workspace,
+  framework packages, examples, and starter manifests.
+- `pnpm verify` passed after adding `UNLICENSED` metadata: 9 package builds,
+  workspace typecheck, type tests, 38 root test files / 320 tests,
+  devtools-panel verify, devtools-extension verify with 1 extension test file /
+  6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.
 
 ## Follow-Up
 
 - Re-run this audit after adding a new package export path, adapter, or runtime
   dependency.
-- If packages become public on npm, flip `private`, add final package
-  repository/license metadata, and revisit whether framework package
-  dependencies should be direct dependencies or peer dependencies.
+- If packages become public on npm, flip `private`, choose the public license
+  and repository metadata, and revisit whether framework package dependencies
+  should be direct dependencies or peer dependencies.
 - Use package-local dry-run pack checks for publication rehearsal; recursive
   workspace pack is not the release signal while workspace protocol replacement
   is still a pnpm publication concern.

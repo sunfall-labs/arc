@@ -2,6 +2,7 @@
   "name": "@effect-ui/example-devtools-extension",
   "version": "0.0.0-alpha.0",
   "private": true,
+  "license": "UNLICENSED",
   "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json --noEmit && vite build",

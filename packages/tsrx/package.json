@@ -2,6 +2,7 @@
   "name": "@effect-ui/tsrx",
   "version": "0.0.0-alpha.0",
   "description": "TSRX and Solid Vite preset for Effect UI apps and starters.",
+  "license": "UNLICENSED",
   "type": "module",
   "private": true,
   "main": "./dist/index.js",

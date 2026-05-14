@@ -2,6 +2,7 @@
   "name": "@effect-ui/start-fetch",
   "version": "0.0.0-alpha.0",
   "description": "Fetch-host facade for the tested Effect UI Start adapter surface.",
+  "license": "UNLICENSED",
   "type": "module",
   "private": true,
   "main": "./dist/index.js",

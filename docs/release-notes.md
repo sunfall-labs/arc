@@ -68,12 +68,14 @@ Latest full gate on May 14, 2026:
   scopes `globalThis.__EFFECT_UI_DEVTOOLS__` setup and cleanup inside Effect.
 - The latest devtools extension verify includes 1 extension test file / 6 tests
   plus the Manifest V3 production build.
+- The latest `pnpm verify` also covers the private `UNLICENSED` workspace
+  metadata sweep.
 
 ## Notable Limits
 
 - Packages are still private and versioned `0.0.0-alpha.0`.
-- Package manifests include pre-release descriptions and build metadata, but
-  final npm repository/license decisions are still open.
+- Package manifests include pre-release descriptions, `UNLICENSED`, and build
+  metadata, but final public npm repository/license decisions are still open.
 - The browser extension live bridge expects the inspected app to expose
   `globalThis.__EFFECT_UI_DEVTOOLS__`; automatic injection is not part of the
   checked shell.

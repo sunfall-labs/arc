@@ -42,8 +42,8 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest full verification gate is green after adding the public app-side
-  devtools bridge helper: 38 root test files / 320 tests plus devtools panel,
+- The latest full verification gate is green after adding private workspace
+  `UNLICENSED` metadata: 38 root test files / 320 tests plus devtools panel,
   devtools extension, starter, rich starter packaging, project-console build,
   and leak-scan gates.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
@@ -58,6 +58,8 @@ or command result that proves it.
   `DevtoolsPanels` payloads exposed as `globalThis.__EFFECT_UI_DEVTOOLS__`.
 - `@effect-ui/devtools` now exposes scoped app-side bridge helpers so apps can
   install and clean up that global payload provider through Effect.
+- Workspace package manifests now carry `UNLICENSED` metadata while they remain
+  private; public license/repository decisions stay explicit publication work.
 - The final no-new-improvements clean-sweep gate is still open because the
   latest sweeps still found actionable implementation and docs work. Start the
   clean-sweep counter only after full code/docs/test passes stop finding
@@ -168,6 +170,8 @@ or command result that proves it.
 | 99 | Full verification after devtools extension inspected-window bridge | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md` | Escalated full verification passed after adding the inspected-window bridge: 9 package builds, workspace typecheck, type tests, 38 root test files / 319 tests, devtools-panel verify, devtools-extension verify with 1 test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next implementation sweep. |
 | 100 | Public devtools app-side bridge helper | `packages/devtools/src/index.ts`; `packages/devtools/test/devtools.test.ts`; `type-tests/framework.test-d.ts`; `examples/devtools-extension/src/transport.ts`; `docs/devtools.md`; `docs/public-api-inventory.md`; `examples/devtools-extension/README.md` | Added `effectUiDevtoolsBridgeGlobal`, `installDevtoolsBridge`, and `installDevtoolsBridgeEffect` so apps can expose a scoped `DevtoolsPanels` provider for browser-extension inspection without hand-rolling global lifecycle. Devtools package typecheck, focused devtools/extension tests, public type tests, and `pnpm devtools-extension:verify` passed. | Run full verification before committing this public API slice. |
 | 101 | Full verification after public devtools bridge helper | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md` | Escalated full verification passed after adding the public app-side bridge helper: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next implementation sweep. |
+| 102 | Private workspace license metadata | `package.json`; `packages/*/package.json`; `examples/*/package.json`; `docs/package-hygiene-audit.md`; `docs/public-api-inventory.md`; `docs/release-notes.md` | Added `license: "UNLICENSED"` to the private root, framework package, example, and starter manifests so package metadata does not imply a public grant before publication. `rg -n '"license": "UNLICENSED"' package.json packages/*/package.json examples/*/package.json`, `pnpm build`, and all 9 package-local dry-run packs passed. | Run full verification before committing this release metadata slice. |
+| 103 | Full verification after private workspace license metadata | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/package-hygiene-audit.md` | Escalated full verification passed after adding `UNLICENSED` metadata: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next implementation sweep. |
 
 ## Thirty-Sweep Gate
 

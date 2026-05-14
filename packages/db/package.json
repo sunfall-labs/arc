@@ -2,6 +2,7 @@
   "name": "@effect-ui/db",
   "version": "0.0.0-alpha.0",
   "description": "Effect UI local-first collections, live queries, persistence, and sync adapters.",
+  "license": "UNLICENSED",
   "type": "module",
   "private": true,
   "main": "./dist/index.js",
