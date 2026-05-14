@@ -125,9 +125,10 @@ Effect UI is winning when these are also true:
 - Devtools causal graph substrate: summaries now include nodes and edges for
   routes, resources, actions, invalidations, schemas, modules, endpoints, and
   runtime events.
-- Public deployment adapters: `@effect-ui/start/adapters` exposes Effect-first
-  fetch and Node HTTP adapters over the Start request boundary, with streaming
-  Node responses, interruption, backpressure, and multi-cookie header handling.
+- Public deployment adapters: `@effect-ui/start-fetch` and
+  `@effect-ui/start-node` expose host-shaped facades over the tested Start
+  adapter implementation, with streaming Node responses, interruption,
+  backpressure, and multi-cookie header handling.
 - Request-scoped response services: render, preload, server functions, actions,
   and server routes can set status, headers, and cookies through Effect
   `ResponseContext`, and Start applies those facts to the final response.

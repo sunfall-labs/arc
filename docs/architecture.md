@@ -608,14 +608,17 @@ SSR preload and render work, so app services can be normal Effect `Layer`s.
 Every request gets a fresh Request Runtime, so SSR behaves like TanStack Start's
 isomorphic request model without sharing cache state across users.
 
-Deployment adapters live in `@effect-ui/start/adapters`. Edge-style hosts can
-wrap `createRequestHandlerEffect(app)` with `toFetchHandlerEffect`, while Node
-HTTP servers use `createNodeHandlerEffect` / `createNodeHandler`. The Node
-adapter converts `IncomingMessage` to a Web `Request`, honors forwarded origin
-headers, writes Web `Response` headers/status back to `ServerResponse`, streams
-response bodies with Node backpressure and Effect interruption through an
-`AbortSignal`, preserves multiple `Set-Cookie` headers, and keeps `HEAD`
-responses bodyless at the host boundary.
+Deployment adapter implementations live in `@effect-ui/start/adapters`.
+Application imports should prefer the host-shaped facades:
+`@effect-ui/start-fetch` for Fetch-style hosts and `@effect-ui/start-node` for
+Node HTTP. Edge-style hosts can wrap `createRequestHandlerEffect(app)` with
+`toFetchHandlerEffect`, while Node HTTP servers use `createNodeHandlerEffect` /
+`createNodeHandler`. The Node adapter converts `IncomingMessage` to a Web
+`Request`, honors forwarded origin headers, writes Web `Response`
+headers/status back to `ServerResponse`, streams response bodies with Node
+backpressure and Effect interruption through an `AbortSignal`, preserves
+multiple `Set-Cookie` headers, and keeps `HEAD` responses bodyless at the host
+boundary.
 
 ## Isomorphic Server Functions
 
