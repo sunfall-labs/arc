@@ -178,14 +178,14 @@ describe("Start streaming", () => {
       Effect.gen(function* () {
         const reachedBlockingChunk = yield* Deferred.make<void>();
         const interrupted = yield* Deferred.make<void>();
-        const blockingChunk = Stream.fromEffect(
-          Effect.gen(function* () {
-            yield* Deferred.succeed(reachedBlockingChunk, undefined);
-            return yield* Effect.never.pipe(
-              Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined))
-            );
-          }) as Effect.Effect<ReturnType<typeof htmlChunk>>
-        );
+        const blockingChunkEffect: Effect.Effect<ReturnType<typeof htmlChunk>> = Effect.gen(function* () {
+          yield* Deferred.succeed(reachedBlockingChunk, undefined);
+          yield* Effect.never.pipe(
+            Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined))
+          );
+          return htmlChunk("");
+        });
+        const blockingChunk = Stream.fromEffect(blockingChunkEffect);
         const stream = yield* createHtmlStreamEffect({
           shell: "<html>",
           chunks: Stream.concat(Stream.make(htmlChunk("<body>")), blockingChunk)

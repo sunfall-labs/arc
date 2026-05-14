@@ -1,4 +1,4 @@
-import { Resource, Server } from "@effect-ui/core";
+import { Resource, Server, toEffect } from "@effect-ui/core";
 import { Collection } from "@effect-ui/db";
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
@@ -280,11 +280,11 @@ describe("Collection.syncOptions", () => {
 
     await Effect.runPromise(Effect.scoped(Effect.gen(function* () {
       yield* Collection.subscribeChangesEffect(Projects, feed);
-      yield* (emit([
+      yield* toEffect(emit([
         { _tag: "Upsert", value: { id: "atlas", name: "Atlas Prime", archived: false } },
         { _tag: "Upsert", value: { id: "orion", name: "Orion", archived: true } },
         { _tag: "Delete", key: "lumen" }
-      ], { origin: "remote", synced: true }) as Effect.Effect<void>);
+      ], { origin: "remote", synced: true }));
 
       expect(Projects.rows().map((project) => project.id)).toEqual(["atlas", "orion"]);
       expect(Projects.get("atlas")).toMatchObject({

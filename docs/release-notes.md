@@ -186,6 +186,10 @@ Latest full gate on May 14, 2026:
   aliases.
 - The latest `pnpm verify` passed after the core runtime and signal wildcard
   boundary cleanup.
+- The broad sharp-cast grep is clean across package, example, script, and
+  type-test source after replacing the last two test-only `as Effect.Effect`
+  assertions.
+- The latest `pnpm verify` passed after the test sharp Effect assertion cleanup.
 
 ## Notable Limits
 

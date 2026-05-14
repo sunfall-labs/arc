@@ -390,11 +390,25 @@ Solid adapter, and DB query-builder cleanup sweeps.
   tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
+- `pnpm --filter @effect-ui/db typecheck`,
+  `pnpm --filter @effect-ui/start typecheck`, `pnpm typecheck:types`, and
+  `pnpm exec vitest run packages/db/test/sync-adapter.test.ts packages/start/test/streaming.test.ts`
+  passed after replacing the last test-only `as Effect.Effect` assertions with
+  `toEffect(...)` and an explicitly typed stream effect.
+- The broad sharp-cast grep over packages, examples, scripts, and type tests now
+  reports no hits:
+  `rg -n 'as Effect\.Effect|as unknown as |as never|as any|@ts-ignore' packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`.
+- `pnpm verify` passed after the test sharp Effect assertion cleanup: 9 package
+  builds, workspace typecheck, type tests, 38 root test files / 320 tests,
+  devtools-panel verify, devtools-extension verify with 1 extension test file / 6
+  tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.
 
 ## Follow-Up
 
-- Keep new casts out of package source unless they sit at a named boundary like
-  runtime service erasure, query context variance, schema decoding, or external
-  library type-surface adaptation.
+- Keep new casts out of package, example, script, and type-test source unless
+  they sit at a named boundary like runtime service erasure, query context
+  variance, schema decoding, or external library type-surface adaptation.
 - If the runtime or query builder type model changes, re-run this audit and
   either remove these casts or keep the justification current.
