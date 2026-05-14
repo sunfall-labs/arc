@@ -19,23 +19,25 @@ import {
 } from "@effect-ui/start-node";
 
 const listen = (server: ReturnType<typeof createServer>): Promise<number> =>
-  new Promise((resolve, reject) => {
-    server.once("error", reject);
+  Effect.runPromise(Effect.callback<number, unknown>((resume) => {
+    const onError = (error: Error) => resume(Effect.fail(error));
+    server.once("error", onError);
     server.listen(0, "127.0.0.1", () => {
-      server.off("error", reject);
-      resolve((server.address() as AddressInfo).port);
+      server.off("error", onError);
+      resume(Effect.succeed((server.address() as AddressInfo).port));
     });
-  });
+    return Effect.sync(() => server.off("error", onError));
+  }));
 
 const close = (server: ReturnType<typeof createServer>): Promise<void> =>
-  new Promise((resolve, reject) => {
-    server.close((error) => error ? reject(error) : resolve());
-  });
+  Effect.runPromise(Effect.callback<void, unknown>((resume) => {
+    server.close((error) =>
+      resume(error ? Effect.fail(error) : Effect.void)
+    );
+  }));
 
 const delay = (millis: number): Promise<"timeout"> =>
-  new Promise((resolve) => {
-    setTimeout(() => resolve("timeout"), millis);
-  });
+  Effect.runPromise(Effect.sleep(`${millis} millis`).pipe(Effect.as("timeout" as const)));
 
 describe("Start deployment adapters", () => {
   it("converts Node requests into Web requests with forwarded origin and body", async () => {
@@ -80,7 +82,7 @@ describe("Start deployment adapters", () => {
       })
     );
     const server = createServer((request, response) => {
-      void Effect.runPromise(
+      void Effect.runFork(
         Effect.tryPromise(() => nodeHandler(request, response)).pipe(
           Effect.catch((error) =>
             Effect.sync(() => {
@@ -153,7 +155,7 @@ describe("Start deployment adapters", () => {
           new ReadableStream<Uint8Array>({
             start(controller) {
               controller.enqueue(encoder.encode("first"));
-              void Effect.runPromise(
+              void Effect.runFork(
                 Deferred.await(secondChunk).pipe(
                   Effect.andThen(
                     Effect.sync(() => {

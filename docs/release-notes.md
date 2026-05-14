@@ -202,6 +202,11 @@ Latest full gate on May 14, 2026:
   cleanup.
 - The latest `pnpm verify` passed after refreshing docs drift for the wildcard
   and fire-and-forget sweeps.
+- Start adapter tests now use `Effect.callback(...)`/`Effect.sleep(...)`
+  listener and timer helpers instead of raw `new Promise(...)`; the broad raw
+  Promise-constructor/method grep reports no hits across packages, examples,
+  scripts, and type tests.
+- The latest `pnpm verify` passed after the adapter test Promise helper cleanup.
 
 ## Notable Limits
 

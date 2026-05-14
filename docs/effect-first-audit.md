@@ -210,6 +210,9 @@ Effect-native interruption.
 - `packages/start/src/cli.ts`
   - Remaining Promise helpers are bin-entry wrappers over
     `runStartDiagnosticsCliEffect` and `runStartDiagnosticsCliMainEffect`.
+- `packages/start/test/adapters.test.ts`
+  - Node listener/close and timer test helpers use `Effect.callback(...)` and
+    `Effect.sleep(...)` instead of raw `new Promise(...)` wrappers.
 - Tooling scripts:
   - The project-console starter packaging script keeps filesystem checks inside
     Effect programs; no raw async or Promise method chains remain there.
@@ -223,6 +226,8 @@ Effect-native interruption.
     historical evidence.
   - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts -g '*.ts' -g '*.tsx' -g '*.mjs'`
     currently finds no package, example, or script hits.
+  - `rg -n "new Promise|Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
+    currently reports no hits.
   - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
     currently finds no hits outside the docs that record historical evidence.
 
@@ -507,6 +512,16 @@ Effect-native interruption.
   package/example/script/type-test `void runPromise` grep now reports no hits.
 - Full `pnpm verify` passed after the example fire-and-forget Promise cleanup:
   9 package builds, workspace typecheck, type tests, 38 root test files / 320
+  tests, devtools-panel verify, devtools-extension verify with 1 extension test
+  file / 6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.
+- `pnpm --filter @effect-ui/start typecheck`, `pnpm typecheck:types`, and
+  `pnpm exec vitest run packages/start/test/adapters.test.ts` passed after
+  replacing Start adapter test `new Promise(...)` listener/timer helpers with
+  `Effect.callback(...)` and `Effect.sleep(...)`.
+- Full `pnpm verify` passed after the adapter test Promise helper cleanup: 9
+  package builds, workspace typecheck, type tests, 38 root test files / 320
   tests, devtools-panel verify, devtools-extension verify with 1 extension test
   file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,

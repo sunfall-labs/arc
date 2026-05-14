@@ -51,9 +51,10 @@ or command result that proves it.
   validation tests explicit.
 - Negative tests no longer use raw `throw new Error(...)` sentinels; the raw
   throw/subclass grep across package, example, and script sources is clean.
-- Package, example, and script sources no longer use `Promise.resolve(...)`,
-  `.then(...)`, or `.finally(...)`; remaining `new Promise(...)` usage is
-  confined to Node listener/timer host-boundary helpers in adapter tests.
+- Package, example, script, and type-test sources no longer use raw
+  `new Promise(...)`, `Promise.resolve(...)`, `.then(...)`, or `.finally(...)`;
+  Node listener/timer adapter-test helpers now use `Effect.callback(...)` and
+  `Effect.sleep(...)`.
 - Type tests now use declared Promise values for Promise host-boundary
   assertions instead of Promise method syntax.
 - Package, example, script, and type-test sources no longer use direct Promise
@@ -328,6 +329,8 @@ or command result that proves it.
 | 176 | Full verification after example fire-and-forget cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/effect-first-audit.md` | Escalated full verification passed after the example fire-and-forget Promise cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 | 177 | Docs drift refresh after wildcard and fire-and-forget sweeps | `docs/perfection-progress.md`; `docs/sharp-cast-audit.md`; `docs/docs-drift-audit.md` | Refreshed current-status summaries so the latest full gate, broad sharp-cast state, named wildcard boundaries, and package/example fire-and-forget fiber cleanup no longer stop at older DB collection, Solid UI, or cast-audit checkpoints. | Run full verification before committing this docs drift refresh. |
 | 178 | Full verification after docs drift refresh | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md` | Escalated full verification passed after the docs drift refresh: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
+| 179 | Adapter test Promise helper cleanup | `packages/start/test/adapters.test.ts`; `docs/effect-first-audit.md`; `docs/perfection-progress.md`; `docs/sharp-cast-audit.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md` | Replaced Start adapter test `new Promise(...)` listener/close/timer helpers with `Effect.callback(...)` and `Effect.sleep(...)`, and moved test fire-and-forget effects to `Effect.runFork(...)`. The broad raw Promise-constructor/method grep and `void runPromise` grep now report no hits across packages, examples, scripts, and type tests. Start typecheck, public type tests, and the Start adapter test file / 7 tests passed. | Run full verification before committing this adapter test cleanup. |
+| 180 | Full verification after adapter test Promise helper cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/effect-first-audit.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after the adapter test Promise helper cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 
 ## Thirty-Sweep Gate
 

@@ -16,9 +16,10 @@ package, example, script, or type-test hits.
 - No package source currently contains raw Promise method choreography such as
   `.then(...)`, `.finally(...)`, `Promise.resolve(...)`, or `new Promise(...)`
   outside tests and host-boundary code.
-- No package, example, or script source currently contains `Promise.resolve`,
-  `.then(...)`, or `.finally(...)`; adapter tests keep `new Promise(...)` only
-  for Node listener/timer host-boundary helpers.
+- No package, example, script, or type-test source currently contains
+  `new Promise(...)`, `Promise.resolve`, `.then(...)`, or `.finally(...)`; Node
+  listener/timer adapter-test helpers use `Effect.callback(...)` and
+  `Effect.sleep(...)`.
 - No package, example, script, or type-test source currently contains
   `Promise.resolve`, `.then(...)`, or `.finally(...)`.
 - No package source, script, or type-test source currently contains `async`
@@ -134,12 +135,23 @@ package, example, script, or type-test hits.
 - Promise-method grep:
   - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts -g '*.ts' -g '*.tsx' -g '*.mjs'`
   - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
+- Promise-constructor/method grep:
+  - `rg -n "new Promise|Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
 - Promise-catch grep:
   - `rg -n "\\.catch\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs' | rg -v "Effect\\.catch"`
 - `pnpm verify` passed after the latest cast/fire-and-forget cleanup stack: 9
   package builds, workspace typecheck, type tests, 38 root test files / 320
   tests, devtools-panel verify, devtools-extension verify with 1 extension test
   file / 6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.
+- `pnpm --filter @effect-ui/start typecheck`, `pnpm typecheck:types`, and
+  `pnpm exec vitest run packages/start/test/adapters.test.ts` passed after the
+  adapter test raw Promise helper cleanup.
+- `pnpm verify` passed after the adapter test Promise helper cleanup: 9 package
+  builds, workspace typecheck, type tests, 38 root test files / 320 tests,
+  devtools-panel verify, devtools-extension verify with 1 extension test file / 6
+  tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
 - `pnpm exec vitest run packages/devtools/test/devtools.test.ts packages/db/test/server-collection.test.ts packages/start/test/rpc.test.ts packages/start/test/app-graph.test.ts`

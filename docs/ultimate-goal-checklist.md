@@ -214,6 +214,11 @@ Last evidence pass: May 14, 2026.
     helper use `Effect.runFork(...)` or `runtime.runFork(...)`; the
     package/example/script/type-test `void runPromise` grep reports no hits, and
     focused example verifies/typecheck passed. Full `pnpm verify` also passed.
+- [x] Raw Promise constructor/method helpers are absent from source and tests.
+  - Evidence: Start adapter listener/close/timer helpers use
+    `Effect.callback(...)` and `Effect.sleep(...)`; `rg -n "new Promise|Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
+    reports no hits, and Start typecheck, public type tests, and Start adapter
+    tests passed. Full `pnpm verify` also passed.
 - [x] Compile-time rejection rules have type tests.
   - Evidence: `type-tests/framework.test-d.ts` and `pnpm typecheck:types`.
 - [x] Compile-time Promise rejection tests avoid Promise-shaped callback syntax.
@@ -705,13 +710,12 @@ Last evidence pass: May 14, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026 after the docs drift
-    refresh for the wildcard and fire-and-forget sweeps: 9 package builds,
-    workspace typecheck, type tests, 38 root test files / 320 tests,
-    devtools-panel verify, devtools-extension verify with 1 extension test file
-    / 6 tests, basic starter verify, project-console starter packaging,
-    project-console typecheck, 4 project-console test files / 23 tests,
-    project-console build, and leak scan.
+  - Evidence: root `pnpm verify` passed on May 14, 2026 after the adapter test
+    Promise helper cleanup: 9 package builds, workspace typecheck, type tests,
+    38 root test files / 320 tests, devtools-panel verify, devtools-extension
+    verify with 1 extension test file / 6 tests, basic starter verify,
+    project-console starter packaging, project-console typecheck, 4
+    project-console test files / 23 tests, project-console build, and leak scan.
 
 ## Remaining Winning-Bar Items
 
