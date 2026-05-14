@@ -20,6 +20,8 @@
       "@effect-ui/tsrx": ["./packages/tsrx/src/index.ts"],
       "@effect-ui/start": ["./packages/start/src/index.ts"],
       "@effect-ui/start/adapters": ["./packages/start/src/adapters.ts"],
+      "@effect-ui/start-node": ["./packages/start-node/src/index.ts"],
+      "@effect-ui/start-fetch": ["./packages/start-fetch/src/index.ts"],
       "@effect-ui/start/virtual": ["./packages/start/src/virtual-modules.d.ts"],
       "@effect-ui/start/vite": ["./packages/start/src/vite.ts"],
       "@effect-ui/devtools": ["./packages/devtools/src/index.ts"]

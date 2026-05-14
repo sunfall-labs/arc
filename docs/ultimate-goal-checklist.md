@@ -545,9 +545,10 @@ Last evidence pass: May 14, 2026.
 - [x] Completed checklist items have evidence notes.
   - Evidence: every checked item above has path/test/command evidence.
 - [x] Remaining unchecked competitive-bar items listed.
-  - Evidence: concrete external starter and host-specific deployment package
-    breadth plus any dedicated devtools app or extension shell remain future
-    production-readiness items from `docs/winning-spec.md`.
+  - Evidence: concrete external starter packaging, platform-specific deployment
+    packages beyond generic Node/fetch, and any dedicated devtools app or
+    extension shell remain future production-readiness items from
+    `docs/winning-spec.md`.
 - [x] Remaining unchecked winning-bar items listed.
   - Evidence: next section.
 - [x] Next recommended workstreams listed.
@@ -555,10 +556,10 @@ Last evidence pass: May 14, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026 after the browser
-    devtools renderer slice: package build, workspace typecheck, type tests,
-    35 package test files / 308 tests, example typecheck, 4 example test files
-    / 23 tests, example build, and leak scan.
+  - Evidence: root `pnpm verify` passed on May 14, 2026 after the Node/fetch
+    adapter facade package slice: 9 package builds, workspace typecheck, type
+    tests, 35 package test files / 308 tests, example typecheck, 4 example test
+    files / 23 tests, example build, and leak scan.
 
 ## Remaining Winning-Bar Items
 
@@ -568,10 +569,12 @@ Last evidence pass: May 14, 2026.
     and an Effect-scoped DOM mount helper for the `DevtoolsPanels` contract.
 - [ ] Integrate the browser panel renderer into a dedicated app or extension
   shell if productizing beyond the embedded UI surface.
-- [ ] Add external starter docs and host-specific adapter packages when the
-  framework is ready for users outside this repo.
+- [ ] Add external starter packaging and broader host-specific adapter packages
+  when the framework is ready for users outside this repo.
   - Evidence: current Node/fetch deployment guidance exists in
-    `docs/deployment.md`; host-specific packages and starter packaging remain
+    `docs/deployment.md`, and tested Node/fetch adapter facades exist as
+    `@effect-ui/start-node` and `@effect-ui/start-fetch`; starter packaging and
+    platform-specific Cloudflare/Vercel/Netlify/Bun/static packages remain
     future work.
 - [x] Add benchmarks for SSR, route preload, resource cache behavior, DB live
   query behavior, and RPC/action transport.
@@ -588,6 +591,7 @@ quality goal.
    extension shell if productizing beyond the embedded UI surface.
 2. Extend request traces with any missing response context, collection, and
    request-fiber details uncovered by real panel usage.
-3. Add external starter packaging and host-specific adapter packages.
+3. Add external starter packaging and platform-specific adapter packages beyond
+   the generic Node/fetch facades.
 4. Package the project console as a starter template once the devtools UI and
-   host-specific adapter packages land.
+   platform-specific adapter package plan stabilizes.

@@ -8,6 +8,8 @@
     { "path": "./packages/solid-db" },
     { "path": "./packages/tsrx" },
     { "path": "./packages/start" },
+    { "path": "./packages/start-node" },
+    { "path": "./packages/start-fetch" },
     { "path": "./packages/devtools" }
   ]
 }

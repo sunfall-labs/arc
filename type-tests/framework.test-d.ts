@@ -48,6 +48,14 @@ import {
   toFetchHandlerEffect
 } from "@effect-ui/start/adapters";
 import {
+  toFetchHandlerEffect as toPackagedFetchHandlerEffect,
+  type StartFetchHandlerEffect as PackagedStartFetchHandlerEffect
+} from "@effect-ui/start-fetch";
+import {
+  createNodeHandlerEffect as createPackagedNodeHandlerEffect,
+  type StartNodeHandlerEffect as PackagedStartNodeHandlerEffect
+} from "@effect-ui/start-node";
+import {
   makeProjectId as makeProjectConsoleProjectId
 } from "../examples/project-console/src/domain.contract.js";
 import type {
@@ -610,6 +618,19 @@ preloadRequestEffect(StartApp, new Request("https://example.com/projects/atlas")
 toFetchHandlerEffect(createRequestHandlerEffect(StartApp));
 createNodeHandlerEffect(createRequestHandlerEffect(StartApp));
 nodeRequestToWebRequestEffect({ method: "GET", url: "/", headers: {} } as import("node:http").IncomingMessage);
+const packagedFetchHandlerEffect: PackagedStartFetchHandlerEffect = toPackagedFetchHandlerEffect(
+  createRequestHandlerEffect(StartApp)
+);
+packagedFetchHandlerEffect(new Request("https://example.com/projects/atlas")).pipe(
+  Effect.map((response) => response.status)
+);
+const packagedNodeHandlerEffect: PackagedStartNodeHandlerEffect = createPackagedNodeHandlerEffect(
+  createRequestHandlerEffect(StartApp)
+);
+packagedNodeHandlerEffect(
+  { method: "GET", url: "/", headers: {} } as import("node:http").IncomingMessage,
+  {} as import("node:http").ServerResponse
+).pipe(Effect.map((response) => response.status));
 Effect.map(preloadRequestEffect(StartApp, new Request("https://example.com/projects/atlas")), (result) =>
   result.collectionPreload.routeDeclaredCollections.map((collection) => collection.name)
 );

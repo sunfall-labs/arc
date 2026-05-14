@@ -102,6 +102,33 @@ Release decisions:
   `DevtoolsRequestTrace`. Keep type-test coverage so Start can emit devtools
   facts without depending on `@effect-ui/devtools`.
 
+### `@effect-ui/start-node`
+
+The root export includes the Node HTTP adapter facade:
+
+- `createNodeHandlerEffect`, `createNodeHandler`,
+  `nodeRequestToWebRequestEffect`, `nodeRequestToWebRequest`,
+  `writeNodeResponseEffect`, `writeNodeResponse`, `nodeRequestOrigin`, and the
+  related Node adapter types.
+
+Release decisions:
+
+- Keep the package as a thin facade over `@effect-ui/start/adapters` so Node
+  users have an obvious install/import path without duplicating adapter logic.
+
+### `@effect-ui/start-fetch`
+
+The root export includes the generic Fetch-host adapter facade:
+
+- `toFetchHandlerEffect`, `toFetchHandler`, and the related Fetch handler
+  types.
+
+Release decisions:
+
+- Keep the package as a thin facade over `@effect-ui/start/adapters` so Fetch,
+  edge-style, and test hosts can use a host-shaped import while sharing the
+  same tested adapter implementation.
+
 ### `@effect-ui/db`
 
 The root export includes:

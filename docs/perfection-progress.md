@@ -105,6 +105,8 @@ or command result that proves it.
 | 55 | Node and fetch deployment guide | `docs/deployment.md`; `README.md`; `docs/ultimate-goal-checklist.md`; `docs/framework-perfection-charter.md`; `docs/perfection-progress.md`; `packages/start/test/adapters.test.ts` | Added deployment guidance for the tested `@effect-ui/start/adapters` Node and fetch surfaces, including current limits for host-specific packages and starter packaging. Focused adapter tests passed with localhost binding enabled: 1 file / 6 tests. | Keep host-specific recipes aligned with adapter tests as new packages land. |
 | 56 | Browser devtools panel renderer | `packages/devtools/src/index.ts`; `packages/devtools/test/devtools.test.ts`; `type-tests/framework.test-d.ts`; `docs/devtools.md`; `docs/public-api-inventory.md`; `docs/ultimate-goal-checklist.md`; `docs/framework-perfection-charter.md`; `README.md` | Added deterministic HTML rendering for `DevtoolsPanels`, an Effect wrapper, a DOM mount helper, and an Effect-scoped mount helper. Devtools package typecheck, public type tests, and focused devtools tests passed: 1 file / 16 tests. | Keep the renderer aligned with the panel contract; integrate it into a dedicated app or extension shell only if productizing beyond embedded UI. |
 | 57 | Full verification after browser panel renderer | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md` | Escalated full verification passed after the devtools renderer slice: package build, workspace typecheck, type tests, 35 package test files / 308 tests, example typecheck, 4 example test files / 23 tests, example build, and leak scan. | Use this as the latest green checkpoint before the next implementation sweep. |
+| 58 | Node and fetch adapter facade packages | `packages/start-node`; `packages/start-fetch`; `tsconfig.json`; `tsconfig.base.json`; `pnpm-lock.yaml`; `type-tests/framework.test-d.ts`; `docs/deployment.md`; `docs/public-api-inventory.md`; `docs/package-hygiene-audit.md`; `docs/ultimate-goal-checklist.md` | Added `@effect-ui/start-node` and `@effect-ui/start-fetch` as host-shaped facades over the tested Start adapter implementation. Lockfile refresh, both package typechecks, public type tests, and dry-run pack checks passed. | Broader Cloudflare/Vercel/Netlify/Bun/static packages and starter packaging remain future work. |
+| 59 | Full verification after adapter facade packages | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md` | Escalated full verification passed after the Node/fetch facade package slice: 9 package builds, workspace typecheck, type tests, 35 package test files / 308 tests, example typecheck, 4 example test files / 23 tests, example build, and leak scan. | Use this as the latest green checkpoint before the next implementation sweep. |
 
 ## Thirty-Sweep Gate
 
@@ -125,9 +127,11 @@ pass finds no improvements to make.
 
 1. Integrate the devtools browser renderer into a dedicated app or extension
    shell if productizing beyond the embedded UI surface.
-2. Re-run the public API inventory after any rename/removal work and update
+2. Add external starter packaging and platform-specific adapter packages beyond
+   the generic Node/fetch facades.
+3. Re-run the public API inventory after any rename/removal work and update
    migration notes.
-3. Run full `pnpm verify` and record the result before any handoff that claims
+4. Run full `pnpm verify` and record the result before any handoff that claims
    release-candidate status.
-4. After the remaining release-candidate slices stabilize, run the required
+5. After the remaining release-candidate slices stabilize, run the required
    no-new-improvements clean-sweep sequence.

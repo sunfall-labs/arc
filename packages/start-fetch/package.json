@@ -1,0 +1,25 @@
+{
+  "name": "@effect-ui/start-fetch",
+  "version": "0.0.0-alpha.0",
+  "type": "module",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsgo -p tsconfig.json",
+    "typecheck": "tsgo -b tsconfig.json --pretty false"
+  },
+  "dependencies": {
+    "@effect-ui/start": "workspace:*"
+  }
+}

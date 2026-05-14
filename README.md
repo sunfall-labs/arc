@@ -62,6 +62,8 @@ pnpm example:leak-scan
   Routes, Capabilities, and server contracts.
 - `@effect-ui/start`: SSR, hydration, transports, manifests, diagnostics, and
   Start action clients.
+- `@effect-ui/start-node`: Node HTTP facade over the tested Start adapters.
+- `@effect-ui/start-fetch`: Fetch-host facade over the tested Start adapters.
 - `@effect-ui/db`: Collections, live queries, persistence, and sync adapter
   seams.
 - `@effect-ui/devtools`: serializable inspection contracts plus a small

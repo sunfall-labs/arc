@@ -5,7 +5,10 @@ Effect UI deployment currently centers on the Start request boundary:
 platform requests into Web `Request` values, run the Effect handler through the
 app runtime, and write the Web `Response` back to the host.
 
-The tested adapter surface lives in `@effect-ui/start/adapters`.
+The tested adapter implementation lives in `@effect-ui/start/adapters`.
+Deployment-facing package facades are split by host shape:
+`@effect-ui/start-fetch` for Fetch-style hosts and `@effect-ui/start-node` for
+Node HTTP.
 
 ## Fetch And Edge-Style Hosts
 
@@ -13,7 +16,7 @@ Use the Effect form when the host integration can run through the app runtime:
 
 ```ts
 import { createRequestHandlerEffect } from "@effect-ui/start";
-import { toFetchHandlerEffect } from "@effect-ui/start/adapters";
+import { toFetchHandlerEffect } from "@effect-ui/start-fetch";
 import { app } from "./app-definition.js";
 
 const fetchEffect = toFetchHandlerEffect(createRequestHandlerEffect(app));
@@ -30,7 +33,7 @@ adapter over the Promise request boundary:
 
 ```ts
 import { createRequestHandler } from "@effect-ui/start";
-import { toFetchHandler } from "@effect-ui/start/adapters";
+import { toFetchHandler } from "@effect-ui/start-fetch";
 import { app } from "./app-definition.js";
 
 export const fetch = toFetchHandler(createRequestHandler(app));
@@ -44,7 +47,7 @@ Use `createNodeHandlerEffect` when composing inside an Effect program and
 ```ts
 import { createServer } from "node:http";
 import { createRequestHandlerEffect } from "@effect-ui/start";
-import { createNodeHandler } from "@effect-ui/start/adapters";
+import { createNodeHandler } from "@effect-ui/start-node";
 import { app } from "./app-definition.js";
 
 const handler = createNodeHandler(createRequestHandlerEffect(app), {
@@ -72,10 +75,11 @@ The Node adapter is covered for:
 ## Current Limits
 
 - Host-specific packages for Cloudflare, Vercel, Netlify, Bun, or static hosts
-  are not split out yet.
+  are not split out yet. Node HTTP and generic Fetch hosts have package facades.
 - Static and SPA-only deployment recipes still need an explicit starter path.
 - Package publication remains blocked on the release decision to flip
   `private` package manifests and publish real versions.
 
-Until those packages exist, keep deployment integrations as small wrappers over
-`createRequestHandlerEffect(app)` and the tested adapters above.
+Until platform-specific packages exist, keep those deployment integrations as
+small wrappers over `createRequestHandlerEffect(app)` and the tested adapters
+above.

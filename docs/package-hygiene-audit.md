@@ -29,6 +29,8 @@ exports. It supports the release-engineering charter workstream.
   - `@effect-ui/solid`: `@effect-ui/core`, `effect`, `solid-js`
   - `@effect-ui/solid-db`: `@effect-ui/core`, `@effect-ui/db`,
     `@effect-ui/solid`, `effect`, `solid-js`
+  - `@effect-ui/start-fetch`: `@effect-ui/start`
+  - `@effect-ui/start-node`: `@effect-ui/start`
   - `@effect-ui/tsrx`: `@tsrx/vite-plugin-solid`, `vite-plugin-solid`, with
     `vite` as a peer dependency.
 
@@ -43,6 +45,8 @@ exports. It supports the release-engineering charter workstream.
   - `pnpm-lock.yaml`
 - `pnpm install --lockfile-only --offline` completed successfully after the
   manifest change.
+- `pnpm install --lockfile-only --offline` completed successfully after adding
+  the Node and Fetch host adapter facade packages.
 - `pnpm --filter @effect-ui/start build` passed.
 - `pnpm --filter @effect-ui/start typecheck` passed.
 - `pnpm verify` passed after the package hygiene change: package build,
@@ -57,12 +61,18 @@ exports. It supports the release-engineering charter workstream.
   - `pnpm --filter @effect-ui/db pack --dry-run`
   - `pnpm --filter @effect-ui/devtools pack --dry-run`
   - `pnpm --filter @effect-ui/start pack --dry-run`
+  - `pnpm --filter @effect-ui/start-fetch pack --dry-run`
+  - `pnpm --filter @effect-ui/start-node pack --dry-run`
   - `pnpm --filter @effect-ui/solid pack --dry-run`
   - `pnpm --filter @effect-ui/solid-db pack --dry-run`
   - `pnpm --filter @effect-ui/tsrx pack --dry-run`
 - The latest dry-run pack payloads contain only `dist` JavaScript,
   declaration, source-map files, and package manifests; no `.tsbuildinfo`
   compiler cache files are included.
+- `pnpm verify` passed after adding the Node and Fetch adapter facade packages:
+  9 package builds, workspace typecheck, type tests, 35 package test files /
+  308 tests, example typecheck, 4 example test files / 23 tests, example build,
+  and leak scan.
 
 ## Follow-Up
 

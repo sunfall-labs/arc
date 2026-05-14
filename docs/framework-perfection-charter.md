@@ -176,6 +176,9 @@ Goal: prove that a user can copy the framework's intended path.
 - Add a minimal starter or starter recipe.
 - Add deployment docs for Node/fetch hosts currently supported.
   - Evidence: `docs/deployment.md`.
+- Add host-specific package facades for the currently tested Node/fetch
+  adapters.
+  - Evidence: `@effect-ui/start-node` and `@effect-ui/start-fetch`.
 - Add migration notes from TanStack Query, TanStack Start, Remix-style forms,
   and ad hoc service mocks.
 - Ensure every docs code sample is typechecked or explicitly illustrative.

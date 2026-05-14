@@ -158,6 +158,18 @@ importers:
         specifier: '*'
         version: 8.0.12(@types/node@25.7.0)(yaml@2.9.0)
 
+  packages/start-fetch:
+    dependencies:
+      '@effect-ui/start':
+        specifier: workspace:*
+        version: link:../start
+
+  packages/start-node:
+    dependencies:
+      '@effect-ui/start':
+        specifier: workspace:*
+        version: link:../start
+
   packages/tsrx:
     dependencies:
       '@tsrx/vite-plugin-solid':
