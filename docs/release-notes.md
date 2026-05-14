@@ -290,6 +290,9 @@ Latest full gate on May 14, 2026:
 - Start diagnostics report formatting now sits behind a focused diagnostics
   contract module, and Solid/Solid-DB roots are facades over focused runtime,
   router, hook, collection, and live-query adapter modules.
+- DB sync-adapter tests now return Effect programs for generic, server,
+  Resource, query-client, and scoped change-feed adapters, with
+  `Effect.runPromise(...)` reserved for the Vitest host boundary.
 
 ## Notable Limits
 

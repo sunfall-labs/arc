@@ -706,3 +706,9 @@ interruption.
   root test files / 327 tests, devtools-panel verify, devtools-extension
   verify, basic starter verify, project-console starter packaging/typecheck/
   tests/build, and leak scan.
+- `pnpm --filter @effect-ui/db typecheck` and
+  `pnpm exec vitest run packages/db/test/sync-adapter.test.ts` passed after
+  converting DB sync-adapter tests to returned Effect programs. Generic,
+  server, Resource, query-client, and scoped change-feed adapter sequencing now
+  stays inside `Effect.gen(...)`, leaving `Effect.runPromise(...)` only at the
+  Vitest host boundary.
