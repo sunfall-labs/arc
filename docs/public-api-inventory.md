@@ -51,12 +51,17 @@ Golden-path public groups:
 - `Signal`, `Form`, `Capability`, `UiScope`
 - `makeRuntime`, `runWithRuntime`, `runPromise`, `runEffectInput`
 
-Needs release decision:
+Release decisions:
 
 - Type IDs such as `ActionTypeId`, `ResourceTypeId`, and `RuntimeTypeId` are
-  useful for diagnostics, but should be documented as expert public or hidden.
-- Low-level mutable runtime accessors such as `getCurrentRuntime` should stay
-  expert public only if docs explain when library authors need them.
+  expert-public structural markers. They are intended for diagnostics,
+  adapter authors, and test utilities that need framework identity checks; app
+  code should prefer guards and namespace helpers such as `Action.is`, `Resource`
+  APIs, `Signal.isSignal`, and `Form` helpers.
+- Low-level runtime accessors such as `getCurrentRuntime` are expert public for
+  adapter and hook authors that must bridge into the active Runtime Spine. App
+  code should use explicit runtime providers, `makeRuntime`, `runWithRuntime`,
+  or adapter hooks such as Solid's `useRuntime`.
 
 ### `@effect-ui/start`
 
@@ -85,11 +90,11 @@ Subpath exports:
 - `./adapters` owns Node/fetch adapter conversion and response writing.
 - `./virtual` owns virtual module typings only.
 
-Needs release decision:
+Release decisions:
 
-- `./vite` exports many low-level manifest and virtual-module helpers. Keep
-  them public only if CI, starters, or agent tooling are expected to call them
-  directly.
+- `./vite` exports low-level manifest and virtual-module helpers as expert
+  public because CI scripts, starter generators, and agent tooling need to run
+  the same graph and diagnostics code as the plugin.
 - The root `StartRequestHandler` is the Promise host-boundary request handler
   returned by `createRequestHandler`; the Vite-only synchronous-or-async SSR
   module handler is `StartSsrRequestHandler`.
@@ -107,12 +112,15 @@ The root export includes:
   background flush policies;
 - collection store diagnostics and events for devtools.
 
-Needs release decision:
+Release decisions:
 
-- SQLite helper names currently expose implementation detail. Keep them as
-  expert public if local-first recipes depend on them.
-- Mutation and transaction types are valuable for tests and sync adapters, but
-  docs should distinguish app-facing calls from adapter-author contracts.
+- SQLite helper names are expert public storage-adapter APIs. Keep them because
+  local-first recipes need a SQLite-shaped seam without a runtime dependency on
+  a specific SQLite package.
+- Mutation, transaction, event, and store diagnostic types are expert public for
+  tests, devtools, persistence, and sync adapters. App code should use
+  `Collection` namespace operations instead of constructing those records
+  manually.
 
 ### `@effect-ui/devtools`
 
@@ -124,11 +132,11 @@ The root export includes:
 - invalidation plans, route plans, app graph diagnostics summaries, runtime
   event models, collection event models, and request trace models.
 
-Needs release decision:
+Release decisions:
 
-- The newly added `DevtoolsRequestTrace` model is public as a data contract.
-  Start now emits a compatible shape through `onRequestTrace`; cancellation and
-  failure-path hardening remain release-candidate follow-up work.
+- `DevtoolsRequestTrace` is public as a data contract. Start emits a compatible
+  shape through `onRequestTrace`, with cancellation and failure-path coverage in
+  Start request tests.
 - `DevtoolsSummary`, `DevtoolsCausalGraph`, and the first `DevtoolsPanels`
   model should be treated as stable data contracts for agents and UI panels.
 
@@ -142,10 +150,11 @@ The root export includes:
   `useRouter`;
 - hooks for signals, streams, resources, suspense, and actions.
 
-Needs release decision:
+Release decisions:
 
-- Core re-exports are ergonomic, but docs should name `@effect-ui/core` as the
-  owner of those APIs to avoid adapter lock-in.
+- Keep core re-exports for Solid ergonomics. Documentation should still name
+  `@effect-ui/core` as the owner of Resource, Action, Route, Signal, Form,
+  Capability, and runtime semantics so app code can move across adapters.
 
 ### `@effect-ui/solid-db`
 
@@ -155,10 +164,11 @@ The root export includes:
   options;
 - `Collection` and `Query` re-exports for adapter-local ergonomics.
 
-Needs release decision:
+Release decisions:
 
-- Keep the re-exports if docs present this as the Solid DB entrypoint; otherwise
-  direct users to import data primitives from `@effect-ui/db`.
+- Keep `Collection` and `Query` re-exports because `@effect-ui/solid-db` is the
+  Solid DB entrypoint. Docs should present direct `@effect-ui/db` imports for
+  adapter-independent domain modules.
 
 ### `@effect-ui/tsrx`
 
@@ -166,11 +176,11 @@ The root export includes:
 
 - `effectUiTsrx(options)` and the default export for TSRX/Solid Vite setup.
 
-Needs release decision:
+Release decisions:
 
-- This package is intentionally small. Before release, document when to use
-  `@effect-ui/tsrx` versus composing `effectUiStart` and `vite-plugin-solid`
-  manually.
+- Keep `@effect-ui/tsrx` as the one-call TSRX/Solid preset for starters and
+  examples. Advanced apps can compose `effectUiStart` and `vite-plugin-solid`
+  manually when they need plugin ordering control.
 
 ## Cross-Package Release Notes
 
@@ -183,5 +193,6 @@ Needs release decision:
   coupling.
 - Tests and examples import package roots through workspace aliases. Do not
   document source-file imports as public API.
-- The next API-tightening pass should convert each "needs decision" note into
-  either a docs paragraph, a rename, or an internal-only removal.
+- Future API-tightening passes should add new open questions as explicit
+  release decisions or concrete follow-up work instead of leaving exported
+  symbols in an ambiguous state.
