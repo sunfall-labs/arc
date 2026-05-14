@@ -190,6 +190,11 @@ Latest full gate on May 14, 2026:
   type-test source after replacing the last two test-only `as Effect.Effect`
   assertions.
 - The latest `pnpm verify` passed after the test sharp Effect assertion cleanup.
+- Package-source fire-and-forget effects now run as detached fibers rather than
+  floating `runPromise(...)` calls; Promise runners remain at Promise-returning
+  host/API boundaries.
+- The latest `pnpm verify` passed after the package fire-and-forget Promise
+  cleanup.
 
 ## Notable Limits
 

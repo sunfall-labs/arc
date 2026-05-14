@@ -81,7 +81,7 @@ export const useCollection = <A extends object, K extends CollectionKey, E = unk
 
   const unsubscribe = subscribeCollection(runtime, collection, () => setTick((value) => value + 1));
   if (options.preload !== false) {
-    void runtime.runPromise(
+    void runtime.runFork(
       collection.preloadEffect().pipe(
         Effect.catch(() => Effect.void)
       )
@@ -139,7 +139,7 @@ export const useLiveQuery = <T, E = unknown, R = never>(
   );
 
   if (options.preload !== false) {
-    void runtime.runPromise(
+    void runtime.runFork(
       live.preloadEffect().pipe(
         Effect.catch(() => Effect.void)
       )

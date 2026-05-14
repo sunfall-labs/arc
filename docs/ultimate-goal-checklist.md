@@ -203,6 +203,12 @@ Last evidence pass: May 14, 2026.
     in-flight cleanup; Solid/Solid DB background preloads catch inside Effect;
     source grep finds no `.then(...)`, `.finally(...)`, or non-Effect
     `.catch(...)` calls in package source.
+- [x] Package fire-and-forget effects use fibers instead of floating Promises.
+  - Evidence: Core reset/scope/signal/resource detaches, DB void write/hydrate
+    APIs, Solid/Solid-DB background preloads, Start action reset, and Vite SSR
+    dev middleware now use `runFork(...)` or `Effect.runFork(...)`; the
+    package-source `void runPromise` grep reports no hits, and focused
+    lifecycle typechecks/tests passed. Full `pnpm verify` also passed.
 - [x] Compile-time rejection rules have type tests.
   - Evidence: `type-tests/framework.test-d.ts` and `pnpm typecheck:types`.
 - [x] Compile-time Promise rejection tests avoid Promise-shaped callback syntax.
@@ -694,12 +700,13 @@ Last evidence pass: May 14, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026 after the test sharp
-    Effect assertion cleanup: 9 package builds, workspace typecheck, type tests,
-    38 root test files / 320 tests, devtools-panel verify, devtools-extension
-    verify with 1 extension test file / 6 tests, basic starter verify,
-    project-console starter packaging, project-console typecheck, 4
-    project-console test files / 23 tests, project-console build, and leak scan.
+  - Evidence: root `pnpm verify` passed on May 14, 2026 after the package
+    fire-and-forget Promise cleanup: 9 package builds, workspace typecheck, type
+    tests, 38 root test files / 320 tests, devtools-panel verify,
+    devtools-extension verify with 1 extension test file / 6 tests, basic
+    starter verify, project-console starter packaging, project-console
+    typecheck, 4 project-console test files / 23 tests, project-console build,
+    and leak scan.
 
 ## Remaining Winning-Bar Items
 

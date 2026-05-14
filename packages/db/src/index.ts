@@ -6,6 +6,7 @@ import {
   type ReadableSignal,
   type ResourceStore as ResourceStoreState,
   type WritableSignal,
+  runFork,
   runPromise
 } from "@effect-ui/core";
 import {
@@ -1638,15 +1639,15 @@ export const makeLiveQueryCollection = <
     delete: (key) => runPromise(definition.deleteEffect(key)),
     writeInsertEffect: () => readonlyFail("writeInsert"),
     writeInsert: (input, writeOptions) => {
-      void runPromise(definition.writeInsertEffect(input, writeOptions));
+      void runFork(definition.writeInsertEffect(input, writeOptions));
     },
     writeUpdateEffect: () => readonlyFail("writeUpdate"),
     writeUpdate: (key, changes, writeOptions) => {
-      void runPromise(definition.writeUpdateEffect(key, changes, writeOptions));
+      void runFork(definition.writeUpdateEffect(key, changes, writeOptions));
     },
     writeDeleteEffect: () => readonlyFail("writeDelete"),
     writeDelete: (key) => {
-      void runPromise(definition.writeDeleteEffect(key));
+      void runFork(definition.writeDeleteEffect(key));
     }
   };
 
@@ -2848,7 +2849,7 @@ export namespace Collection {
       hydrateEffect: (snapshot: CollectionSnapshot<A, K>, hydrateOptions?: CollectionHydrateOptions) =>
         hydrateCollectionEffect(definition, snapshot, hydrateOptions),
       hydrate: (snapshot: CollectionSnapshot<A, K>, hydrateOptions?: CollectionHydrateOptions) => {
-        void runPromise(hydrateCollectionEffect(definition, snapshot, hydrateOptions));
+        void runFork(hydrateCollectionEffect(definition, snapshot, hydrateOptions));
       },
       persistEffect: <PE = unknown, PR = never>(
         storage: CollectionPersistenceStorage<PE, PR>,
@@ -2953,16 +2954,16 @@ export namespace Collection {
       writeInsertEffect: (input: A | ReadonlyArray<A>, writeOptions?: CollectionWriteOptions) =>
         writeRows(definition, input, writeOptions),
       writeInsert: (input: A | ReadonlyArray<A>, writeOptions?: CollectionWriteOptions) => {
-        void runPromise(writeRows(definition, input, writeOptions));
+        void runFork(writeRows(definition, input, writeOptions));
       },
       writeUpdateEffect: (key: K, changes: Partial<A>, writeOptions?: CollectionWriteOptions) =>
         writeUpdateRow(definition, key, changes, writeOptions),
       writeUpdate: (key: K, changes: Partial<A>, writeOptions?: CollectionWriteOptions) => {
-        void runPromise(writeUpdateRow(definition, key, changes, writeOptions));
+        void runFork(writeUpdateRow(definition, key, changes, writeOptions));
       },
       writeDeleteEffect: (key: K) => writeDeleteRow(definition, key),
       writeDelete: (key: K) => {
-        void runPromise(writeDeleteRow(definition, key));
+        void runFork(writeDeleteRow(definition, key));
       }
     } satisfies CollectionDefinition<A, K, E, R>;
 
@@ -3083,7 +3084,7 @@ export namespace Collection {
     payload: CollectionHydrationPayload,
     options?: CollectionHydrateOptions
   ): void => {
-    void runPromise(hydratePayloadEffect(collections, payload, options));
+    void runFork(hydratePayloadEffect(collections, payload, options));
   };
 
   export const applyChangesEffect = <A extends object, K extends CollectionKey, E, R>(
@@ -3097,7 +3098,7 @@ export namespace Collection {
     changes: ReadonlyArray<CollectionChange<A, K>>,
     options?: CollectionWriteOptions
   ): void => {
-    void runPromise(applyCollectionChangesEffect(definition, changes, options));
+    void runFork(applyCollectionChangesEffect(definition, changes, options));
   };
 
   export const subscribeChangesEffect = <

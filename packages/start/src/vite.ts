@@ -926,7 +926,7 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
     configureServer(server) {
       return () => {
         server.middlewares.use((request, response, next) => {
-          void Effect.runPromise(
+          void Effect.runFork(
             handleSsrDevMiddlewareEffect(
               server,
               request,

@@ -233,7 +233,7 @@ export const createBrowserRouter = <const Routes extends readonly AnyRoute[]>(
 
     const fiber = scope.fork(runtime.provide(Route.preloadEffect(match)));
 
-    void runtime.runPromise(
+    void runtime.runFork(
       Effect.gen(function* () {
         const exit = yield* Effect.exit(Fiber.join(fiber));
         if (navigationId !== navigation) {
@@ -467,7 +467,7 @@ export const useResourceResult = <I, A, E, R = unknown>(
     unsubscribe = result.subscribe(() => setState(() => result.get()));
 
     if (result.get()._tag === "Initial") {
-      void runtime.runPromise(
+      void runtime.runFork(
         Resource.prefetchEffect(currentRef).pipe(
           Effect.catch(() => Effect.void)
         )

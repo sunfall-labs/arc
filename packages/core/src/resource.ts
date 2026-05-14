@@ -2,7 +2,7 @@ import { Cache, Clock, Context, Data, Duration, Effect, Exit, Fiber, Option, Pub
 import type { EffectInput } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
 import { ResourceStore, type ResourceStore as ResourceStoreState, type ResourceStoreEvent, type ResourceStoreInvalidationCause } from "./resource-store.js";
-import { currentOrDefaultRuntime, runPromise } from "./runtime.js";
+import { currentOrDefaultRuntime, runFork, runPromise } from "./runtime.js";
 import { Signal, type ReadableSignal, type WritableSignal } from "./signal.js";
 import { stableStringify } from "./stable-stringify.js";
 
@@ -365,7 +365,7 @@ export class ResourceFamily<I, A, E = unknown, R = never> {
   }
 
   delete(ref: ResourceRef<I, A, E, R>, store: ResourceStoreState = currentResourceStore()): void {
-    void runPromise(Effect.provideService(this.deleteEffect(ref, store), ResourceStore, store));
+    void runFork(Effect.provideService(this.deleteEffect(ref, store), ResourceStore, store));
   }
 }
 
@@ -1092,7 +1092,7 @@ export namespace Resource {
     }
 
     if (isStale(ref as ResourceRef<unknown, A, E, unknown>, state)) {
-      void runPromise(
+      void runFork(
         refreshEffect(ref).pipe(
           Effect.catch(() => Effect.void)
         )
@@ -1136,7 +1136,7 @@ export namespace Resource {
     plan: ResourceInvalidationPlan
   ): void => {
     const store = currentResourceStore();
-    void runPromise(
+    void runFork(
       Effect.provideService(runInvalidationPlanEffect(plan), ResourceStore, store).pipe(
         Effect.catch(() => Effect.void)
       )

@@ -500,7 +500,7 @@ export namespace Action {
       reset: () => {
         const submission = currentSubmission;
         if (submission?.fiber) {
-          void runtime.runPromise(Fiber.interrupt(submission.fiber));
+          void runtime.runFork(Fiber.interrupt(submission.fiber));
         }
         currentSubmission = undefined;
         runtime.runSync(resetEffect());

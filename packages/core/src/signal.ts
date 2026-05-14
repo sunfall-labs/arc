@@ -1,7 +1,7 @@
 import { Effect, Fiber, Queue, Scope, Stream } from "effect";
 import type { EffectInput } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
-import { runPromise } from "./runtime.js";
+import { runFork } from "./runtime.js";
 import { getCurrentScope, UiScopeMissing } from "./scope.js";
 
 export const SignalTypeId: unique symbol = Symbol.for("@effect-ui/core/Signal") as typeof SignalTypeId;
@@ -153,7 +153,7 @@ export const watch = <A, E = unknown>(
       }
 
       if (fiber) {
-        void runPromise(Fiber.interrupt(fiber));
+        void runFork(Fiber.interrupt(fiber));
       }
 
       fiber = scope.fork(toEffect(effect(value, previous)));
@@ -178,7 +178,7 @@ export const watch = <A, E = unknown>(
   scope.addFinalizer(() => dispose());
 
   return () => {
-    void runPromise(dispose());
+    void runFork(dispose());
   };
 };
 

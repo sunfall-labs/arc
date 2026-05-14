@@ -1,7 +1,7 @@
 import { Data, Effect, Exit, Fiber, Scope } from "effect";
 import type { EffectInput } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
-import { runPromise } from "./runtime.js";
+import { runFork, runPromise } from "./runtime.js";
 
 export interface ForkScopedOptions {
   readonly startImmediately?: boolean;
@@ -22,7 +22,7 @@ export class UiScope {
 
   addFinalizer(finalizer: () => EffectInput<void>): void {
     if (this.disposed) {
-      void runPromise(toEffect(finalizer()));
+      void runFork(toEffect(finalizer()).pipe(Effect.catch(() => Effect.void)));
       return;
     }
 
