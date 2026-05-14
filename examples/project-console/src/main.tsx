@@ -1,16 +1,24 @@
 import { RuntimeProvider, createEffectRuntime } from "@effect-ui/solid";
 import { BrowserRpcLive, hydrateFromDocument } from "@effect-ui/start";
-import { Layer } from "effect";
+import { Data, Layer } from "effect";
 import { hydrate, render } from "solid-js/web";
 import App from "./App.js";
 import { ProjectApiLive } from "./domain.js";
 import { ProjectSummaries } from "./project-collections.js";
 import "./styles.css";
 
+class ProjectConsoleRootMissing extends Data.TaggedError("ProjectConsoleRootMissing")<{
+  readonly id: string;
+  readonly guidance: string;
+}> {}
+
 const root = document.getElementById("root");
 
 if (!root) {
-  throw new Error("Missing root element");
+  throw new ProjectConsoleRootMissing({
+    id: "root",
+    guidance: "Add a root element with id=\"root\" to the document shell."
+  });
 }
 
 const runtime = createEffectRuntime(Layer.mergeAll(BrowserRpcLive, ProjectApiLive));
