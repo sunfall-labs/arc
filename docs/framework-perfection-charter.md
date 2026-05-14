@@ -312,6 +312,7 @@ Deliver:
 - CI release gate.
 - Benchmark baseline.
 - Release notes.
+  - Evidence: `docs/release-notes.md`.
 - Known limitations list.
 
 ## Daily Loop

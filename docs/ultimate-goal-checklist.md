@@ -406,6 +406,8 @@ Last evidence pass: May 14, 2026.
 - [x] `docs/devtools.md` documents observable facts and target panels.
 - [x] `docs/migration-notes.md` maps common source-framework patterns onto the
   Effect UI golden path.
+- [x] `docs/release-notes.md` records the current stable, experimental, and
+  limited surfaces.
 - [x] `docs/db.md` explains collections, live queries, persistence, sync, and
   hydration.
   - Evidence: docs were inspected in the final pass; their terminology matches

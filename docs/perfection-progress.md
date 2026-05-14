@@ -113,6 +113,7 @@ or command result that proves it.
 | 63 | Full verification after devtools panel app shell | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md` | Escalated full verification passed after wiring `@effect-ui/example-devtools-panel` into the root gate: 9 package builds, workspace typecheck, type tests, 37 root test files / 310 tests, devtools-panel verify, starter verify, example typecheck, 4 example test files / 23 tests, example build, and leak scan. | Use this as the latest green checkpoint before the next implementation sweep. |
 | 64 | Migration notes | `docs/migration-notes.md`; `README.md`; `docs/framework-perfection-charter.md`; `docs/perfection-progress.md` | Added migration guidance from TanStack Query, TanStack Start, Remix-style forms, and ad hoc service mocks onto Resource, Action, Start, Capability, and Layer patterns. | Keep this aligned with API changes and add code-backed migration examples once the first external app exists. |
 | 65 | Platform deployment recipes | `docs/deployment.md`; `docs/perfection-progress.md` | Added Cloudflare/Vercel Edge/Netlify Edge/Bun Fetch recipes, Node-function guidance, and static/SPA-only deployment limits over the existing `@effect-ui/start-fetch` and `@effect-ui/start-node` facades. | Keep platform-specific packages for hosts that need real behavior beyond the generic Node/fetch facades. |
+| 66 | Release notes draft | `docs/release-notes.md`; `README.md`; `docs/framework-perfection-charter.md`; `docs/perfection-progress.md` | Added an RC-style release notes draft naming stable surfaces, expert-public areas, latest verification evidence, and current limits. | Keep the snapshot current after any new full verification or packaging decision. |
 
 ## Thirty-Sweep Gate
 
@@ -133,8 +134,8 @@ pass finds no improvements to make.
 
 1. Package the devtools browser renderer as an extension only if productizing
    beyond the checked app-shell example.
-2. Add platform-specific adapter packages beyond the generic Node/fetch
-   facades.
+2. Add platform-specific adapter packages only where a host needs behavior
+   beyond the generic Node/fetch facades and documented recipes.
 3. Re-run the public API inventory after any rename/removal work and update
    migration notes.
 4. Run full `pnpm verify` and record the result before any handoff that claims
