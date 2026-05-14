@@ -225,7 +225,9 @@ the audit finds them.
   - Evidence: `docs/type-test-coverage-audit.md`; request trace teardown
     contracts and Promise-returning `onRequestTrace` handlers are covered by
     type tests.
-- [ ] Runtime leak and teardown audit.
+- [x] Runtime leak and teardown audit.
+  - Evidence: `docs/runtime-leak-teardown-audit.md`; Resource Store disposal now
+    shuts down event channels even when module finalizers fail.
 - [ ] Example app copyability audit.
 - [x] Package export and dependency hygiene audit.
   - Evidence: `docs/package-hygiene-audit.md`; `@effect-ui/start` now declares

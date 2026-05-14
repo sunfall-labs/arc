@@ -104,6 +104,6 @@ export const disposeResourceStoreEffect = (store: ResourceStore): Effect.Effect<
     const modules = Array.from(store.modules.values());
     store.modules.clear();
     yield* Effect.forEach(modules, (module) => module.disposeEffect ?? Effect.void, { discard: true });
-  });
+  }).pipe(Effect.ensuring(PubSub.shutdown(store.events)));
 
 export const ResourceStore = Context.Service<ResourceStore>("@effect-ui/core/ResourceStore");
