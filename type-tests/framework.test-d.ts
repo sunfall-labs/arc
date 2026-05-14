@@ -13,7 +13,8 @@ import { useCollection, useLiveQuery } from "@effect-ui/solid-db";
 import {
   makeDevtoolsStore,
   type DevtoolsInvalidationPlan,
-  type DevtoolsRequestTrace
+  type DevtoolsRequestTrace,
+  type DevtoolsRequestTraceTeardown
 } from "@effect-ui/devtools";
 import {
   createRequestHandler,
@@ -28,6 +29,7 @@ import {
   StartAction,
   type StartActionInvalidationPlan,
   type StartRequestTrace,
+  type StartRequestTraceTeardown,
   streamHydrationConsumedAttribute,
   submitStartActionEffect
 } from "@effect-ui/start";
@@ -530,9 +532,40 @@ const StartApp = defineApp({
 });
 const requestTraceHandler = (trace: StartRequestTrace) => {
   const devtoolsTrace: DevtoolsRequestTrace = trace;
+  const teardownStartedAt: number | undefined = trace.teardown?.startedAt;
+  const teardownCompletedAt: number | undefined = trace.teardown?.completedAt;
+  const teardownDurationMillis: number | undefined = trace.teardown?.durationMillis;
+  const beforeDisposeFiberCount: number | undefined = trace.teardown?.beforeDispose?.fiberCount;
+  const afterDisposeModuleCount: number | undefined = trace.teardown?.afterDispose?.moduleCount;
+  void teardownStartedAt;
+  void teardownCompletedAt;
+  void teardownDurationMillis;
+  void beforeDisposeFiberCount;
+  void afterDisposeModuleCount;
   void devtoolsTrace;
   return Effect.void.pipe(Effect.asVoid);
 };
+const startRequestTraceTeardown: StartRequestTraceTeardown = {
+  runtimeDisposed: true,
+  reason: "response-end",
+  startedAt: 10,
+  completedAt: 17,
+  durationMillis: 7,
+  beforeDispose: {
+    fiberCount: 2,
+    familyCount: 1,
+    moduleCount: 1,
+    tagCount: 1
+  },
+  afterDispose: {
+    fiberCount: 0,
+    familyCount: 1,
+    moduleCount: 0,
+    tagCount: 1
+  }
+};
+const devtoolsRequestTraceTeardown: DevtoolsRequestTraceTeardown = startRequestTraceTeardown;
+void devtoolsRequestTraceTeardown;
 createRequestHandler(StartApp, {
   collections: [ProjectsCollection],
   onRequestTrace: requestTraceHandler,
@@ -550,6 +583,10 @@ createRequestHandler(StartApp, {
 createRequestHandler(StartApp, {
   // @ts-expect-error Start render callbacks must return Effect or a pure value, not Promise
   render: async () => ""
+});
+createRequestHandler(StartApp, {
+  // @ts-expect-error request trace handlers must return Effect or a pure value, not Promise
+  onRequestTrace: async () => {}
 });
 preloadRequestEffect(StartApp, new Request("https://example.com/projects/atlas"), {
   collections: [ProjectsCollection]

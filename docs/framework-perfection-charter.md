@@ -221,15 +221,15 @@ the audit finds them.
 - [x] Generated artifact determinism audit.
   - Evidence: `docs/generated-artifact-audit.md`; file route manifests have
     reversed-input serialization regression coverage.
-- [ ] Type-test coverage audit.
+- [x] Type-test coverage audit.
+  - Evidence: `docs/type-test-coverage-audit.md`; request trace teardown
+    contracts and Promise-returning `onRequestTrace` handlers are covered by
+    type tests.
 - [ ] Runtime leak and teardown audit.
 - [ ] Example app copyability audit.
 - [x] Package export and dependency hygiene audit.
   - Evidence: `docs/package-hygiene-audit.md`; `@effect-ui/start` now declares
     its direct `effect` dependency.
-- [x] Generated artifact determinism audit.
-  - Evidence: `docs/generated-artifact-audit.md`; file route manifests now have
-    reversed-input serialization regression coverage.
 - [ ] Browser/server leak audit beyond the current example scan.
 - [ ] Benchmark baseline audit.
 
