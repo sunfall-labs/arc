@@ -245,6 +245,10 @@ Latest full gate on May 14, 2026:
   with parse/duplicate failures captured through `Effect.exit(...)`.
 - The latest `pnpm verify` passed after the Start route/file-route async test
   cleanup.
+- DB server-collection tests now return Effect programs while preserving public
+  collection Promise APIs under test through `Effect.promise(...)`.
+- The latest `pnpm verify` passed after the DB server-collection async test
+  cleanup.
 
 ## Notable Limits
 

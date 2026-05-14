@@ -35,7 +35,7 @@ describe("serverCollectionOptions", () => {
     }
   });
 
-  it("uses load for preload and refetch for later refreshes", async () => {
+  it("uses load for preload and refetch for later refreshes", () => {
     const load = vi.fn(() =>
       Effect.succeed<ReadonlyArray<Project>>([
         { id: "atlas", name: "Atlas", archived: false }
@@ -53,21 +53,29 @@ describe("serverCollectionOptions", () => {
       refetch
     }));
 
-    await Projects.preload();
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* Effect.promise(() => Projects.preload());
 
-    expect(Projects.name).toBe("Projects.server.load-refetch");
-    expect(Projects.rows().map((project) => project.id)).toEqual(["atlas"]);
-    expect(load).toHaveBeenCalledTimes(1);
-    expect(refetch).not.toHaveBeenCalled();
+        yield* Effect.sync(() => {
+          expect(Projects.name).toBe("Projects.server.load-refetch");
+          expect(Projects.rows().map((project) => project.id)).toEqual(["atlas"]);
+          expect(load).toHaveBeenCalledTimes(1);
+          expect(refetch).not.toHaveBeenCalled();
+        });
 
-    await Projects.refetch();
+        yield* Effect.promise(() => Projects.refetch());
 
-    expect(Projects.rows().map((project) => project.id)).toEqual(["lumen"]);
-    expect(load).toHaveBeenCalledTimes(1);
-    expect(refetch).toHaveBeenCalledTimes(1);
+        yield* Effect.sync(() => {
+          expect(Projects.rows().map((project) => project.id)).toEqual(["lumen"]);
+          expect(load).toHaveBeenCalledTimes(1);
+          expect(refetch).toHaveBeenCalledTimes(1);
+        });
+      })
+    );
   });
 
-  it("forwards mutation payloads to server function handlers", async () => {
+  it("forwards mutation payloads to server function handlers", () => {
     const inserts: Array<ServerCollectionInsertPayload<Project, string>> = [];
     const updates: Array<ServerCollectionUpdatePayload<Project, string>> = [];
     const deletes: Array<ServerCollectionDeletePayload<Project, string>> = [];
@@ -109,54 +117,60 @@ describe("serverCollectionOptions", () => {
       delete: remove
     }));
 
-    await Projects.insert({ id: "lumen", name: "Lumen", archived: false });
-    await Projects.update("atlas", { name: "Atlas Prime" });
-    await Projects.delete("lumen");
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* Effect.promise(() => Projects.insert({ id: "lumen", name: "Lumen", archived: false }));
+        yield* Effect.promise(() => Projects.update("atlas", { name: "Atlas Prime" }));
+        yield* Effect.promise(() => Projects.delete("lumen"));
 
-    expect(inserts).toMatchObject([
-      {
-        values: [{ id: "lumen", name: "Lumen", archived: false }],
-        transaction: {
-          collection: "Projects.server.mutations",
-          mutations: [
+        yield* Effect.sync(() => {
+          expect(inserts).toMatchObject([
             {
-              _tag: "Insert",
-              key: "lumen",
-              value: { id: "lumen", name: "Lumen", archived: false }
+              values: [{ id: "lumen", name: "Lumen", archived: false }],
+              transaction: {
+                collection: "Projects.server.mutations",
+                mutations: [
+                  {
+                    _tag: "Insert",
+                    key: "lumen",
+                    value: { id: "lumen", name: "Lumen", archived: false }
+                  }
+                ]
+              }
             }
-          ]
-        }
-      }
-    ]);
-    expect(updates).toMatchObject([
-      {
-        updates: [
-          {
-            key: "atlas",
-            previous: { id: "atlas", name: "Atlas", archived: false },
-            value: { id: "atlas", name: "Atlas Prime", archived: false },
-            changes: { name: "Atlas Prime" }
-          }
-        ],
-        transaction: {
-          collection: "Projects.server.mutations",
-          mutations: [{ _tag: "Update", key: "atlas", changes: { name: "Atlas Prime" } }]
-        }
-      }
-    ]);
-    expect(deletes).toMatchObject([
-      {
-        deletes: [
-          {
-            key: "lumen",
-            previous: { id: "lumen", name: "Lumen", archived: false }
-          }
-        ],
-        transaction: {
-          collection: "Projects.server.mutations",
-          mutations: [{ _tag: "Delete", key: "lumen" }]
-        }
-      }
-    ]);
+          ]);
+          expect(updates).toMatchObject([
+            {
+              updates: [
+                {
+                  key: "atlas",
+                  previous: { id: "atlas", name: "Atlas", archived: false },
+                  value: { id: "atlas", name: "Atlas Prime", archived: false },
+                  changes: { name: "Atlas Prime" }
+                }
+              ],
+              transaction: {
+                collection: "Projects.server.mutations",
+                mutations: [{ _tag: "Update", key: "atlas", changes: { name: "Atlas Prime" } }]
+              }
+            }
+          ]);
+          expect(deletes).toMatchObject([
+            {
+              deletes: [
+                {
+                  key: "lumen",
+                  previous: { id: "lumen", name: "Lumen", archived: false }
+                }
+              ],
+              transaction: {
+                collection: "Projects.server.mutations",
+                mutations: [{ _tag: "Delete", key: "lumen" }]
+              }
+            }
+          ]);
+        });
+      })
+    );
   });
 });
