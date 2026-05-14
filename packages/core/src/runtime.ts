@@ -107,7 +107,7 @@ let currentRuntime: EffectUiRuntime<any, any> | undefined;
 export const getCurrentRuntime = (): EffectUiRuntime<any, any> | undefined => currentRuntime;
 
 export const currentOrDefaultRuntime = (): EffectUiRuntime<any, any> =>
-  currentRuntime ?? (defaultRuntime as unknown as EffectUiRuntime<any, any>);
+  currentRuntime ?? defaultRuntime;
 
 export const runWithRuntime = <A, R, ER>(
   runtime: EffectUiRuntime<R, ER>,
