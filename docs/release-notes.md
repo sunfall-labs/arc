@@ -76,8 +76,9 @@ Latest full gate on May 14, 2026:
 - `effectUiStart(...)` now returns the concrete `EffectUiStartPlugin` type for
   Start Vite plugin hooks instead of exposing only Vite's broad `PluginOption`
   union.
-- Negative runtime-validation tests now use explicit `@ts-expect-error`
-  assertions instead of unknown-to-contract casts.
+- Test sources no longer use unknown-to-contract casts; negative
+  runtime-validation tests use explicit `@ts-expect-error` assertions, and Start
+  Cause helpers use public `cause.reasons` access.
 
 ## Notable Limits
 

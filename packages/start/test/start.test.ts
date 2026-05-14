@@ -2957,14 +2957,5 @@ describe("Effect UI Start", () => {
 });
 
 const firstFailure = <E>(cause: Cause.Cause<E>): E | undefined => {
-  const legacy = (cause as unknown as {
-    readonly reasons?: ReadonlyArray<{ readonly _tag?: string; readonly error?: E }>;
-  }).reasons?.find(Cause.isFailReason)?.error;
-  if (legacy !== undefined) {
-    return legacy;
-  }
-
-  return (cause as unknown as {
-    readonly failures?: ReadonlyArray<{ readonly _tag?: string; readonly error?: E }>;
-  }).failures?.find((failure) => failure._tag === "Fail")?.error;
+  return cause.reasons.find(Cause.isFailReason)?.error;
 };
