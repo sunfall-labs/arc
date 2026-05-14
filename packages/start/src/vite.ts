@@ -480,7 +480,7 @@ export const createStartAppGraphVirtualModule = (
       `    preload: routeModulePresence(${identifier}.options?.preload),`,
       `    preloadResources: Route.describePreloadResources(${identifier}),`,
       `    preloadCollections: Route.describePreloadCollections(${identifier}),`,
-  `    component: routeModulePresence(${identifier}.options?.component)`,
+      `    component: routeModulePresence(${identifier}.options?.component)`,
       "  }"
     ].join("\n")
   );

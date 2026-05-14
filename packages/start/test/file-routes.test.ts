@@ -138,15 +138,26 @@ describe("file route manifest generation", () => {
   });
 
   it("creates a deterministic route manifest artifact", () => {
+    const ordered = generateFileRouteManifestArtifact(
+      [
+        "src/routes/projects/$id.tsx",
+        "src/routes/index.tsx",
+        "src/routes/projects/new.tsx"
+      ],
+      options
+    );
+    const reversed = generateFileRouteManifestArtifact(
+      [
+        "src/routes/projects/new.tsx",
+        "src/routes/index.tsx",
+        "src/routes/projects/$id.tsx"
+      ],
+      options
+    );
+
+    expect(serializeFileRouteManifest(ordered)).toBe(serializeFileRouteManifest(reversed));
     expect(
-      generateFileRouteManifestArtifact(
-        [
-          "src/routes/projects/$id.tsx",
-          "src/routes/index.tsx",
-          "src/routes/projects/new.tsx"
-        ],
-        options
-      )
+      ordered
     ).toMatchObject({
       version: 1,
       routeDirectory: "src/routes",

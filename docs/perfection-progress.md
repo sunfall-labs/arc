@@ -31,6 +31,9 @@ or command result that proves it.
 - Package dependency hygiene audit is recorded; `@effect-ui/start` now declares
   its direct `effect` dependency.
 - Full verification is green after the package hygiene change.
+- Generated artifact determinism audit is recorded and has focused Start
+  manifest/module coverage.
+- Full verification is green after the generated artifact audit.
 - The current operating window is recorded as work until 8:00 AM
   America/Denver on May 14, 2026, with Effect-first implementation as a standing
   requirement.
@@ -64,17 +67,20 @@ or command result that proves it.
 | 21 | Full verification after request teardown trace facts | `pnpm verify` | Package build, workspace typecheck, type tests, 34 package test files / 300 tests, example typecheck, 4 example test files / 23 tests, example build, and leak scan passed. | Commit the verified slice and keep iterating. |
 | 22 | Package dependency hygiene audit | `docs/package-hygiene-audit.md`; `packages/start/package.json`; `pnpm-lock.yaml` | Manifest/import sweep found and fixed the missing direct `effect` dependency in `@effect-ui/start`; lockfile-only install plus Start build/typecheck passed. | Keep this audit current as new dependencies land. |
 | 23 | Full verification after package hygiene | `pnpm verify` | Package build, workspace typecheck, type tests, 34 package test files / 300 tests, example typecheck, 4 example test files / 23 tests, example build, and leak scan passed. | Commit the verified slice and keep iterating. |
+| 24 | Generated artifact determinism audit | `docs/generated-artifact-audit.md`; `packages/start/test/file-routes.test.ts`; `packages/start/src/vite.ts` | Added reversed-input serialization regression coverage for file route manifests and cleaned generated app graph module source formatting. Focused Start artifact tests and Start typecheck passed. | Keep generated artifact assertions current as virtual modules grow. |
+| 25 | Full verification after generated artifact audit | `pnpm verify` | Package build, workspace typecheck, type tests, 34 package test files / 300 tests, example typecheck, 4 example test files / 23 tests, example build, and leak scan passed. | Commit the verified slice and keep iterating. |
 
 ## Thirty-Sweep Gate
 
 The final goal requires 30 full code sweeps without finding more improvements.
-This ledger currently records 23 sweeps. The remaining 7 should cover:
+This ledger currently records 25 sweeps. The remaining 5 should cover:
 
 - Devtools UI/docs polish around the richer request trace teardown facts.
 - Promise-shaped internals that can be pushed down into Effect programs.
 - New error classes and repair guidance introduced by later work.
 - Docs drift against current implementation.
-- Generated artifact determinism and source attribution.
+- Golden-file snapshots for generated artifacts if inline assertions stop being
+  enough.
 - Type-test coverage for compile-time rejection rules.
 - Runtime leak and teardown behavior under stress.
 - Example app copyability and starter extraction.

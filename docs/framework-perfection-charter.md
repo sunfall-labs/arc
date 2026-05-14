@@ -223,6 +223,9 @@ the audit finds them.
 - [x] Package export and dependency hygiene audit.
   - Evidence: `docs/package-hygiene-audit.md`; `@effect-ui/start` now declares
     its direct `effect` dependency.
+- [x] Generated artifact determinism audit.
+  - Evidence: `docs/generated-artifact-audit.md`; file route manifests now have
+    reversed-input serialization regression coverage.
 - [ ] Browser/server leak audit beyond the current example scan.
 - [ ] Benchmark baseline audit.
 
