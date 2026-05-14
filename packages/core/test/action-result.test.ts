@@ -96,6 +96,26 @@ describe("ActionResult", () => {
     }
   });
 
+  it("builds typed single-field validation failures", () => {
+    class ProjectNameTooShort extends Data.TaggedError("ProjectNameTooShort")<{
+      readonly minimum: number;
+    }> {}
+
+    const error = new ProjectNameTooShort({ minimum: 3 });
+    const result = ActionResult.fieldError<{ readonly name: string }, "name", ProjectNameTooShort>(
+      "name",
+      error
+    );
+
+    expect(result).toMatchObject({
+      _tag: "ValidationFailure",
+      fieldErrors: {
+        name: [error]
+      },
+      formErrors: []
+    });
+  });
+
   it("automatically invalidates resources carried by ActionResult values", async () => {
     let value = 0;
     const load = vi.fn(() => Effect.succeed(value));

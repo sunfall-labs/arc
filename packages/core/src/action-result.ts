@@ -182,11 +182,11 @@ const fieldError = <Values extends object, K extends FormFieldKey<Values>, E>(
   error: E,
   options: Omit<ActionResultValidationInput<Values, E>, "fieldErrors"> &
     ActionResultOptions = {}
-): ActionResultValidationFailure<Values, E> =>
-  fields(
-    { [field]: [error] } as unknown as FormFieldErrors<Values, E>,
-    options
-  );
+): ActionResultValidationFailure<Values, E> => {
+  const fieldErrors: FormFieldErrors<Values, E> = {};
+  fieldErrors[field] = [error];
+  return fields(fieldErrors, options);
+};
 
 const formError = <Values extends object, E>(
   error: E,
