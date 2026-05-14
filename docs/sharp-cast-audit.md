@@ -57,9 +57,12 @@ and DB query-builder cleanup sweeps.
   overloads and returns `Effect.provideService(...)` directly, so the
   capability implementation no longer needs bottom-type casts for callback
   inference or service provision.
+- Framework type-id declarations now preserve their `unique symbol` types with
+  self-type assertions such as `as typeof ActionTypeId` instead of bottoming out
+  through `as never`.
 - Test-only `as unknown as` and `as never` casts have been removed; the broad
-  sharp-cast grep now reports only package-source type-id and DB query
-  context-variance seams.
+  sharp-cast grep now reports only three DB query context-variance `as unknown
+  as` seams.
 
 ## Verification Evidence
 
@@ -214,6 +217,17 @@ and DB query-builder cleanup sweeps.
   with 1 extension test file / 6 tests, basic starter verify, project-console
   starter packaging, project-console typecheck, 4 project-console test files /
   23 tests, project-console build, and leak scan.
+- `pnpm --filter @effect-ui/core typecheck`,
+  `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck:types`, and
+  `pnpm exec vitest run packages/core/test/action-result.test.ts packages/core/test/server.test.ts packages/core/test/action.test.ts packages/core/test/form.test.ts packages/core/test/signal.test.ts packages/core/test/resource.test.ts packages/core/test/capability.test.ts packages/core/test/runtime.test.ts packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
+  passed after replacing type-id `as never` declarations with self-type
+  assertions: 10 files, 111 tests.
+- `pnpm verify` passed after replacing type-id `as never` declarations: 9
+  package builds, workspace typecheck, type tests, 38 root test files / 320
+  tests, devtools-panel verify, devtools-extension verify with 1 extension test
+  file / 6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.
 
 ## Follow-Up
 

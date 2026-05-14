@@ -42,10 +42,10 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest full verification gate is green after the DB query projector
-  variance cast cleanup: 38 root test files / 320 tests plus devtools panel,
-  devtools extension, starter, rich starter packaging, project-console build,
-  and leak-scan gates.
+- The latest full verification gate is green after the type ID bottom-cast
+  cleanup: 38 root test files / 320 tests plus devtools panel, devtools
+  extension, starter, rich starter packaging, project-console build, and
+  leak-scan gates.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
   example, script, and type-test sources while keeping negative runtime
   validation tests explicit.
@@ -82,6 +82,9 @@ or command result that proves it.
 - DB query joins now carry selected projectors with a direct function assertion
   instead of the broader `unknown` bridge used by the remaining predicate/order
   variance helpers.
+- Core and DB type IDs now use self-type `unique symbol` assertions instead of
+  `as never`, leaving the broad sharp-cast grep with only three DB query
+  context-variance bridges.
 - `@effect-ui/devtools` now exposes scoped app-side bridge helpers so apps can
   install and clean up that global payload provider through Effect.
 - Workspace package manifests now carry `UNLICENSED` metadata while they remain
@@ -219,6 +222,8 @@ or command result that proves it.
 | 122 | Full verification after Core runtime cast consolidation | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after consolidating runtime service-erasure casts: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 | 123 | DB query projector variance cast cleanup | `packages/db/src/index.ts`; `docs/sharp-cast-audit.md`; `docs/perfection-progress.md` | Replaced the `QueryBuilder.projectorFor(...)` broad `unknown` bridge with a direct selected-projector function assertion while leaving predicate/order/default-projection variance as the remaining DB query boundary. DB package typecheck, public type tests, and focused DB collection/live-query tests passed: 2 files / 35 tests. | Run full verification before committing this DB cast cleanup. |
 | 124 | Full verification after DB query projector cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after replacing the `QueryBuilder.projectorFor(...)` broad `unknown` bridge: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
+| 125 | Type ID bottom-cast cleanup | `packages/core/src/*.ts`; `packages/db/src/index.ts`; `docs/sharp-cast-audit.md`; `docs/perfection-progress.md` | Replaced core and DB type-id `as never` declarations with self-type `unique symbol` assertions. Core and DB package typechecks, public type tests, and focused core/db guard/runtime/query tests passed: 10 files / 111 tests. The broad sharp-cast grep now reports only three DB query context-variance bridges. | Run full verification before committing this type-id cleanup. |
+| 126 | Full verification after type ID bottom-cast cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after replacing type-id `as never` declarations: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 
 ## Thirty-Sweep Gate
 

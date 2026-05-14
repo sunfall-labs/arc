@@ -11,7 +11,7 @@ import type { ResourceInvalidation } from "./resource.js";
 
 export const ActionResultTypeId: unique symbol = Symbol.for(
   "@effect-ui/core/ActionResult"
-) as never;
+) as typeof ActionResultTypeId;
 
 export type ActionRedirectStatus = 303 | 307 | 308;
 

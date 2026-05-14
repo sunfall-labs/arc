@@ -4,7 +4,7 @@ import { toEffect } from "./effect-like.js";
 import { runPromise } from "./runtime.js";
 import { getCurrentScope, UiScopeMissing } from "./scope.js";
 
-export const SignalTypeId: unique symbol = Symbol.for("@effect-ui/core/Signal") as never;
+export const SignalTypeId: unique symbol = Symbol.for("@effect-ui/core/Signal") as typeof SignalTypeId;
 
 export interface Subscribable {
   subscribe(listener: () => void): () => void;

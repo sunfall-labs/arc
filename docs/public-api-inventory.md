@@ -58,6 +58,8 @@ Release decisions:
   adapter authors, and test utilities that need framework identity checks; app
   code should prefer guards and namespace helpers such as `Action.is`, `Resource`
   APIs, `Signal.isSignal`, and `Form` helpers.
+- Type IDs are backed by `Symbol.for(...)` runtime values while preserving
+  `unique symbol` declarations through self-type assertions.
 - Low-level runtime accessors such as `getCurrentRuntime` are expert public for
   adapter and hook authors that must bridge into the active Runtime Spine. App
   code should use explicit runtime providers, `makeRuntime`, `runWithRuntime`,

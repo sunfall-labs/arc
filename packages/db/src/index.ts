@@ -90,8 +90,8 @@ import {
   type CollectionSyncUpdatePayload
 } from "./sync-adapter.js";
 
-export const CollectionTypeId: unique symbol = Symbol.for("@effect-ui/db/Collection") as never;
-export const CollectionStoreTypeId: unique symbol = Symbol.for("@effect-ui/db/CollectionStore") as never;
+export const CollectionTypeId: unique symbol = Symbol.for("@effect-ui/db/Collection") as typeof CollectionTypeId;
+export const CollectionStoreTypeId: unique symbol = Symbol.for("@effect-ui/db/CollectionStore") as typeof CollectionStoreTypeId;
 
 export type CollectionKey = string | number;
 export type CollectionOrigin = "local" | "remote";
@@ -2196,7 +2196,7 @@ const compareIvmContexts = <TContext extends Record<string, any>>(
 const querySources = (builder: QueryBuilder<any, any>): ReadonlyArray<AnyCollection> =>
   builder.sources.map(([, collection]) => collection);
 
-const contextKeySymbol: unique symbol = Symbol.for("@effect-ui/db/QueryContextKey") as never;
+const contextKeySymbol: unique symbol = Symbol.for("@effect-ui/db/QueryContextKey") as typeof contextKeySymbol;
 const crossJoinKey = "__effect_ui_db_all__";
 
 const joinKey = (value: QueryJoinKey): string =>

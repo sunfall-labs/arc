@@ -6,7 +6,7 @@ import {
   type ResourceStore as ResourceStoreState
 } from "./resource-store.js";
 
-export const RuntimeTypeId: unique symbol = Symbol.for("@effect-ui/core/Runtime") as never;
+export const RuntimeTypeId: unique symbol = Symbol.for("@effect-ui/core/Runtime") as typeof RuntimeTypeId;
 
 export interface EffectUiRuntime<R = never, ER = never> {
   readonly [RuntimeTypeId]: typeof RuntimeTypeId;

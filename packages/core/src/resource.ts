@@ -7,7 +7,7 @@ import { Signal, type ReadableSignal, type WritableSignal } from "./signal.js";
 import { stableStringify } from "./stable-stringify.js";
 
 export const ResourceTypeId = Symbol.for("@effect-ui/core/Resource");
-export const ResourceTagTypeId: unique symbol = Symbol.for("@effect-ui/core/ResourceTag") as never;
+export const ResourceTagTypeId: unique symbol = Symbol.for("@effect-ui/core/ResourceTag") as typeof ResourceTagTypeId;
 
 export type DurationInput = number | `${number} ${"millisecond" | "milliseconds" | "second" | "seconds" | "minute" | "minutes"}`;
 

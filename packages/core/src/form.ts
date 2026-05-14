@@ -4,7 +4,7 @@ import { toEffect } from "./effect-like.js";
 import { runPromise } from "./runtime.js";
 import { Signal, type ReadableSignal } from "./signal.js";
 
-export const FormTypeId: unique symbol = Symbol.for("@effect-ui/core/Form") as never;
+export const FormTypeId: unique symbol = Symbol.for("@effect-ui/core/Form") as typeof FormTypeId;
 
 export type FormFieldKey<Values extends object> = Extract<keyof Values, string>;
 

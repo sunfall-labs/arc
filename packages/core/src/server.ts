@@ -6,15 +6,15 @@ import { runPromise } from "./runtime.js";
 
 export const ServerFunctionTypeId: unique symbol = Symbol.for(
   "@effect-ui/core/ServerFunction"
-) as never;
+) as typeof ServerFunctionTypeId;
 
 export const ServerFunctionContractTypeId: unique symbol = Symbol.for(
   "@effect-ui/core/ServerFunctionContract"
-) as never;
+) as typeof ServerFunctionContractTypeId;
 
 export const ServerFunctionMockTypeId: unique symbol = Symbol.for(
   "@effect-ui/core/ServerFunctionMock"
-) as never;
+) as typeof ServerFunctionMockTypeId;
 
 export interface ServerFunctionContractDefinition<I, A, E = unknown> {
   readonly input?: unknown;

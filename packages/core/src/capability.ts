@@ -2,7 +2,7 @@ import { Context, Effect, Layer } from "effect";
 import type { EffectInput } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
 
-export const CapabilityTypeId: unique symbol = Symbol.for("@effect-ui/core/Capability") as never;
+export const CapabilityTypeId: unique symbol = Symbol.for("@effect-ui/core/Capability") as typeof CapabilityTypeId;
 
 export interface Capability<Identifier, Shape> {
   readonly [CapabilityTypeId]: typeof CapabilityTypeId;

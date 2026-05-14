@@ -1,6 +1,6 @@
 import { Context, Effect, Fiber, PubSub } from "effect";
 
-export const ResourceStoreTypeId: unique symbol = Symbol.for("@effect-ui/core/ResourceStore") as never;
+export const ResourceStoreTypeId: unique symbol = Symbol.for("@effect-ui/core/ResourceStore") as typeof ResourceStoreTypeId;
 
 export type ResourceStoreInvalidationCause =
   | {

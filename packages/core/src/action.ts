@@ -6,7 +6,7 @@ import { Resource, type ResourceInvalidation, type ResourceInvalidationPlan } fr
 import { currentOrDefaultRuntime, getCurrentRuntime, type EffectUiRuntime } from "./runtime.js";
 import { Signal, type ReadableSignal, type WritableSignal } from "./signal.js";
 
-export const ActionTypeId: unique symbol = Symbol.for("@effect-ui/core/Action") as never;
+export const ActionTypeId: unique symbol = Symbol.for("@effect-ui/core/Action") as typeof ActionTypeId;
 
 export type ActionState<I, A, E = unknown> =
   | { readonly _tag: "Idle" }
