@@ -1,6 +1,21 @@
 import { Effect, Exit, Schema } from "effect";
 import { describe, expect, expectTypeOf, it } from "vitest";
-import { defineApp, read, RequestContext, Resource, ResponseContext, route, Route, Server } from "../src/index.js";
+import {
+  buildRoutePath,
+  defineApp,
+  matchRoutePath,
+  parseRoutePathSegments,
+  read,
+  RequestContext,
+  Resource,
+  ResponseContext,
+  route,
+  Route,
+  routeParamsFromSegments,
+  routePathFromSegments,
+  routePathSlug,
+  Server
+} from "../src/index.js";
 
 describe("route", () => {
   it("builds typed hrefs", () => {
@@ -33,6 +48,23 @@ describe("route", () => {
       readonly params: { readonly id?: string };
       readonly search: Record<string, never>;
     }>();
+  });
+
+  it("exposes shared route grammar helpers", () => {
+    const segments = parseRoutePathSegments("/projects/:id?/settings");
+
+    expect(segments).toEqual([
+      { _tag: "Static", value: "projects" },
+      { _tag: "Dynamic", name: "id", optional: true },
+      { _tag: "Static", value: "settings" }
+    ]);
+    expect(routePathFromSegments(segments)).toBe("/projects/:id?/settings");
+    expect(routeParamsFromSegments(segments)).toEqual([{ name: "id", optional: true }]);
+    expect(routePathSlug("/projects/:id?/settings")).toBe("projects_$id_optional_settings");
+    expect(buildRoutePath("/projects/:id?/settings", {})).toBe("/projects/settings");
+    expect(buildRoutePath("/projects/:id?/settings", { id: "atlas" })).toBe("/projects/atlas/settings");
+    expect(matchRoutePath("/projects/:id?/settings", "/projects/settings")).toEqual({});
+    expect(matchRoutePath("/projects/:id?/settings", "/projects/atlas/settings")).toEqual({ id: "atlas" });
   });
 
   it("defines client-only apps", () => {

@@ -1637,13 +1637,13 @@ describe("Effect UI Start", () => {
 
     try {
       expect(action.state.get()).toEqual({ _tag: "Idle" });
-      const submission = Effect.runPromise(action.submitEffect({ value: "transport" }));
+      const submission = Effect.runFork(action.submitEffect({ value: "transport" }));
       expect(action.state.get()).toMatchObject({
         _tag: "Pending",
         input: { value: "transport" }
       });
 
-      await expect(submission).resolves.toMatchObject({
+      await expect(Effect.runPromise(Fiber.join(submission))).resolves.toMatchObject({
         _tag: "Success",
         value: { value: "TRANSPORT" }
       });

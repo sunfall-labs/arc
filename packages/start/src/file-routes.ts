@@ -1,3 +1,13 @@
+import {
+  compareRoutePathSegment,
+  isRoutePathSegmentPrefix,
+  isRouteParamName,
+  routePathFromSegments,
+  routeParamsFromSegments,
+  routePathSlug,
+  type RoutePathParam,
+  type RoutePathSegment
+} from "@effect-ui/core";
 import { Data, Effect, Schema } from "effect";
 
 export const FileRouteSourceId = Schema.String.pipe(Schema.brand("FileRouteSourceId"));
@@ -12,21 +22,8 @@ export const makeFileRouteSourceId = (id: string): FileRouteSourceId =>
 export const makeFileRouteId = (id: string): FileRouteId =>
   Schema.decodeUnknownSync(FileRouteId)(id);
 
-export type FileRouteSegment =
-  | {
-      readonly _tag: "Static";
-      readonly value: string;
-    }
-  | {
-      readonly _tag: "Dynamic";
-      readonly name: string;
-      readonly optional: boolean;
-    };
-
-export interface FileRouteParam {
-  readonly name: string;
-  readonly optional: boolean;
-}
+export type FileRouteSegment = RoutePathSegment;
+export type FileRouteParam = RoutePathParam;
 
 export type FileRouteModuleKind = "Route" | "Layout" | "ErrorBoundary" | "Metadata";
 
@@ -122,8 +119,6 @@ export const defaultFileRouteExtensions = [
   ".cts",
   ".mdx"
 ] as const;
-
-const dynamicSegmentPattern = /^\$([A-Za-z_][A-Za-z0-9_]*)(\?)?$/;
 
 const normalizePath = (path: string): string =>
   path
@@ -234,51 +229,44 @@ const exportNameForModuleKind = (kind: FileRouteModuleKind): string => {
   }
 };
 
-const routePathFromSegments = (segments: readonly FileRouteSegment[]): string => {
-  if (segments.length === 0) {
-    return "/";
-  }
-
-  return segments
-    .map((segment) =>
-      segment._tag === "Static"
-        ? `/${segment.value}`
-        : `/:${segment.name}${segment.optional ? "?" : ""}`
-    )
-    .join("");
-};
-
 const routeIdFromPath = (routePath: string): FileRouteId => {
   if (routePath === "/") {
     return makeFileRouteId("route_root");
   }
 
-  const slug = routePath
-    .slice(1)
-    .replace(/:([A-Za-z_][A-Za-z0-9_]*)(\?)?/g, (_, name: string, optional: string | undefined) =>
-      `$${name}${optional ? "_optional" : ""}`
-    )
-    .replace(/[^A-Za-z0-9_$]+/g, "_")
-    .replace(/^_+|_+$/g, "");
-
-  return makeFileRouteId(`route_${slug || "root"}`);
+  return makeFileRouteId(`route_${routePathSlug(routePath)}`);
 };
 
 const compareString = (left: string, right: string): number =>
   left < right ? -1 : left > right ? 1 : 0;
+
+const parseDynamicFileRouteSegment = (
+  segment: string
+): FileRouteSegment | undefined => {
+  if (!segment.startsWith("$")) {
+    return undefined;
+  }
+
+  const raw = segment.slice(1);
+  const optional = raw.endsWith("?");
+  const name = optional ? raw.slice(0, -1) : raw;
+  return isRouteParamName(name)
+    ? {
+        _tag: "Dynamic",
+        name,
+        optional
+      }
+    : undefined;
+};
 
 const parseRouteSegment = (segment: string): FileRouteSegment | undefined => {
   if (isGroupSegment(segment) || isPathlessSegment(segment)) {
     return undefined;
   }
 
-  const dynamic = dynamicSegmentPattern.exec(segment);
-  if (dynamic) {
-    return {
-      _tag: "Dynamic",
-      name: dynamic[1] ?? "",
-      optional: dynamic[2] === "?"
-    };
+  const dynamic = parseDynamicFileRouteSegment(segment);
+  if (dynamic !== undefined) {
+    return dynamic;
   }
 
   return {
@@ -295,13 +283,9 @@ const parseRouteSegmentEffect = (
     return Effect.succeed(undefined);
   }
 
-  const dynamic = dynamicSegmentPattern.exec(segment);
-  if (dynamic) {
-    return Effect.succeed({
-      _tag: "Dynamic",
-      name: dynamic[1] ?? "",
-      optional: dynamic[2] === "?"
-    });
+  const dynamic = parseDynamicFileRouteSegment(segment);
+  if (dynamic !== undefined) {
+    return Effect.succeed(dynamic);
   }
 
   if (segment.startsWith("$")) {
@@ -320,38 +304,6 @@ const parseRouteSegmentEffect = (
   });
 };
 
-const compareRouteSegment = (
-  left: FileRouteSegment | undefined,
-  right: FileRouteSegment | undefined
-): number => {
-  if (!left && !right) {
-    return 0;
-  }
-  if (!left) {
-    return -1;
-  }
-  if (!right) {
-    return 1;
-  }
-
-  if (left._tag !== right._tag) {
-    return left._tag === "Static" ? -1 : 1;
-  }
-
-  if (left._tag === "Static" && right._tag === "Static") {
-    return compareString(left.value, right.value);
-  }
-
-  if (left._tag === "Dynamic" && right._tag === "Dynamic") {
-    if (left.optional !== right.optional) {
-      return left.optional ? 1 : -1;
-    }
-    return compareString(left.name, right.name);
-  }
-
-  return 0;
-};
-
 const compareManifestEntries = (
   left: FileRouteManifestEntry,
   right: FileRouteManifestEntry
@@ -359,7 +311,7 @@ const compareManifestEntries = (
   const length = Math.max(left.segments.length, right.segments.length);
 
   for (let index = 0; index < length; index++) {
-    const comparison = compareRouteSegment(left.segments[index], right.segments[index]);
+    const comparison = compareRoutePathSegment(left.segments[index], right.segments[index]);
     if (comparison !== 0) {
       return comparison;
     }
@@ -379,7 +331,7 @@ const compareManifestModules = (
 
   const length = Math.max(left.segments.length, right.segments.length);
   for (let index = 0; index < length; index++) {
-    const comparison = compareRouteSegment(left.segments[index], right.segments[index]);
+    const comparison = compareRoutePathSegment(left.segments[index], right.segments[index]);
     if (comparison !== 0) {
       return comparison;
     }
@@ -387,18 +339,6 @@ const compareManifestModules = (
 
   return compareString(left.filePath, right.filePath);
 };
-
-const paramsFromSegments = (segments: readonly FileRouteSegment[]): readonly FileRouteParam[] =>
-  segments.flatMap((segment) =>
-    segment._tag === "Dynamic"
-      ? [
-          {
-            name: segment.name,
-            optional: segment.optional
-          }
-        ]
-      : []
-  );
 
 const fileRouteModuleToManifestEntry = (
   module: FileRouteManifestModule | undefined
@@ -459,7 +399,7 @@ export const filePathToFileRouteModule = (
     const parsed = parseRouteSegment(segment);
     return parsed ? [parsed] : [];
   });
-  const params = paramsFromSegments(segments);
+  const params = routeParamsFromSegments(segments);
   const routePath = routePathFromSegments(segments);
 
   return {
@@ -502,7 +442,7 @@ export const filePathToFileRouteModuleEffect = (
     const segments = yield* Effect.forEach(routeSegments, (segment) =>
       parseRouteSegmentEffect(segment, normalized)
     ).pipe(Effect.map((segments) => segments.filter((segment): segment is FileRouteSegment => segment !== undefined)));
-    const params = paramsFromSegments(segments);
+    const params = routeParamsFromSegments(segments);
     const routePath = routePathFromSegments(segments);
 
     return {
@@ -624,9 +564,6 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 const isNonEmptyString = (value: unknown): value is string =>
   typeof value === "string" && value.length > 0;
 
-const isRouteParamName = (value: string): boolean =>
-  /^[A-Za-z_][A-Za-z0-9_]*$/.test(value);
-
 const isIdentifier = (value: string): boolean =>
   /^[A-Za-z_$][A-Za-z0-9_$]*$/.test(value);
 
@@ -726,7 +663,7 @@ const decodeSerializedModule = (
     const segments = yield* Effect.forEach(value.segments, decodeSerializedSegment);
     const params = yield* Effect.forEach(value.params, decodeSerializedParam);
     const routePath = routePathFromSegments(segments);
-    const expectedParams = paramsFromSegments(segments);
+    const expectedParams = routeParamsFromSegments(segments);
 
     if (
       value.routePath !== routePath ||
@@ -778,7 +715,7 @@ const decodeSerializedEntry = (
     const segments = yield* Effect.forEach(value.segments, decodeSerializedSegment);
     const params = yield* Effect.forEach(value.params, decodeSerializedParam);
     const routePath = routePathFromSegments(segments);
-    const expectedParams = paramsFromSegments(segments);
+    const expectedParams = routeParamsFromSegments(segments);
 
     if (
       value.routePath !== routePath ||
@@ -895,29 +832,6 @@ export const generateValidatedFileRouteManifestArtifactEffect = (
     createFileRouteManifest(parts.entries, options, parts.modules)
   );
 
-const segmentsEqual = (
-  left: FileRouteSegment,
-  right: FileRouteSegment
-): boolean => {
-  if (left._tag !== right._tag) {
-    return false;
-  }
-  if (left._tag === "Static" && right._tag === "Static") {
-    return left.value === right.value;
-  }
-  return left._tag === "Dynamic" &&
-    right._tag === "Dynamic" &&
-    left.name === right.name &&
-    left.optional === right.optional;
-};
-
-const isSegmentPrefix = (
-  prefix: readonly FileRouteSegment[],
-  value: readonly FileRouteSegment[]
-): boolean =>
-  prefix.length <= value.length &&
-  prefix.every((segment, index) => segmentsEqual(segment, value[index] as FileRouteSegment));
-
 const compareByDepthThenPath = (
   left: { readonly segments: readonly FileRouteSegment[]; readonly filePath: string },
   right: { readonly segments: readonly FileRouteSegment[]; readonly filePath: string }
@@ -941,11 +855,11 @@ export const describeFileRouteManifest = (
     const parent = manifest.entries
       .filter((candidate) =>
         candidate.routePath !== entry.routePath &&
-        isSegmentPrefix(candidate.segments, entry.segments)
+        isRoutePathSegmentPrefix(candidate.segments, entry.segments)
       )
       .sort((left, right) => compareByDepthThenPath(right, left))[0];
     const scopedModules = modules
-      .filter((module) => isSegmentPrefix(module.segments, entry.segments))
+      .filter((module) => isRoutePathSegmentPrefix(module.segments, entry.segments))
       .sort(compareByDepthThenPath);
     const layouts = scopedModules.filter((module) => module.kind === "Layout");
     const errorBoundary = scopedModules

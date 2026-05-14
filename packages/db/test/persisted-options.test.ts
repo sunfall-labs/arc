@@ -31,8 +31,8 @@ describe("Collection.persistedOptions", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* Effect.promise(() =>
-          first.runPromise(Projects.writeInsertEffect({
+        yield* Effect.scoped(
+          first.provide(Projects.writeInsertEffect({
             id: "atlas",
             name: "Atlas",
             progress: 72
@@ -74,8 +74,8 @@ describe("Collection.persistedOptions", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* Effect.promise(() =>
-          first.runPromise(Projects.writeInsertEffect({
+        yield* Effect.scoped(
+          first.provide(Projects.writeInsertEffect({
             id: "atlas",
             name: "Atlas",
             progress: 72

@@ -1,5 +1,5 @@
 import { Action, ActionResult, makeRuntime, read, Resource, runWithRuntime } from "@effect-ui/core";
-import { Deferred, Effect } from "effect";
+import { Deferred, Effect, Fiber } from "effect";
 import { describe, expect, it } from "vitest";
 import { type Project } from "./domain.contract.js";
 import {
@@ -30,8 +30,6 @@ const mockProject = (overrides: Partial<Project> = {}): Project => ({
   risks: [],
   ...overrides
 });
-
-const ignorePromiseFailure = <A>(promise: Promise<A>) => Effect.tryPromise(() => promise).pipe(Effect.ignore);
 
 describe("project console contract mocks", () => {
   const ProjectApiTest = ProjectApi.mock({
@@ -180,7 +178,7 @@ describe("project console contract mocks", () => {
     const release = Effect.runSync(Deferred.make<void>());
     let name = "Mocked Resource";
     let started = false;
-    let submission: Promise<unknown> | undefined;
+    let submission: Fiber.Fiber<unknown, unknown> | undefined;
     const ProjectApiOptimistic = ProjectApi.mock({
       list: () => Effect.succeed([mockProject({ id, name })]),
       get: (projectId) => Effect.succeed(mockProject({ id: projectId, name })),
@@ -210,7 +208,7 @@ describe("project console contract mocks", () => {
         ])
       );
 
-      submission = runtime.runPromise(action.submitEffect({
+      submission = runtime.runFork(action.submitEffect({
         id,
         name: "Collection Rename",
         redirectTo: makeProjectReturnTo("/projects/mocked?tab=activity")
@@ -224,7 +222,7 @@ describe("project console contract mocks", () => {
       });
 
       Effect.runSync(Deferred.succeed(release, undefined));
-      const result = await submission;
+      const result = await Effect.runPromise(Fiber.join(submission));
 
       expect(result).toMatchObject({
         _tag: "Redirect",
@@ -240,7 +238,7 @@ describe("project console contract mocks", () => {
     } finally {
       Effect.runSync(Deferred.succeed(release, undefined));
       if (submission !== undefined) {
-        await Effect.runPromise(ignorePromiseFailure(submission));
+        await Effect.runPromise(Fiber.await(submission));
       }
       await Effect.runPromise(runtime.disposeEffect);
     }

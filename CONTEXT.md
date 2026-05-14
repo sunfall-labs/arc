@@ -25,6 +25,7 @@
 - **Live Query Collection**: a read-only Collection Definition backed by a `Query.live(...)` graph. It lets derived D2/materialized results participate in collection-shaped APIs without duplicating source row ownership.
 - **Indexed Join Plan**: a Query plan step that joins through scalar or multi-value Collection Secondary Index buckets instead of scanning the joined collection for each left-side row.
 - **Query Plan Diagnostics**: an inspectable summary of a Query plan's sources, joins, join strategy, row counts, and estimated comparison cost. It gives devtools leverage without exposing Query Builder internals.
+- **Live Query Runtime**: the DB Module that owns incremental IVM graph construction, source synchronization, joins, grouping, ordering, windowing, output multiplicity, and source preload/refetch loops for reactive queries.
 - **Collection Durable Storage Adapter**: a persistence Adapter that satisfies the collection snapshot storage Interface with a durable driver. The DB Module should keep this seam storage-engine-shaped rather than browser-API-shaped.
 - **Collection SQLite Persistence Driver**: the SQLite-shaped durable storage Interface for collection snapshots. It addresses rows by namespace and key, stores schema version metadata, and can be implemented by OPFS SQLite, Node SQLite, React Native SQLite, Durable Objects, or tests.
 - **Collection SQLite Statement Adapter**: the dependency-free Adapter that turns a minimal SQL `execute`/`select` driver into a Collection SQLite Persistence Driver.
@@ -34,6 +35,10 @@
 - **Resource Lifetime**: the Effect-native lifecycle of a resource entry, including pending refresh interruption, cache invalidation, GC sleep fibers, and deletion.
 - **Resource Event Stream**: the Resource Store's Effect `PubSub` of lifecycle facts, used by tests and future devtools to observe resource behavior without reading private maps.
 - **Resource Dependency Graph**: the Resource Store's mapping from semantic `Resource.tag(...)` values to the live resource refs that most recently provided those facts.
+- **Route Grammar**: the canonical path segment language shared by core Route matching/building and Start file-route manifests. It owns static segments, dynamic params, optional params, route-id slugs, segment ordering, and prefix checks.
+- **Devtools Panels**: the typed inspection model that projects summaries into stable app graph, route, resource, action, collection, request, diagnostics, and causal graph panels.
+- **Devtools Summary Contract**: the devtools Module that projects snapshots, app graph diagnostics, request traces, route plans, invalidation plans, and runtime events into overview summaries and causal graph facts.
+- **Devtools Panel Renderer**: the devtools Module that renders a `DevtoolsPanels` model to deterministic HTML and owns DOM mount/update/unmount lifecycle helpers behind the public devtools root facade.
 - **Navigation Plan**: the typed route preload result that records the matched route, touched resource refs, and hydration payload for a URL.
 - **Start Collection Preload Facts**: the Start preload/render context object that separates route-touched collection definitions, route-declared collection definitions resolved from `preloadCollections`, explicitly registered collection definitions, the final dehydrated definition set, and the collection hydration payload.
 - **Capability**: a named Effect service that represents app behavior behind a dependency-injection seam, such as `ProjectApi`.
@@ -42,8 +47,14 @@
 - **Start Hydration Transport**: the Start module that serializes, emits, reads, and applies Start Hydration Payloads for initial document scripts and streamed hydration chunks.
 - **Start Manifest Wall**: the production artifacts for file routes, server functions, and progressive actions. They use deterministic branded ids, browser-safe client references, wire schema flags, typed parsing, and duplicate detection before bundling.
 - **Start App Graph Diagnostics**: the typed, inspectable summary of routes, endpoints, server-only modules, browser client modules, and wire-schema coverage derived from the Start Manifest Wall.
+- **Start Transport Protocol**: the Effect-native Module that owns Start RPC and Start Action request decoding, response shaping, schema encode/decode, failure classification, invalidation payload serialization, and client response parsing for the JSON/form transport.
 - **Progressive Action Result**: typed action outcome data for success, validation failure, redirect, and domain failure.
 - **Start Action Request**: a JSON or form POST to Start's action endpoint that names an Action Definition, carries schema-decoded input, and runs through the Request Runtime.
+- **Devtools Store**: the bounded snapshot and event recording Module for devtools. It owns invalidation, route-plan, request-trace, action, and runtime-event recording while the public devtools root stays a facade.
+- **Devtools Serialization Contract**: the pure projection Module that turns runtime values, invalidation plans, route plans, and request traces into JSON-safe devtools contracts without exposing live runtime objects.
+- **Devtools Inspection Summary**: the Module that projects snapshots, Start App Graph Diagnostics, route plans, request traces, invalidations, resources, and runtime events into summaries and causal graphs.
+- **Devtools Panel Contract**: the summary-to-panel projection used by app-side or browser-side devtools UIs. It is separate from HTML rendering so other hosts can consume the same panel data.
+- **Devtools Bridge**: the inspected-window Adapter that installs a scoped global provider for current devtools panels without coupling the app runtime to a particular browser extension UI.
 - **Solid Runtime Adapter**: the Solid-facing Adapter that installs the Runtime Spine, owns UI scopes, manages route preload/render scopes, and exposes Resource, Action, stream, and router hooks without moving runtime ownership into components.
 - **Solid DB Adapter**: the Solid-facing Adapter that projects Collection Definitions and Live Query graphs into Solid accessors while leaving row state, mutation queues, and incremental query work in the DB Module.
 

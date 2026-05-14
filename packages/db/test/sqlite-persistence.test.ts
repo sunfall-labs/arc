@@ -170,8 +170,8 @@ describe("SQLite persistence storage", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* Effect.promise(() =>
-          first.runPromise(Projects.writeInsertEffect([
+        yield* Effect.scoped(
+          first.provide(Projects.writeInsertEffect([
             { id: "atlas", name: "Atlas", status: "active", progress: 72 },
             { id: "lumen", name: "Lumen", status: "blocked", progress: 34 }
           ]))

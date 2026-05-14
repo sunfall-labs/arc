@@ -281,10 +281,10 @@ describe("devtools invalidation plans", () => {
     const action = Action.use(Increment);
     const store = makeDevtoolsStore();
 
-    await Effect.runPromise(Resource.prefetchEffect(ref));
     await Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
+          yield* Resource.prefetchEffect(ref);
           yield* store.trackActionEffect(action);
           yield* action.submitEffect(undefined);
         })
@@ -356,10 +356,13 @@ describe("devtools invalidation plans", () => {
     });
     const ref = User("1");
 
-    await Effect.runPromise(Resource.prefetchEffect(ref));
-
-    const routePlan = describeRoutePlan(
-      await Effect.runPromise(Route.planNavigationEffect([UserRoute] as const, "/users/1"))
+    const routePlan = await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* Resource.prefetchEffect(ref);
+        return describeRoutePlan(
+          yield* Route.planNavigationEffect([UserRoute] as const, "/users/1")
+        );
+      })
     );
     const invalidationPlan = describeInvalidationPlan(
       Resource.planInvalidation(UserTag({ id: "1" }))
@@ -1172,28 +1175,30 @@ describe("devtools invalidation plans", () => {
   it("lets adapters observe snapshots, summaries, events, and causal graphs through Effect", async () => {
     const store = makeDevtoolsStore({ eventLimit: 1 });
 
-    await Effect.runPromise(store.setAppGraphDiagnosticsEffect(appGraphDiagnostics));
-    await Effect.runPromise(
-      store.recordRuntimeEventEffect({
-        _tag: "Custom",
-        name: "first",
-        payload: {
-          ignored: true
-        }
-      })
-    );
-    await Effect.runPromise(
-      store.recordResourceEventEffect({
-        _tag: "ResourceSuccess",
-        name: "User.effect-devtools",
-        key: "User.effect-devtools:1",
-        updatedAt: 1
-      })
-    );
+    const [snapshot, summary, graph] = await Effect.runPromise(
+      Effect.gen(function* () {
+        yield* store.setAppGraphDiagnosticsEffect(appGraphDiagnostics);
+        yield* store.recordRuntimeEventEffect({
+          _tag: "Custom",
+          name: "first",
+          payload: {
+            ignored: true
+          }
+        });
+        yield* store.recordResourceEventEffect({
+          _tag: "ResourceSuccess",
+          name: "User.effect-devtools",
+          key: "User.effect-devtools:1",
+          updatedAt: 1
+        });
 
-    const snapshot = await Effect.runPromise(store.getSnapshotEffect());
-    const summary = await Effect.runPromise(store.getSummaryEffect());
-    const graph = await Effect.runPromise(store.getCausalGraphEffect());
+        return yield* Effect.all([
+          store.getSnapshotEffect(),
+          store.getSummaryEffect(),
+          store.getCausalGraphEffect()
+        ]);
+      })
+    );
 
     expect(snapshot.events).toEqual([
       {
@@ -1278,79 +1283,84 @@ describe("devtools invalidation plans", () => {
     const resourceDiagnostics = Resource.diagnostics();
     const action = Action.use(RenameProject, { runtime });
 
-    try {
-      await Effect.runPromise(
-        store.setAppGraphDiagnosticsEffect(
-          goldenPathAppGraphDiagnostics({
-            resourceFamilies: resourceDiagnostics.families.filter((family) =>
-              family.name === "Golden.Project.byId"
-            ),
-            resourceTags: resourceDiagnostics.tags.filter((tag) =>
-              tag.name === "Golden.Project" || tag.name === "Golden.Projects"
-            )
-          })
-        )
-      );
+    const [summary, graph] = await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          yield* store.setAppGraphDiagnosticsEffect(
+            goldenPathAppGraphDiagnostics({
+              resourceFamilies: resourceDiagnostics.families.filter((family) =>
+                family.name === "Golden.Project.byId"
+              ),
+              resourceTags: resourceDiagnostics.tags.filter((tag) =>
+                tag.name === "Golden.Project" || tag.name === "Golden.Projects"
+              )
+            })
+          );
 
-      await runtime.runPromise(
-        Effect.scoped(
-          Effect.gen(function* () {
-            const resourceSubscription = yield* Resource.subscribeEventsEffect();
-            const collectionStore = yield* Collection.storeEffect();
-            const collectionSubscription = yield* collectionStore.subscribeEventsEffect();
-            const routePlan = yield* Route.planNavigationEffect(
-              [ProjectRoute] as const,
-              "/projects/atlas?tab=activity"
-            );
+          yield* runtime.provide(
+            Effect.scoped(
+              Effect.gen(function* () {
+                const resourceSubscription = yield* Resource.subscribeEventsEffect();
+                const collectionStore = yield* Collection.storeEffect();
+                const collectionSubscription = yield* collectionStore.subscribeEventsEffect();
+                const routePlan = yield* Route.planNavigationEffect(
+                  [ProjectRoute] as const,
+                  "/projects/atlas?tab=activity"
+                );
 
-            yield* store.recordRoutePlanEffect(routePlan);
-            yield* store.recordResourceEventEffect(yield* PubSub.take(resourceSubscription));
-            yield* store.recordResourceEventEffect(yield* PubSub.take(resourceSubscription));
-            yield* store.recordCollectionEventEffect(yield* PubSub.take(collectionSubscription));
+                yield* store.recordRoutePlanEffect(routePlan);
+                yield* store.recordResourceEventEffect(yield* PubSub.take(resourceSubscription));
+                yield* store.recordResourceEventEffect(yield* PubSub.take(resourceSubscription));
+                yield* store.recordCollectionEventEffect(yield* PubSub.take(collectionSubscription));
 
-            yield* action.submitEffect({ id: "atlas", name: "Atlas Prime" });
-            const invalidationPlan = readSignal(action.invalidationPlan);
-            const actionState = readSignal(action.state);
+                yield* action.submitEffect({ id: "atlas", name: "Atlas Prime" });
+                const invalidationPlan = readSignal(action.invalidationPlan);
+                const actionState = readSignal(action.state);
 
-            if (invalidationPlan === undefined) {
-              expect.fail("Expected the golden-path action to expose an invalidation plan.");
-            }
-
-            yield* store.recordResourceEventEffect(yield* PubSub.take(resourceSubscription));
-            yield* store.recordResourceEventEffect(yield* PubSub.take(resourceSubscription));
-            yield* store.recordResourceEventEffect(yield* PubSub.take(resourceSubscription));
-            yield* store.recordInvalidationEffect(invalidationPlan);
-            yield* store.recordRuntimeEventEffect({
-              _tag: "ActionState",
-              action: RenameProject.name,
-              state: actionState._tag,
-              input: { id: "atlas" },
-              invalidationIndexes: [0]
-            });
-
-            const snapshot = yield* store.getSnapshotEffect();
-            yield* store.setSnapshotEffect({
-              ...snapshot,
-              resources: [
-                {
-                  key: ref.key,
-                  state: "Success"
+                if (invalidationPlan === undefined) {
+                  expect.fail("Expected the golden-path action to expose an invalidation plan.");
                 }
-              ],
-              actions: [
-                {
-                  name: RenameProject.name,
+
+                yield* store.recordResourceEventEffect(yield* PubSub.take(resourceSubscription));
+                yield* store.recordResourceEventEffect(yield* PubSub.take(resourceSubscription));
+                yield* store.recordResourceEventEffect(yield* PubSub.take(resourceSubscription));
+                yield* store.recordInvalidationEffect(invalidationPlan);
+                yield* store.recordRuntimeEventEffect({
+                  _tag: "ActionState",
+                  action: RenameProject.name,
                   state: actionState._tag,
+                  input: { id: "atlas" },
                   invalidationIndexes: [0]
-                }
-              ]
-            });
-          })
-        )
-      );
+                });
 
-      const summary = await Effect.runPromise(store.getSummaryEffect());
-      const graph = await Effect.runPromise(store.getCausalGraphEffect());
+                const snapshot = yield* store.getSnapshotEffect();
+                yield* store.setSnapshotEffect({
+                  ...snapshot,
+                  resources: [
+                    {
+                      key: ref.key,
+                      state: "Success"
+                    }
+                  ],
+                  actions: [
+                    {
+                      name: RenameProject.name,
+                      state: actionState._tag,
+                      invalidationIndexes: [0]
+                    }
+                  ]
+                });
+              })
+            )
+          );
+
+          return yield* Effect.all([
+            store.getSummaryEffect(),
+            store.getCausalGraphEffect()
+          ]);
+        })
+      ).pipe(Effect.ensuring(runtime.disposeEffect))
+    );
 
       expect(summary.overview).toMatchObject({
         routeCount: 1,
@@ -1618,9 +1628,6 @@ describe("devtools invalidation plans", () => {
         ])
       );
       expect(JSON.parse(JSON.stringify(summary))).toEqual(summary);
-    } finally {
-      await Effect.runPromise(runtime.disposeEffect);
-    }
   });
 });
 

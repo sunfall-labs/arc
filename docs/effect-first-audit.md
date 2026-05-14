@@ -154,6 +154,29 @@ interruption.
   - Devtools action-state recording accepts opaque Action state/instance
     generics when it only reads names, state tags, inputs, and invalidation
     plans.
+  - Panel HTML rendering, DOM mount/update/unmount behavior, and the
+    Effect-scoped panel mount helper now delegate to
+    `packages/devtools/src/panel-renderer.ts`, keeping browser UI lifecycle work
+    behind a focused renderer module.
+  - Scoped inspected-window bridge install/uninstall behavior now delegates to
+    `packages/devtools/src/bridge.ts`, keeping bridge cleanup behind an
+    Effect-scoped module.
+  - Store mutation/subscription recording and panel projection now delegate to
+    `packages/devtools/src/store.ts` and `packages/devtools/src/panels.ts`, so
+    the root facade exposes the same public contracts with smaller internal
+    modules.
+  - Serialization, invalidation plan projection, route-plan projection, and
+    defensive request-trace copies now delegate to
+    `packages/devtools/src/serialization.ts`, keeping JSON-safe devtools
+    contracts separate from live runtime objects.
+  - Snapshot summary projection, request-trace summaries, app-graph summaries,
+    and causal graph construction now delegate to
+    `packages/devtools/src/summary.ts`, keeping derived inspection facts behind
+    a focused module.
+- `packages/db/src/live-query-runtime.ts`
+  - Live-query source preload/refetch loops and the incremental IVM runtime now
+    live behind a focused runtime module. Query callers still receive Effect
+    preload/refetch operations from the DB root facade.
 - `packages/start/src/cli.ts`
   - Moved the diagnostics CLI parse/load/render path into
     `runStartDiagnosticsCliEffect`.
@@ -168,6 +191,14 @@ interruption.
   - Moved Vite dev middleware request conversion, SSR handler loading,
     response writing, and error forwarding into `handleSsrDevMiddlewareEffect`;
     the Vite middleware callback now only launches that Effect program.
+- `packages/start/src/start-transport-protocol.ts`
+  - Start RPC and Start Action JSON/form decoding, response shaping, schema
+    encode/decode, failure classification, invalidation payload serialization,
+    and client response parsing now live in a focused Effect-native transport
+    protocol module.
+  - The Start root request handler now delegates wire-level protocol work to
+    that module and keeps orchestration around Request Runtime provisioning,
+    tracing, SSR preload, and response lifecycle.
 - `packages/start/src/adapters.ts`
   - Node handler Promise entrypoints now use the core runtime helper for handler
     Effects rather than casting the input to raw `Effect.runPromise(...)`.
@@ -712,3 +743,19 @@ interruption.
   server, Resource, query-client, and scoped change-feed adapter sequencing now
   stays inside `Effect.gen(...)`, leaving `Effect.runPromise(...)` only at the
   Vitest host boundary.
+- `pnpm --filter @effect-ui/start typecheck`, `pnpm typecheck`,
+  `pnpm exec vitest run packages/start/test/start.test.ts packages/start/test/rpc.test.ts packages/start/test/effect-rpc-compat.test.ts`,
+  and
+  `pnpm exec vitest run packages/start/test/action-manifest.test.ts packages/start/test/app-graph.test.ts`
+  passed after extracting the Start transport protocol module.
+- Full `pnpm verify` passed after the architecture-deepening module sweep: 9
+  package builds, workspace typecheck, type tests, 40 root test files / 328
+  tests, devtools-panel verify, devtools-extension verify, basic starter
+  verify, project-console starter packaging/typecheck/tests/build, and leak
+  scan.
+- `pnpm typecheck` and focused Core, DB, Devtools, Start, and project-console
+  tests passed after the Effect-first coordination follow-up. The audited
+  Action, Resource, Collection, StartAction, devtools, and example-domain tests
+  now use Effect fibers, `Effect.all(...)`, `Effect.flip(...)`, and
+  `Effect.scoped(runtime.provide(...))` instead of Promise handles for internal
+  scheduling.

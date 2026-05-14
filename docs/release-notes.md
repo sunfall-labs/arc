@@ -59,7 +59,7 @@ Latest full gate on May 14, 2026:
 
 - 9 package builds;
 - workspace typecheck and public type tests;
-- 40 root test files / 327 tests;
+- 40 root test files / 328 tests;
 - devtools panel verify;
 - devtools extension verify;
 - basic starter verify;
@@ -293,6 +293,29 @@ Latest full gate on May 14, 2026:
 - DB sync-adapter tests now return Effect programs for generic, server,
   Resource, query-client, and scoped change-feed adapters, with
   `Effect.runPromise(...)` reserved for the Vitest host boundary.
+- Start RPC/action protocol work now lives in `start-transport-protocol.ts`:
+  JSON/form request decoding, response shaping, schema encode/decode, failure
+  classification, invalidation serialization, progressive action form metadata,
+  and client response parsing are separated from request-runtime orchestration.
+- DB live-query incremental IVM behavior now lives in `live-query-runtime.ts`,
+  and Core/Start route path handling shares `route-grammar.ts` for matching,
+  building, file-route manifest paths, route-id slugs, ordering, and prefix
+  checks.
+- Devtools panel rendering and DOM mount lifecycle now live in
+  `panel-renderer.ts`, inspected-window bridge installation now lives in
+  `bridge.ts`, panel projection lives in `panels.ts`, store mutation lives in
+  `store.ts`, and JSON-safe invalidation/route/trace projection lives in
+  `serialization.ts`. Snapshot summary projection, request-trace summaries,
+  app-graph summaries, and causal graph construction now live in `summary.ts`,
+  keeping the public devtools root focused on contracts and facade exports.
+- Action, Resource, Collection, StartAction, devtools, and project-console tests
+  now use Effect fibers and combinators for internal concurrency checks instead
+  of Promise handles; Promise conversion remains at the host/test edge.
+- The latest `pnpm verify` passed after the architecture-deepening module sweep:
+  9 package builds, workspace typecheck, type tests, 40 root test files / 328
+  tests, devtools panel verify, devtools extension verify, basic starter
+  verify, project-console starter packaging/typecheck/tests/build, and leak
+  scan.
 
 ## Notable Limits
 

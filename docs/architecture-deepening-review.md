@@ -56,48 +56,113 @@ Evidence:
 
 ## Review 3: Deepening Candidates
 
-Status: open for items 1-4; items 5-6 are fixed in the current worktree.
+Status: items 1-6 are fixed in the current worktree.
 
 1. Devtools Inspection Module
+   - Status: fixed.
    - Files: `packages/devtools/src/index.ts`,
+     `packages/devtools/src/bridge.ts`,
+     `packages/devtools/src/panels.ts`,
+     `packages/devtools/src/panel-renderer.ts`,
+     `packages/devtools/src/serialization.ts`,
+     `packages/devtools/src/store.ts`,
+     `packages/devtools/src/summary.ts`,
      `packages/devtools/test/devtools.test.ts`, `examples/devtools-*`.
    - Problem: snapshot storage, serialization, request trace records, summary
      building, causal graph construction, panel model generation, HTML
-     rendering, and bridge installation still share one large Implementation.
-   - Fix target: keep the public root as a facade while moving inspection
-     contracts, summary, graph, panel, renderer, and bridge logic behind
-     focused internal Modules.
+     rendering, and bridge installation shared one large Implementation.
+   - Fix: `packages/devtools/src/serialization.ts` owns serialization,
+     invalidation plan projection, route-plan projection, and defensive trace
+     copies; `packages/devtools/src/store.ts` owns bounded snapshot storage and
+     event recording; `packages/devtools/src/panels.ts` owns summary to
+     panel-contract projection; `packages/devtools/src/panel-renderer.ts` owns
+     deterministic panel HTML rendering, panel-id validation,
+     DOM mount/update/unmount behavior, and the Effect-scoped mount helper; and
+     `packages/devtools/src/bridge.ts` owns the scoped app-side inspected-window
+     bridge install/uninstall lifecycle. `packages/devtools/src/summary.ts`
+     owns request trace summaries, app-graph summaries, resource indexing,
+     runtime event summaries, and causal graph construction. The devtools root
+     remains the public facade and contract surface.
+   - Benefits: store bugs, serialization bugs, summary bugs, causal graph bugs,
+     panel model bugs, renderer bugs, and bridge lifecycle bugs now have narrow
+     implementation interfaces while public imports stay stable.
+   - Evidence: `pnpm --filter @effect-ui/devtools build` passed,
+     `pnpm --filter @effect-ui/devtools typecheck` passed, and
+     `pnpm exec vitest run packages/devtools/test/devtools.test.ts` passed:
+     1 file / 17 tests. Full `pnpm typecheck` and `pnpm test` also passed:
+     40 files / 328 tests.
 
 2. Live Query Runtime Module
-   - Files: `packages/db/src/index.ts`, `packages/db/src/query-plan.ts`,
+   - Status: fixed.
+   - Files: `packages/db/src/index.ts`,
+     `packages/db/src/live-query-runtime.ts`,
+     `packages/db/src/query-plan.ts`,
      `packages/db/test/collection.test.ts`,
      `packages/db/test/live-query-collection.test.ts`.
    - Problem: Query Plan Diagnostics are extracted, but `QueryBuilder`,
      `LiveQuery`, Live Query Collection, and the incremental IVM engine still
      sit in the DB root.
-   - Fix target: put incremental evaluation, source synchronization, grouping,
-     ordering, and windowing behind a Live Query Runtime Module.
+   - Fix: `packages/db/src/live-query-runtime.ts` now owns the IVM graph,
+     source synchronization, join stream construction, grouping, ordering,
+     windowing, output multiplicity handling, and source preload/refetch loops.
+     The DB root keeps the compact Query and Collection facades.
+   - Benefits: incremental query behavior now has better locality and a smaller
+     implementation interface. Query callers keep the same DSL leverage, while
+     runtime bugs in joins, grouped rows, ordering, and source deltas live in
+     the Live Query Runtime Module instead of the DB root.
+   - Evidence: `pnpm --filter @effect-ui/db typecheck` passed, and
+     `pnpm exec vitest run packages/core/test/route-server.test.ts packages/start/test/file-routes.test.ts packages/start/test/file-route-modules.test.ts packages/start/test/route-manifest.test.ts packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
+     passed: 6 files / 70 tests.
 
 3. Start Transport Protocol Module
+   - Status: fixed.
    - Files: `packages/start/src/index.ts`, `packages/start/src/rpc.ts`,
      `packages/start/src/request-trace.ts`, `packages/start/src/start-fetch.ts`,
+     `packages/start/src/start-transport-protocol.ts`,
      `packages/start/test/start.test.ts`.
    - Problem: JSON/form decoding, RPC response encoding, Start Action Request
      handling, Progressive Action Result encoding, invalidation hydration, and
-     failure classification still live in the Start root.
-   - Fix target: move protocol decoding, response shaping, failure
-     classification, and action response metadata into a focused transport
-     protocol Module.
+     failure classification lived in the Start root.
+   - Fix: moved protocol decoding, response shaping, schema encode/decode,
+     failure classification, invalidation payload serialization, action
+     response metadata, client response parsing, and progressive form metadata
+     into `start-transport-protocol.ts`. The Start root now orchestrates the
+     Request Runtime and delegates wire rules to that Module.
+   - Benefits: Start transport behavior now has better locality; JSON/form
+     protocol bugs, action response metadata bugs, and client decode bugs can be
+     tested through one protocol interface instead of searching the full Start
+     root. The root module keeps leverage as the request handler facade.
+   - Evidence: `pnpm --filter @effect-ui/start typecheck` and
+     `pnpm typecheck` passed,
+     `pnpm exec vitest run packages/start/test/start.test.ts packages/start/test/rpc.test.ts packages/start/test/effect-rpc-compat.test.ts`
+     passed: 3 files / 67 tests, and
+     `pnpm exec vitest run packages/start/test/action-manifest.test.ts packages/start/test/app-graph.test.ts`
+     passed: 2 files / 16 tests.
 
 4. Route Grammar Module
-   - Files: `packages/core/src/route.ts`, `packages/start/src/file-routes.ts`,
+   - Status: fixed.
+   - Files: `packages/core/src/route.ts`,
+     `packages/core/src/route-grammar.ts`,
+     `packages/start/src/file-routes.ts`,
      `packages/start/src/file-route.ts`,
      `packages/start/src/file-route-modules.ts`,
      `packages/start/src/generated-route-definitions.ts`.
    - Problem: core Route matching/building and Start file-route manifest
-     generation encode overlapping route grammar rules.
-   - Fix target: centralize route grammar and make File Route Manifest code an
-     Adapter from file-system segments into that grammar.
+     generation encoded overlapping route grammar rules.
+   - Fix: `packages/core/src/route-grammar.ts` now owns canonical route path
+     segments, param-name rules, optional param handling, path building,
+     matching, manifest path rendering, route-id slugs, segment ordering, and
+     segment-prefix checks. Core `route(...)` uses that grammar directly, and
+     Start file routes now act as an Adapter from filesystem `$id` segments
+     into the same grammar.
+   - Benefits: route grammar bugs now have one implementation and one test
+     surface. Core Route keeps leverage for typed navigation, while Start keeps
+     locality around filesystem naming and manifest policy instead of
+     re-encoding path semantics.
+   - Evidence: `pnpm --filter @effect-ui/core typecheck` passed,
+     `pnpm --filter @effect-ui/start typecheck` passed, and
+     `pnpm exec vitest run packages/core/test/route-server.test.ts packages/start/test/file-routes.test.ts packages/start/test/file-route-modules.test.ts packages/start/test/route-manifest.test.ts packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
+     passed: 6 files / 70 tests.
 
 5. Start Diagnostics Contract Module
    - Status: fixed.
@@ -145,3 +210,74 @@ Status: open for items 1-4; items 5-6 are fixed in the current worktree.
      `pnpm --filter @effect-ui/solid-db typecheck` passed, and
      `pnpm exec vitest run packages/solid/test/router.test.ts packages/solid-db/test/solid-db.test.ts`
      passed: 2 files / 2 tests.
+
+## Review 4: Effect-First Coordination Follow-Up
+
+Status: fixed for the findings in this pass; larger runtime-root candidates
+remain open.
+
+1. Devtools Store Module
+   - Status: fixed.
+   - Files: `packages/devtools/src/index.ts`,
+     `packages/devtools/src/serialization.ts`,
+     `packages/devtools/src/store.ts`,
+     `packages/devtools/test/devtools.test.ts`.
+   - Problem: the public devtools root still owned snapshot mutation, event
+     sequencing, bounded history, action tracking, route/request recording, and
+     summary/panel/causal graph reads. The Module was deep for callers, but its
+     Implementation had poor locality.
+   - Fix: `store.ts` now owns the Devtools Store runtime and exposes Effect
+     operations as the implementation interface. Plain store methods are sync
+     Adapters over those Effects for existing host callers. `serialization.ts`
+     owns JSON-safe value projection, invalidation plan projection, route-plan
+     projection, and defensive request-trace copies.
+   - Benefits: Store ordering, limits, copies, and event recording now have one
+     test surface. The public root keeps its facade leverage while future
+     summary and causal-graph Modules can depend on a narrower Store interface.
+   - Evidence: `pnpm --filter @effect-ui/devtools typecheck` passed, and
+     `pnpm exec vitest run packages/devtools/test/devtools.test.ts` passed:
+     1 file / 17 tests.
+
+2. Effect-first test coordination
+   - Status: fixed for the audited sites.
+   - Files: `packages/core/test/action.test.ts`,
+     `packages/core/test/resource.test.ts`,
+     `packages/db/test/collection.test.ts`,
+     `packages/db/test/persisted-options.test.ts`,
+     `packages/db/test/sqlite-persistence.test.ts`,
+     `packages/start/test/start.test.ts`,
+     `examples/project-console/src/domain.mock.test.ts`.
+   - Problem: several tests coordinated Action, Resource, Collection, and
+     StartAction concurrency with Promise handles even though the behavior under
+     test was Effect-native scheduling.
+   - Fix: replaced Promise lifetimes with `Effect.runFork(...)`,
+     `runtime.runFork(...)`, `Fiber.join(...)`, `Fiber.await(...)`,
+     `Effect.all(...)`, `Effect.flip(...)`, and
+     `Effect.scoped(runtime.provide(...))` so internal sequencing stays inside
+     Effect. Host Promise conversion remains at the Vitest boundary.
+   - Benefits: tests now exercise the same fibers, interruption, and runtime
+     provisioning semantics as the library. This improves locality for
+     scheduler bugs and keeps Promise use as a host Adapter instead of an
+     internal coordination seam.
+   - Evidence: `pnpm typecheck` passed,
+     `pnpm exec vitest run packages/core/test/action.test.ts packages/core/test/resource.test.ts`
+     passed: 2 files / 43 tests,
+     `pnpm exec vitest run packages/db/test/sqlite-persistence.test.ts packages/db/test/persisted-options.test.ts packages/db/test/collection.test.ts`
+     passed: 3 files / 40 tests,
+     `pnpm exec vitest run examples/project-console/src/domain.mock.test.ts`
+     passed: 1 file / 7 tests, and
+     `pnpm exec vitest run packages/start/test/start.test.ts` passed:
+     1 file / 57 tests.
+
+Open candidates from this pass:
+
+- Collection Runtime Module: the DB root still owns Collection Definition
+  construction, runtime store access, load/refetch, direct writes, change
+  batches, optimistic mutation execution, event publication, and persistence
+  coordination. This is the next highest-leverage deepening candidate.
+- Start Request Handler Module: Start root still owns RPC/action/SSR endpoint
+  selection, Request Runtime provisioning, request trace mutation,
+  ResponseContext application, and stream finalization orchestration.
+- Resource Runtime Module: core Resource still owns family cache lookup,
+  in-flight fiber coordination, suspense reads, invalidation execution,
+  dehydration, and hydration behind one large Implementation.

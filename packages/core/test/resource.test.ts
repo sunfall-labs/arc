@@ -1,4 +1,4 @@
-import { Deferred, Effect, Exit, PubSub, Request, RequestResolver, Schedule, Schema } from "effect";
+import { Deferred, Effect, Exit, Fiber, PubSub, Request, RequestResolver, Schedule, Schema } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import { makeRuntime, read, Resource, ResourceFailure, runWithRuntime } from "../src/index.js";
 
@@ -355,7 +355,7 @@ describe("Resource", () => {
     const ref = Count(undefined);
 
     await Effect.runPromise(Resource.prefetchEffect(ref));
-    const refreshing = Effect.runPromise(Resource.refreshEffect(ref));
+    const refreshing = Effect.runFork(Resource.refreshEffect(ref));
 
     expect(Resource.status(ref)).toMatchObject({
       _tag: "Pending",
@@ -369,7 +369,7 @@ describe("Resource", () => {
     });
 
     await Effect.runPromise(Deferred.succeed(gate, undefined));
-    await expect(refreshing).resolves.toBe(2);
+    await expect(Effect.runPromise(Fiber.join(refreshing))).resolves.toBe(2);
     expect(Resource.status(ref)).toMatchObject({
       _tag: "Success",
       value: 2,
@@ -393,15 +393,19 @@ describe("Resource", () => {
     });
     const ref = Count(undefined);
 
-    const first = Effect.runPromise(Resource.prefetchEffect(ref));
-    const second = Effect.runPromise(Resource.prefetchEffect(ref));
+    const first = Effect.runFork(Resource.prefetchEffect(ref));
+    const second = Effect.runFork(Resource.prefetchEffect(ref));
 
     await Effect.runPromise(Deferred.await(started));
     expect(loads).toBe(1);
 
     await Effect.runPromise(Deferred.succeed(gate, undefined));
-    await expect(first).resolves.toBe(1);
-    await expect(second).resolves.toBe(1);
+    await expect(Effect.runPromise(
+      Effect.all([
+        Fiber.join(first),
+        Fiber.join(second)
+      ], { concurrency: "unbounded" })
+    )).resolves.toEqual([1, 1]);
     expect(Resource.status(ref)).toMatchObject({
       _tag: "Success",
       value: 1
@@ -427,11 +431,12 @@ describe("Resource", () => {
     });
     const ref = Count(undefined);
 
-    const prefetch = runtime.runPromise(Resource.prefetchEffect(ref));
+    const prefetch = runtime.runFork(Resource.prefetchEffect(ref));
     await runtime.runPromise(Deferred.await(started));
     await Effect.runPromise(runtime.disposeEffect);
 
-    await expect(prefetch).rejects.toBeDefined();
+    const exit = await Effect.runPromise(Fiber.await(prefetch));
+    expect(exit._tag).toBe("Failure");
     expect(interrupted).toBe(true);
   });
 

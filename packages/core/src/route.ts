@@ -1,4 +1,4 @@
-import { Data, Effect, Schema } from "effect";
+import { Effect, Schema } from "effect";
 import type { EffectInput, EnsureEffectInput } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
 import {
@@ -8,44 +8,19 @@ import {
   type AnyResourceRef,
   type ResourceHydrationPayload
 } from "./resource.js";
+import {
+  buildRoutePath,
+  hrefForRouteInput,
+  matchRoutePath,
+  parseRouteUrl,
+  type ParamsForPath
+} from "./route-grammar.js";
 
 export type AnySchema<A = unknown> = {
   readonly Type?: A;
 };
 
 type SchemaType<S> = S extends { readonly Type: infer A } ? A : unknown;
-
-type StripParamName<S extends string> = S extends `${infer Name}?`
-  ? Name
-  : S extends `${infer Name}.${string}`
-    ? Name
-    : S;
-
-type PathParamNames<Path extends string> =
-  Path extends `${string}:${infer Param}/${infer Rest}`
-    ? StripParamName<Param> | PathParamNames<`/${Rest}`>
-    : Path extends `${string}:${infer Param}`
-      ? StripParamName<Param>
-      : never;
-
-type IsOptionalParam<S extends string> = S extends `${string}?` ? true : false;
-
-type OptionalPathParamNames<Path extends string> =
-  Path extends `${string}:${infer Param}/${infer Rest}`
-    ? (IsOptionalParam<Param> extends true ? StripParamName<Param> : never) | OptionalPathParamNames<`/${Rest}`>
-    : Path extends `${string}:${infer Param}`
-      ? IsOptionalParam<Param> extends true ? StripParamName<Param> : never
-      : never;
-
-type RequiredPathParamNames<Path extends string> = Exclude<
-  PathParamNames<Path>,
-  OptionalPathParamNames<Path>
->;
-
-export type ParamsForPath<Path extends string> = [PathParamNames<Path>] extends [never]
-  ? Record<string, never>
-  : { readonly [K in RequiredPathParamNames<Path>]: string } &
-    { readonly [K in OptionalPathParamNames<Path>]?: string };
 
 export type RoutePreloadResourceInput =
   | string
@@ -168,15 +143,6 @@ type CheckedRoutePreload<Options> = Options extends {
   ? { readonly preload: (...args: Args) => EnsureEffectInput<Out> }
   : {};
 
-type PathPart =
-  | { readonly _tag: "Static"; readonly value: string }
-  | { readonly _tag: "Param"; readonly name: string; readonly optional: boolean };
-
-export class MissingRouteParam extends Data.TaggedError("MissingRouteParam")<{
-  readonly route: string;
-  readonly param: string;
-}> {}
-
 const appendSearch = (path: string, search: Record<string, unknown> | undefined): string => {
   if (!search) {
     return path;
@@ -194,48 +160,6 @@ const appendSearch = (path: string, search: Record<string, unknown> | undefined)
   return query.length > 0 ? `${path}?${query}` : path;
 };
 
-const parseUrl = (input: string | URL): URL => {
-  if (input instanceof URL) {
-    return input;
-  }
-
-  return new URL(input, "http://effect-ui.local");
-};
-
-const hrefForInput = (input: string | URL): string => {
-  const url = parseUrl(input);
-  return `${url.pathname}${url.search}`;
-};
-
-const splitPath = (path: string): ReadonlyArray<string> =>
-  path.split("/").filter((part) => part.length > 0);
-
-const pathParts = (path: string): ReadonlyArray<PathPart> =>
-  splitPath(path).map((part) =>
-    part.startsWith(":")
-      ? {
-          _tag: "Param",
-          name: stripParamNameRuntime(part.slice(1)),
-          optional: isOptionalParamRuntime(part.slice(1))
-        }
-      : {
-          _tag: "Static",
-          value: part
-        }
-  );
-
-const isOptionalParamRuntime = (name: string): boolean => {
-  const dot = name.indexOf(".");
-  const base = dot === -1 ? name : name.slice(0, dot);
-  return base.endsWith("?");
-};
-
-const stripParamNameRuntime = (name: string): string => {
-  const dot = name.indexOf(".");
-  const base = dot === -1 ? name : name.slice(0, dot);
-  return base.endsWith("?") ? base.slice(0, -1) : base;
-};
-
 const searchObject = (searchParams: URLSearchParams): Record<string, unknown> => {
   const out: Record<string, unknown> = {};
   for (const [key, value] of searchParams) {
@@ -250,73 +174,6 @@ const decode = <A>(schema: unknown, input: unknown): A => {
   }
 
   return Schema.decodeUnknownSync(schema as Schema.Decoder<A>)(input);
-};
-
-const matchPath = (
-  pattern: string,
-  pathname: string
-): Record<string, string> | undefined => {
-  const patternParts = pathParts(pattern);
-  const currentParts = splitPath(pathname);
-
-  const match = (
-    patternIndex: number,
-    currentIndex: number,
-    params: Record<string, string>
-  ): Record<string, string> | undefined => {
-    if (patternIndex === patternParts.length) {
-      return currentIndex === currentParts.length ? params : undefined;
-    }
-
-    const patternPart = patternParts[patternIndex];
-    const currentPart = currentParts[currentIndex];
-
-    if (!patternPart) {
-      return undefined;
-    }
-
-    if (patternPart._tag === "Static") {
-      return currentPart === patternPart.value
-        ? match(patternIndex + 1, currentIndex + 1, params)
-        : undefined;
-    }
-
-    if (currentPart !== undefined) {
-      const consumed = match(patternIndex + 1, currentIndex + 1, {
-        ...params,
-        [patternPart.name]: decodeURIComponent(currentPart)
-      });
-      if (consumed) {
-        return consumed;
-      }
-    }
-
-    return patternPart.optional
-      ? match(patternIndex + 1, currentIndex, params)
-      : undefined;
-  };
-
-  return match(0, 0, {});
-};
-
-const buildPath = (path: string, params: Record<string, unknown>): string => {
-  const parts = pathParts(path).flatMap((part) => {
-    if (part._tag === "Static") {
-      return [part.value];
-    }
-
-    const value = params[part.name];
-    if (value === undefined || value === null) {
-      if (part.optional) {
-        return [];
-      }
-      throw new MissingRouteParam({ route: path, param: part.name });
-    }
-
-    return [encodeURIComponent(String(value))];
-  });
-
-  return parts.length === 0 ? "/" : `/${parts.join("/")}`;
 };
 
 const isObjectLike = (value: unknown): value is Record<string, unknown> =>
@@ -413,13 +270,13 @@ export const route = <const Path extends string, const Options extends RouteOpti
     options: options as RouteOptions<Path, Params, Search>,
     build(params, search) {
       const record = params as Record<string, unknown>;
-      const compiled = buildPath(path, record);
+      const compiled = buildRoutePath(path, record);
 
       return appendSearch(compiled, search as Record<string, unknown> | undefined);
     },
     match(input) {
-      const url = parseUrl(input);
-      const params = matchPath(path, url.pathname);
+      const url = parseRouteUrl(input);
+      const params = matchRoutePath(path, url.pathname);
       if (!params) {
         return undefined;
       }
@@ -605,7 +462,7 @@ export namespace Route {
     routes: Routes,
     input: string | URL
   ): Effect.Effect<NavigationPlan<Routes[number]>, unknown> => {
-    const href = hrefForInput(input);
+    const href = hrefForRouteInput(input);
     const matched = match(routes, input);
     if (!matched) {
       return Effect.succeed({

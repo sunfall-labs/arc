@@ -1,6 +1,6 @@
 import { makeResourceStore, makeRuntime, read, ResourceStore, runWithRuntime } from "@effect-ui/core";
 import { Collection, CollectionRowNotFound, Query, UnknownCollectionIndex, and, eq, gt } from "@effect-ui/db";
-import { Deferred, Effect, PubSub, Schedule } from "effect";
+import { Deferred, Effect, Fiber, PubSub, Schedule } from "effect";
 import { describe, expect, it, vi } from "vitest";
 
 interface Project {
@@ -494,7 +494,7 @@ describe("Collection", () => {
     });
 
     try {
-      const update = Effect.runPromise(Projects.updateEffect("atlas", { progress: 80 }));
+      const update = Effect.runFork(Projects.updateEffect("atlas", { progress: 80 }));
       await Effect.runPromise(Effect.sleep("10 millis"));
 
       expect(Projects.pendingMutations()).toMatchObject([
@@ -536,7 +536,7 @@ describe("Collection", () => {
       ]);
 
       Effect.runSync(Deferred.succeed(release, undefined));
-      await update;
+      await Effect.runPromise(Fiber.join(update));
 
       expect(Projects.pendingMutations()).toEqual([]);
       expect(Projects.get("atlas")).toMatchObject({
@@ -556,7 +556,7 @@ describe("Collection", () => {
     const storage = Collection.memoryStorage();
     const persisted: Array<Project> = [];
     const handledTransactions: Array<string> = [];
-    let update: Promise<unknown> | undefined;
+    let update: Fiber.Fiber<unknown, unknown> | undefined;
     const Projects = Collection.define<Project, string, never>({
       name: "Projects.pending-flush-success",
       getKey: (project) => project.id,
@@ -576,12 +576,18 @@ describe("Collection", () => {
     });
 
     try {
-      update = first.runPromise(Projects.updateEffect("atlas", { progress: 80 }));
+      update = first.runFork(Projects.updateEffect("atlas", { progress: 80 }));
       await Effect.runPromise(Effect.sleep("10 millis"));
-      await first.runPromise(Projects.persistEffect(storage, { key: "pending-flush-success-cache" }));
-      await second.runPromise(Projects.restoreEffect(storage, { key: "pending-flush-success-cache" }));
+      await Effect.runPromise(Effect.scoped(first.provide(
+        Projects.persistEffect(storage, { key: "pending-flush-success-cache" })
+      )));
+      await Effect.runPromise(Effect.scoped(second.provide(
+        Projects.restoreEffect(storage, { key: "pending-flush-success-cache" })
+      )));
 
-      const flushed = await second.runPromise(Projects.flushPendingMutationsEffect());
+      const flushed = await Effect.runPromise(Effect.scoped(second.provide(
+        Projects.flushPendingMutationsEffect()
+      )));
 
       expect(flushed).toMatchObject([
         {
@@ -602,7 +608,9 @@ describe("Collection", () => {
       });
     } finally {
       Effect.runSync(Deferred.succeed(release, undefined));
-      await update;
+      if (update !== undefined) {
+        await Effect.runPromise(Fiber.await(update));
+      }
       await Effect.runPromise(first.disposeEffect);
       await Effect.runPromise(second.disposeEffect);
     }
@@ -614,7 +622,7 @@ describe("Collection", () => {
     const release = Effect.runSync(Deferred.make<void>());
     const storage = Collection.memoryStorage();
     const handledTransactions: Array<string> = [];
-    let update: Promise<unknown> | undefined;
+    let update: Fiber.Fiber<unknown, unknown> | undefined;
     const Projects = Collection.define<Project, string, string>({
       name: "Projects.pending-flush-failure",
       getKey: (project) => project.id,
@@ -630,12 +638,19 @@ describe("Collection", () => {
     });
 
     try {
-      update = first.runPromise(Projects.updateEffect("atlas", { progress: 80 }));
+      update = first.runFork(Projects.updateEffect("atlas", { progress: 80 }));
       await Effect.runPromise(Effect.sleep("10 millis"));
-      await first.runPromise(Projects.persistEffect(storage, { key: "pending-flush-failure-cache" }));
-      await second.runPromise(Projects.restoreEffect(storage, { key: "pending-flush-failure-cache" }));
+      await Effect.runPromise(Effect.scoped(first.provide(
+        Projects.persistEffect(storage, { key: "pending-flush-failure-cache" })
+      )));
+      await Effect.runPromise(Effect.scoped(second.provide(
+        Projects.restoreEffect(storage, { key: "pending-flush-failure-cache" })
+      )));
 
-      await expect(second.runPromise(Projects.flushPendingMutationsEffect())).rejects.toBe("offline");
+      const flushFailure = await Effect.runPromise(Effect.flip(Effect.scoped(second.provide(
+        Projects.flushPendingMutationsEffect()
+      ))));
+      expect(flushFailure).toBe("offline");
 
       expect(handledTransactions).toHaveLength(2);
       expect(handledTransactions[1]).toBe(handledTransactions[0]);
@@ -647,7 +662,9 @@ describe("Collection", () => {
       });
     } finally {
       Effect.runSync(Deferred.succeed(release, undefined));
-      await update;
+      if (update !== undefined) {
+        await Effect.runPromise(Fiber.await(update));
+      }
       await Effect.runPromise(first.disposeEffect);
       await Effect.runPromise(second.disposeEffect);
     }

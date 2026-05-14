@@ -2,8 +2,6 @@ import { Deferred, Effect, Fiber, Schedule } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import { Action, makeRuntime, read, Resource, runWithRuntime, Signal } from "../src/index.js";
 
-const ignorePromiseFailure = <A>(promise: Promise<A>) => Effect.tryPromise(() => promise).pipe(Effect.ignore);
-
 describe("Action", () => {
   it("tracks status transitions", async () => {
     const Rename = Action.define({
@@ -13,9 +11,9 @@ describe("Action", () => {
     const action = Action.use(Rename);
 
     expect(read(action.state)._tag).toBe("Idle");
-    const promise = Effect.runPromise(action.submitEffect("Ada"));
+    const submission = Effect.runFork(action.submitEffect("Ada"));
     expect(read(action.state)._tag).toBe("Pending");
-    await promise;
+    await Effect.runPromise(Fiber.join(submission));
 
     expect(read(action.state)).toMatchObject({
       _tag: "Success",
@@ -186,10 +184,16 @@ describe("Action", () => {
     });
     const action = Action.use(Finish);
 
-    const first = Effect.runPromise(ignorePromiseFailure(Effect.runPromise(action.submitEffect("first"))));
-    await Effect.runPromise(Effect.sleep("10 millis"));
-    await Effect.runPromise(action.submitEffect("second"));
-    await first;
+    await Effect.runPromise(
+      Effect.gen(function* () {
+        const first = yield* action.submitEffect("first").pipe(
+          Effect.forkChild({ startImmediately: true })
+        );
+        yield* Effect.sleep("10 millis");
+        yield* action.submitEffect("second");
+        yield* Fiber.await(first);
+      })
+    );
 
     expect(interrupted).toBe(true);
     expect(read(action.state)).toMatchObject({
@@ -266,9 +270,9 @@ describe("Action", () => {
     });
     const action = Action.use(Rename);
 
-    const promise = Effect.runPromise(action.submitEffect("Published"));
+    const submission = Effect.runFork(action.submitEffect("Published"));
 
-    await expect(promise).resolves.toBe("Published");
+    await expect(Effect.runPromise(Fiber.join(submission))).resolves.toBe("Published");
     expect(read(title)).toBe("Published");
     expect(read(action.state)).toMatchObject({
       _tag: "Success",
@@ -334,16 +338,16 @@ describe("Action", () => {
     });
     const action = Action.use(Rename);
 
-    const first = Effect.runPromise(ignorePromiseFailure(Effect.runPromise(action.submitEffect("Stale"))));
+    const first = Effect.runFork(action.submitEffect("Stale"));
     await Effect.runPromise(Effect.sleep("10 millis"));
     expect(read(title)).toBe("Stale");
 
-    const second = Effect.runPromise(action.submitEffect("Published"));
+    const second = Effect.runFork(action.submitEffect("Published"));
     await Effect.runPromise(Deferred.await(secondOptimisticApplied));
 
     expect(read(title)).toBe("Published");
-    await expect(second).resolves.toBe("Published");
-    await first;
+    await expect(Effect.runPromise(Fiber.join(second))).resolves.toBe("Published");
+    await Effect.runPromise(Fiber.await(first));
     expect(read(title)).toBe("Published");
   });
 
@@ -364,12 +368,24 @@ describe("Action", () => {
     });
     const action = Action.use(Finish);
 
-    const first = Effect.runPromise(action.submitEffect("first"));
-    const second = Effect.runPromise(action.submitEffect("second"));
-    Effect.runSync(Deferred.succeed(release, undefined));
+    const [first, second] = await Effect.runPromise(
+      Effect.gen(function* () {
+        const first = yield* action.submitEffect("first").pipe(
+          Effect.forkChild({ startImmediately: true })
+        );
+        const second = yield* action.submitEffect("second").pipe(
+          Effect.forkChild({ startImmediately: true })
+        );
+        yield* Deferred.succeed(release, undefined);
+        return yield* Effect.all([
+          Fiber.join(first),
+          Fiber.join(second)
+        ], { concurrency: "unbounded" });
+      })
+    );
 
-    await expect(first).resolves.toBe("first");
-    await expect(second).resolves.toBe("first");
+    expect(first).toBe("first");
+    expect(second).toBe("first");
 
     expect(runs).toBe(1);
     expect(read(action.state)).toMatchObject({
@@ -428,13 +444,25 @@ describe("Action", () => {
     });
     const action = Action.use(Finish);
 
-    const first = Effect.runFork(action.submitEffect("first"));
-    await Effect.runPromise(Effect.sleep("10 millis"));
-    const second = Effect.runPromise(action.submitEffect("second"));
-    Effect.runSync(Deferred.succeed(release, undefined));
+    const [firstResult, secondResult] = await Effect.runPromise(
+      Effect.gen(function* () {
+        const first = yield* action.submitEffect("first").pipe(
+          Effect.forkChild({ startImmediately: true })
+        );
+        yield* Effect.sleep("10 millis");
+        const second = yield* action.submitEffect("second").pipe(
+          Effect.forkChild({ startImmediately: true })
+        );
+        yield* Deferred.succeed(release, undefined);
+        return yield* Effect.all([
+          Fiber.join(first),
+          Fiber.join(second)
+        ], { concurrency: "unbounded" });
+      })
+    );
 
-    await expect(Effect.runPromise(Fiber.join(first))).resolves.toBe("first");
-    await expect(second).resolves.toBe("first");
+    expect(firstResult).toBe("first");
+    expect(secondResult).toBe("first");
     expect(runs).toBe(1);
   });
 

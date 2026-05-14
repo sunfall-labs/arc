@@ -8,6 +8,7 @@ export * from "./read.js";
 export * from "./request-context.js";
 export * from "./resource.js";
 export * from "./resource-store.js";
+export * from "./route-grammar.js";
 export * from "./route.js";
 export * from "./runtime.js";
 export * from "./scope.js";

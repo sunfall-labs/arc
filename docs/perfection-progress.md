@@ -42,10 +42,10 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest full verification gate is green after the DB persisted-options async test
-  boundary cleanup: 39 root test files / 321 tests plus devtools panel,
-  devtools extension, starter, rich starter packaging, project-console build,
-  and leak-scan gates.
+- The latest full verification gate is green after the architecture-deepening
+  module sweep: 40 root test files / 328 tests plus devtools panel, devtools
+  extension, starter, rich starter packaging, project-console build, and
+  leak-scan gates.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
   example, script, and type-test sources while keeping negative runtime
   validation tests explicit.
@@ -108,12 +108,25 @@ or command result that proves it.
   type tests now reports no hits.
 - `@effect-ui/devtools` now exposes scoped app-side bridge helpers so apps can
   install and clean up that global payload provider through Effect.
+- Devtools panel rendering and DOM mount lifecycle now live in
+  `packages/devtools/src/panel-renderer.ts` behind the public devtools facade.
+- Devtools inspected-window bridge installation now lives in
+  `packages/devtools/src/bridge.ts`, including Effect-scoped cleanup.
 - Workspace package manifests now carry `UNLICENSED` metadata while they remain
   private; public license/repository decisions stay explicit publication work.
+- DB live-query incremental IVM runtime work now lives in
+  `packages/db/src/live-query-runtime.ts`, with Query facades delegating source
+  preload/refetch loops and evaluation to that module.
+- Core Route and Start file-route manifests now share
+  `packages/core/src/route-grammar.ts` for path parsing, building, matching,
+  route-id slugs, segment ordering, and prefix checks.
 - Start request-runtime provision, request-handler runners, StartAction fibers,
   response stream pull/cancel programs, and hydration sync helpers now pass
   Effects directly through runtime/Effect primitives instead of local
   requirement-erasure casts.
+- Start RPC/action transport protocol decoding, response shaping, failure
+  classification, invalidation serialization, and client response parsing now
+  live in a focused `start-transport-protocol.ts` module.
 - DB sync-adapter tests now return Effect programs for generic, server,
   Resource, query-client, and scoped change-feed adapter sequencing.
 - Start RPC/action runtime-boundary failures now produce explicit defect
@@ -140,8 +153,8 @@ or command result that proves it.
 - Package and example fire-and-forget effects now run as detached fibers rather
   than floating `runPromise(...)` calls; Promise runners remain at
   Promise-returning host/API boundaries.
-- The latest full verification gate is green after the example fire-and-forget
-  cleanup: 38 root test files / 320 tests plus devtools panel, devtools
+- The latest full verification gate is green after the architecture-deepening
+  module sweep: 40 root test files / 328 tests plus devtools panel, devtools
   extension, starter, rich starter packaging, project-console build, and
   leak-scan gates.
 - The final no-new-improvements clean-sweep gate is still open because the
@@ -365,6 +378,10 @@ or command result that proves it.
 | 210 | Start app-graph async test boundary cleanup | `packages/start/test/app-graph.test.ts`; `docs/effect-first-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md` | Converted Start app-graph tests from async wrappers and Promise matcher assertions to returned `Effect.runPromise(Effect.gen(...))` programs. The shared graph builder now composes manifest Effects directly, expected policy failures are captured through `Effect.exit(...)`, and assertions run inside `Effect.sync(...)`. Start typecheck and the app-graph test file / 9 tests passed. | Run full verification before claiming the next green checkpoint. |
 | 211 | Effect runtime compatibility and adapter module split | `CONTEXT.md`; `packages/core/src/resource.ts`; `packages/core/test/resource.test.ts`; `packages/start/src/index.ts`; `packages/start/src/request-trace.ts`; `packages/start/src/effect-rpc-compat.ts`; `packages/start/src/start-diagnostics-contract.ts`; `packages/start/src/diagnostics-report.ts`; `packages/solid/src/*`; `packages/solid-db/src/*`; `type-tests/framework.test-d.ts`; `docs` | Added `Resource.requestFamily(...)` for Effect `RequestResolver`-backed batching, exported Start request count/duration/status metrics and request/RPC/action spans, redacted request trace header/cookie values, introduced an additive `effect/unstable/rpc` compatibility descriptor layer, extracted the Start diagnostics contract behind the report facade, and split Solid/Solid-DB roots into focused runtime/router/hook and collection/live-query adapter modules. New tests return Effect programs, public type tests cover the added APIs, focused Solid/Start/Core tests passed, and full verification passed: 9 package builds, workspace typecheck, type tests, 40 root test files / 327 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Continue with remaining async test wrapper cleanup and evaluate generated Effect RPC artifacts beside the app graph. |
 | 212 | DB sync-adapter async test boundary cleanup | `packages/db/test/sync-adapter.test.ts`; `docs/effect-first-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md` | Converted sync-adapter tests from async wrappers to returned `Effect.runPromise(Effect.gen(...))` programs. Generic, server, Resource, query-client, and scoped change-feed adapter assertions now sequence through Effect primitives, and `Effect.runPromise(...)` remains only at the Vitest host boundary. DB typecheck and the sync-adapter test file / 5 tests passed. | Run full verification before claiming the next green checkpoint. |
+| 213 | Start transport protocol module extraction | `CONTEXT.md`; `packages/start/src/index.ts`; `packages/start/src/start-transport-protocol.ts`; `docs/architecture-deepening-review.md`; `docs/effect-first-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md` | Extracted Start RPC/action JSON/form request decoding, response shaping, schema encode/decode, failure classification, invalidation payload serialization, progressive action form metadata, and client response parsing from the Start root into `start-transport-protocol.ts`. The root now stays focused on request runtime provisioning, tracing, SSR preload, and response lifecycle orchestration. Start typecheck, workspace typecheck/type tests, and focused Start protocol/app-graph tests passed: 5 files / 83 tests. | Keep route grammar and devtools inspection module deepening as the next architecture candidates. |
+| 214 | Architecture deepening module sweep | `CONTEXT.md`; `packages/devtools/src/index.ts`; `packages/devtools/src/bridge.ts`; `packages/devtools/src/panels.ts`; `packages/devtools/src/panel-renderer.ts`; `packages/devtools/src/serialization.ts`; `packages/devtools/src/store.ts`; `packages/devtools/src/summary.ts`; `packages/db/src/index.ts`; `packages/db/src/live-query-runtime.ts`; `packages/core/src/index.ts`; `packages/core/src/route.ts`; `packages/core/src/route-grammar.ts`; `packages/start/src/file-routes.ts`; `packages/start/src/index.ts`; `packages/start/src/start-transport-protocol.ts`; `docs/architecture-deepening-review.md`; `docs/effect-first-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md` | Advanced the architecture-deepening review by splitting devtools store, summary/causal graph projection, panel projection, serialization, bridge, and panel rendering, plus DB live-query runtime, Start transport protocol, and shared route grammar into focused modules behind the existing public facades. Devtools build/typecheck/tests passed, Core/DB/Start package typechecks passed, workspace typecheck/type tests passed, DB/route grammar focused tests passed: 6 files / 70 tests, and Start transport focused tests passed: 5 files / 83 tests. | Re-run full verification before treating this as the next green checkpoint. |
+| 215 | Full verification after architecture deepening | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/effect-first-audit.md` | Escalated full verification passed after the architecture-deepening module sweep: 9 package builds, workspace typecheck, type tests, 40 root test files / 328 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next cleanup slice. |
+| 216 | Effect-first coordination follow-up | `packages/core/test/action.test.ts`; `packages/core/test/resource.test.ts`; `packages/db/test/collection.test.ts`; `packages/db/test/persisted-options.test.ts`; `packages/db/test/sqlite-persistence.test.ts`; `packages/devtools/test/devtools.test.ts`; `packages/start/test/start.test.ts`; `examples/project-console/src/domain.mock.test.ts`; `docs/architecture-deepening-review.md` | Replaced audited Promise handles and Promise matcher coordination in Action, Resource, Collection, StartAction, devtools, and project-console tests with Effect fibers, `Effect.all(...)`, `Effect.flip(...)`, and `Effect.scoped(runtime.provide(...))`. `pnpm typecheck` passed, plus focused Core, DB, Devtools, Start, and project-console tests passed: 8 files / 164 tests. | Run full verification before claiming the next green checkpoint. |
 
 ## Thirty-Sweep Gate
 
