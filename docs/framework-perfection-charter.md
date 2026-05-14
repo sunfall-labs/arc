@@ -175,6 +175,7 @@ Goal: prove that a user can copy the framework's intended path.
 - Turn the project console into the canonical starter-quality example.
 - Add a minimal starter or starter recipe.
 - Add deployment docs for Node/fetch hosts currently supported.
+  - Evidence: `docs/deployment.md`.
 - Add migration notes from TanStack Query, TanStack Start, Remix-style forms,
   and ad hoc service mocks.
 - Ensure every docs code sample is typechecked or explicitly illustrative.

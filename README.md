@@ -24,6 +24,7 @@ surface, examples, diagnostics, and release gates are being hardened.
 
 - [Architecture](docs/architecture.md)
 - [Effect style guide](docs/effect-style.md)
+- [Deployment](docs/deployment.md)
 - [Framework perfection charter](docs/framework-perfection-charter.md)
 - [Public API inventory](docs/public-api-inventory.md)
 - [Project console example](examples/project-console/README.md)

@@ -558,8 +558,11 @@ Last evidence pass: May 14, 2026.
 
 - [ ] Turn the documented devtools target panels into an actual browser or app
   UI once the trace payload is stable.
-- [ ] Add external starter/deployment docs and host-specific adapter packages
-  when the framework is ready for users outside this repo.
+- [ ] Add external starter docs and host-specific adapter packages when the
+  framework is ready for users outside this repo.
+  - Evidence: current Node/fetch deployment guidance exists in
+    `docs/deployment.md`; host-specific packages and starter packaging remain
+    future work.
 - [x] Add benchmarks for SSR, route preload, resource cache behavior, DB live
   query behavior, and RPC/action transport.
   - Evidence: `benchmarks/framework-baseline.bench.ts` and
@@ -575,6 +578,6 @@ quality goal.
    request trace payload.
 2. Extend request traces with any missing response context, collection, and
    request-fiber details uncovered by that UI work.
-3. Add external starter/deployment docs and host-specific adapter guidance.
-4. Package the project console as a starter template once the devtools trace
-   and deployment docs land.
+3. Add external starter packaging and host-specific adapter packages.
+4. Package the project console as a starter template once the devtools UI and
+   host-specific adapter packages land.
