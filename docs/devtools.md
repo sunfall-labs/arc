@@ -80,6 +80,13 @@ The plain methods remain for host adapters, but framework internals and tests
 should prefer the Effect methods so observation composes with services, scopes,
 and interruption.
 
+Start request handling also emits Effect-native observability alongside the
+plain trace payload. `@effect-ui/start` exports `startRequestCountMetric`,
+`startRequestDurationMetric`, and `startRequestStatusMetric`; the handler wraps
+requests in an `effect-ui.start.request` span, and server RPC/action calls in
+child spans. Effect loggers receive request annotations such as request id,
+transport, method, and path.
+
 ## Causality
 
 The causal graph answers questions like:

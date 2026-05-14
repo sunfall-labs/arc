@@ -43,6 +43,12 @@ import {
   type StartCollectionHydrationOptions,
   type StartHydrationPayload
 } from "./hydration.js";
+
+export {
+  startRequestCountMetric,
+  startRequestDurationMetric,
+  startRequestStatusMetric
+} from "./request-trace.js";
 import {
   hasContentType,
   serverActionPath,
@@ -66,10 +72,16 @@ import {
   buildStartRequestTrace,
   emitStartRequestTraceEffect,
   requestRuntimeDisposeTraceEffect,
+  startRequestCountMetric,
+  startRequestDurationMetric,
   startRequestTraceFactsEffect,
+  startRequestStatusMetric,
   startRequestTraceTeardown,
   traceCollectionPreload,
   traceRoutePlan,
+  withStartActionObservability,
+  withStartRequestObservability,
+  withStartRpcObservability,
   type StartRequestTraceFacts,
   type StartRequestTraceFailureKind,
   type StartRequestTraceHandler
@@ -86,6 +98,7 @@ export * from "./streaming.js";
 export * from "./server-function-manifest.js";
 export * from "./action-manifest.js";
 export * from "./app-graph.js";
+export * from "./effect-rpc-compat.js";
 export * from "./diagnostics-report.js";
 export * from "./file-route-modules.js";
 export * from "./file-route.js";
@@ -916,7 +929,9 @@ const createServerRpcResponseEffectWithRuntime = <
           return functionNotFoundResponse(decoded.name);
         }
 
-        const exit = yield* Effect.exit(fn.invoke(decoded.input));
+        const exit = yield* Effect.exit(
+          withStartRpcObservability(decoded.name, fn.invoke(decoded.input))
+        );
         const failureKind = Exit.isSuccess(exit)
           ? undefined
           : yield* rpcFailureKindEffect(fn, exit);
@@ -1354,7 +1369,9 @@ const createServerActionResponseEffectWithRuntime = <
         }
 
         const instance = Action.use(action, { runtime });
-        const exit = yield* Effect.exit(instance.submitEffect(input));
+        const exit = yield* Effect.exit(
+          withStartActionObservability(action.name, instance.submitEffect(input))
+        );
         const meta = yield* actionResponseMetaEffect(instance.invalidationPlan.get());
         const failureKind = yield* actionFailureKindEffect(action, exit);
         if (failureKind !== undefined && traceFacts) {
@@ -2168,148 +2185,154 @@ export const createRequestHandlerEffect =
       const requestRuntime = makeRequestRuntime(app);
       const responseContext = makeResponseContext();
       const traceFacts = yield* startRequestTraceFactsEffect(request);
-      const responseExit = yield* Effect.exit(
-        Effect.gen(function* () {
-          if (isServerRpcRequest(request)) {
-            return yield* createServerRpcResponseEffectWithRuntime(
-              app,
-              request,
-              requestRuntime,
-              responseContext,
-              traceFacts
-            );
-          }
-
-          if (isServerActionRequest(request)) {
-            return yield* createServerActionResponseEffectWithRuntime(
-              app,
-              request,
-              requestRuntime,
-              options.actions,
-              responseContext,
-              traceFacts
-            );
-          }
-
-          const preloaded = yield* preloadRequestEffectWithRuntime(
+      const responseEffect = Effect.gen(function* () {
+        if (isServerRpcRequest(request)) {
+          return yield* createServerRpcResponseEffectWithRuntime(
             app,
             request,
             requestRuntime,
-            options,
-            responseContext
-          );
-          traceFacts.routePlan = traceRoutePlan(preloaded.routePlan);
-          traceFacts.collections = [
-            ...traceCollectionPreload(requestRuntime, preloaded.collectionPreload)
-          ];
-          const context: StartRenderContext<Routes, Client, ServerServices, ServerError> = {
-            app,
-            request,
-            match: preloaded.match,
-            resources: preloaded.resources,
-            collections: preloaded.collections,
-            collectionPreload: preloaded.collectionPreload,
-            hydration: preloaded.hydration,
-            routePlan: preloaded.routePlan,
-            runtime: requestRuntime,
-            resourceStore: requestRuntime.resourceStore,
-            hydrationScript: createHydrationScript(preloaded.hydration)
-          };
-
-          if (options.render) {
-            const renderEffect = Effect.suspend(() =>
-              toEffect(runWithRuntime(requestRuntime, () => options.render!(context)))
-            );
-            const rendered = yield* provideRequestRuntime(
-              requestRuntime,
-              request,
-              renderEffect,
-              responseContext
-            );
-            return rendered instanceof Response
-              ? rendered
-              : new Response(rendered, {
-                  headers: {
-                    "content-type": "text/html"
-                  }
-                });
-          }
-
-          return new Response(
-            JSON.stringify({
-              framework: "effect-ui-start",
-              fullStack: app.fullStack,
-              routes: app.routes.map((routeDefinition) => routeDefinition.path),
-              match: preloaded.match?.href,
-              resources: preloaded.resources,
-              collections: preloaded.collections,
-              hydration: preloaded.hydration
-            }),
-            {
-              headers: {
-                "content-type": "application/json"
-              }
-            }
-          );
-        })
-      );
-
-      if (Exit.isFailure(responseExit)) {
-        const teardown = yield* requestRuntimeDisposeTraceEffect(requestRuntime);
-        if (options.onRequestTrace !== undefined) {
-          yield* emitStartRequestTraceEffect(
-            options.onRequestTrace,
-            buildStartRequestTrace(request, traceFacts, "failure", {
-              teardown: startRequestTraceTeardown(traceFacts, {
-                runtimeDisposed: true,
-                reason: "request-failure",
-                ...teardown
-              })
-            })
+            responseContext,
+            traceFacts
           );
         }
-        return yield* Effect.failCause(responseExit.cause);
-      }
 
-      const response = applyResponseContext(responseContext, responseExit.value);
-      const traceFinalizeOptions = options.onRequestTrace === undefined
-        ? {}
-        : {
-            onFinalize: (state: RequestRuntimeFinalizeState) =>
-              emitStartRequestTraceEffect(
+        if (isServerActionRequest(request)) {
+          return yield* createServerActionResponseEffectWithRuntime(
+            app,
+            request,
+            requestRuntime,
+            options.actions,
+            responseContext,
+            traceFacts
+          );
+        }
+
+        const preloaded = yield* preloadRequestEffectWithRuntime(
+          app,
+          request,
+          requestRuntime,
+          options,
+          responseContext
+        );
+        traceFacts.routePlan = traceRoutePlan(preloaded.routePlan);
+        traceFacts.collections = [
+          ...traceCollectionPreload(requestRuntime, preloaded.collectionPreload)
+        ];
+        const context: StartRenderContext<Routes, Client, ServerServices, ServerError> = {
+          app,
+          request,
+          match: preloaded.match,
+          resources: preloaded.resources,
+          collections: preloaded.collections,
+          collectionPreload: preloaded.collectionPreload,
+          hydration: preloaded.hydration,
+          routePlan: preloaded.routePlan,
+          runtime: requestRuntime,
+          resourceStore: requestRuntime.resourceStore,
+          hydrationScript: createHydrationScript(preloaded.hydration)
+        };
+
+        if (options.render) {
+          const renderEffect = Effect.suspend(() =>
+            toEffect(runWithRuntime(requestRuntime, () => options.render!(context)))
+          );
+          const rendered = yield* provideRequestRuntime(
+            requestRuntime,
+            request,
+            renderEffect,
+            responseContext
+          );
+          return rendered instanceof Response
+            ? rendered
+            : new Response(rendered, {
+                headers: {
+                  "content-type": "text/html"
+                }
+              });
+        }
+
+        return new Response(
+          JSON.stringify({
+            framework: "effect-ui-start",
+            fullStack: app.fullStack,
+            routes: app.routes.map((routeDefinition) => routeDefinition.path),
+            match: preloaded.match?.href,
+            resources: preloaded.resources,
+            collections: preloaded.collections,
+            hydration: preloaded.hydration
+          }),
+          {
+            headers: {
+              "content-type": "application/json"
+            }
+          }
+        );
+      });
+
+      return yield* withStartRequestObservability(
+        request,
+        traceFacts,
+        Effect.gen(function* () {
+          const responseExit = yield* Effect.exit(responseEffect);
+
+          if (Exit.isFailure(responseExit)) {
+            const teardown = yield* requestRuntimeDisposeTraceEffect(requestRuntime);
+            if (options.onRequestTrace !== undefined) {
+              yield* emitStartRequestTraceEffect(
                 options.onRequestTrace,
-                buildStartRequestTrace(request, traceFacts, state.status, {
-                  response,
+                buildStartRequestTrace(request, traceFacts, "failure", {
                   teardown: startRequestTraceTeardown(traceFacts, {
                     runtimeDisposed: true,
-                    reason: state.teardownReason,
-                    beforeDispose: state.beforeDispose,
-                    afterDispose: state.afterDispose,
-                    completedAt: state.completedAt
-                  }),
-                  ...(state.stream === undefined ? {} : { stream: state.stream })
+                    reason: "request-failure",
+                    ...teardown
+                  })
                 })
-              ),
-            onStreamFinalize: (state: RequestRuntimeStreamFinalizeState) =>
-              emitStartRequestTraceEffect(
-                options.onRequestTrace,
-                buildStartRequestTrace(request, traceFacts, state.status, {
-                  response,
-                  teardown: startRequestTraceTeardown(traceFacts, {
-                    runtimeDisposed: true,
-                    reason: state.teardownReason,
-                    beforeDispose: state.beforeDispose,
-                    afterDispose: state.afterDispose,
-                    completedAt: state.completedAt
-                  }),
-                  stream: state.stream
-                })
-              )
-          };
-      return yield* completeRequestRuntimeWithResponse(
-        requestRuntime,
-        response,
-        traceFinalizeOptions
+              );
+            }
+            return yield* Effect.failCause(responseExit.cause);
+          }
+
+          const response = applyResponseContext(responseContext, responseExit.value);
+          const traceFinalizeOptions = options.onRequestTrace === undefined
+            ? {}
+            : {
+                onFinalize: (state: RequestRuntimeFinalizeState) =>
+                  emitStartRequestTraceEffect(
+                    options.onRequestTrace,
+                    buildStartRequestTrace(request, traceFacts, state.status, {
+                      response,
+                      teardown: startRequestTraceTeardown(traceFacts, {
+                        runtimeDisposed: true,
+                        reason: state.teardownReason,
+                        beforeDispose: state.beforeDispose,
+                        afterDispose: state.afterDispose,
+                        completedAt: state.completedAt
+                      }),
+                      ...(state.stream === undefined ? {} : { stream: state.stream })
+                    })
+                  ),
+                onStreamFinalize: (state: RequestRuntimeStreamFinalizeState) =>
+                  emitStartRequestTraceEffect(
+                    options.onRequestTrace,
+                    buildStartRequestTrace(request, traceFacts, state.status, {
+                      response,
+                      teardown: startRequestTraceTeardown(traceFacts, {
+                        runtimeDisposed: true,
+                        reason: state.teardownReason,
+                        beforeDispose: state.beforeDispose,
+                        afterDispose: state.afterDispose,
+                        completedAt: state.completedAt
+                      }),
+                      stream: state.stream
+                    })
+                  )
+              };
+          return yield* completeRequestRuntimeWithResponse(
+            requestRuntime,
+            response,
+            traceFinalizeOptions
+          );
+        })
       );
     });
 

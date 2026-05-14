@@ -1,4 +1,4 @@
-import { Cause, Context, Deferred, Effect, Exit, Fiber, Layer, Schema } from "effect";
+import { Cause, Context, Deferred, Effect, Exit, Fiber, Layer, Metric, Schema } from "effect";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
@@ -14,6 +14,9 @@ import {
   createServerRpcResponseEffect,
   createRequestHandlerEffect,
   createRequestHandler,
+  startRequestCountMetric,
+  startRequestDurationMetric,
+  startRequestStatusMetric,
   hydrateFromDocument,
   hydrateStartHydrationChunksFromDocument,
   hydrateStartHydrationChunksFromDocumentEffect,
@@ -203,7 +206,9 @@ describe("Effect UI Start", () => {
         new Request("https://example.com/projects/atlas?tab=activity", {
           headers: {
             "x-effect-ui-request-id": "req-ssr-atlas",
-            cookie: "session=redacted"
+            authorization: "Bearer top-secret",
+            cookie: "session=s3cr3t",
+            "x-api-key": "key-secret"
           }
         })
       )
@@ -219,10 +224,16 @@ describe("Effect UI Start", () => {
           method: "GET",
           path: "/projects/atlas",
           transport: "ssr",
+          headers: expect.arrayContaining([
+            { name: "authorization", value: "<redacted>" },
+            { name: "cookie", value: "<redacted>" },
+            { name: "x-api-key", value: "<redacted>" },
+            { name: "x-effect-ui-request-id", value: "req-ssr-atlas" }
+          ]),
           cookies: [
             {
               name: "session",
-              value: "redacted"
+              value: "<redacted>"
             }
           ]
         }),
@@ -282,6 +293,9 @@ describe("Effect UI Start", () => {
         })
       })
     ]);
+    expect(JSON.stringify(traces[0])).not.toContain("top-secret");
+    expect(JSON.stringify(traces[0])).not.toContain("s3cr3t");
+    expect(JSON.stringify(traces[0])).not.toContain("key-secret");
   });
 
   it("uses a fresh resource store for each SSR request", async () => {
@@ -656,6 +670,50 @@ describe("Effect UI Start", () => {
         })
       })
     ]);
+  });
+
+  it("records Effect metrics for Start request handling", () => {
+    const ObservedRoute = route("/observed-metrics", {});
+    const app = defineApp({
+      routes: [ObservedRoute] as const,
+      client: {}
+    });
+    const handler = createRequestHandler(app, {
+      render: ({ match }) => `<main>${match?.href}</main>`
+    });
+    const attributes = {
+      transport: "ssr",
+      method: "GET",
+      path: "/observed-metrics"
+    };
+    const requestCount = Metric.withAttributes(startRequestCountMetric, attributes);
+    const requestDuration = Metric.withAttributes(startRequestDurationMetric, attributes);
+    const requestStatus = Metric.withAttributes(startRequestStatusMetric, {
+      ...attributes,
+      status: "success"
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const beforeCount = yield* Metric.value(requestCount);
+        const beforeDuration = yield* Metric.value(requestDuration);
+        const beforeStatus = yield* Metric.value(requestStatus);
+        const beforeSuccessCount = beforeStatus.occurrences.get("success") ?? 0;
+
+        const response = yield* handler(new Request("https://example.com/observed-metrics"));
+        const text = yield* Effect.tryPromise(() => response.text());
+        const afterCount = yield* Metric.value(requestCount);
+        const afterDuration = yield* Metric.value(requestDuration);
+        const afterStatus = yield* Metric.value(requestStatus);
+
+        yield* Effect.sync(() => {
+          expect(text).toContain("/observed-metrics");
+          expect(afterCount.count).toBe(beforeCount.count + 1);
+          expect(afterDuration.count).toBe(beforeDuration.count + 1);
+          expect(afterStatus.occurrences.get("success")).toBe(beforeSuccessCount + 1);
+        });
+      })
+    );
   });
 
   it("emits request traces when request handlers fail", async () => {

@@ -59,7 +59,7 @@ Latest full gate on May 14, 2026:
 
 - 9 package builds;
 - workspace typecheck and public type tests;
-- 39 root test files / 322 tests;
+- 40 root test files / 327 tests;
 - devtools panel verify;
 - devtools extension verify;
 - basic starter verify;
@@ -279,6 +279,17 @@ Latest full gate on May 14, 2026:
   pipelines, with `Response.text()` isolated as the host Promise.
 - Start app-graph tests now return Effect programs, and graph fixture
   construction composes manifest Effects directly.
+- `Resource.requestFamily` lets Resource families delegate loads to Effect
+  `RequestResolver` batching while preserving Resource state, hydration, TTL, and
+  invalidation.
+- Start request handling now exposes Effect-native request count, duration, and
+  status metrics alongside the JSON-safe request trace hook.
+- Start server functions can be described as additive
+  `effect/unstable/rpc` compatibility descriptors without replacing the current
+  Start RPC transport.
+- Start diagnostics report formatting now sits behind a focused diagnostics
+  contract module, and Solid/Solid-DB roots are facades over focused runtime,
+  router, hook, collection, and live-query adapter modules.
 
 ## Notable Limits
 

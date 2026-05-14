@@ -329,6 +329,14 @@ actions, response stream close, stream cancellation, and request failure paths.
 Teardown facts include runtime disposal, reason, start/completion timestamps,
 duration, and before/after Resource Store snapshots.
 
+The same request boundary is also wrapped in Effect observability primitives.
+Start adds an `effect-ui.start.request` span with request annotations, child
+spans for server RPC and Start action execution, log annotations for request
+identity, and exported Effect metrics for request count, request duration, and
+request status. The JSON-safe `onRequestTrace` hook remains the devtools data
+contract, while Effect tracers, loggers, and metric exporters can consume the
+runtime-native signals.
+
 ## Component Runtime
 
 Every mounted component gets a `UiScope` backed by Effect `Scope`. Closing the UI

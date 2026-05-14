@@ -1,4 +1,19 @@
-import { Cache, Clock, Context, Data, Duration, Effect, Exit, Fiber, Option, PubSub, Scope, type Schedule } from "effect";
+import {
+  Cache,
+  Clock,
+  Context,
+  Data,
+  Duration,
+  Effect,
+  Exit,
+  Fiber,
+  Option,
+  PubSub,
+  Request as EffectRequest,
+  RequestResolver,
+  Scope,
+  type Schedule
+} from "effect";
 import type { EffectInput } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
 import {
@@ -72,6 +87,32 @@ export interface ResourceFamilyOptions<I, A, E = unknown, R = never> {
   readonly load: (input: I) => EffectInput<A, E, R>;
   /** Tags provided by a successful value for later invalidation. */
   readonly provides?: (value: A, input: I) => ReadonlyArray<ResourceTag>;
+}
+
+/**
+ * Configuration for a resource family whose loads are delegated to an Effect
+ * RequestResolver.
+ */
+export interface ResourceRequestFamilyOptions<
+  I,
+  Req extends EffectRequest.Any,
+  EX = never,
+  RX = never
+> extends Omit<
+    ResourceFamilyOptions<
+      I,
+      EffectRequest.Success<Req>,
+      EffectRequest.Error<Req> | EX,
+      EffectRequest.Services<Req> | RX
+    >,
+    "load"
+  > {
+  /** Builds the Effect Request for one resource input. */
+  readonly request: (input: I) => Req;
+  /** Resolver used by Effect.request, including its batching and deduping policy. */
+  readonly resolver:
+    | RequestResolver.RequestResolver<Req>
+    | Effect.Effect<RequestResolver.RequestResolver<Req>, EX, RX>;
 }
 
 export interface ResourceFamilyDiagnostics {
@@ -474,6 +515,8 @@ export namespace Resource {
   export type FamilyDiagnostics = ResourceFamilyDiagnostics;
   export type TagDiagnostics = ResourceTagDiagnostics;
   export type Diagnostics = ResourceDiagnostics;
+  export type RequestFamilyOptions<I, Req extends EffectRequest.Any, EX = never, RX = never> =
+    ResourceRequestFamilyOptions<I, Req, EX, RX>;
   export type Collected<A> = {
     readonly value: A;
     readonly refs: ReadonlyArray<AnyResourceRef>;
@@ -512,6 +555,39 @@ export namespace Resource {
     });
 
     return makeRef;
+  };
+
+  /**
+   * Defines a resource family backed by an Effect RequestResolver.
+   *
+   * This preserves the normal Resource cache/state lifecycle while letting Effect
+   * batch sibling loads that are evaluated together, e.g. during route preloads.
+   */
+  export const requestFamily = <
+    I,
+    Req extends EffectRequest.Any,
+    EX = never,
+    RX = never
+  >(
+    options: ResourceRequestFamilyOptions<I, Req, EX, RX>
+  ): ((input: I) => ResourceRef<
+    I,
+    EffectRequest.Success<Req>,
+    EffectRequest.Error<Req> | EX,
+    EffectRequest.Services<Req> | RX
+  >) & {
+    readonly family: ResourceFamily<
+      I,
+      EffectRequest.Success<Req>,
+      EffectRequest.Error<Req> | EX,
+      EffectRequest.Services<Req> | RX
+    >;
+  } => {
+    const { request, resolver, ...familyOptions } = options;
+    return family({
+      ...familyOptions,
+      load: (input: I) => Effect.request(request(input), resolver)
+    });
   };
 
   const makeTagDefinition = <Input>(

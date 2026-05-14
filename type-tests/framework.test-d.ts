@@ -1,4 +1,4 @@
-import { Effect, Schema } from "effect";
+import { Effect, Metric, Request as EffectRequest, RequestResolver, Schema } from "effect";
 import { Action, ActionResult, Capability, Form, Resource, Route, Server, Signal, defineApp, makeRuntime, route } from "@effect-ui/core";
 import {
   Collection,
@@ -36,12 +36,18 @@ import {
   hydrateFromDocumentEffect,
   hydrateStartHydrationChunksFromDocument,
   hydrateStartHydrationChunksFromDocumentEffect,
+  makeStartEffectRpcGroup,
   preloadRequest,
   preloadRequestEffect,
   readStartHydrationChunks,
+  serverFunctionToEffectRpc,
   StartAction,
   startActionForm,
+  startRequestCountMetric,
+  startRequestDurationMetric,
+  startRequestStatusMetric,
   type StartActionInvalidationPlan,
+  type StartEffectRpcCompatibilityArtifact,
   type StartRequestHandler,
   type StartRequestTrace,
   type StartRequestTraceTeardown,
@@ -275,6 +281,27 @@ Resource.prefetchEffect(BrandedProjectById(atlasProjectId));
 
 // @ts-expect-error branded resource inputs reject accidental plain strings
 Resource.prefetchEffect(BrandedProjectById("atlas"));
+
+interface ProjectRequest extends EffectRequest.Request<Project, ProjectError> {
+  readonly _tag: "ProjectRequest";
+  readonly id: ProjectId;
+}
+const ProjectRequest = EffectRequest.tagged<ProjectRequest>("ProjectRequest");
+declare const projectRequestResolver: RequestResolver.RequestResolver<ProjectRequest>;
+const ProjectByRequest = Resource.requestFamily({
+  name: "Project.byRequest",
+  input: ProjectId,
+  output: ProjectSchema,
+  request: (id: ProjectId) => ProjectRequest({ id }),
+  resolver: projectRequestResolver
+});
+Effect.map(Resource.prefetchEffect(ProjectByRequest(atlasProjectId)), (project) => {
+  project.id.toUpperCase();
+  project.name.toUpperCase();
+});
+
+// @ts-expect-error Resource.requestFamily preserves the request input type
+ProjectByRequest("atlas");
 
 const ProjectsCollection = Collection.define<Project, string, ProjectError | Server.ClientError, ProjectApi>({
   name: "Projects.collection",
@@ -632,6 +659,21 @@ const viteStartSsrRequestHandler: StartSsrRequestHandler = () => new Response("o
 const startVitePlugin: EffectUiStartPlugin = effectUiStart();
 startVitePlugin.resolveId("virtual:effect-ui/app-graph");
 startVitePlugin.transform("", "/src/domain.server.ts", { ssr: true });
+Metric.value(startRequestCountMetric).pipe(Effect.map((state) => state.count.toFixed()));
+Metric.value(startRequestDurationMetric).pipe(Effect.map((state) => state.count.toFixed()));
+Metric.value(startRequestStatusMetric).pipe(Effect.map((state) => state.occurrences.size.toFixed()));
+const effectRpc = serverFunctionToEffectRpc(
+  Server.fn("Project.effectRpc", {
+    input: ProjectSchema,
+    output: ProjectSchema,
+    error: Schema.String,
+    handler: (project) => project
+  })
+);
+effectRpc._tag.toUpperCase();
+makeStartEffectRpcGroup([]);
+declare const effectRpcCompatibility: StartEffectRpcCompatibilityArtifact;
+effectRpcCompatibility.procedures.map((procedure) => procedure.schemas.payload.valueOf());
 void startRequestHandler;
 void syncStartRequestHandler;
 void viteStartSsrRequestHandler;

@@ -1,4 +1,4 @@
-import { Deferred, Effect, PubSub, Schedule, Schema } from "effect";
+import { Deferred, Effect, Exit, PubSub, Request, RequestResolver, Schedule, Schema } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import { makeRuntime, read, Resource, ResourceFailure, runWithRuntime } from "../src/index.js";
 
@@ -85,6 +85,51 @@ describe("Resource", () => {
     );
 
     expect(load).toHaveBeenCalledTimes(1);
+  });
+
+  it("backs resource families with Effect RequestResolver batches", () => {
+    interface GetUserRequest extends Request.Request<{ readonly id: string; readonly name: string }> {
+      readonly _tag: "GetUserRequest";
+      readonly id: string;
+    }
+    const GetUserRequest = Request.tagged<GetUserRequest>("GetUserRequest");
+    const batches: ReadonlyArray<string>[] = [];
+    const resolver = RequestResolver.make<GetUserRequest>((entries) =>
+      Effect.sync(() => {
+        batches.push(entries.map((entry) => entry.request.id));
+        for (const entry of entries) {
+          entry.completeUnsafe(
+            Exit.succeed({
+              id: entry.request.id,
+              name: entry.request.id.toUpperCase()
+            })
+          );
+        }
+      })
+    );
+    const User = Resource.requestFamily({
+      name: "User.request-resolver",
+      request: (id: string) => GetUserRequest({ id }),
+      resolver
+    });
+
+    return Effect.runPromise(
+      Effect.all([
+        Resource.prefetchEffect(User("ada")),
+        Resource.prefetchEffect(User("grace"))
+      ], { concurrency: "unbounded" }).pipe(
+        Effect.tap((values) =>
+          Effect.sync(() => {
+            expect(values).toEqual([
+              { id: "ada", name: "ADA" },
+              { id: "grace", name: "GRACE" }
+            ]);
+            expect(batches).toEqual([["ada", "grace"]]);
+            expect(read(User("ada"))).toEqual({ id: "ada", name: "ADA" });
+          })
+        )
+      )
+    );
   });
 
   it("uses Effect cache entries for prefetch and forced refresh", async () => {

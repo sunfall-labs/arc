@@ -50,6 +50,8 @@ Golden-path public groups:
 - `Server`, `ServerClient`, request/response context services
 - `Signal`, `Form`, `Capability`, `UiScope`
 - `makeRuntime`, `runWithRuntime`, `runPromise`, `runPromiseExit`, `runFork`
+- `Resource.requestFamily` for Resource state backed by Effect
+  `RequestResolver` batching/deduping.
 
 Release decisions:
 
@@ -92,6 +94,12 @@ The root export includes:
 - request trace types: `StartRequestTrace`, request/response/resource/
   collection/action/server-function/fiber/stream trace records, and
   `StartRequestTraceHandler`.
+- Effect-native observability metrics:
+  `startRequestCountMetric`, `startRequestDurationMetric`, and
+  `startRequestStatusMetric`.
+- Effect RPC compatibility descriptors:
+  `serverFunctionToEffectRpc`, `makeStartEffectRpcGroup`, and
+  `makeStartEffectRpcCompatibilityArtifact`.
 
 Subpath exports:
 

@@ -44,6 +44,8 @@
 - **Start App Graph Diagnostics**: the typed, inspectable summary of routes, endpoints, server-only modules, browser client modules, and wire-schema coverage derived from the Start Manifest Wall.
 - **Progressive Action Result**: typed action outcome data for success, validation failure, redirect, and domain failure.
 - **Start Action Request**: a JSON or form POST to Start's action endpoint that names an Action Definition, carries schema-decoded input, and runs through the Request Runtime.
+- **Solid Runtime Adapter**: the Solid-facing Adapter that installs the Runtime Spine, owns UI scopes, manages route preload/render scopes, and exposes Resource, Action, stream, and router hooks without moving runtime ownership into components.
+- **Solid DB Adapter**: the Solid-facing Adapter that projects Collection Definitions and Live Query graphs into Solid accessors while leaving row state, mutation queues, and incremental query work in the DB Module.
 
 ## Architectural Commitments
 
@@ -52,7 +54,7 @@
 - Effects should cross host seams through the Runtime Spine so services, request context, cancellation, retries, and the Resource Store stay together.
 - Full-stack request work should use a Request Runtime so one SSR request cannot observe another request's resource entries, hydration payloads, tag graph, event stream, or lifetime fibers.
 - A streamed Request Runtime closes when the streamed response body closes or is cancelled, not when the request handler first returns the `Response`.
-- Promise APIs are adapters for UI and host boundaries; framework internals should keep native Effect forms.
+- Promise boundaries are adapters for UI and host platform requirements; framework internals should keep native Effect forms.
 - Mutations invalidate domain facts through the Resource Dependency Graph, not route names, component trees, or ad hoc cache strings.
 - Devtools and diagnostics should subscribe to Resource Event Stream and Collection Event Stream facts instead of coupling to Resource Store or Collection Store internals.
 - Streaming should preserve native Effect `Stream` semantics until the final host adapter creates a Web `ReadableStream` or `Response`.

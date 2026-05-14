@@ -91,6 +91,43 @@ not raw timers.
 Runtime diagnostics use `Resource.subscribeEventsEffect()` and Effect `PubSub`
 instead of inspecting Resource Store maps directly.
 
+When a family should batch sibling loads, back it with Effect `Request` and
+`RequestResolver` through `Resource.requestFamily`. The Resource layer still owns
+visible state, TTL, hydration, and invalidation; Effect owns request collection,
+batch grouping, resolver delay, resolver cache/dedupe, and completion.
+
+```ts
+interface GetUserRequest extends Request.Request<User> {
+  readonly _tag: "GetUserRequest";
+  readonly id: UserId;
+}
+
+const GetUserRequest = Request.tagged<GetUserRequest>("GetUserRequest");
+
+const userResolver = RequestResolver.make<GetUserRequest>((entries) =>
+  Effect.gen(function* () {
+    const users = yield* getUsersById(entries.map((entry) => entry.request.id));
+
+    for (const entry of entries) {
+      yield* Request.succeed(entry, users.get(entry.request.id));
+    }
+  })
+);
+
+const UserById = Resource.requestFamily({
+  name: "User.byId",
+  input: UserId,
+  request: (id: UserId) => GetUserRequest({ id }),
+  resolver: userResolver
+});
+```
+
+Use this for route preloads and server-function-backed resources when the
+transport or capability layer can answer a batch. Direct server-function RPC
+batching is a larger transport concern; until that lands, keep server contracts
+as the capability boundary and put the batched resolver behind the resource or
+capability implementation.
+
 Resources can also publish typed tags into the dependency graph:
 
 ```ts

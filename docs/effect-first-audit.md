@@ -696,3 +696,13 @@ interruption.
   construction now composes Effects directly, policy failures are captured with
   `Effect.exit(...)`, and the file no longer uses async wrappers or Promise
   matcher assertions.
+- `pnpm typecheck` and focused Core/Start tests passed after adding
+  `Resource.requestFamily`, Effect-native Start request metrics/spans, and the
+  additive Effect RPC compatibility descriptor layer. New tests that touch the
+  added public surface return Effect programs and isolate host Promise reads
+  with `Effect.tryPromise(...)`.
+- Full `pnpm verify` passed after the Resource RequestResolver and Start Effect
+  observability slice: 9 package builds, workspace typecheck, type tests, 40
+  root test files / 327 tests, devtools-panel verify, devtools-extension
+  verify, basic starter verify, project-console starter packaging/typecheck/
+  tests/build, and leak scan.
