@@ -33,109 +33,134 @@ describe("server function manifest", () => {
     errorSchema: true
   };
 
-  it("builds deterministic stable ids and serialized output", async () => {
-    const first = await Effect.runPromise(
-      makeServerFunctionManifest([RenameProject, GetProject])
-    );
-    const second = await Effect.runPromise(
-      makeServerFunctionManifest([GetProject, RenameProject])
-    );
+  it("builds deterministic stable ids and serialized output", () => {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const first = yield* makeServerFunctionManifest([RenameProject, GetProject]);
+        const second = yield* makeServerFunctionManifest([GetProject, RenameProject]);
 
-    expect(serializeServerFunctionManifest(first)).toBe(
-      serializeServerFunctionManifest(second)
-    );
-    expect(first.entries.map((entry) => entry.name)).toEqual([
-      "Project.byId",
-      "Project.rename"
-    ]);
-    expect(first.entries.map((entry) => entry.id)).toEqual(
-      first.entries.map((entry) => stableServerFunctionId(entry.name))
-    );
-    expect(first.entries[0]).toMatchObject({
-      server: {
-        module: "/src/project/project.server.ts",
-        moduleKind: "server-only",
-        hasHandler: true
-      },
-      wire: {
-        inputSchema: true,
-        outputSchema: true,
-        errorSchema: false
-      }
-    });
-  });
-
-  it("round-trips through serialization", async () => {
-    const manifest = await Effect.runPromise(
-      makeServerFunctionManifest([GetProject, RenameProject], {
-        rpcPath: "/__effect-ui/test-rpc"
+        yield* Effect.sync(() => {
+          expect(serializeServerFunctionManifest(first)).toBe(
+            serializeServerFunctionManifest(second)
+          );
+          expect(first.entries.map((entry) => entry.name)).toEqual([
+            "Project.byId",
+            "Project.rename"
+          ]);
+          expect(first.entries.map((entry) => entry.id)).toEqual(
+            first.entries.map((entry) => stableServerFunctionId(entry.name))
+          );
+          expect(first.entries[0]).toMatchObject({
+            server: {
+              module: "/src/project/project.server.ts",
+              moduleKind: "server-only",
+              hasHandler: true
+            },
+            wire: {
+              inputSchema: true,
+              outputSchema: true,
+              errorSchema: false
+            }
+          });
+        });
       })
     );
-    const roundTrip = await Effect.runPromise(
-      deserializeServerFunctionManifest(serializeServerFunctionManifest(manifest))
-    );
-
-    expect(roundTrip).toEqual(manifest);
   });
 
-  it("detects duplicate public names and duplicate server exports", async () => {
-    const duplicateName = await Effect.runPromiseExit(
-      makeServerFunctionManifest([
-        GetProject,
-        {
-          ...GetProject,
-          module: "/src/other/project.server.ts"
-        }
-      ])
-    );
-    const duplicateExport = await Effect.runPromiseExit(
-      makeServerFunctionManifest([
-        GetProject,
-        {
-          ...RenameProject,
-          module: GetProject.module,
-          exportName: GetProject.exportName
-        }
-      ])
-    );
+  it("round-trips through serialization", () => {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const manifest = yield* makeServerFunctionManifest([GetProject, RenameProject], {
+          rpcPath: "/__effect-ui/test-rpc"
+        });
+        const roundTrip = yield* deserializeServerFunctionManifest(
+          serializeServerFunctionManifest(manifest)
+        );
 
-    expect(firstFailure(duplicateName)).toBeInstanceOf(
-      ServerFunctionManifestDuplicateName
-    );
-    expect(firstFailure(duplicateExport)).toBeInstanceOf(
-      ServerFunctionManifestDuplicateExport
+        yield* Effect.sync(() => expect(roundTrip).toEqual(manifest));
+      })
     );
   });
 
-  it("creates browser-safe client references", async () => {
-    const manifest = await Effect.runPromise(makeServerFunctionManifest([GetProject]));
-    const references = clientReferencesForServerFunctionManifest(manifest);
-    const reference = references[0];
+  it("detects duplicate public names and duplicate server exports", () => {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const duplicateName = yield* Effect.exit(
+          makeServerFunctionManifest([
+            GetProject,
+            {
+              ...GetProject,
+              module: "/src/other/project.server.ts"
+            }
+          ])
+        );
+        const duplicateExport = yield* Effect.exit(
+          makeServerFunctionManifest([
+            GetProject,
+            {
+              ...RenameProject,
+              module: GetProject.module,
+              exportName: GetProject.exportName
+            }
+          ])
+        );
 
-    expect(reference).toBeDefined();
-    expect(reference?._tag).toBe("Import");
-    expect(reference ? isBrowserSafeServerFunctionClientReference(reference) : false).toBe(true);
-    expect(JSON.stringify(reference)).not.toContain(".server");
-    if (reference?._tag === "Import") {
-      expect(reference.module).toBe("/src/project/project.contract.ts");
-      expect(reference.moduleKind).toBe("contract");
-    }
+        yield* Effect.sync(() => {
+          expect(firstFailure(duplicateName)).toBeInstanceOf(
+            ServerFunctionManifestDuplicateName
+          );
+          expect(firstFailure(duplicateExport)).toBeInstanceOf(
+            ServerFunctionManifestDuplicateExport
+          );
+        });
+      })
+    );
   });
 
-  it("rejects client references to server-only modules", async () => {
-    const exit = await Effect.runPromiseExit(
-      makeServerFunctionManifest([
-        {
-          name: "Project.delete",
-          module: "/src/project/project.server.ts",
-          exportName: "deleteProject",
-          clientModule: "/src/project/project.server.ts"
-        }
-      ])
-    );
+  it("creates browser-safe client references", () => {
+    return Effect.runPromise(
+      makeServerFunctionManifest([GetProject]).pipe(
+        Effect.tap((manifest) =>
+          Effect.sync(() => {
+            const references = clientReferencesForServerFunctionManifest(manifest);
+            const reference = references[0];
 
-    expect(firstFailure(exit)).toBeInstanceOf(
-      ServerFunctionManifestUnsafeClientReference
+            expect(reference).toBeDefined();
+            expect(reference?._tag).toBe("Import");
+            expect(reference ? isBrowserSafeServerFunctionClientReference(reference) : false).toBe(true);
+            expect(JSON.stringify(reference)).not.toContain(".server");
+            if (reference?._tag === "Import") {
+              expect(reference.module).toBe("/src/project/project.contract.ts");
+              expect(reference.moduleKind).toBe("contract");
+            }
+          })
+        ),
+        Effect.asVoid
+      )
+    );
+  });
+
+  it("rejects client references to server-only modules", () => {
+    return Effect.runPromise(
+      Effect.exit(
+        makeServerFunctionManifest([
+          {
+            name: "Project.delete",
+            module: "/src/project/project.server.ts",
+            exportName: "deleteProject",
+            clientModule: "/src/project/project.server.ts"
+          }
+        ])
+      ).pipe(
+        Effect.tap((exit) =>
+          Effect.sync(() =>
+            expect(firstFailure(exit)).toBeInstanceOf(
+              ServerFunctionManifestUnsafeClientReference
+            )
+          )
+        ),
+        Effect.asVoid
+      )
     );
   });
 });

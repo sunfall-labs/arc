@@ -237,6 +237,10 @@ Latest full gate on May 14, 2026:
   Promise APIs under test behind `Effect.promise(...)`.
 - The latest `pnpm verify` passed after the core route/server async test
   cleanup.
+- Start action and server-function manifest tests now return Effect programs,
+  with duplicate/parse/client-reference failures captured through
+  `Effect.exit(...)`.
+- The latest `pnpm verify` passed after the Start manifest async test cleanup.
 
 ## Notable Limits
 
