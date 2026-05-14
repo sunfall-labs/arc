@@ -116,7 +116,7 @@ Needs release decision:
 The root export includes:
 
 - `makeDevtoolsStore`, snapshot APIs, summary APIs, causal graph APIs, and
-  Effect wrappers;
+  panel APIs with Effect wrappers;
 - JSON-safe serialization helpers;
 - invalidation plans, route plans, app graph diagnostics summaries, runtime
   event models, collection event models, and request trace models.
@@ -126,8 +126,8 @@ Needs release decision:
 - The newly added `DevtoolsRequestTrace` model is public as a data contract.
   Start now emits a compatible shape through `onRequestTrace`; cancellation and
   failure-path hardening remain release-candidate follow-up work.
-- The summary/causal graph shape should be treated as stable for agents before
-  a UI panel depends on it.
+- `DevtoolsSummary`, `DevtoolsCausalGraph`, and the first `DevtoolsPanels`
+  model should be treated as stable data contracts for agents and UI panels.
 
 ### `@effect-ui/solid`
 

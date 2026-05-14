@@ -817,6 +817,51 @@ export interface DevtoolsSummaryInput {
   readonly runtimeEvents?: ReadonlyArray<DevtoolsRuntimeEvent>;
 }
 
+export type DevtoolsPanelId =
+  | "app-graph"
+  | "routes"
+  | "resources"
+  | "actions"
+  | "collections"
+  | "requests"
+  | "diagnostics"
+  | "causal-graph";
+
+export type DevtoolsPanelSeverity = "ok" | "info" | "warning" | "error";
+
+export interface DevtoolsPanelMetric {
+  readonly label: string;
+  readonly value: string | number;
+  readonly unit?: string;
+}
+
+export interface DevtoolsPanelItem {
+  readonly id: string;
+  readonly label: string;
+  readonly severity: DevtoolsPanelSeverity;
+  readonly detail?: string;
+  readonly metrics?: ReadonlyArray<DevtoolsPanelMetric>;
+  readonly data?: DevtoolsSerializableValue;
+}
+
+export interface DevtoolsPanel {
+  readonly id: DevtoolsPanelId;
+  readonly title: string;
+  readonly summary: string;
+  readonly severity: DevtoolsPanelSeverity;
+  readonly metrics: ReadonlyArray<DevtoolsPanelMetric>;
+  readonly items: ReadonlyArray<DevtoolsPanelItem>;
+}
+
+export interface DevtoolsPanels {
+  readonly version: 1;
+  readonly panels: ReadonlyArray<DevtoolsPanel>;
+}
+
+export interface DevtoolsPanelsInput extends DevtoolsSummaryInput {
+  readonly summary?: DevtoolsSummary;
+}
+
 const describeResourceRef = (ref: { readonly key: string; readonly family: { readonly options: { readonly name: string } }; readonly input: unknown }) => ({
   key: ref.key,
   family: ref.family.options.name,
@@ -2487,6 +2532,335 @@ export const describeDevtoolsSummaryEffect = (
 ): Effect.Effect<DevtoolsSummary> =>
   Effect.succeed(describeDevtoolsSummary(input));
 
+const panelMetric = (
+  label: string,
+  value: string | number,
+  unit?: string
+): DevtoolsPanelMetric => ({
+  label,
+  value,
+  ...(unit === undefined ? {} : { unit })
+});
+
+const panelItem = (options: {
+  readonly id: string;
+  readonly label: string;
+  readonly severity?: DevtoolsPanelSeverity;
+  readonly detail?: string;
+  readonly metrics?: ReadonlyArray<DevtoolsPanelMetric>;
+  readonly data?: DevtoolsSerializableValue;
+}): DevtoolsPanelItem => ({
+  id: options.id,
+  label: options.label,
+  severity: options.severity ?? "ok",
+  ...(options.detail === undefined ? {} : { detail: options.detail }),
+  ...(options.metrics === undefined ? {} : { metrics: options.metrics }),
+  ...(options.data === undefined ? {} : { data: options.data })
+});
+
+const severityRank: Record<DevtoolsPanelSeverity, number> = {
+  ok: 0,
+  info: 1,
+  warning: 2,
+  error: 3
+};
+
+const maxSeverity = (
+  severities: ReadonlyArray<DevtoolsPanelSeverity>,
+  fallback: DevtoolsPanelSeverity = "ok"
+): DevtoolsPanelSeverity =>
+  severities.reduce(
+    (current, next) => severityRank[next] > severityRank[current] ? next : current,
+    fallback
+  );
+
+const requestTraceSeverity = (
+  trace: DevtoolsSummaryRequestTrace
+): DevtoolsPanelSeverity => {
+  if (trace.status === "failure") {
+    return "error";
+  }
+  if (trace.status === "cancelled" || trace.runtimeDisposed === false) {
+    return "warning";
+  }
+  return "ok";
+};
+
+const diagnosticsSeverity = (summary: DevtoolsSummary): DevtoolsPanelSeverity => {
+  if (summary.overview.missingSchemaCount > 0) {
+    return "error";
+  }
+  return summary.overview.unknownActionBehaviorCount > 0 ||
+    summary.overview.unknownRoutePreloadResourcesCount > 0 ||
+    summary.overview.unknownRoutePreloadCollectionsCount > 0
+    ? "warning"
+    : "ok";
+};
+
+export const describeDevtoolsPanels = (
+  input: DevtoolsPanelsInput = {}
+): DevtoolsPanels => {
+  const summary = input.summary ?? describeDevtoolsSummary(input);
+  const graphAvailable = summary.graph._tag === "Available";
+  const diagnosticsPanelSeverity = diagnosticsSeverity(summary);
+  const requestDurations = summary.requests.traces.flatMap((trace) =>
+    trace.durationMillis === null ? [] : [trace.durationMillis]
+  );
+  const requestAverageDuration = requestDurations.length === 0
+    ? 0
+    : Number((requestDurations.reduce((total, duration) => total + duration, 0) / requestDurations.length).toFixed(2));
+  const failedRequestCount = summary.requests.traces.filter((trace) => trace.status === "failure").length;
+  const cancelledRequestCount = summary.requests.traces.filter((trace) => trace.status === "cancelled").length;
+
+  return {
+    version: 1,
+    panels: [
+      {
+        id: "app-graph",
+        title: "App Graph",
+        summary: graphAvailable
+          ? `${summary.overview.routeCount} routes, ${summary.overview.serverFunctionCount} server functions, ${summary.overview.actionCount} actions`
+          : "No app graph diagnostics recorded",
+        severity: graphAvailable ? diagnosticsPanelSeverity : "info",
+        metrics: [
+          panelMetric("routes", summary.overview.routeCount),
+          panelMetric("server functions", summary.overview.serverFunctionCount),
+          panelMetric("actions", summary.overview.actionCount),
+          panelMetric("resource families", summary.overview.resourceFamilyCount),
+          panelMetric("collections", summary.overview.collectionDefinitionCount)
+        ],
+        items: graphAvailable
+          ? summary.graph.routes.modules.map((routeModule) =>
+              panelItem({
+                id: `route:${routeModule.routeId}`,
+                label: routeModule.routePath,
+                detail: routeModule.moduleId,
+                severity: routeModule.preloadResources.status === "unknown" ||
+                  routeModule.preloadCollections.status === "unknown"
+                  ? "warning"
+                  : "ok",
+                metrics: [
+                  panelMetric("params", routeModule.pathParamCount),
+                  panelMetric("preload resources", routeModule.preloadResources.status),
+                  panelMetric("preload collections", routeModule.preloadCollections.status)
+                ]
+              })
+            )
+          : []
+      },
+      {
+        id: "routes",
+        title: "Routes",
+        summary: `${summary.overview.routePlanCount} route plans, ${summary.overview.notFoundRoutePlanCount} not found`,
+        severity: summary.overview.notFoundRoutePlanCount > 0 ? "warning" : summary.overview.routePlanCount === 0 ? "info" : "ok",
+        metrics: [
+          panelMetric("plans", summary.overview.routePlanCount),
+          panelMetric("not found", summary.overview.notFoundRoutePlanCount)
+        ],
+        items: summary.routes.plans.map((plan) =>
+          panelItem({
+            id: `route-plan:${plan.index}`,
+            label: plan.href,
+            detail: plan.path ?? "not found",
+            severity: plan._tag === "NotFound" ? "warning" : "ok",
+            metrics: [
+              panelMetric("resources", plan.resourceCount),
+              panelMetric("hydrated", plan.hydrationResourceCount)
+            ],
+            data: {
+              params: plan.params,
+              search: plan.search
+            }
+          })
+        )
+      },
+      {
+        id: "resources",
+        title: "Resources",
+        summary: `${summary.resources.length} indexed resources, ${summary.overview.runtimeResourceCount} runtime resources`,
+        severity: summary.resources.length === 0 ? "info" : "ok",
+        metrics: [
+          panelMetric("indexed", summary.resources.length),
+          panelMetric("runtime", summary.overview.runtimeResourceCount),
+          panelMetric("families", summary.overview.resourceFamilyCount),
+          panelMetric("tags", summary.overview.resourceTagCount)
+        ],
+        items: summary.resources.map((resource) =>
+          panelItem({
+            id: `resource:${resource.key}`,
+            label: resource.family ?? resource.key,
+            detail: resource.state ?? "unknown",
+            severity: resource.state === "Failure" ? "error" : "ok",
+            metrics: [
+              panelMetric("routes", resource.routeHrefs.length),
+              panelMetric("invalidations", resource.invalidationIndexes.length)
+            ],
+            data: {
+              key: resource.key,
+              input: resource.input,
+              sources: resource.sources
+            }
+          })
+        )
+      },
+      {
+        id: "actions",
+        title: "Actions",
+        summary: `${summary.overview.actionCount} graph actions, ${summary.overview.runtimeActionCount} runtime actions`,
+        severity: summary.runtime.actions.some((action) => action.state === "Failure") ? "error" : "ok",
+        metrics: [
+          panelMetric("graph", summary.overview.actionCount),
+          panelMetric("runtime", summary.overview.runtimeActionCount),
+          panelMetric("invalidation plans", summary.overview.invalidationPlanCount)
+        ],
+        items: summary.runtime.actions.map((action) =>
+          panelItem({
+            id: `action:${action.name}`,
+            label: action.name,
+            detail: action.state,
+            severity: action.state === "Failure" ? "error" : "ok",
+            metrics: [
+              panelMetric("invalidations", action.invalidationIndexes.length)
+            ]
+          })
+        )
+      },
+      {
+        id: "collections",
+        title: "Collections",
+        summary: `${summary.overview.collectionDefinitionCount} graph collections`,
+        severity: summary.overview.collectionDefinitionCount === 0 ? "info" : "ok",
+        metrics: [
+          panelMetric("definitions", summary.overview.collectionDefinitionCount),
+          panelMetric(
+            "traced",
+            summary.requests.traces.reduce((count, trace) => count + trace.collectionCount, 0)
+          )
+        ],
+        items: graphAvailable
+          ? summary.graph.collections.definitions.map((collection) =>
+              panelItem({
+                id: `collection:${collection.name}`,
+                label: collection.name,
+                severity: "ok"
+              })
+            )
+          : []
+      },
+      {
+        id: "requests",
+        title: "Requests",
+        summary: `${summary.overview.requestTraceCount} traces, ${failedRequestCount} failures, ${cancelledRequestCount} cancelled`,
+        severity: maxSeverity(summary.requests.traces.map(requestTraceSeverity), summary.overview.requestTraceCount === 0 ? "info" : "ok"),
+        metrics: [
+          panelMetric("traces", summary.overview.requestTraceCount),
+          panelMetric("failures", failedRequestCount),
+          panelMetric("cancelled", cancelledRequestCount),
+          panelMetric("average duration", requestAverageDuration, "ms")
+        ],
+        items: summary.requests.traces.map((trace) =>
+          panelItem({
+            id: `request:${trace.id}`,
+            label: `${trace.method} ${trace.path}`,
+            detail: `${trace.transport} ${trace.status}`,
+            severity: requestTraceSeverity(trace),
+            metrics: [
+              panelMetric("resources", trace.resourceCount),
+              panelMetric("collections", trace.collectionCount),
+              panelMetric("actions", trace.actionCount),
+              panelMetric("duration", trace.durationMillis ?? "unknown", trace.durationMillis === null ? undefined : "ms"),
+              panelMetric("before fibers", trace.beforeDisposeFiberCount ?? "unknown"),
+              panelMetric("after fibers", trace.afterDisposeFiberCount ?? "unknown")
+            ],
+            data: {
+              id: trace.id,
+              routeHref: trace.routeHref,
+              teardownReason: trace.teardownReason,
+              runtimeDisposed: trace.runtimeDisposed
+            }
+          })
+        )
+      },
+      {
+        id: "diagnostics",
+        title: "Diagnostics",
+        summary: `${summary.overview.missingSchemaCount} missing schemas, ${summary.overview.unknownActionBehaviorCount} unknown action behaviors`,
+        severity: diagnosticsPanelSeverity,
+        metrics: [
+          panelMetric("missing schemas", summary.overview.missingSchemaCount),
+          panelMetric("unknown action behavior", summary.overview.unknownActionBehaviorCount),
+          panelMetric("unknown preload resources", summary.overview.unknownRoutePreloadResourcesCount),
+          panelMetric("unknown preload collections", summary.overview.unknownRoutePreloadCollectionsCount)
+        ],
+        items: graphAvailable
+          ? [
+              ...summary.graph.missingSchemas.map((schema) =>
+                panelItem({
+                  id: `missing-schema:${schema.kind}:${schema.name}`,
+                  label: schema.name,
+                  detail: schema.kind,
+                  severity: "error",
+                  data: toDevtoolsSerializableValue(schema)
+                })
+              ),
+              ...summary.graph.actions.unknownBehavior.map((entry) =>
+                panelItem({
+                  id: `unknown-action:${entry.name}`,
+                  label: entry.name,
+                  detail: "unknown action behavior",
+                  severity: "warning",
+                  data: toDevtoolsSerializableValue(entry)
+                })
+              ),
+              ...summary.graph.routes.unknownPreloadResources.map((entry) =>
+                panelItem({
+                  id: `unknown-preload-resources:${entry.routeId}`,
+                  label: entry.routePath,
+                  detail: "unknown preload resources",
+                  severity: "warning",
+                  data: toDevtoolsSerializableValue(entry)
+                })
+              ),
+              ...summary.graph.routes.unknownPreloadCollections.map((entry) =>
+                panelItem({
+                  id: `unknown-preload-collections:${entry.routeId}`,
+                  label: entry.routePath,
+                  detail: "unknown preload collections",
+                  severity: "warning",
+                  data: toDevtoolsSerializableValue(entry)
+                })
+              )
+            ]
+          : []
+      },
+      {
+        id: "causal-graph",
+        title: "Causal Graph",
+        summary: `${summary.overview.causalNodeCount} nodes, ${summary.overview.causalEdgeCount} edges`,
+        severity: summary.overview.causalNodeCount === 0 ? "info" : "ok",
+        metrics: [
+          panelMetric("nodes", summary.overview.causalNodeCount),
+          panelMetric("edges", summary.overview.causalEdgeCount)
+        ],
+        items: summary.causalGraph.nodes.map((node) =>
+          panelItem({
+            id: node.id,
+            label: node.label,
+            detail: node.kind,
+            severity: "ok",
+            data: node.data
+          })
+        )
+      }
+    ]
+  };
+};
+
+export const describeDevtoolsPanelsEffect = (
+  input: DevtoolsPanelsInput = {}
+): Effect.Effect<DevtoolsPanels> =>
+  Effect.succeed(describeDevtoolsPanels(input));
+
 const actionStateTag = <I, A, E>(state: ActionState<I, A, E>): string =>
   state._tag;
 
@@ -2784,6 +3158,8 @@ export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}) => {
       }),
     getSummary: () => describeDevtoolsSummary({ snapshot }),
     getSummaryEffect: () => Effect.sync(() => describeDevtoolsSummary({ snapshot })),
+    getPanels: () => describeDevtoolsPanels({ snapshot }),
+    getPanelsEffect: () => Effect.sync(() => describeDevtoolsPanels({ snapshot })),
     getCausalGraph: () => describeDevtoolsCausalGraph({ snapshot }),
     getCausalGraphEffect: () => Effect.sync(() => describeDevtoolsCausalGraph({ snapshot }))
   };

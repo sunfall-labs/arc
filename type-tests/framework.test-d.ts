@@ -11,8 +11,10 @@ import {
 } from "@effect-ui/db";
 import { useCollection, useLiveQuery } from "@effect-ui/solid-db";
 import {
+  describeDevtoolsPanels,
   makeDevtoolsStore,
   type DevtoolsInvalidationPlan,
+  type DevtoolsPanels,
   type DevtoolsRequestTrace,
   type DevtoolsRequestTraceTeardown
 } from "@effect-ui/devtools";
@@ -904,6 +906,17 @@ touchStart.submitEffect({ id: "atlas" }).pipe(
 );
 
 const devtoolsStore = makeDevtoolsStore();
+const devtoolsPanels: DevtoolsPanels = devtoolsStore.getPanels();
+devtoolsPanels.panels.map((panel) => {
+  panel.id;
+  panel.severity;
+  panel.metrics.map((metric) => metric.label);
+  panel.items.map((item) => item.severity);
+});
+describeDevtoolsPanels({ summary: devtoolsStore.getSummary() }).panels.map((panel) => panel.title);
+devtoolsStore.getPanelsEffect().pipe(
+  Effect.map((panels) => panels.panels.map((panel) => panel.id))
+);
 const serializedInvalidationPlan: DevtoolsInvalidationPlan = {
   targets: [
     {

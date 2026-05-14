@@ -10,6 +10,8 @@ import {
   describeDevtoolsCausalGraphEffect,
   describeDevtoolsSummary,
   describeDevtoolsSummaryEffect,
+  describeDevtoolsPanels,
+  describeDevtoolsPanelsEffect,
   describeInvalidationPlan,
   describeRoutePlan,
   toDevtoolsSerializableValue,
@@ -459,12 +461,51 @@ describe("devtools invalidation plans", () => {
       }
     ]);
     expect(JSON.parse(JSON.stringify(summary))).toEqual(summary);
+    const panels = describeDevtoolsPanels({ summary });
+    expect(panels.panels.map((panel) => panel.id)).toEqual([
+      "app-graph",
+      "routes",
+      "resources",
+      "actions",
+      "collections",
+      "requests",
+      "diagnostics",
+      "causal-graph"
+    ]);
+    expect(panels.version).toBe(1);
+    expect(panels.panels.find((panel) => panel.id === "app-graph")).toMatchObject({
+      title: "App Graph",
+      severity: "error"
+    });
+    expect(panels.panels.find((panel) => panel.id === "routes")).toMatchObject({
+      severity: "ok"
+    });
+    expect(panels.panels.find((panel) => panel.id === "resources")).toMatchObject({
+      severity: "ok"
+    });
+    expect(panels.panels.find((panel) => panel.id === "diagnostics")).toMatchObject({
+      severity: "error",
+      items: [
+        {
+          id: "missing-schema:action:User.rename",
+          severity: "error"
+        }
+      ]
+    });
+    expect(JSON.parse(JSON.stringify(panels))).toEqual(panels);
     await expect(
       Effect.runPromise(describeDevtoolsSummaryEffect({ appGraph: appGraphDiagnostics }))
     ).resolves.toMatchObject({
       graph: {
         _tag: "Available"
       }
+    });
+    await expect(
+      Effect.runPromise(describeDevtoolsPanelsEffect({ summary }))
+    ).resolves.toMatchObject({
+      panels: expect.arrayContaining([
+        expect.objectContaining({ id: "app-graph" })
+      ])
     });
   });
 
@@ -893,6 +934,46 @@ describe("devtools invalidation plans", () => {
         routeHref: "/projects/atlas?tab=activity"
       }
     ]);
+    const panels = store.getPanels();
+    const requestPanel = panels.panels.find((panel) => panel.id === "requests");
+    expect(requestPanel).toMatchObject({
+      severity: "ok",
+      metrics: expect.arrayContaining([
+        {
+          label: "average duration",
+          value: 23,
+          unit: "ms"
+        }
+      ]),
+      items: [
+        expect.objectContaining({
+          id: "request:req-project-atlas",
+          label: "GET /projects/atlas",
+          detail: "rpc success",
+          metrics: expect.arrayContaining([
+            {
+              label: "before fibers",
+              value: 2
+            },
+            {
+              label: "after fibers",
+              value: 0
+            }
+          ]),
+          data: {
+            id: "req-project-atlas",
+            routeHref: "/projects/atlas?tab=activity",
+            teardownReason: "response-end",
+            runtimeDisposed: true
+          }
+        })
+      ]
+    });
+    await expect(Effect.runPromise(store.getPanelsEffect())).resolves.toMatchObject({
+      panels: expect.arrayContaining([
+        expect.objectContaining({ id: "requests" })
+      ])
+    });
     expect(summary.runtime.events).toEqual([
       expect.objectContaining({
         _tag: "RequestTrace",

@@ -78,6 +78,7 @@ or command result that proves it.
 | 28 | Runtime leak and teardown audit | `packages/core/src/resource-store.ts`; `packages/core/test/resource-store.test.ts`; `docs/runtime-leak-teardown-audit.md` | Resource Store disposal now shuts down its event `PubSub` through `Effect.ensuring`, including the module-finalizer failure path. | Run focused Resource Store tests and keep the browser/server leak audit separate. |
 | 29 | Example copyability and leak audit | `examples/project-console/README.md`; `examples/project-console/package.json`; `examples/project-console/src/server.test.ts`; `docs/example-copyability-and-leak-audit.md` | Example-owned test/leak/verify scripts, local Vitest dependency, copy guidance, and stronger server-module leak sentinels make the app easier to lift out safely. Example-local verify and root delegated example scripts passed. | Keep replacing workspace caveats with published package versions near RC. |
 | 30 | Benchmark baseline audit | `benchmarks/framework-baseline.bench.ts`; `package.json`; `docs/benchmark-baseline-audit.md`; `docs/framework-perfection-charter.md` | Added the first repeatable Vitest benchmark suite for SSR, route preload, Resource cache behavior, live query materialization, and RPC transport. `pnpm benchmark`, `pnpm typecheck`, and full `pnpm verify` passed. | Begin no-new-improvements clean sweeps only after the remaining release-candidate hardening work stabilizes. |
+| 31 | Devtools panel model | `packages/devtools/src/index.ts`; `packages/devtools/test/devtools.test.ts`; `docs/devtools.md`; `docs/public-api-inventory.md`; `type-tests/framework.test-d.ts` | Added `DevtoolsPanels`, `describeDevtoolsPanels`, Effect wrappers, and store `getPanels` accessors so a UI can render stable app graph, route, resource, action, collection, request, diagnostics, and causal graph panels without private reads. Focused devtools tests, workspace typecheck, and full `pnpm verify` passed. | Continue toward a browser/app UI only after product surface work resumes. |
 
 ## Thirty-Sweep Gate
 
@@ -97,8 +98,8 @@ pass finds no improvements to make.
 
 ## Open Release-Candidate Slices
 
-1. Build the first devtools UI/panel surface against `DevtoolsSummary` and the
-   richer request trace payload.
+1. Turn the devtools panel model into an actual browser/app UI when product
+   surface work resumes.
 2. Re-run the public API inventory after any rename/removal work and update
    migration notes.
 3. Run full `pnpm verify` and record the result before any handoff that claims

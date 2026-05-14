@@ -38,6 +38,7 @@ yield* store.recordRequestTraceEffect(trace)
 const snapshot = yield* store.getSnapshotEffect()
 const summary = yield* store.getSummaryEffect()
 const graph = yield* store.getCausalGraphEffect()
+const panels = yield* store.getPanelsEffect()
 ```
 
 Actions can be observed directly from their public instance. The observer is
@@ -152,6 +153,25 @@ trace `Records` resources/collections/actions/server functions, route plan
 invalidation, invalidation `Targets` tags, tag `Causes` resource invalidation,
 and runtime events `Observes` resources, collections, actions, and request
 traces.
+
+## Panel Model
+
+`describeDevtoolsPanels(...)` and `store.getPanelsEffect()` provide the first
+UI-facing panel contract. The result is JSON-safe and ordered for direct
+rendering:
+
+- App Graph
+- Routes
+- Resources
+- Actions
+- Collections
+- Requests
+- Diagnostics
+- Causal Graph
+
+Each panel carries a stable `id`, title, short summary, severity, metrics, and
+serializable items. Request items include the richer teardown facts from Start:
+duration, runtime disposal, teardown reason, and before/after fiber counts.
 
 ## Target Panels
 
