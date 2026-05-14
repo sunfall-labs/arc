@@ -4,7 +4,8 @@ Last updated: 2026-05-14.
 
 This audit checks release-tracking docs for claims that no longer match the
 implementation after the request trace, Effect-first, typed-error, package
-hygiene, generated-artifact, public-API, and example cleanup sweeps.
+hygiene, generated-artifact, public-API, example cleanup, starter packaging,
+devtools extension, and Start lifecycle sweeps.
 
 ## Current Sweep Results
 
@@ -16,6 +17,12 @@ hygiene, generated-artifact, public-API, and example cleanup sweeps.
   at the completed audit artifact instead of remaining unchecked.
 - Updated final handoff evidence to point at the latest full `pnpm verify`
   result after API, core, and example cleanup.
+- Updated release-candidate tracking after richer starter packaging, checked
+  devtools extension packaging, CLI Effect-runner hardening, tagged CLI usage
+  errors, and Start stream/Vite diagnostics lifecycle Effect sweeps.
+- Updated the progress ledger current-status summary so the clean-sweep gate is
+  still open for the right reason: recent sweeps found actionable work beyond
+  the earlier benchmark baseline slice.
 - Left older checkpoint counts in place only where they explicitly describe
   historical evidence from that checkpoint; current verification counts are
   recorded in the verification gate and progress ledger.
@@ -30,6 +37,10 @@ hygiene, generated-artifact, public-API, and example cleanup sweeps.
   - `docs/perfection-progress.md`
   - `docs/framework-perfection-charter.md`
   - `docs/public-api-inventory.md`
+  - `docs/devtools.md`
+  - `docs/effect-first-audit.md`
+  - `docs/error-message-audit.md`
+  - `docs/release-notes.md`
   - `README.md`
 
 ## Follow-Up

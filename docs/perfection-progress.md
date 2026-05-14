@@ -39,10 +39,17 @@ or command result that proves it.
 - The current operating window is recorded as work until 8:00 AM
   America/Denver on May 14, 2026, with Effect-first implementation as a standing
   requirement.
-- The cleanup backlog is checked through the benchmark baseline audit, and the
-  latest full verification gate is green.
-- The final no-new-improvements clean-sweep gate is still open: sweep 30 found
-  and added benchmark work, so it cannot count as a no-op clean sweep.
+- The cleanup backlog is checked through richer starter packaging, devtools
+  extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
+  Start stream/Vite diagnostics lifecycle Effect sweeps.
+- The latest full verification gate is green after the Vite diagnostics loader
+  lifecycle sweep: 38 root test files / 315 tests plus devtools panel,
+  devtools extension, starter, rich starter packaging, project-console build,
+  and leak-scan gates.
+- The final no-new-improvements clean-sweep gate is still open because the
+  latest sweeps still found actionable implementation and docs work. Start the
+  clean-sweep counter only after full code/docs/test passes stop finding
+  improvements.
 
 ## Sweep Ledger
 
@@ -132,6 +139,7 @@ or command result that proves it.
 | 82 | Full verification after response stream lifecycle | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md` | Escalated full verification passed after moving response stream lifecycle into Effect programs: 9 package builds, workspace typecheck, type tests, 38 root test files / 315 tests, devtools-panel verify, devtools-extension verify, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next implementation sweep. |
 | 83 | Vite diagnostics loader Effect lifecycle | `packages/start/src/vite.ts`; `packages/start/test/start.test.ts`; `docs/effect-first-audit.md`; `docs/perfection-progress.md` | Moved `loadStartAppGraphDiagnostics` create-server/load-module/close sequencing into an internal Effect program, kept the Promise API as a host wrapper, and covered the Effect diagnostics loader path in Start tests. Start package typecheck, focused Vite diagnostics tests, the full Start test file, and full `pnpm verify` passed. | Keep Vite middleware as the remaining package-source async host boundary. |
 | 84 | Full verification after Vite diagnostics loader lifecycle | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md` | Escalated full verification passed after moving the Vite diagnostics loader lifecycle under Effect: 9 package builds, workspace typecheck, type tests, 38 root test files / 315 tests, devtools-panel verify, devtools-extension verify, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next implementation sweep. |
+| 85 | Docs drift refresh after latest product and Effect sweeps | `docs/perfection-progress.md`; `docs/docs-drift-audit.md` | Refreshed the current-status summary so it names richer starter packaging, devtools extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and Start stream/Vite diagnostics lifecycle Effect sweeps instead of stopping at the benchmark-era clean-sweep note. | Keep historical rows as history, but keep current-status bullets aligned with the latest verified gate. |
 
 ## Thirty-Sweep Gate
 
