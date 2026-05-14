@@ -203,8 +203,8 @@ after recording new devtools facts.
 
 The checked app-shell integration lives at
 [`examples/devtools-panel`](../examples/devtools-panel). It mounts sample
-public facts into the browser renderer and verifies typecheck, render output,
-and production build.
+public facts through `mountDevtoolsPanelsEffect(...)` and verifies typecheck,
+render output, and production build.
 
 ## Target Panels
 

@@ -1,5 +1,5 @@
-import { Data } from "effect";
-import { mountDevtoolsPanels } from "@effect-ui/devtools";
+import { Data, Effect } from "effect";
+import { mountDevtoolsPanelsEffect } from "@effect-ui/devtools";
 import { sampleDevtoolsPanels } from "./sample.js";
 import "./styles.css";
 
@@ -17,9 +17,16 @@ if (!root) {
   });
 }
 
-mountDevtoolsPanels({
-  root,
-  panels: sampleDevtoolsPanels(),
-  selectedPanelId: "requests",
-  title: "Effect UI Devtools Panel"
-});
+void Effect.runPromise(
+  Effect.scoped(
+    Effect.gen(function* () {
+      yield* mountDevtoolsPanelsEffect({
+        root,
+        panels: sampleDevtoolsPanels(),
+        selectedPanelId: "requests",
+        title: "Effect UI Devtools Panel"
+      });
+      yield* Effect.never;
+    })
+  )
+);
