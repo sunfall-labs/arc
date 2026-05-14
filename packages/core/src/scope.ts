@@ -29,7 +29,7 @@ export class UiScope {
     Effect.runSync(
       Scope.addFinalizer(
         this.effectScope,
-        toEffect(finalizer()).pipe(Effect.catch(() => Effect.void)) as Effect.Effect<void>
+        toEffect(finalizer()).pipe(Effect.catch(() => Effect.void))
       )
     );
   }
@@ -44,7 +44,7 @@ export class UiScope {
 
     return Effect.runSync(
       Effect.forkIn(
-        Scope.provide(effect, this.effectScope) as Effect.Effect<A, E, never>,
+        Scope.provide(effect, this.effectScope),
         this.effectScope,
         {
           startImmediately: options.startImmediately ?? true,

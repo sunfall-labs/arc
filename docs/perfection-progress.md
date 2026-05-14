@@ -42,10 +42,10 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest full verification gate is green after the Core Action/Resource
-  runtime call-site cast cleanup: 38 root test files / 320 tests plus devtools
-  panel, devtools extension, starter, rich starter packaging, project-console
-  build, and leak-scan gates.
+- The latest full verification gate is green after the core runtime/scope/signal
+  helper cast cleanup: 38 root test files / 320 tests plus devtools panel,
+  devtools extension, starter, rich starter packaging, project-console build, and
+  leak-scan gates.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
   example, script, and type-test sources while keeping negative runtime
   validation tests explicit.
@@ -86,6 +86,9 @@ or command result that proves it.
 - Core Action and Resource public Promise helpers now rely on the runtime
   boundary directly for `Fiber.join`, interruption, in-flight refresh, and
   workflow Effects instead of casting each call site to a runtime-erased Effect.
+- Core runtime top-level helpers, `UiScope` finalizer/fork plumbing, and
+  `Signal.watch(...)` now lean on the Effect primitives' own types instead of
+  local `Effect.Effect` assertions.
 - DB query joins now carry selected projectors with a direct function assertion
   instead of the broader `unknown` bridge used by the remaining predicate/order
   variance helpers.
@@ -235,6 +238,8 @@ or command result that proves it.
 | 128 | Full verification after runtime scoped-provide cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after the runtime scoped-provide and Solid adapter cast cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 | 129 | Core Action/Resource runtime call-site cast cleanup | `packages/core/src/action.ts`; `packages/core/src/resource.ts`; `docs/sharp-cast-audit.md`; `docs/perfection-progress.md` | Removed local runtime-erasure casts around Action `Fiber.join`, Action reset interruption, public submit workflow fibers, Resource in-flight `runFork`/`Fiber.join`, and stale refresh fire-and-forget paths. Core package typecheck, public type tests, and focused core action/resource/runtime tests passed: 3 files / 48 tests. | Run full verification before committing this core cast cleanup. |
 | 130 | Full verification after Core Action/Resource cast cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after removing Action/Resource runtime call-site casts: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
+| 131 | Core runtime/scope/signal helper cast cleanup | `packages/core/src/runtime.ts`; `packages/core/src/scope.ts`; `packages/core/src/signal.ts`; `docs/sharp-cast-audit.md`; `docs/perfection-progress.md` | Removed redundant input-Effect casts from top-level runtime helpers, `UiScope` finalizer/fork casts, and the `Signal.watch(...)` scoped EffectInput cast. Core package typecheck, public type tests, and focused runtime/scope/signal tests passed: 3 files / 15 tests. | Run full verification before committing this helper cast cleanup. |
+| 132 | Full verification after core helper cast cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after removing core runtime/scope/signal helper casts: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 
 ## Thirty-Sweep Gate
 

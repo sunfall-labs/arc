@@ -156,9 +156,7 @@ export const watch = <A, E = unknown>(
         void runPromise(Fiber.interrupt(fiber));
       }
 
-      fiber = scope.fork(
-        toEffect(effect(value, previous)) as Effect.Effect<void, E, Scope.Scope>
-      );
+      fiber = scope.fork(toEffect(effect(value, previous)));
     },
     options
   );

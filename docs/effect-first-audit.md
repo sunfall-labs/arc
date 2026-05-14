@@ -33,6 +33,8 @@ Effect-native interruption.
   - `EffectUiRuntime.provide(...)` now exposes a scoped Effect backed by a named
     `provideRuntimeServices(...)` boundary, so UI adapters can fork provided
     work under `UiScope` instead of erasing requirements locally.
+  - Top-level `runPromise`, `runPromiseExit`, and `runFork` helpers now pass the
+    input Effect directly to the active runtime boundary.
 - `packages/db/src/index.ts`
   - Replaced live-query collection `Promise.resolve(...)` no-ops with
     `runPromise(definition.*Effect(...))` so public Promise helpers still
@@ -68,6 +70,9 @@ Effect-native interruption.
   - Core Action now delegates `Fiber.join`, workflow fibers, and reset
     interruption to the runtime boundary without per-call `Effect.Effect`
     assertions.
+- `packages/core/src/scope.ts` and `packages/core/src/signal.ts`
+  - Scope finalizers, scoped forks, and `Signal.watch(...)` use Effect's own
+    Scope and `EffectInput` typing directly, without local Effect assertions.
 - `packages/solid/src/index.ts` and `packages/solid-db/src/index.ts`
   - Moved router preload completion, background resource preload, collection
     preload, and live-query preload error handling into Effect programs before

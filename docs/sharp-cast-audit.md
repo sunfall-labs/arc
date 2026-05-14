@@ -53,6 +53,10 @@ Solid adapter, and DB query-builder cleanup sweeps.
   interruption, in-flight Resource refresh, and scoped workflow Effects directly
   to the runtime instead of casting each call site to a runtime-erased
   `Effect.Effect<..., any>`.
+- Core runtime top-level helpers no longer cast the input Effect before handing
+  it to the active runtime, `UiScope` finalizer/fork plumbing relies on Effect's
+  Scope typing directly, and `Signal.watch(...)` forks `EffectInput` work without
+  a local scoped-Effect assertion.
 - The DB default projector cast remains because an unprojected query returns
   the current context shape, while `QueryBuilder` also supports selected result
   shapes through the same class.
@@ -256,6 +260,16 @@ Solid adapter, and DB query-builder cleanup sweeps.
   passed after removing Action/Resource runtime call-site casts: 3 files, 48
   tests.
 - `pnpm verify` passed after removing Action/Resource runtime call-site casts: 9
+  package builds, workspace typecheck, type tests, 38 root test files / 320
+  tests, devtools-panel verify, devtools-extension verify with 1 extension test
+  file / 6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.
+- `pnpm --filter @effect-ui/core typecheck`, `pnpm typecheck:types`, and
+  `pnpm exec vitest run packages/core/test/runtime.test.ts packages/core/test/scope.test.ts packages/core/test/signal.test.ts`
+  passed after removing core runtime/scope/signal helper casts: 3 files, 15
+  tests.
+- `pnpm verify` passed after removing core runtime/scope/signal helper casts: 9
   package builds, workspace typecheck, type tests, 38 root test files / 320
   tests, devtools-panel verify, devtools-extension verify with 1 extension test
   file / 6 tests, basic starter verify, project-console starter packaging,

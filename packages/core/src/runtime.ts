@@ -135,16 +135,16 @@ export const runPromise = <A, E, R>(
   effect: Effect.Effect<A, E, R>,
   options?: Effect.RunOptions
 ): Promise<A> =>
-  currentOrDefaultRuntime().runPromise(effect as Effect.Effect<A, E, any>, options);
+  currentOrDefaultRuntime().runPromise(effect, options);
 
 export const runPromiseExit = <A, E, R>(
   effect: Effect.Effect<A, E, R>,
   options?: Effect.RunOptions
 ): Promise<Exit.Exit<A, E>> =>
-  currentOrDefaultRuntime().runPromiseExit(effect as Effect.Effect<A, E, any>, options) as Promise<Exit.Exit<A, E>>;
+  currentOrDefaultRuntime().runPromiseExit(effect, options) as Promise<Exit.Exit<A, E>>;
 
 export const runFork = <A, E, R>(
   effect: Effect.Effect<A, E, R>,
   options?: Effect.RunOptions
 ): Fiber.Fiber<A, E> =>
-  currentOrDefaultRuntime().runFork(effect as Effect.Effect<A, E, any>, options) as Fiber.Fiber<A, E>;
+  currentOrDefaultRuntime().runFork(effect, options) as Fiber.Fiber<A, E>;
