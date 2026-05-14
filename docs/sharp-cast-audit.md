@@ -30,12 +30,11 @@ Solid adapter, and DB query-builder cleanup sweeps.
 - No package, example, script, or type-test source currently contains `as any`
   or `@ts-ignore`; negative tests use explicit `@ts-expect-error` or
   `unknown`-to-contract casts for runtime validation shapes.
-- Remaining package-source `as unknown as` casts are concentrated in the DB
-  query builder boundary: `QueryBuilder` carries predicate and ordering
-  functions across context-widening joins, and it still has an identity
-  projection branch for unprojected queries. The join variance casts are
-  centralized behind `filtersFor` and `ordersFor`; type tests cover the joined
-  row shape exposed to callers.
+- DB query builder variance no longer appears in the broad `as unknown as`
+  sweep: `QueryBuilder` carries predicate and ordering functions across
+  context-widening joins through `NextContext extends TContext`, and its
+  identity projection branch is isolated behind `projectCurrentContext(...)`.
+  Type tests cover the joined row shape exposed to callers.
 - `QueryBuilder.projectorFor(...)` now carries selected projectors across joins
   with a direct function assertion instead of a broad `unknown` bridge.
 - `packages/core/src/runtime.ts` still has a named ManagedRuntime service
@@ -71,20 +70,32 @@ Solid adapter, and DB query-builder cleanup sweeps.
   responses through Effect error handling, and Start action hydration runtime
   failures are converted with `Effect.die(...)` instead of a local
   never-error assertion.
+- Start preload now scopes request-runtime provision with `Effect.scoped(...)`,
+  and the Node adapter runs handler Effects through the core runtime helper
+  instead of asserting a raw `Effect.runPromise(...)` input.
 - Project-console UI fire-and-forget work now flows through a generic
   `runUiEffect(...)` helper and `Effect.catch(...)` without example-local
   `Effect.Effect<..., any>` assertions.
+- Core and Start schema encode/decode helpers now cast the dynamic schema value
+  to `Schema.Decoder`/`Schema.Encoder` at the schema boundary, letting
+  `Schema.decodeUnknownEffect(...)` and `Schema.encodeUnknownEffect(...)` return
+  their Effect types directly.
+- Core `toEffect(...)` now preserves Effect generics through an overloaded guard
+  and maps PromiseLike fallbacks instead of casting the whole Effect.
+- DB query joins now express carried filter/order variance with
+  `NextContext extends TContext`, and the unprojected result path uses a named
+  `projectCurrentContext(...)` boundary instead of broad `unknown` bridges.
 - DB sync adapters, SQLite persistence helpers, flush policies, and server
   collection adapters now rely on typed `toEffect(...)` wrappers, explicit method
   return types, or a named server-collection PromiseLike bridge instead of
   scattering `Effect.Effect<..., R>` assertions through adapter methods.
 - DB collection persistence, load, mutation-handler, change-feed, and live-query
   source preload paths now share `collectionInputEffect(...)` or direct Effect
-  combinators. The DB source sharp-cast sweep is back to only the three query
-  context-variance bridges.
-- The DB default projector cast remains because an unprojected query returns
+  combinators.
+- The DB default projector boundary remains because an unprojected query returns
   the current context shape, while `QueryBuilder` also supports selected result
-  shapes through the same class.
+  shapes through the same class; it is now named instead of expressed as a broad
+  inline `unknown` bridge.
 - The DB `QueryRoot.from(...)` constructor now instantiates `QueryBuilder` with
   the intended context/result types directly instead of casting the builder
   through `never`.
@@ -100,15 +111,15 @@ Solid adapter, and DB query-builder cleanup sweeps.
 - Framework type-id declarations now preserve their `unique symbol` types with
   self-type assertions such as `as typeof ActionTypeId` instead of bottoming out
   through `as never`.
-- Test-only `as unknown as` and `as never` casts have been removed; remaining
-  package-source casts are implementation boundaries such as DB query
-  context-variance, schema encode/decode helpers, runtime service provision, and
-  Start host/runtime adapter crossings.
+- Test-only `as unknown as` and `as never` casts have been removed; the broad
+  source sharp-cast grep for `as Effect.Effect`, `as unknown as`, `as never`,
+  `as any`, and `@ts-ignore` now reports only the two named core runtime
+  service-erasure boundaries.
 
 ## Verification Evidence
 
 - Sharp grep:
-  - `rg -n " as unknown as | as any|throw new Error|throw new TypeError|Promise\\.resolve|new Promise|\\.then\\(|\\.finally\\(" packages/*/src examples/project-console/src -g '*.ts' -g '*.tsx'`
+  - `rg -n "as Effect\\.Effect|as unknown as |as never|as any|@ts-ignore" packages/*/src examples/*/src scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
 - Raw throw/subclass grep:
   - `rg -n "throw new Error|throw new TypeError|extends Error" packages examples scripts -g '*.ts' -g '*.tsx' -g '*.mjs'`
 - Test/source `any` grep:
@@ -350,6 +361,18 @@ Solid adapter, and DB query-builder cleanup sweeps.
   cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files
   / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension
   test file / 6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.
+- `pnpm --filter @effect-ui/core typecheck`, `pnpm --filter @effect-ui/start
+  typecheck`, `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck:types`,
+  and
+  `pnpm exec vitest run packages/core/test/server.test.ts packages/core/test/form.test.ts packages/core/test/runtime.test.ts packages/core/test/route-server.test.ts packages/start/test/start.test.ts packages/start/test/rpc.test.ts packages/start/test/adapters.test.ts packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
+  passed after the schema, EffectInput, Start preload/adapter, and DB query
+  variance cast cleanup: 9 files, 135 tests.
+- `pnpm verify` passed after the broad sharp-cast cleanup: 9 package builds,
+  workspace typecheck, type tests, 38 root test files / 320 tests,
+  devtools-panel verify, devtools-extension verify with 1 extension test file / 6
+  tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
 

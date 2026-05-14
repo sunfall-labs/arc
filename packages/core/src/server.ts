@@ -526,12 +526,12 @@ const decodeWire = <A = unknown>(schema: unknown, input: unknown): Effect.Effect
   if (!Schema.isSchema(schema)) {
     return Effect.succeed(input as A);
   }
-  return Schema.decodeUnknownEffect(schema)(input) as Effect.Effect<A, Schema.SchemaError>;
+  return Schema.decodeUnknownEffect(schema as Schema.Decoder<A>)(input);
 };
 
 const encodeWire = (schema: unknown, input: unknown): Effect.Effect<unknown, Schema.SchemaError> => {
   if (!Schema.isSchema(schema)) {
     return Effect.succeed(input);
   }
-  return Schema.encodeUnknownEffect(schema)(input) as Effect.Effect<unknown, Schema.SchemaError>;
+  return Schema.encodeUnknownEffect(schema as Schema.Encoder<unknown>)(input);
 };

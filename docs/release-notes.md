@@ -113,10 +113,9 @@ Latest full gate on May 14, 2026:
   keep EffectInput conversion in typed helper seams instead of repeated
   adapter-local assertions.
 - DB collection persistence, load, mutation, change-feed, and live-query preload
-  paths now share the same typed EffectInput helper; remaining DB sharp casts are
-  the documented query context-variance bridges.
-- The DB query builder projector variance helper no longer uses a broad
-  `unknown` bridge.
+  paths now share the same typed EffectInput helper; DB query filter/order
+  variance is expressed through helper types, and the default projector
+  boundary is named instead of using a broad inline `unknown` bridge.
 - Type-id declarations no longer appear in the broad `as never` cast sweep.
 - The latest `pnpm verify` passed after tightening runtime-provided scoped
   Effects and removing Solid/Solid-DB hook call-site requirement erasure.
@@ -132,6 +131,10 @@ Latest full gate on May 14, 2026:
   needs example-local Effect casts.
 - The latest `pnpm verify` passed after the Start runtime-boundary and example
   UI effect cleanup.
+- The broad sharp-cast grep now reports only the two named core runtime
+  service-erasure boundaries after schema, EffectInput, Start preload/adapter,
+  and DB query variance cleanup.
+- The latest `pnpm verify` passed after the broad sharp-cast cleanup.
 
 ## Notable Limits
 

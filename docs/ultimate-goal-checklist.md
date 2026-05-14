@@ -153,6 +153,10 @@ Last evidence pass: May 14, 2026.
   - Evidence: `packages/core/src/scope.ts` and `packages/core/src/signal.ts`
     no longer need local scoped-Effect assertions for finalizers, forks, or
     `Signal.watch(...)`.
+- [x] Core schema and EffectInput helpers keep assertions at data boundaries.
+  - Evidence: `packages/core/src/server.ts`, `packages/core/src/form.ts`, and
+    `packages/core/src/effect-like.ts` no longer cast whole Effect programs for
+    schema decoding/encoding or EffectInput conversion.
 - [x] Package source avoids raw Promise method lifecycle cleanup.
   - Evidence: action and Start action submitters use `Effect.ensuring` for
     in-flight cleanup; Solid/Solid DB background preloads catch inside Effect;
@@ -246,8 +250,11 @@ Last evidence pass: May 14, 2026.
 - [x] DB collection internals avoid local Effect requirement erasure outside query
   variance.
   - Evidence: `packages/db/src/index.ts` uses `collectionInputEffect(...)` for
-    persistence, load, mutation, change-feed, and source-preload paths; the DB
-    sharp-cast sweep now reports only the three query context-variance bridges.
+    persistence, load, mutation, change-feed, and source-preload paths.
+- [x] DB query variance boundaries are named or expressed in helper types.
+  - Evidence: `packages/db/src/index.ts` carries joined filter/order functions
+    through `NextContext extends TContext`, and the unprojected identity path is
+    isolated behind `projectCurrentContext(...)`.
 - [x] Collection retry policy uses Effect `Schedule`.
   - Evidence: collection load and mutation retry tests.
 - [x] Optimistic insert/update/delete mutations publish events and preserve
@@ -601,9 +608,9 @@ Last evidence pass: May 14, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026 after the Start
-    runtime-boundary and example UI effect cleanup: 9 package builds, workspace
-    typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify,
+  - Evidence: root `pnpm verify` passed on May 14, 2026 after the broad
+    sharp-cast cleanup: 9 package builds, workspace typecheck, type tests,
+    38 root test files / 320 tests, devtools-panel verify,
     devtools-extension verify with 1 extension test file / 6 tests, basic starter
     verify, project-console starter packaging, project-console typecheck, 4
     project-console test files / 23 tests, project-console build, and leak scan.

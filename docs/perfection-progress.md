@@ -97,11 +97,11 @@ or command result that proves it.
   adapter-local `Effect.Effect<..., R>` casts.
 - DB collection persistence, load, mutation-handler, change-feed, and live-query
   source-preload paths now use `collectionInputEffect(...)` or direct Effect
-  combinators; DB source sharp-cast grep is limited to the three query
-  context-variance bridges.
-- DB query joins now carry selected projectors with a direct function assertion
-  instead of the broader `unknown` bridge used by the remaining predicate/order
-  variance helpers.
+  combinators.
+- DB query joins now carry selected projectors with a direct function assertion,
+  filter/order variance is expressed through `NextContext extends TContext`, and
+  the default projector boundary is named instead of using a broad inline
+  `unknown` bridge.
 - Core and DB type IDs now use self-type `unique symbol` assertions instead of
   `as never`; the remaining sharp-cast work is now concentrated in documented
   runtime/schema/host and DB query-variance boundaries.
@@ -118,10 +118,13 @@ or command result that proves it.
   runtime provision failures through `Effect.die(...)`, and project-console UI
   fire-and-forget Effects no longer need local `Effect.Effect<..., any>`
   assertions.
-- The latest full verification gate is green after the Start runtime-boundary
-  and example UI effect cleanup: 38 root test files / 320 tests plus devtools
-  panel, devtools extension, starter, rich starter packaging, project-console
-  build, and leak-scan gates.
+- Schema helpers, EffectInput conversion, Start preload/Node adapter boundaries,
+  and DB query variance now avoid broad Effect/unknown/bottom casts; the broad
+  source sharp-cast grep reports only the two named core runtime
+  service-erasure boundaries.
+- The latest full verification gate is green after the broad sharp-cast cleanup:
+  38 root test files / 320 tests plus devtools panel, devtools extension,
+  starter, rich starter packaging, project-console build, and leak-scan gates.
 - The final no-new-improvements clean-sweep gate is still open because the
   latest sweeps still found actionable implementation and docs work. Start the
   clean-sweep counter only after full code/docs/test passes stop finding
@@ -273,6 +276,8 @@ or command result that proves it.
 | 140 | Full verification after Start runtime call-site cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/effect-first-audit.md` | Escalated full verification passed after the Start runtime call-site cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 | 141 | Start runtime-boundary and example UI effect cleanup | `packages/start/src/index.ts`; `examples/project-console/src/App.tsx`; `docs/sharp-cast-audit.md`; `docs/effect-first-audit.md`; `docs/perfection-progress.md` | Replaced Start RPC/action request-runtime casts with explicit defect-response error handling, converted action hydration runtime provision failures with `Effect.die(...)`, and made the project-console UI effect runner generic enough to remove the last example-source `Effect.Effect<..., any>` assertions. Start and project-console typechecks plus focused Start/project-console tests passed: 7 files / 42 selected tests. | Run full verification before committing this cast cleanup. |
 | 142 | Full verification after Start runtime-boundary and example cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/effect-first-audit.md` | Escalated full verification passed after the Start runtime-boundary and example UI effect cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
+| 143 | Broad sharp-cast cleanup | `packages/core/src/effect-like.ts`; `packages/core/src/form.ts`; `packages/core/src/server.ts`; `packages/start/src/index.ts`; `packages/start/src/adapters.ts`; `packages/db/src/index.ts`; `docs/sharp-cast-audit.md`; `docs/effect-first-audit.md`; `docs/perfection-progress.md` | Moved schema assertions to `Schema.Decoder`/`Schema.Encoder` boundaries, preserved EffectInput generics through `isEffectLike(...)`, scoped Start preload request-runtime provision with `Effect.scoped(...)`, ran Node adapter handler Effects through the core runtime helper, and replaced DB query `unknown` bridges with explicit context variance plus a named default projector boundary. Core/Start/DB typechecks, public type tests, and focused core/start/db tests passed: 9 files / 135 tests. The broad sharp-cast grep now reports only the two core runtime service-erasure casts. | Run full verification before committing this broad cast cleanup. |
+| 144 | Full verification after broad sharp-cast cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/effect-first-audit.md` | Escalated full verification passed after the broad sharp-cast cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 
 ## Thirty-Sweep Gate
 

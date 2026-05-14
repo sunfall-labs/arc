@@ -25,21 +25,27 @@ export const isPromiseLike = (value: unknown): value is PromiseLike<unknown> =>
   "then" in value &&
   typeof (value as { then?: unknown }).then === "function";
 
-export const isEffectLike = (value: unknown): value is Effect.Effect<unknown, unknown, unknown> =>
-  Effect.isEffect(value);
+export function isEffectLike<A, E, R>(value: EffectInput<A, E, R>): value is Effect.Effect<A, E, R>;
+export function isEffectLike(value: unknown): value is Effect.Effect<unknown, unknown, unknown>;
+export function isEffectLike(value: unknown): value is Effect.Effect<unknown, unknown, unknown> {
+  return Effect.isEffect(value);
+}
 
 export const toEffect = <A, E = unknown, R = never>(
   value: EffectInput<A, E, R>
 ): Effect.Effect<A, E, R> => {
   if (isEffectLike(value)) {
-    return value as Effect.Effect<A, E, R>;
+    return value;
   }
 
   if (isPromiseLike(value)) {
-    return Effect.tryPromise({
-      try: () => value,
-      catch: (error) => error as E
-    }) as Effect.Effect<A, E, R>;
+    return Effect.map(
+      Effect.tryPromise({
+        try: () => value,
+        catch: (error) => error as E
+      }),
+      (resolved) => resolved as A
+    );
   }
 
   return Effect.succeed(value as A);

@@ -1749,6 +1749,11 @@ interface QueryProjectOptions {
   readonly window?: boolean;
 }
 
+const projectCurrentContext = <TContext, TResult>(row: TContext): TResult => {
+  const value: unknown = row;
+  return value as TResult;
+};
+
 export class QueryBuilder<TContext extends Record<string, any>, TResult> {
   constructor(
     readonly sources: ReadonlyArray<readonly [string, AnyCollection]>,
@@ -1761,16 +1766,16 @@ export class QueryBuilder<TContext extends Record<string, any>, TResult> {
     readonly grouping: QueryGrouping<any, any> | undefined = undefined
   ) {}
 
-  private filtersFor<NextContext extends Record<string, any>>(): ReadonlyArray<(row: NextContext) => boolean> {
-    return this.filters as unknown as ReadonlyArray<(row: NextContext) => boolean>;
+  private filtersFor<NextContext extends TContext>(): ReadonlyArray<(row: NextContext) => boolean> {
+    return this.filters;
   }
 
   private projectorFor<NextContext extends Record<string, any>, NextResult>(): ((row: NextContext) => NextResult) | undefined {
     return this.projector as ((row: NextContext) => NextResult) | undefined;
   }
 
-  private ordersFor<NextContext extends Record<string, any>>(): ReadonlyArray<QueryOrder<NextContext>> {
-    return this.orders as unknown as ReadonlyArray<QueryOrder<NextContext>>;
+  private ordersFor<NextContext extends TContext>(): ReadonlyArray<QueryOrder<NextContext>> {
+    return this.orders;
   }
 
   where(predicate: (row: TContext) => boolean): QueryBuilder<TContext, TResult> {
@@ -1910,7 +1915,7 @@ export class QueryBuilder<TContext extends Record<string, any>, TResult> {
       {
         key: key as (row: Record<string, any>) => Record<string, unknown>,
         aggregates: aggregates as QueryAggregateRecord<Record<string, any>>,
-        sourceFilters: this.filtersFor<Record<string, any>>()
+        sourceFilters: this.filters
       }
     );
   }
@@ -1982,7 +1987,7 @@ export class QueryBuilder<TContext extends Record<string, any>, TResult> {
       filtered = filtered.slice(0, this.limitCount);
     }
 
-    const projector = this.projector ?? ((row: TContext) => row as unknown as TResult);
+    const projector = this.projector ?? projectCurrentContext<TContext, TResult>;
     return filtered.map(projector);
   }
 }

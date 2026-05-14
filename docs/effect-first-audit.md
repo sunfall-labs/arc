@@ -45,6 +45,13 @@ Effect-native interruption.
     work under `UiScope` instead of erasing requirements locally.
   - Top-level `runPromise`, `runPromiseExit`, and `runFork` helpers now pass the
     input Effect directly to the active runtime boundary.
+- `packages/core/src/effect-like.ts`, `packages/core/src/form.ts`,
+  `packages/core/src/server.ts`, and `packages/start/src/index.ts`
+  - EffectInput conversion preserves existing Effect generics through the
+    overloaded `isEffectLike(...)` guard, PromiseLike conversion maps the
+    resolved value instead of casting the whole Effect, and schema helpers assert
+    decoder/encoder views at the schema boundary instead of asserting Effect
+    program shapes.
 - `packages/db/src/index.ts`
   - Replaced live-query collection `Promise.resolve(...)` no-ops with
     `runPromise(definition.*Effect(...))` so public Promise helpers still
@@ -119,6 +126,9 @@ Effect-native interruption.
   - Moved Vite dev middleware request conversion, SSR handler loading,
     response writing, and error forwarding into `handleSsrDevMiddlewareEffect`;
     the Vite middleware callback now only launches that Effect program.
+- `packages/start/src/adapters.ts`
+  - Node handler Promise entrypoints now use the core runtime helper for handler
+    Effects rather than casting the input to raw `Effect.runPromise(...)`.
 - `scripts/package-project-console-starter.mjs`
   - Replaced the remaining raw async path-existence adapter with
     `Effect.tryPromise`, `Effect.as`, and typed `ENOENT` handling.
@@ -274,3 +284,14 @@ Effect-native interruption.
   1 extension test file / 6 tests, basic starter verify, project-console
   starter packaging, project-console typecheck, 4 project-console test files /
   23 tests, project-console build, and leak scan.
+- `pnpm --filter @effect-ui/core typecheck`, `pnpm --filter @effect-ui/start
+  typecheck`, `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck:types`,
+  and
+  `pnpm exec vitest run packages/core/test/server.test.ts packages/core/test/form.test.ts packages/core/test/runtime.test.ts packages/core/test/route-server.test.ts packages/start/test/start.test.ts packages/start/test/rpc.test.ts packages/start/test/adapters.test.ts packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
+  passed after the broad sharp-cast cleanup: 9 files, 135 tests.
+- Full `pnpm verify` passed after the broad sharp-cast cleanup: 9 package
+  builds, workspace typecheck, type tests, 38 root test files / 320 tests,
+  devtools-panel verify, devtools-extension verify with 1 extension test file / 6
+  tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.

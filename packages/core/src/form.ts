@@ -288,9 +288,11 @@ export namespace Form {
         }));
 
         const decoded = yield* (
-          Schema.decodeUnknownEffect(options.schema)(state.get().values, {
+          Schema.decodeUnknownEffect(
+            options.schema as Schema.Decoder<Values, FormSchemaServices<S>>
+          )(state.get().values, {
             errors: "all"
-          }) as Effect.Effect<Values, Schema.SchemaError, FormSchemaServices<S>>
+          })
         ).pipe(
           Effect.catch((schemaError) =>
             Effect.fail(normalizeValidationError(fieldErrorsFromSchemaError<Values>(schemaError)))

@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import type { ReadableStream as NodeReadableStream } from "node:stream/web";
+import { runPromise } from "@effect-ui/core";
 import { Data, Effect } from "effect";
 import type { StartRequestHandler, StartRequestHandlerEffect } from "./index.js";
 
@@ -195,6 +196,5 @@ export const createNodeHandler = (
   options: StartNodeRequestOptions = {}
 ): StartNodeHandler => {
   const effectHandler = createNodeHandlerEffect(handler, options);
-  return (request, response) =>
-    Effect.runPromise(effectHandler(request, response) as Effect.Effect<Response, unknown, never>);
+  return (request, response) => runPromise(effectHandler(request, response));
 };

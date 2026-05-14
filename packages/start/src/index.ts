@@ -34,7 +34,7 @@ import {
   type ReadableSignal
 } from "@effect-ui/core";
 import { Collection, type AnyCollection, type CollectionHydrationPayload } from "@effect-ui/db";
-import { Cause, Clock, Effect, Exit, Fiber, Layer, Option, Schema } from "effect";
+import { Cause, Clock, Effect, Exit, Fiber, Layer, Option, Schema, type Scope } from "effect";
 import type { EffectInput } from "@effect-ui/core";
 import { makeResourceStore, toEffect, withResourceStore } from "@effect-ui/core";
 import {
@@ -480,12 +480,12 @@ const makeRequestRuntime = <
 ): EffectUiRuntime<ServerServices, ServerError> =>
   withResourceStore(app.runtime, makeResourceStore());
 
-const provideRequestRuntime = <A, E, R>(
-  runtime: EffectUiRuntime<any, any>,
+const provideRequestRuntime = <A, E, R, RuntimeServices, RuntimeError>(
+  runtime: EffectUiRuntime<RuntimeServices, RuntimeError>,
   request: Request,
   effect: Effect.Effect<A, E, R>,
   responseContext: ResponseContext = makeResponseContext()
-): Effect.Effect<A, E, unknown> =>
+): Effect.Effect<A, E | RuntimeError, Scope.Scope> =>
   runtime.provide(
     provideRequest(request)(
       provideResponse(responseContext)(provideLocalServerClient(effect))
@@ -782,7 +782,7 @@ const decodeWithSchema = <A>(
   input: unknown
 ): Effect.Effect<A, Schema.SchemaError> =>
   Schema.isSchema(schema)
-    ? Schema.decodeUnknownEffect(schema)(input) as Effect.Effect<A, Schema.SchemaError>
+    ? Schema.decodeUnknownEffect(schema as Schema.Decoder<A>)(input)
     : Effect.succeed(input as A);
 
 const encodeWithSchema = (
@@ -790,7 +790,7 @@ const encodeWithSchema = (
   input: unknown
 ): Effect.Effect<unknown, Schema.SchemaError> =>
   Schema.isSchema(schema)
-    ? Schema.encodeUnknownEffect(schema)(input) as Effect.Effect<unknown, Schema.SchemaError>
+    ? Schema.encodeUnknownEffect(schema as Schema.Encoder<unknown>)(input)
     : Effect.succeed(input);
 
 const protocolErrorBody = (error: ServerRpcProtocolError): StartActionResponseBody => ({
@@ -1118,9 +1118,9 @@ const createServerRpcResponseEffectWithRuntime = <
           status: Exit.isSuccess(exit) ? "success" : "failure"
         });
         return yield* exitToRpcResponse(fn, exit);
-      }).pipe(Effect.catch((error) => Effect.succeed(rpcRuntimeFailureResponse(error)))),
+      }),
       responseContext
-    );
+    ).pipe(Effect.catch((error) => Effect.succeed(rpcRuntimeFailureResponse(error))));
 
     return withStartTransportDiagnostics(response, diagnostics);
   });
@@ -1508,9 +1508,9 @@ const createServerActionResponseEffectWithRuntime = <
           state: Exit.isSuccess(exit) ? "Success" : "Failure"
         });
         return yield* actionExitResponseEffect(action, exit, meta, actionResponseMode(request));
-      }).pipe(Effect.catch((error) => Effect.succeed(actionRuntimeFailureResponse(error)))),
+      }),
       responseContext
-    );
+    ).pipe(Effect.catch((error) => Effect.succeed(actionRuntimeFailureResponse(error))));
 
     return withStartTransportDiagnostics(response, diagnostics);
   });
@@ -2240,29 +2240,31 @@ const preloadRequestEffectWithRuntime = <
   options: PreloadRequestOptions = {},
   responseContext: ResponseContext = makeResponseContext()
 ): Effect.Effect<StartPreloadResult<Routes>, unknown> =>
-  provideRequestRuntime(runtime, request, Effect.gen(function* () {
-    const collectedRoutePlan = yield* Collection.collectEffect(
-      Route.planNavigationEffect(app.routes, new URL(request.url))
-    );
-    const routePlan = collectedRoutePlan.value;
-    const declaredCollections = routeDeclaredCollections(routePlan);
-    yield* preloadRouteDeclaredCollectionsEffect(declaredCollections, collectedRoutePlan.definitions);
-    const collectionPreload = yield* startCollectionPreloadEffect(
-      collectedRoutePlan.definitions,
-      declaredCollections,
-      options
-    );
-    const collections = collectionPreload.hydration;
-    const hydration = createStartHydrationPayload(routePlan.resources, collections);
-    return {
-      match: routePlan.match,
-      resources: routePlan.resources,
-      collections,
-      collectionPreload,
-      hydration,
-      routePlan
-    };
-  }), responseContext) as Effect.Effect<StartPreloadResult<Routes>, unknown>;
+  Effect.scoped(
+    provideRequestRuntime(runtime, request, Effect.gen(function* () {
+      const collectedRoutePlan = yield* Collection.collectEffect(
+        Route.planNavigationEffect(app.routes, new URL(request.url))
+      );
+      const routePlan = collectedRoutePlan.value;
+      const declaredCollections = routeDeclaredCollections(routePlan);
+      yield* preloadRouteDeclaredCollectionsEffect(declaredCollections, collectedRoutePlan.definitions);
+      const collectionPreload = yield* startCollectionPreloadEffect(
+        collectedRoutePlan.definitions,
+        declaredCollections,
+        options
+      );
+      const collections = collectionPreload.hydration;
+      const hydration = createStartHydrationPayload(routePlan.resources, collections);
+      return {
+        match: routePlan.match,
+        resources: routePlan.resources,
+        collections,
+        collectionPreload,
+        hydration,
+        routePlan
+      };
+    }), responseContext)
+  );
 
 const responseWithRuntimeFinalizer = (
   response: Response,
