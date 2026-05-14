@@ -19,6 +19,82 @@ export interface StartManifestValidatedDefinition {
   readonly exportName: string;
 }
 
+export interface StartCallableManifestDefinitionLike extends StartManifestDefinitionLike {
+  readonly clientModule?: string;
+  readonly clientExportName?: string;
+  readonly inputSchema?: boolean;
+  readonly outputSchema?: boolean;
+  readonly errorSchema?: boolean;
+}
+
+export interface StartCallableManifestWireContract {
+  readonly inputSchema: boolean;
+  readonly outputSchema: boolean;
+  readonly errorSchema: boolean;
+}
+
+export interface StartCallableManifestServerReference {
+  readonly module: string;
+  readonly exportName: string;
+  readonly moduleKind: StartManifestModuleKind;
+}
+
+export interface StartCallableManifestTransportClientInput<Id> {
+  readonly id: Id;
+  readonly name: string;
+  readonly transportPath: string;
+}
+
+export interface StartCallableManifestImportClientInput<Id>
+  extends StartCallableManifestTransportClientInput<Id> {
+  readonly module: string;
+  readonly exportName: string;
+  readonly moduleKind: Exclude<StartManifestModuleKind, "server-only">;
+}
+
+export interface AssembleCallableManifestEntryOptions<
+  Definition extends StartCallableManifestDefinitionLike,
+  Id,
+  Server,
+  Client,
+  Entry,
+  InvalidEntryError,
+  UnsafeClientReferenceError
+> {
+  readonly index: number;
+  readonly transportPath: string;
+  readonly stableId: (name: string) => Id;
+  readonly invalidEntry: (input: {
+    readonly index: number;
+    readonly reason: StartManifestInvalidEntryReason;
+    readonly entry: Definition;
+  }) => InvalidEntryError;
+  readonly unsafeClientReference: (input: {
+    readonly name: string;
+    readonly clientModule: string;
+  }) => UnsafeClientReferenceError;
+  readonly server: (input: {
+    readonly definition: Definition;
+    readonly validated: StartManifestValidatedDefinition;
+    readonly moduleKind: StartManifestModuleKind;
+  }) => Server;
+  readonly transportClient: (
+    input: StartCallableManifestTransportClientInput<Id>
+  ) => Client;
+  readonly importClient: (
+    input: StartCallableManifestImportClientInput<Id>
+  ) => Client;
+  readonly entry: (input: {
+    readonly definition: Definition;
+    readonly validated: StartManifestValidatedDefinition;
+    readonly id: Id;
+    readonly name: string;
+    readonly server: Server;
+    readonly client: Client;
+    readonly wire: StartCallableManifestWireContract;
+  }) => Entry;
+}
+
 export interface StartManifestEntryLike<Id = unknown> {
   readonly id: Id;
   readonly name: string;
@@ -242,6 +318,89 @@ export const validateManifestEntrySet = <
       }
       byServerExport.set(exportKey, entry);
     }
+  });
+
+export const assembleCallableManifestEntry = <
+  Definition extends StartCallableManifestDefinitionLike,
+  Id,
+  Server,
+  Client,
+  Entry,
+  InvalidEntryError,
+  UnsafeClientReferenceError
+>(
+  definition: Definition,
+  options: AssembleCallableManifestEntryOptions<
+    Definition,
+    Id,
+    Server,
+    Client,
+    Entry,
+    InvalidEntryError,
+    UnsafeClientReferenceError
+  >
+): Effect.Effect<Entry, InvalidEntryError | UnsafeClientReferenceError> =>
+  Effect.gen(function* () {
+    const validated = yield* validateManifestDefinition(
+      definition,
+      options.index,
+      options.invalidEntry
+    );
+    const id = options.stableId(validated.name);
+    const server = options.server({
+      definition,
+      validated,
+      moduleKind: classifyStartManifestModule(validated.module)
+    });
+    const wire: StartCallableManifestWireContract = {
+      inputSchema: definition.inputSchema ?? false,
+      outputSchema: definition.outputSchema ?? false,
+      errorSchema: definition.errorSchema ?? false
+    };
+
+    if (definition.clientModule === undefined) {
+      return options.entry({
+        definition,
+        validated,
+        id,
+        name: validated.name,
+        server,
+        client: options.transportClient({
+          id,
+          name: validated.name,
+          transportPath: options.transportPath
+        }),
+        wire
+      });
+    }
+
+    const clientModule = normalizeManifestModuleId(definition.clientModule);
+    const moduleKind = classifyStartManifestModule(clientModule);
+    if (moduleKind === "server-only") {
+      return yield* Effect.fail(
+        options.unsafeClientReference({
+          name: validated.name,
+          clientModule
+        })
+      );
+    }
+
+    return options.entry({
+      definition,
+      validated,
+      id,
+      name: validated.name,
+      server,
+      client: options.importClient({
+        id,
+        name: validated.name,
+        transportPath: options.transportPath,
+        module: clientModule,
+        exportName: definition.clientExportName ?? validated.exportName,
+        moduleKind
+      }),
+      wire
+    });
   });
 
 export const parseSerializedStartManifestJson = <Error>(

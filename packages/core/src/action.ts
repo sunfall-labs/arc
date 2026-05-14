@@ -7,6 +7,12 @@ import {
   type ActionSubmissionRun,
   type ActionSubmissionState
 } from "./action-submission.js";
+import {
+  actionDefinitionRegistry,
+  clearActionDefinitionRegistryUnsafe,
+  getActionDefinition,
+  registerActionDefinition
+} from "./definition-registry.js";
 import type { EffectInput } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
 import { Resource, type ResourceInvalidation, type ResourceInvalidationPlan } from "./resource.js";
@@ -16,12 +22,12 @@ import { Signal, type ReadableSignal, type WritableSignal } from "./signal.js";
 export const ActionTypeId: unique symbol = Symbol.for("@effect-ui/core/Action") as typeof ActionTypeId;
 
 /** State machine for one action instance. */
-export type ActionState<I, A, E = unknown> = ActionSubmissionState<I, A, E>;
+export type ActionState<I, A, E = never> = ActionSubmissionState<I, A, E>;
 
 export type ActionConcurrency = "latest" | "parallel" | "exhaust";
 
 /** Runtime policy for submissions, including concurrency and retry behavior. */
-export interface ActionPolicy<E = unknown> {
+export interface ActionPolicy<E = never> {
   readonly concurrency?: ActionConcurrency;
   readonly retry?: Schedule.Schedule<unknown, E>;
 }
@@ -35,7 +41,7 @@ export interface ActionOptimisticTransaction {
   ) => Effect.Effect<void>;
 }
 
-export interface ActionDefinition<I, A, E = unknown, R = never> {
+export interface ActionDefinition<I, A, E = never, R = never> {
   readonly [ActionTypeId]: typeof ActionTypeId;
   readonly name: string;
   readonly input?: unknown;
@@ -59,7 +65,7 @@ export interface ActionDefinition<I, A, E = unknown, R = never> {
  * `run` may return a value or an Effect, but the action executes it through Effect
  * so retries, interruption, optimistic rollback, and resource invalidation compose.
  */
-export interface ActionOptions<I, A, E = unknown, R = never> {
+export interface ActionOptions<I, A, E = never, R = never> {
   readonly name: string;
   readonly input?: unknown;
   readonly output?: unknown;
@@ -81,7 +87,7 @@ export interface ActionOptions<I, A, E = unknown, R = never> {
  *
  * Read state in UI code and submit through submitEffect.
  */
-export interface ActionInstance<I, A, E = unknown, R = never> {
+export interface ActionInstance<I, A, E = never, R = never> {
   readonly definition: ActionDefinition<I, A, E, R>;
   readonly state: ReadableSignal<ActionState<I, A, E>>;
   readonly invalidationPlan: ReadableSignal<ResourceInvalidationPlan | undefined>;
@@ -107,8 +113,6 @@ export {
 } from "./action-submission.js";
 
 type AnyActionDefinition = ActionDefinition<any, any, any, any>;
-
-const actionRegistry = new Map<string, AnyActionDefinition>();
 
 export const isActionDefinition = (value: unknown): value is ActionDefinition<unknown, unknown> =>
   typeof value === "object" &&
@@ -243,11 +247,11 @@ const makeTransactionRuntime = <R>(): ActionTransactionRuntime<R> => {
 
 /** Helpers for defining and running Effect-first actions. */
 export namespace Action {
-  export type Definition<I, A, E = unknown, R = never> = ActionDefinition<I, A, E, R>;
-  export type Instance<I, A, E = unknown, R = never> = ActionInstance<I, A, E, R>;
-  export type State<I, A, E = unknown> = ActionState<I, A, E>;
+  export type Definition<I, A, E = never, R = never> = ActionDefinition<I, A, E, R>;
+  export type Instance<I, A, E = never, R = never> = ActionInstance<I, A, E, R>;
+  export type State<I, A, E = never> = ActionState<I, A, E>;
   export type Concurrency = ActionConcurrency;
-  export type Policy<E = unknown> = ActionPolicy<E>;
+  export type Policy<E = never> = ActionPolicy<E>;
   export type Rollback<R = never> = ActionRollback<R>;
   export type OptimisticTransaction = ActionOptimisticTransaction;
 
@@ -271,7 +275,7 @@ export namespace Action {
    * });
    * ```
    */
-  export const define = <I, A, E = unknown, R = never>(
+  export const define = <I, A, E = never, R = never>(
     definition: Omit<ActionOptions<I, A, E, R>, "run" | "optimistic"> & {
       readonly run: (input: I) => EffectInput<A, E, R>;
       readonly optimistic?: (
@@ -296,18 +300,18 @@ export namespace Action {
       [ActionTypeId]: ActionTypeId
     };
 
-    actionRegistry.set(action.name, action);
+    registerActionDefinition(action);
     return action;
   };
 
   export const definitions = (): ReadonlyMap<string, AnyActionDefinition> =>
-    actionRegistry;
+    actionDefinitionRegistry<AnyActionDefinition>();
 
   export const get = (name: string): AnyActionDefinition | undefined =>
-    actionRegistry.get(name);
+    getActionDefinition<AnyActionDefinition>(name);
 
   export const clearRegistryUnsafe = (): void => {
-    actionRegistry.clear();
+    clearActionDefinitionRegistryUnsafe();
   };
 
   /**
@@ -315,7 +319,7 @@ export namespace Action {
    *
    * The returned instance submits through submitEffect.
    */
-  export const use = <I, A, E = unknown, R = never>(
+  export const use = <I, A, E = never, R = never>(
     definition: ActionDefinition<I, A, E, R>,
     options: ActionUseOptions<R> = {}
   ): ActionInstance<I, A, E, R> => {

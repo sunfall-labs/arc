@@ -1,16 +1,15 @@
 import type { ServerFunction } from "@effect-ui/core";
 import { Data, Effect, Schema } from "effect";
 import {
+  assembleCallableManifestEntry,
   classifyStartManifestModule,
   compareManifestEntries,
   decodeSerializedCallableManifest,
   decodeSerializedCallableManifestEntry,
   isStartManifestContractModule,
   isStartManifestServerOnlyModule,
-  normalizeManifestModuleId,
   parseSerializedStartManifestJson,
   stableManifestEntryId,
-  validateManifestDefinition,
   validateManifestEntrySet,
   type StartManifestModuleKind
 } from "./manifest-entry-core.js";
@@ -206,21 +205,6 @@ const sortManifestEntries = (
   entries: readonly ServerFunctionManifestEntry[]
 ): readonly ServerFunctionManifestEntry[] => [...entries].sort(compareEntries);
 
-const validateDefinition = (
-  definition: ServerFunctionManifestDefinition,
-  index: number
-): Effect.Effect<
-  {
-    readonly name: string;
-    readonly module: string;
-    readonly exportName: string;
-  },
-  ServerFunctionManifestInvalidEntry
-> =>
-  validateManifestDefinition(definition, index, (input) =>
-    new ServerFunctionManifestInvalidEntry(input)
-  );
-
 export const makeServerFunctionManifestEntry = (
   definition: ServerFunctionManifestDefinition,
   options: ServerFunctionManifestOptions = {},
@@ -229,63 +213,48 @@ export const makeServerFunctionManifestEntry = (
   ServerFunctionManifestEntry,
   ServerFunctionManifestInvalidEntry | ServerFunctionManifestUnsafeClientReference
 > =>
-  Effect.gen(function* () {
-    const validated = yield* validateDefinition(definition, index);
-    const id = stableServerFunctionId(validated.name);
-    const rpcPath = options.rpcPath ?? serverRpcPath;
-    const server: ServerFunctionServerReference = {
+  assembleCallableManifestEntry(definition, {
+    index,
+    transportPath: options.rpcPath ?? serverRpcPath,
+    stableId: stableServerFunctionId,
+    invalidEntry: (input) => new ServerFunctionManifestInvalidEntry(input),
+    unsafeClientReference: (input) =>
+      new ServerFunctionManifestUnsafeClientReference(input),
+    server: ({ definition, validated, moduleKind }): ServerFunctionServerReference => ({
       module: validated.module,
       exportName: validated.exportName,
-      moduleKind: classifyServerFunctionModule(validated.module),
+      moduleKind,
       hasHandler: definition.hasHandler ?? true
-    };
-    const wire: ServerFunctionWireContract = {
-      inputSchema: definition.inputSchema ?? false,
-      outputSchema: definition.outputSchema ?? false,
-      errorSchema: definition.errorSchema ?? false
-    };
-
-    if (definition.clientModule === undefined) {
-      return {
-        id,
-        name: validated.name,
-        server,
-        client: {
-          _tag: "Rpc" as const,
-          id,
-          name: validated.name,
-          rpcPath
-        },
-        wire
-      };
-    }
-
-    const clientModule = normalizeManifestModuleId(definition.clientModule);
-    const moduleKind = classifyServerFunctionModule(clientModule);
-    if (moduleKind === "server-only") {
-      return yield* Effect.fail(
-        new ServerFunctionManifestUnsafeClientReference({
-          name: validated.name,
-          clientModule
-        })
-      );
-    }
-
-    return {
+    }),
+    transportClient: ({ id, name, transportPath }): ServerFunctionClientReference => ({
+      _tag: "Rpc",
       id,
-      name: validated.name,
+      name,
+      rpcPath: transportPath
+    }),
+    importClient: ({
+      id,
+      name,
+      transportPath,
+      module,
+      exportName,
+      moduleKind
+    }): ServerFunctionClientReference => ({
+      _tag: "Import",
+      id,
+      name,
+      rpcPath: transportPath,
+      module,
+      exportName,
+      moduleKind
+    }),
+    entry: ({ id, name, server, client, wire }): ServerFunctionManifestEntry => ({
+      id,
+      name,
       server,
-      client: {
-        _tag: "Import" as const,
-        id,
-        name: validated.name,
-        rpcPath,
-        module: clientModule,
-        exportName: definition.clientExportName ?? validated.exportName,
-        moduleKind
-      },
+      client,
       wire
-    };
+    })
   });
 
 export const makeServerFunctionManifest = (

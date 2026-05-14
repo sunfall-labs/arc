@@ -94,9 +94,11 @@ import {
   subscribeCollectionEventsEffect
 } from "./collection-runtime.js";
 import {
+  collectionRegistryDiagnostics,
   collectionDefinitionRegistry,
   collectionDiagnostics,
-  registerCollectionDefinition
+  defaultCollectionDefinitionRegistry,
+  makeCollectionDefinitionRegistry
 } from "./collection-registry.js";
 import type { CollectionSnapshotCodecError } from "./collection-snapshot-codec.js";
 import type {
@@ -140,12 +142,24 @@ import type {
   CollectionValue,
   CollectionWriteOptions
 } from "./collection-contract.js";
+import type {
+  CollectionDefinitionDuplicatePolicy,
+  CollectionDefinitionDuplicateDiagnostics,
+  CollectionDefinitionRegistration,
+  CollectionDefinitionRegistryAdapter,
+  CollectionDefinitionRegistryDiagnostics,
+  CollectionDefinitionRegistryOptions
+} from "./collection-registry.js";
 
 export { UnknownCollectionIndex } from "./collection-state.js";
 export { CollectionStoreTypeId, CollectionTypeId } from "./collection-ids.js";
 export { CollectionRowNotFound, ReadonlyCollectionMutation } from "./collection-errors.js";
 export { CollectionSnapshotCodecError } from "./collection-snapshot-codec.js";
 export { CollectionPreloadCollector } from "./collection-preload.js";
+export {
+  defaultCollectionDefinitionRegistry,
+  makeCollectionDefinitionRegistry
+} from "./collection-registry.js";
 export type {
   AnyCollection,
   CollectionChange,
@@ -188,6 +202,14 @@ export type {
   CollectionValue,
   CollectionWriteOptions
 } from "./collection-contract.js";
+export type {
+  CollectionDefinitionDuplicatePolicy,
+  CollectionDefinitionDuplicateDiagnostics,
+  CollectionDefinitionRegistration,
+  CollectionDefinitionRegistryAdapter,
+  CollectionDefinitionRegistryDiagnostics,
+  CollectionDefinitionRegistryOptions
+} from "./collection-registry.js";
 export {
   Query,
   QueryBuilder,
@@ -236,9 +258,9 @@ export type {
 export const persistedCollectionOptions = <
   A extends object,
   K extends CollectionKey = string,
-  E = unknown,
+  E = never,
   R = never,
-  PE = unknown,
+  PE = never,
   PR = never
 >(
   options: CollectionPersistedOptions<A, K, E, R, PE, PR>
@@ -261,12 +283,15 @@ export const persistedCollectionOptions = <
 export const makeLiveQueryCollection = <
   A extends object,
   K extends CollectionKey = string,
-  E = unknown,
+  E = never,
   R = never
 >(
-  options: CollectionLiveQueryOptions<A, K, E, R>
+  options: CollectionLiveQueryOptions<A, K, E, R>,
+  registry: CollectionDefinitionRegistryAdapter = defaultCollectionDefinitionRegistry
 ): CollectionDefinition<A, K, E | ReadonlyCollectionMutation, R> =>
-  makeLiveQueryCollectionDefinition(options, registerCollectionDefinition);
+  makeLiveQueryCollectionDefinition(options, (name, definition) => {
+    registry.register(name, definition);
+  });
 
 /**
  * Type guard for runtime collection definitions.
@@ -284,16 +309,16 @@ export const isCollection = (value: unknown): value is AnyCollection =>
  * from the current runtime store or fork work onto the current runtime.
  */
 export namespace Collection {
-  export type Definition<A extends object, K extends CollectionKey = string, E = unknown, R = never> = CollectionDefinition<A, K, E, R>;
+  export type Definition<A extends object, K extends CollectionKey = string, E = never, R = never> = CollectionDefinition<A, K, E, R>;
   export type Row<A extends object, K extends CollectionKey = CollectionKey> = CollectionRow<A, K>;
   export type Key = CollectionKey;
   export type Origin = CollectionOrigin;
-  export type State<E = unknown> = CollectionLoadState<E>;
+  export type State<E = never> = CollectionLoadState<E>;
   export type Mutation<A extends object, K extends CollectionKey> = CollectionMutation<A, K>;
   export type Transaction<A extends object, K extends CollectionKey> = CollectionTransaction<A, K>;
   export type RollbackRow<A extends object, K extends CollectionKey> = CollectionRollbackRow<A, K>;
   export type PendingMutation<A extends object, K extends CollectionKey> = CollectionPendingMutation<A, K>;
-  export type Policy<E = unknown> = CollectionPolicy<E>;
+  export type Policy<E = never> = CollectionPolicy<E>;
   export type SyncDiagnostics = CollectionSyncDiagnostics;
   export type IndexValue = CollectionIndexValue;
   export type IndexResult = CollectionIndexResult;
@@ -309,51 +334,57 @@ export namespace Collection {
   export type HydrationPayload = CollectionHydrationPayload;
   export type HydrateOptions = CollectionHydrateOptions;
   export type SnapshotCodecError = CollectionSnapshotCodecError;
-  export type PersistenceStorage<E = unknown, R = never> = CollectionPersistenceStorage<E, R>;
+  export type PersistenceStorage<E = never, R = never> = CollectionPersistenceStorage<E, R>;
   export type PersistOptions = CollectionPersistOptions;
-  export type PersistenceConfig<E = unknown, R = never> = CollectionPersistenceConfig<E, R>;
+  export type PersistenceConfig<E = never, R = never> = CollectionPersistenceConfig<E, R>;
   export type PersistedOptions<
     A extends object,
     K extends CollectionKey = string,
-    E = unknown,
+    E = never,
     R = never,
-    PE = unknown,
+    PE = never,
     PR = never
   > = CollectionPersistedOptions<A, K, E, R, PE, PR>;
-  export type LiveQueryOptions<A extends object, K extends CollectionKey, E = unknown, R = never> =
+  export type LiveQueryOptions<A extends object, K extends CollectionKey, E = never, R = never> =
     CollectionLiveQueryOptions<A, K, E, R>;
   export type StorageLike = CollectionStorageLike;
   export type MemoryStorage = CollectionMemoryStorage;
   export type DefinitionDiagnostics = CollectionDefinitionDiagnostics;
   export type Diagnostics = CollectionDiagnostics;
+  export type DefinitionRegistryAdapter = CollectionDefinitionRegistryAdapter;
+  export type DefinitionRegistryOptions = CollectionDefinitionRegistryOptions;
+  export type DefinitionRegistration = CollectionDefinitionRegistration;
+  export type DefinitionDuplicatePolicy = CollectionDefinitionDuplicatePolicy;
+  export type DefinitionDuplicateDiagnostics = CollectionDefinitionDuplicateDiagnostics;
+  export type DefinitionRegistryDiagnostics = CollectionDefinitionRegistryDiagnostics;
   export type PreloadCollector = CollectionPreloadCollectorState;
   export type Collected<A> = CollectionPreloadCollected<A>;
-  export type ServerOptions<A extends object, K extends CollectionKey = string, E = unknown, R = never> =
+  export type ServerOptions<A extends object, K extends CollectionKey = string, E = never, R = never> =
     ServerCollectionOptions<A, K, E, R>;
-  export type ServerOperation<I, A, E = unknown, R = never> = ServerCollectionOperation<I, A, E, R>;
-  export type ServerResult<A, E = unknown, R = never> = ServerCollectionResult<A, E, R>;
+  export type ServerOperation<I, A, E = never, R = never> = ServerCollectionOperation<I, A, E, R>;
+  export type ServerResult<A, E = never, R = never> = ServerCollectionResult<A, E, R>;
   export type ServerInsertPayload<A extends object, K extends CollectionKey> = ServerCollectionInsertPayload<A, K>;
   export type ServerUpdatePayload<A extends object, K extends CollectionKey> = ServerCollectionUpdatePayload<A, K>;
   export type ServerDeletePayload<A extends object, K extends CollectionKey> = ServerCollectionDeletePayload<A, K>;
-  export type SyncAdapter<A extends object, K extends CollectionKey = string, E = unknown, R = never> =
+  export type SyncAdapter<A extends object, K extends CollectionKey = string, E = never, R = never> =
     CollectionSyncAdapter<A, K, E, R>;
-  export type SyncOptions<A extends object, K extends CollectionKey = string, E = unknown, R = never> =
+  export type SyncOptions<A extends object, K extends CollectionKey = string, E = never, R = never> =
     CollectionSyncOptions<A, K, E, R>;
-  export type ResourceSyncAdapterOptions<I, A extends object, K extends CollectionKey = string, E = unknown, R = never> =
+  export type ResourceSyncAdapterOptions<I, A extends object, K extends CollectionKey = string, E = never, R = never> =
     CollectionResourceSyncAdapterOptions<I, A, K, E, R>;
   export type QuerySyncKey = CollectionQuerySyncKey;
-  export type QuerySyncFetchOptions<A extends object, E = unknown, R = never> =
+  export type QuerySyncFetchOptions<A extends object, E = never, R = never> =
     CollectionQuerySyncFetchOptions<A, E, R>;
   export type QuerySyncInvalidateOptions = CollectionQuerySyncInvalidateOptions;
-  export type QuerySyncClient<A extends object, E = unknown, R = never> =
+  export type QuerySyncClient<A extends object, E = never, R = never> =
     CollectionQuerySyncClient<A, E, R>;
-  export type QuerySyncAdapterOptions<A extends object, K extends CollectionKey = string, E = unknown, R = never> =
+  export type QuerySyncAdapterOptions<A extends object, K extends CollectionKey = string, E = never, R = never> =
     CollectionQuerySyncAdapterOptions<A, K, E, R>;
   export type ChangeFeedUnsubscribe = CollectionChangeFeedUnsubscribe;
   export type ChangeFeedSubscription = CollectionChangeFeedSubscription;
   export type ChangeFeedContext<A extends object, K extends CollectionKey = string> =
     CollectionChangeFeedContext<A, K>;
-  export type ChangeFeedAdapter<A extends object, K extends CollectionKey = string, E = unknown, R = never> =
+  export type ChangeFeedAdapter<A extends object, K extends CollectionKey = string, E = never, R = never> =
     CollectionChangeFeedAdapter<A, K, E, R>;
   export type ChangeFeedSubscribeOptions = CollectionChangeFeedSubscribeOptions;
   export type SyncInsertPayload<A extends object, K extends CollectionKey> = CollectionSyncInsertPayload<A, K>;
@@ -379,8 +410,8 @@ export namespace Collection {
   export type BackgroundSyncResult = CollectionBackgroundSyncResult;
   export type SQLiteStorageKey = SQLitePersistenceKey;
   export type SQLiteStorageRow = SQLitePersistenceRow;
-  export type SQLiteStorageTable<E = unknown, R = never> = SQLitePersistenceTable<E, R>;
-  export type SQLiteStorageDriver<E = unknown, R = never> = SQLitePersistenceDriver<E, R>;
+  export type SQLiteStorageTable<E = never, R = never> = SQLitePersistenceTable<E, R>;
+  export type SQLiteStorageDriver<E = never, R = never> = SQLitePersistenceDriver<E, R>;
   export type SQLiteStorageOptions = SQLitePersistenceOptions;
   export type SQLiteMemoryStatement = SQLitePersistenceMemoryStatement;
   export type SQLiteMemoryStatementDatabase = SQLitePersistenceMemoryStatementDatabase;
@@ -395,18 +426,18 @@ export namespace Collection {
     readonly updated_at?: unknown;
     readonly updatedAt?: unknown;
   }
-  export interface SQLiteStatementDatabase<E = unknown, R = never> {
+  export interface SQLiteStatementDatabase<E = never, R = never> {
     readonly execute: (sql: string, params?: SQLiteStatementParams) => EffectInput<void, E, R>;
     readonly select: (sql: string, params?: SQLiteStatementParams) => EffectInput<ReadonlyArray<SQLiteStatementRow>, E, R>;
   }
   export type SQLitePreparedStatement<
     Row extends SQLiteStatementRow = SQLiteStatementRow,
-    E = unknown,
+    E = never,
     R = never
   > = SQLitePersistencePreparedStatement<Row, E, R>;
   export type SQLitePreparedStatementDatabase<
     Row extends SQLiteStatementRow = SQLiteStatementRow,
-    E = unknown,
+    E = never,
     R = never
   > = SQLitePersistencePreparedStatementDatabase<Row, E, R>;
   export type SQLitePreparedStatementDatabaseOptions = SQLitePersistencePreparedStatementDatabaseOptions;
@@ -425,6 +456,10 @@ export namespace Collection {
   export const persistedOptions = persistedCollectionOptions;
   /** Create a read-only collection from a live query result. */
   export const liveQuery = makeLiveQueryCollection;
+  /** Build an isolated collection definition registry adapter. */
+  export const makeRegistry = makeCollectionDefinitionRegistry;
+  /** Process-wide collection definition registry adapter used by default. */
+  export const defaultRegistry = defaultCollectionDefinitionRegistry;
   /** Flush queued optimistic mutations across many collections. */
   export const flushAllPendingMutationsEffect = flushCollectionsPendingMutationsEffect;
   /** Decide whether to flush pending mutations for background sync triggers. */
@@ -456,14 +491,17 @@ export namespace Collection {
   export const define = <
     A extends object,
     K extends CollectionKey = string,
-    E = unknown,
+    E = never,
     R = never
   >(
     options: Omit<CollectionOptions<A, K, E, R>, "load"> & {
       readonly load?: () => EffectInput<ReadonlyArray<A>, E, R>;
-    }
+    },
+    registry: CollectionDefinitionRegistryAdapter = defaultCollectionDefinitionRegistry
   ): CollectionDefinition<A, K, E, R> =>
-    defineCollection(options, registerCollectionDefinition);
+    defineCollection(options, (name, definition) => {
+      registry.register(name, definition);
+    });
 
   /** Return the process-wide registry of named collection definitions. */
   export const definitions = (): ReadonlyMap<string, AnyCollection> =>
@@ -472,6 +510,10 @@ export namespace Collection {
   /** Describe registered collections, indexes, handlers, sync, and persistence. */
   export const diagnostics = (): CollectionDiagnostics =>
     collectionDiagnostics();
+
+  /** Describe the process-wide registry, including duplicate registrations. */
+  export const registryDiagnostics = (): CollectionDefinitionRegistryDiagnostics =>
+    collectionRegistryDiagnostics();
 
   /** Reactive load state signal for a collection. */
   export const state = <A extends object, K extends CollectionKey, E, R>(
@@ -577,7 +619,7 @@ export namespace Collection {
     definition: CollectionDefinition<A, K, E, R>,
     value: CollectionSnapshot<A, K>,
     options?: CollectionHydrateOptions
-  ): Effect.Effect<void> => definition.hydrateEffect(value, options);
+  ): Effect.Effect<void, CollectionSnapshotCodecError> => definition.hydrateEffect(value, options);
 
   /** Fork `hydrateEffect` on the current runtime. */
   export const hydrate = <A extends object, K extends CollectionKey, E, R>(
@@ -601,7 +643,7 @@ export namespace Collection {
     collections: Iterable<AnyCollection>,
     payload: CollectionHydrationPayload,
     options?: CollectionHydrateOptions
-  ): Effect.Effect<void> => hydrateCollectionsEffect(collections, payload, options);
+  ): Effect.Effect<void, CollectionSnapshotCodecError> => hydrateCollectionsEffect(collections, payload, options);
 
   /** Fork `hydratePayloadEffect` on the current runtime. */
   export const hydratePayload = (
@@ -655,7 +697,7 @@ export namespace Collection {
    *
    * The storage backend controls the Effect error and requirement channels.
    */
-  export const persistEffect = <A extends object, K extends CollectionKey, E, R, PE = unknown, PR = never>(
+  export const persistEffect = <A extends object, K extends CollectionKey, E, R, PE = never, PR = never>(
     definition: CollectionDefinition<A, K, E, R>,
     storage: CollectionPersistenceStorage<PE, PR>,
     options?: CollectionPersistOptions
@@ -664,7 +706,7 @@ export namespace Collection {
   /**
    * Restore one collection snapshot from storage if present.
    */
-  export const restoreEffect = <A extends object, K extends CollectionKey, E, R, PE = unknown, PR = never>(
+  export const restoreEffect = <A extends object, K extends CollectionKey, E, R, PE = never, PR = never>(
     definition: CollectionDefinition<A, K, E, R>,
     storage: CollectionPersistenceStorage<PE, PR>,
     options?: CollectionPersistOptions & CollectionHydrateOptions

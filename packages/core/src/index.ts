@@ -3,6 +3,7 @@ export * from "./action-result.js";
 export * from "./action-submission.js";
 export * from "./app.js";
 export * from "./capability.js";
+export * from "./definition-registry.js";
 export * from "./effect-like.js";
 export * from "./form.js";
 export * from "./read.js";

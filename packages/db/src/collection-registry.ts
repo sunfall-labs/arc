@@ -5,18 +5,48 @@ import type {
   CollectionDiagnostics
 } from "./collection-contract.js";
 
-const collectionDefinitions = new Map<string, AnyCollection>();
+export type CollectionDefinitionDuplicatePolicy = "keep-first" | "replace";
 
-export const registerCollectionDefinition = (
-  name: string,
-  definition: AnyCollection
-): void => {
-  collectionDefinitions.set(name, definition);
-};
+export interface CollectionDefinitionRegistryOptions {
+  readonly duplicates?: CollectionDefinitionDuplicatePolicy;
+}
 
-/** Return the process-wide registry of named collection definitions. */
-export const collectionDefinitionRegistry = (): ReadonlyMap<string, AnyCollection> =>
-  collectionDefinitions;
+export interface CollectionDefinitionRegistration {
+  readonly name: string;
+  readonly definition: AnyCollection;
+  readonly sequence: number;
+  readonly duplicate: boolean;
+  readonly retained: AnyCollection;
+}
+
+export interface CollectionDefinitionDuplicateDiagnostics {
+  readonly name: string;
+  readonly policy: CollectionDefinitionDuplicatePolicy;
+  readonly retained: number;
+  readonly discarded: number;
+}
+
+export interface CollectionDefinitionRegistryDiagnostics extends CollectionDiagnostics {
+  readonly duplicates: readonly CollectionDefinitionDuplicateDiagnostics[];
+}
+
+export interface CollectionDefinitionRegistryAdapter {
+  register(name: string, definition: AnyCollection): CollectionDefinitionRegistration;
+  definitions(): ReadonlyMap<string, AnyCollection>;
+  diagnostics(): CollectionDefinitionRegistryDiagnostics;
+}
+
+interface CollectionDefinitionRegistryEntry {
+  readonly definition: AnyCollection;
+  readonly sequence: number;
+}
+
+interface CollectionDefinitionDuplicateEntry {
+  readonly name: string;
+  readonly policy: CollectionDefinitionDuplicatePolicy;
+  readonly retained: number;
+  readonly discarded: number;
+}
 
 export const collectionDefinitionDiagnostics = (
   definition: AnyCollection
@@ -56,8 +86,107 @@ export const collectionDefinitionDiagnostics = (
   };
 };
 
+export const makeCollectionDefinitionRegistry = (
+  options: CollectionDefinitionRegistryOptions = {}
+): CollectionDefinitionRegistryAdapter => {
+  const duplicatePolicy = options.duplicates ?? "keep-first";
+  const definitions = new Map<string, AnyCollection>();
+  const entries = new Map<string, CollectionDefinitionRegistryEntry>();
+  const duplicates: Array<CollectionDefinitionDuplicateEntry> = [];
+  let nextSequence = 1;
+
+  return {
+    register: (name, definition) => {
+      const existing = entries.get(name);
+
+      if (existing?.definition === definition) {
+        return {
+          name,
+          definition,
+          sequence: existing.sequence,
+          duplicate: false,
+          retained: definition
+        };
+      }
+
+      const sequence = nextSequence++;
+
+      if (existing === undefined) {
+        definitions.set(name, definition);
+        entries.set(name, { definition, sequence });
+        return {
+          name,
+          definition,
+          sequence,
+          duplicate: false,
+          retained: definition
+        };
+      }
+
+      if (duplicatePolicy === "replace") {
+        definitions.set(name, definition);
+        entries.set(name, { definition, sequence });
+        duplicates.push({
+          name,
+          policy: duplicatePolicy,
+          retained: sequence,
+          discarded: existing.sequence
+        });
+        return {
+          name,
+          definition,
+          sequence,
+          duplicate: true,
+          retained: definition
+        };
+      }
+
+      duplicates.push({
+        name,
+        policy: duplicatePolicy,
+        retained: existing.sequence,
+        discarded: sequence
+      });
+      return {
+        name,
+        definition,
+        sequence,
+        duplicate: true,
+        retained: existing.definition
+      };
+    },
+    definitions: () => definitions,
+    diagnostics: () => ({
+      collections: Array.from(definitions.values(), collectionDefinitionDiagnostics)
+        .sort((left, right) => left.name.localeCompare(right.name)),
+      duplicates: duplicates
+        .slice()
+        .sort((left, right) =>
+          left.name.localeCompare(right.name) ||
+          left.discarded - right.discarded
+        )
+    })
+  };
+};
+
+export const defaultCollectionDefinitionRegistry = makeCollectionDefinitionRegistry();
+
+export const registerCollectionDefinition = (
+  name: string,
+  definition: AnyCollection
+): void => {
+  defaultCollectionDefinitionRegistry.register(name, definition);
+};
+
+/** Return the process-wide registry of named collection definitions. */
+export const collectionDefinitionRegistry = (): ReadonlyMap<string, AnyCollection> =>
+  defaultCollectionDefinitionRegistry.definitions();
+
 /** Describe registered collections, indexes, handlers, sync, and persistence. */
 export const collectionDiagnostics = (): CollectionDiagnostics => ({
-  collections: Array.from(collectionDefinitions.values(), collectionDefinitionDiagnostics)
-    .sort((left, right) => left.name.localeCompare(right.name))
+  collections: defaultCollectionDefinitionRegistry.diagnostics().collections
 });
+
+/** Describe the default registry, including duplicate registrations. */
+export const collectionRegistryDiagnostics = (): CollectionDefinitionRegistryDiagnostics =>
+  defaultCollectionDefinitionRegistry.diagnostics();

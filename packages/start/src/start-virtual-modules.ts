@@ -1,6 +1,5 @@
 import { Effect } from "effect";
 import {
-  describeStartAppGraph,
   serializeStartAppGraph as serializeStartAppGraphArtifact,
   type StartAppGraph
 } from "./app-graph.js";
@@ -117,7 +116,6 @@ export const createStartAppGraphVirtualModule = (
   policy?: StartBuildPolicy
 ): string => {
   const serialized = serializeStartAppGraphArtifact(graph);
-  const staticDiagnostics = JSON.stringify(describeStartAppGraph(graph));
   const diagnosticsPolicy = diagnosticsPolicyLiteral(policy);
   const routeModuleReferences = createFileRouteModuleReferences(graph.routes, {
     importMode: "rootAbsolute"
@@ -125,60 +123,37 @@ export const createStartAppGraphVirtualModule = (
   const routeModuleImports = routeModuleReferences.map((reference) =>
     `import { ${reference.importName} as ${reference.identifier} } from ${JSON.stringify(reference.importSpecifier)};`
   );
-  const routeModuleDiagnostics = routeModuleReferences.map(({ entry, identifier }) =>
+  const routeModuleCandidates = routeModuleReferences.map(({ identifier }, index) =>
     [
       "{",
-      `    routeId: ${JSON.stringify(String(entry.routeId))},`,
-      `    routePath: ${JSON.stringify(entry.routePath)},`,
-      `    moduleId: ${JSON.stringify(entry.moduleId)},`,
-      `    filePath: ${JSON.stringify(entry.filePath)},`,
-      `    pathParamCount: ${entry.params.length},`,
-      `    hasPathParams: ${entry.params.length > 0},`,
-      `    params: ${JSON.stringify(entry.params)},`,
-      `    paramsSchema: routeModulePresence(${identifier}.options?.params),`,
-      `    searchSchema: routeModulePresence(${identifier}.options?.search),`,
-      `    preload: routeModulePresence(${identifier}.options?.preload),`,
+      `    entry: graph.routes.entries[${index}],`,
+      `    route: ${identifier},`,
       `    preloadResources: Route.describePreloadResources(${identifier}),`,
-      `    preloadCollections: Route.describePreloadCollections(${identifier}),`,
-      `    component: routeModulePresence(${identifier}.options?.component)`,
+      `    preloadCollections: Route.describePreloadCollections(${identifier})`,
       "  }"
     ].join("\n")
   );
   return [
     "import { Resource, Route } from \"@effect-ui/core\";",
     "import { Collection } from \"@effect-ui/db\";",
-    "import { collectStartAppGraphDiagnosticsPolicyViolations, formatStartAppGraphDiagnosticsPolicyViolation, unknownRoutePreloadCollectionsForDiagnostics, unknownRoutePreloadResourcesForDiagnostics } from \"@effect-ui/start\";",
+    "import { describeStartAppGraphRuntimeDiagnostics, enforceStartAppGraphDiagnosticsPolicy } from \"@effect-ui/start\";",
     ...(routeModuleImports.length > 0 ? [""] : []),
     ...routeModuleImports,
     ...(routeModuleImports.length > 0 ? [""] : []),
-    "const routeModulePresence = (value) => value === undefined ? \"absent\" : \"present\";",
     `export const graph = ${serialized};`,
-    `const staticDiagnostics = ${staticDiagnostics};`,
     "const resourceDiagnostics = Resource.diagnostics();",
     "const collectionDiagnostics = Collection.diagnostics();",
-    "const routeModules = [",
-    routeModuleDiagnostics.join(",\n"),
+    "const routeModuleCandidates = [",
+    routeModuleCandidates.join(",\n"),
     "];",
-    "const unknownRoutePreloadResources = unknownRoutePreloadResourcesForDiagnostics({ routeModules });",
-    "const unknownRoutePreloadCollections = unknownRoutePreloadCollectionsForDiagnostics({ routeModules });",
-    "export const diagnostics = {",
-    "  ...staticDiagnostics,",
-    "  routeModules,",
-    "  unknownRoutePreloadResources,",
-    "  unknownRoutePreloadCollections,",
+    "export const diagnostics = describeStartAppGraphRuntimeDiagnostics(graph, {",
+    "  routeModules: routeModuleCandidates,",
     "  resourceFamilies: resourceDiagnostics.families,",
     "  resourceTags: resourceDiagnostics.tags,",
     "  collectionDefinitions: collectionDiagnostics.collections",
-    "};",
+    "});",
     `const diagnosticsPolicy = ${diagnosticsPolicy};`,
-    "export const diagnosticsPolicyViolations = collectStartAppGraphDiagnosticsPolicyViolations(diagnostics, diagnosticsPolicy);",
-    "if (diagnosticsPolicyViolations.length > 0) {",
-    "  const error = new Error(`Effect UI app graph diagnostics policy failed: ${diagnosticsPolicyViolations.map(formatStartAppGraphDiagnosticsPolicyViolation).join(\"; \")}`);",
-    "  error.name = \"StartAppGraphDiagnosticsPolicyError\";",
-    "  error.violations = diagnosticsPolicyViolations;",
-    "  error.diagnostics = diagnostics;",
-    "  throw error;",
-    "}",
+    "export const diagnosticsPolicyViolations = enforceStartAppGraphDiagnosticsPolicy(diagnostics, diagnosticsPolicy);",
     "export const routes = graph.routes;",
     "export const serverFunctions = graph.serverFunctions;",
     "export const actions = graph.actions;",

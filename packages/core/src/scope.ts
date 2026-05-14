@@ -64,7 +64,7 @@ export class UiScope {
   }
 
   /** Effect-first disposal for integrations that already run inside Effect. */
-  disposeEffect(): Effect.Effect<void, unknown> {
+  disposeEffect(): Effect.Effect<void> {
     const scope = this;
     return Effect.gen(function* () {
       if (scope.disposed) {

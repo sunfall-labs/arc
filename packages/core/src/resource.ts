@@ -65,7 +65,7 @@ export type { ResourceCollected } from "./resource-collector.js";
 export { MissingResourceInput, ResourceFailure } from "./resource-errors.js";
 
 /** Cache lifecycle policy for a resource family. */
-export interface ResourcePolicy<E = unknown> {
+export interface ResourcePolicy<E = never> {
   /** How long a successful value is considered fresh before reads trigger refresh. */
   readonly staleFor?: DurationInput;
   /** How long a successful value remains cached before it can be collected. */
@@ -75,7 +75,7 @@ export interface ResourcePolicy<E = unknown> {
 }
 
 /** Load state for one resource ref. */
-export type ResourceState<A, E = unknown> =
+export type ResourceState<A, E = never> =
   | { readonly _tag: "Initial"; readonly waiting: false }
   | { readonly _tag: "Pending"; readonly waiting: true; readonly previous?: A }
   | { readonly _tag: "Success"; readonly waiting: false; readonly value: A; readonly updatedAt: number }
@@ -87,7 +87,7 @@ export type ResourceState<A, E = unknown> =
  * A family maps an input to a cached Effect load. Use `provides` to attach tags
  * for broad invalidation after actions or server updates.
  */
-export interface ResourceFamilyOptions<I, A, E = unknown, R = never> {
+export interface ResourceFamilyOptions<I, A, E = never, R = never> {
   /** Stable family name used for diagnostics, hydration, and invalidation events. */
   readonly name: string;
   readonly input?: unknown;
@@ -166,7 +166,7 @@ export interface ResourceDiagnostics {
 }
 
 /** Stable reference to one input in a resource family. */
-export interface ResourceRef<I = unknown, A = unknown, E = unknown, R = never> {
+export interface ResourceRef<I = unknown, A = unknown, E = never, R = never> {
   readonly [ResourceTypeId]: typeof ResourceTypeId;
   readonly family: ResourceFamily<I, A, E, R>;
   readonly input: I;
@@ -193,7 +193,7 @@ export interface ResourceInvalidationPlan {
 }
 
 /** Serializable success snapshot used to transfer loaded resources across boundaries. */
-export interface ResourceHydrationSnapshot<I = unknown, A = unknown, E = unknown> {
+export interface ResourceHydrationSnapshot<I = unknown, A = unknown, E = never> {
   readonly name: string;
   readonly key: string;
   readonly input: I;
@@ -229,7 +229,7 @@ interface ResourceStatusBase<I, A, E, R> {
   readonly gcInMillis: number | undefined;
 }
 
-export type ResourceStatus<I, A, E = unknown, R = never> =
+export type ResourceStatus<I, A, E = never, R = never> =
   | (ResourceStatusBase<I, A, E, R> & {
       readonly _tag: "Initial";
       readonly state: Extract<ResourceState<A, E>, { readonly _tag: "Initial" }>;
@@ -268,7 +268,7 @@ const resourceTagDefinitions = new Map<string, ResourceTagDiagnostics>();
  * Most users create one through Resource.family and call the returned ref factory
  * instead of instantiating ResourceFamily directly.
  */
-export class ResourceFamily<I, A, E = unknown, R = never> {
+export class ResourceFamily<I, A, E = never, R = never> {
   constructor(readonly options: ResourceFamilyOptions<I, A, E, R>) {
     familyDefinitions.set(options.name, this as AnyResourceFamily);
     registerResourceRuntimeFamily(this as AnyResourceFamily);
@@ -466,9 +466,9 @@ const makeResourceTag = (name: string, key: string): ResourceTag => ({
  * Resource helpers for cached Effect data, suspense reads, invalidation, and hydration.
  */
 export namespace Resource {
-  export type Ref<I, A, E = unknown, R = never> = ResourceRef<I, A, E, R>;
+  export type Ref<I, A, E = never, R = never> = ResourceRef<I, A, E, R>;
   export type AnyRef<R = never> = AnyResourceRef<R>;
-  export type State<A, E = unknown> = ResourceState<A, E>;
+  export type State<A, E = never> = ResourceState<A, E>;
   export type Tag = ResourceTag;
   export type TagDefinition<Input> = ResourceTagDefinition<Input>;
   export type Invalidation = ResourceInvalidation;
@@ -476,9 +476,9 @@ export namespace Resource {
   export type InvalidationCause = ResourceInvalidationCause;
   export type InvalidationPlanEntry = ResourceInvalidationPlanEntry;
   export type InvalidationPlan = ResourceInvalidationPlan;
-  export type Snapshot<I = unknown, A = unknown, E = unknown> = ResourceHydrationSnapshot<I, A, E>;
+  export type Snapshot<I = unknown, A = unknown, E = never> = ResourceHydrationSnapshot<I, A, E>;
   export type HydrationPayload = ResourceHydrationPayload;
-  export type Status<I, A, E = unknown, R = never> = ResourceStatus<I, A, E, R>;
+  export type Status<I, A, E = never, R = never> = ResourceStatus<I, A, E, R>;
   export type StoreEvent = ResourceStoreEvent;
   export type FamilyDiagnostics = ResourceFamilyDiagnostics;
   export type TagDiagnostics = ResourceTagDiagnostics;
@@ -504,7 +504,7 @@ export namespace Resource {
    * const user = yield* Resource.prefetchEffect(ref);
    * ```
    */
-  export const family = <I, A, E = unknown, R = never>(
+  export const family = <I, A, E = never, R = never>(
     options: Omit<ResourceFamilyOptions<I, A, E, R>, "load"> & {
       readonly load: (input: I) => EffectInput<A, E, R>;
     }

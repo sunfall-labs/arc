@@ -32,7 +32,7 @@ export const isResourceTag = (value: unknown): value is ResourceTag =>
   (value as { [ResourceTagTypeId]?: unknown })[ResourceTagTypeId] === ResourceTagTypeId &&
   typeof (value as { readonly key?: unknown }).key === "string";
 
-export const isResourceRef = (value: unknown): value is ResourceRef =>
+export const isResourceRef = (value: unknown): value is AnyResourceRef =>
   typeof value === "object" &&
   value !== null &&
   (value as { [ResourceTypeId]?: unknown })[ResourceTypeId] === ResourceTypeId;

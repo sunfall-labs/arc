@@ -293,7 +293,7 @@ export interface QueryRoot {
 /**
  * Reactive query state derived from source collection load states.
  */
-export type LiveQueryState<T, E = unknown> =
+export type LiveQueryState<T, E = never> =
   | { readonly _tag: "Pending"; readonly waiting: true; readonly data: ReadonlyArray<T> }
   | { readonly _tag: "Success"; readonly waiting: false; readonly data: ReadonlyArray<T> }
   | { readonly _tag: "Failure"; readonly waiting: false; readonly error: E; readonly data: ReadonlyArray<T> };
@@ -304,7 +304,7 @@ export type LiveQueryState<T, E = unknown> =
  * `data` updates when source collection versions change. Preload/refetch effects
  * expose the union of source collection error and requirement channels.
  */
-export interface LiveQuery<T, E = unknown, R = never> {
+export interface LiveQuery<T, E = never, R = never> {
   readonly builder: AnyQueryBuilder<T>;
   readonly data: ReadableSignal<ReadonlyArray<T>>;
   readonly state: ReadableSignal<LiveQueryState<T, E>>;
@@ -420,8 +420,8 @@ const aggregateMax = <TContext, V extends number | string | Date | bigint>(
 export namespace Query {
   export type Builder<TContext extends AnyQueryContext, TResult> = QueryBuilder<TContext, TResult>;
   export type Factory<TResult> = QueryFactory<TResult>;
-  export type Live<T, E = unknown, R = never> = LiveQuery<T, E, R>;
-  export type LiveState<T, E = unknown> = LiveQueryState<T, E>;
+  export type Live<T, E = never, R = never> = LiveQuery<T, E, R>;
+  export type LiveState<T, E = never> = LiveQueryState<T, E>;
   export type JoinStrategy = QueryJoinStrategy;
   export type PlanSourceDiagnostics = QueryPlanSourceDiagnostics;
   export type PlanJoinDiagnostics = QueryPlanJoinDiagnostics;
@@ -461,7 +461,7 @@ export namespace Query {
    * Source collection errors and requirements are preserved in the returned
    * Effect.
    */
-  export const onceEffect = <T, E = unknown, R = never>(
+  export const onceEffect = <T, E = never, R = never>(
     factory: QueryFactory<T>
   ): Effect.Effect<ReadonlyArray<T>, E, R> =>
     Effect.gen(function* () {
@@ -482,7 +482,7 @@ export namespace Query {
    *     .select(({ todo }) => todo)
    * )
    */
-  export const live = <T, E = unknown, R = never>(
+  export const live = <T, E = never, R = never>(
     factory: QueryFactory<T>
   ): LiveQuery<T, E, R> => {
     const builder = build(factory);

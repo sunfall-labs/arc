@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   createStartAppGraph,
   deserializeStartAppGraph,
+  describeStartAppGraphRuntimeDiagnostics,
   describeStartAppGraph,
   describeStartAppGraphEffect,
+  enforceStartAppGraphDiagnosticsPolicy,
   serializeStartAppGraph,
   StartAppGraphMissingWireSchemas,
   StartAppGraphParseError,
@@ -460,6 +462,98 @@ describe("Start app graph", () => {
         yield* validateStartAppGraphDiagnosticsPolicyEffect(declaredDiagnostics, {
           routePreloadCollections: {
             requireDeclaredForPreload: true
+          }
+        });
+      })
+    );
+  });
+
+  it("assembles runtime diagnostics from route module candidates", () => {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const graph = yield* makeGraphEffect();
+        const diagnostics = describeStartAppGraphRuntimeDiagnostics(graph, {
+          routeModules: graph.routes.entries.map((entry) => ({
+            entry,
+            route: entry.routePath === "/"
+              ? {
+                  options: {
+                    params: {},
+                    preload: () => undefined
+                  }
+                }
+              : {
+                  options: {}
+                },
+            preloadResources: entry.routePath === "/"
+              ? {
+                  status: "declared" as const,
+                  families: ["Project.byId"]
+                }
+              : {
+                  status: "none" as const,
+                  families: []
+                },
+            preloadCollections: entry.routePath === "/"
+              ? {
+                  status: "unknown" as const,
+                  collections: []
+                }
+              : {
+                  status: "none" as const,
+                  collections: []
+                }
+          }))
+        });
+
+        yield* Effect.sync(() => {
+          expect(diagnostics.routeModules[0]).toMatchObject({
+            routePath: "/",
+            paramsSchema: "present",
+            searchSchema: "absent",
+            preload: "present",
+            preloadResources: {
+              status: "declared",
+              families: ["Project.byId"]
+            },
+            preloadCollections: {
+              status: "unknown"
+            },
+            component: "absent"
+          });
+          expect(diagnostics.unknownRoutePreloadResources).toEqual([]);
+          expect(diagnostics.unknownRoutePreloadCollections).toEqual([
+            expect.objectContaining({
+              routePath: "/",
+              preload: "present"
+            })
+          ]);
+          expect(() =>
+            enforceStartAppGraphDiagnosticsPolicy(diagnostics, {
+              routePreloadCollections: {
+                requireDeclaredForPreload: true
+              }
+            })
+          ).toThrowError(
+            "Effect UI app graph diagnostics policy failed: Routes with preload must declare preloadCollections. / (src/routes/index.tsx)"
+          );
+
+          try {
+            enforceStartAppGraphDiagnosticsPolicy(diagnostics, {
+              routePreloadCollections: {
+                requireDeclaredForPreload: true
+              }
+            });
+          } catch (error) {
+            expect(error).toMatchObject({
+              name: "StartAppGraphDiagnosticsPolicyError",
+              diagnostics,
+              violations: [
+                expect.objectContaining({
+                  _tag: "UnknownRoutePreloadCollections"
+                })
+              ]
+            });
           }
         });
       })

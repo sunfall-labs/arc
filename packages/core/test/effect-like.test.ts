@@ -1,0 +1,28 @@
+import { Cause, Effect, Exit } from "effect";
+import { describe, expect, it } from "vitest";
+import { EffectInputPromiseRejected, toEffect } from "../src/index.js";
+
+describe("EffectInput", () => {
+  it("accepts pure values", () =>
+    Effect.runPromise(
+      Effect.map(toEffect({ ok: true }), (value) => {
+        expect(value).toEqual({ ok: true });
+      })
+    ));
+
+  it("rejects thenables at runtime", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const exit = yield* Effect.exit(toEffect({
+          then: (_resolve: (value: string) => void) => undefined
+        }));
+
+        expect(Exit.isFailure(exit)).toBe(true);
+        if (Exit.isFailure(exit)) {
+          const defect = exit.cause.reasons.find(Cause.isDieReason)?.defect;
+          expect(defect).toBeInstanceOf(EffectInputPromiseRejected);
+          expect((defect as EffectInputPromiseRejected).guidance).toContain("Effect.tryPromise");
+        }
+      })
+    ));
+});

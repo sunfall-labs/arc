@@ -43,7 +43,7 @@ export interface HtmlResponseOptions<E = never, R = never> extends HtmlStreamOpt
   readonly headers?: HeadersInit;
 }
 
-export class StartStreamError<E = unknown> extends Data.TaggedError("StartStreamError")<{
+export class StartStreamError<E = never> extends Data.TaggedError("StartStreamError")<{
   readonly reason: "Shell" | "Chunk" | "Tail";
   readonly cause: E;
 }> {}

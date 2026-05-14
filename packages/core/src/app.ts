@@ -1,5 +1,26 @@
+import type { ActionDefinition } from "./action.js";
+import {
+  makeCoreDefinitionRegistry,
+  snapshotCoreDefinitionRegistry,
+  type CoreDefinitionRegistry,
+  type CoreDefinitionRegistryInput
+} from "./definition-registry.js";
 import type { RouteDefinition } from "./route.js";
 import { makeRuntime, type EffectUiRuntime, type RuntimeSource } from "./runtime.js";
+import type { ServerFunction } from "./server.js";
+
+type AnyActionDefinition = ActionDefinition<any, any, any, any>;
+type AnyServerFunction = ServerFunction<any, any, any, any>;
+
+export type AppDefinitionRegistry = CoreDefinitionRegistry<
+  AnyActionDefinition,
+  AnyServerFunction
+>;
+
+export type AppDefinitionRegistryInput = CoreDefinitionRegistryInput<
+  AnyActionDefinition,
+  AnyServerFunction
+>;
 
 /**
  * Complete app description shared by adapters and integrations.
@@ -17,6 +38,7 @@ export interface AppDefinition<
   readonly client: Client;
   readonly server?: RuntimeSource<ServerServices, ServerError>;
   readonly runtime: EffectUiRuntime<ServerServices, ServerError>;
+  readonly registry: AppDefinitionRegistry;
   readonly fullStack: boolean;
 }
 
@@ -44,12 +66,17 @@ export const defineApp = <
   readonly routes: Routes;
   readonly client: Client;
   readonly server?: RuntimeSource<ServerServices, ServerError>;
+  readonly registry?: AppDefinitionRegistryInput;
 }): AppDefinition<Routes, Client, ServerServices, ServerError> => {
   const runtime = makeRuntime(config.server);
+  const registry = config.registry === undefined
+    ? snapshotCoreDefinitionRegistry() as AppDefinitionRegistry
+    : makeCoreDefinitionRegistry(config.registry);
   const base = {
     routes: config.routes,
     client: config.client,
     runtime,
+    registry,
     fullStack: config.server !== undefined
   };
 

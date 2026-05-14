@@ -187,6 +187,27 @@ export interface StartAppGraphDiagnostics {
   readonly unknownRoutePreloadCollections: readonly StartAppGraphUnknownRoutePreloadCollectionsEntry[];
 }
 
+export interface StartAppGraphRouteDiagnosticsRuntimeCandidate {
+  readonly entry: FileRouteManifest["entries"][number];
+  readonly route: {
+    readonly options?: {
+      readonly params?: unknown;
+      readonly search?: unknown;
+      readonly preload?: unknown;
+      readonly component?: unknown;
+    };
+  };
+  readonly preloadResources: import("@effect-ui/core").Route.PreloadResourceDiagnostics;
+  readonly preloadCollections: import("@effect-ui/core").Route.PreloadCollectionDiagnostics;
+}
+
+export interface StartAppGraphDiagnosticsRuntimeCandidates {
+  readonly routeModules?: Iterable<StartAppGraphRouteDiagnosticsRuntimeCandidate>;
+  readonly resourceFamilies?: readonly StartAppGraphResourceFamilyDiagnostics[];
+  readonly resourceTags?: readonly StartAppGraphResourceTagDiagnostics[];
+  readonly collectionDefinitions?: readonly StartAppGraphCollectionDiagnostics[];
+}
+
 export interface StartAppGraphWireSchemaPolicy {
   readonly requireInput?: boolean;
   readonly requireOutput?: boolean;
@@ -260,6 +281,12 @@ export type StartAppGraphDiagnosticsPolicyViolation =
       readonly routes: readonly StartAppGraphUnknownRoutePreloadCollectionsEntry[];
     };
 
+export interface StartAppGraphDiagnosticsPolicyException extends Error {
+  readonly name: "StartAppGraphDiagnosticsPolicyError";
+  readonly violations: readonly StartAppGraphDiagnosticsPolicyViolation[];
+  readonly diagnostics: StartAppGraphDiagnostics;
+}
+
 export type StartAppGraphDeserializeError =
   | StartAppGraphParseError
   | FileRouteManifestParseError
@@ -325,6 +352,23 @@ export const describeFileRouteManifestEntry = (
   },
   component: moduleFeatures.component ?? "unknown"
 });
+
+const runtimeFeaturePresence = (
+  value: unknown
+): StartAppGraphRouteFeaturePresence =>
+  value === undefined ? "absent" : "present";
+
+export const describeStartAppGraphRouteDiagnosticsRuntimeCandidate = (
+  candidate: StartAppGraphRouteDiagnosticsRuntimeCandidate
+): StartAppGraphRouteDiagnostics =>
+  describeFileRouteManifestEntry(candidate.entry, {
+    paramsSchema: runtimeFeaturePresence(candidate.route.options?.params),
+    searchSchema: runtimeFeaturePresence(candidate.route.options?.search),
+    preload: runtimeFeaturePresence(candidate.route.options?.preload),
+    preloadResources: candidate.preloadResources,
+    preloadCollections: candidate.preloadCollections,
+    component: runtimeFeaturePresence(candidate.route.options?.component)
+  });
 
 const describeWireContract = (
   wire: { readonly inputSchema: boolean; readonly outputSchema: boolean; readonly errorSchema: boolean }
@@ -549,6 +593,34 @@ export const describeStartAppGraph = (
   };
 };
 
+export const describeStartAppGraphRuntimeDiagnostics = (
+  graph: StartAppGraph,
+  candidates: StartAppGraphDiagnosticsRuntimeCandidates = {}
+): StartAppGraphDiagnostics => {
+  const staticDiagnostics = describeStartAppGraph(graph);
+  const routeModules = candidates.routeModules === undefined
+    ? staticDiagnostics.routeModules
+    : Array.from(
+        candidates.routeModules,
+        describeStartAppGraphRouteDiagnosticsRuntimeCandidate
+      );
+
+  return {
+    ...staticDiagnostics,
+    routeModules,
+    resourceFamilies: candidates.resourceFamilies ?? staticDiagnostics.resourceFamilies,
+    resourceTags: candidates.resourceTags ?? staticDiagnostics.resourceTags,
+    collectionDefinitions:
+      candidates.collectionDefinitions ?? staticDiagnostics.collectionDefinitions,
+    unknownRoutePreloadResources: unknownRoutePreloadResourcesForDiagnostics({
+      routeModules
+    }),
+    unknownRoutePreloadCollections: unknownRoutePreloadCollectionsForDiagnostics({
+      routeModules
+    })
+  };
+};
+
 export const describeStartAppGraphEffect = (
   graph: StartAppGraph
 ): Effect.Effect<StartAppGraphDiagnostics> =>
@@ -696,6 +768,38 @@ export const formatStartAppGraphDiagnosticsPolicyViolation = (
     .map((route) => `${route.routePath} (${route.filePath})`)
     .join(", ");
   return `${violation.message} ${routes}`;
+};
+
+export const createStartAppGraphDiagnosticsPolicyException = (
+  diagnostics: StartAppGraphDiagnostics,
+  violations: readonly StartAppGraphDiagnosticsPolicyViolation[]
+): StartAppGraphDiagnosticsPolicyException =>
+  Object.assign(
+    new Error(
+      `Effect UI app graph diagnostics policy failed: ${violations
+        .map(formatStartAppGraphDiagnosticsPolicyViolation)
+        .join("; ")}`
+    ),
+    {
+      name: "StartAppGraphDiagnosticsPolicyError" as const,
+      violations,
+      diagnostics
+    }
+  );
+
+export const enforceStartAppGraphDiagnosticsPolicy = (
+  diagnostics: StartAppGraphDiagnostics,
+  policy: StartAppGraphDiagnosticsPolicy | false | null | undefined
+): readonly StartAppGraphDiagnosticsPolicyViolation[] => {
+  const violations = collectStartAppGraphDiagnosticsPolicyViolations(
+    diagnostics,
+    policy
+  );
+  if (violations.length > 0) {
+    throw createStartAppGraphDiagnosticsPolicyException(diagnostics, violations);
+  }
+
+  return violations;
 };
 
 export const validateStartAppGraphRoutePreloadCollectionsDiagnosticsEffect = (

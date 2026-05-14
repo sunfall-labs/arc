@@ -2,6 +2,7 @@ import { Signal, stableStringify, type WritableSignal } from "@effect-ui/core";
 import { Data } from "effect";
 import type {
   CollectionDefinition,
+  AnyCollection,
   CollectionIndexDefinition,
   CollectionIndexInput,
   CollectionIndexRecord,
@@ -131,10 +132,10 @@ export const collectionIndexes = <A extends object>(
   );
 
 export const collectionIndex = <A extends object>(
-  definition: CollectionDefinition<A, any, any, any>,
+  definition: AnyCollection,
   name: string
 ): CollectionIndexDefinition<A> => {
-  const index = collectionIndexes(definition.options).get(name);
+  const index = collectionIndexes(definition.options).get(name) as CollectionIndexDefinition<A> | undefined;
   if (!index) {
     throw new UnknownCollectionIndex({ collection: definition.name, index: name });
   }
@@ -223,11 +224,11 @@ export const rowsByCollectionIndex = <A extends object, K extends CollectionKey,
 };
 
 export const collectionIndexJoinKeys = <A extends object>(
-  definition: CollectionDefinition<A, any, any, any>,
+  definition: AnyCollection,
   index: string,
   row: CollectionRow<A, any>
 ): ReadonlyArray<CollectionIndexValue> =>
-  uniqueCollectionIndexValues(collectionIndex(definition, index), row);
+  uniqueCollectionIndexValues(collectionIndex(definition, index), row as CollectionRow<any, any>);
 
 export const replaceCollectionRows = <A extends object, K extends CollectionKey>(
   definition: CollectionDefinition<A, K, any, any>,

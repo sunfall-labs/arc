@@ -30,7 +30,7 @@ export interface SQLitePersistenceRow extends SQLitePersistenceKey {
  * Implement this directly for custom SQLite clients, or use
  * `makeSQLiteStatementPersistenceDriver` for SQL statement based clients.
  */
-export interface SQLitePersistenceTable<E = unknown, R = never> {
+export interface SQLitePersistenceTable<E = never, R = never> {
   readonly ensure?: () => EffectInput<void, E, R>;
   readonly get: (key: SQLitePersistenceKey) => EffectInput<SQLitePersistenceRow | null, E, R>;
   readonly upsert: (row: SQLitePersistenceRow) => EffectInput<void, E, R>;
@@ -40,7 +40,7 @@ export interface SQLitePersistenceTable<E = unknown, R = never> {
 /**
  * Driver that resolves named persistence tables.
  */
-export interface SQLitePersistenceDriver<E = unknown, R = never> {
+export interface SQLitePersistenceDriver<E = never, R = never> {
   readonly table: (name: string) => SQLitePersistenceTable<E, R>;
 }
 
@@ -67,7 +67,7 @@ export interface SQLiteStatementRow {
 /**
  * Minimal SQL statement database used by the SQLite persistence driver.
  */
-export interface SQLiteStatementDatabase<E = unknown, R = never> {
+export interface SQLiteStatementDatabase<E = never, R = never> {
   readonly execute: (sql: string, params?: SQLiteStatementParams) => EffectInput<void, E, R>;
   readonly select: (sql: string, params?: SQLiteStatementParams) => EffectInput<ReadonlyArray<SQLiteStatementRow>, E, R>;
 }
@@ -77,7 +77,7 @@ export interface SQLiteStatementDatabase<E = unknown, R = never> {
  */
 export interface SQLitePreparedStatement<
   Row extends SQLiteStatementRow = SQLiteStatementRow,
-  E = unknown,
+  E = never,
   R = never
 > {
   readonly run: (...params: Array<SQLiteStatementValue>) => EffectInput<unknown, E, R>;
@@ -89,7 +89,7 @@ export interface SQLitePreparedStatement<
  */
 export interface SQLitePreparedStatementDatabase<
   Row extends SQLiteStatementRow = SQLiteStatementRow,
-  E = unknown,
+  E = never,
   R = never
 > {
   readonly prepare: (sql: string) => EffectInput<SQLitePreparedStatement<Row, E, R>, E, R>;
@@ -298,7 +298,7 @@ export const makeSQLiteMemoryStatementDatabase = (): SQLiteMemoryStatementDataba
  */
 export const makeSQLitePreparedStatementDatabase = <
   Row extends SQLiteStatementRow = SQLiteStatementRow,
-  E = unknown,
+  E = never,
   R = never
 >(
   database: SQLitePreparedStatementDatabase<Row, E, R>,
@@ -338,7 +338,7 @@ export const makeSQLitePreparedStatementDatabase = <
  * The driver creates the table if needed, stores snapshots by namespace/key,
  * and quotes table names defensively.
  */
-export const makeSQLiteStatementPersistenceDriver = <E = unknown, R = never>(
+export const makeSQLiteStatementPersistenceDriver = <E = never, R = never>(
   database: SQLiteStatementDatabase<E, R>
 ): SQLitePersistenceDriver<E, R> => ({
   table: (name) => {
@@ -406,7 +406,7 @@ export const makeSQLiteStatementPersistenceDriver = <E = unknown, R = never>(
  *   makeSQLiteStatementPersistenceDriver(database)
  * )
  */
-export const makeSQLitePersistenceStorage = <E = unknown, R = never>(
+export const makeSQLitePersistenceStorage = <E = never, R = never>(
   driver: SQLitePersistenceDriver<E, R>,
   options: SQLitePersistenceOptions = {}
 ): CollectionPersistenceStorage<E, R> => {
@@ -460,25 +460,25 @@ export const makeSQLitePersistenceStorage = <E = unknown, R = never>(
 export namespace SQLitePersistence {
   export type Key = SQLitePersistenceKey;
   export type Row = SQLitePersistenceRow;
-  export type Table<E = unknown, R = never> = SQLitePersistenceTable<E, R>;
-  export type Driver<E = unknown, R = never> = SQLitePersistenceDriver<E, R>;
+  export type Table<E = never, R = never> = SQLitePersistenceTable<E, R>;
+  export type Driver<E = never, R = never> = SQLitePersistenceDriver<E, R>;
   export type MemoryStatement = SQLiteMemoryStatement;
   export type MemoryStatementDatabase = SQLiteMemoryStatementDatabase;
   export type PreparedStatement<
     Row extends SQLiteStatementRow = SQLiteStatementRow,
-    E = unknown,
+    E = never,
     R = never
   > = SQLitePreparedStatement<Row, E, R>;
   export type PreparedStatementDatabase<
     Row extends SQLiteStatementRow = SQLiteStatementRow,
-    E = unknown,
+    E = never,
     R = never
   > = SQLitePreparedStatementDatabase<Row, E, R>;
   export type PreparedStatementDatabaseOptions = SQLitePreparedStatementDatabaseOptions;
   export type StatementValue = SQLiteStatementValue;
   export type StatementParams = SQLiteStatementParams;
   export type StatementRow = SQLiteStatementRow;
-  export type StatementDatabase<E = unknown, R = never> = SQLiteStatementDatabase<E, R>;
+  export type StatementDatabase<E = never, R = never> = SQLiteStatementDatabase<E, R>;
   export type Options = SQLitePersistenceOptions;
 
   /** Create `CollectionPersistenceStorage` backed by SQLite. */

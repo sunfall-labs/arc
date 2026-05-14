@@ -11,7 +11,7 @@ export type FormFieldFlags<Values extends object> = Partial<
   Record<FormFieldKey<Values>, boolean>
 >;
 
-export type FormFieldErrors<Values extends object, E = unknown> = Partial<
+export type FormFieldErrors<Values extends object, E = never> = Partial<
   Record<FormFieldKey<Values>, ReadonlyArray<E>>
 >;
 
@@ -34,7 +34,7 @@ export interface FormValidationTools<Values extends object, E> {
 export type FormStatus = "Idle" | "Validating" | "Valid" | "Invalid";
 
 /** Current form snapshot exposed through FormInstance.state. */
-export interface FormState<Values extends object, E = unknown> {
+export interface FormState<Values extends object, E = never> {
   readonly status: FormStatus;
   readonly initial: Values;
   readonly values: Values;
@@ -83,7 +83,7 @@ export interface FormInstance<Values extends object, E = never, R = never> {
 
 export class FormValidationError<
   Values extends object = Record<string, unknown>,
-  E = unknown
+  E = never
 > extends Data.TaggedError("FormValidationError")<{
   readonly fieldErrors: FormFieldErrors<Values, E>;
   readonly formErrors: ReadonlyArray<E>;
@@ -228,16 +228,16 @@ export const isForm = (value: unknown): value is FormInstance<object, unknown, u
 export namespace Form {
   export type FieldKey<Values extends object> = FormFieldKey<Values>;
   export type FieldFlags<Values extends object> = FormFieldFlags<Values>;
-  export type FieldErrors<Values extends object, E = unknown> = FormFieldErrors<Values, E>;
+  export type FieldErrors<Values extends object, E = never> = FormFieldErrors<Values, E>;
   export type Status = FormStatus;
-  export type State<Values extends object, E = unknown> = FormState<Values, E>;
+  export type State<Values extends object, E = never> = FormState<Values, E>;
   export type Instance<Values extends object, E = never, R = never> = FormInstance<
     Values,
     E,
     R
   >;
   export type ValidationTools<Values extends object, E> = FormValidationTools<Values, E>;
-  export type ValidationError<Values extends object, E = unknown> = FormValidationError<
+  export type ValidationError<Values extends object, E = never> = FormValidationError<
     Values,
     E
   >;

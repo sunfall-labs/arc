@@ -59,7 +59,7 @@ Latest full gate on May 14, 2026:
 
 - 9 package builds;
 - workspace typecheck and public type tests;
-- 40 root test files / 328 tests;
+- 42 root test files / 361 tests;
 - devtools panel verify;
 - devtools extension verify;
 - basic starter verify;
@@ -371,26 +371,56 @@ Latest full gate on May 14, 2026:
   `start-action-client.ts`; the root facade re-exports the public client
   Interfaces without owning fetch, decode, hydration, Layer, and action
   concurrency implementation details.
-- Core Action submission coordination now lives behind an internal Action
+- Core Action submission coordination now lives behind a shared Action
   Submission Controller, keeping versioning, current fiber ownership, stale
-  interruption checks, invalidation-plan state, and reset interruption local to
-  `Action.use(...)`.
+  interruption checks, invalidation-plan state, and reset interruption shared
+  between `Action.use(...)` and Start's `StartAction.use(...)`.
+- Stateful `StartAction.use(...)` submissions now guard decoded transport
+  responses before applying Resource or Collection hydration side effects, so
+  stale parallel or non-interruptible latest responses cannot mutate client
+  hydration state.
 - DB collection snapshot validation, cloning, pending mutation conversion,
   JSON encode/decode, and hydration application now live in
   `collection-snapshot-codec.ts`, giving persistence and hydration one snapshot
-  policy. Invalid persisted snapshot JSON now fails as typed
-  `CollectionSnapshotCodecError` Effect errors instead of defects.
+  policy. Invalid persisted snapshot JSON, direct hydrate snapshots, and
+  hydration payloads now fail as typed `CollectionSnapshotCodecError` Effect
+  errors instead of defects.
+- DB mutation commits now separate remote-handler failure from post-commit
+  persistence failure, so a failed persistence write after a successful remote
+  mutation no longer rolls committed rows back.
 - DB collection contracts and process-wide registry behavior now live in
   `collection-contract.ts` and `collection-registry.ts`; internal DB modules
   import those contracts directly while the DB root re-exports the public
-  facade.
+  facade. The registry now exposes an explicit default Registry Adapter,
+  isolated registry creation, deterministic duplicate handling, duplicate
+  diagnostics, and an opt-in replacement policy for callers that need overwrite
+  semantics.
 - Devtools serialization now has an explicit bounded policy for deep, wide,
   long, circular, accessor, Map/Set, Error, and detached runtime values, and
   the Store copies caller-owned facts at set/get/record seams.
 - Start server-function and action manifest deserialization now share Manifest
   Entry Core helpers for JSON parsing, version/path validation, callable entry
   identity checks, and import-client reference validation.
-- The latest `pnpm verify` passed after the shared Action Submission
+- Core now has a shared Definition Registry for Action and Server function
+  definitions; `defineApp(...)` captures a registry snapshot by default and
+  accepts explicit registry inputs for isolated app graphs.
+- DB now exposes an explicit Collection Definition Registry Adapter with
+  deterministic duplicate handling, duplicate diagnostics, a default registry,
+  and isolated registry creation.
+- Start app graph diagnostics can now be assembled from runtime route module
+  candidates and policy violations can be thrown as diagnostics-bearing policy
+  exceptions.
+- Default generic error parameters now use `never` across Core, DB, Solid DB,
+  and Start action inference so omitted error channels are infallible by
+  default instead of `unknown`.
+- The latest `pnpm verify` passed after Core Definition Registry, DB Collection
+  registry locality, Start app graph runtime diagnostics, stale Start action
+  hydration guard, DB direct hydration/post-commit persistence fixes, and
+  default generic error cleanup: 9 package builds, workspace typecheck, type
+  tests, 42 root test files / 361 tests, devtools panel verify, devtools
+  extension verify, basic starter verify, project-console starter packaging/
+  typecheck/tests/build, and leak scan.
+- The previous `pnpm verify` passed after the shared Action Submission
   Controller, DB Collection contract/registry extraction, typed
   `CollectionSnapshotCodecError` propagation, Devtools graph/fact/serialization
   cleanup, Start file-route/client/callable manifest extractions, and Project

@@ -24,7 +24,7 @@ export interface UseCollectionOptions {
  * Accessors read from the nearest Effect UI runtime. Loading and refetching are
  * exposed as Effects so callers can compose or run them at UI boundaries.
  */
-export interface CollectionHandle<A extends object, K extends CollectionKey, E = unknown, R = never> {
+export interface CollectionHandle<A extends object, K extends CollectionKey, E = never, R = never> {
   readonly rows: Accessor<ReadonlyArray<CollectionRow<A, K>>>;
   readonly state: Accessor<CollectionLoadState<E>>;
   readonly waiting: Accessor<boolean>;
@@ -48,7 +48,7 @@ export interface CollectionHandle<A extends object, K extends CollectionKey, E =
  * const rows = projects.rows();
  * ```
  */
-export const useCollection = <A extends object, K extends CollectionKey, E = unknown, R = never>(
+export const useCollection = <A extends object, K extends CollectionKey, E = never, R = never>(
   collection: CollectionDefinition<A, K, E, R>,
   options: UseCollectionOptions = {}
 ): CollectionHandle<A, K, E, R> => {

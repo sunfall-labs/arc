@@ -87,6 +87,12 @@ export class RuntimeCollectionStore implements CollectionStore {
   readonly #events = Effect.runSync(PubSub.sliding<CollectionStoreEvent>(1024));
   readonly disposeEffect = PubSub.shutdown(this.#events);
 
+  state(
+    definition: AnyCollection
+  ): CollectionState<any, any, any>;
+  state<A extends object, K extends CollectionKey, E, R>(
+    definition: CollectionDefinition<A, K, E, R>
+  ): CollectionState<A, K, E>;
   state<A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>
   ): CollectionState<A, K, E> {
@@ -182,7 +188,7 @@ const rowsByIndex = <A extends object, K extends CollectionKey, E, R>(
 };
 
 export const indexJoinKeys = <A extends object>(
-  definition: CollectionDefinition<A, any, any, any>,
+  definition: AnyCollection,
   index: string,
   row: CollectionRow<A, any>
 ): ReadonlyArray<QueryJoinKey> =>
@@ -219,7 +225,7 @@ const hydrateCollectionEffect = <A extends object, K extends CollectionKey, E, R
   snapshot: CollectionSnapshot<A, K>,
   options: CollectionHydrateOptions = {},
   store?: RuntimeCollectionStore
-): Effect.Effect<void> =>
+): Effect.Effect<void, CollectionSnapshotCodecError> =>
   hydrateCollectionWithStoreEffect(definition, snapshot, options, collectionStoreEffect, store);
 
 export const persistenceKey = <A extends object, K extends CollectionKey, E, R>(
@@ -277,7 +283,7 @@ export const hydrateCollectionsEffect = (
   collections: Iterable<AnyCollection>,
   payload: CollectionHydrationPayload,
   options: CollectionHydrateOptions = {}
-): Effect.Effect<void> =>
+): Effect.Effect<void, CollectionSnapshotCodecError> =>
   hydrateCollectionsWithStoreEffect(collections, payload, options, collectionStoreEffect);
 
 const changeFeedUnsubscribe = (
@@ -314,7 +320,7 @@ export const subscribeCollectionChangesEffect = <
   ).pipe(Effect.asVoid);
 
 const withCollectionRetry = <A, E, R>(
-  definition: AnyCollection<E, R>,
+  definition: CollectionDefinition<any, any, E, R>,
   effect: Effect.Effect<A, E, R>
 ): Effect.Effect<A, E, R> => {
   const retry = definition.options.policy?.retry;
@@ -382,28 +388,8 @@ const runPendingMutation = <A extends object, K extends CollectionKey, E, R>(
       mutations: mutation.mutations.length
     });
 
-    return yield* withCollectionRetry(definition, handler).pipe(
-      Effect.tap(() =>
-        Effect.gen(function* () {
-          markStoredRowsSynced(state, Array.from(pending.rollbackRows.keys()));
-          dequeuePendingMutation(state, mutation.id);
-          yield* publishStoreEvent(dbStore, {
-            _tag: "CollectionMutationDequeued",
-            collection: definition.name,
-            transaction: mutation.id,
-            pending: state.pendingMutations.size
-          });
-          yield* publishStoreEvent(dbStore, {
-            _tag: "CollectionMutateCommitted",
-            collection: definition.name,
-            transaction: mutation.id,
-            mutations: mutation.mutations.length
-          });
-          yield* persistForReasonEffect(definition, dbStore, "mutation");
-        })
-      ),
-      Effect.as(mutation),
-      Effect.catch((error: E | CollectionSnapshotCodecError) =>
+    yield* withCollectionRetry(definition, handler).pipe(
+      Effect.catch((error: E) =>
         Effect.gen(function* () {
           restoreStoredRows(state, pending.rollbackRows);
           dequeuePendingMutation(state, mutation.id);
@@ -424,6 +410,22 @@ const runPendingMutation = <A extends object, K extends CollectionKey, E, R>(
         })
       )
     );
+    markStoredRowsSynced(state, Array.from(pending.rollbackRows.keys()));
+    dequeuePendingMutation(state, mutation.id);
+    yield* publishStoreEvent(dbStore, {
+      _tag: "CollectionMutationDequeued",
+      collection: definition.name,
+      transaction: mutation.id,
+      pending: state.pendingMutations.size
+    });
+    yield* publishStoreEvent(dbStore, {
+      _tag: "CollectionMutateCommitted",
+      collection: definition.name,
+      transaction: mutation.id,
+      mutations: mutation.mutations.length
+    });
+    yield* persistForReasonEffect(definition, dbStore, "mutation");
+    return mutation;
   });
 
 const runMutation = <A extends object, K extends CollectionKey, E, R>(
@@ -625,7 +627,7 @@ export const applyCollectionChangesEffect = <A extends object, K extends Collect
 export const defineCollection = <
   A extends object,
   K extends CollectionKey = string,
-  E = unknown,
+  E = never,
   R = never
 >(
   options: Omit<CollectionOptions<A, K, E, R>, "load"> & {
@@ -676,11 +678,11 @@ export const defineCollection = <
     hydrate: (snapshot: CollectionSnapshot<A, K>, hydrateOptions?: CollectionHydrateOptions) => {
       void runFork(hydrateCollectionEffect(definition, snapshot, hydrateOptions));
     },
-    persistEffect: <PE = unknown, PR = never>(
+    persistEffect: <PE = never, PR = never>(
       storage: CollectionPersistenceStorage<PE, PR>,
       persistOptions?: CollectionPersistOptions
     ) => persistCollectionEffect(definition, storage, persistOptions),
-    restoreEffect: <PE = unknown, PR = never>(
+    restoreEffect: <PE = never, PR = never>(
       storage: CollectionPersistenceStorage<PE, PR>,
       restoreOptions?: CollectionPersistOptions & CollectionHydrateOptions
     ) => restoreCollectionEffect(definition, storage, restoreOptions),

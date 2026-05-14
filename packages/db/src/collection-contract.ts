@@ -29,7 +29,7 @@ export type CollectionRow<A extends object, K extends CollectionKey = Collection
  * Failure carries the collection error type `E`; local writes can still keep
  * rows available while a later load is pending or failed.
  */
-export type CollectionLoadState<E = unknown> =
+export type CollectionLoadState<E = never> =
   | { readonly _tag: "Initial"; readonly waiting: false }
   | { readonly _tag: "Pending"; readonly waiting: true }
   | { readonly _tag: "Ready"; readonly waiting: false; readonly updatedAt: number }
@@ -70,7 +70,7 @@ export interface CollectionMutationContext<A extends object, K extends Collectio
  * The retry schedule wraps loads and queued mutation handlers, preserving their
  * original Effect error and requirement channels.
  */
-export interface CollectionPolicy<E = unknown> {
+export interface CollectionPolicy<E = never> {
   readonly retry?: Schedule.Schedule<unknown, E>;
 }
 
@@ -115,7 +115,7 @@ export type CollectionIndexRecord<A extends object> = Record<string, CollectionI
  * });
  * ```
  */
-export interface CollectionOptions<A extends object, K extends CollectionKey, E = unknown, R = never> {
+export interface CollectionOptions<A extends object, K extends CollectionKey, E = never, R = never> {
   readonly name: string;
   readonly input?: unknown;
   readonly output?: unknown;
@@ -148,7 +148,7 @@ export interface CollectionOptions<A extends object, K extends CollectionKey, E 
  * requirements `R`; fire-and-forget write helpers fork the corresponding Effect
  * on the current runtime.
  */
-export interface CollectionDefinition<A extends object, K extends CollectionKey = string, E = unknown, R = never> {
+export interface CollectionDefinition<A extends object, K extends CollectionKey = string, E = never, R = never> {
   readonly [CollectionTypeId]: typeof CollectionTypeId;
   readonly options: CollectionOptions<A, K, E, R>;
   readonly name: string;
@@ -180,16 +180,16 @@ export interface CollectionDefinition<A extends object, K extends CollectionKey 
   /** Capture a serializable snapshot using the current runtime store. */
   snapshot(): CollectionSnapshot<A, K>;
   /** Restore rows and pending mutations from a snapshot. */
-  hydrateEffect(snapshot: CollectionSnapshot<A, K>, options?: CollectionHydrateOptions): Effect.Effect<void>;
+  hydrateEffect(snapshot: CollectionSnapshot<A, K>, options?: CollectionHydrateOptions): Effect.Effect<void, CollectionSnapshotCodecError>;
   /** Fork `hydrateEffect` on the current runtime. */
   hydrate(snapshot: CollectionSnapshot<A, K>, options?: CollectionHydrateOptions): void;
   /** Persist the current snapshot to an Effect-aware string storage backend. */
-  persistEffect<PE = unknown, PR = never>(
+  persistEffect<PE = never, PR = never>(
     storage: CollectionPersistenceStorage<PE, PR>,
     options?: CollectionPersistOptions
   ): Effect.Effect<void, PE | CollectionSnapshotCodecError, PR>;
   /** Load a persisted snapshot from storage and hydrate it if present. */
-  restoreEffect<PE = unknown, PR = never>(
+  restoreEffect<PE = never, PR = never>(
     storage: CollectionPersistenceStorage<PE, PR>,
     options?: CollectionPersistOptions & CollectionHydrateOptions
   ): Effect.Effect<void, PE | CollectionSnapshotCodecError, PR>;
@@ -213,7 +213,10 @@ export interface CollectionDefinition<A extends object, K extends CollectionKey 
   writeDelete(key: K): void;
 }
 
-export type AnyCollection<E = any, R = any> = CollectionDefinition<any, any, E, R>;
+export type AnyCollection<E = any, R = any> =
+  Omit<CollectionDefinition<any, any, E, R>, "options"> & {
+    readonly options: any;
+  };
 export type CollectionValue<C> = C extends CollectionDefinition<infer A, infer _K, infer _E, infer _R> ? A : never;
 export type CollectionRowValue<C> = C extends CollectionDefinition<infer A, infer K, infer _E, infer _R> ? CollectionRow<A, K> : never;
 export type CollectionError<C> = C extends CollectionDefinition<infer _A, infer _K, infer E, infer _R> ? E : never;
@@ -274,7 +277,7 @@ export interface CollectionHydrateOptions {
  * Implement this over `localStorage`, IndexedDB, SQLite, or any other durable
  * store. Storage failures become the persistence error channel.
  */
-export interface CollectionPersistenceStorage<E = unknown, R = never> {
+export interface CollectionPersistenceStorage<E = never, R = never> {
   readonly getItem: (key: string) => EffectInput<string | null, E, R>;
   readonly setItem: (key: string, value: string) => EffectInput<void, E, R>;
   readonly removeItem?: (key: string) => EffectInput<void, E, R>;
@@ -290,7 +293,7 @@ export interface CollectionPersistOptions {
  * Restore can run before preload, then optional load can reconcile remote data.
  * Persist hooks default to enabled unless explicitly set to `false`.
  */
-export interface CollectionPersistenceConfig<E = unknown, R = never> extends CollectionPersistOptions {
+export interface CollectionPersistenceConfig<E = never, R = never> extends CollectionPersistOptions {
   readonly storage: CollectionPersistenceStorage<E, R>;
   readonly hydrate?: CollectionHydrateOptions;
   readonly restoreOnPreload?: boolean;
@@ -303,9 +306,9 @@ export interface CollectionPersistenceConfig<E = unknown, R = never> extends Col
 export type CollectionPersistedOptions<
   A extends object,
   K extends CollectionKey = string,
-  E = unknown,
+  E = never,
   R = never,
-  PE = unknown,
+  PE = never,
   PR = never
 > = Omit<CollectionOptions<A, K, E, R>, "persistence"> & {
   readonly persistence: CollectionPersistenceConfig<PE, PR>;

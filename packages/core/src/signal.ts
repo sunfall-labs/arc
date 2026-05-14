@@ -62,7 +62,7 @@ const observeDependencies = <A>(
   return () => tracker.dispose();
 };
 
-export const watch = <A, E = unknown>(
+export const watch = <A, E = never>(
   evaluate: () => A,
   effect: (value: A, previous: A | undefined) => EffectInput<void, E, Scope.Scope>,
   options?: WatchOptions<A>

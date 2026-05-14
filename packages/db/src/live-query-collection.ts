@@ -36,7 +36,7 @@ import type {
  * joining or indexing view rows. Mutation effects fail with
  * `ReadonlyCollectionMutation`.
  */
-export interface CollectionLiveQueryOptions<A extends object, K extends CollectionKey, E = unknown, R = never> {
+export interface CollectionLiveQueryOptions<A extends object, K extends CollectionKey, E = never, R = never> {
   readonly name: string;
   readonly getKey: (value: A) => K;
   readonly indexes?: CollectionIndexRecord<A>;
@@ -76,7 +76,7 @@ const liveQueryFromInput = <A extends object, E, R>(
 export const makeLiveQueryCollectionDefinition = <
   A extends object,
   K extends CollectionKey = string,
-  E = unknown,
+  E = never,
   R = never
 >(
   options: CollectionLiveQueryOptions<A, K, E, R>,
@@ -149,7 +149,7 @@ export const makeLiveQueryCollectionDefinition = <
       collectionSnapshotFromValues(options.name, materialized(), options.getKey, Date.now()),
     hydrateEffect: () => Effect.void,
     hydrate: () => {},
-    persistEffect: <PE = unknown, PR = never>(
+    persistEffect: <PE = never, PR = never>(
       storage: CollectionPersistenceStorage<PE, PR>,
       persistOptions?: CollectionPersistOptions
     ) =>

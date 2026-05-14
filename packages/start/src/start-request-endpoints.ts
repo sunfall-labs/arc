@@ -4,6 +4,7 @@ import {
   ServerRpcProtocolError,
   applyResponseContext,
   makeResponseContext,
+  type ActionDefinition,
   type AppDefinition,
   type EffectUiRuntime,
   type Route,
@@ -58,7 +59,7 @@ export const createServerRpcResponseEffectWithRuntime = <
   ServerServices,
   ServerError
 >(
-  _app: AppDefinition<Routes, Client, ServerServices, ServerError>,
+  app: AppDefinition<Routes, Client, ServerServices, ServerError>,
   request: Request,
   runtime: EffectUiRuntime<ServerServices, ServerError>,
   responseContext: ResponseContext = makeResponseContext(),
@@ -112,7 +113,7 @@ export const createServerRpcResponseEffectWithRuntime = <
           return decoded;
         }
 
-        const fn = Server.get(decoded.name);
+        const fn = app.registry.serverFunctions.get(decoded.name) ?? Server.get(decoded.name);
         if (!fn) {
           recordStartRequestTraceServerFunction(traceFacts, {
             name: decoded.name,
@@ -181,7 +182,7 @@ export const createServerActionResponseEffectWithRuntime = <
   ServerServices,
   ServerError
 >(
-  _app: AppDefinition<Routes, Client, ServerServices, ServerError>,
+  app: AppDefinition<Routes, Client, ServerServices, ServerError>,
   request: Request,
   runtime: EffectUiRuntime<ServerServices, ServerError>,
   actions?: Iterable<StartActionDefinition>,
@@ -219,7 +220,7 @@ export const createServerActionResponseEffectWithRuntime = <
           return decoded;
         }
 
-        const action = makeActionMap(actions).get(decoded.name);
+        const action = makeActionMap(actions, app.registry).get(decoded.name);
         if (!action) {
           recordStartRequestTraceAction(traceFacts, {
             name: decoded.name,
@@ -251,7 +252,10 @@ export const createServerActionResponseEffectWithRuntime = <
           return input;
         }
 
-        const instance = Action.use(action, { runtime });
+        const instance = Action.use(
+          action as unknown as ActionDefinition<any, any, never, any>,
+          { runtime }
+        );
         const exit = yield* Effect.exit(
           withStartActionObservability(action.name, instance.submitEffect(input))
         );

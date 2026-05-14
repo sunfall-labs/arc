@@ -366,7 +366,7 @@ const ListProjectsForCollection = Server.fn<void, readonly Project[], ProjectErr
   handler: () => Effect.succeed([{ id: "atlas", name: "Atlas" }])
 });
 
-const ServerProjectsCollection = Collection.define(serverCollectionOptions<Project>({
+const ServerProjectsCollection = Collection.define(serverCollectionOptions<Project, string, ProjectError>({
   id: "Projects.serverCollection",
   getKey: (project) => project.id,
   load: ListProjectsForCollection,
@@ -398,12 +398,12 @@ const syncAdapter: Collection.SyncAdapter<Project> = {
     payload.transaction.id.toUpperCase();
   }
 };
-Collection.define(Collection.syncOptions<Project>({
+Collection.define(Collection.syncOptions<Project, string, Server.ClientError>({
   name: "Projects.syncCollection",
   getKey: (project) => project.id,
   sync: syncAdapter
 }));
-Collection.define(Collection.syncOptions<Project>({
+Collection.define(Collection.syncOptions<Project, string, Server.ClientError>({
   name: "Projects.serverSyncCollection",
   getKey: (project) => project.id,
   sync: Collection.serverSyncAdapter<Project>({
@@ -416,7 +416,7 @@ const ProjectRowsResource = Resource.family<void, ReadonlyArray<Project>, Projec
   name: "Project.rows",
   load: () => Effect.succeed([{ id: "atlas", name: "Atlas" }])
 });
-Collection.define(Collection.syncOptions<Project>({
+Collection.define(Collection.syncOptions<Project, string, ProjectError>({
   name: "Projects.resourceSyncCollection",
   getKey: (project) => project.id,
   sync: Collection.resourceSyncAdapter({

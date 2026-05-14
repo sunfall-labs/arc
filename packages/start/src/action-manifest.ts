@@ -1,16 +1,14 @@
 import type { ActionConcurrency, ActionDefinition } from "@effect-ui/core";
 import { Data, Effect, Schema } from "effect";
 import {
-  classifyStartManifestModule,
+  assembleCallableManifestEntry,
   compareManifestEntries,
   decodeSerializedCallableManifest,
   decodeSerializedCallableManifestEntry,
   isRecord,
   isStartManifestServerOnlyModule,
-  normalizeManifestModuleId,
   parseSerializedStartManifestJson,
   stableManifestEntryId,
-  validateManifestDefinition,
   validateManifestEntrySet,
   type StartManifestModuleKind
 } from "./manifest-entry-core.js";
@@ -215,21 +213,6 @@ export const actionManifestDefinition = (
       };
 };
 
-const validateDefinition = (
-  definition: ActionManifestDefinition,
-  index: number
-): Effect.Effect<
-  {
-    readonly name: string;
-    readonly module: string;
-    readonly exportName: string;
-  },
-  ActionManifestInvalidEntry
-> =>
-  validateManifestDefinition(definition, index, (input) =>
-    new ActionManifestInvalidEntry(input)
-  );
-
 const sortActionEntries = (
   entries: readonly ActionManifestEntry[]
 ): readonly ActionManifestEntry[] => [...entries].sort(compareEntries);
@@ -254,65 +237,47 @@ export const makeActionManifestEntry = (
   ActionManifestEntry,
   ActionManifestInvalidEntry | ActionManifestUnsafeClientReference
 > =>
-  Effect.gen(function* () {
-    const validated = yield* validateDefinition(definition, index);
-    const id = stableActionId(validated.name);
-    const actionPath = options.actionPath ?? serverActionPath;
-    const server: ActionServerReference = {
+  assembleCallableManifestEntry(definition, {
+    index,
+    transportPath: options.actionPath ?? serverActionPath,
+    stableId: stableActionId,
+    invalidEntry: (input) => new ActionManifestInvalidEntry(input),
+    unsafeClientReference: (input) => new ActionManifestUnsafeClientReference(input),
+    server: ({ validated, moduleKind }): ActionServerReference => ({
       module: validated.module,
       exportName: validated.exportName,
-      moduleKind: classifyStartManifestModule(validated.module)
-    };
-    const wire: ActionWireContract = {
-      inputSchema: definition.inputSchema ?? false,
-      outputSchema: definition.outputSchema ?? false,
-      errorSchema: definition.errorSchema ?? false
-    };
-    const behavior = behaviorFromDefinition(definition);
-
-    if (definition.clientModule === undefined) {
-      return {
-        id,
-        name: validated.name,
-        server,
-        client: {
-          _tag: "Post" as const,
-          id,
-          name: validated.name,
-          actionPath
-        },
-        wire,
-        behavior
-      };
-    }
-
-    const clientModule = normalizeManifestModuleId(definition.clientModule);
-    const moduleKind = classifyStartManifestModule(clientModule);
-    if (moduleKind === "server-only") {
-      return yield* Effect.fail(
-        new ActionManifestUnsafeClientReference({
-          name: validated.name,
-          clientModule
-        })
-      );
-    }
-
-    return {
+      moduleKind
+    }),
+    transportClient: ({ id, name, transportPath }): ActionClientReference => ({
+      _tag: "Post",
       id,
-      name: validated.name,
+      name,
+      actionPath: transportPath
+    }),
+    importClient: ({
+      id,
+      name,
+      transportPath,
+      module,
+      exportName,
+      moduleKind
+    }): ActionClientReference => ({
+      _tag: "Import",
+      id,
+      name,
+      actionPath: transportPath,
+      module,
+      exportName,
+      moduleKind
+    }),
+    entry: ({ definition, id, name, server, client, wire }): ActionManifestEntry => ({
+      id,
+      name,
       server,
-      client: {
-        _tag: "Import" as const,
-        id,
-        name: validated.name,
-        actionPath,
-        module: clientModule,
-        exportName: definition.clientExportName ?? validated.exportName,
-        moduleKind
-      },
+      client,
       wire,
-      behavior
-    };
+      behavior: behaviorFromDefinition(definition)
+    })
   });
 
 export const makeActionManifest = (

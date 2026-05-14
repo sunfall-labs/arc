@@ -224,8 +224,9 @@ interruption.
   - Replaced type-test `async` negative cases with declared Promise values, so
     the type suite still rejects Promise-returning framework callbacks without
     embedding async callback syntax.
-  - Remaining `new Promise(...)` sites are confined to Node server/listener and
-    timer host-boundary helpers in adapter tests.
+  - Node server/listener and timer adapter-test helpers now use
+    `Effect.callback(...)` and `Effect.sleep(...)`; no raw `new Promise(...)`
+    helpers remain in the checked source, examples, scripts, or type tests.
 
 ## Remaining Promise Sites To Review
 
@@ -259,6 +260,8 @@ interruption.
   - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts -g '*.ts' -g '*.tsx' -g '*.mjs'`
     currently finds no package, example, or script hits.
   - `rg -n "new Promise|Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
+    currently reports no hits.
+  - `rg -n "Promise\\.all|Promise\\.race|Promise\\.resolve|new Promise|\\.then\\(|\\.finally\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
     currently reports no hits.
   - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
     currently finds no hits outside the docs that record historical evidence.
@@ -815,12 +818,20 @@ interruption.
   `start-action-client.ts`, keeping fetch, decode, hydration, Layer, and action
   concurrency workflows behind focused Effect-first client Modules.
 - Core Action submission versioning, fiber coordination, invalidation-plan
-  state, and reset interruption now live behind an internal Action Submission
-  Controller.
+  state, stale interruption, and reset interruption now live behind a shared
+  Action Submission Controller used by both `Action.use(...)` and Start's
+  `StartAction.use(...)`.
+- Stateful `StartAction.use(...)` now checks the accepted submission before
+  running response hydration, keeping stale transport responses from applying
+  Resource or Collection hydration side effects.
 - DB collection snapshot validation, cloning, pending mutation conversion,
   JSON encode/decode, and hydration application now live in
-  `collection-snapshot-codec.ts`; invalid persisted snapshot JSON now fails as
-  a typed `CollectionSnapshotCodecError` in the Effect error channel.
+  `collection-snapshot-codec.ts`; invalid persisted snapshot JSON, direct
+  hydrate snapshots, and hydration payloads now fail as typed
+  `CollectionSnapshotCodecError` values in the Effect error channel.
+- Collection mutation commits now catch remote-handler failure before commit and
+  run post-commit persistence afterward, so a persistence failure cannot roll
+  back rows that already reflect a successful remote mutation.
 - DB collection contracts and registry diagnostics now live outside the package
   root in `collection-contract.ts` and `collection-registry.ts`, so internal DB
   modules depend on focused Effect-aware contracts rather than the facade.
@@ -829,6 +840,28 @@ interruption.
 - Start callable manifest deserialization now uses Manifest Entry Core helpers
   for JSON parsing, version/path validation, callable identity checks, and
   import-client validation across server functions and actions.
+- Core Action and Server function definitions now register through a shared
+  Core Definition Registry, and `defineApp(...)` snapshots that registry unless
+  an explicit app registry is supplied.
+- DB Collection registry behavior now lives behind an explicit registry adapter
+  with isolated construction, default-registry access, duplicate policy, and
+  duplicate diagnostics.
+- Start app graph diagnostics can now be rebuilt from runtime route candidates,
+  and policy failures use a diagnostics-bearing exception instead of ad hoc
+  thrown messages.
+- Default generic error parameters now use `never` across Core, DB, Solid DB,
+  and Start action inference; callers must spell concrete error channels when
+  partial generics would otherwise hide failures.
+- The latest Promise-method audit across packages, examples, scripts, and type
+  tests reports no `Promise.all`, `Promise.race`, `Promise.resolve`,
+  `new Promise`, `.then(...)`, or `.finally(...)` hits.
+- Escalated `pnpm verify` passed after the Start stale action hydration guard,
+  DB direct typed hydration and post-commit persistence fixes, DB and Core
+  registry locality, Start runtime diagnostics, default generic error cleanup,
+  and docs reconciliation work: 9 package builds, workspace typecheck, type
+  tests, 42 root test files / 361 tests, devtools-panel verify,
+  devtools-extension verify, basic starter verify, project-console starter
+  packaging/typecheck/tests/build, and leak scan.
 - Full `pnpm verify` passed after the shared Action Submission Controller,
   DB Collection contract/registry extraction, typed `CollectionSnapshotCodecError`
   propagation, Devtools graph/fact/serialization cleanup, Start

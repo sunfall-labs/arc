@@ -17,7 +17,7 @@ export interface UseLiveQueryOptions {
  * Data is recomputed when source collections change. Loading/refetch work stays
  * Effect-first through the returned methods.
  */
-export interface LiveQueryHandle<T, E = unknown, R = never> {
+export interface LiveQueryHandle<T, E = never, R = never> {
   readonly data: Accessor<ReadonlyArray<T>>;
   readonly state: Accessor<LiveQueryState<T, E>>;
   readonly waiting: Accessor<boolean>;
@@ -43,7 +43,7 @@ type LiveQueryInput<T, E, R> = QueryFactory<T> | LiveQuery<T, E, R>;
  * );
  * ```
  */
-export const useLiveQuery = <T, E = unknown, R = never>(
+export const useLiveQuery = <T, E = never, R = never>(
   input: LiveQueryInput<T, E, R>,
   options: UseLiveQueryOptions = {}
 ): LiveQueryHandle<T, E, R> => {

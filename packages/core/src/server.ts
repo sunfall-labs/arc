@@ -1,4 +1,10 @@
 import { Context, Data, Effect, Layer, Option, Schema } from "effect";
+import {
+  clearServerFunctionDefinitionRegistryUnsafe,
+  getServerFunctionDefinition,
+  registerServerFunctionDefinition,
+  serverFunctionDefinitionRegistry
+} from "./definition-registry.js";
 import type { EffectInput } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
 import { applyResponseContext, makeResponseContext, provideRequest, provideResponse } from "./request-context.js";
@@ -16,7 +22,7 @@ export const ServerFunctionMockTypeId: unique symbol = Symbol.for(
 ) as typeof ServerFunctionMockTypeId;
 
 /** Schema metadata shared by server function clients, implementations, and mocks. */
-export interface ServerFunctionContractDefinition<I, A, E = unknown> {
+export interface ServerFunctionContractDefinition<I, A, E = never> {
   readonly input?: unknown;
   readonly output?: unknown;
   readonly error?: unknown;
@@ -28,7 +34,7 @@ export interface ServerFunctionContractDefinition<I, A, E = unknown> {
  * Contracts are defined in shared code, then turned into a client stub with
  * Server.client or a server implementation with Server.implement.
  */
-export interface ServerFunctionContract<I, A, E = unknown> {
+export interface ServerFunctionContract<I, A, E = never> {
   readonly [ServerFunctionContractTypeId]: typeof ServerFunctionContractTypeId;
   readonly Type?: {
     readonly Input: I;
@@ -42,7 +48,7 @@ export interface ServerFunctionContract<I, A, E = unknown> {
 }
 
 /** Test implementation for a server function contract. */
-export interface ServerFunctionMock<I, A, E = unknown, R = never> {
+export interface ServerFunctionMock<I, A, E = never, R = never> {
   readonly [ServerFunctionMockTypeId]: typeof ServerFunctionMockTypeId;
   readonly name: string;
   readonly input?: unknown;
@@ -52,7 +58,7 @@ export interface ServerFunctionMock<I, A, E = unknown, R = never> {
 }
 
 /** Server-side handler definition for Server.fn. */
-export interface ServerFunctionDefinition<I, A, E = unknown, R = never> {
+export interface ServerFunctionDefinition<I, A, E = never, R = never> {
   readonly input?: unknown;
   readonly output?: unknown;
   readonly error?: unknown;
@@ -65,7 +71,7 @@ export interface ServerFunctionDefinition<I, A, E = unknown, R = never> {
  * Use `.effect(input)` or call the function directly inside Effect code. Both paths
  * use the active ServerClient when one is provided.
  */
-export interface ServerFunction<I, A, E = unknown, R = never> {
+export interface ServerFunction<I, A, E = never, R = never> {
   readonly [ServerFunctionTypeId]: typeof ServerFunctionTypeId;
   readonly name: string;
   readonly input?: unknown;
@@ -153,8 +159,6 @@ type ServerContractError<Contract> =
 type AnyServerFunction = ServerFunction<any, any, any, any>;
 type AnyServerFunctionMock = ServerFunctionMock<any, any, any, any>;
 
-const serverFunctionRegistry = new Map<string, AnyServerFunction>();
-
 const mockFor = <I, A, E, R>(
   mocks: ReadonlyMap<string, AnyServerFunctionMock>,
   fn: ServerFunction<I, A, E, R>
@@ -187,9 +191,9 @@ export const isServerFunctionContract = (
 
 /** Helpers for contracts, client stubs, server implementations, mocks, and routes. */
 export namespace Server {
-  export type Fn<I, A, E = unknown, R = never> = ServerFunction<I, A, E, R>;
-  export type Contract<I, A, E = unknown> = ServerFunctionContract<I, A, E>;
-  export type Mock<I, A, E = unknown, R = never> = ServerFunctionMock<I, A, E, R>;
+  export type Fn<I, A, E = never, R = never> = ServerFunction<I, A, E, R>;
+  export type Contract<I, A, E = never> = ServerFunctionContract<I, A, E>;
+  export type Mock<I, A, E = never, R = never> = ServerFunctionMock<I, A, E, R>;
   export type Client = ServerClient;
   export type ClientError = ServerClientError;
   export type RpcRequest = ServerRpcRequest;
@@ -206,7 +210,7 @@ export namespace Server {
    * });
    * ```
    */
-  export const contract = <I, A, E = unknown>(
+  export const contract = <I, A, E = never>(
     name: string,
     definition: ServerFunctionContractDefinition<I, A, E> = {}
   ): ServerFunctionContract<I, A, E> => ({
@@ -218,7 +222,7 @@ export namespace Server {
   });
 
   /** Creates a client stub from a shared contract. */
-  export const client = <I, A, E = unknown>(
+  export const client = <I, A, E = never>(
     contract: ServerFunctionContract<I, A, E>
   ): ServerFunction<I, A, E, never> =>
     stub(contract.name, {
@@ -341,7 +345,7 @@ export namespace Server {
    * Prefer Server.contract plus Server.client/implement when the declaration is
    * shared across client and server bundles.
    */
-  export const fn = <I, A, E = unknown, R = never>(
+  export const fn = <I, A, E = never, R = never>(
     name: string,
     definition: Omit<ServerFunctionDefinition<I, A, E, R>, "handler"> & {
       readonly handler: (input: I) => EffectInput<A, E, R>;
@@ -378,11 +382,11 @@ export namespace Server {
       invoke: { value: invoke, enumerable: true }
     });
 
-    serverFunctionRegistry.set(name, callable);
+    registerServerFunctionDefinition(callable);
     return callable;
   };
 
-  export const stub = <I, A, E = unknown>(
+  export const stub = <I, A, E = never>(
     name: string,
     definition: Omit<ServerFunctionDefinition<I, A, E, never>, "handler">
   ): ServerFunction<I, A, E, never> => {
@@ -414,20 +418,23 @@ export namespace Server {
       invoke: { value: invoke, enumerable: true }
     });
 
-    serverFunctionRegistry.set(name, callable);
+    registerServerFunctionDefinition(callable);
     return callable;
   };
 
   export const functions = (): ReadonlyMap<string, ServerFunction<unknown, unknown, unknown, unknown>> =>
-    serverFunctionRegistry;
+    serverFunctionDefinitionRegistry<ServerFunction<unknown, unknown, unknown, unknown>>();
 
-  export const get = <I = unknown, A = unknown, E = unknown, R = unknown>(
+  export const definitions = (): ReadonlyMap<string, ServerFunction<unknown, unknown, unknown, unknown>> =>
+    functions();
+
+  export const get = <I = unknown, A = unknown, E = never, R = never>(
     name: string
   ): ServerFunction<I, A, E, R> | undefined =>
-    serverFunctionRegistry.get(name) as ServerFunction<I, A, E, R> | undefined;
+    getServerFunctionDefinition<ServerFunction<I, A, E, R>>(name);
 
   export const clearRegistryUnsafe = (): void => {
-    serverFunctionRegistry.clear();
+    clearServerFunctionDefinitionRegistryUnsafe();
   };
 
   /**

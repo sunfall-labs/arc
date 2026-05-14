@@ -26,7 +26,7 @@ import {
  * Use Effect-first callbacks or `ServerFunction`s so transport failures remain
  * typed in the collection error channel.
  */
-export type ServerCollectionResult<A, E = unknown, R = never> =
+export type ServerCollectionResult<A, E = never, R = never> =
   EffectInput<A, E, R>;
 
 /**
@@ -35,7 +35,7 @@ export type ServerCollectionResult<A, E = unknown, R = never> =
  * A `ServerFunction` is invoked through `.effect(input)`; a plain callback is
  * converted with `toEffect`.
  */
-export type ServerCollectionOperation<I, A, E = unknown, R = never> =
+export type ServerCollectionOperation<I, A, E = never, R = never> =
   | ServerFunction<I, A, E, R>
   | ((input: I) => ServerCollectionResult<A, E, R>);
 
@@ -71,7 +71,7 @@ type ServerCollectionIdentity =
 export type ServerCollectionOptions<
   A extends object,
   K extends CollectionKey = string,
-  E = unknown,
+  E = never,
   R = never
 > = ServerCollectionIdentity & {
   readonly input?: unknown;
@@ -144,7 +144,7 @@ const serverCollectionName = <
 export const serverCollectionSyncAdapter = <
   A extends object,
   K extends CollectionKey = string,
-  E = unknown,
+  E = never,
   R = never
 >(
   options: ServerCollectionOptions<A, K, E, R>
@@ -194,7 +194,7 @@ export const serverCollectionSyncAdapter = <
 export const serverCollectionOptions = <
   A extends object,
   K extends CollectionKey = string,
-  E = unknown,
+  E = never,
   R = never
 >(
   options: ServerCollectionOptions<A, K, E, R>

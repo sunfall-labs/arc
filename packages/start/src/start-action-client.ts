@@ -30,8 +30,17 @@ import {
   type StartActionDefinition,
   type StartActionInvalidationPlan,
   type StartActionRequest,
+  type StartActionResponseBody,
   type StartActionResultFor
 } from "./start-transport-protocol.js";
+
+interface SubmittedStartAction<D extends StartActionDefinition> {
+  readonly result: StartActionResultFor<ActionDefinitionOutputValue<D>, ActionDefinitionErrorValue<D>>;
+  readonly response: Extract<
+    StartActionResponseBody,
+    { readonly _tag: "Success" | "ValidationFailure" | "Redirect" | "Failure" }
+  >;
+}
 
 /**
  * Submits a Start action over the action transport.
@@ -49,15 +58,11 @@ import {
  * });
  * ```
  */
-export const submitStartActionEffect = <D extends StartActionDefinition>(
+const submitStartActionTransportEffect = <D extends StartActionDefinition>(
   definition: D,
   input: ActionDefinitionInputValue<D>,
   options: StartActionClientOptions = {}
-): Effect.Effect<
-  StartActionResultFor<ActionDefinitionOutputValue<D>, ActionDefinitionErrorValue<D>>,
-  Server.ClientError,
-  unknown
-> =>
+): Effect.Effect<SubmittedStartAction<D>, Server.ClientError, unknown> =>
   Effect.gen(function* () {
     const fetcher = yield* resolveStartFetchEffect(
       options.fetch,
@@ -111,9 +116,26 @@ export const submitStartActionEffect = <D extends StartActionDefinition>(
       });
     }
 
-    const decoded = yield* decodeStartActionResponseEffect(definition, actionResponse);
-    yield* hydrateActionResponseEffect(actionResponse, options);
-    return decoded;
+    const result = yield* decodeStartActionResponseEffect(definition, actionResponse);
+    return {
+      result,
+      response: actionResponse
+    };
+  });
+
+export const submitStartActionEffect = <D extends StartActionDefinition>(
+  definition: D,
+  input: ActionDefinitionInputValue<D>,
+  options: StartActionClientOptions = {}
+): Effect.Effect<
+  StartActionResultFor<ActionDefinitionOutputValue<D>, ActionDefinitionErrorValue<D>>,
+  Server.ClientError,
+  unknown
+> =>
+  Effect.gen(function* () {
+    const submitted = yield* submitStartActionTransportEffect(definition, input, options);
+    yield* hydrateActionResponseEffect(submitted.response, options);
+    return submitted.result;
   });
 
 /** Stateful client helpers for Start actions. */
@@ -185,11 +207,19 @@ export namespace StartAction {
           }
         });
 
-        const value = yield* submitStartActionEffect(definition, input, {
+        const submitted = yield* submitStartActionTransportEffect(definition, input, {
           ...options,
           runtime
         });
         yield* submissions.interruptStaleEffect(submission);
+
+        const value = submitted.result;
+        if (submissions.acceptsStateUpdate(submission)) {
+          yield* hydrateActionResponseEffect(submitted.response, {
+            ...options,
+            runtime
+          });
+        }
 
         yield* Effect.sync(() => {
           if (submissions.acceptsStateUpdate(submission)) {

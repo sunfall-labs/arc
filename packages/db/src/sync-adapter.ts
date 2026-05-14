@@ -49,7 +49,7 @@ export interface CollectionSyncDeletePayload<A extends object, K extends Collect
  * Each callback may return a plain value or Effect. Errors become the
  * collection error channel `E`, and any required services become `R`.
  */
-export interface CollectionSyncAdapter<A extends object, K extends CollectionKey = string, E = unknown, R = never> {
+export interface CollectionSyncAdapter<A extends object, K extends CollectionKey = string, E = never, R = never> {
   readonly name: string;
   readonly load?: () => EffectInput<ReadonlyArray<A>, E, R>;
   readonly refetch?: () => EffectInput<ReadonlyArray<A>, E, R>;
@@ -64,7 +64,7 @@ export interface CollectionSyncAdapter<A extends object, K extends CollectionKey
 export interface CollectionSyncOptions<
   A extends object,
   K extends CollectionKey = string,
-  E = unknown,
+  E = never,
   R = never
 > {
   readonly name: string;
@@ -85,7 +85,7 @@ export interface CollectionResourceSyncAdapterOptions<
   I,
   A extends object,
   K extends CollectionKey = string,
-  E = unknown,
+  E = never,
   R = never
 > extends Pick<CollectionSyncAdapter<A, K, E, R>, "insert" | "update" | "delete"> {
   readonly name?: string;
@@ -100,7 +100,7 @@ export type CollectionQuerySyncKey = ReadonlyArray<unknown>;
 /**
  * Fetch request issued to a query-client-backed sync adapter.
  */
-export interface CollectionQuerySyncFetchOptions<A extends object, E = unknown, R = never> {
+export interface CollectionQuerySyncFetchOptions<A extends object, E = never, R = never> {
   readonly queryKey: CollectionQuerySyncKey;
   readonly queryFn: () => EffectInput<ReadonlyArray<A>, E, R>;
 }
@@ -115,7 +115,7 @@ export interface CollectionQuerySyncInvalidateOptions {
 /**
  * Minimal query client interface used by `collectionQuerySyncAdapter`.
  */
-export interface CollectionQuerySyncClient<A extends object, E = unknown, R = never> {
+export interface CollectionQuerySyncClient<A extends object, E = never, R = never> {
   readonly fetchQuery: (options: CollectionQuerySyncFetchOptions<A, E, R>) =>
     EffectInput<ReadonlyArray<A>, E, R>;
   readonly invalidateQueries?: (options: CollectionQuerySyncInvalidateOptions) =>
@@ -128,7 +128,7 @@ export interface CollectionQuerySyncClient<A extends object, E = unknown, R = ne
 export interface CollectionQuerySyncAdapterOptions<
   A extends object,
   K extends CollectionKey = string,
-  E = unknown,
+  E = never,
   R = never
 > extends Pick<CollectionSyncAdapter<A, K, E, R>, "insert" | "update" | "delete"> {
   readonly name?: string;
@@ -177,7 +177,7 @@ export interface CollectionChangeFeedContext<
 export interface CollectionChangeFeedAdapter<
   A extends object,
   K extends CollectionKey = string,
-  E = unknown,
+  E = never,
   R = never
 > {
   readonly name: string;
@@ -238,7 +238,7 @@ const syncLoad = <A extends object, K extends CollectionKey, E, R>(
 export const collectionSyncOptions = <
   A extends object,
   K extends CollectionKey = string,
-  E = unknown,
+  E = never,
   R = never
 >(
   options: CollectionSyncOptions<A, K, E, R>
@@ -299,7 +299,7 @@ export const collectionResourceSyncAdapter = <
   I,
   A extends object,
   K extends CollectionKey = string,
-  E = unknown,
+  E = never,
   R = never
 >(
   options: CollectionResourceSyncAdapterOptions<I, A, K, E, R>
@@ -321,7 +321,7 @@ export const collectionResourceSyncAdapter = <
 export const collectionQuerySyncAdapter = <
   A extends object,
   K extends CollectionKey = string,
-  E = unknown,
+  E = never,
   R = never
 >(
   options: CollectionQuerySyncAdapterOptions<A, K, E, R>
@@ -392,25 +392,25 @@ export namespace CollectionSync {
   export type InsertPayload<A extends object, K extends CollectionKey> = CollectionSyncInsertPayload<A, K>;
   export type UpdatePayload<A extends object, K extends CollectionKey> = CollectionSyncUpdatePayload<A, K>;
   export type DeletePayload<A extends object, K extends CollectionKey> = CollectionSyncDeletePayload<A, K>;
-  export type Adapter<A extends object, K extends CollectionKey = string, E = unknown, R = never> =
+  export type Adapter<A extends object, K extends CollectionKey = string, E = never, R = never> =
     CollectionSyncAdapter<A, K, E, R>;
-  export type Options<A extends object, K extends CollectionKey = string, E = unknown, R = never> =
+  export type Options<A extends object, K extends CollectionKey = string, E = never, R = never> =
     CollectionSyncOptions<A, K, E, R>;
-  export type ResourceAdapterOptions<I, A extends object, K extends CollectionKey = string, E = unknown, R = never> =
+  export type ResourceAdapterOptions<I, A extends object, K extends CollectionKey = string, E = never, R = never> =
     CollectionResourceSyncAdapterOptions<I, A, K, E, R>;
   export type QueryKey = CollectionQuerySyncKey;
-  export type QueryFetchOptions<A extends object, E = unknown, R = never> =
+  export type QueryFetchOptions<A extends object, E = never, R = never> =
     CollectionQuerySyncFetchOptions<A, E, R>;
   export type QueryInvalidateOptions = CollectionQuerySyncInvalidateOptions;
-  export type QueryClient<A extends object, E = unknown, R = never> =
+  export type QueryClient<A extends object, E = never, R = never> =
     CollectionQuerySyncClient<A, E, R>;
-  export type QueryAdapterOptions<A extends object, K extends CollectionKey = string, E = unknown, R = never> =
+  export type QueryAdapterOptions<A extends object, K extends CollectionKey = string, E = never, R = never> =
     CollectionQuerySyncAdapterOptions<A, K, E, R>;
   export type ChangeFeedUnsubscribe = CollectionChangeFeedUnsubscribe;
   export type ChangeFeedSubscription = CollectionChangeFeedSubscription;
   export type ChangeFeedContext<A extends object, K extends CollectionKey = string> =
     CollectionChangeFeedContext<A, K>;
-  export type ChangeFeedAdapter<A extends object, K extends CollectionKey = string, E = unknown, R = never> =
+  export type ChangeFeedAdapter<A extends object, K extends CollectionKey = string, E = never, R = never> =
     CollectionChangeFeedAdapter<A, K, E, R>;
   export type ChangeFeedSubscribeOptions = CollectionChangeFeedSubscribeOptions;
 

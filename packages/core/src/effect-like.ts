@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Data, Effect } from "effect";
 
 /**
  * Input accepted by convenience APIs that can run either a plain value or an Effect.
@@ -6,7 +6,7 @@ import { Effect } from "effect";
  * Public core APIs prefer Effect-returning variants. EffectInput exists so definitions
  * can stay ergonomic while still being normalized before execution.
  */
-export type EffectInput<A, E = unknown, R = never> =
+export type EffectInput<A, E = never, R = never> =
   | A
   | Effect.Effect<A, E, R>;
 
@@ -31,16 +31,47 @@ export function isEffectLike(value: unknown): value is Effect.Effect<unknown, un
 }
 
 /**
+ * Defect raised when a Promise-shaped value crosses an EffectInput seam.
+ *
+ * Promise work should be adapted explicitly at host boundaries with
+ * `Effect.tryPromise(...)`; library internals should stay Effect-first.
+ */
+export class EffectInputPromiseRejected extends Data.TaggedError(
+  "EffectInputPromiseRejected"
+)<{
+  readonly guidance: string;
+}> {}
+
+const isPromiseLike = (value: unknown): value is PromiseLike<unknown> => {
+  if (value === null) {
+    return false;
+  }
+
+  const valueType = typeof value;
+  if (valueType !== "object" && valueType !== "function") {
+    return false;
+  }
+
+  return typeof (value as { readonly then?: unknown }).then === "function";
+};
+
+/**
  * Normalizes a value or Effect into an Effect.
  *
  * Use this at API boundaries that accept EffectInput, then keep the rest of the
  * implementation Effect-first.
  */
-export const toEffect = <A, E = unknown, R = never>(
+export const toEffect = <A, E = never, R = never>(
   value: EffectInput<A, E, R>
 ): Effect.Effect<A, E, R> => {
   if (isEffectLike(value)) {
     return value;
+  }
+
+  if (isPromiseLike(value)) {
+    return Effect.die(new EffectInputPromiseRejected({
+      guidance: "EffectInput does not accept Promise-shaped values. Wrap host Promise work in Effect.tryPromise(...) at the host adapter seam."
+    }));
   }
 
   return Effect.succeed(value as A);

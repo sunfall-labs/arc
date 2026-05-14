@@ -8,7 +8,8 @@ import {
   Collection,
   type AnyCollection,
   type CollectionHydrateOptions,
-  type CollectionHydrationPayload
+  type CollectionHydrationPayload,
+  type CollectionSnapshotCodecError
 } from "@effect-ui/db";
 import { Data, Effect } from "effect";
 
@@ -127,8 +128,8 @@ const streamCollectionHydrateOptions = (
   replace: false
 });
 
-const runHydrationSync = <A>(
-  effect: Effect.Effect<A>,
+const runHydrationSync = <A, E>(
+  effect: Effect.Effect<A, E>,
   runtime: EffectUiRuntime<unknown, unknown> | undefined
 ): A =>
   (runtime ?? currentOrDefaultRuntime()).runSync(effect);
@@ -338,7 +339,7 @@ export const readStartHydrationChunks = (
 export const hydrateStartPayloadEffect = (
   payload: StartHydrationPayload,
   options: HydrateStartPayloadEffectOptions = {}
-): Effect.Effect<void> =>
+): Effect.Effect<void, CollectionSnapshotCodecError> =>
   Effect.gen(function* () {
     yield* Resource.hydrateEffect(payload);
     if (payload.collections && options.collections) {
@@ -353,7 +354,7 @@ export const hydrateStartPayloadEffect = (
 export const hydrateStartHydrationChunksEffect = (
   chunks: Iterable<StartHydrationChunk>,
   options: HydrateStartPayloadEffectOptions = {}
-): Effect.Effect<void> =>
+): Effect.Effect<void, CollectionSnapshotCodecError> =>
   Effect.forEach(
     sortStartHydrationChunks(chunks),
     (chunk) => hydrateStartPayloadEffect(chunk.payload, streamCollectionHydrateOptions(options)),
@@ -372,7 +373,7 @@ export const hydrateStartHydrationChunks = (
 export const hydrateStartHydrationChunksFromDocumentEffect = (
   document: StartHydrationChunkDocument = globalThis.document,
   options: HydrateStartHydrationChunksFromDocumentEffectOptions = {}
-): Effect.Effect<ReadonlyArray<StartHydrationChunk>> =>
+): Effect.Effect<ReadonlyArray<StartHydrationChunk>, CollectionSnapshotCodecError> =>
   Effect.gen(function* () {
     const entries = readStartHydrationChunkElements(document, options);
     const chunks = entries.map(({ chunk }) => chunk);
@@ -413,7 +414,7 @@ export const hydrateFromDocumentEffect = (
   document: StartHydrationDocument = globalThis.document,
   id = hydrationScriptId,
   options: HydrateFromDocumentEffectOptions = {}
-): Effect.Effect<StartHydrationPayload | undefined> =>
+): Effect.Effect<StartHydrationPayload | undefined, CollectionSnapshotCodecError> =>
   Effect.gen(function* () {
     const payload = readHydrationPayload(document, id);
     if (payload) {

@@ -1,0 +1,89 @@
+import { Effect } from "effect";
+import { describe, expect, it } from "vitest";
+import { Action, defineApp, Server } from "../src/index.js";
+
+let registryTestId = 0;
+
+const registryName = (name: string): string =>
+  `Core.definition-registry.${++registryTestId}.${name}`;
+
+describe("Core definition registry", () => {
+  it("preserves the global Action and Server registry facades", () => {
+    const Ping = Action.define({
+      name: registryName("global-action"),
+      run: () => Effect.succeed("pong")
+    });
+    const ping = Server.fn(registryName("global-server"), {
+      handler: () => Effect.succeed("pong")
+    });
+
+    expect(Action.definitions().get(Ping.name)).toBe(Ping);
+    expect(Action.get(Ping.name)).toBe(Ping);
+    expect(Server.definitions().get(ping.name)).toBe(ping);
+    expect(Server.functions().get(ping.name)).toBe(ping);
+    expect(Server.get(ping.name)).toBe(ping);
+  });
+
+  it("captures app registry snapshots without later global definitions", () => {
+    const BeforeAction = Action.define({
+      name: registryName("snapshot-before-action"),
+      run: () => Effect.succeed("before")
+    });
+    const beforeServer = Server.fn(registryName("snapshot-before-server"), {
+      handler: () => Effect.succeed("before")
+    });
+
+    const app = defineApp({
+      routes: [] as const,
+      client: {}
+    });
+
+    const AfterAction = Action.define({
+      name: registryName("snapshot-after-action"),
+      run: () => Effect.succeed("after")
+    });
+    const afterServer = Server.fn(registryName("snapshot-after-server"), {
+      handler: () => Effect.succeed("after")
+    });
+
+    expect(app.registry.actions.get(BeforeAction.name)).toBe(BeforeAction);
+    expect(app.registry.serverFunctions.get(beforeServer.name)).toBe(beforeServer);
+    expect(app.registry.actions.has(AfterAction.name)).toBe(false);
+    expect(app.registry.serverFunctions.has(afterServer.name)).toBe(false);
+    expect(Action.definitions().get(AfterAction.name)).toBe(AfterAction);
+    expect(Server.definitions().get(afterServer.name)).toBe(afterServer);
+  });
+
+  it("accepts an explicit app registry instead of inheriting globals", () => {
+    const GlobalAction = Action.define({
+      name: registryName("explicit-global-action"),
+      run: () => Effect.succeed("global")
+    });
+    const LocalAction = Action.define({
+      name: registryName("explicit-local-action"),
+      run: () => Effect.succeed("local")
+    });
+    const globalServer = Server.fn(registryName("explicit-global-server"), {
+      handler: () => Effect.succeed("global")
+    });
+    const localServer = Server.fn(registryName("explicit-local-server"), {
+      handler: () => Effect.succeed("local")
+    });
+
+    const app = defineApp({
+      routes: [] as const,
+      client: {},
+      registry: {
+        actions: [LocalAction],
+        serverFunctions: [localServer]
+      }
+    });
+
+    expect(app.registry.actions.get(LocalAction.name)).toBe(LocalAction);
+    expect(app.registry.serverFunctions.get(localServer.name)).toBe(localServer);
+    expect(app.registry.actions.has(GlobalAction.name)).toBe(false);
+    expect(app.registry.serverFunctions.has(globalServer.name)).toBe(false);
+    expect(Action.definitions().get(GlobalAction.name)).toBe(GlobalAction);
+    expect(Server.definitions().get(globalServer.name)).toBe(globalServer);
+  });
+});

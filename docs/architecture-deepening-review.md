@@ -679,12 +679,12 @@ this is not a clean-sweep point.
      `pnpm exec vitest run packages/db/test/collection.test.ts packages/db/test/persisted-options.test.ts packages/db/test/flush-policy.test.ts`
      passed: 3 files / 39 tests.
 
-Open candidates still queued from follow-up probes: Core Definition Registry,
-Core Action Submission Controller, Devtools Store Snapshot Detachment,
-Devtools Serialization Policy,
-DB Collection Contract Module, DB Collection Registry Locality, DB Collection
-Snapshot Codec, Start callable manifest entry assembly/deserialization, Start
-App Graph Diagnostics Runtime, and Start File Route Path Decoder.
+Follow-up candidates queued at this point, with later reviews resolving most of
+them: Core Definition Registry, Core Action Submission Controller, Devtools
+Store Snapshot Detachment, Devtools Serialization Policy, DB Collection Contract
+Module, DB Collection Registry Locality, DB Collection Snapshot Codec, Start
+callable manifest entry assembly/deserialization, Start App Graph Diagnostics
+Runtime, and Start File Route Path Decoder.
 
 ## Review 10: Devtools Identity Follow-Up
 
@@ -731,11 +731,12 @@ Devtools candidates remain queued.
      `pnpm exec vitest run packages/devtools/test/devtools.test.ts` passed:
      1 file / 19 tests.
 
-Open candidates still queued: Core Definition Registry, Devtools Store Snapshot
-Detachment, Devtools Serialization Policy,
-DB Collection Contract Module, DB Collection Registry Locality, DB Collection
-Snapshot Codec, Start callable manifest entry assembly/deserialization, Start
-App Graph Diagnostics Runtime, and Start File Route Path Decoder.
+Follow-up candidates queued at this point, with later reviews resolving most of
+them: Core Definition Registry, Devtools Store Snapshot Detachment, Devtools
+Serialization Policy, DB Collection Contract Module, DB Collection Registry
+Locality, DB Collection Snapshot Codec, Start callable manifest entry
+assembly/deserialization, Start App Graph Diagnostics Runtime, and Start File
+Route Path Decoder.
 
 ## Review 11: Start File Route Segment Parser Follow-Up
 
@@ -764,11 +765,11 @@ Status: fixed for the Start File Route Path Decoder finding.
      `pnpm exec vitest run packages/start/test/file-routes.test.ts packages/start/test/start.test.ts`
      passed: 2 files / 71 tests.
 
-Open candidates still queued: Core Definition Registry, Devtools Store Snapshot
-Detachment, Devtools Serialization Policy,
-DB Collection Contract Module, DB Collection Registry Locality, DB Collection
-Snapshot Codec, Start callable manifest entry assembly/deserialization, and
-Start App Graph Diagnostics Runtime.
+Follow-up candidates queued at this point, with later reviews resolving most of
+them: Core Definition Registry, Devtools Store Snapshot Detachment, Devtools
+Serialization Policy, DB Collection Contract Module, DB Collection Registry
+Locality, DB Collection Snapshot Codec, Start callable manifest entry
+assembly/deserialization, and Start App Graph Diagnostics Runtime.
 
 ## Review 12: Core Action Submission Controller Follow-Up
 
@@ -802,11 +803,11 @@ Status: fixed for the Core Action Submission Controller finding.
      1 file / 20 tests, and
      `pnpm exec vitest run packages/core/test` passed: 12 files / 108 tests.
 
-Open candidates still queued: Core Definition Registry, Devtools Store Snapshot
-Detachment, Devtools Serialization Policy, DB Collection Contract Module,
-DB Collection Registry Locality, DB Collection Snapshot Codec, Start callable
-manifest entry assembly/deserialization, and Start App Graph Diagnostics
-Runtime.
+Follow-up candidates queued at this point, with later reviews resolving most of
+them: Core Definition Registry, Devtools Store Snapshot Detachment, Devtools
+Serialization Policy, DB Collection Contract Module, DB Collection Registry
+Locality, DB Collection Snapshot Codec, Start callable manifest entry
+assembly/deserialization, and Start App Graph Diagnostics Runtime.
 
 ## Review 13: Start Client Facade Follow-Up
 
@@ -838,11 +839,11 @@ Status: fixed for Start client facade depth in this pass.
      `pnpm exec vitest run packages/start/test/rpc.test.ts packages/start/test/start.test.ts packages/start/test/file-routes.test.ts`
      passed: 3 files / 78 tests.
 
-Open candidates still queued: Core Definition Registry, Devtools Store Snapshot
-Detachment, Devtools Serialization Policy, DB Collection Contract Module,
-DB Collection Registry Locality, DB Collection Snapshot Codec, Start callable
-manifest entry assembly/deserialization, and Start App Graph Diagnostics
-Runtime.
+Follow-up candidates queued at this point, with later reviews resolving most of
+them: Core Definition Registry, Devtools Store Snapshot Detachment, Devtools
+Serialization Policy, DB Collection Contract Module, DB Collection Registry
+Locality, DB Collection Snapshot Codec, Start callable manifest entry
+assembly/deserialization, and Start App Graph Diagnostics Runtime.
 
 ## Review 14: DB Snapshot And Devtools Serialization Follow-Up
 
@@ -905,10 +906,10 @@ Detachment, and Devtools Serialization Policy findings.
    - Evidence: `pnpm --filter @effect-ui/start typecheck` passed, and the
      focused multi-package regression suite passed: 7 files / 162 tests.
 
-Open candidates still queued: Core Definition Registry,
-DB Collection Contract Module, DB Collection Registry Locality, Start callable
-manifest entry assembly/deserialization, and Start App Graph Diagnostics
-Runtime.
+Follow-up candidates queued at this point, with later reviews resolving them:
+Core Definition Registry, DB Collection Contract Module, DB Collection Registry
+Locality, Start callable manifest entry assembly/deserialization, and Start App
+Graph Diagnostics Runtime.
 
 ## Review 15: Shared Submission, DB Contract, And Manifest Decode Follow-Up
 
@@ -972,19 +973,24 @@ findings in this pass.
      `packages/db/src/collection-persistence.ts`,
      `packages/db/src/collection-runtime.ts`,
      `packages/db/src/index.ts`,
+     `packages/start/src/hydration.ts`,
      `packages/db/test/collection.test.ts`.
    - Problem: snapshot validation existed, but invalid persisted JSON still
-     escaped through `Effect.sync(...)` as a defect. Persistence decode errors
-     should be typed Effect failures because callers can repair storage,
-     clear a key, or surface guidance.
+     escaped through `Effect.sync(...)` as a defect. Direct hydrate and
+     hydrate-payload paths had the same issue. Persistence and hydration
+     decode errors should be typed Effect failures because callers can repair
+     storage, clear a key, or surface guidance.
    - Fix: snapshot encode/decode now use typed
      `CollectionSnapshotCodecError` failures. Collection persistence,
-     preload/refetch/write/mutation/persist/restore APIs expose that error
-     channel where snapshot storage can be touched.
+     direct hydrate, hydrate-payload, preload/refetch/write/mutation/persist,
+     and restore APIs expose that error channel where snapshot storage or
+     hydration payloads can be touched. Start hydration Effects preserve the
+     typed collection hydration error channel at direct hydration seams.
    - Benefits: corrupted persisted collection state is now recoverable through
-     normal Effect error handling instead of defect handling.
+     normal Effect error handling instead of defect handling, including SSR or
+     browser hydration payloads.
    - Evidence: `pnpm --filter @effect-ui/db typecheck` passed, and the DB
-     persistence-focused test suite passed: 4 files / 48 tests.
+     persistence-focused test suite passed: 4 files / 51 tests.
 
 4. Start Callable Manifest Deserialization Core
    - Status: fixed.
@@ -1008,6 +1014,44 @@ findings in this pass.
      `pnpm exec vitest run packages/start/test/action-manifest.test.ts packages/start/test/server-function-manifest.test.ts`
      passed: 2 files / 12 tests.
 
+5. Start Action Stale Hydration Guard
+   - Status: fixed.
+   - Files: `packages/start/src/start-action-client.ts`,
+     `packages/start/test/start.test.ts`.
+   - Problem: `StartAction.use(...)` called the public submit helper, which
+     hydrates action responses before stale-submission checks. Under `parallel`
+     concurrency, and under non-interruptible `latest` transports, stale
+     responses could still mutate Resource or Collection hydration state.
+   - Fix: the Start client now has an internal transport-only submission Effect
+     that returns the decoded result and response body. The public
+     `submitStartActionEffect(...)` still hydrates immediately, while
+     stateful `StartAction.use(...)` checks the submission controller before
+     applying hydration side effects.
+   - Benefits: stale action responses can still resolve for callers, but only
+     the accepted submission updates action state or client hydration state.
+   - Evidence: `pnpm --filter @effect-ui/start typecheck` passed, and
+     `pnpm exec vitest run packages/start/test/start.test.ts` passed with the
+     stale hydration regression.
+
+6. DB Mutation Commit Versus Persistence Failure
+   - Status: fixed.
+   - Files: `packages/db/src/collection-runtime.ts`,
+     `packages/db/test/collection.test.ts`.
+   - Problem: post-commit persistence ran inside the same `tap`/`catch` region
+     as the remote mutation handler. If the handler succeeded but the snapshot
+     persistence write failed, Collection Runtime rolled rows back and emitted
+     rollback events as if the remote mutation failed.
+   - Fix: mutation handler failure is caught before commit. Once the handler
+     succeeds, Collection Runtime marks rows synced, dequeues the pending
+     mutation, emits commit events, and then runs post-commit persistence. A
+     persistence failure can fail the Effect without undoing an already
+     committed mutation.
+   - Benefits: local state no longer diverges from a successfully committed
+     remote mutation because the persistence layer failed after the commit.
+   - Evidence: `pnpm --filter @effect-ui/db typecheck` passed, and
+     `pnpm exec vitest run packages/db/test/collection.test.ts` passed with the
+     post-commit persistence failure regression.
+
 Workspace evidence for this pass: `pnpm typecheck:types` passed, and the
 focused cross-package regression run passed: 8 files / 137 tests.
 
@@ -1016,6 +1060,137 @@ Full verification evidence: escalated `pnpm verify` passed after this tranche:
 tests, devtools-panel verify, devtools-extension verify, basic starter verify,
 project-console starter packaging/typecheck/tests/build, and leak scan.
 
-Open candidates still queued: Core Definition Registry and Start App Graph
-Diagnostics Runtime. The Thirty-Sweep Gate is still not satisfied because this
-pass found and fixed new work.
+## Review 16: DB Collection Registry Locality Follow-Up
+
+Status: fixed for DB Collection Registry Locality.
+
+1. DB Collection Definition Registry Adapter
+   - Status: fixed.
+   - Files: `packages/db/src/collection-registry.ts`,
+     `packages/db/src/index.ts`,
+     `packages/db/test/collection-registry.test.ts`.
+   - Problem: the Collection registry was still effectively a module-global
+     `Map`. Duplicate definitions silently overwrote earlier entries, tests
+     and tools could not create isolated registries, and duplicate diagnostics
+     had no local owner.
+   - Fix: `collection-registry.ts` now owns a Collection Definition Registry
+     Adapter with isolated registry construction, an explicit default adapter,
+     registry-local diagnostics, first-registration-wins duplicate handling by
+     default, and an opt-in replacement policy. The DB facade preserves
+     `Collection.definitions()` and `Collection.diagnostics()` while exposing
+     `Collection.makeRegistry`, `Collection.defaultRegistry`, and
+     `Collection.registryDiagnostics()`.
+   - Benefits: registry behavior now has Locality independent from the DB root
+     facade, duplicate collection names are deterministic and inspectable, and
+     advanced callers can create an isolated adapter without mutating the
+     process-wide default registry.
+   - Evidence: `pnpm exec vitest run packages/db/test/collection-registry.test.ts packages/db/test/collection.test.ts`
+     passed: 2 files / 36 tests; `pnpm exec vitest run packages/db/test/sync-adapter.test.ts packages/db/test/live-query-collection.test.ts`
+     passed: 2 files / 10 tests; and `pnpm exec vitest run packages/db/test`
+     passed: 8 files / 64 tests. `pnpm --filter @effect-ui/db typecheck`
+     passed.
+
+## Review 17: Core Registry, Start Runtime Diagnostics, And Error Defaults
+
+Status: fixed for Core Definition Registry, Start App Graph Diagnostics
+Runtime, and default generic error type cleanup.
+
+1. Core Definition Registry
+   - Status: fixed.
+   - Files: `packages/core/src/definition-registry.ts`,
+     `packages/core/src/action.ts`, `packages/core/src/server.ts`,
+     `packages/core/src/app.ts`, `packages/core/test/definition-registry.test.ts`.
+   - Problem: Action and Server function registries were separate module-local
+     maps, so app construction could only observe the current globals and could
+     not accept an explicit registry snapshot.
+   - Fix: Core now has a Definition Registry module that owns action and server
+     function registration, lookups, snapshots, and explicit registry assembly.
+     `defineApp(...)` captures a registry snapshot by default and accepts an
+     explicit registry input for isolated app graphs.
+   - Evidence: `pnpm typecheck` passed, and
+     `pnpm exec vitest run packages/core/test/definition-registry.test.ts packages/db/test/collection-registry.test.ts packages/db/test/collection.test.ts packages/start/test/app-graph.test.ts packages/start/test/start.test.ts`
+     passed: 5 files / 112 tests.
+
+2. Start App Graph Diagnostics Runtime
+   - Status: fixed.
+   - Files: `packages/start/src/app-graph.ts`,
+     `packages/start/test/app-graph.test.ts`.
+   - Problem: generated/static app graph diagnostics could not be rebuilt from
+     runtime route module candidates, so runtime-only schema/preload evidence
+     and policy exceptions had no single owner.
+   - Fix: Start App Graph now describes runtime diagnostics from route module
+     candidates, recomputes unknown preload-resource/collection facts from
+     those runtime facts, and exposes a policy exception carrying diagnostics
+     plus violations.
+   - Evidence: included in the focused 5-file registry/app-graph/start run
+     above.
+
+3. Default Error Generics
+   - Status: fixed for package default generic error parameters.
+   - Files: Core Action/Resource/Server/Form/Signal/EffectInput APIs, DB
+     Collection/Sync/Server/SQLite/LiveQuery APIs, Solid DB hooks, Start action
+     result inference, and public type tests.
+   - Problem: omitted generic error parameters defaulted to `unknown`, making
+     otherwise infallible definitions look like they could fail with anything.
+   - Fix: default generic error parameters now use `never`. Type tests now make
+     errorful collection adapters explicit when partial generic arguments would
+     otherwise hide the error channel.
+   - Evidence: `pnpm typecheck` passed. Public type tests passed after the
+     registry and default-error cleanup, including server collection and live
+     query collection helper surfaces.
+
+Full verification evidence: escalated `pnpm verify` passed after this tranche:
+9 package builds, workspace typecheck, type tests, 42 root test files / 361
+tests, devtools-panel verify, devtools-extension verify, basic starter verify,
+project-console starter packaging/typecheck/tests/build, and leak scan.
+
+Open candidates still queued: Start host-boundary error wrappers for request
+handlers, fetch hooks, Vite/CLI diagnostics loaders, and adapter handler Effects.
+The Thirty-Sweep Gate is still not satisfied because this pass found and fixed
+new work.
+
+## Review 18: Effect-First And Documentation Reconciliation
+
+Status: fixed for docs drift found by the follow-up audit; no new source
+Promise-based internals were found in this pass.
+
+1. Effect-First Promise Audit
+   - Status: clean.
+   - Files: `packages/`, `examples/`, `scripts/`, `type-tests/`.
+   - Problem: the previous user review specifically rejected Promise-based
+     coordination in library and type-test code where `Effect.all(...)` and
+     Effect fibers can express the same work.
+   - Fix: no source edits were needed in this pass because the broad audit found
+     no `Promise.all`, `Promise.race`, `Promise.resolve`, `new Promise`,
+     `.then(...)`, or `.finally(...)` hits across checked source, examples,
+     scripts, and type tests.
+   - Evidence: `rg -n "Promise\\.all|Promise\\.race|Promise\\.resolve|new Promise|\\.then\\(|\\.finally\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
+     reported no hits.
+
+2. Architecture Documentation Locality
+   - Status: fixed.
+   - Files: `CONTEXT.md`, `docs/architecture-deepening-review.md`,
+     `docs/effect-first-audit.md`, `docs/perfection-progress.md`,
+     `docs/release-notes.md`.
+   - Problem: older review sections still described candidates as queued after
+     later reviews had resolved them, `CONTEXT.md` under-described the explicit
+     Collection Registry and runtime app-graph diagnostics Modules, and the
+     Effect-first audit still carried historical wording about raw Promise
+     helpers in adapter tests.
+   - Fix: the domain vocabulary now describes the Collection Registry adapter
+     seam, Start runtime diagnostics evidence, and Devtools serialization
+     contract distinctly. Older queued-candidate lists are marked as historical,
+     the Effect-first audit reflects the clean Promise grep, and the progress/
+     release notes record the latest full verification gate.
+   - Benefits: future architecture reviews get better Locality from the docs:
+     resolved candidates are not rediscovered as active work, and Promise policy
+     evidence matches the current Effect-first code.
+
+Workspace evidence for this pass: `pnpm typecheck` passed, the focused
+cross-package regression run passed: 11 files / 176 tests, `git diff --check`
+passed, and escalated `pnpm verify` passed: 9 package builds, workspace
+typecheck, type tests, 42 root test files / 361 tests, devtools-panel verify,
+devtools-extension verify, basic starter verify, project-console starter
+packaging/typecheck/tests/build, and leak scan. The non-escalated `pnpm verify`
+failed only at Node adapter tests because the sandbox denied `listen` on
+`127.0.0.1`; the same gate passed when run with localhost binding permission.

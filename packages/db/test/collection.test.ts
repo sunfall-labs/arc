@@ -585,6 +585,144 @@ describe("Collection", () => {
     );
   });
 
+  it("fails direct malformed snapshots through the hydrate Effect error channel", () => {
+    const runtime = makeRuntime();
+    const Projects = Collection.define<Project>({
+      name: "Projects.snapshot-codec-direct-invalid",
+      getKey: (project) => project.id
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const exit = yield* Effect.exit(
+          runtime.provide(
+            Projects.hydrateEffect({
+              name: "Projects.snapshot-codec-direct-invalid",
+              // @ts-expect-error runtime validation rejects malformed payload rows.
+              rows: "not-rows",
+              pendingMutations: [],
+              updatedAt: 1
+            })
+          )
+        );
+
+        yield* Effect.sync(() => {
+          expect(Exit.isFailure(exit)).toBe(true);
+          const failure = Exit.isFailure(exit)
+            ? exit.cause.reasons.find(Cause.isFailReason)?.error
+            : undefined;
+          expect(failure).toBeInstanceOf(CollectionSnapshotCodecError);
+          expect(failure).toMatchObject({
+            _tag: "CollectionSnapshotCodecError",
+            operation: "hydrate",
+            path: "$.rows"
+          });
+          expect(runWithRuntime(runtime, () => Projects.rows())).toEqual([]);
+        });
+      }).pipe(
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
+  it("fails malformed hydration payloads through the hydrate Effect error channel", () => {
+    const runtime = makeRuntime();
+    const Projects = Collection.define<Project>({
+      name: "Projects.snapshot-codec-payload-invalid",
+      getKey: (project) => project.id
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const exit = yield* Effect.exit(
+          runtime.provide(
+            Collection.hydratePayloadEffect([Projects], {
+              collections: [
+                {
+                  name: "Projects.snapshot-codec-payload-invalid",
+                  // @ts-expect-error runtime validation rejects malformed payload rows.
+                  rows: "not-rows",
+                  pendingMutations: [],
+                  updatedAt: 1
+                }
+              ]
+            })
+          )
+        );
+
+        yield* Effect.sync(() => {
+          expect(Exit.isFailure(exit)).toBe(true);
+          const failure = Exit.isFailure(exit)
+            ? exit.cause.reasons.find(Cause.isFailReason)?.error
+            : undefined;
+          expect(failure).toBeInstanceOf(CollectionSnapshotCodecError);
+          expect(failure).toMatchObject({
+            _tag: "CollectionSnapshotCodecError",
+            operation: "hydrate",
+            path: "$.collections[0].rows"
+          });
+          expect(runWithRuntime(runtime, () => Projects.rows())).toEqual([]);
+        });
+      }).pipe(
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
+  it("does not roll back a committed mutation when post-commit persistence fails", () => {
+    const runtime = makeRuntime();
+    let writes = 0;
+    let updates = 0;
+    const storage: Collection.PersistenceStorage<"persist-failed"> = {
+      getItem: () => null,
+      setItem: () => {
+        writes += 1;
+        return writes === 2 ? Effect.fail("persist-failed" as const) : Effect.void;
+      }
+    };
+    const Projects = Collection.define<Project, string, "persist-failed">({
+      name: "Projects.persist-post-commit-failure",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+      ],
+      persistence: {
+        storage
+      },
+      onUpdate: () =>
+        Effect.sync(() => {
+          updates += 1;
+        })
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const exit = yield* Effect.exit(
+          runtime.provide(Projects.updateEffect("atlas", { progress: 90 }))
+        );
+        const pending = yield* runtime.provide(Projects.pendingMutationsEffect());
+
+        yield* Effect.sync(() => {
+          expect(Exit.isFailure(exit)).toBe(true);
+          const failure = Exit.isFailure(exit)
+            ? exit.cause.reasons.find(Cause.isFailReason)?.error
+            : undefined;
+          expect(failure).toBe("persist-failed");
+          expect(updates).toBe(1);
+          expect(writes).toBe(2);
+          expect(pending).toEqual([]);
+          expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
+            progress: 90,
+            $synced: true,
+            $origin: "local"
+          });
+        });
+      }).pipe(
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
   it("persists and restores pending mutation queue entries", async () => {
     const second = makeRuntime();
     const release = Effect.runSync(Deferred.make<void>());

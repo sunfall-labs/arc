@@ -12,8 +12,8 @@ import {
   type CollectionSnapshotCodecError,
   decodeCollectionSnapshotEffect,
   encodeCollectionSnapshotEffect,
-  hydrateCollectionSnapshotState,
-  validateCollectionHydrationPayload
+  hydrateCollectionSnapshotStateEffect,
+  validateCollectionHydrationPayloadEffect
 } from "./collection-snapshot-codec.js";
 import type {
   AnyCollection,
@@ -31,20 +31,33 @@ import type {
 } from "./collection-contract.js";
 
 export interface CollectionPersistenceStore {
+  state(
+    definition: AnyCollection
+  ): CollectionState<any, any, any>;
   state<A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>
   ): CollectionState<A, K, E>;
   publish(event: CollectionStoreEvent): Effect.Effect<void>;
 }
 
-export const snapshotCollection = <A extends object, K extends CollectionKey, E, R>(
+export function snapshotCollection<A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   store: CollectionPersistenceStore,
+  updatedAt?: number
+): CollectionSnapshot<A, K>;
+export function snapshotCollection(
+  definition: AnyCollection,
+  store: CollectionPersistenceStore,
+  updatedAt?: number
+): CollectionSnapshot<any, any>;
+export function snapshotCollection(
+  definition: AnyCollection,
+  store: CollectionPersistenceStore,
   updatedAt = Date.now()
-): CollectionSnapshot<A, K> => {
+): CollectionSnapshot<any, any> {
   const state = store.state(definition);
   return collectionSnapshotFromState(definition, state, updatedAt);
-};
+}
 
 export const snapshotCollectionEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
@@ -56,17 +69,31 @@ export const snapshotCollectionEffect = <A extends object, K extends CollectionK
     return snapshotCollection(definition, store, updatedAt);
   });
 
-export const hydrateCollectionEffect = <A extends object, K extends CollectionKey, E, R>(
+export function hydrateCollectionEffect<A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   snapshot: CollectionSnapshot<A, K>,
+  options: CollectionHydrateOptions | undefined,
+  storeEffect: Effect.Effect<CollectionPersistenceStore>,
+  store?: CollectionPersistenceStore
+): Effect.Effect<void, CollectionSnapshotCodecError>;
+export function hydrateCollectionEffect(
+  definition: AnyCollection,
+  snapshot: CollectionSnapshot<any, any>,
+  options: CollectionHydrateOptions | undefined,
+  storeEffect: Effect.Effect<CollectionPersistenceStore>,
+  store?: CollectionPersistenceStore
+): Effect.Effect<void, CollectionSnapshotCodecError>;
+export function hydrateCollectionEffect(
+  definition: AnyCollection,
+  snapshot: CollectionSnapshot<any, any>,
   options: CollectionHydrateOptions = {},
   storeEffect: Effect.Effect<CollectionPersistenceStore>,
   store?: CollectionPersistenceStore
-): Effect.Effect<void> =>
-  Effect.gen(function* () {
+): Effect.Effect<void, CollectionSnapshotCodecError> {
+  return Effect.gen(function* () {
     const dbStore = store ?? (yield* storeEffect);
     const state = dbStore.state(definition);
-    const hydrated = hydrateCollectionSnapshotState(
+    const hydrated = yield* hydrateCollectionSnapshotStateEffect(
       state,
       snapshot,
       options,
@@ -80,6 +107,7 @@ export const hydrateCollectionEffect = <A extends object, K extends CollectionKe
       updatedAt: hydrated.updatedAt
     });
   });
+}
 
 export const collectionPersistenceKey = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
@@ -210,7 +238,9 @@ export const dehydrateCollections = (
   collections: Iterable<AnyCollection>,
   store: CollectionPersistenceStore
 ): CollectionHydrationPayload => ({
-  collections: Array.from(collections, (collection) => snapshotCollection(collection, store))
+  collections: Array.from(collections, (collection) =>
+    snapshotCollection(collection, store)
+  )
 });
 
 export const dehydrateCollectionsEffect = (
@@ -221,7 +251,9 @@ export const dehydrateCollectionsEffect = (
     const store = yield* storeEffect;
     const updatedAt = yield* Clock.currentTimeMillis;
     return {
-      collections: Array.from(collections, (collection) => snapshotCollection(collection, store, updatedAt))
+      collections: Array.from(collections, (collection) =>
+        snapshotCollection(collection, store, updatedAt)
+      )
     };
   });
 
@@ -230,15 +262,21 @@ export const hydrateCollectionsEffect = (
   payload: CollectionHydrationPayload,
   options: CollectionHydrateOptions = {},
   storeEffect: Effect.Effect<CollectionPersistenceStore>
-): Effect.Effect<void> =>
+): Effect.Effect<void, CollectionSnapshotCodecError> =>
   Effect.gen(function* () {
     const dbStore = yield* storeEffect;
     const definitions = new Map(Array.from(collections, (collection) => [collection.name, collection] as const));
-    const hydrationPayload = validateCollectionHydrationPayload(payload);
+    const hydrationPayload = yield* validateCollectionHydrationPayloadEffect(payload);
     for (const snapshot of hydrationPayload.collections) {
       const collection = definitions.get(snapshot.name);
       if (collection) {
-        yield* hydrateCollectionEffect(collection, snapshot, options, storeEffect, dbStore);
+        yield* hydrateCollectionEffect(
+          collection,
+          snapshot,
+          options,
+          storeEffect,
+          dbStore
+        );
       }
     }
   });

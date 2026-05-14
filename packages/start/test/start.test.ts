@@ -1344,6 +1344,63 @@ describe("Effect UI Start", () => {
     });
   });
 
+  it("uses the app registry snapshot for RPC and action dispatch", () => {
+    const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>("Start.registry.snapshot.echo", {
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String })
+    });
+    const echo = Server.implement(Echo, ({ value }) => Effect.succeed({ value: value.toUpperCase() }));
+    const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
+      name: "Start.registry.snapshot.ping",
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+      run: ({ value }) => Effect.succeed({ value: value.toUpperCase() })
+    });
+    const app = defineApp({
+      routes: [route("/", {})] as const,
+      client: {}
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        Server.clearRegistryUnsafe();
+        Action.clearRegistryUnsafe();
+        const handler = createRequestHandler(app);
+        const rpc = yield* handler(
+          new Request(`https://example.com${serverRpcPath}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              name: echo.name,
+              input: { value: "snapshot" }
+            })
+          })
+        );
+        const action = yield* handler(
+          new Request(`https://example.com${serverActionPath}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              name: Ping.name,
+              input: { value: "snapshot" }
+            })
+          })
+        );
+
+        const rpcBody = yield* Effect.tryPromise(() => rpc.json());
+        const actionBody = yield* Effect.tryPromise(() => action.json());
+        expect(rpcBody).toEqual({
+          _tag: "Success",
+          value: { value: "SNAPSHOT" }
+        });
+        expect(actionBody).toEqual({
+          _tag: "Success",
+          value: { value: "SNAPSHOT" }
+        });
+      })
+    );
+  });
+
   it("returns action invalidation hydration to JSON clients", async () => {
     const ProjectSchema = Schema.Struct({
       id: Schema.String,
@@ -1710,6 +1767,112 @@ describe("Effect UI Start", () => {
         input: { value: "first" }
       });
     } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("does not hydrate stale StartAction submissions", async () => {
+    const ProjectSchema = Schema.Struct({
+      id: Schema.String,
+      name: Schema.String
+    });
+    const ResultSchema = Schema.Struct({
+      name: Schema.String
+    });
+    const Project = Resource.family({
+      name: "Start.action.Project.stale-hydration",
+      input: Schema.String,
+      output: ProjectSchema,
+      load: () => Effect.succeed({ id: "atlas", name: "Initial" })
+    });
+    const RenameProject = Action.define<
+      { readonly name: string },
+      typeof ResultSchema.Type
+    >({
+      name: "Start.action.client.stale-hydration",
+      input: Schema.Struct({ name: Schema.String }),
+      output: ResultSchema,
+      policy: {
+        concurrency: "parallel"
+      },
+      run: ({ name }) => Effect.succeed({ name })
+    });
+    const runtime = makeRuntime();
+    const ref = Project("atlas");
+    const firstRelease = Effect.runSync(Deferred.make<void>());
+    const secondRelease = Effect.runSync(Deferred.make<void>());
+    let requests = 0;
+    const responseFor = (name: string, updatedAt: number): Response =>
+      new Response(
+        JSON.stringify({
+          _tag: "Success",
+          value: { name },
+          hydration: {
+            resources: [
+              {
+                name: "Start.action.Project.stale-hydration",
+                key: ref.key,
+                input: "atlas",
+                state: {
+                  _tag: "Success",
+                  waiting: false,
+                  value: { id: "atlas", name },
+                  updatedAt
+                }
+              }
+            ]
+          }
+        }),
+        {
+          headers: { "content-type": "application/json" }
+        }
+      );
+    const fetcher: StartFetch = () =>
+      Effect.gen(function* () {
+        requests += 1;
+        const current = requests;
+        if (current === 1) {
+          yield* Deferred.await(firstRelease);
+          return responseFor("First", 1);
+        }
+
+        yield* Deferred.await(secondRelease);
+        return responseFor("Second", 2);
+      });
+    const action = StartAction.use(RenameProject, { fetch: fetcher, runtime });
+
+    try {
+      await runtime.runPromise(Resource.prefetchEffect(ref));
+      const first = runtime.runFork(action.submitEffect({ name: "First" }));
+      await Effect.runPromise(Effect.sleep("10 millis"));
+      const second = runtime.runFork(action.submitEffect({ name: "Second" }));
+
+      Effect.runSync(Deferred.succeed(secondRelease, undefined));
+      await expect(runtime.runPromise(Fiber.join(second))).resolves.toMatchObject({
+        _tag: "Success",
+        value: { name: "Second" }
+      });
+      expect(runWithRuntime(runtime, () => Resource.status(ref).value)).toEqual({
+        id: "atlas",
+        name: "Second"
+      });
+
+      Effect.runSync(Deferred.succeed(firstRelease, undefined));
+      await expect(runtime.runPromise(Fiber.join(first))).resolves.toMatchObject({
+        _tag: "Success",
+        value: { name: "First" }
+      });
+      expect(runWithRuntime(runtime, () => Resource.status(ref).value)).toEqual({
+        id: "atlas",
+        name: "Second"
+      });
+      expect(action.state.get()).toMatchObject({
+        _tag: "Success",
+        input: { name: "Second" }
+      });
+    } finally {
+      Effect.runSync(Deferred.succeed(firstRelease, undefined));
+      Effect.runSync(Deferred.succeed(secondRelease, undefined));
       await Effect.runPromise(runtime.disposeEffect);
     }
   });
@@ -2465,29 +2628,25 @@ describe("Effect UI Start", () => {
     });
     expect(resolved).toBe(`\0${appGraphVirtualModuleId}`);
     expect(String(loaded)).toContain("export const graph = ");
-    expect(String(loaded)).toContain("export const diagnostics = ");
-    expect(String(loaded)).toContain('"routeCount":2');
+    expect(String(loaded)).toContain("export const diagnostics = describeStartAppGraphRuntimeDiagnostics(graph, {");
     expect(String(loaded)).toContain('import { Resource, Route } from "@effect-ui/core";');
     expect(String(loaded)).toContain('import { Collection } from "@effect-ui/db";');
-    expect(String(loaded)).toContain("unknownRoutePreloadResourcesForDiagnostics");
-    expect(String(loaded)).toContain("collectStartAppGraphDiagnosticsPolicyViolations");
+    expect(String(loaded)).toContain("describeStartAppGraphRuntimeDiagnostics");
+    expect(String(loaded)).toContain("enforceStartAppGraphDiagnosticsPolicy");
     expect(String(loaded)).toContain('import { Route as route_root } from "/src/routes/index.js";');
     expect(String(loaded)).toContain('import { Route as route_projects_$id } from "/src/routes/projects/$id.js";');
     expect(String(loaded)).toContain("const resourceDiagnostics = Resource.diagnostics();");
     expect(String(loaded)).toContain("const collectionDiagnostics = Collection.diagnostics();");
-    expect(String(loaded)).toContain("const routeModules = [");
-    expect(String(loaded)).toContain('routeId: "route_projects_$id"');
-    expect(String(loaded)).toContain("paramsSchema: routeModulePresence(route_projects_$id.options?.params)");
-    expect(String(loaded)).toContain("preload: routeModulePresence(route_projects_$id.options?.preload)");
+    expect(String(loaded)).toContain("const routeModuleCandidates = [");
+    expect(String(loaded)).toContain("entry: graph.routes.entries[1]");
+    expect(String(loaded)).toContain("route: route_projects_$id");
     expect(String(loaded)).toContain("preloadResources: Route.describePreloadResources(route_projects_$id)");
     expect(String(loaded)).toContain("preloadCollections: Route.describePreloadCollections(route_projects_$id)");
-    expect(String(loaded)).toContain("const unknownRoutePreloadResources = unknownRoutePreloadResourcesForDiagnostics({ routeModules });");
-    expect(String(loaded)).toContain("const unknownRoutePreloadCollections = unknownRoutePreloadCollectionsForDiagnostics({ routeModules });");
-    expect(String(loaded)).toContain("unknownRoutePreloadResources,");
-    expect(String(loaded)).toContain("unknownRoutePreloadCollections,");
+    expect(String(loaded)).toContain("routeModules: routeModuleCandidates,");
     expect(String(loaded)).toContain("resourceFamilies: resourceDiagnostics.families");
     expect(String(loaded)).toContain("resourceTags: resourceDiagnostics.tags");
     expect(String(loaded)).toContain("collectionDefinitions: collectionDiagnostics.collections");
+    expect(String(loaded)).not.toContain("routeModulePresence");
     expect(String(loaded)).toContain("export const routes = graph.routes;");
     expect(String(loaded)).toContain("Start.Project.appGraph.rename");
   });
@@ -2521,10 +2680,9 @@ describe("Effect UI Start", () => {
     expect(String(loaded)).toContain(
       '"routePreloadCollections":{"requireDeclaredForPreload":true}'
     );
-    expect(String(loaded)).toContain("export const diagnosticsPolicyViolations = collectStartAppGraphDiagnosticsPolicyViolations(diagnostics, diagnosticsPolicy);");
-    expect(String(loaded)).toContain("Effect UI app graph diagnostics policy failed");
-    expect(String(loaded)).toContain("formatStartAppGraphDiagnosticsPolicyViolation");
-    expect(String(loaded)).toContain("error.diagnostics = diagnostics;");
+    expect(String(loaded)).toContain("export const diagnosticsPolicyViolations = enforceStartAppGraphDiagnosticsPolicy(diagnostics, diagnosticsPolicy);");
+    expect(String(loaded)).not.toContain("formatStartAppGraphDiagnosticsPolicyViolation");
+    expect(String(loaded)).not.toContain("new Error(`Effect UI app graph diagnostics policy failed");
   });
 
   it("loads resolved app graph diagnostics through Vite for CI scripts", async () => {

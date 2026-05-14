@@ -1,6 +1,7 @@
 import {
   Action,
   ActionResult,
+  type CoreDefinitionRegistry,
   isResourceRef,
   isResourceTag,
   Resource,
@@ -175,7 +176,7 @@ export type ActionDefinitionErrorValue<D> =
   D extends ActionDefinition<infer _I, infer _A, infer E, infer _R> ? E : never;
 
 /** Infers the typed Start action client result from an action output and error. */
-export type StartActionResultFor<A, E = unknown> =
+export type StartActionResultFor<A, E = never> =
   StartActionResult<
     StartActionOutputSuccess<A>,
     StartActionOutputValues<A>,
@@ -206,7 +207,9 @@ export interface StartActionFormOptions<I> {
 }
 
 /** Any core action definition that can be exposed through Start actions. */
-export type StartActionDefinition = ActionDefinition<any, any, any, any>;
+export type StartActionDefinition =
+  | ActionDefinition<any, any, never, any>
+  | ActionDefinition<any, any, any, any>;
 
 export const startActionNameField = "__effect_ui_action";
 export const startActionInputField = "__effect_ui_input";
@@ -439,10 +442,11 @@ export const readStartActionRequestEffect = (
     : readActionFormEffect(request);
 
 export const makeActionMap = (
-  actions?: Iterable<StartActionDefinition>
+  actions?: Iterable<StartActionDefinition>,
+  registry?: CoreDefinitionRegistry<StartActionDefinition, ServerFunction<unknown, unknown, unknown, unknown>>
 ): ReadonlyMap<string, StartActionDefinition> =>
   actions === undefined
-    ? Action.definitions()
+    ? registry?.actions ?? Action.definitions()
     : new Map(Array.from(actions, (action) => [action.name, action]));
 
 const firstFail = <E>(cause: Cause.Cause<E>): E | undefined => {
@@ -1119,7 +1123,8 @@ export const hydrateActionResponseEffect = (
     }
   });
 
-  return options.runtime
-    ? options.runtime.provide(effect).pipe(Effect.catch((error) => Effect.die(error)))
+  const hydrated: Effect.Effect<void, unknown, unknown> = options.runtime
+    ? options.runtime.provide(effect)
     : effect;
+  return hydrated.pipe(Effect.catch((error) => Effect.die(error)));
 };

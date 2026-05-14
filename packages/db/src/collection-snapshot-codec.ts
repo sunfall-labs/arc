@@ -332,6 +332,31 @@ export const validateCollectionSnapshot = <A extends object, K extends Collectio
   };
 };
 
+const catchSnapshotCodecError = (
+  operation: CollectionSnapshotCodecOperation,
+  path: string
+) => (error: unknown): CollectionSnapshotCodecError => {
+  if (error instanceof CollectionSnapshotCodecError) {
+    return error;
+  }
+
+  return new CollectionSnapshotCodecError({
+    operation,
+    path,
+    reason: error instanceof Error ? error.message : String(error)
+  });
+};
+
+export const validateCollectionSnapshotEffect = <A extends object, K extends CollectionKey>(
+  value: unknown,
+  operation: CollectionSnapshotCodecOperation = "hydrate",
+  path = "$"
+): Effect.Effect<CollectionSnapshot<A, K>, CollectionSnapshotCodecError> =>
+  Effect.try({
+    try: () => validateCollectionSnapshot<A, K>(value, operation, path),
+    catch: catchSnapshotCodecError(operation, path)
+  });
+
 export const validateCollectionHydrationPayload = (
   value: unknown,
   operation: CollectionSnapshotCodecOperation = "hydrate"
@@ -344,6 +369,15 @@ export const validateCollectionHydrationPayload = (
     )
   };
 };
+
+export const validateCollectionHydrationPayloadEffect = (
+  value: unknown,
+  operation: CollectionSnapshotCodecOperation = "hydrate"
+): Effect.Effect<CollectionHydrationPayload, CollectionSnapshotCodecError> =>
+  Effect.try({
+    try: () => validateCollectionHydrationPayload(value, operation),
+    catch: catchSnapshotCodecError(operation, "$")
+  });
 
 export const storedRowSnapshot = <A extends object, K extends CollectionKey>(
   row: StoredRow<A, K>
@@ -432,7 +466,7 @@ export const pendingMutationSnapshots = <A extends object, K extends CollectionK
   Array.from(state.pendingMutations.values(), pendingMutationSnapshot);
 
 export const collectionSnapshotFromState = <A extends object, K extends CollectionKey, E, R>(
-  definition: CollectionDefinition<A, K, E, R>,
+  definition: { readonly name: string },
   state: CollectionState<A, K, E>,
   updatedAt: number
 ): CollectionSnapshot<A, K> => {
@@ -462,13 +496,12 @@ export const collectionSnapshotFromValues = <A extends object, K extends Collect
   updatedAt
 });
 
-export const hydrateCollectionSnapshotState = <A extends object, K extends CollectionKey, E>(
+const applyValidatedCollectionSnapshotState = <A extends object, K extends CollectionKey, E>(
   state: CollectionState<A, K, E>,
-  value: CollectionSnapshot<A, K>,
+  snapshot: CollectionSnapshot<A, K>,
   options: CollectionHydrateOptions,
   advanceTransactionIdentity: (id: string) => void
 ): CollectionSnapshot<A, K> => {
-  const snapshot = validateCollectionSnapshot<A, K>(value, "hydrate");
   if (options.replace !== false) {
     state.rows.clear();
     state.pendingMutations.clear();
@@ -491,6 +524,36 @@ export const hydrateCollectionSnapshotState = <A extends object, K extends Colle
   return snapshot;
 };
 
+export const hydrateCollectionSnapshotState = <A extends object, K extends CollectionKey, E>(
+  state: CollectionState<A, K, E>,
+  value: CollectionSnapshot<A, K>,
+  options: CollectionHydrateOptions,
+  advanceTransactionIdentity: (id: string) => void
+): CollectionSnapshot<A, K> =>
+  applyValidatedCollectionSnapshotState(
+    state,
+    validateCollectionSnapshot<A, K>(value, "hydrate"),
+    options,
+    advanceTransactionIdentity
+  );
+
+export const hydrateCollectionSnapshotStateEffect = <A extends object, K extends CollectionKey, E>(
+  state: CollectionState<A, K, E>,
+  value: CollectionSnapshot<A, K>,
+  options: CollectionHydrateOptions,
+  advanceTransactionIdentity: (id: string) => void
+): Effect.Effect<CollectionSnapshot<A, K>, CollectionSnapshotCodecError> =>
+  Effect.map(
+    validateCollectionSnapshotEffect<A, K>(value, "hydrate"),
+    (snapshot) =>
+      applyValidatedCollectionSnapshotState(
+        state,
+        snapshot,
+        options,
+        advanceTransactionIdentity
+      )
+  );
+
 export const encodeCollectionSnapshotEffect = <A extends object, K extends CollectionKey>(
   value: CollectionSnapshot<A, K>
 ): Effect.Effect<string, CollectionSnapshotCodecError> =>
@@ -501,16 +564,7 @@ export const encodeCollectionSnapshotEffect = <A extends object, K extends Colle
       assertCodec(typeof encoded === "string", "encode", "$", "Expected JSON.stringify to return a string.");
       return encoded;
     },
-    catch: (error) => {
-      if (error instanceof CollectionSnapshotCodecError) {
-        return error;
-      }
-      return new CollectionSnapshotCodecError({
-        operation: "encode",
-        path: "$",
-        reason: error instanceof Error ? error.message : String(error)
-      });
-    }
+    catch: catchSnapshotCodecError("encode", "$")
   });
 
 export const decodeCollectionSnapshotEffect = <A extends object, K extends CollectionKey>(
@@ -518,14 +572,5 @@ export const decodeCollectionSnapshotEffect = <A extends object, K extends Colle
 ): Effect.Effect<CollectionSnapshot<A, K>, CollectionSnapshotCodecError> =>
   Effect.try({
     try: () => validateCollectionSnapshot<A, K>(JSON.parse(encoded), "decode"),
-    catch: (error) => {
-      if (error instanceof CollectionSnapshotCodecError) {
-        return error;
-      }
-      return new CollectionSnapshotCodecError({
-        operation: "decode",
-        path: "$",
-        reason: error instanceof Error ? error.message : String(error)
-      });
-    }
+    catch: catchSnapshotCodecError("decode", "$")
   });
