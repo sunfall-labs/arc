@@ -45,6 +45,8 @@ exports. It supports the release-engineering charter workstream.
 - `pnpm verify` passed after the package hygiene change: package build,
   workspace typecheck, type tests, 34 package test files / 300 tests, example
   typecheck, 4 example test files / 23 tests, example build, and leak scan.
+- `pnpm build` and `pnpm typecheck` passed after the package publish metadata
+  hardening sweep.
 
 ## Follow-Up
 

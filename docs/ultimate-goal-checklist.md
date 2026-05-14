@@ -348,7 +348,8 @@ Last evidence pass: May 14, 2026.
     34 package test files / 300 tests, example typecheck, 4 example test files /
     23 tests, example build, and leak scan.
 - [x] Devtools panels have documented target data models.
-  - Evidence: `docs/devtools.md` target panels and data-model sections.
+  - Evidence: `docs/devtools.md` target panels and `DevtoolsPanels` panel-model
+    sections.
 - [x] Devtools never read private runtime maps.
   - Evidence: devtools consumes public app graph diagnostics, serialized
     invalidation plans, route plans, Resource events, Collection events, and
@@ -538,8 +539,8 @@ Last evidence pass: May 14, 2026.
 - [x] Completed checklist items have evidence notes.
   - Evidence: every checked item above has path/test/command evidence.
 - [x] Remaining unchecked competitive-bar items listed.
-  - Evidence: concrete external starter/deployment breadth and benchmark
-    baselines remain future production-readiness items from `docs/winning-spec.md`.
+  - Evidence: concrete external starter/deployment breadth and browser devtools
+    UI remain future production-readiness items from `docs/winning-spec.md`.
 - [x] Remaining unchecked winning-bar items listed.
   - Evidence: next section.
 - [x] Next recommended workstreams listed.

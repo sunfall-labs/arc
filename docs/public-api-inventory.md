@@ -173,6 +173,8 @@ Needs release decision:
 
 - Every package is still marked `"private": true`; publication work must decide
   which packages become public and whether names stay under `@effect-ui/*`.
+- Package manifests now include `main`, `types`, `files`, and `sideEffects`
+  metadata for publish readiness while retaining `private: true`.
 - Current package manifests mostly expose one root path per package. This is a
   good default; avoid adding subpath exports unless they reduce build/runtime
   coupling.
