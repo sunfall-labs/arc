@@ -314,7 +314,10 @@ Latest full gate on May 14, 2026:
 - DB flush-policy tests now return Effect programs for runtime-scoped
   collection hydration, pending mutation flushes, background sync decisions, and
   runtime disposal.
-- The latest `pnpm verify` passed after the Effect-first coordination follow-up:
+- DB Collection runtime behavior now lives in `collection-runtime.ts`, with
+  collection symbols, tagged errors, and preload collection contracts split into
+  focused internal modules behind the public DB root facade.
+- The latest `pnpm verify` passed after the DB Collection Runtime extraction:
   9 package builds, workspace typecheck, type tests, 40 root test files / 328
   tests, devtools panel verify, devtools extension verify, basic starter
   verify, project-console starter packaging/typecheck/tests/build, and leak

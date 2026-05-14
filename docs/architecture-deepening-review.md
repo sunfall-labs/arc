@@ -274,12 +274,41 @@ remain open.
      verify, project-console starter packaging/typecheck/tests/build, and leak
      scan.
 
+3. Collection Runtime Module
+   - Status: fixed for the root collection runtime.
+   - Files: `packages/db/src/index.ts`,
+     `packages/db/src/collection-runtime.ts`,
+     `packages/db/src/collection-ids.ts`,
+     `packages/db/src/collection-errors.ts`,
+     `packages/db/src/collection-preload.ts`,
+     `packages/db/test/*.test.ts`.
+   - Problem: the DB root still owned Collection Definition construction,
+     runtime store access, load/refetch, direct writes, change batches,
+     optimistic mutation execution, event publication, and persistence
+     coordination, so unrelated Query and adapter work had to share one large
+     Implementation.
+   - Fix: `collection-runtime.ts` now owns the runtime store, preload
+     collection, load/refetch, pending mutation execution, direct writes,
+     change-feed writes, persistence handoff, and `Collection.define(...)`
+     implementation. `collection-ids.ts`, `collection-errors.ts`, and
+     `collection-preload.ts` hold the stable symbols, tagged errors, and
+     preload collector contract. The DB root remains the public Collection and
+     Query facade.
+   - Benefits: Collection runtime bugs now have a focused implementation
+     interface and test surface. Query, sync adapters, flush policy, and
+     persistence helpers can depend on a smaller runtime module instead of
+     re-entering the full DB root.
+   - Evidence: `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck`, and
+     `pnpm exec vitest run packages/db/test/collection.test.ts packages/db/test/flush-policy.test.ts packages/db/test/persisted-options.test.ts packages/db/test/sqlite-persistence.test.ts packages/db/test/live-query-collection.test.ts packages/db/test/server-collection.test.ts packages/db/test/sync-adapter.test.ts`
+     passed: 7 files / 58 tests.
+   - Full gate: escalated `pnpm verify` passed after this extraction with 9
+     package builds, workspace typecheck, type tests, 40 root test files / 328
+     tests, devtools-panel verify, devtools-extension verify, basic starter
+     verify, project-console starter packaging/typecheck/tests/build, and leak
+     scan.
+
 Open candidates from this pass:
 
-- Collection Runtime Module: the DB root still owns Collection Definition
-  construction, runtime store access, load/refetch, direct writes, change
-  batches, optimistic mutation execution, event publication, and persistence
-  coordination. This is the next highest-leverage deepening candidate.
 - Start Request Handler Module: Start root still owns RPC/action/SSR endpoint
   selection, Request Runtime provisioning, request trace mutation,
   ResponseContext application, and stream finalization orchestration.

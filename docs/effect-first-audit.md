@@ -770,3 +770,13 @@ interruption.
   hydrate/flush/background-sync sequencing now runs through
   `runtime.provide(...)`, and runtime disposal is handled with
   `Effect.ensuring(...)`.
+- DB Collection runtime work now delegates `Collection.define(...)` load,
+  refetch, direct writes, change batches, mutation queue execution, persistence
+  handoff, and preload collection to `packages/db/src/collection-runtime.ts`.
+  `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck`, and 7 DB test
+  files / 58 tests passed after the extraction.
+- Full `pnpm verify` passed after the DB Collection Runtime extraction: 9
+  package builds, workspace typecheck, type tests, 40 root test files / 328
+  tests, devtools-panel verify, devtools-extension verify, basic starter
+  verify, project-console starter packaging/typecheck/tests/build, and leak
+  scan.
