@@ -290,14 +290,22 @@ const packageProjectConsoleStarter = Effect.gen(function* () {
   };
 });
 
-try {
-  const { outputDir: generatedOutputDir, requiredFiles } = await Effect.runPromise(
-    packageProjectConsoleStarter,
-  );
-  console.log(
-    `Packaged project-console starter at ${relative(workspaceRoot, generatedOutputDir)} (${requiredFiles} required files verified).`,
-  );
-} catch (cause) {
-  console.error(cause);
-  process.exitCode = 1;
-}
+const reportPackagedStarterEffect = ({ outputDir: generatedOutputDir, requiredFiles }) =>
+  Effect.sync(() => {
+    console.log(
+      `Packaged project-console starter at ${relative(workspaceRoot, generatedOutputDir)} (${requiredFiles} required files verified).`,
+    );
+  });
+
+const reportPackageFailureEffect = (cause) =>
+  Effect.sync(() => {
+    console.error(cause);
+    process.exitCode = 1;
+  });
+
+await Effect.runPromise(
+  packageProjectConsoleStarter.pipe(
+    Effect.flatMap(reportPackagedStarterEffect),
+    Effect.catch(reportPackageFailureEffect),
+  ),
+);

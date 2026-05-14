@@ -495,6 +495,10 @@ Last evidence pass: May 14, 2026.
 - [x] Rich project-console starter packaging passes.
   - Evidence: `pnpm starter:project-console:package` completed inside
     `pnpm verify` and verified 17 required starter files.
+- [x] Starter packaging script host reporting stays Effect-driven.
+  - Evidence: `scripts/package-project-console-starter.mjs` reports success and
+    failure inside the Effect pipeline, with top-level await kept as the Node
+    host boundary.
 - [x] `pnpm verify` passes from the repo root.
   - Evidence: approved rerun completed successfully. The first sandboxed run
     reached tests and failed only because local `127.0.0.1` listener binding was
@@ -612,8 +616,9 @@ Last evidence pass: May 14, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026 after the final broad
-    sharp-cast sweep: 9 package builds, workspace typecheck, type tests,
+  - Evidence: root `pnpm verify` passed on May 14, 2026 after the starter
+    packaging script entrypoint cleanup: 9 package builds, workspace typecheck,
+    type tests,
     38 root test files / 320 tests, devtools-panel verify,
     devtools-extension verify with 1 extension test file / 6 tests, basic starter
     verify, project-console starter packaging, project-console typecheck, 4

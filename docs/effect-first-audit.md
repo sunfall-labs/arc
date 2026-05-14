@@ -135,6 +135,9 @@ Effect-native interruption.
 - `scripts/package-project-console-starter.mjs`
   - Replaced the remaining raw async path-existence adapter with
     `Effect.tryPromise`, `Effect.as`, and typed `ENOENT` handling.
+  - The CLI entrypoint now reports success and failure from inside the Effect
+    pipeline instead of using a top-level `try`/`catch` around
+    `Effect.runPromise(...)`.
 - `examples/project-console/src/App.tsx`
   - UI fire-and-forget effects now use a generic runtime helper and
     `Effect.catch(...)` directly instead of erasing Effect errors and
@@ -308,3 +311,11 @@ Effect-native interruption.
   tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
+- `pnpm starter:project-console:package` passed after moving the starter
+  packaging script entrypoint reporting into the Effect pipeline.
+- Full `pnpm verify` passed after moving the starter packaging script entrypoint
+  reporting into Effect: 9 package builds, workspace typecheck, type tests, 38
+  root test files / 320 tests, devtools-panel verify, devtools-extension verify
+  with 1 extension test file / 6 tests, basic starter verify,
+  project-console starter packaging, project-console typecheck, 4
+  project-console test files / 23 tests, project-console build, and leak scan.

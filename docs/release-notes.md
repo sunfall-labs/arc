@@ -138,6 +138,11 @@ Latest full gate on May 14, 2026:
 - Core runtime service erasure now sits at the `ManagedRuntime<any, ER>` value
   boundary instead of casting provided Effect programs.
 - The latest `pnpm verify` passed after the final broad sharp-cast sweep.
+- The project-console starter packaging script now handles success/failure
+  reporting inside the Effect pipeline, with top-level await kept as the Node
+  host boundary.
+- The latest `pnpm verify` passed after the starter packaging script entrypoint
+  cleanup.
 
 ## Notable Limits
 
