@@ -563,3 +563,13 @@ Effect-native interruption.
   6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
+- `pnpm --filter @effect-ui/core typecheck` and
+  `pnpm exec vitest run packages/core/test/signal.test.ts` passed after
+  converting Signal stream tests to returned scoped Effect programs with
+  assertions inside `Effect.sync(...)`.
+- Full `pnpm verify` passed after the core Signal async test cleanup: 9 package
+  builds, workspace typecheck, type tests, 39 root test files / 321 tests,
+  devtools-panel verify, devtools-extension verify with 1 extension test file /
+  6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.

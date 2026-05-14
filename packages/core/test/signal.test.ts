@@ -36,10 +36,10 @@ describe("Signal", () => {
     expect(read(doubled)).toBe(2);
   });
 
-  it("exposes current and future values as an Effect stream", async () => {
+  it("exposes current and future values as an Effect stream", () => {
     const count = Signal.make(0);
 
-    const values = await Effect.runPromise(
+    return Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
           const fiber = yield* Signal.values(count).pipe(
@@ -52,16 +52,15 @@ describe("Signal", () => {
           count.set(1);
           count.set(2);
 
-          return yield* Fiber.join(fiber);
+          const values = yield* Fiber.join(fiber);
+          yield* Effect.sync(() => expect(values).toEqual([0, 1, 2]));
         })
       )
     );
-
-    expect(values).toEqual([0, 1, 2]);
   });
 
-  it("projects a non-failing Effect stream into a scoped signal", async () => {
-    const value = await Effect.runPromise(
+  it("projects a non-failing Effect stream into a scoped signal", () =>
+    Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
           const settled = yield* Deferred.make<void>();
@@ -73,13 +72,10 @@ describe("Signal", () => {
           );
 
           yield* Deferred.await(settled);
-          return read(signal);
+          yield* Effect.sync(() => expect(read(signal)).toBe(2));
         })
       )
-    );
-
-    expect(value).toBe(2);
-  });
+    ));
 
   it("requires a UI scope for the boundary stream helper", () => {
     expect(() => Signal.fromStream(Stream.make(1), 0)).toThrow(UiScopeMissing);

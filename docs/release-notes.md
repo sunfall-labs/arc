@@ -220,6 +220,9 @@ Latest full gate on May 14, 2026:
   preserving the public Promise boundaries they exercise behind
   `Effect.promise(...)`.
 - The latest `pnpm verify` passed after the core runtime async test cleanup.
+- Core Signal stream tests now return scoped Effect programs instead of async
+  wrappers, with stream collection assertions inside `Effect.sync(...)`.
+- The latest `pnpm verify` passed after the core Signal async test cleanup.
 
 ## Notable Limits
 
