@@ -16,7 +16,7 @@ surface, examples, diagnostics, and release gates are being hardened.
   mutation queues, and live query materialization.
 - JSON-safe devtools summaries, causal graphs, request traces, panel data
   models, a browser-embeddable panel renderer, a checked panel app shell, and a
-  checked browser-extension shell.
+  checked browser-extension shell with an inspected-window bridge.
 - Deterministic Start manifests and build diagnostics with repair guidance.
 - A copyable project console example and a minimal starter with SSR,
   hydration, route-owned Resource preload, checked rich-starter packaging, and
@@ -78,7 +78,7 @@ pnpm example:leak-scan
 - `@effect-ui/db`: Collections, live queries, persistence, and sync adapter
   seams.
 - `@effect-ui/devtools`: serializable inspection contracts plus a small
-  browser panel renderer for agents and UI panels.
+  browser panel renderer for agents, app panels, and extension panels.
 - `@effect-ui/solid`: Solid runtime provider, router, resource hooks, action
   hooks, streams, and component scopes.
 - `@effect-ui/solid-db`: Solid collection and live query hooks.

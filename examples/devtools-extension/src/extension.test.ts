@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import { renderDevtoolsPanelsHtml } from "@effect-ui/devtools";
 import {
@@ -7,6 +8,13 @@ import {
   registerEffectUiDevtoolsPanel
 } from "./devtools.js";
 import { sampleDevtoolsPanels } from "./sample.js";
+import {
+  DevtoolsExtensionTransportError,
+  effectUiDevtoolsBridgeExpression,
+  normalizeEffectUiDevtoolsBridgePayload,
+  readInspectedWindowDevtoolsPayloadEffect,
+  type ChromeInspectedWindowApi
+} from "./transport.js";
 
 describe("devtools extension example", () => {
   it("declares a browser devtools extension manifest", () => {
@@ -48,5 +56,72 @@ describe("devtools extension example", () => {
     expect(html).toContain("Effect UI Devtools Extension");
     expect(html).toContain("GET /projects/atlas");
     expect(html).toContain("Project.byId:atlas");
+  });
+
+  it("reads live inspected-app panel payloads through the devtools bridge", async () => {
+    const panels = sampleDevtoolsPanels();
+    const evaluatedExpressions: Array<string> = [];
+    const api: ChromeInspectedWindowApi = {
+      devtools: {
+        inspectedWindow: {
+          eval: (expression, callback) => {
+            evaluatedExpressions.push(expression);
+            callback({
+              panels,
+              selectedPanelId: "resources",
+              title: "Live Effect UI"
+            });
+          }
+        }
+      }
+    };
+
+    const payload = await Effect.runPromise(
+      readInspectedWindowDevtoolsPayloadEffect(api)
+    );
+
+    expect(evaluatedExpressions).toEqual([effectUiDevtoolsBridgeExpression]);
+    expect(payload).toEqual({
+      panels,
+      selectedPanelId: "resources",
+      title: "Live Effect UI"
+    });
+    expect(normalizeEffectUiDevtoolsBridgePayload(null)).toBeUndefined();
+    expect(normalizeEffectUiDevtoolsBridgePayload({ panels: { version: 2, panels: [] } })).toBeUndefined();
+  });
+
+  it("returns no live payload when the inspected-window bridge is unavailable", async () => {
+    await expect(
+      Effect.runPromise(readInspectedWindowDevtoolsPayloadEffect(undefined))
+    ).resolves.toBeUndefined();
+  });
+
+  it("reports inspected-window bridge evaluation failures as typed errors", async () => {
+    const error = await Effect.runPromise(
+      Effect.flip(
+        readInspectedWindowDevtoolsPayloadEffect({
+          devtools: {
+            inspectedWindow: {
+              eval: (_expression, callback) => {
+                callback(undefined, {
+                  isException: true,
+                  description: "bridge unavailable"
+                });
+              }
+            }
+          }
+        })
+      )
+    );
+
+    expect(error).toBeInstanceOf(DevtoolsExtensionTransportError);
+    expect(error).toMatchObject({
+      _tag: "DevtoolsExtensionTransportError",
+      operation: "read-inspected-window",
+      error: {
+        description: "bridge unavailable"
+      },
+      guidance: expect.stringContaining("__EFFECT_UI_DEVTOOLS__")
+    });
   });
 });

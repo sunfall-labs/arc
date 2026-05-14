@@ -14,7 +14,7 @@ yet.
   `@effect-ui/start-fetch`.
 - Devtools data contracts: snapshots, summaries, causal graphs, request traces,
   panel models, deterministic HTML rendering, the checked panel app shell, and
-  the checked browser-extension shell.
+  the checked browser-extension shell with an inspected-window bridge.
 - Local-first DB surface: Collections, live queries, persistence, sync adapter
   seams, mutation queues, and flush policies.
 - Solid adapters: runtime provider, router, Resource hooks, Action hooks,
@@ -32,8 +32,8 @@ yet.
   joined context variance and the default projector.
 - Core runtime integration with Effect `ManagedRuntime` keeps a documented
   service-erasure cast boundary.
-- Browser extension packaging is checked as an example shell; connecting it to
-  a live inspected app transport remains the next product step.
+- Browser extension packaging is checked as an example shell, including a live
+  inspected-app bridge that reads `globalThis.__EFFECT_UI_DEVTOOLS__`.
 - Platform-specific packages beyond Node/fetch should wait for hosts that need
   real behavior beyond the generic facades and documented recipes.
 
@@ -43,7 +43,7 @@ Latest full gate on May 14, 2026:
 
 - 9 package builds;
 - workspace typecheck and public type tests;
-- 38 root test files / 316 tests;
+- 38 root test files / 319 tests;
 - devtools panel verify;
 - devtools extension verify;
 - basic starter verify;
@@ -62,14 +62,19 @@ Latest full gate on May 14, 2026:
   Effect-native runner with Promise helpers kept at the bin boundary.
 - The Vite dev SSR middleware now keeps request conversion, handler loading,
   response writing, and error forwarding inside an Effect program.
+- The devtools extension now keeps sample data as a fallback and updates from a
+  live inspected-page `__EFFECT_UI_DEVTOOLS__` panel payload when present.
+- The latest devtools extension verify includes 1 extension test file / 6 tests
+  plus the Manifest V3 production build.
 
 ## Notable Limits
 
 - Packages are still private and versioned `0.0.0-alpha.0`.
 - Package manifests include pre-release descriptions and build metadata, but
   final npm repository/license decisions are still open.
-- The browser extension shell currently renders checked public sample facts;
-  live inspected-app transport is not committed yet.
+- The browser extension live bridge expects the inspected app to expose
+  `globalThis.__EFFECT_UI_DEVTOOLS__`; automatic injection is not part of the
+  checked shell.
 - The generated rich starter still uses pre-release `0.0.0-alpha.0`
   `@effect-ui/*` package placeholders until package publication is finalized.
 - Cloudflare, Vercel, Netlify, Bun, and static deployment currently use recipes

@@ -210,8 +210,12 @@ The checked browser-extension shell lives at
 [`examples/devtools-extension`](../examples/devtools-extension). It emits a
 Manifest V3 devtools page, registers `panel.html` through the browser devtools
 panel host, mounts the same public panel contract through
-`mountDevtoolsPanelsEffect(...)`, and verifies the manifest, panel registration,
-render output, typecheck, and production build.
+`mountDevtoolsPanelsEffect(...)`, and reads live inspected-page panel payloads
+from `globalThis.__EFFECT_UI_DEVTOOLS__` through
+`chrome.devtools.inspectedWindow.eval`. The bridge accepts either a
+`DevtoolsPanels` payload wrapper or a provider function returning that wrapper,
+keeps the sample payload as a fallback, and verifies the manifest, panel
+registration, transport, render output, typecheck, and production build.
 
 ## Target Panels
 
