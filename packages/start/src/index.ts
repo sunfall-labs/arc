@@ -34,7 +34,7 @@ import {
   type ReadableSignal
 } from "@effect-ui/core";
 import { Collection, type AnyCollection, type CollectionHydrationPayload } from "@effect-ui/db";
-import { Cause, Effect, Exit, Fiber, Layer, Option, Schema } from "effect";
+import { Cause, Clock, Effect, Exit, Fiber, Layer, Option, Schema } from "effect";
 import type { EffectInput } from "@effect-ui/core";
 import { makeResourceStore, toEffect, withResourceStore } from "@effect-ui/core";
 import {
@@ -229,10 +229,22 @@ export interface StartRequestTraceStream {
   readonly chunkCount?: number;
 }
 
+export interface StartRequestTraceTeardownSnapshot {
+  readonly fiberCount: number;
+  readonly familyCount: number;
+  readonly moduleCount: number;
+  readonly tagCount: number;
+}
+
 export interface StartRequestTraceTeardown {
   readonly runtimeDisposed: boolean;
   readonly reason?: string;
   readonly at?: number;
+  readonly startedAt?: number;
+  readonly completedAt?: number;
+  readonly durationMillis?: number;
+  readonly beforeDispose?: StartRequestTraceTeardownSnapshot;
+  readonly afterDispose?: StartRequestTraceTeardownSnapshot;
 }
 
 export interface StartRequestTrace {
@@ -274,6 +286,7 @@ export interface StartRequestTraceRoutePlan {
 interface StartRequestTraceFacts {
   readonly requestId: string;
   readonly transport: StartRequestTraceTransport;
+  readonly startedAt: number;
   routePlan?: StartRequestTraceRoutePlan;
   collections: StartRequestTraceCollection[];
   serverFunctions: StartRequestTraceServerFunction[];
@@ -635,11 +648,13 @@ const startRequestTraceFactsEffect = (
 ): Effect.Effect<StartRequestTraceFacts> =>
   Effect.gen(function* () {
     const incomingRequestId = request.headers.get(startRequestIdHeader)?.trim();
+    const startedAt = yield* Clock.currentTimeMillis;
     return {
       requestId: incomingRequestId && !/[\r\n]/.test(incomingRequestId)
         ? incomingRequestId
         : yield* makeStartRequestIdEffect,
       transport: startRequestTraceTransport(request),
+      startedAt,
       collections: [],
       serverFunctions: [],
       actions: []
@@ -662,8 +677,7 @@ const buildStartRequestTrace = (
   status: StartRequestTraceStatus,
   options: {
     readonly response?: Response;
-    readonly runtimeDisposed: boolean;
-    readonly teardownReason: string;
+    readonly teardown: StartRequestTraceTeardown;
     readonly stream?: StartRequestTraceStream;
   }
 ): StartRequestTrace => ({
@@ -683,11 +697,55 @@ const buildStartRequestTrace = (
   ],
   streams: options.stream === undefined ? [] : [options.stream],
   status,
-  teardown: {
-    runtimeDisposed: options.runtimeDisposed,
-    reason: options.teardownReason,
-    at: Date.now()
+  teardown: options.teardown
+});
+
+const requestRuntimeTeardownSnapshot = (
+  runtime: EffectUiRuntime<any, any>
+): StartRequestTraceTeardownSnapshot => ({
+  fiberCount: runtime.resourceStore.fibers.size,
+  familyCount: runtime.resourceStore.families.size,
+  moduleCount: runtime.resourceStore.modules.size,
+  tagCount: runtime.resourceStore.tagIndex.size
+});
+
+const requestRuntimeDisposeTraceEffect = (
+  runtime: EffectUiRuntime<any, any>
+): Effect.Effect<{
+  readonly beforeDispose: StartRequestTraceTeardownSnapshot;
+  readonly afterDispose: StartRequestTraceTeardownSnapshot;
+  readonly completedAt: number;
+}> =>
+  Effect.gen(function* () {
+    const beforeDispose = requestRuntimeTeardownSnapshot(runtime);
+    yield* runtime.disposeEffect;
+    const afterDispose = requestRuntimeTeardownSnapshot(runtime);
+    const completedAt = yield* Clock.currentTimeMillis;
+    return {
+      beforeDispose,
+      afterDispose,
+      completedAt
+    };
+  });
+
+const startRequestTraceTeardown = (
+  facts: StartRequestTraceFacts,
+  options: {
+    readonly runtimeDisposed: boolean;
+    readonly reason: string;
+    readonly completedAt: number;
+    readonly beforeDispose: StartRequestTraceTeardownSnapshot;
+    readonly afterDispose: StartRequestTraceTeardownSnapshot;
   }
+): StartRequestTraceTeardown => ({
+  runtimeDisposed: options.runtimeDisposed,
+  reason: options.reason,
+  at: options.completedAt,
+  startedAt: facts.startedAt,
+  completedAt: options.completedAt,
+  durationMillis: Math.max(0, options.completedAt - facts.startedAt),
+  beforeDispose: options.beforeDispose,
+  afterDispose: options.afterDispose
 });
 
 const rpcJson = (body: Server.RpcResponse, status = 200): Response =>
@@ -2166,6 +2224,9 @@ const responseWithRuntimeFinalizer = (
       readonly stream: StartRequestTraceStream;
       readonly status: StartRequestTraceStatus;
       readonly teardownReason: string;
+      readonly beforeDispose: StartRequestTraceTeardownSnapshot;
+      readonly afterDispose: StartRequestTraceTeardownSnapshot;
+      readonly completedAt: number;
     }) => Effect.Effect<void>;
   } = {}
 ): Response => {
@@ -2187,12 +2248,13 @@ const responseWithRuntimeFinalizer = (
 
     disposed = true;
     const finalizer = Effect.gen(function* () {
-      yield* runtime.disposeEffect;
+      const teardown = yield* requestRuntimeDisposeTraceEffect(runtime);
       if (options.onFinalize) {
         yield* options.onFinalize({
           stream,
           status,
-          teardownReason
+          teardownReason,
+          ...teardown
         });
       }
     });
@@ -2263,11 +2325,17 @@ const completeRequestRuntimeWithResponse = (
       readonly stream?: StartRequestTraceStream;
       readonly status: StartRequestTraceStatus;
       readonly teardownReason: string;
+      readonly beforeDispose: StartRequestTraceTeardownSnapshot;
+      readonly afterDispose: StartRequestTraceTeardownSnapshot;
+      readonly completedAt: number;
     }) => Effect.Effect<void>;
     readonly onStreamFinalize?: (state: {
       readonly stream: StartRequestTraceStream;
       readonly status: StartRequestTraceStatus;
       readonly teardownReason: string;
+      readonly beforeDispose: StartRequestTraceTeardownSnapshot;
+      readonly afterDispose: StartRequestTraceTeardownSnapshot;
+      readonly completedAt: number;
     }) => Effect.Effect<void>;
   } = {}
 ): Effect.Effect<Response> =>
@@ -2282,11 +2350,12 @@ const completeRequestRuntimeWithResponse = (
         )
       )
     : Effect.gen(function* () {
-        yield* runtime.disposeEffect;
+        const teardown = yield* requestRuntimeDisposeTraceEffect(runtime);
         if (options.onFinalize) {
           yield* options.onFinalize({
             status: "success",
-            teardownReason: "response-end"
+            teardownReason: "response-end",
+            ...teardown
           });
         }
         return response;
@@ -2423,13 +2492,16 @@ export const createRequestHandlerEffect =
       );
 
       if (Exit.isFailure(responseExit)) {
-        yield* requestRuntime.disposeEffect;
+        const teardown = yield* requestRuntimeDisposeTraceEffect(requestRuntime);
         if (options.onRequestTrace !== undefined) {
           yield* emitStartRequestTraceEffect(
             options.onRequestTrace,
             buildStartRequestTrace(request, traceFacts, "failure", {
-              runtimeDisposed: true,
-              teardownReason: "request-failure"
+              teardown: startRequestTraceTeardown(traceFacts, {
+                runtimeDisposed: true,
+                reason: "request-failure",
+                ...teardown
+              })
             })
           );
         }
@@ -2444,13 +2516,21 @@ export const createRequestHandlerEffect =
               readonly stream?: StartRequestTraceStream;
               readonly status: StartRequestTraceStatus;
               readonly teardownReason: string;
+              readonly beforeDispose: StartRequestTraceTeardownSnapshot;
+              readonly afterDispose: StartRequestTraceTeardownSnapshot;
+              readonly completedAt: number;
             }) =>
               emitStartRequestTraceEffect(
                 options.onRequestTrace,
                 buildStartRequestTrace(request, traceFacts, state.status, {
                   response,
-                  runtimeDisposed: true,
-                  teardownReason: state.teardownReason,
+                  teardown: startRequestTraceTeardown(traceFacts, {
+                    runtimeDisposed: true,
+                    reason: state.teardownReason,
+                    beforeDispose: state.beforeDispose,
+                    afterDispose: state.afterDispose,
+                    completedAt: state.completedAt
+                  }),
                   ...(state.stream === undefined ? {} : { stream: state.stream })
                 })
               ),
@@ -2458,13 +2538,21 @@ export const createRequestHandlerEffect =
               readonly stream: StartRequestTraceStream;
               readonly status: StartRequestTraceStatus;
               readonly teardownReason: string;
+              readonly beforeDispose: StartRequestTraceTeardownSnapshot;
+              readonly afterDispose: StartRequestTraceTeardownSnapshot;
+              readonly completedAt: number;
             }) =>
               emitStartRequestTraceEffect(
                 options.onRequestTrace,
                 buildStartRequestTrace(request, traceFacts, state.status, {
                   response,
-                  runtimeDisposed: true,
-                  teardownReason: state.teardownReason,
+                  teardown: startRequestTraceTeardown(traceFacts, {
+                    runtimeDisposed: true,
+                    reason: state.teardownReason,
+                    beforeDispose: state.beforeDispose,
+                    afterDispose: state.afterDispose,
+                    completedAt: state.completedAt
+                  }),
                   stream: state.stream
                 })
               )

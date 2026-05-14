@@ -325,8 +325,9 @@ facts. A trace records request and response context, service names, route plans,
 resources, collections, server functions, actions, streams, fibers, status, and
 teardown in JSON-safe data. Start request handlers expose an `onRequestTrace`
 hook that emits a structurally compatible payload for SSR, server RPC, Start
-actions, and response stream close; the remaining hardening work is to broaden
-coverage for cancellation and failure-path assertions.
+actions, response stream close, stream cancellation, and request failure paths.
+Teardown facts include runtime disposal, reason, start/completion timestamps,
+duration, and before/after Resource Store snapshots.
 
 ## Component Runtime
 

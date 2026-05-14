@@ -193,10 +193,22 @@ export interface DevtoolsRequestTraceStream {
   readonly chunkCount?: number;
 }
 
+export interface DevtoolsRequestTraceTeardownSnapshot {
+  readonly fiberCount: number;
+  readonly familyCount: number;
+  readonly moduleCount: number;
+  readonly tagCount: number;
+}
+
 export interface DevtoolsRequestTraceTeardown {
   readonly runtimeDisposed: boolean;
   readonly reason?: string;
   readonly at?: number;
+  readonly startedAt?: number;
+  readonly completedAt?: number;
+  readonly durationMillis?: number;
+  readonly beforeDispose?: DevtoolsRequestTraceTeardownSnapshot;
+  readonly afterDispose?: DevtoolsRequestTraceTeardownSnapshot;
 }
 
 export interface DevtoolsRequestTrace {
@@ -579,6 +591,10 @@ export interface DevtoolsSummaryRequestTrace {
   readonly fiberCount: number;
   readonly streamCount: number;
   readonly runtimeDisposed: boolean | null;
+  readonly teardownReason: string | null;
+  readonly durationMillis: number | null;
+  readonly beforeDisposeFiberCount: number | null;
+  readonly afterDisposeFiberCount: number | null;
   readonly routeHref: string | null;
 }
 
@@ -975,6 +991,19 @@ const copyRoutePlan = (
   hydration: { ...plan.hydration }
 });
 
+const copyRequestTraceTeardown = (
+  teardown: DevtoolsRequestTraceTeardown
+): DevtoolsRequestTraceTeardown => ({
+  runtimeDisposed: teardown.runtimeDisposed,
+  ...(teardown.reason === undefined ? {} : { reason: teardown.reason }),
+  ...(teardown.at === undefined ? {} : { at: teardown.at }),
+  ...(teardown.startedAt === undefined ? {} : { startedAt: teardown.startedAt }),
+  ...(teardown.completedAt === undefined ? {} : { completedAt: teardown.completedAt }),
+  ...(teardown.durationMillis === undefined ? {} : { durationMillis: teardown.durationMillis }),
+  ...(teardown.beforeDispose === undefined ? {} : { beforeDispose: { ...teardown.beforeDispose } }),
+  ...(teardown.afterDispose === undefined ? {} : { afterDispose: { ...teardown.afterDispose } })
+});
+
 const copyRequestTrace = (
   trace: DevtoolsRequestTrace
 ): DevtoolsRequestTrace => {
@@ -1012,7 +1041,7 @@ const copyRequestTrace = (
     fibers: trace.fibers.map((fiber) => ({ ...fiber })),
     streams: trace.streams.map((stream) => ({ ...stream })),
     status: trace.status,
-    ...(trace.teardown === undefined ? {} : { teardown: { ...trace.teardown } })
+    ...(trace.teardown === undefined ? {} : { teardown: copyRequestTraceTeardown(trace.teardown) })
   };
 };
 
@@ -1246,6 +1275,10 @@ const summarizeRequestTrace = (
   fiberCount: trace.fibers.length,
   streamCount: trace.streams.length,
   runtimeDisposed: trace.teardown?.runtimeDisposed ?? null,
+  teardownReason: trace.teardown?.reason ?? null,
+  durationMillis: trace.teardown?.durationMillis ?? null,
+  beforeDisposeFiberCount: trace.teardown?.beforeDispose?.fiberCount ?? null,
+  afterDisposeFiberCount: trace.teardown?.afterDispose?.fiberCount ?? null,
   routeHref: trace.routePlan?.href ?? null
 });
 

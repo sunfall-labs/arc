@@ -332,7 +332,7 @@ Last evidence pass: May 14, 2026.
   - Evidence: Start RPC/action transport code and tests distinguish typed
     protocol failures, transport failures, schema/domain failures, defects, and
     interruption payloads.
-- [ ] Request traces include services, request context, response context,
+- [x] Request traces include services, request context, response context,
   resources, collections, fibers, streams, and teardown.
   - Progress: `@effect-ui/devtools` now exposes a structured
     `DevtoolsRequestTrace` data contract, store recording API, summary, and
@@ -341,8 +341,12 @@ Last evidence pass: May 14, 2026.
     compatible trace through `onRequestTrace` for SSR, server RPC, Start
     actions, response stream close, response stream cancellation, and request
     failure paths.
-  - Remaining: richer teardown details still need dedicated trace assertions if
-    the next diagnostics/UI slice needs more than the runtime-disposed marker.
+  - Evidence: teardown includes runtime disposal, reason, start/completion
+    timestamps, duration, and before/after Resource Store snapshots with focused
+    Start and devtools tests.
+  - Verification: `pnpm verify` passed after the richer teardown trace slice:
+    34 package test files / 300 tests, example typecheck, 4 example test files /
+    23 tests, example build, and leak scan.
 - [x] Devtools panels have documented target data models.
   - Evidence: `docs/devtools.md` target panels and data-model sections.
 - [x] Devtools never read private runtime maps.
@@ -531,9 +535,8 @@ Last evidence pass: May 14, 2026.
 - [x] Completed checklist items have evidence notes.
   - Evidence: every checked item above has path/test/command evidence.
 - [x] Remaining unchecked competitive-bar items listed.
-  - Evidence: richer teardown request tracing remains open; concrete external
-    starter/deployment breadth remains a future production-readiness item from
-    `docs/winning-spec.md`.
+  - Evidence: concrete external starter/deployment breadth and benchmark
+    baselines remain future production-readiness items from `docs/winning-spec.md`.
 - [x] Remaining unchecked winning-bar items listed.
   - Evidence: next section.
 - [x] Next recommended workstreams listed.
@@ -545,9 +548,6 @@ Last evidence pass: May 14, 2026.
 
 ## Remaining Winning-Bar Items
 
-- [ ] Harden the structured devtools request trace artifact with richer teardown
-  facts if the devtools UI needs more than runtime disposal, stream state, and
-  reason.
 - [ ] Turn the documented devtools target panels into an actual browser or app
   UI once the trace payload is stable.
 - [ ] Add external starter/deployment docs and host-specific adapter packages
@@ -561,11 +561,10 @@ Use [`docs/framework-perfection-charter.md`](./framework-perfection-charter.md)
 as the several-week cleanup, improvement, iteration, and release-candidate
 quality goal.
 
-1. Add tests that prove request traces cover stream cancellation, failure paths,
-   and richer teardown facts.
-2. Extend request traces with any missing response context, collection, and
-   request-fiber details uncovered by those tests.
-3. Build the first devtools UI panel against `DevtoolsSummary` and the new
+1. Build the first devtools UI panel against `DevtoolsSummary` and the new
    request trace payload.
+2. Extend request traces with any missing response context, collection, and
+   request-fiber details uncovered by that UI work.
+3. Add external starter/deployment docs and host-specific adapter guidance.
 4. Package the project console as a starter template once the devtools trace
    and deployment docs land.

@@ -25,6 +25,9 @@ or command result that proves it.
 - Package source has no remaining raw Promise method calls after the latest
   Effect-first cleanup.
 - Full verification is green after the Promise-method cleanup.
+- Request traces now include richer teardown duration and Resource Store
+  before/after disposal snapshots.
+- Full verification is green after the richer request teardown trace slice.
 - The current operating window is recorded as work until 8:00 AM
   America/Denver on May 14, 2026, with Effect-first implementation as a standing
   requirement.
@@ -54,14 +57,15 @@ or command result that proves it.
 | 17 | Full verification after Resource fiber sweep | `pnpm verify` | Package build, workspace typecheck, type tests, 34 package test files / 300 tests, example typecheck, 4 example test files / 23 tests, example build, and leak scan passed. | Commit the verified slice and keep iterating. |
 | 18 | Package source Promise-method cleanup | `packages/core/src/action.ts`; `packages/core/src/resource.ts`; `packages/solid/src/index.ts`; `packages/solid-db/src/index.ts`; `packages/start/src/index.ts`; `docs/effect-first-audit.md` | Removed remaining package-source `.then(...)`, `.finally(...)`, and non-Effect `.catch(...)` calls by moving cleanup/error handling into Effect programs. Focused tests and `pnpm typecheck` passed. | Keep the source grep clean as new public Promise helpers are added. |
 | 19 | Full verification after Promise-method cleanup | `pnpm verify` | Package build, workspace typecheck, type tests, 34 package test files / 300 tests, example typecheck, 4 example test files / 23 tests, example build, and leak scan passed. | Commit the verified slice and keep iterating. |
+| 20 | Rich request teardown trace facts | `packages/start/src/index.ts`; `packages/devtools/src/index.ts`; `packages/start/test/start.test.ts`; `packages/devtools/test/devtools.test.ts` | Request traces now record start/completion timestamps, duration, and before/after Resource Store teardown snapshots; focused Start/devtools tests, typecheck, and type tests passed. | Run full verify before committing this slice. |
+| 21 | Full verification after request teardown trace facts | `pnpm verify` | Package build, workspace typecheck, type tests, 34 package test files / 300 tests, example typecheck, 4 example test files / 23 tests, example build, and leak scan passed. | Commit the verified slice and keep iterating. |
 
 ## Thirty-Sweep Gate
 
 The final goal requires 30 full code sweeps without finding more improvements.
-This ledger currently records 19 sweeps. The remaining 11 should cover:
+This ledger currently records 21 sweeps. The remaining 9 should cover:
 
-- Richer Start request trace teardown facts beyond the current runtime-disposed
-  marker.
+- Devtools UI/docs polish around the richer request trace teardown facts.
 - Promise-shaped internals that can be pushed down into Effect programs.
 - New error classes and repair guidance introduced by later work.
 - Docs drift against current implementation.

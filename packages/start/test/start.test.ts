@@ -258,7 +258,19 @@ describe("Effect UI Start", () => {
         status: "success",
         teardown: expect.objectContaining({
           runtimeDisposed: true,
-          reason: "stream-close"
+          reason: "stream-close",
+          startedAt: expect.any(Number),
+          completedAt: expect.any(Number),
+          durationMillis: expect.any(Number),
+          beforeDispose: expect.objectContaining({
+            fiberCount: expect.any(Number),
+            familyCount: expect.any(Number),
+            moduleCount: expect.any(Number),
+            tagCount: expect.any(Number)
+          }),
+          afterDispose: expect.objectContaining({
+            fiberCount: 0
+          })
         })
       })
     ]);
@@ -621,7 +633,14 @@ describe("Effect UI Start", () => {
         ],
         teardown: expect.objectContaining({
           runtimeDisposed: true,
-          reason: "client-disconnect"
+          reason: "client-disconnect",
+          durationMillis: expect.any(Number),
+          beforeDispose: expect.objectContaining({
+            fiberCount: expect.any(Number)
+          }),
+          afterDispose: expect.objectContaining({
+            fiberCount: 0
+          })
         })
       })
     ]);
@@ -668,7 +687,14 @@ describe("Effect UI Start", () => {
         ],
         teardown: expect.objectContaining({
           runtimeDisposed: true,
-          reason: "request-failure"
+          reason: "request-failure",
+          durationMillis: expect.any(Number),
+          beforeDispose: expect.objectContaining({
+            fiberCount: expect.any(Number)
+          }),
+          afterDispose: expect.objectContaining({
+            fiberCount: 0
+          })
         })
       })
     ]);

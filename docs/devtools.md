@@ -136,7 +136,9 @@ Effect-native event streams:
   request context, response context, services, route plans, resources,
   collections, server functions, actions, streams, fibers, and teardown.
 - `createRequestHandler(..., { onRequestTrace })` emits that shape for SSR,
-  server RPC, Start action, and response stream-close paths.
+  server RPC, Start action, response stream-close, stream-cancel, and
+  request-failure paths. Teardown records reason, duration, and before/after
+  Resource Store snapshots.
 - `Resource.planInvalidationEffect(...)` and action invalidation plans expose
   the semantic invalidation facts: targeted tags/refs, matched live resources,
   and the exact causes for each invalidated resource.

@@ -831,7 +831,22 @@ describe("devtools invalidation plans", () => {
       teardown: {
         runtimeDisposed: true,
         reason: "response-end",
-        at: 123
+        at: 123,
+        startedAt: 100,
+        completedAt: 123,
+        durationMillis: 23,
+        beforeDispose: {
+          fiberCount: 2,
+          familyCount: 1,
+          moduleCount: 1,
+          tagCount: 1
+        },
+        afterDispose: {
+          fiberCount: 0,
+          familyCount: 1,
+          moduleCount: 0,
+          tagCount: 1
+        }
       }
     };
 
@@ -871,6 +886,10 @@ describe("devtools invalidation plans", () => {
         fiberCount: 1,
         streamCount: 1,
         runtimeDisposed: true,
+        teardownReason: "response-end",
+        durationMillis: 23,
+        beforeDisposeFiberCount: 2,
+        afterDisposeFiberCount: 0,
         routeHref: "/projects/atlas?tab=activity"
       }
     ]);
