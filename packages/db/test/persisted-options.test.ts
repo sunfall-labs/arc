@@ -41,7 +41,7 @@ describe("Collection.persistedOptions", () => {
 
         yield* Effect.sync(() => expect(storage.values.has("projects-preload")).toBe(true));
 
-        yield* Effect.promise(() => second.runPromise(Projects.preloadEffect()));
+        yield* Effect.scoped(second.provide(Projects.preloadEffect()));
 
         yield* Effect.sync(() => {
           expect(load).not.toHaveBeenCalled();
@@ -82,7 +82,7 @@ describe("Collection.persistedOptions", () => {
           }))
         );
 
-        yield* Effect.promise(() => second.runPromise(Projects.preloadEffect()));
+        yield* Effect.scoped(second.provide(Projects.preloadEffect()));
 
         yield* Effect.sync(() => {
           expect(runWithRuntime(second, () => Projects.rows().map((project) => project.id))).toEqual(["lumen"]);

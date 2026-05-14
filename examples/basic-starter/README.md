@@ -18,7 +18,7 @@ pnpm --filter @effect-ui/starter-basic verify
 
 The starter proves:
 
-- Start SSR with `createRequestHandler`;
+- Start SSR with an Effect-returning `createRequestHandler`;
 - browser hydration with `hydrateFromDocument`;
 - a route-owned Resource preload declared in file route metadata;
 - server-only module leakage checks after production build.

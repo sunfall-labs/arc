@@ -13,7 +13,7 @@ describe("Action", () => {
     const action = Action.use(Rename);
 
     expect(read(action.state)._tag).toBe("Idle");
-    const promise = action.submit("Ada");
+    const promise = Effect.runPromise(action.submitEffect("Ada"));
     expect(read(action.state)._tag).toBe("Pending");
     await promise;
 
@@ -47,7 +47,7 @@ describe("Action", () => {
       load
     });
     const ref = Count(undefined);
-    await Resource.prefetch(ref);
+    await Effect.runPromise(Resource.prefetchEffect(ref));
 
     const Increment = Action.define({
       name: "increment",
@@ -58,7 +58,7 @@ describe("Action", () => {
       invalidates: () => [ref]
     });
 
-    await Action.use(Increment).submit(undefined);
+    await Effect.runPromise(Action.use(Increment).submitEffect(undefined));
 
     expect(read(ref)).toBe(1);
     expect(load).toHaveBeenCalledTimes(2);
@@ -74,7 +74,7 @@ describe("Action", () => {
       provides: () => [CountTag]
     });
     const ref = Count(undefined);
-    await Resource.prefetch(ref);
+    await Effect.runPromise(Resource.prefetchEffect(ref));
 
     const Increment = Action.define({
       name: "increment.tag",
@@ -85,7 +85,7 @@ describe("Action", () => {
       invalidates: () => [CountTag]
     });
 
-    await Action.use(Increment).submit(undefined);
+    await Effect.runPromise(Action.use(Increment).submitEffect(undefined));
 
     expect(read(ref)).toBe(1);
     expect(load).toHaveBeenCalledTimes(2);
@@ -113,12 +113,12 @@ describe("Action", () => {
         invalidates: () => [ref]
       });
 
-      await Action.use(Increment, { runtime }).submit(undefined);
+      await runtime.runPromise(Action.use(Increment, { runtime }).submitEffect(undefined));
 
       expect(runWithRuntime(runtime, () => read(ref))).toBe(1);
       expect(load).toHaveBeenCalledTimes(2);
     } finally {
-      await runtime.dispose();
+      await Effect.runPromise(runtime.disposeEffect);
     }
   });
 
@@ -130,7 +130,7 @@ describe("Action", () => {
       provides: () => [CountTag]
     });
     const ref = Count(undefined);
-    await Resource.prefetch(ref);
+    await Effect.runPromise(Resource.prefetchEffect(ref));
 
     const Increment = Action.define({
       name: "increment.plan",
@@ -139,7 +139,7 @@ describe("Action", () => {
     });
     const action = Action.use(Increment);
 
-    await action.submit(undefined);
+    await Effect.runPromise(action.submitEffect(undefined));
 
     const plan = read(action.invalidationPlan);
     expect(plan?.targets).toEqual([CountTag]);
@@ -157,7 +157,12 @@ describe("Action", () => {
     });
     const action = Action.use(Finish);
 
-    await Promise.allSettled([action.submit("first"), action.submit("second")]);
+    await Effect.runPromise(
+      Effect.all([
+        action.submitEffect("first").pipe(Effect.exit),
+        action.submitEffect("second").pipe(Effect.exit)
+      ], { concurrency: "unbounded" })
+    );
 
     expect(read(action.state)).toMatchObject({
       _tag: "Success",
@@ -181,9 +186,9 @@ describe("Action", () => {
     });
     const action = Action.use(Finish);
 
-    const first = Effect.runPromise(ignorePromiseFailure(action.submit("first")));
+    const first = Effect.runPromise(ignorePromiseFailure(Effect.runPromise(action.submitEffect("first"))));
     await Effect.runPromise(Effect.sleep("10 millis"));
-    await action.submit("second");
+    await Effect.runPromise(action.submitEffect("second"));
     await first;
 
     expect(interrupted).toBe(true);
@@ -239,7 +244,7 @@ describe("Action", () => {
     });
     const action = Action.use(Finish);
 
-    await expect(action.submit(undefined)).resolves.toBe("done");
+    await expect(Effect.runPromise(action.submitEffect(undefined))).resolves.toBe("done");
 
     expect(attempts).toBe(3);
     expect(read(action.state)).toMatchObject({
@@ -261,7 +266,7 @@ describe("Action", () => {
     });
     const action = Action.use(Rename);
 
-    const promise = action.submit("Published");
+    const promise = Effect.runPromise(action.submitEffect("Published"));
 
     await expect(promise).resolves.toBe("Published");
     expect(read(title)).toBe("Published");
@@ -283,7 +288,7 @@ describe("Action", () => {
       run: () => Effect.void
     });
 
-    await Action.use(Clear).submit(undefined);
+    await Effect.runPromise(Action.use(Clear).submitEffect(undefined));
 
     expect(read(selected)).toBeUndefined();
   });
@@ -302,7 +307,7 @@ describe("Action", () => {
     });
     const action = Action.use(Rename);
 
-    await expect(action.submit("Published")).rejects.toBe("boom");
+    await expect(Effect.runPromise(action.submitEffect("Published"))).rejects.toBe("boom");
 
     expect(read(title)).toBe("Draft");
     expect(read(action.state)).toMatchObject({
@@ -329,11 +334,11 @@ describe("Action", () => {
     });
     const action = Action.use(Rename);
 
-    const first = Effect.runPromise(ignorePromiseFailure(action.submit("Stale")));
+    const first = Effect.runPromise(ignorePromiseFailure(Effect.runPromise(action.submitEffect("Stale"))));
     await Effect.runPromise(Effect.sleep("10 millis"));
     expect(read(title)).toBe("Stale");
 
-    const second = action.submit("Published");
+    const second = Effect.runPromise(action.submitEffect("Published"));
     await Effect.runPromise(Deferred.await(secondOptimisticApplied));
 
     expect(read(title)).toBe("Published");
@@ -359,8 +364,8 @@ describe("Action", () => {
     });
     const action = Action.use(Finish);
 
-    const first = action.submit("first");
-    const second = action.submit("second");
+    const first = Effect.runPromise(action.submitEffect("first"));
+    const second = Effect.runPromise(action.submitEffect("second"));
     Effect.runSync(Deferred.succeed(release, undefined));
 
     await expect(first).resolves.toBe("first");
@@ -425,7 +430,7 @@ describe("Action", () => {
 
     const first = Effect.runFork(action.submitEffect("first"));
     await Effect.runPromise(Effect.sleep("10 millis"));
-    const second = action.submit("second");
+    const second = Effect.runPromise(action.submitEffect("second"));
     Effect.runSync(Deferred.succeed(release, undefined));
 
     await expect(Effect.runPromise(Fiber.join(first))).resolves.toBe("first");
@@ -452,7 +457,12 @@ describe("Action", () => {
     });
     const action = Action.use(Finish);
 
-    await expect(Promise.all([action.submit("first"), action.submit("second")])).resolves.toEqual([
+    await expect(Effect.runPromise(
+      Effect.all([
+        action.submitEffect("first"),
+        action.submitEffect("second")
+      ], { concurrency: "unbounded" })
+    )).resolves.toEqual([
       "first",
       "second"
     ]);

@@ -336,6 +336,7 @@ function ProjectRow(props: {
   readonly selected: boolean;
 }) {
   const router = useRouter<AppRoutes>();
+  const runtime = useRuntime();
   const href = () => router.href(ProjectUiRoute, { params: { id: props.project.id } });
 
   return (
@@ -343,7 +344,7 @@ function ProjectRow(props: {
       class="projectRow"
       classList={{ selected: props.selected, syncing: !props.project.$synced }}
       href={href()}
-      onMouseEnter={() => void router.preload(ProjectUiRoute, { params: { id: props.project.id } })}
+      onMouseEnter={() => runUiEffect(runtime, router.preloadEffect(ProjectUiRoute, { params: { id: props.project.id } }))}
       onClick={(event) => {
         if (!isPlainLeftClick(event)) {
           return;

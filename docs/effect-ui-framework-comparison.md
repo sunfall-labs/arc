@@ -222,12 +222,13 @@ compiler first.
 const project = useResource(ProjectById(props.id))
 const rename = useAction(RenameProject)
 const renameState = useSignal(rename.state)
+const runtime = useRuntime()
 
 return (
   <form
     onSubmit={(event) => {
       event.preventDefault()
-      void rename.submit({ id: props.id, name: nextName() })
+      void runtime.runPromise(rename.submitEffect({ id: props.id, name: nextName() }))
     }}
   >
     <button disabled={renameState()._tag === "Pending"}>Save</button>

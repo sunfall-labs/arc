@@ -77,7 +77,7 @@ The framework should make the correct path the ergonomic path:
 
 ## Non-Negotiables
 
-- Effect-first APIs. Promise helpers only at host/UI boundaries.
+- Effect-first APIs. Promise boundaries only at host/platform boundaries.
 - No hidden bare Promise callbacks in framework definitions.
 - Use Effect services, `Layer`, `Context`, `Scope`, `Schedule`, `Stream`,
   fibers, and tagged errors idiomatically.

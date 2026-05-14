@@ -124,7 +124,7 @@ Goal: make lifecycle behavior boring under stress.
   validation results, redirects, and Start transport hydration.
 - Add leak tests for request-local Resource Store and Collection Store state.
 - Add cancellation tests for streamed SSR, Node adapters, and client disconnects.
-- Confirm every Promise helper delegates to an Effect-native path.
+- Confirm every host Promise boundary delegates to an Effect-native path.
 
 Exit bar:
 

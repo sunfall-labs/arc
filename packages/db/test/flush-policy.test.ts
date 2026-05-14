@@ -201,7 +201,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
         $synced: true
       });
     } finally {
-      await runtime.dispose();
+      await Effect.runPromise(runtime.disposeEffect);
     }
   });
 
@@ -352,7 +352,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
         $synced: false
       });
     } finally {
-      await runtime.dispose();
+      await Effect.runPromise(runtime.disposeEffect);
     }
   });
 
@@ -421,7 +421,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
       ]);
       expect(runWithRuntime(runtime, () => Projects.pendingMutations())).toEqual([]);
     } finally {
-      await runtime.dispose();
+      await Effect.runPromise(runtime.disposeEffect);
     }
   });
 
@@ -470,7 +470,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
         }
       ]);
     } finally {
-      await runtime.dispose();
+      await Effect.runPromise(runtime.disposeEffect);
     }
   });
 
@@ -509,7 +509,7 @@ describe("flushCollectionsPendingMutationsEffect", () => {
       });
       expect(adapterChecks).toBe(0);
     } finally {
-      await runtime.dispose();
+      await Effect.runPromise(runtime.disposeEffect);
     }
   });
 });

@@ -8,6 +8,7 @@ import { Signal, type ReadableSignal, type WritableSignal } from "./signal.js";
 
 export const ActionTypeId: unique symbol = Symbol.for("@effect-ui/core/Action") as typeof ActionTypeId;
 
+/** State machine for one action instance. */
 export type ActionState<I, A, E = unknown> =
   | { readonly _tag: "Idle" }
   | { readonly _tag: "Pending"; readonly input: I; readonly previous?: A }
@@ -16,6 +17,7 @@ export type ActionState<I, A, E = unknown> =
 
 export type ActionConcurrency = "latest" | "parallel" | "exhaust";
 
+/** Runtime policy for submissions, including concurrency and retry behavior. */
 export interface ActionPolicy<E = unknown> {
   readonly concurrency?: ActionConcurrency;
   readonly retry?: Schedule.Schedule<unknown, E>;
@@ -48,6 +50,12 @@ export interface ActionDefinition<I, A, E = unknown, R = never> {
   ) => ReadonlyArray<ResourceInvalidation>;
 }
 
+/**
+ * Configuration for a mutation-like workflow.
+ *
+ * `run` may return a value or an Effect, but the action executes it through Effect
+ * so retries, interruption, optimistic rollback, and resource invalidation compose.
+ */
 export interface ActionOptions<I, A, E = unknown, R = never> {
   readonly name: string;
   readonly input?: unknown;
@@ -65,12 +73,17 @@ export interface ActionOptions<I, A, E = unknown, R = never> {
   ) => ReadonlyArray<ResourceInvalidation>;
 }
 
+/**
+ * Live action controller returned by Action.use.
+ *
+ * Read state in UI code and submit through submitEffect.
+ */
 export interface ActionInstance<I, A, E = unknown, R = never> {
   readonly definition: ActionDefinition<I, A, E, R>;
   readonly state: ReadableSignal<ActionState<I, A, E>>;
   readonly invalidationPlan: ReadableSignal<ResourceInvalidationPlan | undefined>;
+  /** Runs the action workflow as an Effect, preserving typed errors and requirements. */
   submitEffect(input: I): Effect.Effect<A, E | ActionInterrupted, R>;
-  submit(input: I): Promise<A>;
   resetEffect(): Effect.Effect<void>;
   reset(): void;
 }
@@ -230,6 +243,7 @@ const makeTransactionRuntime = <R>(): ActionTransactionRuntime<R> => {
   };
 };
 
+/** Helpers for defining and running Effect-first actions. */
 export namespace Action {
   export type Definition<I, A, E = unknown, R = never> = ActionDefinition<I, A, E, R>;
   export type Instance<I, A, E = unknown, R = never> = ActionInstance<I, A, E, R>;
@@ -246,6 +260,19 @@ export namespace Action {
   ): ResourceInvalidationPlan =>
     Resource.planInvalidation(invalidationsFor(definition, value, input));
 
+  /**
+   * Defines a reusable action without binding it to UI state.
+   *
+   * Use Action.use to create an instance for a component or interaction boundary.
+   *
+   * @example
+   * ```ts
+   * const saveUser = Action.define({
+   *   name: "saveUser",
+   *   run: (input: UserInput) => ServerSaveUser.effect(input)
+   * });
+   * ```
+   */
   export const define = <I, A, E = unknown, R = never>(
     definition: Omit<ActionOptions<I, A, E, R>, "run" | "optimistic"> & {
       readonly run: (input: I) => EffectInput<A, E, R>;
@@ -285,6 +312,11 @@ export namespace Action {
     actionRegistry.clear();
   };
 
+  /**
+   * Creates a live action instance with state, optimistic updates, and invalidation.
+   *
+   * The returned instance submits through submitEffect.
+   */
   export const use = <I, A, E = unknown, R = never>(
     definition: ActionDefinition<I, A, E, R>,
     options: ActionUseOptions<R> = {}
@@ -297,7 +329,6 @@ export namespace Action {
       | {
           readonly token: object;
           fiber?: Fiber.Fiber<A, E | ActionInterrupted>;
-          promise?: Promise<A>;
         }
       | undefined;
 
@@ -442,60 +473,11 @@ export namespace Action {
         }
       });
 
-    const submit = (input: I): Promise<A> => {
-      const concurrency = definition.policy?.concurrency ?? "latest";
-
-      if (concurrency === "exhaust") {
-        const current = currentSubmission;
-        if (current?.promise) {
-          return current.promise;
-        }
-        if (current?.fiber) {
-          return runtime.runPromise(Fiber.join(current.fiber));
-        }
-      }
-
-      const previousFiber = concurrency === "latest" ? currentSubmission?.fiber : undefined;
-
-      const token = ++version;
-      const submissionToken = {};
-      if (concurrency !== "parallel") {
-        currentSubmission = { token: submissionToken };
-      }
-
-      const fiber = runtime.runFork(
-        Effect.gen(function* () {
-          if (previousFiber) {
-            yield* Fiber.interrupt(previousFiber);
-          }
-
-          return yield* runWorkflow(input, token, {
-            interruptStale: concurrency === "latest",
-            updateOnlyLatest: true
-          });
-        })
-      );
-
-      const promise = runtime.runPromise(
-        Fiber.join(fiber).pipe(
-          Effect.ensuring(clearCurrentEffect(submissionToken))
-        )
-      );
-
-      if (concurrency !== "parallel" && currentSubmission?.token === submissionToken) {
-        currentSubmission.fiber = fiber;
-        currentSubmission.promise = promise;
-      }
-
-      return promise;
-    };
-
     return {
       definition,
       state,
       invalidationPlan,
       submitEffect,
-      submit,
       resetEffect,
       reset: () => {
         const submission = currentSubmission;

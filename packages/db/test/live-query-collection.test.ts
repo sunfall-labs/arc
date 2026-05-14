@@ -177,7 +177,7 @@ describe("Collection.liveQuery", () => {
     });
 
     return Effect.runPromise(
-      Effect.promise(() => ActiveProjectCards.preload()).pipe(
+      ActiveProjectCards.preloadEffect().pipe(
         Effect.tap(() =>
           Effect.sync(() => {
             expect(load).toHaveBeenCalledTimes(1);
@@ -212,10 +212,7 @@ describe("Collection.liveQuery", () => {
 
     return Effect.runPromise(
       Effect.exit(
-        Effect.tryPromise({
-          try: () => ActiveProjectCards.update("atlas", { progress: 90 }),
-          catch: (error) => error
-        })
+        ActiveProjectCards.updateEffect("atlas", { progress: 90 })
       ).pipe(
         Effect.tap((exit) =>
           Effect.sync(() => {

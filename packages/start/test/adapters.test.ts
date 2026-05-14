@@ -83,7 +83,7 @@ describe("Start deployment adapters", () => {
     );
     const server = createServer((request, response) => {
       void Effect.runFork(
-        Effect.tryPromise(() => nodeHandler(request, response)).pipe(
+        nodeHandler(request, response).pipe(
           Effect.catch((error) =>
             Effect.sync(() => {
               response.statusCode = 500;
@@ -129,7 +129,7 @@ describe("Start deployment adapters", () => {
       )
     );
     const server = createServer((request, response) => {
-      void nodeHandler(request, response);
+      void Effect.runFork(nodeHandler(request, response));
     });
     const port = await listen(server);
 
@@ -176,7 +176,7 @@ describe("Start deployment adapters", () => {
       )
     );
     const server = createServer((request, response) => {
-      void nodeHandler(request, response);
+      void Effect.runFork(nodeHandler(request, response));
     });
     const port = await listen(server);
 
@@ -219,7 +219,7 @@ describe("Start deployment adapters", () => {
       )
     );
     const server = createServer((request, response) => {
-      void nodeHandler(request, response);
+      void Effect.runFork(nodeHandler(request, response));
     });
     const port = await listen(server);
 
@@ -240,8 +240,8 @@ describe("Start deployment adapters", () => {
     const effectHandler = toFetchHandlerEffect((request) =>
       Effect.succeed(new Response(new URL(request.url).pathname))
     );
-    const promiseHandler = toFetchHandler((request) =>
-      Effect.runPromise(Effect.succeed(new Response(request.method)))
+    const fetchHandler = toFetchHandler((request) =>
+      Effect.succeed(new Response(request.method))
     );
 
     await expect(
@@ -249,11 +249,11 @@ describe("Start deployment adapters", () => {
     ).resolves.toMatchObject({
       status: 200
     });
-    const promiseResponse = await promiseHandler(
-      new Request("https://example.com/edge", { method: "POST" })
+    const response = await Effect.runPromise(
+      fetchHandler(new Request("https://example.com/edge", { method: "POST" }))
     );
     await expect(
-      promiseResponse.text()
+      response.text()
     ).resolves.toBe("POST");
   });
 

@@ -27,14 +27,14 @@ describe("Effect UI runtime", () => {
     );
   });
 
-  it("uses the current runtime for server function Promise boundaries", () => {
+  it("uses the current runtime for server function Effect boundaries", () => {
     const runtime = makeRuntime(NumbersLive);
     const getNumber = Server.fn<string, number, never, Numbers>("Number.get", {
       handler: (id) => Numbers.use((numbers) => numbers.get(id))
     });
 
-    return Effect.runPromise(
-      Effect.promise(() => runWithRuntime(runtime, () => getNumber("kepler"))).pipe(
+    return runtime.runPromise(
+      getNumber("kepler").pipe(
         Effect.tap((value) => Effect.sync(() => expect(value).toBe(6))),
         Effect.asVoid,
         Effect.ensuring(runtime.disposeEffect)
@@ -52,18 +52,14 @@ describe("Effect UI runtime", () => {
       })
     );
 
-    return Effect.runPromise(
+    return runtime.runPromise(
       Effect.gen(function* () {
-        const effectValue = yield* Effect.promise(() =>
-          runtime.runPromise(getNumber.effect("atlas"))
-        );
-        const promiseValue = yield* Effect.promise(() =>
-          runWithRuntime(runtime, () => getNumber("kepler"))
-        );
+        const effectValue = yield* getNumber.effect("atlas");
+        const effectValueFromCallable = yield* getNumber("kepler");
 
         yield* Effect.sync(() => {
           expect(effectValue).toBe("remote:atlas");
-          expect(promiseValue).toBe("remote:kepler");
+          expect(effectValueFromCallable).toBe("remote:kepler");
         });
       }).pipe(Effect.ensuring(runtime.disposeEffect))
     );
@@ -86,7 +82,7 @@ describe("Effect UI runtime", () => {
     );
   });
 
-  it("uses the current runtime for resource Promise boundaries", () => {
+  it("uses the current runtime for resource Effect boundaries", () => {
     const runtime = makeRuntime(NumbersLive);
     const NumberById = Resource.family<string, number, never, Numbers>({
       name: "Runtime.Number.byId",
@@ -94,8 +90,8 @@ describe("Effect UI runtime", () => {
     });
     const ref = NumberById("lumen");
 
-    return Effect.runPromise(
-      Effect.promise(() => runWithRuntime(runtime, () => Resource.prefetch(ref))).pipe(
+    return runtime.runPromise(
+      Resource.prefetchEffect(ref).pipe(
         Effect.tap((value) =>
           Effect.sync(() => {
             expect(value).toBe(5);
@@ -116,8 +112,8 @@ describe("Effect UI runtime", () => {
     });
     const action = Action.use(SaveNumber, { runtime });
 
-    return Effect.runPromise(
-      Effect.promise(() => action.submit(41)).pipe(
+    return runtime.runPromise(
+      action.submitEffect(41).pipe(
         Effect.tap((value) => Effect.sync(() => expect(value).toBe(42))),
         Effect.asVoid,
         Effect.ensuring(runtime.disposeEffect)

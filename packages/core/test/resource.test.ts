@@ -12,7 +12,7 @@ describe("Resource", () => {
 
     const ref = User("1");
     expect(() => read(ref)).toThrow();
-    await Resource.prefetch(ref);
+    await Effect.runPromise(Resource.prefetchEffect(ref));
 
     expect(read(ref)).toEqual({ id: "1", name: "Ada" });
     expect(read(ref)).toEqual({ id: "1", name: "Ada" });
@@ -77,7 +77,12 @@ describe("Resource", () => {
     });
     const ref = Count(undefined);
 
-    await Promise.all([Resource.prefetch(ref), Resource.prefetch(ref)]);
+    await Effect.runPromise(
+      Effect.all([
+        Resource.prefetchEffect(ref),
+        Resource.prefetchEffect(ref)
+      ], { concurrency: "unbounded" })
+    );
 
     expect(load).toHaveBeenCalledTimes(1);
   });
@@ -90,12 +95,12 @@ describe("Resource", () => {
     });
     const ref = Count(undefined);
 
-    await Resource.prefetch(ref);
-    await Resource.prefetch(ref);
+    await Effect.runPromise(Resource.prefetchEffect(ref));
+    await Effect.runPromise(Resource.prefetchEffect(ref));
     expect(read(ref)).toBe(1);
     expect(count).toBe(1);
 
-    await Resource.refresh(ref);
+    await Effect.runPromise(Resource.refreshEffect(ref));
     expect(read(ref)).toBe(2);
     expect(count).toBe(2);
   });
@@ -121,8 +126,8 @@ describe("Resource", () => {
       expect(runWithRuntime(first, () => read(ref))).toBe(1);
       expect(count).toBe(2);
     } finally {
-      await first.dispose();
-      await second.dispose();
+      await Effect.runPromise(first.disposeEffect);
+      await Effect.runPromise(second.disposeEffect);
     }
   });
 
@@ -139,7 +144,7 @@ describe("Resource", () => {
     });
     const ref = Project("atlas");
 
-    await Resource.prefetch(ref);
+    await Effect.runPromise(Resource.prefetchEffect(ref));
     expect(Resource.refsForTag(ProjectTag({ id: "atlas" })).map((tagRef) => tagRef.key)).toContain(ref.key);
 
     project = { id: "atlas", name: "Renamed" };
@@ -166,8 +171,8 @@ describe("Resource", () => {
       expect(runWithRuntime(first, () => Resource.refsForTag(ProjectTag).map((tagRef) => tagRef.key))).toEqual([ref.key]);
       expect(runWithRuntime(second, () => Resource.refsForTag(ProjectTag))).toEqual([]);
     } finally {
-      await first.dispose();
-      await second.dispose();
+      await Effect.runPromise(first.disposeEffect);
+      await Effect.runPromise(second.disposeEffect);
     }
   });
 
@@ -225,7 +230,7 @@ describe("Resource", () => {
       });
       const ref = Count(undefined);
 
-      await Resource.prefetch(ref);
+      await Effect.runPromise(Resource.prefetchEffect(ref));
 
       expect(Resource.status(ref)).toMatchObject({
         _tag: "Success",
@@ -283,8 +288,8 @@ describe("Resource", () => {
         hasValue: false
       });
     } finally {
-      await first.dispose();
-      await second.dispose();
+      await Effect.runPromise(first.disposeEffect);
+      await Effect.runPromise(second.disposeEffect);
     }
   });
 
@@ -304,8 +309,8 @@ describe("Resource", () => {
     });
     const ref = Count(undefined);
 
-    await Resource.prefetch(ref);
-    const refreshing = Resource.refresh(ref);
+    await Effect.runPromise(Resource.prefetchEffect(ref));
+    const refreshing = Effect.runPromise(Resource.refreshEffect(ref));
 
     expect(Resource.status(ref)).toMatchObject({
       _tag: "Pending",
@@ -327,7 +332,7 @@ describe("Resource", () => {
     });
   });
 
-  it("dedupes public prefetch through one in-flight Effect fiber", async () => {
+  it("dedupes Effect prefetch through one in-flight fiber", async () => {
     const started = Effect.runSync(Deferred.make<void>());
     const gate = Effect.runSync(Deferred.make<void>());
     let loads = 0;
@@ -343,10 +348,9 @@ describe("Resource", () => {
     });
     const ref = Count(undefined);
 
-    const first = Resource.prefetch(ref);
-    const second = Resource.prefetch(ref);
+    const first = Effect.runPromise(Resource.prefetchEffect(ref));
+    const second = Effect.runPromise(Resource.prefetchEffect(ref));
 
-    expect(second).toBe(first);
     await Effect.runPromise(Deferred.await(started));
     expect(loads).toBe(1);
 
@@ -359,7 +363,7 @@ describe("Resource", () => {
     });
   });
 
-  it("interrupts public prefetch fibers when the owning runtime is disposed", async () => {
+  it("interrupts Effect prefetch fibers when the owning runtime is disposed", async () => {
     const runtime = makeRuntime();
     const started = Effect.runSync(Deferred.make<void>());
     let interrupted = false;
@@ -378,9 +382,9 @@ describe("Resource", () => {
     });
     const ref = Count(undefined);
 
-    const prefetch = runWithRuntime(runtime, () => Resource.prefetch(ref));
+    const prefetch = runtime.runPromise(Resource.prefetchEffect(ref));
     await runtime.runPromise(Deferred.await(started));
-    await runtime.dispose();
+    await Effect.runPromise(runtime.disposeEffect);
 
     await expect(prefetch).rejects.toBeDefined();
     expect(interrupted).toBe(true);
@@ -397,7 +401,7 @@ describe("Resource", () => {
     });
     const ref = Project("atlas");
 
-    await Resource.prefetch(ref);
+    await Effect.runPromise(Resource.prefetchEffect(ref));
 
     const plan = Resource.planInvalidation([ref, ProjectTag({ id: "atlas" })]);
 
@@ -419,11 +423,11 @@ describe("Resource", () => {
     });
     const ref = Project(undefined);
 
-    await Resource.prefetch(ref);
+    await Effect.runPromise(Resource.prefetchEffect(ref));
     expect(Resource.refsForTag(SlugTag({ slug: "draft" })).map((tagRef) => tagRef.key)).toEqual([ref.key]);
 
     slug = "published";
-    await Resource.refresh(ref);
+    await Effect.runPromise(Resource.refreshEffect(ref));
 
     expect(Resource.refsForTag(SlugTag({ slug: "draft" }))).toEqual([]);
     expect(Resource.refsForTag(SlugTag({ slug: "published" })).map((tagRef) => tagRef.key)).toEqual([ref.key]);
@@ -442,7 +446,7 @@ describe("Resource", () => {
       });
       const ref = Count(undefined);
 
-      await Resource.prefetch(ref);
+      await Effect.runPromise(Resource.prefetchEffect(ref));
       expect(read(ref)).toBe(1);
 
       await vi.advanceTimersByTimeAsync(11);
@@ -469,7 +473,7 @@ describe("Resource", () => {
     });
     const ref = Count(undefined);
 
-    await Resource.prefetch(ref);
+    await Effect.runPromise(Resource.prefetchEffect(ref));
     expect(read(ref)).toBe(1);
 
     await Effect.runPromise(Count.family.deleteEffect(ref));
@@ -510,7 +514,7 @@ describe("Resource", () => {
       expect(events.map((event) => event._tag)).toEqual(["ResourcePending", "ResourceSuccess"]);
       expect(events.map((event) => event.key)).toEqual([ref.key, ref.key]);
     } finally {
-      await runtime.dispose();
+      await Effect.runPromise(runtime.disposeEffect);
     }
   });
 
@@ -566,7 +570,7 @@ describe("Resource", () => {
       });
       expect(value).toBe(2);
     } finally {
-      await runtime.dispose();
+      await Effect.runPromise(runtime.disposeEffect);
     }
   });
 
@@ -619,9 +623,9 @@ describe("Resource", () => {
     });
     const ref = Item(undefined);
 
-    await Resource.prefetch(ref);
+    await Effect.runPromise(Resource.prefetchEffect(ref));
     shouldFail = true;
-    await expect(Resource.refresh(ref)).rejects.toThrow("nope");
+    await expect(Effect.runPromise(Resource.refreshEffect(ref))).rejects.toThrow("nope");
 
     try {
       read(ref);
@@ -657,7 +661,7 @@ describe("Resource", () => {
     });
 
     expect(read(ref)).toEqual({ id: "1", name: "Hydrated" });
-    await expect(Resource.prefetch(ref)).resolves.toEqual({ id: "1", name: "Hydrated" });
+    await expect(Effect.runPromise(Resource.prefetchEffect(ref))).resolves.toEqual({ id: "1", name: "Hydrated" });
     expect(load).not.toHaveBeenCalled();
   });
 

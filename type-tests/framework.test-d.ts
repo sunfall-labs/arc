@@ -36,6 +36,7 @@ import {
   hydrateFromDocumentEffect,
   hydrateStartHydrationChunksFromDocument,
   hydrateStartHydrationChunksFromDocumentEffect,
+  preloadRequest,
   preloadRequestEffect,
   readStartHydrationChunks,
   StartAction,
@@ -326,9 +327,6 @@ Effect.map(ProjectsCollection.flushPendingMutationsEffect(), (transactions) =>
   transactions.map((transaction) => transaction.mutations.map((mutation) => mutation.key.toUpperCase()))
 );
 Collection.flushPendingMutationsEffect(ProjectsCollection);
-const flushedTransactionsPromise: Promise<ReadonlyArray<Collection.Transaction<Project, string>>> =
-  ProjectsCollection.flushPendingMutations();
-void flushedTransactionsPromise;
 
 const projectMemoryStorage = Collection.memoryStorage();
 ProjectsCollection.persistEffect(projectMemoryStorage, { key: "projects" });
@@ -351,10 +349,17 @@ const ServerProjectsCollection = Collection.define(serverCollectionOptions<Proje
   }
 }));
 
+declare const projectRowsEffect: Effect.Effect<readonly Project[]>;
 declare const projectRowsPromise: Promise<readonly Project[]>;
 Collection.define(Collection.serverOptions<Project>({
   name: "Projects.serverNamespaceCollection",
   getKey: (project) => project.id,
+  load: () => projectRowsEffect
+}));
+Collection.define(Collection.serverOptions<Project>({
+  name: "Projects.promiseServerNamespaceCollection",
+  getKey: (project) => project.id,
+  // @ts-expect-error server collection loaders must return Effect or a pure value, not Promise
   load: () => projectRowsPromise
 }));
 const syncAdapter: Collection.SyncAdapter<Project> = {
@@ -376,7 +381,7 @@ Collection.define(Collection.syncOptions<Project>({
   sync: Collection.serverSyncAdapter<Project>({
     name: "Projects.serverSyncCollection",
     getKey: (project) => project.id,
-    load: () => projectRowsPromise
+    load: () => projectRowsEffect
   })
 }));
 const ProjectRowsResource = Resource.family<void, ReadonlyArray<Project>, ProjectError>({
@@ -617,8 +622,10 @@ createRequestHandler(StartApp, {
   onRequestTrace: () => promisedVoid
 });
 declare const startResponsePromise: Promise<Response>;
-const startRequestHandler: StartRequestHandler = () => startResponsePromise;
-// @ts-expect-error root Start request handlers are Promise host boundaries
+// @ts-expect-error root Start request handlers must return Effect, not Promise
+const promiseStartRequestHandler: StartRequestHandler = () => startResponsePromise;
+const startRequestHandler: StartRequestHandler = () => Effect.succeed(new Response("ok"));
+// @ts-expect-error root Start request handlers must return Effect, not plain Response
 const syncStartRequestHandler: StartRequestHandler = () => new Response("ok");
 const viteStartSsrRequestHandler: StartSsrRequestHandler = () => new Response("ok");
 const startVitePlugin: EffectUiStartPlugin = effectUiStart();
@@ -631,6 +638,9 @@ void startVitePlugin;
 preloadRequestEffect(StartApp, new Request("https://example.com/projects/atlas"), {
   collections: [ProjectsCollection]
 });
+Effect.map(preloadRequest(StartApp, new Request("https://example.com/projects/atlas")), (result) =>
+  result.routePlan.href
+);
 toFetchHandlerEffect(createRequestHandlerEffect(StartApp));
 createNodeHandlerEffect(createRequestHandlerEffect(StartApp));
 nodeRequestToWebRequestEffect({ method: "GET", url: "/", headers: {} } as import("node:http").IncomingMessage);

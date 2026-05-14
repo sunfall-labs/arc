@@ -17,6 +17,7 @@ import {
   ProjectsRef,
   SubmitProjectName
 } from "./domain.js";
+import { app } from "./app-definition.js";
 import { handleRequest } from "./server.js";
 
 const htmlJsonScriptPattern = /<script\b[^>]*>([\s\S]*?)<\/script>/g;
@@ -30,19 +31,21 @@ const postActionForm = async (
   form: ReturnType<typeof startActionForm>,
   body: URLSearchParams
 ): Promise<Response> =>
-  handleRequest(
-    new Request(`https://example.com${serverActionPath}`, {
-      method: form.method.toUpperCase(),
-      headers: { "content-type": "application/x-www-form-urlencoded" },
-      body
-    })
+  app.runtime.runPromise(
+    handleRequest(
+      new Request(`https://example.com${serverActionPath}`, {
+        method: form.method.toUpperCase(),
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body
+      })
+    )
   );
 
 describe("project console full-stack golden path", () => {
   it("renders route data, serializes route preload resources, and observes updated data after a Start form action", async () => {
     const projectId = makeProjectId("meridian");
-    const response = await handleRequest(
-      new Request("https://example.com/projects/meridian?tab=activity")
+    const response = await app.runtime.runPromise(
+      handleRequest(new Request("https://example.com/projects/meridian?tab=activity"))
     );
     const html = await response.text();
     const chunks = streamHydrationChunksFrom(html);
@@ -92,8 +95,8 @@ describe("project console full-stack golden path", () => {
     body.set("name", "Meridian Golden Path");
 
     const actionResponse = await postActionForm(form, body);
-    const followUp = await handleRequest(
-      new Request("https://example.com/projects/meridian?tab=activity")
+    const followUp = await app.runtime.runPromise(
+      handleRequest(new Request("https://example.com/projects/meridian?tab=activity"))
     );
     const followUpHtml = await followUp.text();
     const followUpResources = streamHydrationChunksFrom(followUpHtml).flatMap(
@@ -195,7 +198,9 @@ describe("project console full-stack golden path", () => {
       }
     });
 
-    const response = await handler(new Request("https://example.com/golden/atlas"));
+    const response = await boundaryApp.runtime.runPromise(
+      handler(new Request("https://example.com/golden/atlas"))
+    );
     const html = await response.text();
 
     expect(response.status).toBe(207);

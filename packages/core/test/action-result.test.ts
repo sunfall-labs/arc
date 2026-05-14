@@ -67,7 +67,7 @@ describe("ActionResult", () => {
     const action = Action.use(SubmitProject);
 
     return Effect.runPromise(
-      Effect.promise(() => action.submit("redirect")).pipe(
+      action.submitEffect("redirect").pipe(
         Effect.tap((result) =>
           Effect.sync(() => {
             expect(ActionResult.isRedirect(result)).toBe(true);
@@ -159,8 +159,8 @@ describe("ActionResult", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* Effect.promise(() => Resource.prefetch(ref));
-        yield* Effect.promise(() => action.submit(undefined));
+        yield* Resource.prefetchEffect(ref);
+        yield* action.submitEffect(undefined);
 
         yield* Effect.sync(() => {
           expect(read(ref)).toBe(1);
@@ -199,9 +199,9 @@ describe("ActionResult", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* Effect.promise(() => Resource.prefetch(leftRef));
-        yield* Effect.promise(() => Resource.prefetch(rightRef));
-        yield* Effect.promise(() => action.submit(undefined));
+        yield* Resource.prefetchEffect(leftRef);
+        yield* Resource.prefetchEffect(rightRef);
+        yield* action.submitEffect(undefined);
 
         yield* Effect.sync(() => {
           expect(read(leftRef)).toBe(1);

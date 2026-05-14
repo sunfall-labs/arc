@@ -16,10 +16,18 @@ import { useRuntime } from "@effect-ui/solid";
 import { Effect } from "effect";
 import { createMemo, createSignal, onCleanup, type Accessor } from "solid-js";
 
+/** Options for Solid collection hooks. */
 export interface UseCollectionOptions {
+  /** Start loading on mount. Defaults to true. */
   readonly preload?: boolean;
 }
 
+/**
+ * Solid-facing handle for a collection.
+ *
+ * Accessors read from the nearest Effect UI runtime. Loading and refetching are
+ * exposed as Effects so callers can compose or run them at UI boundaries.
+ */
 export interface CollectionHandle<A extends object, K extends CollectionKey, E = unknown, R = never> {
   readonly rows: Accessor<ReadonlyArray<CollectionRow<A, K>>>;
   readonly state: Accessor<CollectionLoadState<E>>;
@@ -29,24 +37,28 @@ export interface CollectionHandle<A extends object, K extends CollectionKey, E =
   index(index: string, value: CollectionIndexValue): ReadonlyArray<CollectionRow<A, K>>;
   firstByIndex(index: string, value: CollectionIndexValue): CollectionRow<A, K> | undefined;
   preloadEffect(): Effect.Effect<void, E, R>;
-  preload(): Promise<void>;
   refetchEffect(): Effect.Effect<void, E, R>;
-  refetch(): Promise<void>;
 }
 
+/** Options for Solid live-query hooks. */
 export interface UseLiveQueryOptions {
+  /** Preload all query sources on mount. Defaults to true. */
   readonly preload?: boolean;
 }
 
+/**
+ * Solid-facing handle for a live query over one or more collections.
+ *
+ * Data is recomputed when source collections change. Loading/refetch work stays
+ * Effect-first through the returned methods.
+ */
 export interface LiveQueryHandle<T, E = unknown, R = never> {
   readonly data: Accessor<ReadonlyArray<T>>;
   readonly state: Accessor<LiveQueryState<T, E>>;
   readonly waiting: Accessor<boolean>;
   readonly error: Accessor<E | undefined>;
   preloadEffect(): Effect.Effect<void, E, R>;
-  preload(): Promise<void>;
   refetchEffect(): Effect.Effect<void, E, R>;
-  refetch(): Promise<void>;
 }
 
 type LiveQueryInput<T, E, R> = QueryFactory<T> | LiveQuery<T, E, R>;
@@ -72,6 +84,18 @@ const stateError = <E>(state: CollectionLoadState<E>): E | undefined =>
 const liveStateError = <T, E>(state: LiveQueryState<T, E>): E | undefined =>
   state._tag === "Failure" ? state.error : undefined;
 
+/**
+ * Subscribes a Solid component to an Effect UI collection.
+ *
+ * The hook exposes rows, indexed lookups, load state, and Effect-returning
+ * preload/refetch methods. It preloads on mount unless `preload` is false.
+ *
+ * @example
+ * ```tsx
+ * const projects = useCollection(Projects);
+ * const rows = projects.rows();
+ * ```
+ */
 export const useCollection = <A extends object, K extends CollectionKey, E = unknown, R = never>(
   collection: CollectionDefinition<A, K, E, R>,
   options: UseCollectionOptions = {}
@@ -116,12 +140,25 @@ export const useCollection = <A extends object, K extends CollectionKey, E = unk
       return runWithRuntime(runtime, () => collection.firstByIndex(index, value));
     },
     preloadEffect: () => collection.preloadEffect(),
-    preload: () => runtime.runPromise(collection.preloadEffect()),
-    refetchEffect: () => collection.refetchEffect(),
-    refetch: () => runtime.runPromise(collection.refetchEffect())
+    refetchEffect: () => collection.refetchEffect()
   };
 };
 
+/**
+ * Subscribes a Solid component to a live query.
+ *
+ * Pass either a query factory or a prebuilt `LiveQuery`. The hook tracks all
+ * source collections and recomputes `data` when they change.
+ *
+ * @example
+ * ```tsx
+ * const openProjects = useLiveQuery((query) =>
+ *   query.from({ project: Projects })
+ *     .where(({ project }) => project.status === "open")
+ *     .select(({ project }) => project)
+ * );
+ * ```
+ */
 export const useLiveQuery = <T, E = unknown, R = never>(
   input: LiveQueryInput<T, E, R>,
   options: UseLiveQueryOptions = {}
@@ -189,9 +226,7 @@ export const useLiveQuery = <T, E = unknown, R = never>(
     waiting: createMemo(() => state().waiting),
     error: createMemo(() => liveStateError(state())),
     preloadEffect: () => live.preloadEffect(),
-    preload: () => runtime.runPromise(live.preloadEffect()),
-    refetchEffect: () => live.refetchEffect(),
-    refetch: () => runtime.runPromise(live.refetchEffect())
+    refetchEffect: () => live.refetchEffect()
   };
 };
 

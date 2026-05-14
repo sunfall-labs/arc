@@ -210,11 +210,11 @@ describe("project console contract mocks", () => {
         ])
       );
 
-      submission = action.submit({
+      submission = runtime.runPromise(action.submitEffect({
         id,
         name: "Collection Rename",
         redirectTo: makeProjectReturnTo("/projects/mocked?tab=activity")
-      });
+      }));
       await Effect.runPromise(Effect.sleep("10 millis"));
 
       expect(started).toBe(true);
@@ -242,7 +242,7 @@ describe("project console contract mocks", () => {
       if (submission !== undefined) {
         await Effect.runPromise(ignorePromiseFailure(submission));
       }
-      await runtime.dispose();
+      await Effect.runPromise(runtime.disposeEffect);
     }
   });
 });

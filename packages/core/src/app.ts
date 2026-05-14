@@ -1,6 +1,12 @@
 import type { RouteDefinition } from "./route.js";
 import { makeRuntime, type EffectUiRuntime, type RuntimeSource } from "./runtime.js";
 
+/**
+ * Complete app description shared by adapters and integrations.
+ *
+ * Carries route definitions, the client root, and the runtime used to provide
+ * server-side Effect services when the app is running full stack.
+ */
 export interface AppDefinition<
   Routes extends readonly RouteDefinition<string, unknown, unknown>[],
   Client,
@@ -14,6 +20,21 @@ export interface AppDefinition<
   readonly fullStack: boolean;
 }
 
+/**
+ * Defines an Effect UI app from routes, a client entry, and an optional server runtime.
+ *
+ * Pass a Layer, ManagedRuntime, or EffectUiRuntime as `server` when server functions,
+ * route preloads, or resources need Effect services.
+ *
+ * @example
+ * ```ts
+ * const app = defineApp({
+ *   routes: [homeRoute],
+ *   client: App,
+ *   server: AppLive
+ * });
+ * ```
+ */
 export const defineApp = <
   const Routes extends readonly RouteDefinition<string, unknown, unknown>[],
   Client,

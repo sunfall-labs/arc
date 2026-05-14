@@ -4,6 +4,7 @@ import { serverActionPath, startActionForm } from "@effect-ui/start";
 import { build } from "vite";
 import { describe, expect, it } from "vitest";
 import { makeProjectId, makeProjectReturnTo, SubmitProjectName } from "./domain.js";
+import { app } from "./app-definition.js";
 import { handleRequest } from "./server.js";
 import { projectConsoleStartGraphSummary } from "./start-graph.js";
 import { projectConsoleStartOptions } from "./start-options.js";
@@ -46,7 +47,9 @@ const readTextFiles = async (directory: string): Promise<ReadonlyArray<string>> 
 
 describe("project console SSR", () => {
   it("streams the matched project route with hydration payloads", async () => {
-    const response = await handleRequest(new Request("https://example.com/projects/atlas"));
+    const response = await app.runtime.runPromise(
+      handleRequest(new Request("https://example.com/projects/atlas"))
+    );
     const chunks = await readTextChunks(response);
     const html = chunks.join("");
 
@@ -93,8 +96,8 @@ describe("project console SSR", () => {
   });
 
   it("renders route search state on the server", async () => {
-    const response = await handleRequest(
-      new Request("https://example.com/projects/kepler?tab=activity")
+    const response = await app.runtime.runPromise(
+      handleRequest(new Request("https://example.com/projects/kepler?tab=activity"))
     );
     const html = await response.text();
 
@@ -115,14 +118,18 @@ describe("project console SSR", () => {
     );
     body.set("name", "Lumen Care");
 
-    const response = await handleRequest(
-      new Request(`https://example.com${serverActionPath}`, {
-        method: "POST",
-        headers: { "content-type": "application/x-www-form-urlencoded" },
-        body
-      })
+    const response = await app.runtime.runPromise(
+      handleRequest(
+        new Request(`https://example.com${serverActionPath}`, {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body
+        })
+      )
     );
-    const page = await handleRequest(new Request("https://example.com/projects/lumen"));
+    const page = await app.runtime.runPromise(
+      handleRequest(new Request("https://example.com/projects/lumen"))
+    );
     const html = await page.text();
 
     expect(response.status).toBe(303);
@@ -141,12 +148,14 @@ describe("project console SSR", () => {
     );
     body.set("name", "At");
 
-    const response = await handleRequest(
-      new Request(`https://example.com${serverActionPath}`, {
-        method: "POST",
-        headers: { "content-type": "application/x-www-form-urlencoded" },
-        body
-      })
+    const response = await app.runtime.runPromise(
+      handleRequest(
+        new Request(`https://example.com${serverActionPath}`, {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body
+        })
+      )
     );
 
     expect(response.status).toBe(422);
@@ -170,12 +179,14 @@ describe("project console SSR", () => {
     body.set("name", "Atlas Growth");
     body.set("redirectTo", "https://example.com/phishing");
 
-    const response = await handleRequest(
-      new Request(`https://example.com${serverActionPath}`, {
-        method: "POST",
-        headers: { "content-type": "application/x-www-form-urlencoded" },
-        body
-      })
+    const response = await app.runtime.runPromise(
+      handleRequest(
+        new Request(`https://example.com${serverActionPath}`, {
+          method: "POST",
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body
+        })
+      )
     );
 
     expect(response.status).toBe(400);

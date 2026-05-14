@@ -8,7 +8,6 @@ import {
   type AnyResourceRef,
   type ResourceHydrationPayload
 } from "./resource.js";
-import { runPromise } from "./runtime.js";
 
 export type AnySchema<A = unknown> = {
   readonly Type?: A;
@@ -79,6 +78,12 @@ export interface RoutePreloadCollectionDiagnostics {
   readonly collections: readonly string[];
 }
 
+/**
+ * Route configuration with optional schema decoding and Effect-first preload work.
+ *
+ * `preload` can read resources or run Effects before navigation/render. Declare
+ * preloadResources or preloadCollections when adapters need static preload hints.
+ */
 export interface RouteOptions<Path extends string, Params, Search> {
   readonly params?: AnySchema<Params>;
   readonly search?: AnySchema<Search>;
@@ -97,10 +102,13 @@ export interface RouteOptionsInput {
   readonly component?: unknown;
 }
 
+/** Runtime route object produced by `route`. */
 export interface RouteDefinition<Path extends string, Params, Search> {
   readonly path: Path;
   readonly options: RouteOptions<Path, Params, Search>;
+  /** Builds an href from typed path params and optional search values. */
   build(params: Params, search?: Partial<Search>): string;
+  /** Matches a URL and decodes params/search when schemas are present. */
   match(input: string | URL): RouteMatch<this> | undefined;
 }
 
@@ -379,6 +387,20 @@ const uniqueSortedCollectionNames = (
     }))
   ).sort();
 
+/**
+ * Defines a typed route with path params, optional search decoding, and preload work.
+ *
+ * Params are inferred from `:param` segments unless a params schema is supplied.
+ *
+ * @example
+ * ```ts
+ * const userRoute = route("/users/:id", {
+ *   preload: ({ params }) => Resource.prefetchEffect(UserResource(params.id))
+ * });
+ *
+ * const href = userRoute.build({ id: "42" });
+ * ```
+ */
 export const route = <const Path extends string, const Options extends RouteOptionsInput>(
   path: Path,
   options: Options & CheckedRoutePreload<Options>
@@ -415,6 +437,7 @@ export const route = <const Path extends string, const Options extends RouteOpti
   return definition;
 };
 
+/** Helpers for matching, building, and preloading route definitions. */
 export namespace Route {
   export type Definition<Path extends string = string, Params = unknown, Search = unknown> =
     RouteDefinition<Path, Params, Search>;
@@ -451,6 +474,7 @@ export namespace Route {
       }
     : never;
 
+  /** Builds an href for a route from typed params and optional search values. */
   export const href = <R extends Definition<string, unknown, unknown>>(
     definition: R,
     options: HrefOptions<R>
@@ -465,6 +489,7 @@ export namespace Route {
       component
     }) as Definition<R["path"], Params<R>, Search<R>>;
 
+  /** Returns the first matching route for a URL, or undefined when none match. */
   export const match = <const Routes extends readonly Definition<string, unknown, unknown>[]>(
     routes: Routes,
     input: string | URL
@@ -479,6 +504,11 @@ export namespace Route {
     return undefined;
   };
 
+  /**
+   * Runs a matched route's preload function as an Effect.
+   *
+   * Prefer this when composing preload with resources or server calls.
+   */
   export const preloadEffect = <R extends Definition<string, unknown, unknown>>(
     match: Match<R>
   ): Effect.Effect<void, unknown> => {
@@ -492,7 +522,7 @@ export namespace Route {
 
   export const preload = <R extends Definition<string, unknown, unknown>>(
     match: Match<R>
-  ): Promise<void> => runPromise(preloadEffect(match));
+  ): Effect.Effect<void, unknown> => preloadEffect(match);
 
   export const preloadResourceFamilies = <R extends Definition<string, unknown, unknown>>(
     definition: R
@@ -563,8 +593,14 @@ export namespace Route {
 
   export const planPreload = <R extends Definition<string, unknown, unknown>>(
     match: Match<R>
-  ): Promise<PreloadPlan<R>> => runPromise(planPreloadEffect(match));
+  ): Effect.Effect<PreloadPlan<R>, unknown> => planPreloadEffect(match);
 
+  /**
+   * Matches a URL and produces a navigation plan with collected resource hydration.
+   *
+   * Route preloads run inside Effect so adapters can await data and serialize only
+   * resources touched during the preload.
+   */
   export const planNavigationEffect = <const Routes extends readonly Definition<string, unknown, unknown>[]>(
     routes: Routes,
     input: string | URL
@@ -595,5 +631,6 @@ export namespace Route {
   export const planNavigation = <const Routes extends readonly Definition<string, unknown, unknown>[]>(
     routes: Routes,
     input: string | URL
-  ): Promise<NavigationPlan<Routes[number]>> => runPromise(planNavigationEffect(routes, input));
+  ): Effect.Effect<NavigationPlan<Routes[number]>, unknown> =>
+    planNavigationEffect(routes, input);
 }

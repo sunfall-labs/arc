@@ -1,5 +1,6 @@
-import { makeRuntime, runEffectInput, runWithRuntime } from "@effect-ui/core";
+import { makeRuntime, runWithRuntime, toEffect } from "@effect-ui/core";
 import { Collection } from "@effect-ui/db";
+import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   SQLITE_PERSISTENCE_DEFAULT_TABLE,
@@ -152,7 +153,7 @@ const makeFakePreparedStatementDatabase = (): FakePreparedStatementDatabase => {
 };
 
 describe("SQLite persistence storage", () => {
-  it("persists collection snapshots into namespace/key rows", async () => {
+  it("persists collection snapshots into namespace/key rows", () => {
     const first = makeRuntime();
     const second = makeRuntime();
     const fake = makeFakeDriver();
@@ -167,52 +168,59 @@ describe("SQLite persistence storage", () => {
       getKey: (project) => project.id
     });
 
-    try {
-      await first.runPromise(Projects.writeInsertEffect([
-        { id: "atlas", name: "Atlas", status: "active", progress: 72 },
-        { id: "lumen", name: "Lumen", status: "blocked", progress: 34 }
-      ]));
-      await first.runPromise(Projects.persistEffect(storage, { key: "projects-cache" }));
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* Effect.promise(() =>
+          first.runPromise(Projects.writeInsertEffect([
+            { id: "atlas", name: "Atlas", status: "active", progress: 72 },
+            { id: "lumen", name: "Lumen", status: "blocked", progress: 34 }
+          ]))
+        );
+        yield* Effect.scoped(first.provide(Projects.persistEffect(storage, { key: "projects-cache" })));
 
-      const row = fake.table("collection_snapshots").row("workspace:a", "projects-cache");
-      expect(row).toMatchObject({
-        namespace: "workspace:a",
-        key: "projects-cache",
-        schemaVersion: 4,
-        updatedAt: 12_345
-      });
-      expect(JSON.parse(row?.value ?? "{}")).toMatchObject({
-        name: "Projects.sqlite-persistence",
-        rows: [
-          {
-            key: "atlas",
-            value: { id: "atlas", name: "Atlas", status: "active", progress: 72 },
-            synced: true,
-            origin: "remote"
-          },
-          {
-            key: "lumen",
-            value: { id: "lumen", name: "Lumen", status: "blocked", progress: 34 },
-            synced: true,
-            origin: "remote"
-          }
-        ],
-        pendingMutations: []
-      });
+        yield* Effect.sync(() => {
+          const row = fake.table("collection_snapshots").row("workspace:a", "projects-cache");
+          expect(row).toMatchObject({
+            namespace: "workspace:a",
+            key: "projects-cache",
+            schemaVersion: 4,
+            updatedAt: 12_345
+          });
+          expect(JSON.parse(row?.value ?? "{}")).toMatchObject({
+            name: "Projects.sqlite-persistence",
+            rows: [
+              {
+                key: "atlas",
+                value: { id: "atlas", name: "Atlas", status: "active", progress: 72 },
+                synced: true,
+                origin: "remote"
+              },
+              {
+                key: "lumen",
+                value: { id: "lumen", name: "Lumen", status: "blocked", progress: 34 },
+                synced: true,
+                origin: "remote"
+              }
+            ],
+            pendingMutations: []
+          });
+        });
 
-      await second.runPromise(Projects.restoreEffect(storage, { key: "projects-cache" }));
+        yield* Effect.scoped(second.provide(Projects.restoreEffect(storage, { key: "projects-cache" })));
 
-      expect(runWithRuntime(second, () => Projects.rows().map((project) => project.name).sort())).toEqual([
-        "Atlas",
-        "Lumen"
-      ]);
-    } finally {
-      await first.dispose();
-      await second.dispose();
-    }
+        yield* Effect.sync(() =>
+          expect(runWithRuntime(second, () => Projects.rows().map((project) => project.name).sort())).toEqual([
+            "Atlas",
+            "Lumen"
+          ])
+        );
+      }).pipe(
+        Effect.ensuring(Effect.andThen(first.disposeEffect, second.disposeEffect))
+      )
+    );
   });
 
-  it("returns null when the stored row schema version does not match", async () => {
+  it("returns null when the stored row schema version does not match", () => {
     const fake = makeFakeDriver();
     const versionOne = makeSQLitePersistenceStorage(fake.driver, {
       namespace: "workspace:a",
@@ -225,32 +233,48 @@ describe("SQLite persistence storage", () => {
       now: () => 2
     });
 
-    await runEffectInput(versionOne.setItem("projects-cache", "{\"collections\":[]}"));
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* toEffect(versionOne.setItem("projects-cache", "{\"collections\":[]}"));
 
-    expect(fake.table().row("workspace:a", "projects-cache")).toMatchObject({
-      schemaVersion: 1,
-      value: "{\"collections\":[]}"
-    });
-    await expect(runEffectInput(versionOne.getItem("projects-cache"))).resolves.toBe("{\"collections\":[]}");
-    await expect(runEffectInput(versionTwo.getItem("projects-cache"))).resolves.toBeNull();
+        yield* Effect.sync(() =>
+          expect(fake.table().row("workspace:a", "projects-cache")).toMatchObject({
+            schemaVersion: 1,
+            value: "{\"collections\":[]}"
+          })
+        );
+
+        const versionOneValue = yield* toEffect(versionOne.getItem("projects-cache"));
+        const versionTwoValue = yield* toEffect(versionTwo.getItem("projects-cache"));
+
+        yield* Effect.sync(() => {
+          expect(versionOneValue).toBe("{\"collections\":[]}");
+          expect(versionTwoValue).toBeNull();
+        });
+      })
+    );
   });
 
-  it("removes namespace/key rows when the table supports deletes", async () => {
+  it("removes namespace/key rows when the table supports deletes", () => {
     const fake = makeFakeDriver();
     const storage = makeSQLitePersistenceStorage(fake.driver, {
       namespace: "workspace:a",
       now: () => 1
     });
 
-    await runEffectInput(storage.setItem("projects-cache", "{\"rows\":[]}"));
-    expect(fake.table().row("workspace:a", "projects-cache")).toBeDefined();
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* toEffect(storage.setItem("projects-cache", "{\"rows\":[]}"));
+        yield* Effect.sync(() => expect(fake.table().row("workspace:a", "projects-cache")).toBeDefined());
 
-    await runEffectInput(storage.removeItem!("projects-cache"));
+        yield* toEffect(storage.removeItem!("projects-cache"));
 
-    expect(fake.table().row("workspace:a", "projects-cache")).toBeUndefined();
+        yield* Effect.sync(() => expect(fake.table().row("workspace:a", "projects-cache")).toBeUndefined());
+      })
+    );
   });
 
-  it("adapts SQL statement databases into the persistence driver interface", async () => {
+  it("adapts SQL statement databases into the persistence driver interface", () => {
     const fake = makeFakeStatementDatabase();
     const storage = makeSQLitePersistenceStorage(
       makeSQLiteStatementPersistenceDriver(fake),
@@ -262,24 +286,32 @@ describe("SQLite persistence storage", () => {
       }
     );
 
-    await runEffectInput(storage.setItem("projects-cache", "{\"rows\":[]}"));
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* toEffect(storage.setItem("projects-cache", "{\"rows\":[]}"));
 
-    expect(fake.executed[0]?.[0]).toContain("CREATE TABLE IF NOT EXISTS \"collection-snapshots\"");
-    expect(fake.row("workspace:a", "projects-cache")).toMatchObject({
-      namespace: "workspace:a",
-      key: "projects-cache",
-      schemaVersion: 3,
-      value: "{\"rows\":[]}",
-      updatedAt: 42
-    });
-    await expect(runEffectInput(storage.getItem("projects-cache"))).resolves.toBe("{\"rows\":[]}");
+        yield* Effect.sync(() => {
+          expect(fake.executed[0]?.[0]).toContain("CREATE TABLE IF NOT EXISTS \"collection-snapshots\"");
+          expect(fake.row("workspace:a", "projects-cache")).toMatchObject({
+            namespace: "workspace:a",
+            key: "projects-cache",
+            schemaVersion: 3,
+            value: "{\"rows\":[]}",
+            updatedAt: 42
+          });
+        });
 
-    await runEffectInput(storage.removeItem!("projects-cache"));
+        const value = yield* toEffect(storage.getItem("projects-cache"));
+        yield* Effect.sync(() => expect(value).toBe("{\"rows\":[]}"));
 
-    expect(fake.row("workspace:a", "projects-cache")).toBeUndefined();
+        yield* toEffect(storage.removeItem!("projects-cache"));
+
+        yield* Effect.sync(() => expect(fake.row("workspace:a", "projects-cache")).toBeUndefined());
+      })
+    );
   });
 
-  it("adapts prepare/run/all SQLite clients into statement databases", async () => {
+  it("adapts prepare/run/all SQLite clients into statement databases", () => {
     const fake = makeFakePreparedStatementDatabase();
     const storage = makeSQLitePersistenceStorage(
       makeSQLiteStatementPersistenceDriver(makeSQLitePreparedStatementDatabase(fake, { cache: true })),
@@ -291,29 +323,38 @@ describe("SQLite persistence storage", () => {
       }
     );
 
-    await runEffectInput(storage.setItem("projects-cache", "{\"rows\":[1]}"));
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* toEffect(storage.setItem("projects-cache", "{\"rows\":[1]}"));
 
-    expect(fake.memory.row("collection-snapshots", "workspace:a", "projects-cache")).toMatchObject({
-      namespace: "workspace:a",
-      key: "projects-cache",
-      schemaVersion: 5,
-      value: "{\"rows\":[1]}",
-      updatedAt: 99
-    });
+        yield* Effect.sync(() =>
+          expect(fake.memory.row("collection-snapshots", "workspace:a", "projects-cache")).toMatchObject({
+            namespace: "workspace:a",
+            key: "projects-cache",
+            schemaVersion: 5,
+            value: "{\"rows\":[1]}",
+            updatedAt: 99
+          })
+        );
 
-    await expect(runEffectInput(storage.getItem("projects-cache"))).resolves.toBe("{\"rows\":[1]}");
-    await runEffectInput(storage.removeItem!("projects-cache"));
+        const value = yield* toEffect(storage.getItem("projects-cache"));
+        yield* Effect.sync(() => expect(value).toBe("{\"rows\":[1]}"));
+        yield* toEffect(storage.removeItem!("projects-cache"));
 
-    expect(fake.memory.row("collection-snapshots", "workspace:a", "projects-cache")).toBeUndefined();
-    expect(fake.prepared).toEqual([
-      expect.stringContaining("CREATE TABLE IF NOT EXISTS \"collection-snapshots\""),
-      expect.stringContaining("INSERT INTO \"collection-snapshots\""),
-      expect.stringContaining("SELECT \"namespace\""),
-      expect.stringContaining("DELETE FROM \"collection-snapshots\"")
-    ]);
+        yield* Effect.sync(() => {
+          expect(fake.memory.row("collection-snapshots", "workspace:a", "projects-cache")).toBeUndefined();
+          expect(fake.prepared).toEqual([
+            expect.stringContaining("CREATE TABLE IF NOT EXISTS \"collection-snapshots\""),
+            expect.stringContaining("INSERT INTO \"collection-snapshots\""),
+            expect.stringContaining("SELECT \"namespace\""),
+            expect.stringContaining("DELETE FROM \"collection-snapshots\"")
+          ]);
+        });
+      })
+    );
   });
 
-  it("provides an in-memory statement database for the generated SQLite persistence SQL", async () => {
+  it("provides an in-memory statement database for the generated SQLite persistence SQL", () => {
     const memory = makeSQLiteMemoryStatementDatabase();
     const storage = makeSQLitePersistenceStorage(
       makeSQLiteStatementPersistenceDriver(memory),
@@ -325,30 +366,39 @@ describe("SQLite persistence storage", () => {
       }
     );
 
-    await runEffectInput(storage.setItem("projects-cache", "{\"rows\":[]}"));
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* toEffect(storage.setItem("projects-cache", "{\"rows\":[]}"));
 
-    expect(memory.row("collection-snapshots", "workspace:a", "projects-cache")).toMatchObject({
-      namespace: "workspace:a",
-      key: "projects-cache",
-      schemaVersion: 7,
-      value: "{\"rows\":[]}",
-      updatedAt: 123
-    });
-    expect(memory.tableRows("collection-snapshots")).toHaveLength(1);
-    expect(memory.statements.map((statement) => statement.sql)).toEqual([
-      expect.stringContaining("CREATE TABLE IF NOT EXISTS \"collection-snapshots\""),
-      expect.stringContaining("INSERT INTO \"collection-snapshots\"")
-    ]);
+        yield* Effect.sync(() => {
+          expect(memory.row("collection-snapshots", "workspace:a", "projects-cache")).toMatchObject({
+            namespace: "workspace:a",
+            key: "projects-cache",
+            schemaVersion: 7,
+            value: "{\"rows\":[]}",
+            updatedAt: 123
+          });
+          expect(memory.tableRows("collection-snapshots")).toHaveLength(1);
+          expect(memory.statements.map((statement) => statement.sql)).toEqual([
+            expect.stringContaining("CREATE TABLE IF NOT EXISTS \"collection-snapshots\""),
+            expect.stringContaining("INSERT INTO \"collection-snapshots\"")
+          ]);
+        });
 
-    await expect(runEffectInput(storage.getItem("projects-cache"))).resolves.toBe("{\"rows\":[]}");
-    await runEffectInput(storage.removeItem!("projects-cache"));
+        const value = yield* toEffect(storage.getItem("projects-cache"));
+        yield* Effect.sync(() => expect(value).toBe("{\"rows\":[]}"));
+        yield* toEffect(storage.removeItem!("projects-cache"));
 
-    expect(memory.row("collection-snapshots", "workspace:a", "projects-cache")).toBeUndefined();
+        yield* Effect.sync(() => {
+          expect(memory.row("collection-snapshots", "workspace:a", "projects-cache")).toBeUndefined();
 
-    memory.clear();
+          memory.clear();
 
-    expect(memory.tableRows("collection-snapshots")).toEqual([]);
-    expect(memory.statements).toEqual([]);
+          expect(memory.tableRows("collection-snapshots")).toEqual([]);
+          expect(memory.statements).toEqual([]);
+        });
+      })
+    );
   });
 
   it("throws typed SQLite persistence errors for invalid adapter input", () => {

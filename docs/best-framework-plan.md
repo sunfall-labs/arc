@@ -83,8 +83,8 @@ The graph should never guess silently. Facts are `present`, `absent`, or
 
 ### 2. Effect-Native Runtime Spine
 
-Every meaningful async boundary has an Effect form. Promise helpers exist only
-at host and UI edges.
+Every meaningful async API returns an Effect. Promise boundaries exist only at
+host and platform edges.
 
 The Runtime Spine is responsible for:
 
@@ -320,7 +320,8 @@ The alpha proves the model works end to end.
 - Stabilize core `Signal`, `Resource`, `Action`, `Route`, `Server`,
   `Capability`, and `Form` APIs.
 - Keep TSRX support through the Solid target and `tsrx-tsc`.
-- Keep resource/action APIs Effect-first with Promise helpers only at UI edges.
+- Keep resource/action APIs Effect-native, with UI code running or forking
+  Effects explicitly.
 - Finish the reference project console as the proof app.
 - Ensure every alpha API has runtime tests, type tests, or an explicit reason it
   is outside the current bar.
@@ -422,7 +423,7 @@ combination.
 ## Non-Negotiables
 
 - Effect forms are the native API.
-- Promise helpers are adapters.
+- Promise boundaries are adapters.
 - Schemas define every wire boundary.
 - Branded types protect domain ids.
 - Tagged errors model recoverable failures.

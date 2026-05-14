@@ -11,11 +11,17 @@ import type {
   CollectionWriteOptions
 } from "./index.js";
 
+/**
+ * Insert payload delivered to a collection sync adapter.
+ */
 export interface CollectionSyncInsertPayload<A extends object, K extends CollectionKey> {
   readonly values: ReadonlyArray<A>;
   readonly transaction: CollectionTransaction<A, K>;
 }
 
+/**
+ * Update payload delivered to a collection sync adapter.
+ */
 export interface CollectionSyncUpdatePayload<A extends object, K extends CollectionKey> {
   readonly updates: ReadonlyArray<{
     readonly key: K;
@@ -26,6 +32,9 @@ export interface CollectionSyncUpdatePayload<A extends object, K extends Collect
   readonly transaction: CollectionTransaction<A, K>;
 }
 
+/**
+ * Delete payload delivered to a collection sync adapter.
+ */
 export interface CollectionSyncDeletePayload<A extends object, K extends CollectionKey> {
   readonly deletes: ReadonlyArray<{
     readonly key: K;
@@ -34,6 +43,12 @@ export interface CollectionSyncDeletePayload<A extends object, K extends Collect
   readonly transaction: CollectionTransaction<A, K>;
 }
 
+/**
+ * Transport adapter for collection load/refetch and mutation handlers.
+ *
+ * Each callback may return a plain value or Effect. Errors become the
+ * collection error channel `E`, and any required services become `R`.
+ */
 export interface CollectionSyncAdapter<A extends object, K extends CollectionKey = string, E = unknown, R = never> {
   readonly name: string;
   readonly load?: () => EffectInput<ReadonlyArray<A>, E, R>;
@@ -43,6 +58,9 @@ export interface CollectionSyncAdapter<A extends object, K extends CollectionKey
   readonly delete?: (payload: CollectionSyncDeletePayload<A, K>) => EffectInput<void, E, R>;
 }
 
+/**
+ * Options for defining a collection from a sync adapter.
+ */
 export interface CollectionSyncOptions<
   A extends object,
   K extends CollectionKey = string,
@@ -60,6 +78,9 @@ export interface CollectionSyncOptions<
   readonly sync: CollectionSyncAdapter<A, K, E, R>;
 }
 
+/**
+ * Options for adapting an `@effect-ui/core` Resource ref into collection sync.
+ */
 export interface CollectionResourceSyncAdapterOptions<
   I,
   A extends object,
@@ -71,17 +92,29 @@ export interface CollectionResourceSyncAdapterOptions<
   readonly ref: Resource.Ref<I, ReadonlyArray<A>, E, R>;
 }
 
+/**
+ * Stable query cache key used by query-client-backed sync adapters.
+ */
 export type CollectionQuerySyncKey = ReadonlyArray<unknown>;
 
+/**
+ * Fetch request issued to a query-client-backed sync adapter.
+ */
 export interface CollectionQuerySyncFetchOptions<A extends object, E = unknown, R = never> {
   readonly queryKey: CollectionQuerySyncKey;
   readonly queryFn: () => EffectInput<ReadonlyArray<A>, E, R>;
 }
 
+/**
+ * Invalidation request issued after refetches or mutations.
+ */
 export interface CollectionQuerySyncInvalidateOptions {
   readonly queryKey: CollectionQuerySyncKey;
 }
 
+/**
+ * Minimal query client interface used by `collectionQuerySyncAdapter`.
+ */
 export interface CollectionQuerySyncClient<A extends object, E = unknown, R = never> {
   readonly fetchQuery: (options: CollectionQuerySyncFetchOptions<A, E, R>) =>
     EffectInput<ReadonlyArray<A>, E, R>;
@@ -89,6 +122,9 @@ export interface CollectionQuerySyncClient<A extends object, E = unknown, R = ne
     EffectInput<unknown, E, R>;
 }
 
+/**
+ * Options for adapting query-client cache reads and invalidation to sync.
+ */
 export interface CollectionQuerySyncAdapterOptions<
   A extends object,
   K extends CollectionKey = string,
@@ -103,8 +139,14 @@ export interface CollectionQuerySyncAdapterOptions<
   readonly invalidateOnMutation?: boolean;
 }
 
+/**
+ * Effect-aware unsubscribe callback for change-feed subscriptions.
+ */
 export type CollectionChangeFeedUnsubscribe = () => EffectInput<void, never, never>;
 
+/**
+ * Value returned by a change-feed subscribe call.
+ */
 export type CollectionChangeFeedSubscription =
   | CollectionChangeFeedUnsubscribe
   | {
@@ -112,6 +154,9 @@ export type CollectionChangeFeedSubscription =
     }
   | void;
 
+/**
+ * Context passed to change-feed adapters.
+ */
 export interface CollectionChangeFeedContext<
   A extends object,
   K extends CollectionKey = string
@@ -123,6 +168,12 @@ export interface CollectionChangeFeedContext<
   ) => EffectInput<void, unknown, unknown>;
 }
 
+/**
+ * Scoped adapter for remote change feeds.
+ *
+ * Use with `Collection.subscribeChangesEffect`; the subscription is released
+ * when the provided Scope closes.
+ */
 export interface CollectionChangeFeedAdapter<
   A extends object,
   K extends CollectionKey = string,
@@ -135,6 +186,9 @@ export interface CollectionChangeFeedAdapter<
   ) => EffectInput<CollectionChangeFeedSubscription, E, R>;
 }
 
+/**
+ * Options applied to writes emitted by a change-feed subscription.
+ */
 export interface CollectionChangeFeedSubscribeOptions {
   readonly write?: CollectionWriteOptions;
 }
@@ -167,6 +221,20 @@ const syncLoad = <A extends object, K extends CollectionKey, E, R>(
     });
 };
 
+/**
+ * Convert a sync adapter into `Collection.define` options.
+ *
+ * `load` uses adapter `load` on first preload and adapter `refetch` after that
+ * when available. Mutation callbacks are wired to optimistic transaction
+ * handlers.
+ *
+ * @example
+ * const todos = Collection.define(collectionSyncOptions({
+ *   name: "todos",
+ *   getKey: (todo) => todo.id,
+ *   sync: todoSync
+ * }))
+ */
 export const collectionSyncOptions = <
   A extends object,
   K extends CollectionKey = string,
@@ -220,6 +288,13 @@ export const collectionSyncOptions = <
   } satisfies CollectionOptions<A, K, E, R>;
 };
 
+/**
+ * Build a sync adapter from an `@effect-ui/core` Resource ref.
+ *
+ * Preload calls `Resource.prefetchEffect`; refetch calls
+ * `Resource.refreshEffect`. Optional mutation callbacks can still write through
+ * to a remote system.
+ */
 export const collectionResourceSyncAdapter = <
   I,
   A extends object,
@@ -237,6 +312,12 @@ export const collectionResourceSyncAdapter = <
   ...(options.delete === undefined ? {} : { delete: options.delete })
 });
 
+/**
+ * Build a sync adapter from a query-client style cache.
+ *
+ * Fetches go through `queryClient.fetchQuery`. Refetches and successful
+ * mutations invalidate the query key unless disabled.
+ */
 export const collectionQuerySyncAdapter = <
   A extends object,
   K extends CollectionKey = string,
@@ -304,6 +385,9 @@ export const collectionQuerySyncAdapter = <
   };
 };
 
+/**
+ * Sync adapter namespace for collection transport helpers.
+ */
 export namespace CollectionSync {
   export type InsertPayload<A extends object, K extends CollectionKey> = CollectionSyncInsertPayload<A, K>;
   export type UpdatePayload<A extends object, K extends CollectionKey> = CollectionSyncUpdatePayload<A, K>;
@@ -330,7 +414,10 @@ export namespace CollectionSync {
     CollectionChangeFeedAdapter<A, K, E, R>;
   export type ChangeFeedSubscribeOptions = CollectionChangeFeedSubscribeOptions;
 
+  /** Convert a sync adapter into `Collection.define` options. */
   export const options = collectionSyncOptions;
+  /** Adapt an `@effect-ui/core` Resource ref into a sync adapter. */
   export const resourceAdapter = collectionResourceSyncAdapter;
+  /** Adapt a query-client style cache into a sync adapter. */
   export const queryAdapter = collectionQuerySyncAdapter;
 }

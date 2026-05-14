@@ -8,6 +8,10 @@ yet.
 
 - Core runtime primitives: Signals, Resources, Actions, Forms, Routes,
   Capabilities, server contracts, scoped UI work, and request-local runtimes.
+- Public async library APIs return Effects; Promise use is reserved for
+  explicit runtime, Suspense, stream, CLI, Vite, or host-platform boundaries.
+- LSP-facing JSDoc describes the purpose and composition model for the core,
+  DB, Solid, Start, Node, and Fetch concepts.
 - Start request handling: SSR, RPC, Start actions, hydration payloads, streamed
   HTML responses, request traces, and build diagnostics.
 - Node and Fetch host facades: `@effect-ui/start-node` and
@@ -71,7 +75,7 @@ Latest full gate on May 14, 2026:
 - Package description metadata has been added and package-local dry-run packs
   passed for all 9 framework packages.
 - The Start diagnostics CLI now runs its parse/load/render flow through an
-  Effect-native runner with Promise helpers kept at the bin boundary.
+  Effect-native runner; the bin entry is the Promise boundary.
 - The Vite dev SSR middleware now keeps request conversion, handler loading,
   response writing, and error forwarding inside an Effect program.
 - The devtools extension now keeps sample data as a fallback and updates from a
@@ -101,9 +105,9 @@ Latest full gate on May 14, 2026:
   removed without changing the public pure/Effect callback behavior.
 - Runtime run-method service-erasure casts were consolidated behind exact
   ResourceStore provision typing and one named ManagedRuntime boundary.
-- Core Action and Resource Promise helpers now delegate workflow fibers,
-  `Fiber.join`, stale refresh, and interruption Effects directly to that runtime
-  boundary instead of erasing requirements at each call site.
+- Core Action and Resource public async APIs now expose Effect-native workflows
+  for submission, preload, refresh, `Fiber.join`, stale refresh, and
+  interruption.
 - Core runtime helpers, `UiScope`, and `Signal.watch(...)` now rely on Effect
   primitive typing directly where TypeScript can already prove the scope shape.
 - Core server wire helpers now centralize typed schema decoding, and
@@ -217,8 +221,8 @@ Latest full gate on May 14, 2026:
 - The latest `pnpm verify` passed after the core/Solid async test boundary
   cleanup.
 - Core runtime tests now return Effect programs instead of async wrappers while
-  preserving the public Promise boundaries they exercise behind
-  `Effect.promise(...)`.
+  exercising host Promise conversion only through explicit `Effect.promise(...)`
+  boundaries.
 - The latest `pnpm verify` passed after the core runtime async test cleanup.
 - Core Signal stream tests now return scoped Effect programs instead of async
   wrappers, with stream collection assertions inside `Effect.sync(...)`.
@@ -259,6 +263,9 @@ Latest full gate on May 14, 2026:
   fiber, and runtime cleanup handled by Effect finalizers.
 - The latest `pnpm verify` passed after the DB persisted-options async test
   cleanup.
+- DB SQLite persistence tests now return Effect programs, with storage
+  `EffectInput` work run through `toEffect(...)` and Promise matcher assertions
+  replaced by explicit Effect assertions.
 
 ## Notable Limits
 

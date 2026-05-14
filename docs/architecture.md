@@ -58,8 +58,8 @@ Effect UI should stay unusually strict in these places:
 - resources and collections live in the active runtime/store, never global
   process state;
 - actions own mutation policy, optimistic work, invalidation, and result shape;
-- public async APIs have Effect forms;
-- Promise helpers cross host or UI seams only;
+- public async APIs return Effects;
+- Promise boundaries are explicit host or platform adapters;
 - generated artifacts are deterministic and source-attributed;
 - devtools use public Effect streams and app graph facts;
 - tests mock services through layers and contracts.
@@ -602,9 +602,10 @@ existing DOM nodes back to computations, while Effect UI restores typed resource
 state and Effect `Cache` entries.
 
 `createRequestHandlerEffect(app)` is the native Effect request boundary.
-`createRequestHandler(app)` is the host adapter that runs that Effect as a
-Promise. When `defineApp({ server })` is present, Start provides it while running
-SSR preload and render work, so app services can be normal Effect `Layer`s.
+`createRequestHandler(app)` is an alias for the same Effect-returning handler.
+Hosts run that handler with `runtime.runPromise(...)` at their platform edge.
+When `defineApp({ server })` is present, Start provides it while running SSR
+preload and render work, so app services can be normal Effect `Layer`s.
 Every request gets a fresh Request Runtime, so SSR behaves like TanStack Start's
 isomorphic request model without sharing cache state across users.
 
@@ -807,10 +808,12 @@ an active `UiScope`, so stream fibers are interrupted when the component is disp
 Fallible streams should first be turned into typed data or represented as `Resource`
 state, because a plain `Signal<A>` always has a current `A` and has no error channel.
 
-Effect-first API pairs:
+Effect-first APIs:
 
-- `Resource.prefetchEffect(ref)` is the native Effect API; `Resource.prefetch(ref)` is a Promise boundary helper.
-- `action.submitEffect(input)` is the native Effect API; `action.submit(input)` is an event-handler helper.
+- `Resource.prefetchEffect(ref)` and `Resource.refreshEffect(ref)` load and
+  reload resources as Effects.
+- `action.submitEffect(input)` runs action workflows, optimistic state,
+  concurrency, and invalidation as an Effect.
 - `serverFunction.effect(input)` is the local Effect API; `serverFunction.invoke(raw)` is the schema-validated wire API.
 
 Resource retry policy is an Effect `Schedule`, not a framework-specific retry
@@ -827,10 +830,9 @@ Resource.family({
 });
 ```
 
-Event-handler actions use fibers internally, so a newer `action.submit(input)`
-interrupts the older running submit before starting the next one. Native
-`submitEffect` remains plain Effect, so advanced callers can choose their own
-scope, timeout, retry, or race strategy.
+Action policy is applied inside `submitEffect`, so callers still get the
+definition's concurrency semantics while keeping cancellation, timeout, retry,
+and race strategy visible in Effect code.
 
 Action policy is part of the definition:
 

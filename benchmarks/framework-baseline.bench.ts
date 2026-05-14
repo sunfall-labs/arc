@@ -96,7 +96,7 @@ describe("Effect UI release baseline", () => {
       await runtime.runPromise(Resource.prefetchEffect(ref));
       await runtime.runPromise(Resource.prefetchEffect(ref));
     } finally {
-      await runtime.dispose();
+      await runtime.runPromise(runtime.disposeEffect);
     }
   });
 
@@ -106,7 +106,7 @@ describe("Effect UI release baseline", () => {
       await runtime.runPromise(BenchProjectCards.preloadEffect());
       runWithRuntime(runtime, () => BenchProjectCards.rows());
     } finally {
-      await runtime.dispose();
+      await runtime.runPromise(runtime.disposeEffect);
     }
   });
 

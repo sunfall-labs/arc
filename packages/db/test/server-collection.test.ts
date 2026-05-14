@@ -55,7 +55,7 @@ describe("serverCollectionOptions", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* Effect.promise(() => Projects.preload());
+        yield* Projects.preloadEffect();
 
         yield* Effect.sync(() => {
           expect(Projects.name).toBe("Projects.server.load-refetch");
@@ -64,7 +64,7 @@ describe("serverCollectionOptions", () => {
           expect(refetch).not.toHaveBeenCalled();
         });
 
-        yield* Effect.promise(() => Projects.refetch());
+        yield* Projects.refetchEffect();
 
         yield* Effect.sync(() => {
           expect(Projects.rows().map((project) => project.id)).toEqual(["lumen"]);
@@ -119,9 +119,9 @@ describe("serverCollectionOptions", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* Effect.promise(() => Projects.insert({ id: "lumen", name: "Lumen", archived: false }));
-        yield* Effect.promise(() => Projects.update("atlas", { name: "Atlas Prime" }));
-        yield* Effect.promise(() => Projects.delete("lumen"));
+        yield* Projects.insertEffect({ id: "lumen", name: "Lumen", archived: false });
+        yield* Projects.updateEffect("atlas", { name: "Atlas Prime" });
+        yield* Projects.deleteEffect("lumen");
 
         yield* Effect.sync(() => {
           expect(inserts).toMatchObject([

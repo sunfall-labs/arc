@@ -20,20 +20,34 @@ import {
   type CollectionSyncUpdatePayload
 } from "./sync-adapter.js";
 
+/**
+ * Return type accepted from server collection operations.
+ *
+ * Use Effect-first callbacks or `ServerFunction`s so transport failures remain
+ * typed in the collection error channel.
+ */
 export type ServerCollectionResult<A, E = unknown, R = never> =
-  | EffectInput<A, E, R>
-  | PromiseLike<A>;
+  EffectInput<A, E, R>;
 
+/**
+ * Server-backed operation used by `serverCollectionSyncAdapter`.
+ *
+ * A `ServerFunction` is invoked through `.effect(input)`; a plain callback is
+ * converted with `toEffect`.
+ */
 export type ServerCollectionOperation<I, A, E = unknown, R = never> =
   | ServerFunction<I, A, E, R>
   | ((input: I) => ServerCollectionResult<A, E, R>);
 
+/** Insert payload accepted by a server-backed collection operation. */
 export type ServerCollectionInsertPayload<A extends object, K extends CollectionKey> =
   CollectionSyncInsertPayload<A, K>;
 
+/** Update payload accepted by a server-backed collection operation. */
 export type ServerCollectionUpdatePayload<A extends object, K extends CollectionKey> =
   CollectionSyncUpdatePayload<A, K>;
 
+/** Delete payload accepted by a server-backed collection operation. */
 export type ServerCollectionDeletePayload<A extends object, K extends CollectionKey> =
   CollectionSyncDeletePayload<A, K>;
 
@@ -47,6 +61,13 @@ type ServerCollectionIdentity =
       readonly name?: string;
     };
 
+/**
+ * Options for a collection backed by server functions.
+ *
+ * Provide a stable `name` or `id`; it is used for collection identity, sync
+ * diagnostics, and persistence keys. Server client failures are included in the
+ * resulting collection error channel.
+ */
 export type ServerCollectionOptions<
   A extends object,
   K extends CollectionKey = string,
@@ -66,6 +87,9 @@ export type ServerCollectionOptions<
   readonly delete?: ServerCollectionOperation<ServerCollectionDeletePayload<A, K>, void, E, R>;
 };
 
+/**
+ * Error thrown when server collection options omit both `name` and `id`.
+ */
 export class ServerCollectionMissingIdentity extends Data.TaggedError(
   "ServerCollectionMissingIdentity"
 )<{
@@ -111,6 +135,12 @@ const serverCollectionName = <
   return name;
 };
 
+/**
+ * Build a sync adapter from server functions or Effect callbacks.
+ *
+ * Use this when you want to compose the adapter manually before passing it to
+ * `collectionSyncOptions` or `Collection.syncOptions`.
+ */
 export const serverCollectionSyncAdapter = <
   A extends object,
   K extends CollectionKey = string,
@@ -147,6 +177,20 @@ export const serverCollectionSyncAdapter = <
       })
 });
 
+/**
+ * Build `Collection.define` options for a server-backed collection.
+ *
+ * Load/refetch and mutation operations are converted to Effect, and
+ * `ServerClientError` is added to the collection error channel.
+ *
+ * @example
+ * const todos = Collection.define(serverCollectionOptions({
+ *   name: "todos",
+ *   getKey: (todo) => todo.id,
+ *   load: listTodos,
+ *   update: updateTodos
+ * }))
+ */
 export const serverCollectionOptions = <
   A extends object,
   K extends CollectionKey = string,

@@ -70,7 +70,7 @@ describe("route", () => {
 
     expect(match).toBeDefined();
     return Effect.runPromise(
-      Effect.promise(() => Route.preload(match!)).pipe(
+      Route.preloadEffect(match!).pipe(
         Effect.tap(() => Effect.sync(() => expect(preloaded).toBe("atlas"))),
         Effect.asVoid
       )
@@ -87,7 +87,7 @@ describe("route", () => {
     });
 
     return Effect.runPromise(
-      Effect.promise(() => Route.planNavigation([ProjectRoute] as const, "/projects/atlas")).pipe(
+      Route.planNavigationEffect([ProjectRoute] as const, "/projects/atlas").pipe(
         Effect.tap((plan) =>
           Effect.sync(() => {
             expect(plan._tag).toBe("Matched");
@@ -176,7 +176,7 @@ describe("route", () => {
     const Home = route("/", {});
 
     return Effect.runPromise(
-      Effect.promise(() => Route.planNavigation([Home] as const, "/missing")).pipe(
+      Route.planNavigationEffect([Home] as const, "/missing").pipe(
         Effect.tap((plan) =>
           Effect.sync(() =>
             expect(plan).toEqual({
@@ -202,11 +202,11 @@ describe("Server", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const promiseValue = yield* Effect.promise(() => getNumber());
+        const callableValue = yield* getNumber();
         const effectValue = yield* getNumber.effect();
 
         yield* Effect.sync(() => {
-          expect(promiseValue).toBe(42);
+          expect(callableValue).toBe(42);
           expect(effectValue).toBe(42);
           expect(Server.manifest([getNumber])).toEqual([
             {
@@ -248,9 +248,7 @@ describe("Server", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const response = yield* Effect.promise(() =>
-          Server.handleRoute(serverRoute, new Request("https://example.com/hello"))
-        );
+        const response = yield* Server.handleRoute(serverRoute, new Request("https://example.com/hello"));
         const responseText = yield* Effect.promise(() => response.text());
         const effectResponse = yield* Server.handleRouteEffect(
           serverRoute,
@@ -284,9 +282,7 @@ describe("Server", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        const response = yield* Effect.promise(() =>
-          Server.handleRoute(serverRoute, new Request("https://example.com/login"))
-        );
+        const response = yield* Server.handleRoute(serverRoute, new Request("https://example.com/login"));
         const body = yield* Effect.promise(() => response.text());
 
         yield* Effect.sync(() => {

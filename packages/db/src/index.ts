@@ -6,8 +6,7 @@ import {
   type ReadableSignal,
   type ResourceStore as ResourceStoreState,
   type WritableSignal,
-  runFork,
-  runPromise
+  runFork
 } from "@effect-ui/core";
 import {
   D2,
@@ -28,9 +27,7 @@ import { Clock, Context, Data, Effect, Option, PubSub, Scope, type Schedule } fr
 import type { EffectInput } from "@effect-ui/core";
 import { toEffect } from "@effect-ui/core";
 import {
-  backgroundSyncCollectionsPendingMutations,
   backgroundSyncCollectionsPendingMutationsEffect,
-  flushCollectionsPendingMutations,
   flushCollectionsPendingMutationsEffect,
   type CollectionBackgroundSyncAdapter,
   type CollectionBackgroundSyncAdapterContext,
@@ -97,6 +94,12 @@ export const CollectionStoreTypeId: unique symbol = Symbol.for("@effect-ui/db/Co
 export type CollectionKey = string | number;
 export type CollectionOrigin = "local" | "remote";
 
+/**
+ * A collection value as exposed to readers.
+ *
+ * Metadata fields identify the stable key, owning collection, sync status, and
+ * whether the latest value came from a local write or a remote source.
+ */
 export type CollectionRow<A extends object, K extends CollectionKey = CollectionKey> = A & {
   readonly $key: K;
   readonly $collection: string;
@@ -104,17 +107,29 @@ export type CollectionRow<A extends object, K extends CollectionKey = Collection
   readonly $origin: CollectionOrigin;
 };
 
+/**
+ * Reactive load state for a collection preload/refetch.
+ *
+ * Failure carries the collection error type `E`; local writes can still keep
+ * rows available while a later load is pending or failed.
+ */
 export type CollectionLoadState<E = unknown> =
   | { readonly _tag: "Initial"; readonly waiting: false }
   | { readonly _tag: "Pending"; readonly waiting: true }
   | { readonly _tag: "Ready"; readonly waiting: false; readonly updatedAt: number }
   | { readonly _tag: "Failure"; readonly waiting: false; readonly error: E };
 
+/**
+ * A single optimistic mutation captured inside a transaction.
+ */
 export type CollectionMutation<A extends object, K extends CollectionKey> =
   | { readonly _tag: "Insert"; readonly key: K; readonly value: A; readonly previous?: A }
   | { readonly _tag: "Update"; readonly key: K; readonly previous: A; readonly value: A; readonly changes: Partial<A> }
   | { readonly _tag: "Delete"; readonly key: K; readonly previous: A };
 
+/**
+ * A batch of local collection mutations sent to mutation handlers as one unit.
+ */
 export interface CollectionTransaction<A extends object, K extends CollectionKey> {
   readonly id: string;
   readonly collection: string;
@@ -137,6 +152,12 @@ export interface CollectionMutationContext<A extends object, K extends Collectio
   readonly transaction: CollectionTransaction<A, K>;
 }
 
+/**
+ * Collection execution policy.
+ *
+ * The retry schedule wraps loads and queued mutation handlers, preserving their
+ * original Effect error and requirement channels.
+ */
 export interface CollectionPolicy<E = unknown> {
   readonly retry?: Schedule.Schedule<unknown, E>;
 }
@@ -148,6 +169,12 @@ export interface CollectionSyncDiagnostics {
 export type CollectionIndexValue = string | number | boolean | Date | null | undefined;
 export type CollectionIndexResult = CollectionIndexValue | ReadonlyArray<CollectionIndexValue>;
 
+/**
+ * Secondary index definition used by `collection.index` and indexed joins.
+ *
+ * Return one value for a one-to-one lookup, or several values when a row should
+ * appear in multiple buckets. `unique` is diagnostic metadata only.
+ */
 export interface CollectionIndexDefinition<A extends object> {
   readonly key: (value: A) => CollectionIndexResult;
   readonly unique?: boolean;
@@ -159,6 +186,21 @@ export type CollectionIndexInput<A extends object> =
 
 export type CollectionIndexRecord<A extends object> = Record<string, CollectionIndexInput<A>>;
 
+/**
+ * Defines a local-first collection.
+ *
+ * `load` fills or refreshes remote rows. `onInsert`, `onUpdate`, and `onDelete`
+ * run after optimistic local changes. Handler failures use the Effect error
+ * channel `E` and roll back affected rows; required services are carried in `R`.
+ *
+ * @example
+ * const todos = Collection.define({
+ *   name: "todos",
+ *   getKey: (todo) => todo.id,
+ *   load: () => TodoApi.list,
+ *   onUpdate: (updates) => TodoApi.patchMany(updates)
+ * })
+ */
 export interface CollectionOptions<A extends object, K extends CollectionKey, E = unknown, R = never> {
   readonly name: string;
   readonly input?: unknown;
@@ -184,56 +226,111 @@ export interface CollectionOptions<A extends object, K extends CollectionKey, E 
   ) => EffectInput<void, E, R>;
 }
 
+/**
+ * Runtime handle returned by `Collection.define`.
+ *
+ * Read methods are synchronous and reactive through `state`/`version` signals.
+ * Load and mutation Effects expose the collection error channel `E` and
+ * requirements `R`; fire-and-forget write helpers fork the corresponding Effect
+ * on the current runtime.
+ */
 export interface CollectionDefinition<A extends object, K extends CollectionKey = string, E = unknown, R = never> {
   readonly [CollectionTypeId]: typeof CollectionTypeId;
   readonly options: CollectionOptions<A, K, E, R>;
   readonly name: string;
   getKey(value: A): K;
+  /** Reactive load state signal for the collection. */
   state(): ReadableSignal<CollectionLoadState<E>>;
+  /** Reactive version signal that changes when rows or pending mutations change. */
   version(): ReadableSignal<number>;
+  /** Read one row by key from the current in-memory state. */
   get(key: K): CollectionRow<A, K> | undefined;
+  /** Read all current rows, including local optimistic rows. */
   rows(): ReadonlyArray<CollectionRow<A, K>>;
+  /** Read rows from a named secondary index bucket. */
   index(index: string, value: CollectionIndexValue): ReadonlyArray<CollectionRow<A, K>>;
+  /** Read the first row from a named secondary index bucket. */
   firstByIndex(index: string, value: CollectionIndexValue): CollectionRow<A, K> | undefined;
+  /**
+   * Ensure the collection has loaded once.
+   *
+   * Restores configured persistence first, then runs `load` unless data is
+   * already ready. Errors and requirements come from the collection definition.
+  */
   preloadEffect(): Effect.Effect<void, E, R>;
-  preload(): Promise<void>;
+  /**
+   * Force a fresh load even when the collection is already ready.
+  */
   refetchEffect(): Effect.Effect<void, E, R>;
-  refetch(): Promise<void>;
+  /** Return queued optimistic mutations waiting for their handlers to commit. */
   pendingMutationsEffect(): Effect.Effect<ReadonlyArray<CollectionPendingMutation<A, K>>>;
+  /** Synchronously read queued optimistic mutations from the current runtime store. */
   pendingMutations(): ReadonlyArray<CollectionPendingMutation<A, K>>;
+  /**
+   * Retry all queued mutation handlers for this collection.
+  */
   flushPendingMutationsEffect(): Effect.Effect<ReadonlyArray<CollectionTransaction<A, K>>, E, R>;
-  flushPendingMutations(): Promise<ReadonlyArray<CollectionTransaction<A, K>>>;
+  /** Capture a serializable snapshot with an Effect-provided timestamp. */
   snapshotEffect(): Effect.Effect<CollectionSnapshot<A, K>>;
+  /** Capture a serializable snapshot using the current runtime store. */
   snapshot(): CollectionSnapshot<A, K>;
+  /**
+   * Restore rows and pending mutations from a snapshot.
+   *
+   * By default hydration replaces existing state. Pass `{ replace: false }` to
+   * merge the payload into current state.
+   */
   hydrateEffect(snapshot: CollectionSnapshot<A, K>, options?: CollectionHydrateOptions): Effect.Effect<void>;
+  /** Fork `hydrateEffect` on the current runtime. */
   hydrate(snapshot: CollectionSnapshot<A, K>, options?: CollectionHydrateOptions): void;
+  /**
+   * Persist the current snapshot to an Effect-aware string storage backend.
+   */
   persistEffect<PE = unknown, PR = never>(
     storage: CollectionPersistenceStorage<PE, PR>,
     options?: CollectionPersistOptions
   ): Effect.Effect<void, PE, PR>;
-  persist<PE = unknown, PR = never>(
-    storage: CollectionPersistenceStorage<PE, PR>,
-    options?: CollectionPersistOptions
-  ): Promise<void>;
+  /**
+   * Load a persisted snapshot from storage and hydrate it if present.
+   */
   restoreEffect<PE = unknown, PR = never>(
     storage: CollectionPersistenceStorage<PE, PR>,
     options?: CollectionPersistOptions & CollectionHydrateOptions
   ): Effect.Effect<void, PE, PR>;
-  restore<PE = unknown, PR = never>(
-    storage: CollectionPersistenceStorage<PE, PR>,
-    options?: CollectionPersistOptions & CollectionHydrateOptions
-  ): Promise<void>;
+  /**
+   * Optimistically insert rows and run the insert handler.
+   *
+   * Handler failure rolls back affected rows and remains in the Effect error
+   * channel `E`.
+  */
   insertEffect(input: A | ReadonlyArray<A>): Effect.Effect<CollectionTransaction<A, K>, E, R>;
-  insert(input: A | ReadonlyArray<A>): Promise<CollectionTransaction<A, K>>;
+  /**
+   * Optimistically update one row and run the update handler.
+   *
+   * Fails with `CollectionRowNotFound` when the key is absent.
+  */
   updateEffect(key: K, update: CollectionUpdate<A>): Effect.Effect<CollectionTransaction<A, K>, E | CollectionRowNotFound, R>;
-  update(key: K, update: CollectionUpdate<A>): Promise<CollectionTransaction<A, K>>;
+  /**
+   * Optimistically delete one row and run the delete handler.
+   *
+   * Fails with `CollectionRowNotFound` when the key is absent.
+  */
   deleteEffect(key: K): Effect.Effect<CollectionTransaction<A, K>, E | CollectionRowNotFound, R>;
-  delete(key: K): Promise<CollectionTransaction<A, K>>;
+  /**
+   * Write rows directly without queuing mutation handlers.
+   *
+   * Use for trusted remote data, change feeds, or tests.
+   */
   writeInsertEffect(input: A | ReadonlyArray<A>, options?: CollectionWriteOptions): Effect.Effect<void, E, R>;
+  /** Fork `writeInsertEffect` on the current runtime. */
   writeInsert(input: A | ReadonlyArray<A>, options?: CollectionWriteOptions): void;
+  /** Write a partial patch directly without queuing mutation handlers. */
   writeUpdateEffect(key: K, changes: Partial<A>, options?: CollectionWriteOptions): Effect.Effect<void, E | CollectionRowNotFound, R>;
+  /** Fork `writeUpdateEffect` on the current runtime. */
   writeUpdate(key: K, changes: Partial<A>, options?: CollectionWriteOptions): void;
+  /** Delete a row directly without queuing mutation handlers. */
   writeDeleteEffect(key: K): Effect.Effect<void, E, R>;
+  /** Fork `writeDeleteEffect` on the current runtime. */
   writeDelete(key: K): void;
 }
 
@@ -259,13 +356,25 @@ export interface CollectionPreloadCollected<A> {
   readonly definitions: ReadonlyArray<AnyCollection>;
 }
 
+/**
+ * Update input for `updateEffect`.
+ *
+ * Pass a partial patch or mutate/return a shallow draft copy of the previous
+ * value.
+ */
 export type CollectionUpdate<A extends object> = Partial<A> | ((draft: A) => A | void);
 
+/**
+ * Metadata for direct writes that bypass mutation handlers.
+ */
 export interface CollectionWriteOptions {
   readonly origin?: CollectionOrigin;
   readonly synced?: boolean;
 }
 
+/**
+ * Remote change-feed event applied through `Collection.applyChangesEffect`.
+ */
 export type CollectionChange<A extends object, K extends CollectionKey> =
   | { readonly _tag: "Upsert"; readonly value: A }
   | { readonly _tag: "Delete"; readonly key: K };
@@ -277,6 +386,12 @@ export interface CollectionRowSnapshot<A extends object, K extends CollectionKey
   readonly origin: CollectionOrigin;
 }
 
+/**
+ * Serializable collection state including rows and queued local mutations.
+ *
+ * Use this for SSR hydration, offline restore, or custom persistence. The value
+ * is plain JSON-compatible as long as row values and keys are.
+ */
 export interface CollectionSnapshot<A extends object = object, K extends CollectionKey = CollectionKey> {
   readonly name: string;
   readonly rows: ReadonlyArray<CollectionRowSnapshot<A, K>>;
@@ -284,14 +399,26 @@ export interface CollectionSnapshot<A extends object = object, K extends Collect
   readonly updatedAt: number;
 }
 
+/**
+ * Multi-collection snapshot payload for route-level dehydration/hydration.
+ */
 export interface CollectionHydrationPayload {
   readonly collections: ReadonlyArray<CollectionSnapshot<any, any>>;
 }
 
+/**
+ * Hydration behavior for snapshots and persisted payloads.
+ */
 export interface CollectionHydrateOptions {
   readonly replace?: boolean;
 }
 
+/**
+ * Effect-aware string storage used by collection persistence.
+ *
+ * Implement this over `localStorage`, IndexedDB, SQLite, or any other durable
+ * store. Storage failures become the persistence error channel.
+ */
 export interface CollectionPersistenceStorage<E = unknown, R = never> {
   readonly getItem: (key: string) => EffectInput<string | null, E, R>;
   readonly setItem: (key: string, value: string) => EffectInput<void, E, R>;
@@ -302,6 +429,12 @@ export interface CollectionPersistOptions {
   readonly key?: string;
 }
 
+/**
+ * Persistence policy attached to a collection definition.
+ *
+ * Restore can run before preload, then optional load can reconcile remote data.
+ * Persist hooks default to enabled unless explicitly set to `false`.
+ */
 export interface CollectionPersistenceConfig<E = unknown, R = never> extends CollectionPersistOptions {
   readonly storage: CollectionPersistenceStorage<E, R>;
   readonly hydrate?: CollectionHydrateOptions;
@@ -323,6 +456,13 @@ export type CollectionPersistedOptions<
   readonly persistence: CollectionPersistenceConfig<PE, PR>;
 };
 
+/**
+ * Options for a read-only collection backed by a live query.
+ *
+ * Use when derived query results should be addressable as a collection, such as
+ * joining or indexing view rows. Mutation effects fail with
+ * `ReadonlyCollectionMutation`.
+ */
 export interface CollectionLiveQueryOptions<A extends object, K extends CollectionKey, E = unknown, R = never> {
   readonly name: string;
   readonly getKey: (value: A) => K;
@@ -330,12 +470,18 @@ export interface CollectionLiveQueryOptions<A extends object, K extends Collecti
   readonly query: LiveQuery<A, E, R> | QueryFactory<A>;
 }
 
+/**
+ * Synchronous storage shape adapted by `Collection.storage`.
+ */
 export interface CollectionStorageLike {
   readonly getItem: (key: string) => string | null;
   readonly setItem: (key: string, value: string) => void;
   readonly removeItem?: (key: string) => void;
 }
 
+/**
+ * In-memory persistence storage for tests, demos, and ephemeral sessions.
+ */
 export interface CollectionMemoryStorage extends CollectionPersistenceStorage<never, never> {
   readonly values: ReadonlyMap<string, string>;
   clear(): void;
@@ -389,21 +535,33 @@ export type CollectionStoreEvent =
   | { readonly _tag: "CollectionMutateRolledBack"; readonly collection: string; readonly transaction: string; readonly error: unknown }
   | { readonly _tag: "CollectionWritten"; readonly collection: string; readonly mutations: number };
 
+/**
+ * Error raised when an update/delete targets a missing row.
+ */
 export class CollectionRowNotFound extends Data.TaggedError("CollectionRowNotFound")<{
   readonly collection: string;
   readonly key: CollectionKey;
 }> {}
 
+/**
+ * Error raised when a mutation is attempted on a read-only live-query collection.
+ */
 export class ReadonlyCollectionMutation extends Data.TaggedError("ReadonlyCollectionMutation")<{
   readonly collection: string;
   readonly operation: string;
 }> {}
 
+/**
+ * Error raised when reading an index that was not declared on the collection.
+ */
 export class UnknownCollectionIndex extends Data.TaggedError("UnknownCollectionIndex")<{
   readonly collection: string;
   readonly index: string;
 }> {}
 
+/**
+ * Error raised when the query builder cannot be represented as a live query.
+ */
 export class UnsupportedLiveQuery extends Data.TaggedError("UnsupportedLiveQuery")<{
   readonly reason: string;
 }> {}
@@ -1478,6 +1636,12 @@ const applyCollectionChangesEffect = <A extends object, K extends CollectionKey,
     }
   });
 
+/**
+ * Merge collection and persistence error/requirement channels.
+ *
+ * Use before `Collection.define` when the persistence backend has a different
+ * Effect error or requirement type from the collection load/mutation handlers.
+ */
 export const persistedCollectionOptions = <
   A extends object,
   K extends CollectionKey = string,
@@ -1518,6 +1682,13 @@ const liveQueryFromInput = <A extends object, E, R>(
     ? Query.live<A, E, R>(query)
     : query;
 
+/**
+ * Create a read-only collection from a live query.
+ *
+ * The collection materializes query results for reads, indexes, and joins.
+ * Mutation effects fail with `ReadonlyCollectionMutation`; use the source
+ * collections for writes.
+ */
 export const makeLiveQueryCollection = <
   A extends object,
   K extends CollectionKey = string,
@@ -1577,17 +1748,14 @@ export const makeLiveQueryCollection = <
         yield* recordCollectionPreload(definition);
         yield* live.preloadEffect();
       }),
-    preload: () => runPromise(definition.preloadEffect()),
     refetchEffect: () =>
       Effect.gen(function* () {
         yield* recordCollectionPreload(definition);
         yield* live.refetchEffect();
       }),
-    refetch: () => runPromise(definition.refetchEffect()),
     pendingMutationsEffect: () => Effect.succeed([]),
     pendingMutations: () => [],
     flushPendingMutationsEffect: () => Effect.succeed([]),
-    flushPendingMutations: () => runPromise(definition.flushPendingMutationsEffect()),
     snapshotEffect: () =>
       Effect.map(Clock.currentTimeMillis, (updatedAt): CollectionSnapshot<A, K> => ({
         name: options.name,
@@ -1622,21 +1790,10 @@ export const makeLiveQueryCollection = <
         const snapshot = yield* definition.snapshotEffect();
         yield* collectionInputEffect(storage.setItem(key, JSON.stringify(snapshot)));
       }),
-    persist: <PE = unknown, PR = never>(
-      storage: CollectionPersistenceStorage<PE, PR>,
-      persistOptions?: CollectionPersistOptions
-    ) => runPromise(definition.persistEffect(storage, persistOptions)),
     restoreEffect: () => Effect.void,
-    restore: <PE = unknown, PR = never>(
-      storage: CollectionPersistenceStorage<PE, PR>,
-      restoreOptions?: CollectionPersistOptions & CollectionHydrateOptions
-    ) => runPromise(definition.restoreEffect(storage, restoreOptions)),
     insertEffect: () => readonlyFail("insert"),
-    insert: (input) => runPromise(definition.insertEffect(input)),
     updateEffect: () => readonlyFail("update"),
-    update: (key, update) => runPromise(definition.updateEffect(key, update)),
     deleteEffect: () => readonlyFail("delete"),
-    delete: (key) => runPromise(definition.deleteEffect(key)),
     writeInsertEffect: () => readonlyFail("writeInsert"),
     writeInsert: (input, writeOptions) => {
       void runFork(definition.writeInsertEffect(input, writeOptions));
@@ -1726,6 +1883,9 @@ interface QueryExecution<TContext> {
   readonly diagnostics: QueryPlanDiagnostics;
 }
 
+/**
+ * Aggregate definition used by `Query.groupBy`.
+ */
 export interface QueryAggregate<TContext, R, V = unknown> {
   readonly preMap: (row: TContext) => V;
   readonly reduce: (values: Array<[V, number]>) => V;
@@ -1760,6 +1920,12 @@ const projectCurrentContext = <TContext, TResult>(row: TContext): TResult => {
   return value as TResult;
 };
 
+/**
+ * Immutable builder for collection-backed queries.
+ *
+ * Builders are cheap descriptions. `execute` reads current collection state
+ * synchronously; `Query.onceEffect` and `Query.live` preload sources first.
+ */
 export class QueryBuilder<TContext extends AnyQueryContext, TResult> {
   constructor(
     readonly sources: ReadonlyArray<readonly [string, AnyCollection]>,
@@ -2002,15 +2168,27 @@ type AnyQueryBuilder<TResult = any> = QueryBuilder<any, TResult>;
 
 export type QueryFactory<TResult> = (query: QueryRoot) => AnyQueryBuilder<TResult>;
 
+/**
+ * Root query DSL entrypoint passed to query factories.
+ */
 export interface QueryRoot {
   from<const Sources extends SourceRecord>(sources: Sources): QueryBuilder<QueryContext<Sources>, QueryContext<Sources>>;
 }
 
+/**
+ * Reactive query state derived from source collection load states.
+ */
 export type LiveQueryState<T, E = unknown> =
   | { readonly _tag: "Pending"; readonly waiting: true; readonly data: ReadonlyArray<T> }
   | { readonly _tag: "Success"; readonly waiting: false; readonly data: ReadonlyArray<T> }
   | { readonly _tag: "Failure"; readonly waiting: false; readonly error: E; readonly data: ReadonlyArray<T> };
 
+/**
+ * Incrementally evaluated query over one or more collections.
+ *
+ * `data` updates when source collection versions change. Preload/refetch effects
+ * expose the union of source collection error and requirement channels.
+ */
 export interface LiveQuery<T, E = unknown, R = never> {
   readonly builder: AnyQueryBuilder<T>;
   readonly data: ReadableSignal<ReadonlyArray<T>>;
@@ -2019,8 +2197,6 @@ export interface LiveQuery<T, E = unknown, R = never> {
   evaluate(): ReadonlyArray<T>;
   preloadEffect(): Effect.Effect<void, E, R>;
   refetchEffect(): Effect.Effect<void, E, R>;
-  preload(): Promise<void>;
-  refetch(): Promise<void>;
 }
 
 const queryRoot: QueryRoot = {
@@ -2520,6 +2696,9 @@ const preloadSourcesEffect = <E, R>(
     }
   });
 
+/**
+ * Type guard for runtime collection definitions.
+ */
 export const isCollection = (value: unknown): value is AnyCollection =>
   typeof value === "object" &&
   value !== null &&
@@ -2652,6 +2831,13 @@ const aggregateMax = <TContext, V extends number | string | Date | bigint>(
   }
 });
 
+/**
+ * Main collection API namespace.
+ *
+ * Prefer the `*Effect` entrypoints in application code so errors and service
+ * requirements stay typed in Effect. Non-Effect helpers either read synchronously
+ * from the current runtime store or fork work onto the current runtime.
+ */
 export namespace Collection {
   export type Definition<A extends object, K extends CollectionKey = string, E = unknown, R = never> = CollectionDefinition<A, K, E, R>;
   export type Row<A extends object, K extends CollectionKey = CollectionKey> = CollectionRow<A, K>;
@@ -2779,22 +2965,48 @@ export namespace Collection {
   > = SQLitePersistencePreparedStatementDatabase<Row, E, R>;
   export type SQLitePreparedStatementDatabaseOptions = SQLitePersistencePreparedStatementDatabaseOptions;
 
+  /** Build `Collection.define` options from server functions or Effect callbacks. */
   export const serverOptions = serverCollectionOptions;
+  /** Build a sync adapter from server functions or Effect callbacks. */
   export const serverSyncAdapter = serverCollectionSyncAdapter;
+  /** Adapt an `@effect-ui/core` Resource ref into a collection sync adapter. */
   export const resourceSyncAdapter = collectionResourceSyncAdapter;
+  /** Adapt a query client style cache into a collection sync adapter. */
   export const querySyncAdapter = collectionQuerySyncAdapter;
+  /** Convert a sync adapter into `Collection.define` options. */
   export const syncOptions = collectionSyncOptions;
+  /** Attach persistence while preserving storage error and requirement types. */
   export const persistedOptions = persistedCollectionOptions;
+  /** Create a read-only collection from a live query result. */
   export const liveQuery = makeLiveQueryCollection;
+  /** Flush queued optimistic mutations across many collections. */
   export const flushAllPendingMutationsEffect = flushCollectionsPendingMutationsEffect;
-  export const flushAllPendingMutations = flushCollectionsPendingMutations;
+  /** Decide whether to flush pending mutations for background sync triggers. */
   export const backgroundSyncPendingMutationsEffect = backgroundSyncCollectionsPendingMutationsEffect;
-  export const backgroundSyncPendingMutations = backgroundSyncCollectionsPendingMutations;
+  /** Build collection persistence storage from a SQLite persistence driver. */
   export const sqliteStorage = makeSQLitePersistenceStorage;
+  /** Adapt prepare/run/all style SQLite clients to statement database storage. */
   export const sqlitePreparedStatementDatabase = makeSQLitePreparedStatementDatabase;
+  /** Build a persistence driver from a simple SQL statement database. */
   export const sqliteStatementDriver = makeSQLiteStatementPersistenceDriver;
+  /** In-memory SQL statement database for tests and demos. */
   export const sqliteMemoryStatementDatabase = makeSQLiteMemoryStatementDatabase;
 
+  /**
+   * Define a local-first collection.
+   *
+   * Reads are synchronous from an in-memory store. Loads, mutation handlers, and
+   * persistence run through Effect so failures stay in `E` and services stay in
+   * `R`.
+   *
+   * @example
+   * const todos = Collection.define({
+   *   name: "todos",
+   *   getKey: (todo) => todo.id,
+   *   load: () => TodoApi.list,
+   *   onInsert: (values) => TodoApi.createMany(values)
+   * })
+   */
   export const define = <
     A extends object,
     K extends CollectionKey = string,
@@ -2833,17 +3045,14 @@ export namespace Collection {
           yield* recordCollectionPreload(definition);
           yield* loadCollectionEffect(definition, { force: false });
         }),
-      preload: () => runPromise(loadCollectionEffect(definition, { force: false })),
       refetchEffect: () =>
         Effect.gen(function* () {
           yield* recordCollectionPreload(definition);
           yield* loadCollectionEffect(definition, { force: true });
         }),
-      refetch: () => runPromise(loadCollectionEffect(definition, { force: true })),
       pendingMutationsEffect: () => collectionPendingMutationsEffect(definition),
       pendingMutations: () => collectionPendingMutations(definition),
       flushPendingMutationsEffect: () => flushCollectionPendingMutationsEffect(definition),
-      flushPendingMutations: () => runPromise(flushCollectionPendingMutationsEffect(definition)),
       snapshotEffect: () => snapshotCollectionEffect(definition),
       snapshot: () => snapshotCollection(definition),
       hydrateEffect: (snapshot: CollectionSnapshot<A, K>, hydrateOptions?: CollectionHydrateOptions) =>
@@ -2855,18 +3064,10 @@ export namespace Collection {
         storage: CollectionPersistenceStorage<PE, PR>,
         persistOptions?: CollectionPersistOptions
       ) => persistCollectionEffect(definition, storage, persistOptions),
-      persist: <PE = unknown, PR = never>(
-        storage: CollectionPersistenceStorage<PE, PR>,
-        persistOptions?: CollectionPersistOptions
-      ) => runPromise(persistCollectionEffect(definition, storage, persistOptions)),
       restoreEffect: <PE = unknown, PR = never>(
         storage: CollectionPersistenceStorage<PE, PR>,
         restoreOptions?: CollectionPersistOptions & CollectionHydrateOptions
       ) => restoreCollectionEffect(definition, storage, restoreOptions),
-      restore: <PE = unknown, PR = never>(
-        storage: CollectionPersistenceStorage<PE, PR>,
-        restoreOptions?: CollectionPersistOptions & CollectionHydrateOptions
-      ) => runPromise(restoreCollectionEffect(definition, storage, restoreOptions)),
       insertEffect: (input: A | ReadonlyArray<A>) =>
         Effect.gen(function* () {
           const dbStore = yield* collectionStoreEffect;
@@ -2890,7 +3091,6 @@ export namespace Collection {
             : Effect.succeed(undefined);
           return yield* runMutation(definition, tx, snapshots, handler);
         }),
-      insert: (input: A | ReadonlyArray<A>) => runPromise(definition.insertEffect(input)),
       updateEffect: (key: K, update: CollectionUpdate<A>) =>
         Effect.gen(function* () {
           const dbStore = yield* collectionStoreEffect;
@@ -2925,7 +3125,6 @@ export namespace Collection {
             : Effect.succeed(undefined);
           return yield* runMutation(definition, tx, snapshots, handler);
         }),
-      update: (key: K, update: CollectionUpdate<A>) => runPromise(definition.updateEffect(key, update)),
       deleteEffect: (key: K) =>
         Effect.gen(function* () {
           const dbStore = yield* collectionStoreEffect;
@@ -2950,7 +3149,6 @@ export namespace Collection {
             : Effect.succeed(undefined);
           return yield* runMutation(definition, tx, snapshots, handler);
         }),
-      delete: (key: K) => runPromise(definition.deleteEffect(key)),
       writeInsertEffect: (input: A | ReadonlyArray<A>, writeOptions?: CollectionWriteOptions) =>
         writeRows(definition, input, writeOptions),
       writeInsert: (input: A | ReadonlyArray<A>, writeOptions?: CollectionWriteOptions) => {
@@ -2972,51 +3170,73 @@ export namespace Collection {
     return definition;
   };
 
+  /** Return the process-wide registry of named collection definitions. */
   export const definitions = (): ReadonlyMap<string, AnyCollection> =>
     collectionDefinitions;
 
+  /** Describe registered collections, indexes, handlers, sync, and persistence. */
   export const diagnostics = (): CollectionDiagnostics => ({
     collections: Array.from(collectionDefinitions.values(), collectionDefinitionDiagnostics)
       .sort((left, right) => left.name.localeCompare(right.name))
   });
 
+  /** Reactive load state signal for a collection. */
   export const state = <A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>
   ): ReadableSignal<CollectionLoadState<E>> => definition.state();
 
+  /** Reactive version signal that changes when rows or pending mutations change. */
   export const version = <A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>
   ): ReadableSignal<number> => definition.version();
 
+  /** Read one row by key from current in-memory state. */
   export const get = <A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>,
     key: K
   ): CollectionRow<A, K> | undefined => definition.get(key);
 
+  /** Read all current rows, including local optimistic rows. */
   export const rows = <A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>
   ): ReadonlyArray<CollectionRow<A, K>> => definition.rows();
 
+  /** Read rows from a named secondary index bucket. */
   export const index = <A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>,
     index: string,
     value: CollectionIndexValue
   ): ReadonlyArray<CollectionRow<A, K>> => definition.index(index, value);
 
+  /** Read the first row from a named secondary index bucket. */
   export const firstByIndex = <A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>,
     index: string,
     value: CollectionIndexValue
   ): CollectionRow<A, K> | undefined => definition.firstByIndex(index, value);
 
+  /**
+   * Ensure a collection has loaded once.
+   *
+   * Restores configured persistence first, then skips `load` when data is
+   * already ready. Errors and requirements come from the collection definition.
+   */
   export const preloadEffect = <A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>
   ): Effect.Effect<void, E, R> => definition.preloadEffect();
 
+  /**
+   * Force a fresh load for a collection.
+   */
   export const refetchEffect = <A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>
   ): Effect.Effect<void, E, R> => definition.refetchEffect();
 
+  /**
+   * Run an Effect and collect any collections it preloads.
+   *
+   * Useful for SSR or route loaders that need data plus a hydration payload.
+   */
   export const collectEffect = <A, E, R>(
     effect: Effect.Effect<A, E, R>
   ): Effect.Effect<CollectionPreloadCollected<A>, E, R> =>
@@ -3029,56 +3249,68 @@ export namespace Collection {
       };
     });
 
+  /** Return queued optimistic mutations waiting for handlers to commit. */
   export const pendingMutationsEffect = <A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>
   ): Effect.Effect<ReadonlyArray<CollectionPendingMutation<A, K>>> => definition.pendingMutationsEffect();
 
+  /** Synchronously read queued optimistic mutations from the current runtime store. */
   export const pendingMutations = <A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>
   ): ReadonlyArray<CollectionPendingMutation<A, K>> => definition.pendingMutations();
 
+  /** Retry all queued mutation handlers for one collection. */
   export const flushPendingMutationsEffect = <A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>
   ): Effect.Effect<ReadonlyArray<CollectionTransaction<A, K>>, E, R> => definition.flushPendingMutationsEffect();
 
-  export const flushPendingMutations = <A extends object, K extends CollectionKey, E, R>(
-    definition: CollectionDefinition<A, K, E, R>
-  ): Promise<ReadonlyArray<CollectionTransaction<A, K>>> => definition.flushPendingMutations();
-
+  /** Capture a serializable snapshot with an Effect-provided timestamp. */
   export const snapshotEffect = <A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>
   ): Effect.Effect<CollectionSnapshot<A, K>> => definition.snapshotEffect();
 
+  /** Capture a serializable snapshot using the current runtime store. */
   export const snapshot = <A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>
   ): CollectionSnapshot<A, K> => definition.snapshot();
 
+  /**
+   * Restore one collection from a snapshot.
+   *
+   * By default hydration replaces existing rows and pending mutations. Pass
+   * `{ replace: false }` to merge into current state.
+   */
   export const hydrateEffect = <A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>,
     value: CollectionSnapshot<A, K>,
     options?: CollectionHydrateOptions
   ): Effect.Effect<void> => definition.hydrateEffect(value, options);
 
+  /** Fork `hydrateEffect` on the current runtime. */
   export const hydrate = <A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>,
     value: CollectionSnapshot<A, K>,
     options?: CollectionHydrateOptions
   ): void => definition.hydrate(value, options);
 
+  /** Snapshot several collections synchronously for hydration or persistence. */
   export const dehydrate = (
     collections: Iterable<AnyCollection>
   ): CollectionHydrationPayload => dehydrateCollections(collections);
 
+  /** Snapshot several collections with an Effect-provided timestamp. */
   export const dehydrateEffect = (
     collections: Iterable<AnyCollection>
   ): Effect.Effect<CollectionHydrationPayload> => dehydrateCollectionsEffect(collections);
 
+  /** Hydrate matching collections from a multi-collection payload. */
   export const hydratePayloadEffect = (
     collections: Iterable<AnyCollection>,
     payload: CollectionHydrationPayload,
     options?: CollectionHydrateOptions
   ): Effect.Effect<void> => hydrateCollectionsEffect(collections, payload, options);
 
+  /** Fork `hydratePayloadEffect` on the current runtime. */
   export const hydratePayload = (
     collections: Iterable<AnyCollection>,
     payload: CollectionHydrationPayload,
@@ -3087,12 +3319,16 @@ export namespace Collection {
     void runFork(hydratePayloadEffect(collections, payload, options));
   };
 
+  /**
+   * Apply remote change-feed events without queuing local mutation handlers.
+   */
   export const applyChangesEffect = <A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>,
     changes: ReadonlyArray<CollectionChange<A, K>>,
     options?: CollectionWriteOptions
   ): Effect.Effect<void, E, R> => applyCollectionChangesEffect(definition, changes, options);
 
+  /** Fork `applyChangesEffect` on the current runtime. */
   export const applyChanges = <A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>,
     changes: ReadonlyArray<CollectionChange<A, K>>,
@@ -3101,6 +3337,12 @@ export namespace Collection {
     void runFork(applyCollectionChangesEffect(definition, changes, options));
   };
 
+  /**
+   * Subscribe a collection to a scoped remote change feed.
+   *
+   * Requires `Scope.Scope`; feed errors/requirements are unioned with the
+   * collection channels.
+   */
   export const subscribeChangesEffect = <
     A extends object,
     K extends CollectionKey,
@@ -3115,34 +3357,53 @@ export namespace Collection {
   ): Effect.Effect<void, E | FeedError, R | FeedRequirements | Scope.Scope> =>
     subscribeCollectionChangesEffect(definition, adapter, options);
 
+  /**
+   * Persist one collection snapshot to storage.
+   *
+   * The storage backend controls the Effect error and requirement channels.
+   */
   export const persistEffect = <A extends object, K extends CollectionKey, E, R, PE = unknown, PR = never>(
     definition: CollectionDefinition<A, K, E, R>,
     storage: CollectionPersistenceStorage<PE, PR>,
     options?: CollectionPersistOptions
   ): Effect.Effect<void, PE, PR> => definition.persistEffect(storage, options);
 
+  /**
+   * Restore one collection snapshot from storage if present.
+   */
   export const restoreEffect = <A extends object, K extends CollectionKey, E, R, PE = unknown, PR = never>(
     definition: CollectionDefinition<A, K, E, R>,
     storage: CollectionPersistenceStorage<PE, PR>,
     options?: CollectionPersistOptions & CollectionHydrateOptions
   ): Effect.Effect<void, PE, PR> => definition.restoreEffect(storage, options);
 
+  /** Create in-memory persistence storage for tests, demos, or ephemeral data. */
   export const memoryStorage = (initial?: Iterable<readonly [string, string]>): CollectionMemoryStorage =>
     makeMemoryStorage(initial);
 
+  /** Adapt synchronous Web Storage style APIs to Effect-aware persistence storage. */
   export const storage = (storage: CollectionStorageLike): CollectionPersistenceStorage<never, never> =>
     fromStorage(storage);
 
+  /** Access the current runtime collection store as an Effect. */
   export const storeEffect = (): Effect.Effect<CollectionStore> =>
     collectionStoreEffect;
 
+  /** Access the current runtime collection store synchronously. */
   export const currentStore = (): CollectionStore =>
     storeFor(currentOrDefaultRuntime().resourceStore);
 
+  /** Subscribe to collection lifecycle events inside a Scope. */
   export const subscribeEventsEffect = (): Effect.Effect<PubSub.Subscription<CollectionStoreEvent>, never, Scope.Scope> =>
     Effect.flatMap(collectionStoreEffect, (store) => store.subscribeEventsEffect());
 }
 
+/**
+ * Query API for composing derived views over collections.
+ *
+ * Query factories receive `Query.from`/`query.from` and return an immutable
+ * builder. Use `onceEffect` for one-shot reads and `live` for reactive data.
+ */
 export namespace Query {
   export type Builder<TContext extends AnyQueryContext, TResult> = QueryBuilder<TContext, TResult>;
   export type Factory<TResult> = QueryFactory<TResult>;
@@ -3160,19 +3421,33 @@ export namespace Query {
     Aggregates extends AnyQueryAggregateRecord
   > = QueryAggregateResult<TKey, Aggregates>;
 
+  /** Start a query from one or more named collection sources. */
   export const from = queryRoot.from;
+  /** Count non-null aggregate values in `groupBy`. */
   export const count = aggregateCount;
+  /** Sum numeric aggregate values in `groupBy`. */
   export const sum = aggregateSum;
+  /** Average numeric aggregate values in `groupBy`. */
   export const avg = aggregateAvg;
+  /** Minimum aggregate value in `groupBy`. */
   export const min = aggregateMin;
+  /** Maximum aggregate value in `groupBy`. */
   export const max = aggregateMax;
 
+  /** Build a query without executing or preloading it. */
   export const build = <T>(factory: QueryFactory<T>): AnyQueryBuilder<T> =>
     factory(queryRoot);
 
+  /** Return query plan diagnostics for joins, filters, ordering, and row counts. */
   export const diagnostics = <T>(factory: QueryFactory<T>): QueryPlanDiagnostics =>
     buildQueryExecution(build(factory)).diagnostics;
 
+  /**
+   * Preload source collections once, then execute the query.
+   *
+   * Source collection errors and requirements are preserved in the returned
+   * Effect.
+   */
   export const onceEffect = <T, E = unknown, R = never>(
     factory: QueryFactory<T>
   ): Effect.Effect<ReadonlyArray<T>, E, R> =>
@@ -3182,9 +3457,18 @@ export namespace Query {
       return builder.execute();
     });
 
-  export const once = <T>(factory: QueryFactory<T>): Promise<ReadonlyArray<T>> =>
-    runPromise(onceEffect(factory));
-
+  /**
+   * Create a reactive live query over collection rows.
+   *
+   * The returned signals update when source collection versions change.
+   *
+   * @example
+   * const openTodos = Query.live((query) =>
+   *   query.from({ todo: todos })
+   *     .where(({ todo }) => !todo.done)
+   *     .select(({ todo }) => todo)
+   * )
+   */
   export const live = <T, E = unknown, R = never>(
     factory: QueryFactory<T>
   ): LiveQuery<T, E, R> => {
@@ -3223,15 +3507,16 @@ export namespace Query {
       sources,
       evaluate: () => engine.evaluate(),
       preloadEffect: () => preloadSourcesEffect<E, R>(sources, false),
-      refetchEffect: () => preloadSourcesEffect<E, R>(sources, true),
-      preload: () => runPromise(preloadSourcesEffect<E, R>(sources, false)),
-      refetch: () => runPromise(preloadSourcesEffect<E, R>(sources, true))
+      refetchEffect: () => preloadSourcesEffect<E, R>(sources, true)
     };
   };
 }
 
+/** Alias for `Collection.define`. */
 export const createCollection = Collection.define;
+/** Alias for `Query.live`. */
 export const createLiveQuery = Query.live;
+/** Alias for `Collection.liveQuery`. */
 export const createLiveQueryCollection = Collection.liveQuery;
 export * from "./flush-policy.js";
 export * from "./server-collection.js";

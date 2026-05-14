@@ -12,6 +12,7 @@ import {
   type StartDiagnosticsReport
 } from "./diagnostics-report.js";
 
+/** Parsed command supported by the `effect-ui-start` CLI. */
 export type StartCliCommand =
   | {
       readonly _tag: "Diagnostics";
@@ -21,6 +22,7 @@ export type StartCliCommand =
       readonly _tag: "Help";
     };
 
+/** Options for the `effect-ui-start diagnostics` command. */
 export interface StartDiagnosticsCliOptions {
   readonly root?: string;
   readonly configFile?: string | false;
@@ -29,21 +31,26 @@ export interface StartDiagnosticsCliOptions {
   readonly pretty: boolean;
 }
 
+/**
+ * Injectable IO for diagnostics CLI tests or embedding.
+ *
+ * The diagnostics loader is Effect-first so callers can provide services and
+ * control failure handling without a Promise wrapper.
+ */
 export interface StartDiagnosticsCliIo {
   readonly stdout?: (text: string) => void;
   readonly stderr?: (text: string) => void;
   readonly loadDiagnosticsEffect?: (
     options: LoadStartAppGraphDiagnosticsOptions
   ) => Effect.Effect<LoadedStartAppGraphDiagnostics, unknown>;
-  readonly loadDiagnostics?: (
-    options: LoadStartAppGraphDiagnosticsOptions
-  ) => Promise<LoadedStartAppGraphDiagnostics>;
 }
 
+/** Result returned by CLI runners after printing output. */
 export interface StartDiagnosticsCliResult {
   readonly exitCode: number;
 }
 
+/** Usage error with a printable help message. */
 export class StartDiagnosticsCliUsageError extends Data.TaggedError(
   "StartDiagnosticsCliUsageError"
 )<{
@@ -51,6 +58,7 @@ export class StartDiagnosticsCliUsageError extends Data.TaggedError(
   readonly guidance: string;
 }> {}
 
+/** Help text for the Start diagnostics CLI. */
 export const startDiagnosticsCliUsage = [
   "Usage: effect-ui-start diagnostics [options]",
   "",
@@ -78,6 +86,7 @@ const readOptionValue = (
   return [value, index + 1] as const;
 };
 
+/** Parses CLI argv into a diagnostics command or help request. */
 export const parseStartDiagnosticsCliArgs = (
   args: readonly string[]
 ): StartCliCommand => {
@@ -253,15 +262,6 @@ const loadDiagnosticsFromIo = (
     return io.loadDiagnosticsEffect;
   }
 
-  const loadDiagnostics = io.loadDiagnostics;
-  if (loadDiagnostics) {
-    return (options) =>
-      Effect.tryPromise({
-        try: () => loadDiagnostics(options),
-        catch: (cause) => cause
-      });
-  }
-
   return loadStartAppGraphDiagnosticsEffect;
 };
 
@@ -273,6 +273,12 @@ const writeLineEffect = (
     write(text);
   });
 
+/**
+ * Runs the Start diagnostics CLI as an Effect.
+ *
+ * It loads the resolved app graph through Vite, prints either a formatted
+ * report or JSON, and returns the intended process exit code.
+ */
 export const runStartDiagnosticsCliEffect = (
   args: readonly string[],
   io: StartDiagnosticsCliIo = {}
@@ -347,12 +353,14 @@ export const runStartDiagnosticsCliEffect = (
     return { exitCode: 1 };
   });
 
+/** Alias for `runStartDiagnosticsCliEffect` on the current CLI surface. */
 export const runStartDiagnosticsCli = (
   args: readonly string[],
   io: StartDiagnosticsCliIo = {}
-): Promise<StartDiagnosticsCliResult> =>
-  Effect.runPromise(runStartDiagnosticsCliEffect(args, io));
+): Effect.Effect<StartDiagnosticsCliResult> =>
+  runStartDiagnosticsCliEffect(args, io);
 
+/** Runs the diagnostics CLI and assigns `process.exitCode`. */
 export const runStartDiagnosticsCliMainEffect = (
   args: readonly string[] = process.argv.slice(2)
 ): Effect.Effect<void> =>
@@ -363,14 +371,15 @@ export const runStartDiagnosticsCliMainEffect = (
     });
   });
 
+/** Alias for `runStartDiagnosticsCliMainEffect`. */
 export const runStartDiagnosticsCliMain = (
   args: readonly string[] = process.argv.slice(2)
-): Promise<void> =>
-  Effect.runPromise(runStartDiagnosticsCliMainEffect(args));
+): Effect.Effect<void> =>
+  runStartDiagnosticsCliMainEffect(args);
 
 const isMain = process.argv[1] !== undefined &&
   import.meta.url === pathToFileURL(process.argv[1]).href;
 
 if (isMain) {
-  void runStartDiagnosticsCliMain();
+  void Effect.runPromise(runStartDiagnosticsCliMainEffect());
 }

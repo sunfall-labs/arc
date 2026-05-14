@@ -1,4 +1,4 @@
-import { runPromise, toEffect, type EffectInput } from "@effect-ui/core";
+import { toEffect, type EffectInput } from "@effect-ui/core";
 import { Effect } from "effect";
 import type {
   AnyCollection,
@@ -12,17 +12,29 @@ type IterableCollection<Collections> =
     ? Extract<Collection, AnyCollection>
     : never;
 
+/**
+ * Per-collection context passed to a flush skip predicate.
+ */
 export interface FlushCollectionPendingMutationsContext {
   readonly collection: AnyCollection;
   readonly index: number;
 }
 
+/**
+ * Static or per-collection predicate that skips flushing.
+ *
+ * The predicate is Effect-aware; its error and requirement channels are unioned
+ * into the flush result Effect.
+ */
 export type FlushCollectionPendingMutationsSkip<SkipError = never, SkipRequirements = never> =
   | EffectInput<boolean, SkipError, SkipRequirements>
   | ((
       context: FlushCollectionPendingMutationsContext
     ) => EffectInput<boolean, SkipError, SkipRequirements>);
 
+/**
+ * Options for flushing pending mutations across collections.
+ */
 export interface FlushCollectionsPendingMutationsOptions<SkipError = never, SkipRequirements = never> {
   readonly skip?: FlushCollectionPendingMutationsSkip<SkipError, SkipRequirements>;
 }
@@ -41,6 +53,9 @@ export interface FlushCollectionPendingMutationsSkippedResult {
   readonly transactions: ReadonlyArray<never>;
 }
 
+/**
+ * Result for one collection in a multi-collection flush.
+ */
 export type FlushCollectionPendingMutationsResult =
   | FlushCollectionPendingMutationsFlushedResult
   | FlushCollectionPendingMutationsSkippedResult;
@@ -55,19 +70,34 @@ export type FlushCollectionsPendingMutationsRequirements<
   SkipRequirements = never
 > = CollectionRequirements<IterableCollection<Collections>> | SkipRequirements;
 
+/**
+ * Reason a background sync decision is being evaluated.
+ */
 export type CollectionBackgroundSyncTrigger = "manual" | "online" | "visibility" | "mutation" | "restore" | (string & {});
 
+/**
+ * Pending mutation summary used for background sync decisions.
+ */
 export interface CollectionBackgroundSyncPending {
   readonly collection: string;
   readonly transactions: ReadonlyArray<AnyCollectionTransaction>;
 }
 
+/**
+ * Context passed to a background sync adapter.
+ */
 export interface CollectionBackgroundSyncAdapterContext {
   readonly trigger: CollectionBackgroundSyncTrigger;
   readonly collections: ReadonlyArray<string>;
   readonly pending: ReadonlyArray<CollectionBackgroundSyncPending>;
 }
 
+/**
+ * Policy adapter that decides whether pending mutations should flush now.
+ *
+ * Use this to gate sync on connectivity, visibility, metering, auth state, or a
+ * custom scheduler. Adapter errors and requirements are preserved in Effect.
+ */
 export interface CollectionBackgroundSyncAdapter<AdapterError = never, AdapterRequirements = never> {
   readonly name: string;
   readonly shouldFlush: (
@@ -75,6 +105,9 @@ export interface CollectionBackgroundSyncAdapter<AdapterError = never, AdapterRe
   ) => EffectInput<boolean, AdapterError, AdapterRequirements>;
 }
 
+/**
+ * Options for background sync pending mutation flushing.
+ */
 export interface CollectionBackgroundSyncOptions<
   AdapterError = never,
   AdapterRequirements = never,
@@ -148,6 +181,15 @@ const backgroundSyncPending = (
     }))
   );
 
+/**
+ * Flush queued optimistic mutations for each collection in order.
+ *
+ * Collection handler errors, requirements, and optional skip predicate channels
+ * are reflected in the returned Effect.
+ *
+ * @example
+ * yield* flushCollectionsPendingMutationsEffect([todos, projects])
+ */
 export const flushCollectionsPendingMutationsEffect = <
   const Collections extends Iterable<AnyCollection>,
   SkipError = never,
@@ -192,16 +234,12 @@ export const flushCollectionsPendingMutationsEffect = <
     return results;
   });
 
-export const flushCollectionsPendingMutations = <
-  const Collections extends Iterable<AnyCollection>,
-  SkipError = never,
-  SkipRequirements = never
->(
-  collections: Collections,
-  options?: FlushCollectionsPendingMutationsOptions<SkipError, SkipRequirements>
-): Promise<ReadonlyArray<FlushCollectionPendingMutationsResult>> =>
-  runPromise(flushCollectionsPendingMutationsEffect(collections, options));
-
+/**
+ * Decide whether to flush pending mutations for a background sync trigger.
+ *
+ * Returns `Idle` when nothing is pending, `Deferred` when the adapter declines
+ * the flush, or `Flushed` with per-collection results.
+ */
 export const backgroundSyncCollectionsPendingMutationsEffect = <
   const Collections extends Iterable<AnyCollection>,
   AdapterError = never,
@@ -260,15 +298,3 @@ export const backgroundSyncCollectionsPendingMutationsEffect = <
       results
     } satisfies CollectionBackgroundSyncFlushedResult;
   });
-
-export const backgroundSyncCollectionsPendingMutations = <
-  const Collections extends Iterable<AnyCollection>,
-  AdapterError = never,
-  AdapterRequirements = never,
-  SkipError = never,
-  SkipRequirements = never
->(
-  collections: Collections,
-  options?: CollectionBackgroundSyncOptions<AdapterError, AdapterRequirements, SkipError, SkipRequirements>
-): Promise<CollectionBackgroundSyncResult> =>
-  runPromise(backgroundSyncCollectionsPendingMutationsEffect(collections, options));

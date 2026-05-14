@@ -2,7 +2,6 @@ import { Context, Data, Effect, Layer, Option, Schema } from "effect";
 import type { EffectInput } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
 import { applyResponseContext, makeResponseContext, provideRequest, provideResponse } from "./request-context.js";
-import { runPromise } from "./runtime.js";
 
 export const ServerFunctionTypeId: unique symbol = Symbol.for(
   "@effect-ui/core/ServerFunction"
@@ -16,12 +15,19 @@ export const ServerFunctionMockTypeId: unique symbol = Symbol.for(
   "@effect-ui/core/ServerFunctionMock"
 ) as typeof ServerFunctionMockTypeId;
 
+/** Schema metadata shared by server function clients, implementations, and mocks. */
 export interface ServerFunctionContractDefinition<I, A, E = unknown> {
   readonly input?: unknown;
   readonly output?: unknown;
   readonly error?: unknown;
 }
 
+/**
+ * Transport-safe description of a server function.
+ *
+ * Contracts are defined in shared code, then turned into a client stub with
+ * Server.client or a server implementation with Server.implement.
+ */
 export interface ServerFunctionContract<I, A, E = unknown> {
   readonly [ServerFunctionContractTypeId]: typeof ServerFunctionContractTypeId;
   readonly Type?: {
@@ -35,6 +41,7 @@ export interface ServerFunctionContract<I, A, E = unknown> {
   readonly error?: unknown;
 }
 
+/** Test implementation for a server function contract. */
 export interface ServerFunctionMock<I, A, E = unknown, R = never> {
   readonly [ServerFunctionMockTypeId]: typeof ServerFunctionMockTypeId;
   readonly name: string;
@@ -44,6 +51,7 @@ export interface ServerFunctionMock<I, A, E = unknown, R = never> {
   readonly handler: (input: I) => EffectInput<A, E, R>;
 }
 
+/** Server-side handler definition for Server.fn. */
 export interface ServerFunctionDefinition<I, A, E = unknown, R = never> {
   readonly input?: unknown;
   readonly output?: unknown;
@@ -51,6 +59,12 @@ export interface ServerFunctionDefinition<I, A, E = unknown, R = never> {
   readonly handler: (input: I) => EffectInput<A, E, R>;
 }
 
+/**
+ * Callable server function with an Effect result.
+ *
+ * Use `.effect(input)` or call the function directly inside Effect code. Both paths
+ * use the active ServerClient when one is provided.
+ */
 export interface ServerFunction<I, A, E = unknown, R = never> {
   readonly [ServerFunctionTypeId]: typeof ServerFunctionTypeId;
   readonly name: string;
@@ -61,20 +75,23 @@ export interface ServerFunction<I, A, E = unknown, R = never> {
   effect(input: I): Effect.Effect<A, E | ServerClientError, R>;
   local(input: I): Effect.Effect<A, E | ServerFunctionNotFound, R>;
   invoke(input: unknown): Effect.Effect<unknown, E | ServerClientError, R>;
-  (input: I): Promise<A>;
+  (input: I): Effect.Effect<A, E | ServerClientError, R>;
 }
 
+/** HTTP route handler used by server adapters. */
 export interface ServerRoute {
   readonly method: string;
   readonly path: string;
   readonly handler: (request: Request) => Effect.Effect<Response, unknown>;
 }
 
+/** Wire request shape for server function RPC transports. */
 export interface ServerRpcRequest {
   readonly name: string;
   readonly input: unknown;
 }
 
+/** Wire response shape for server function RPC transports. */
 export type ServerRpcResponse =
   | { readonly _tag: "Success"; readonly value: unknown }
   | { readonly _tag: "Failure"; readonly error: unknown }
@@ -104,6 +121,12 @@ export type ServerClientError =
   | ServerRpcProtocolError
   | ServerTransportError;
 
+/**
+ * Transport abstraction used by server function clients.
+ *
+ * Provide this service to redirect `.effect` calls through a remote or mock client
+ * instead of the local implementation.
+ */
 export interface ServerClient {
   readonly call: <I, A, E, R>(
     fn: ServerFunction<I, A, E, R>,
@@ -144,6 +167,7 @@ export const isServerFunctionContract = (
   (value as { [ServerFunctionContractTypeId]?: unknown })[ServerFunctionContractTypeId] ===
     ServerFunctionContractTypeId;
 
+/** Helpers for contracts, client stubs, server implementations, mocks, and routes. */
 export namespace Server {
   export type Fn<I, A, E = unknown, R = never> = ServerFunction<I, A, E, R>;
   export type Contract<I, A, E = unknown> = ServerFunctionContract<I, A, E>;
@@ -153,6 +177,17 @@ export namespace Server {
   export type RpcRequest = ServerRpcRequest;
   export type RpcResponse = ServerRpcResponse;
 
+  /**
+   * Defines a shared server function contract.
+   *
+   * @example
+   * ```ts
+   * const GetUser = Server.contract<{ id: string }, User>("GetUser", {
+   *   input: GetUserInput,
+   *   output: User
+   * });
+   * ```
+   */
   export const contract = <I, A, E = unknown>(
     name: string,
     definition: ServerFunctionContractDefinition<I, A, E> = {}
@@ -164,6 +199,7 @@ export namespace Server {
     error: definition.error
   });
 
+  /** Creates a client stub from a shared contract. */
   export const client = <I, A, E = unknown>(
     contract: ServerFunctionContract<I, A, E>
   ): ServerFunction<I, A, E, never> =>
@@ -173,6 +209,12 @@ export namespace Server {
       error: contract.error
     });
 
+  /**
+   * Implements a shared contract with a local handler.
+   *
+   * The handler may return a value or an Effect. Prefer returning Effect when the
+   * implementation needs services, retries, or typed failure.
+   */
   export const implement = <
     Contract extends ServerFunctionContract<unknown, unknown, unknown>,
     R = never
@@ -203,6 +245,7 @@ export namespace Server {
       handler
     });
 
+  /** Creates a mock handler for a contract, suitable for Server.mockClient or mockLayer. */
   export const mock = <
     Contract extends ServerFunctionContract<unknown, unknown, unknown>,
     R = never
@@ -235,6 +278,7 @@ export namespace Server {
     >
   });
 
+  /** Creates a ServerClient that answers calls using the supplied mocks. */
   export const mockClient = (
     ...mocks: readonly AnyServerFunctionMock[]
   ): ServerClient => {
@@ -273,6 +317,12 @@ export namespace Server {
   ): Effect.Effect<A, E, Exclude<R, ServerClient>> =>
     Effect.provideService(effect, ServerClient, mockClient(...mocks));
 
+  /**
+   * Defines a callable server function directly.
+   *
+   * Prefer Server.contract plus Server.client/implement when the declaration is
+   * shared across client and server bundles.
+   */
   export const fn = <I, A, E = unknown, R = never>(
     name: string,
     definition: Omit<ServerFunctionDefinition<I, A, E, R>, "handler"> & {
@@ -296,7 +346,7 @@ export namespace Server {
         return yield* encodeWire(definition.output, value);
       });
     const callable = ((input: I) =>
-      runPromise(effect(input))) as ServerFunction<I, A, E, R>;
+      effect(input)) as ServerFunction<I, A, E, R>;
 
     Object.defineProperties(callable, {
       [ServerFunctionTypeId]: { value: ServerFunctionTypeId },
@@ -332,7 +382,7 @@ export namespace Server {
     const invoke = (_input: unknown): Effect.Effect<unknown, ServerFunctionNotFound> =>
       Effect.fail(missing());
     const callable = ((input: I) =>
-      runPromise(effect(input))) as ServerFunction<I, A, E, never>;
+      effect(input)) as ServerFunction<I, A, E, never>;
 
     Object.defineProperties(callable, {
       [ServerFunctionTypeId]: { value: ServerFunctionTypeId },
@@ -362,6 +412,9 @@ export namespace Server {
     serverFunctionRegistry.clear();
   };
 
+  /**
+   * Creates an adapter-neutral HTTP route whose handler is normalized to an Effect.
+   */
   export const route = (
     method: string,
     path: string,
@@ -372,6 +425,11 @@ export namespace Server {
     handler: (request) => toEffect(handler(request))
   });
 
+  /**
+   * Handles one ServerRoute as an Effect and applies request/response context.
+   *
+   * Use this in server adapters that already run Effect.
+   */
   export const handleRouteEffect = (
     route: ServerRoute,
     request: Request
@@ -383,8 +441,11 @@ export namespace Server {
     );
   };
 
-  export const handleRoute = (route: ServerRoute, request: Request): Promise<Response> =>
-    runPromise(handleRouteEffect(route, request));
+  export const handleRoute = (
+    route: ServerRoute,
+    request: Request
+  ): Effect.Effect<Response, unknown> =>
+    handleRouteEffect(route, request);
 
   export const manifest = (functions: Iterable<ServerFunction<unknown, unknown>>): Array<{
     readonly name: string;

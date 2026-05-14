@@ -41,7 +41,7 @@ describe("Collection", () => {
       load
     });
 
-    await Projects.preload();
+    await Effect.runPromise(Projects.preloadEffect());
 
     expect(Projects.rows()).toMatchObject([
       {
@@ -77,7 +77,7 @@ describe("Collection", () => {
         })
     });
 
-    await Projects.preload();
+    await Effect.runPromise(Projects.preloadEffect());
 
     expect(attempts).toBe(3);
     expect(Projects.rows().map((project) => project.id)).toEqual(["atlas"]);
@@ -272,8 +272,8 @@ describe("Collection", () => {
       expect(runWithRuntime(first, () => Projects.rows().map((project) => project.id))).toEqual(["atlas"]);
       expect(runWithRuntime(second, () => Projects.rows())).toEqual([]);
     } finally {
-      await first.dispose();
-      await second.dispose();
+      await Effect.runPromise(first.disposeEffect);
+      await Effect.runPromise(second.disposeEffect);
     }
   });
 
@@ -344,7 +344,7 @@ describe("Collection", () => {
         }
       ]);
     } finally {
-      await runtime.dispose();
+      await Effect.runPromise(runtime.disposeEffect);
     }
   });
 
@@ -400,8 +400,8 @@ describe("Collection", () => {
         "lumen"
       ]);
     } finally {
-      await first.dispose();
-      await second.dispose();
+      await Effect.runPromise(first.disposeEffect);
+      await Effect.runPromise(second.disposeEffect);
     }
   });
 
@@ -445,8 +445,8 @@ describe("Collection", () => {
       });
       expect(runWithRuntime(first, () => Projects.rows().map((project) => project.id))).toEqual(["atlas"]);
     } finally {
-      await first.dispose();
-      await second.dispose();
+      await Effect.runPromise(first.disposeEffect);
+      await Effect.runPromise(second.disposeEffect);
     }
   });
 
@@ -475,8 +475,8 @@ describe("Collection", () => {
         "Lumen"
       ]);
     } finally {
-      await first.dispose();
-      await second.dispose();
+      await Effect.runPromise(first.disposeEffect);
+      await Effect.runPromise(second.disposeEffect);
     }
   });
 
@@ -494,7 +494,7 @@ describe("Collection", () => {
     });
 
     try {
-      const update = Projects.update("atlas", { progress: 80 });
+      const update = Effect.runPromise(Projects.updateEffect("atlas", { progress: 80 }));
       await Effect.runPromise(Effect.sleep("10 millis"));
 
       expect(Projects.pendingMutations()).toMatchObject([
@@ -517,7 +517,7 @@ describe("Collection", () => {
         }
       ]);
 
-      await Projects.persist(storage, { key: "pending-projects-cache" });
+      await Effect.runPromise(Projects.persistEffect(storage, { key: "pending-projects-cache" }));
       await second.runPromise(Projects.restoreEffect(storage, { key: "pending-projects-cache" }));
 
       expect(runWithRuntime(second, () => Projects.get("atlas"))).toMatchObject({
@@ -545,7 +545,7 @@ describe("Collection", () => {
       });
     } finally {
       Effect.runSync(Deferred.succeed(release, undefined));
-      await second.dispose();
+      await Effect.runPromise(second.disposeEffect);
     }
   });
 
@@ -603,8 +603,8 @@ describe("Collection", () => {
     } finally {
       Effect.runSync(Deferred.succeed(release, undefined));
       await update;
-      await first.dispose();
-      await second.dispose();
+      await Effect.runPromise(first.disposeEffect);
+      await Effect.runPromise(second.disposeEffect);
     }
   });
 
@@ -648,8 +648,8 @@ describe("Collection", () => {
     } finally {
       Effect.runSync(Deferred.succeed(release, undefined));
       await update;
-      await first.dispose();
-      await second.dispose();
+      await Effect.runPromise(first.disposeEffect);
+      await Effect.runPromise(second.disposeEffect);
     }
   });
 
@@ -686,8 +686,8 @@ describe("Collection", () => {
       expect(runWithRuntime(second, () => Projects.rows().map((project) => project.id))).toEqual(["atlas"]);
       expect(runWithRuntime(second, () => Tasks.rows().map((task) => task.title))).toEqual(["Retry workflow"]);
     } finally {
-      await first.dispose();
-      await second.dispose();
+      await Effect.runPromise(first.disposeEffect);
+      await Effect.runPromise(second.disposeEffect);
     }
   });
 
@@ -705,7 +705,7 @@ describe("Collection", () => {
         })
     });
 
-    const transaction = await Projects.update("atlas", { progress: 80 });
+    const transaction = await Effect.runPromise(Projects.updateEffect("atlas", { progress: 80 }));
 
     expect(transaction.mutations).toMatchObject([
       {
@@ -746,7 +746,7 @@ describe("Collection", () => {
         })
     });
 
-    await Projects.update("atlas", { progress: 80 });
+    await Effect.runPromise(Projects.updateEffect("atlas", { progress: 80 }));
 
     expect(attempts).toBe(3);
     expect(persisted).toEqual([
@@ -769,7 +769,7 @@ describe("Collection", () => {
       onUpdate: () => Effect.fail("nope")
     });
 
-    await expect(Projects.update("atlas", { progress: 80 })).rejects.toBe("nope");
+    await expect(Effect.runPromise(Projects.updateEffect("atlas", { progress: 80 }))).rejects.toBe("nope");
 
     expect(Projects.pendingMutations()).toEqual([]);
     expect(Projects.get("atlas")).toMatchObject({
@@ -785,7 +785,7 @@ describe("Collection", () => {
       getKey: (project) => project.id
     });
 
-    await expect(Projects.update("missing", { progress: 80 })).rejects.toBeInstanceOf(CollectionRowNotFound);
+    await expect(Effect.runPromise(Projects.updateEffect("missing", { progress: 80 }))).rejects.toBeInstanceOf(CollectionRowNotFound);
   });
 });
 
@@ -1035,13 +1035,13 @@ describe("Query", () => {
       ]
     });
 
-    await expect(Query.once((query) =>
+    await expect(Effect.runPromise(Query.onceEffect((query) =>
       query
         .from({ project: Projects })
         .joinIndexed("task", Tasks, ({ project }) => project.status, "byTag")
         .select(({ project, task }) => `${project.name}:${task.title}`)
         .orderBy(({ project, task }) => `${project.name}:${task.title}`)
-    )).resolves.toEqual([
+    ))).resolves.toEqual([
       "Atlas:Retry workflow",
       "Lumen:Queue ownership"
     ]);

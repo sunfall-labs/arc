@@ -19,7 +19,8 @@ import {
   startTransportKindHeader,
   startTransportProtocolHeader,
   startTransportProtocolVersion,
-  startTransportRequestHeaders
+  startTransportRequestHeaders,
+  type StartFetch
 } from "../src/index.js";
 
 const traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
@@ -185,13 +186,13 @@ describe("Start RPC transport", () => {
     });
     const echo = Server.client(Echo);
     let observedHeaders: Headers | undefined;
-    const fetcher: typeof globalThis.fetch = (_input, init) => {
+    const fetcher: StartFetch = (_input, init) => {
       observedHeaders = new Headers(init?.headers);
-      return Effect.runPromise(Effect.succeed(
+      return Effect.succeed(
         new Response(JSON.stringify({ _tag: "Success", value: "ok" }), {
           headers: { "content-type": startJsonMediaType }
         })
-      ));
+      );
     };
     const runtime = Layer.succeed(ServerClient)(
       makeRpcClient({
@@ -221,12 +222,12 @@ describe("Start RPC transport", () => {
     const runtime = Layer.succeed(ServerClient)(
       makeRpcClient({
         fetch: () =>
-          Effect.runPromise(Effect.succeed(
+          Effect.succeed(
             new Response("not json", {
               status: 200,
               headers: { "content-type": "text/plain" }
             })
-          ))
+          )
       })
     );
     const exit = await Effect.runPromise(

@@ -57,8 +57,8 @@ transport:
 - Redirects return `ActionResult.redirect(...)`.
 - Browser forms use `startActionForm(...)` for no-JS fallback and hydration
   metadata.
-- Client-side submit buttons should call `submitEffect(...)` when composing with
-  other Effect work; `submit(...)` remains a Promise convenience boundary.
+- Client-side submit buttons call `submitEffect(...)`, then fork or run the
+  Effect explicitly at the UI boundary.
 
 The migration is done when the same Action definition owns schema validation,
 no-JS fallback, optimistic behavior when needed, retry/concurrency policy, and

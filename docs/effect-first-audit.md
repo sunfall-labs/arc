@@ -4,16 +4,18 @@ Last updated: 2026-05-14.
 
 This audit supports the charter rule: push async lifecycle, teardown, tracing,
 retry, streaming, and adapter work down into Effect primitives wherever
-possible. Promises are acceptable at host boundaries and public convenience
-APIs; framework internals should prefer `Effect`, `Fiber`, `Scope`, and
-Effect-native interruption.
+possible. Promises are acceptable only at host/platform boundaries; public
+framework APIs should return `Effect` so callers decide where to run them.
+Framework internals should prefer `Effect`, `Fiber`, `Scope`, and Effect-native
+interruption.
 
 ## Classification
 
 | Class | Rule | Examples |
 | --- | --- | --- |
-| Host boundary | Promise is acceptable because the platform API requires it. | Web Stream `pull`/`cancel`, Vite callback launchers, Node/fetch adapters, public browser callbacks. |
-| Public convenience | Promise is acceptable when an Effect-first API exists beside it. | `Resource.prefetch(...)` beside `Resource.prefetchEffect(...)`, `createRequestHandler(...)` beside `createRequestHandlerEffect(...)`. |
+| Host boundary | Promise is acceptable because the platform API requires it. | Web Stream `pull`/`cancel`, Vite callback launchers, browser callbacks, test assertions over platform `Response` methods. |
+| Host runner | Convert an Effect to a Promise only at the final host/test edge. | `runtime.runPromise(handler(request))`, `Effect.runPromise(Resource.prefetchEffect(ref))`. |
+| Public API | Return Effects for async work; callers choose where to run them. | `Resource.prefetchEffect(...)`, `action.submitEffect(...)`, `createRequestHandler(...)`. |
 | Internal follow-up | Convert to Effect unless there is a concrete host-boundary reason. | Promise state machines, `.then(...)` lifecycle sequencing, unstructured async helpers. |
 
 ## Current Sweep Results
@@ -42,7 +44,7 @@ Effect-native interruption.
     on caller-specific runtime service or error details.
 - `packages/core/src/runtime.ts`
   - Replaced Promise `.then(...)` disposal sequencing with a single
-    `disposeEffect` run from the public `dispose()` host-boundary method.
+    `disposeEffect` program owned by the runtime boundary.
   - `EffectUiRuntime.provide(...)` now exposes a scoped Effect backed by a named
     `provideRuntimeServices(...)` boundary, so UI adapters can fork provided
     work under `UiScope` instead of erasing requirements locally.
@@ -75,9 +77,9 @@ Effect-native interruption.
     as opaque `unknown` values while preserving concrete route inference through
     the returned helper types.
 - `packages/db/src/index.ts`
-  - Replaced live-query collection `Promise.resolve(...)` no-ops with
-    `runPromise(definition.*Effect(...))` so public Promise helpers still
-    delegate to Effect-native methods.
+  - Removed live-query collection convenience methods that returned Promises;
+    the public collection surface now exposes the Effect-native operations
+    directly.
 - `packages/db/src/sync-adapter.ts`, `packages/db/src/sqlite-persistence.ts`,
   `packages/db/src/flush-policy.ts`, and `packages/db/src/server-collection.ts`
   - Adapter EffectInput conversions now stay in typed helpers and Effect
@@ -95,9 +97,8 @@ Effect-native interruption.
   - Server local/mock client calls preserve function requirements in the returned
     Effect, keeping server test/local work inside the Effect service model.
 - `packages/solid/src/index.ts`
-  - Replaced unmatched router preload `Promise.resolve()` with
-    `runtime.runPromise(Effect.void)` so the public Promise path stays behind
-    the runtime boundary.
+  - Replaced unmatched router preload `Promise.resolve()` with an Effect no-op
+    run through the active runtime boundary.
 - `type-tests/framework.test-d.ts`
   - Added structural compatibility coverage from `StartRequestTrace` to
     `DevtoolsRequestTrace`, keeping Start independent of devtools while still
@@ -201,14 +202,14 @@ Effect-native interruption.
   - Uses Promises at Solid/browser boundaries for preload, suspense throws, and
     ignored background prefetches. Keep only where Solid expects a Promise.
 - `packages/db/src/index.ts`
-  - Most Promise methods delegate to `*Effect` APIs. Continue reviewing
-    fire-and-forget write helpers for whether they should expose Effect-first
-    error observation.
+  - Collection load, refetch, flush, persistence, restore, live-query preload,
+    and mutations expose `*Effect` APIs so callers keep error observation and
+    runtime selection in Effect.
 - `packages/start/src/vite.ts` and `packages/start/src/adapters.ts`
   - Promise use is Vite, Node, and fetch host-boundary work. Keep any future
     helper as an Effect program before it crosses the host boundary.
 - `packages/start/src/cli.ts`
-  - Remaining Promise helpers are bin-entry wrappers over
+  - The bin entry runs the Effect-native CLI program at the process boundary:
     `runStartDiagnosticsCliEffect` and `runStartDiagnosticsCliMainEffect`.
 - `packages/start/test/adapters.test.ts`
   - Node listener/close and timer test helpers use `Effect.callback(...)` and
@@ -236,7 +237,7 @@ Effect-native interruption.
 - `pnpm exec vitest run packages/core/test/runtime.test.ts packages/start/test/start.test.ts`
   passed after the first cleanup pass.
 - `pnpm exec vitest run packages/db/test/live-query-collection.test.ts packages/solid-db/test/solid-db.test.ts`
-  passed after replacing no-op Promise helpers.
+  passed after replacing no-op Promise wrappers with Effect operations.
 - `pnpm exec vitest run packages/core/test/stable-stringify.test.ts packages/db/test/server-collection.test.ts packages/db/test/sqlite-persistence.test.ts packages/devtools/test/devtools.test.ts packages/start/test/start.test.ts`
   passed after the typed-error sweep.
 - `pnpm verify` passed after the typed-error sweep: package build, workspace
@@ -664,3 +665,9 @@ Effect-native interruption.
   file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
+- `pnpm --filter @effect-ui/db typecheck` and
+  `pnpm exec vitest run packages/db/test/sqlite-persistence.test.ts` passed
+  after converting SQLite persistence tests to returned Effect programs. Storage
+  `EffectInput` operations now run through `toEffect(...)`, runtime-specific
+  collection round trips stay behind `Effect.promise(...)`, and teardown uses
+  Effect finalizers.

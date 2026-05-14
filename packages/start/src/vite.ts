@@ -1,5 +1,5 @@
 import { Cause, Data, Effect } from "effect";
-import { isPromiseLike, runPromise, type ActionDefinition, type ServerFunction } from "@effect-ui/core";
+import { runFork, type ActionDefinition, type ServerFunction } from "@effect-ui/core";
 import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { dirname, isAbsolute, relative as relativePath, resolve as resolvePath } from "node:path";
@@ -57,6 +57,7 @@ import {
   type GeneratedFileRouteDefinitionsModuleOptions
 } from "./file-route-modules.js";
 
+/** Options for generated file-route definition modules written by the plugin. */
 export interface FileRouteGenerationOptions
   extends GeneratedFileRouteDefinitionsModuleOptions {
   readonly outputFile?: string | false;
@@ -64,22 +65,43 @@ export interface FileRouteGenerationOptions
 
 type AnyActionDefinition = ActionDefinition<any, any, any, any>;
 
+/**
+ * Vite plugin options for Start manifests, route discovery, and build policy.
+ *
+ * Prefer source definitions (`serverFunctions`, `actions`, `fileRoutes`) for
+ * small apps and explicit manifests when integrating with generated build
+ * steps.
+ */
 export interface EffectUiStartOptions {
+  /** Server functions exported from the server entry using their function names. */
   readonly serverFunctions?: ReadonlyArray<ServerFunction<unknown, unknown>>;
+  /** Prebuilt server-function manifest definitions. */
   readonly serverFunctionManifest?: Iterable<ServerFunctionManifestDefinition>;
+  /** Server-function sources with explicit module/export references. */
   readonly serverFunctionSources?: Iterable<ServerFunctionManifestSource>;
+  /** Start actions exported from the server entry using their action names. */
   readonly actions?: ReadonlyArray<AnyActionDefinition>;
+  /** Prebuilt action manifest definitions. */
   readonly actionManifest?: Iterable<ActionManifestDefinition>;
+  /** Action sources with explicit module/export references. */
   readonly actionSources?: Iterable<ActionManifestSource>;
+  /** File paths to route modules when not using route directory discovery. */
   readonly fileRoutes?: Iterable<string>;
+  /** Prebuilt or iterable file-route manifest entries. */
   readonly fileRouteManifest?: FileRouteManifest | Iterable<FileRouteManifestEntry>;
+  /** Route parsing and route directory options. */
   readonly fileRouteOptions?: FileRouteManifestOptions;
+  /** Controls generated route definition file output. */
   readonly fileRouteGeneration?: FileRouteGenerationOptions;
+  /** Server entry module loaded by Vite dev SSR. */
   readonly serverEntry?: string;
+  /** Named handler export to load from the server entry. */
   readonly handlerExport?: string;
+  /** Build policy to enforce, or true for the default policy. */
   readonly buildPolicy?: StartBuildPolicy | boolean;
 }
 
+/** Vite plugin shape returned by `effectUiStart`. */
 export interface EffectUiStartPlugin {
   readonly name: "effect-ui-start";
   readonly config: (config?: UserConfig) => UserConfig;
@@ -107,6 +129,7 @@ export interface EffectUiStartPlugin {
   ) => () => void;
 }
 
+/** Build-time policies that can fail the build when app graph contracts drift. */
 export interface StartBuildPolicy {
   readonly wireSchemas?: StartAppGraphWireSchemaPolicy | false;
   readonly actionBehavior?: StartAppGraphActionBehaviorPolicy | false;
@@ -118,20 +141,31 @@ export type StartBuildPolicyError =
   | StartAppGraphUnknownActionBehaviorError
   | StartAppGraphDiagnosticsPolicyError;
 
+/** Options for discovering file-route modules from a route directory. */
 export interface FileRouteDiscoveryOptions {
   readonly root?: string;
   readonly routeDirectory?: string;
   readonly extensions?: readonly string[];
 }
 
-export type StartSsrRequestHandler = (request: Request) => Response | Promise<Response>;
+/**
+ * Handler export shape used by the Vite dev SSR middleware.
+ *
+ * Dev SSR accepts a plain `Response` or an Effect so server entries can stay
+ * Effect-first without adding a Promise wrapper inside application code.
+ */
+export type StartSsrRequestHandler = (
+  request: Request
+) => Response | Effect.Effect<Response, unknown, unknown>;
 
+/** Minimal Vite dev server surface used by Start SSR middleware. */
 export interface StartDevServer {
   ssrLoadModule(id: string): Promise<Record<string, unknown>>;
   transformIndexHtml(url: string, html: string): Promise<string>;
   ssrFixStacktrace?(error: Error): void;
 }
 
+/** Options for loading resolved app graph diagnostics through Vite. */
 export interface LoadStartAppGraphDiagnosticsOptions {
   readonly root?: string;
   readonly configFile?: string | false;
@@ -140,12 +174,14 @@ export interface LoadStartAppGraphDiagnosticsOptions {
   readonly vite?: InlineConfig;
 }
 
+/** App graph diagnostics loaded from the generated Vite virtual module. */
 export interface LoadedStartAppGraphDiagnostics {
   readonly graph: StartAppGraph;
   readonly diagnostics: StartAppGraphDiagnostics;
   readonly diagnosticsPolicyViolations: readonly unknown[];
 }
 
+/** Error reported when diagnostics cannot be loaded through a Vite server. */
 export class StartAppGraphDiagnosticsRunnerError extends Data.TaggedError(
   "StartAppGraphDiagnosticsRunnerError"
 )<{
@@ -153,6 +189,7 @@ export class StartAppGraphDiagnosticsRunnerError extends Data.TaggedError(
   readonly cause?: unknown;
 }> {}
 
+/** Options for resolving the SSR handler export in Vite dev. */
 export interface HandleSsrDevRequestOptions {
   readonly serverEntry?: string;
   readonly handlerExport?: string;
@@ -210,6 +247,7 @@ const absoluteFileRouteDirectory = (
     ? routeDirectory
     : resolvePath(root, routeDirectory);
 
+/** Recursively discovers route module files under the configured route directory. */
 export const discoverFileRoutes = (
   options: FileRouteDiscoveryOptions = {}
 ): readonly string[] => {
@@ -289,6 +327,7 @@ const actionDefinitionsFromOptions = (
   );
 };
 
+/** Builds the server-function manifest from plugin options. */
 export const makeStartServerFunctionManifestEffect = (
   options: EffectUiStartOptions = {}
 ): Effect.Effect<ServerFunctionManifest, ServerFunctionManifestError> => {
@@ -298,6 +337,7 @@ export const makeStartServerFunctionManifestEffect = (
   );
 };
 
+/** Synchronously serializes the Start server-function manifest. */
 export const serializeStartServerFunctionManifest = (
   options: EffectUiStartOptions = {}
 ): string =>
@@ -305,6 +345,7 @@ export const serializeStartServerFunctionManifest = (
     Effect.map(makeStartServerFunctionManifestEffect(options), serializeServerFunctionManifest)
   );
 
+/** Builds the Start action manifest from plugin options. */
 export const makeStartActionManifestEffect = (
   options: EffectUiStartOptions = {}
 ): Effect.Effect<ActionManifest, ActionManifestError> => {
@@ -312,6 +353,7 @@ export const makeStartActionManifestEffect = (
   return makeActionManifest(actionDefinitionsFromOptions(options, serverEntry));
 };
 
+/** Synchronously serializes the Start action manifest. */
 export const serializeStartActionManifest = (
   options: EffectUiStartOptions = {}
 ): string =>
@@ -368,6 +410,7 @@ const withDiscoveredFileRoutes = (
   };
 };
 
+/** Builds or validates the Start file-route manifest from plugin options. */
 export const makeStartFileRouteManifestEffect = (
   options: EffectUiStartOptions = {}
 ): Effect.Effect<FileRouteManifest, FileRouteManifestError> => {
@@ -400,6 +443,7 @@ export const makeStartFileRouteManifestEffect = (
   return Effect.succeed(createFileRouteManifest([], options.fileRouteOptions));
 };
 
+/** Synchronously serializes the Start file-route manifest. */
 export const serializeStartFileRouteManifest = (
   options: EffectUiStartOptions = {}
 ): string =>
@@ -412,6 +456,7 @@ export type StartAppGraphError =
   | ActionManifestError
   | FileRouteManifestError;
 
+/** Combines route, server-function, and action manifests into a Start app graph. */
 export const makeStartAppGraphEffect = (
   options: EffectUiStartOptions = {}
 ): Effect.Effect<StartAppGraph, StartAppGraphError> =>
@@ -437,6 +482,7 @@ const normalizeStartBuildPolicy = (
   return policy === true ? defaultStartBuildPolicy : policy;
 };
 
+/** Applies configured build policies to a resolved Start app graph. */
 export const validateStartBuildPolicyEffect = (
   graph: StartAppGraph,
   policy: StartBuildPolicy = defaultStartBuildPolicy
@@ -456,6 +502,7 @@ export const validateStartBuildPolicyEffect = (
     }
   });
 
+/** Builds the app graph and applies any enabled build policy. */
 export const makeStartBuildAppGraphEffect = (
   options: EffectUiStartOptions = {}
 ): Effect.Effect<StartAppGraph, StartAppGraphError | StartBuildPolicyError> =>
@@ -469,6 +516,7 @@ export const makeStartBuildAppGraphEffect = (
     return graph;
   });
 
+/** Synchronously serializes the policy-checked Start app graph. */
 export const serializeStartAppGraph = (
   options: EffectUiStartOptions = {}
 ): string =>
@@ -481,6 +529,7 @@ const diagnosticsPolicyLiteral = (
 ): string =>
   JSON.stringify(policy?.diagnostics === undefined || policy.diagnostics === false ? null : policy.diagnostics);
 
+/** Creates the Vite virtual module source for the resolved Start app graph. */
 export const createStartAppGraphVirtualModule = (
   graph: StartAppGraph,
   policy?: StartBuildPolicy
@@ -662,11 +711,18 @@ const loadStartAppGraphDiagnosticsRawEffect = (
     );
   });
 
+/**
+ * Loads resolved Start app graph diagnostics through a temporary Vite server.
+ *
+ * Returns an Effect so callers can compose diagnostics loading with their own
+ * runtime and error handling.
+ */
 export const loadStartAppGraphDiagnostics = (
   options: LoadStartAppGraphDiagnosticsOptions = {}
-): Promise<LoadedStartAppGraphDiagnostics> =>
-  runPromise(loadStartAppGraphDiagnosticsRawEffect(options));
+): Effect.Effect<LoadedStartAppGraphDiagnostics, unknown> =>
+  loadStartAppGraphDiagnosticsRawEffect(options);
 
+/** Same as `loadStartAppGraphDiagnostics`, with runner errors normalized. */
 export const loadStartAppGraphDiagnosticsEffect = (
   options: LoadStartAppGraphDiagnosticsOptions = {}
 ): Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsRunnerError> =>
@@ -679,6 +735,7 @@ export const loadStartAppGraphDiagnosticsEffect = (
     )
   );
 
+/** Result from writing the generated route definitions module. */
 export interface FileRouteDefinitionsFileWriteResult {
   readonly outputFile: string;
   readonly absolutePath: string;
@@ -686,6 +743,12 @@ export interface FileRouteDefinitionsFileWriteResult {
   readonly source: string;
 }
 
+/**
+ * Writes the generated route definitions file when content has changed.
+ *
+ * Returns `undefined` when generation is disabled and reports whether a file
+ * write was necessary otherwise.
+ */
 export const writeFileRouteDefinitionsFile = (
   root: string,
   manifest: FileRouteManifest,
@@ -727,6 +790,7 @@ export const writeFileRouteDefinitionsFile = (
   };
 };
 
+/** Creates the Vite virtual module source for the file-route manifest. */
 export const createFileRouteManifestVirtualModule = (
   manifest: FileRouteManifest
 ): string => {
@@ -739,6 +803,7 @@ export const createFileRouteManifestVirtualModule = (
   ].join("\n");
 };
 
+/** Creates the Vite virtual module source for server-function manifests. */
 export const createServerFunctionManifestVirtualModule = (
   manifest: ServerFunctionManifest
 ): string => {
@@ -750,6 +815,7 @@ export const createServerFunctionManifestVirtualModule = (
   ].join("\n");
 };
 
+/** Creates the Vite virtual module source for Start action manifests. */
 export const createActionManifestVirtualModule = (
   manifest: ActionManifest
 ): string => {
@@ -761,19 +827,23 @@ export const createActionManifestVirtualModule = (
   ].join("\n");
 };
 
+/** Error raised when a dev SSR module does not export the configured handler. */
 export class StartHandlerNotFound extends Data.TaggedError("StartHandlerNotFound")<{
   readonly exportName: string;
 }> {}
 
+/** Error raised while loading or running a Vite dev SSR request. */
 export class StartDevServerError extends Data.TaggedError("StartDevServerError")<{
   readonly operation: "load-module" | "run-handler" | "read-html" | "transform-html";
   readonly error: unknown;
 }> {}
 
+/** Error thrown when a browser build imports a `.server.*` module. */
 export class StartServerOnlyModuleError extends Data.TaggedError("StartServerOnlyModuleError")<{
   readonly id: string;
 }> {}
 
+/** Vite middleware continuation callback. */
 export type StartDevMiddlewareNext = (error?: unknown) => void;
 
 const reportSsrDevMiddlewareError = (
@@ -788,13 +858,19 @@ const reportSsrDevMiddlewareError = (
     next(error);
   });
 
+/**
+ * Handles one Vite dev-server middleware request.
+ *
+ * Non-SSR asset requests call `next`; SSR, RPC, and action requests are
+ * converted to web requests, handled, and written back to Node.
+ */
 export const handleSsrDevMiddlewareEffect = (
   server: StartDevServer,
   request: IncomingMessage,
   response: ServerResponse,
   next: StartDevMiddlewareNext,
   options: HandleSsrDevRequestOptions = {}
-): Effect.Effect<void> =>
+): Effect.Effect<void, never, unknown> =>
   Effect.gen(function* () {
     if (!shouldHandleSsrRequest(request)) {
       yield* Effect.sync(() => {
@@ -815,6 +891,20 @@ export const handleSsrDevMiddlewareEffect = (
     )
   );
 
+/**
+ * Creates the Effect UI Start Vite plugin.
+ *
+ * The plugin wires manifests into virtual modules, discovers file routes,
+ * enforces build policies, blocks server-only imports from browser builds, and
+ * installs the dev SSR middleware.
+ *
+ * @example
+ * ```ts
+ * export default defineConfig({
+ *   plugins: [effectUiStart({ serverEntry: "/src/server.tsx" })]
+ * });
+ * ```
+ */
 export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStartPlugin => {
   const serverEntry = options.serverEntry ?? defaultServerEntry;
   let viteRoot = process.cwd();
@@ -926,7 +1016,7 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
     configureServer(server) {
       return () => {
         server.middlewares.use((request, response, next) => {
-          void Effect.runFork(
+          void runFork(
             handleSsrDevMiddlewareEffect(
               server,
               request,
@@ -935,7 +1025,7 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
               options.handlerExport === undefined
                 ? { serverEntry }
                 : { serverEntry, handlerExport: options.handlerExport }
-            )
+            ) as Effect.Effect<void, never>
           );
         });
       };
@@ -943,14 +1033,17 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
   };
 };
 
+/** Returns true when a response should pass through Vite HTML transforms. */
 export const isHtmlResponse = (response: Response): boolean =>
   response.headers.get("content-type")?.includes("text/html") ?? false;
 
+/** Detects `.server.*` modules that must not be imported by browser builds. */
 export const isServerOnlyModule = (id: string): boolean => {
   const clean = id.split("?", 1)[0] ?? id;
   return /\.(server)\.[cm]?[jt]sx?$/.test(clean);
 };
 
+/** Returns true for requests the dev SSR middleware should handle. */
 export const shouldHandleSsrRequest = (
   request: Pick<IncomingMessage, "method" | "url" | "headers">
 ): boolean => {
@@ -981,6 +1074,7 @@ export const shouldHandleSsrRequest = (
     : accept === undefined || accept.includes("text/html") || accept.includes("*/*");
 };
 
+/** Resolves the SSR request handler export from a loaded server module. */
 export const resolveStartHandler = (
   module: Record<string, unknown>,
   options: { readonly handlerExport?: string } = {}
@@ -997,6 +1091,7 @@ export const resolveStartHandler = (
   return candidate as StartSsrRequestHandler;
 };
 
+/** Effect wrapper for `resolveStartHandler` with a typed not-found error. */
 export const resolveStartHandlerEffect = (
   module: Record<string, unknown>,
   options: { readonly handlerExport?: string } = {}
@@ -1023,23 +1118,31 @@ const tryDevPromise = <A>(
 const handlerResultEffect = (
   handler: StartSsrRequestHandler,
   request: Request
-): Effect.Effect<Response, StartDevServerError> =>
+): Effect.Effect<Response, StartDevServerError, unknown> =>
   Effect.try({
     try: () => handler(request),
     catch: (error) => new StartDevServerError({ operation: "run-handler", error })
   }).pipe(
     Effect.flatMap((response) =>
-      isPromiseLike(response)
-        ? tryDevPromise("run-handler", () => response)
+      Effect.isEffect(response)
+        ? response.pipe(
+            Effect.mapError((error) => new StartDevServerError({ operation: "run-handler", error }))
+          )
         : Effect.succeed(response)
     )
   );
 
+/**
+ * Handles one Vite dev SSR web request.
+ *
+ * Loads the configured server entry, runs its handler, and applies Vite HTML
+ * transforms to HTML responses.
+ */
 export const handleSsrDevRequestEffect = (
   server: StartDevServer,
   request: Request,
   options: HandleSsrDevRequestOptions = {}
-): Effect.Effect<Response, StartHandlerNotFound | StartDevServerError> =>
+): Effect.Effect<Response, StartHandlerNotFound | StartDevServerError, unknown> =>
   Effect.gen(function* () {
     const module = yield* tryDevPromise("load-module", () =>
       server.ssrLoadModule(options.serverEntry ?? defaultServerEntry)
@@ -1066,9 +1169,10 @@ export const handleSsrDevRequestEffect = (
     });
   });
 
+/** Alias for `handleSsrDevRequestEffect` on the current dev SSR surface. */
 export const handleSsrDevRequest = (
   server: StartDevServer,
   request: Request,
   options: HandleSsrDevRequestOptions = {}
-): Promise<Response> =>
-  runPromise(handleSsrDevRequestEffect(server, request, options));
+): Effect.Effect<Response, StartHandlerNotFound | StartDevServerError, unknown> =>
+  handleSsrDevRequestEffect(server, request, options);

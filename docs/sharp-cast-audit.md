@@ -54,10 +54,10 @@ package, example, script, or type-test hits.
   ManagedRuntime service satisfaction is centralized behind
   `provideRuntimeServices(...)`. Solid router preloads can fork that Effect under
   `UiScope` without a local service-erasure cast.
-- Solid Resource and Solid-DB collection/live-query Promise helpers now call the
-  underlying `*Effect` operations directly through the active runtime instead of
-  erasing requirements at each hook method.
-- Core Action and Resource public Promise helpers now pass `Fiber.join`,
+- Solid Resource and Solid-DB collection/live-query hooks expose the underlying
+  `*Effect` operations directly through the active runtime instead of erasing
+  requirements at each hook method.
+- Core Action and Resource public Effect helpers now pass `Fiber.join`,
   interruption, in-flight Resource refresh, and scoped workflow Effects directly
   to the runtime instead of casting each call site to a runtime-erased
   `Effect.Effect<..., any>`.
@@ -69,8 +69,8 @@ package, example, script, or type-test hits.
   `Server.encode*/decode*` helpers without repeated call-site casts. `ServerClient`
   preserves each server function's requirements, so local and mock clients no
   longer need outer generator assertions.
-- `runEffectInput(...)` and route preload effects now pass their converted
-  `EffectInput` values through Effect/runtime helpers directly.
+- `toEffect(...)` and route preload effects now pass their converted `EffectInput`
+  values through Effect/runtime helpers directly.
 - Start request-runtime provision, request-handler runners, StartAction
   submission fibers, response stream pull/cancel programs, and hydration sync
   helpers now pass Effects directly through `EffectUiRuntime`/Effect primitives

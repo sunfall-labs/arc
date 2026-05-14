@@ -74,7 +74,7 @@ describe("devtools invalidation plans", () => {
     });
     const ref = User("1");
 
-    await Resource.prefetch(ref);
+    await Effect.runPromise(Resource.prefetchEffect(ref));
 
     expect(describeInvalidationPlan(Resource.planInvalidation(UserTag({ id: "1" })))).toEqual({
       targets: [
@@ -281,7 +281,7 @@ describe("devtools invalidation plans", () => {
     const action = Action.use(Increment);
     const store = makeDevtoolsStore();
 
-    await Resource.prefetch(ref);
+    await Effect.runPromise(Resource.prefetchEffect(ref));
     await Effect.runPromise(
       Effect.scoped(
         Effect.gen(function* () {
@@ -316,7 +316,9 @@ describe("devtools invalidation plans", () => {
     const UserRoute = route("/users/:id", {
       preload: ({ params }) => Resource.prefetchEffect(User(params.id))
     });
-    const plan = await Route.planNavigation([UserRoute] as const, "/users/1");
+    const plan = await Effect.runPromise(
+      Route.planNavigationEffect([UserRoute] as const, "/users/1")
+    );
 
     expect(describeRoutePlan(plan)).toEqual({
       _tag: "Matched",
@@ -354,10 +356,10 @@ describe("devtools invalidation plans", () => {
     });
     const ref = User("1");
 
-    await Resource.prefetch(ref);
+    await Effect.runPromise(Resource.prefetchEffect(ref));
 
     const routePlan = describeRoutePlan(
-      await Route.planNavigation([UserRoute] as const, "/users/1")
+      await Effect.runPromise(Route.planNavigationEffect([UserRoute] as const, "/users/1"))
     );
     const invalidationPlan = describeInvalidationPlan(
       Resource.planInvalidation(UserTag({ id: "1" }))
@@ -649,10 +651,10 @@ describe("devtools invalidation plans", () => {
     });
     const ref = User("1");
 
-    await Resource.prefetch(ref);
+    await Effect.runPromise(Resource.prefetchEffect(ref));
 
     const routePlan = describeRoutePlan(
-      await Route.planNavigation([UserRoute] as const, "/users/1")
+      await Effect.runPromise(Route.planNavigationEffect([UserRoute] as const, "/users/1"))
     );
     const invalidationPlan = describeInvalidationPlan(
       Resource.planInvalidation(UserTag({ id: "1" }))
@@ -1615,7 +1617,7 @@ describe("devtools invalidation plans", () => {
       );
       expect(JSON.parse(JSON.stringify(summary))).toEqual(summary);
     } finally {
-      await runtime.dispose();
+      await Effect.runPromise(runtime.disposeEffect);
     }
   });
 });

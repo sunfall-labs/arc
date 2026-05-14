@@ -71,6 +71,35 @@ export * from "./file-route-modules.js";
 export * from "./file-route.js";
 
 export {
+  /** Builds the inline script that transfers Start hydration payloads to HTML. */
+  createHydrationScript,
+  /** Combines resource and collection payloads into the Start hydration shape. */
+  createStartHydrationPayload,
+  /** Hydrates resources and collections from a Start payload as an Effect. */
+  hydrateStartPayloadEffect,
+  /** Reads and hydrates Start payloads from a document as an Effect. */
+  hydrateFromDocumentEffect,
+  /** Reads and hydrates streamed hydration chunks as an Effect. */
+  hydrateStartHydrationChunksEffect,
+  /** Reads streamed hydration chunks from a document and hydrates them. */
+  hydrateStartHydrationChunksFromDocumentEffect,
+  /** Synchronous runtime boundary for hydrating a Start payload. */
+  hydrateStartPayload,
+  /** Synchronous runtime boundary for hydrating from a document. */
+  hydrateFromDocument,
+  /** Serializes a streamed hydration chunk into a script tag. */
+  createStreamHydrationScript,
+  /** Parses ordered streamed hydration chunks from a document-like object. */
+  readStartHydrationChunks,
+  /** Start SSR hydration payload for resources and collections. */
+  type StartHydrationPayload,
+  /** Shared options for request preload and client hydration collections. */
+  type StartCollectionHydrationOptions,
+  /** Options passed to request preload before SSR rendering. */
+  type PreloadRequestOptions
+} from "./hydration.js";
+
+export {
   filePathToRouteManifestEntry,
   filePathToRouteManifestEntryEffect,
   createFileRouteManifest,
@@ -105,6 +134,11 @@ export {
   type FileRouteSegment
 } from "./file-routes.js";
 
+/**
+ * Data Start prepares before rendering a request: the matched route, route
+ * preload plan, resource payloads, collection payloads, and final hydration
+ * payload for the client.
+ */
 export interface StartPreloadResult<
   Routes extends readonly Route.Definition<string, unknown, unknown>[] = readonly Route.Definition<string, unknown, unknown>[]
 > {
@@ -116,6 +150,12 @@ export interface StartPreloadResult<
   readonly routePlan: Route.NavigationPlan<Routes[number]>;
 }
 
+/**
+ * Collection preload details collected while planning a request.
+ *
+ * Use this when diagnostics or render code needs to distinguish collections
+ * touched by route preload from collections explicitly registered for hydration.
+ */
 export interface StartCollectionPreload {
   readonly routeTouchedCollections: ReadonlyArray<AnyCollection>;
   readonly routeDeclaredCollections: ReadonlyArray<AnyCollection>;
@@ -124,6 +164,14 @@ export interface StartCollectionPreload {
   readonly hydration: CollectionHydrationPayload;
 }
 
+/**
+ * Per-request context passed to a Start SSR render function.
+ *
+ * The runtime and resource store are request-scoped. Start disposes them when
+ * the response completes, including streamed responses. Include
+ * `hydrationScript` in HTML to transfer preloaded resource and collection
+ * state to the browser.
+ */
 export interface StartRenderContext<
   Routes extends readonly Route.Definition<string, unknown, unknown>[] = readonly Route.Definition<string, unknown, unknown>[],
   Client = unknown,
@@ -137,26 +185,60 @@ export interface StartRenderContext<
   readonly hydrationScript: string;
 }
 
+/**
+ * Options for the main Start request handler.
+ *
+ * Configure SSR rendering, the server action set for this handler, and an
+ * optional request trace hook. Handler execution stays Effect-first internally;
+ * platform adapters decide where any Promise boundary lives.
+ */
 export interface CreateRequestHandlerOptions<
   Routes extends readonly Route.Definition<string, unknown, unknown>[],
   Client = unknown,
   ServerServices = never,
   ServerError = never
 > extends StartCollectionHydrationOptions {
+  /** Render the preloaded request context to HTML or a custom Response. */
   readonly render?: (context: StartRenderContext<Routes, Client, ServerServices, ServerError>) => EffectInput<string | Response>;
+  /** Actions served by the action transport. Defaults to globally registered actions. */
   readonly actions?: Iterable<StartActionDefinition>;
+  /** Receives best-effort request diagnostics after runtime teardown. */
   readonly onRequestTrace?: StartRequestTraceHandler;
 }
 
+/** Effect-returning request handler used by the Start SSR/RPC/action pipeline. */
 export type StartRequestHandlerEffect = (request: Request) => Effect.Effect<Response, unknown, unknown>;
-export type StartRequestHandler = (request: Request) => Promise<Response>;
+/** Public handler type consumed by platform adapters and server entries. */
+export type StartRequestHandler = StartRequestHandlerEffect;
 
+/** Input accepted by the Start client transport fetch hook. */
+export type StartFetchInput = Parameters<typeof globalThis.fetch>[0];
+
+/** Request options accepted by the Start client transport fetch hook. */
+export type StartFetchInit = Parameters<typeof globalThis.fetch>[1];
+
+/** Effect hook used by Start clients to perform fetch-shaped transport work. */
+export type StartFetch = (
+  input: StartFetchInput,
+  init?: StartFetchInit
+) => Effect.Effect<Response, unknown>;
+
+/** Options for clients that call Start server functions over HTTP RPC. */
 export interface ServerRpcClientOptions {
+  /** RPC endpoint. Defaults to the Start server function path. */
   readonly endpoint?: string | URL;
-  readonly fetch?: typeof globalThis.fetch;
+  /** Fetch implementation for browsers, tests, edge runtimes, or Effect handlers. */
+  readonly fetch?: StartFetch;
+  /** Static or lazily computed headers added to every RPC request. */
   readonly headers?: HeadersInit | (() => HeadersInit);
 }
 
+/**
+ * Options for clients that submit Start actions.
+ *
+ * Extends RPC options with optional collection hydration settings. Supplying a
+ * runtime runs action response hydration in that runtime.
+ */
 export interface StartActionClientOptions extends ServerRpcClientOptions, StartCollectionHydrationOptions {
   readonly runtime?: EffectUiRuntime<unknown, unknown>;
 }
@@ -293,8 +375,10 @@ interface StartRequestTraceFacts {
   actions: StartRequestTraceAction[];
 }
 
+/** Best-effort request diagnostics hook. Failures from the hook are ignored. */
 export type StartRequestTraceHandler = (trace: StartRequestTrace) => EffectInput<void, unknown, never>;
 
+/** JSON payload accepted by the Start action transport. */
 export interface StartActionRequest {
   readonly name: string;
   readonly input: unknown;
@@ -325,6 +409,7 @@ export type StartActionInvalidationCause =
       readonly name: string;
     };
 
+/** Serializable description of resources invalidated by a Start action. */
 export interface StartActionInvalidationPlan {
   readonly targets: ReadonlyArray<StartActionInvalidationTarget>;
   readonly entries: ReadonlyArray<{
@@ -337,11 +422,13 @@ export interface StartActionInvalidationPlan {
   }>;
 }
 
+/** Optional client-side work bundled with a Start action response. */
 export interface StartActionResponseMeta {
   readonly invalidation?: StartActionInvalidationPlan;
   readonly hydration?: StartHydrationPayload;
 }
 
+/** Wire response body used by the Start action transport. */
 export type StartActionResponseBody =
   | ({ readonly _tag: "Success"; readonly value: unknown } & StartActionResponseMeta)
   | ({
@@ -361,6 +448,7 @@ export type StartActionResponseBody =
   | { readonly _tag: "ServerError"; readonly error: unknown }
   | { readonly _tag: "Defect"; readonly defect: unknown };
 
+/** Decoded client result for a Start action submission. */
 export type StartActionResult<A, Values extends object = Record<string, unknown>, ValidationError = unknown, E = unknown> =
   | ({ readonly _tag: "Success"; readonly value: A } & StartActionResponseMeta)
   | ({
@@ -419,6 +507,7 @@ type ActionDefinitionOutputValue<D> =
 type ActionDefinitionErrorValue<D> =
   D extends ActionDefinition<infer _I, infer _A, infer E, infer _R> ? E : never;
 
+/** Infers the typed Start action client result from an action output and error. */
 export type StartActionResultFor<A, E = unknown> =
   StartActionResult<
     StartActionOutputSuccess<A>,
@@ -432,6 +521,12 @@ export interface StartActionFormField {
   readonly value: string;
 }
 
+/**
+ * Minimal HTML form description for progressive enhancement.
+ *
+ * Render `hiddenFields` into a POST form to submit through the action transport
+ * without client JavaScript.
+ */
 export interface StartActionForm {
   readonly method: "post";
   readonly action: string;
@@ -443,11 +538,13 @@ export interface StartActionFormOptions<I> {
   readonly input?: Partial<I>;
 }
 
+/** Any core action definition that can be exposed through Start actions. */
 export type StartActionDefinition = ActionDefinition<any, any, any, any>;
 
 export const startActionNameField = "__effect_ui_action";
 export const startActionInputField = "__effect_ui_input";
 
+/** Creates the hidden POST fields needed to submit a Start action from HTML. */
 export const startActionForm = <I, A, E, R>(
   definition: ActionDefinition<I, A, E, R>,
   options: StartActionFormOptions<I> = {}
@@ -1126,6 +1223,12 @@ const createServerRpcResponseEffectWithRuntime = <
   });
 };
 
+/**
+ * Handles one server-function RPC request and encodes the protocol response.
+ *
+ * This is the low-level RPC endpoint handler. Most applications use
+ * `createRequestHandlerEffect`, which routes RPC, actions, and SSR together.
+ */
 export const createServerRpcResponseEffect = <
   const Routes extends readonly Route.Definition<string, unknown, unknown>[],
   Client,
@@ -1191,6 +1294,7 @@ const describeStartActionInvalidationCause = (
         name: cause.tag.name
       };
 
+/** Converts a runtime invalidation plan into the serializable action payload. */
 export const describeStartActionInvalidationPlan = (
   plan: ResourceInvalidationPlan
 ): StartActionInvalidationPlan => ({
@@ -1516,6 +1620,13 @@ const createServerActionResponseEffectWithRuntime = <
   });
 };
 
+/**
+ * Handles one Start action request and encodes the protocol response.
+ *
+ * Accepts JSON action requests and progressively enhanced form posts. The
+ * returned Effect runs the action inside a fresh request runtime and includes
+ * hydration or invalidation metadata when needed.
+ */
 export const createServerActionResponseEffect = <
   const Routes extends readonly Route.Definition<string, unknown, unknown>[],
   Client,
@@ -1551,6 +1662,39 @@ const getRpcHeadersEffect = (
     headers.set("content-type", startJsonMediaType);
     return headers;
   });
+
+const callStartFetchEffect = (
+  fetcher: StartFetch,
+  input: StartFetchInput,
+  init: StartFetchInit,
+  onError: (cause: unknown) => ServerTransportError
+): Effect.Effect<Response, ServerTransportError> =>
+  fetcher(input, init).pipe(Effect.mapError(onError));
+
+const resolveStartFetchEffect = (
+  fetcher: StartFetch | undefined,
+  unavailableMessage: string
+): Effect.Effect<StartFetch, ServerTransportError> => {
+  if (fetcher) {
+    return Effect.succeed(fetcher);
+  }
+
+  if (typeof globalThis.fetch !== "function") {
+    return Effect.fail(
+      new ServerTransportError({
+        reason: "Network",
+        message: unavailableMessage
+      })
+    );
+  }
+
+  return Effect.succeed((input, init) =>
+    Effect.tryPromise({
+      try: () => globalThis.fetch(input, init),
+      catch: (cause) => cause
+    })
+  );
+};
 
 const parseRpcResponse = (
   response: Response
@@ -1770,6 +1914,22 @@ const hydrateActionResponseEffect = (
     : effect;
 };
 
+/**
+ * Submits a Start action over the action transport.
+ *
+ * The returned Effect encodes input, performs `fetch` when run, decodes the
+ * result, hydrates any returned resources or collections, and invalidates stale
+ * resources. Use this from Effect workflows; run it with a runtime at UI or
+ * platform boundaries.
+ *
+ * @example
+ * ```ts
+ * const result = yield* submitStartActionEffect(RenameProject, {
+ *   id: "atlas",
+ *   name: "Atlas"
+ * });
+ * ```
+ */
 export const submitStartActionEffect = <D extends StartActionDefinition>(
   definition: D,
   input: ActionDefinitionInputValue<D>,
@@ -1780,13 +1940,10 @@ export const submitStartActionEffect = <D extends StartActionDefinition>(
   unknown
 > =>
   Effect.gen(function* () {
-    const fetcher = options.fetch ?? globalThis.fetch;
-    if (!fetcher) {
-      return yield* new ServerTransportError({
-        reason: "Network",
-        message: "No fetch implementation is available for Start actions."
-      });
-    }
+    const fetcher = yield* resolveStartFetchEffect(
+      options.fetch,
+      "No fetch implementation is available for Start actions."
+    );
 
     const encodedInput = yield* encodeWithSchema(definition.input, input);
     const request: StartActionRequest = {
@@ -1804,22 +1961,22 @@ export const submitStartActionEffect = <D extends StartActionDefinition>(
         })
     });
     const headers = yield* getRpcHeadersEffect(options);
-    const response = yield* Effect.tryPromise({
-      try: (signal) =>
-        fetcher(options.endpoint ?? serverActionPath, {
-          method: "POST",
-          headers,
-          body,
-          signal,
-          redirect: "manual"
-        }),
-      catch: (cause) =>
+    const response = yield* callStartFetchEffect(
+      fetcher,
+      options.endpoint ?? serverActionPath,
+      {
+        method: "POST",
+        headers,
+        body,
+        redirect: "manual"
+      },
+      (cause) =>
         new ServerTransportError({
           reason: "Network",
           message: "Start action request failed.",
           cause
         })
-    });
+    );
     const actionResponse = yield* parseStartActionResponse(response);
 
     if (actionResponse._tag === "ServerError") {
@@ -1840,15 +1997,6 @@ export const submitStartActionEffect = <D extends StartActionDefinition>(
     return decoded;
   });
 
-export const submitStartAction = <D extends StartActionDefinition>(
-  definition: D,
-  input: ActionDefinitionInputValue<D>,
-  options: StartActionClientOptions = {}
-): Promise<StartActionResultFor<ActionDefinitionOutputValue<D>, ActionDefinitionErrorValue<D>>> =>
-  (options.runtime ?? currentOrDefaultRuntime()).runPromise(
-    submitStartActionEffect(definition, input, options)
-  );
-
 const previousStartActionValue = <I, A, E>(
   state: ActionState<I, A, E>
 ): A | undefined => {
@@ -1863,24 +2011,42 @@ const previousStartActionValue = <I, A, E>(
   }
 };
 
+/** Stateful client helpers for Start actions. */
 export namespace StartAction {
+  /** Typed result emitted by a Start action definition. */
   export type Result<D extends StartActionDefinition> =
     StartActionResultFor<ActionDefinitionOutputValue<D>, ActionDefinitionErrorValue<D>>;
 
+  /** Signal state used by a Start action client instance. */
   export type State<D extends StartActionDefinition> =
     ActionState<ActionDefinitionInputValue<D>, Result<D>, Server.ClientError>;
 
+  /** Client-side action instance with state, metadata, and submissions. */
   export interface Instance<D extends StartActionDefinition> {
     readonly definition: D;
     readonly state: ReadableSignal<State<D>>;
     readonly invalidation: ReadableSignal<StartActionInvalidationPlan | undefined>;
     readonly hydration: ReadableSignal<StartHydrationPayload | undefined>;
+    /** Submit through the action transport and update instance signals. */
     submitEffect(input: ActionDefinitionInputValue<D>): Effect.Effect<Result<D>, Server.ClientError | ActionInterrupted, unknown>;
-    submit(input: ActionDefinitionInputValue<D>): Promise<Result<D>>;
+    /** Reset state and clear response metadata. */
     resetEffect(): Effect.Effect<void>;
+    /** Interrupt an in-flight submission, then reset synchronously. */
     reset(): void;
   }
 
+  /**
+   * Creates a stateful Start action client.
+   *
+   * `submitEffect` honors the core action concurrency policy and updates
+   * signals for pending, success, failure, invalidation, and hydration.
+   *
+   * @example
+   * ```ts
+   * const rename = StartAction.use(RenameProject);
+   * const result = yield* rename.submitEffect({ id: "atlas", name: "Atlas" });
+   * ```
+   */
   export const use = <D extends StartActionDefinition>(
     definition: D,
     options: StartActionClientOptions = {}
@@ -1894,7 +2060,6 @@ export namespace StartAction {
       | {
           readonly token: object;
           fiber?: Fiber.Fiber<Result<D>, Server.ClientError | ActionInterrupted>;
-          promise?: Promise<Result<D>>;
         }
       | undefined;
 
@@ -2004,60 +2169,12 @@ export namespace StartAction {
         }
       });
 
-    const submit = (input: ActionDefinitionInputValue<D>): Promise<Result<D>> => {
-      const concurrency = definition.policy?.concurrency ?? "latest";
-
-      if (concurrency === "exhaust") {
-        const current = currentSubmission;
-        if (current?.promise) {
-          return current.promise;
-        }
-        if (current?.fiber) {
-          return runtime.runPromise(Fiber.join(current.fiber));
-        }
-      }
-
-      const previousFiber = concurrency === "latest" ? currentSubmission?.fiber : undefined;
-      const token = ++version;
-      const submissionToken = {};
-      if (concurrency !== "parallel") {
-        currentSubmission = { token: submissionToken };
-      }
-
-      const fiber = runtime.runFork(
-        Effect.gen(function* () {
-          if (previousFiber) {
-            yield* Fiber.interrupt(previousFiber);
-          }
-
-          return yield* runWorkflow(input, token, {
-            interruptStale: concurrency === "latest",
-            updateOnlyLatest: true
-          });
-        })
-      );
-
-      const promise = runtime.runPromise(
-        Fiber.join(fiber).pipe(
-          Effect.ensuring(clearCurrentEffect(submissionToken))
-        )
-      );
-
-      if (concurrency !== "parallel" && currentSubmission?.token === submissionToken) {
-        currentSubmission.fiber = fiber;
-        currentSubmission.promise = promise;
-      }
-
-      return promise;
-    };
-
     return {
       definition,
       state,
       invalidation,
       hydration,
       submitEffect,
-      submit,
       resetEffect,
       reset: () => {
         const submission = currentSubmission;
@@ -2071,16 +2188,19 @@ export namespace StartAction {
   };
 }
 
+/**
+ * Creates a `ServerClient` that invokes server functions through Start RPC.
+ *
+ * Calls remain Effects. The HTTP request is performed only when the server
+ * function Effect is run.
+ */
 export const makeRpcClient = (options: ServerRpcClientOptions = {}): ServerClient => ({
   call: (fn, input) =>
     Effect.gen(function* () {
-      const fetcher = options.fetch ?? globalThis.fetch;
-      if (!fetcher) {
-        return yield* new ServerTransportError({
-          reason: "Network",
-          message: "No fetch implementation is available for server functions."
-        });
-      }
+      const fetcher = yield* resolveStartFetchEffect(
+        options.fetch,
+        "No fetch implementation is available for server functions."
+      );
 
       const encodedInput = yield* Server.encodeInput(fn, input);
       const request: Server.RpcRequest = {
@@ -2098,21 +2218,21 @@ export const makeRpcClient = (options: ServerRpcClientOptions = {}): ServerClien
           })
       });
       const headers = yield* getRpcHeadersEffect(options);
-      const response = yield* Effect.tryPromise({
-        try: (signal) =>
-          fetcher(options.endpoint ?? serverRpcPath, {
-            method: "POST",
-            headers,
-            body,
-            signal
-          }),
-        catch: (cause) =>
+      const response = yield* callStartFetchEffect(
+        fetcher,
+        options.endpoint ?? serverRpcPath,
+        {
+          method: "POST",
+          headers,
+          body
+        },
+        (cause) =>
           new ServerTransportError({
             reason: "Network",
             message: "Server function request failed.",
             cause
           })
-      });
+      );
       const rpcResponse = yield* parseRpcResponse(response);
 
       switch (rpcResponse._tag) {
@@ -2149,9 +2269,11 @@ export const makeRpcClient = (options: ServerRpcClientOptions = {}): ServerClien
     })
 });
 
+/** Layer that provides a Start RPC-backed `ServerClient`. */
 export const makeRpcClientLayer = (options: ServerRpcClientOptions = {}) =>
   Layer.succeed(ServerClient)(makeRpcClient(options));
 
+/** Default browser RPC layer using `globalThis.fetch` and the Start RPC path. */
 export const BrowserRpcLive = makeRpcClientLayer();
 
 const emptyCollectionHydrationPayload: CollectionHydrationPayload = { collections: [] };
@@ -2437,6 +2559,12 @@ const completeRequestRuntimeWithResponse = (
         return response;
       });
 
+/**
+ * Matches a request URL and preloads route resources and collections.
+ *
+ * Creates a request-scoped runtime, runs route preload, builds hydration
+ * payloads, then disposes the runtime when the Effect completes.
+ */
 export const preloadRequestEffect = <
   const Routes extends readonly Route.Definition<string, unknown, unknown>[],
   Client,
@@ -2454,6 +2582,7 @@ export const preloadRequestEffect = <
   );
 };
 
+/** Alias for `preloadRequestEffect` on the current Effect-first surface. */
 export const preloadRequest = <
   const Routes extends readonly Route.Definition<string, unknown, unknown>[],
   Client,
@@ -2463,9 +2592,23 @@ export const preloadRequest = <
   app: AppDefinition<Routes, Client, ServerServices, ServerError>,
   request: Request,
   options: PreloadRequestOptions = {}
-): Promise<StartPreloadResult<Routes>> =>
-  app.runtime.runPromise(preloadRequestEffect(app, request, options));
+): Effect.Effect<StartPreloadResult<Routes>, unknown> =>
+  preloadRequestEffect(app, request, options);
 
+/**
+ * Builds the main Start request handler for SSR, RPC, and actions.
+ *
+ * The returned handler is platform-neutral and returns an Effect. Fetch, Node,
+ * or test hosts should run that Effect at the host boundary, or adapt it with
+ * the Start Node/fetch helpers.
+ *
+ * @example
+ * ```ts
+ * const handleRequest = createRequestHandlerEffect(app, {
+ *   render: ({ hydrationScript }) => `<div id="app"></div>${hydrationScript}`
+ * });
+ * ```
+ */
 export const createRequestHandlerEffect =
   <
     const Routes extends readonly Route.Definition<string, unknown, unknown>[],
@@ -2640,6 +2783,7 @@ export const createRequestHandlerEffect =
       );
     });
 
+/** Primary Start request handler factory for server entry modules. */
 export const createRequestHandler =
   <
     const Routes extends readonly Route.Definition<string, unknown, unknown>[],
@@ -2649,12 +2793,12 @@ export const createRequestHandler =
   >(
     app: AppDefinition<Routes, Client, ServerServices, ServerError>,
     options: CreateRequestHandlerOptions<Routes, Client, ServerServices, ServerError> = {}
-  ): StartRequestHandler => {
-    const handler = createRequestHandlerEffect(app, options);
-    return (request) => app.runtime.runPromise(handler(request));
-  };
+  ): StartRequestHandler =>
+    createRequestHandlerEffect(app, options);
 
+/** Alias for `createRequestHandler` for server entry modules. */
 export const createServerHandler = createRequestHandler;
+/** Alias for `createRequestHandlerEffect` for server entry modules. */
 export const createServerHandlerEffect = createRequestHandlerEffect;
 export {
   acceptsMediaType,

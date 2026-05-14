@@ -55,21 +55,21 @@ describe("Collection.syncOptions", () => {
       ])
     );
 
-    await Projects.preload();
+    await Effect.runPromise(Projects.preloadEffect());
 
     expect(Projects.rows().map((project) => project.name)).toEqual(["Atlas"]);
     expect(load).toHaveBeenCalledTimes(1);
     expect(refetch).not.toHaveBeenCalled();
 
-    await Projects.refetch();
+    await Effect.runPromise(Projects.refetchEffect());
 
     expect(Projects.rows().map((project) => project.name)).toEqual(["Atlas Prime"]);
     expect(load).toHaveBeenCalledTimes(1);
     expect(refetch).toHaveBeenCalledTimes(1);
 
-    await Projects.insert({ id: "lumen", name: "Lumen", archived: false });
-    await Projects.update("atlas", { archived: true });
-    await Projects.delete("lumen");
+    await Effect.runPromise(Projects.insertEffect({ id: "lumen", name: "Lumen", archived: false }));
+    await Effect.runPromise(Projects.updateEffect("atlas", { archived: true }));
+    await Effect.runPromise(Projects.deleteEffect("lumen"));
 
     expect(inserts).toMatchObject([
       {
@@ -124,7 +124,7 @@ describe("Collection.syncOptions", () => {
       })
     }));
 
-    await Projects.preload();
+    await Effect.runPromise(Projects.preloadEffect());
 
     expect(Projects.rows().map((project) => project.id)).toEqual(["atlas"]);
   });
@@ -163,15 +163,15 @@ describe("Collection.syncOptions", () => {
       ])
     );
 
-    await Projects.preload();
+    await Effect.runPromise(Projects.preloadEffect());
 
     expect(Projects.rows().map((project) => project.id)).toEqual(["atlas"]);
 
-    await Projects.refetch();
+    await Effect.runPromise(Projects.refetchEffect());
 
     expect(Projects.rows().map((project) => project.id)).toEqual(["lumen"]);
 
-    await Projects.update("lumen", { name: "Lumen Prime" });
+    await Effect.runPromise(Projects.updateEffect("lumen", { name: "Lumen Prime" }));
 
     expect(updates).toMatchObject([
       {
@@ -220,12 +220,12 @@ describe("Collection.syncOptions", () => {
       })
     }));
 
-    await Projects.preload();
+    await Effect.runPromise(Projects.preloadEffect());
 
     expect(Projects.rows().map((project) => project.name)).toEqual(["Atlas"]);
     expect(fetches).toEqual([queryKey]);
 
-    await Projects.refetch();
+    await Effect.runPromise(Projects.refetchEffect());
 
     expect(invalidations).toEqual([queryKey]);
     expect(fetches).toEqual([queryKey, queryKey]);
@@ -239,7 +239,7 @@ describe("Collection.syncOptions", () => {
       ])
     );
 
-    await Projects.update("atlas", { archived: true });
+    await Effect.runPromise(Projects.updateEffect("atlas", { archived: true }));
 
     expect(invalidations).toEqual([queryKey, queryKey]);
     expect(updates).toMatchObject([

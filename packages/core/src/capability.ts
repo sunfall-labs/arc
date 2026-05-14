@@ -4,13 +4,23 @@ import { toEffect } from "./effect-like.js";
 
 export const CapabilityTypeId: unique symbol = Symbol.for("@effect-ui/core/Capability") as typeof CapabilityTypeId;
 
+/**
+ * Typed service handle for injecting UI capabilities through Effect context.
+ *
+ * Define capabilities for things like navigation, storage, or platform APIs, then
+ * provide concrete implementations with a Layer at the app or test boundary.
+ */
 export interface Capability<Identifier, Shape> {
   readonly [CapabilityTypeId]: typeof CapabilityTypeId;
   readonly key: string;
   readonly tag: Context.Service<Identifier, Shape>;
+  /** Creates a production Layer for this capability. */
   readonly layer: (service: Shape) => Layer.Layer<Identifier>;
+  /** Creates a test Layer for this capability. */
   readonly mock: (service: Shape) => Layer.Layer<Identifier>;
+  /** Accesses the provided service inside an Effect. */
   readonly use: <A, E, R>(f: (service: Shape) => Effect.Effect<A, E, R>) => Effect.Effect<A, E, R | Identifier>;
+  /** Accesses the service with a callback that may return a plain value or Effect. */
   readonly useEffect: {
     <A, E, R>(
       f: (service: Shape) => Effect.Effect<A, E, R>
@@ -31,11 +41,24 @@ export const isCapability = (value: unknown): value is Capability<unknown, unkno
   value !== null &&
   (value as { readonly [CapabilityTypeId]?: unknown })[CapabilityTypeId] === CapabilityTypeId;
 
+/** Helpers for defining, providing, and using typed UI capabilities. */
 export namespace Capability {
   export type Any = Capability<unknown, unknown>;
   export type Shape<C> = C extends Capability<infer _Identifier, infer Shape> ? Shape : never;
   export type Identifier<C> = C extends Capability<infer Identifier, infer _Shape> ? Identifier : never;
 
+  /**
+   * Defines a capability backed by an Effect Context service.
+   *
+   * @example
+   * ```ts
+   * const Clipboard = Capability.define<{ write(text: string): Effect.Effect<void> }>(
+   *   "Clipboard"
+   * );
+   *
+   * const copy = Clipboard.use((clipboard) => clipboard.write("copied"));
+   * ```
+   */
   export const define = <Shape>(
     key: string
   ): Capability<Shape, Shape> => {
@@ -67,6 +90,7 @@ export namespace Capability {
     };
   };
 
+  /** Builds a Layer that provides a concrete implementation for a capability. */
   export const layer = <Identifier, Shape>(
     capability: Capability<Identifier, Shape>,
     service: Shape
@@ -79,6 +103,7 @@ export namespace Capability {
   ): Layer.Layer<Identifier> =>
     capability.mock(service);
 
+  /** Provides a capability implementation directly to one Effect. */
   export const provide = <Identifier, Shape, A, E, R>(
     capability: Capability<Identifier, Shape>,
     effect: Effect.Effect<A, E, R>,

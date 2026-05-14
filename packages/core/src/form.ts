@@ -1,7 +1,6 @@
 import { Data, Effect, Schema, type SchemaIssue } from "effect";
 import type { EffectInput } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
-import { runPromise } from "./runtime.js";
 import { Signal, type ReadableSignal } from "./signal.js";
 
 export const FormTypeId: unique symbol = Symbol.for("@effect-ui/core/Form") as typeof FormTypeId;
@@ -22,6 +21,7 @@ export type FormSchemaValues<S extends Schema.Top> = Schema.Schema.Type<S> exten
 
 export type FormSchemaServices<S extends Schema.Top> = Schema.Codec.DecodingServices<S>;
 
+/** Helpers passed to custom form validators to create field or form errors. */
 export interface FormValidationTools<Values extends object, E> {
   field<K extends FormFieldKey<Values>>(
     field: K,
@@ -33,6 +33,7 @@ export interface FormValidationTools<Values extends object, E> {
 
 export type FormStatus = "Idle" | "Validating" | "Valid" | "Invalid";
 
+/** Current form snapshot exposed through FormInstance.state. */
 export interface FormState<Values extends object, E = unknown> {
   readonly status: FormStatus;
   readonly initial: Values;
@@ -49,26 +50,35 @@ export interface FormOptions<
   E = never,
   R = never
 > {
+  /** Schema used to decode and validate current values. */
   readonly schema: S;
+  /** Initial values used for reset and dirty tracking. */
   readonly initial: Values;
+  /** Optional Effect-first validation after schema decoding succeeds. */
   readonly validate?: (
     values: Values,
     tools: FormValidationTools<Values, E>
   ) => EffectInput<void, FormValidationError<Values, E>, R>;
 }
 
+/**
+ * Stateful form controller with schema validation and Effect-first validation hooks.
+ *
+ * Read `state` in UI code, mutate fields synchronously, and submit through
+ * validateEffect when you want typed Effect errors and service requirements.
+ */
 export interface FormInstance<Values extends object, E = never, R = never> {
   readonly [FormTypeId]: typeof FormTypeId;
   readonly state: ReadableSignal<FormState<Values, E | Schema.SchemaError>>;
   setField<K extends FormFieldKey<Values>>(field: K, value: Values[K]): void;
   touchField<K extends FormFieldKey<Values>>(field: K): void;
   reset(values?: Values): void;
+  /** Validates current values and updates state before succeeding or failing. */
   validateEffect(): Effect.Effect<
     Values,
     FormValidationError<Values, E | Schema.SchemaError>,
     R
   >;
-  validate(): Promise<Values>;
 }
 
 export class FormValidationError<
@@ -214,6 +224,7 @@ export const isForm = (value: unknown): value is FormInstance<object, unknown, u
   value !== null &&
   (value as { [FormTypeId]?: unknown })[FormTypeId] === FormTypeId;
 
+/** Helpers for creating and validating Effect UI form controllers. */
 export namespace Form {
   export type FieldKey<Values extends object> = FormFieldKey<Values>;
   export type FieldFlags<Values extends object> = FormFieldFlags<Values>;
@@ -239,6 +250,22 @@ export namespace Form {
   ): FormValidationError<Values, E> =>
     makeError(singleFieldError(field, error));
 
+  /**
+   * Creates a form controller from an Effect Schema and initial values.
+   *
+   * Custom validation may return an Effect, so checks can depend on services and
+   * fail with typed FormValidationError values.
+   *
+   * @example
+   * ```ts
+   * const form = Form.make({
+   *   schema: UserSchema,
+   *   initial: { name: "" },
+   *   validate: (values, errors) =>
+   *     values.name.length === 0 ? Effect.fail(errors.field("name", "Required")) : Effect.void
+   * });
+   * ```
+   */
   export const make = <
     S extends Schema.Top,
     E = never,
@@ -334,17 +361,14 @@ export namespace Form {
       setField,
       touchField,
       reset,
-      validateEffect,
-      validate: () => runPromise(validateEffect())
+      validateEffect
     };
   };
 
+  /** Runs validation for a form as an Effect and leaves state updated with the result. */
   export const validateEffect = <Values extends object, E, R>(
     form: FormInstance<Values, E, R>
   ): Effect.Effect<Values, FormValidationError<Values, E | Schema.SchemaError>, R> =>
     form.validateEffect();
 
-  export const validate = <Values extends object, E>(
-    form: FormInstance<Values, E, never>
-  ): Promise<Values> => form.validate();
 }

@@ -28,24 +28,31 @@ export default {
 };
 ```
 
-For a host or test that already expects a Promise handler, use the Promise
-adapter over the Promise request boundary:
+`toFetchHandler` is the same Effect-shaped adapter for the public
+`createRequestHandler` alias:
 
 ```ts
 import { createRequestHandler } from "@effect-ui/start";
 import { toFetchHandler } from "@effect-ui/start-fetch";
 import { app } from "./app-definition.js";
 
-export const fetch = toFetchHandler(createRequestHandler(app));
+const fetchEffect = toFetchHandler(createRequestHandler(app));
+
+export default {
+  fetch(request: Request): Promise<Response> {
+    return app.runtime.runPromise(fetchEffect(request));
+  }
+};
 ```
 
 ## Node HTTP
 
-Use `createNodeHandlerEffect` when composing inside an Effect program and
-`createNodeHandler` when passing a callback to `node:http`.
+Use `createNodeHandlerEffect` or its `createNodeHandler` alias to build an
+Effect program. The `node:http` callback is the host boundary that runs it.
 
 ```ts
 import { createServer } from "node:http";
+import { Effect } from "effect";
 import { createRequestHandlerEffect } from "@effect-ui/start";
 import { createNodeHandler } from "@effect-ui/start-node";
 import { app } from "./app-definition.js";
@@ -56,10 +63,16 @@ const handler = createNodeHandler(createRequestHandlerEffect(app), {
 });
 
 createServer((request, response) => {
-  void handler(request, response).catch((error) => {
-    response.statusCode = 500;
-    response.end(String(error));
-  });
+  void app.runtime.runPromise(
+    handler(request, response).pipe(
+      Effect.catch((error) =>
+        Effect.sync(() => {
+          response.statusCode = 500;
+          response.end(String(error));
+        })
+      )
+    )
+  );
 }).listen(3000);
 ```
 

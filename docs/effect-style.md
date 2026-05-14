@@ -10,7 +10,7 @@ edge.
 
 ## Rules
 
-- Public async APIs expose an `Effect` form first, then a Promise convenience wrapper when useful.
+- Public async APIs expose `Effect`; Promise interop belongs only at explicit host/runtime boundaries.
 - Framework callbacks should return `Effect` or a pure value, not `Promise`. Use `Effect.tryPromise` at the edge that talks to a Promise API.
 - `async` framework callbacks are a type error for resources, actions, route preloads, Start renderers, server implementations, DB collections, capabilities, and form validators.
 - Domain failures use tagged errors so callers can recover with `Effect.catchTag`.
@@ -20,7 +20,7 @@ edge.
 - Route preload should return Effect values, usually `Resource.prefetchEffect(...)`, so stale navigations can be interrupted.
 - Retry, cancellation, scheduling, and cleanup should delegate to Effect primitives such as `Schedule`, fiber interruption, and scopes.
 - Resource lifetime work, including GC, should use `Effect.sleep` and fibers rather than host timers.
-- Promise interop is allowed only at UI/runtime boundaries such as Suspense, event handlers, and server adapters.
+- Promise interop is allowed only at UI/runtime boundaries such as Suspense, Web Streams, executable CLIs, and host adapters.
 - `defineApp({ server })` is the server-side dependency provider for SSR/request work. Prefer an Effect `Layer` there.
 - Start request work uses a fresh Request Runtime with the app services and a request-local `ResourceStore`; do not share resource cache state across SSR requests.
 - Start streamed responses keep the Request Runtime open until the response body closes or is cancelled.
@@ -37,7 +37,7 @@ edge.
 - Model mutation dependencies with typed `Resource.tag` values. Actions should invalidate domain facts, not string cache keys.
 - Use `Schema.brand` for domain ids and generated framework ids that cross API seams. A route param, server function input, resource key, action input, or manifest id should be a decoded `ProjectId`, `ServerFunctionId`, `ActionId`, or `FileRouteId`, not a plain `string`.
 - Add type tests for API rules that should fail at compile time. A passing runtime test is not enough when the framework can reject the mistake earlier.
-- Any host adapter that must return a Promise should have an Effect-native sibling with the `Effect` suffix, and the Promise form should only call through the active `EffectUiRuntime`.
+- Host adapters should expose Effect-native handlers. If a platform contract requires a Promise, the app entrypoint should call through the active `EffectUiRuntime`.
 
 ## Gold Standard
 
@@ -80,7 +80,6 @@ const UserById = Resource.family({
 const ref = UserById(makeUserId("1"));
 
 yield* Resource.prefetchEffect(ref);
-await Resource.prefetch(ref);
 ```
 
 Under the hood, `Resource.family` uses Effect `Cache`: `prefetchEffect` maps to
@@ -184,7 +183,6 @@ const SaveUser = Action.define({
 const action = Action.use(SaveUser);
 
 yield* action.submitEffect(input);
-await action.submit(input);
 ```
 
 Expose progressive actions to Start when the same mutation should work with
@@ -383,8 +381,8 @@ const app = defineApp({
 
 yield* app.runtime.provide(Users.use((users) => users.get("1")));
 
-const handler = createRequestHandler(app);       // host Promise boundary
-const effect = createRequestHandlerEffect(app); // native Effect boundary
+const handler = createRequestHandler(app);    // native Effect handler
+const fetchEffect = toFetchHandler(handler);  // fetch-shaped Effect adapter
 ```
 
 ```ts

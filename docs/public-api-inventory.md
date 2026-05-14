@@ -49,7 +49,7 @@ Golden-path public groups:
 - `defineApp`, `route`, `Route`, `Resource`, `Action`, `ActionResult`
 - `Server`, `ServerClient`, request/response context services
 - `Signal`, `Form`, `Capability`, `UiScope`
-- `makeRuntime`, `runWithRuntime`, `runPromise`, `runEffectInput`
+- `makeRuntime`, `runWithRuntime`, `runPromise`, `runPromiseExit`, `runFork`
 
 Release decisions:
 
@@ -66,8 +66,8 @@ Release decisions:
   or adapter hooks such as Solid's `useRuntime`.
 - `EffectUiRuntime.provide(...)` is expert-public runtime plumbing: it satisfies
   the runtime's managed services and returns a scoped Effect suitable for
-  UI-scope forking, while Promise host boundaries should prefer
-  `runtime.runPromise(...)`.
+  UI-scope forking. Host boundaries that must resolve a platform Promise should
+  call `runtime.runPromise(...)` explicitly.
 - `Capability.useEffect(...)` is public with explicit pure-value and
   Effect-returning overloads; Promise-returning callbacks remain rejected so
   host async work is routed through Effect primitives.
@@ -115,9 +115,9 @@ Release decisions:
 - `EffectUiStartPlugin` is public because tests, CI helpers, and starter tools
   should be able to call the Start Vite plugin hooks without re-narrowing Vite's
   broad `PluginOption` union.
-- The root `StartRequestHandler` is the Promise host-boundary request handler
-  returned by `createRequestHandler`; the Vite-only synchronous-or-async SSR
-  module handler is `StartSsrRequestHandler`.
+- The root `StartRequestHandler` is the Effect-returning request handler
+  returned by `createRequestHandler`; the Vite-only plain-or-Effect SSR module
+  handler is `StartSsrRequestHandler`.
 - `StartRequestTrace` is intentionally structural with
   `DevtoolsRequestTrace`. Keep type-test coverage so Start can emit devtools
   facts without depending on `@effect-ui/devtools`.
@@ -140,8 +140,8 @@ Release decisions:
 
 The root export includes the generic Fetch-host adapter facade:
 
-- `toFetchHandlerEffect`, `toFetchHandler`, and the related Fetch handler
-  types.
+- `toFetchHandlerEffect`, `toFetchHandler`, and the related Effect-shaped Fetch
+  handler types.
 
 Release decisions:
 

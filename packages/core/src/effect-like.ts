@@ -1,6 +1,11 @@
 import { Effect } from "effect";
-import { runPromise } from "./runtime.js";
 
+/**
+ * Input accepted by convenience APIs that can run either a plain value or an Effect.
+ *
+ * Public core APIs prefer Effect-returning variants. EffectInput exists so definitions
+ * can stay ergonomic while still being normalized before execution.
+ */
 export type EffectInput<A, E = unknown, R = never> =
   | A
   | Effect.Effect<A, E, R>;
@@ -19,18 +24,18 @@ export type EnsureEffectInputValue<Out, A> = EffectInputValue<Out> extends A ? O
 
 export type EnsureEffectInput<Out> = Out extends PromiseLike<unknown> ? never : Out;
 
-export const isPromiseLike = (value: unknown): value is PromiseLike<unknown> =>
-  typeof value === "object" &&
-  value !== null &&
-  "then" in value &&
-  typeof (value as { then?: unknown }).then === "function";
-
 export function isEffectLike<A, E, R>(value: EffectInput<A, E, R>): value is Effect.Effect<A, E, R>;
 export function isEffectLike(value: unknown): value is Effect.Effect<unknown, unknown, unknown>;
 export function isEffectLike(value: unknown): value is Effect.Effect<unknown, unknown, unknown> {
   return Effect.isEffect(value);
 }
 
+/**
+ * Normalizes a value or Effect into an Effect.
+ *
+ * Use this at API boundaries that accept EffectInput, then keep the rest of the
+ * implementation Effect-first.
+ */
 export const toEffect = <A, E = unknown, R = never>(
   value: EffectInput<A, E, R>
 ): Effect.Effect<A, E, R> => {
@@ -38,20 +43,5 @@ export const toEffect = <A, E = unknown, R = never>(
     return value;
   }
 
-  if (isPromiseLike(value)) {
-    return Effect.map(
-      Effect.tryPromise({
-        try: () => value,
-        catch: (error) => error as E
-      }),
-      (resolved) => resolved as A
-    );
-  }
-
   return Effect.succeed(value as A);
 };
-
-export const runEffectInput = <A, E = unknown, R = never>(
-  value: EffectInput<A, E, R>
-): Promise<A> =>
-  runPromise(toEffect(value));

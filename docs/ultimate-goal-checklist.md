@@ -131,18 +131,16 @@ Last evidence pass: May 14, 2026.
 - [x] `Form` derives field names and field values from schemas.
   - Evidence: `packages/core/test/form.test.ts` and negative type assertions in
     `type-tests/framework.test-d.ts`.
-- [x] Every async public API in the current surface has an Effect-native form.
-  - Evidence: public pairs such as `prefetchEffect`/`prefetch`,
-    `submitEffect`/`submit`, `createRequestHandlerEffect`/`createRequestHandler`,
-    collection `*Effect` APIs, adapter `*Effect` APIs, and the Start
-    diagnostics CLI's `runStartDiagnosticsCliEffect` host wrapper are covered
-    by source exports and tests.
-- [x] Promise helpers are documented as UI/host adapters.
+- [x] Every async public API in the current surface is Effect-native.
+  - Evidence: `prefetchEffect`, `refreshEffect`, `submitEffect`,
+    `createRequestHandlerEffect`/`createRequestHandler`, collection `*Effect`
+    APIs, adapter `*Effect` APIs, and the Start diagnostics CLI's
+    `runStartDiagnosticsCliEffect` are covered by source exports and tests.
+- [x] Promise boundaries are documented as host/platform adapters.
   - Evidence: `docs/effect-style.md` and `docs/architecture.md`.
-- [x] Resource public Promise helpers delegate to Effect fibers for in-flight
-  lifecycle tracking.
-  - Evidence: `packages/core/src/resource.ts` stores in-flight public
-    prefetch/refresh work as a `Fiber`; `packages/core/test/resource.test.ts`
+- [x] Resource public preload/refresh APIs are Effect-native and track
+  in-flight lifecycle with fibers.
+  - Evidence: `packages/core/src/resource.ts`; `packages/core/test/resource.test.ts`
     covers dedupe and runtime-disposal interruption.
 - [x] Core Action and Resource runtime calls keep service erasure at the runtime
   boundary.

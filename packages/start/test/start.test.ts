@@ -28,6 +28,7 @@ import {
   startActionForm,
   StartHydrationChunkParseError,
   StartAction,
+  type StartFetch,
   submitStartActionEffect,
   defineFileRoute
 } from "../src/index.js";
@@ -125,9 +126,8 @@ describe("Effect UI Start", () => {
       client: {}
     });
 
-    const result = await preloadRequest(
-      app,
-      new Request("https://example.com/projects/atlas")
+    const result = await Effect.runPromise(
+      preloadRequest(app, new Request("https://example.com/projects/atlas"))
     );
 
     expect(result.match?.params.id).toBe("atlas");
@@ -165,7 +165,9 @@ describe("Effect UI Start", () => {
         `<html><body><main>${match?.href}</main>${hydrationScript}</body></html>`
     });
 
-    const response = await handler(new Request("https://example.com/projects/kepler"));
+    const response = await Effect.runPromise(
+      handler(new Request("https://example.com/projects/kepler"))
+    );
     const html = await response.text();
 
     expect(response.headers.get("content-type")).toBe("text/html");
@@ -196,13 +198,15 @@ describe("Effect UI Start", () => {
       render: ({ match }) => `<html><body><main>${match?.href}</main></body></html>`
     });
 
-    const response = await handler(
-      new Request("https://example.com/projects/atlas?tab=activity", {
-        headers: {
-          "x-effect-ui-request-id": "req-ssr-atlas",
-          cookie: "session=redacted"
-        }
-      })
+    const response = await Effect.runPromise(
+      handler(
+        new Request("https://example.com/projects/atlas?tab=activity", {
+          headers: {
+            "x-effect-ui-request-id": "req-ssr-atlas",
+            cookie: "session=redacted"
+          }
+        })
+      )
     );
 
     expect(traces).toEqual([]);
@@ -305,8 +309,8 @@ describe("Effect UI Start", () => {
       }
     });
 
-    const first = await handler(new Request("https://example.com/projects/atlas"));
-    const second = await handler(new Request("https://example.com/projects/atlas"));
+    const first = await Effect.runPromise(handler(new Request("https://example.com/projects/atlas")));
+    const second = await Effect.runPromise(handler(new Request("https://example.com/projects/atlas")));
 
     await expect(first.text()).resolves.toContain("atlas:1");
     await expect(second.text()).resolves.toContain("atlas:2");
@@ -340,8 +344,8 @@ describe("Effect UI Start", () => {
       }
     });
 
-    const first = await handler(new Request("https://example.com/projects/atlas"));
-    const second = await handler(new Request("https://example.com/projects/atlas"));
+    const first = await Effect.runPromise(handler(new Request("https://example.com/projects/atlas")));
+    const second = await Effect.runPromise(handler(new Request("https://example.com/projects/atlas")));
     const firstHtml = await first.text();
     const secondHtml = await second.text();
 
@@ -382,9 +386,8 @@ describe("Effect UI Start", () => {
       client: {}
     });
 
-    const result = await preloadRequest(
-      app,
-      new Request("https://example.com/projects/atlas")
+    const result = await Effect.runPromise(
+      preloadRequest(app, new Request("https://example.com/projects/atlas"))
     );
 
     expect(projectLoads).toBe(1);
@@ -415,7 +418,9 @@ describe("Effect UI Start", () => {
       render: ({ collectionPreload, collections, hydrationScript }) =>
         `<html><body><main>${collectionPreload.routeTouchedCollections.map((collection) => collection.name).join(",")}</main><aside>${collections.collections.length}</aside>${hydrationScript}</body></html>`
     });
-    const response = await handler(new Request("https://example.com/projects/atlas"));
+    const response = await Effect.runPromise(
+      handler(new Request("https://example.com/projects/atlas"))
+    );
     const html = await response.text();
 
     expect(projectLoads).toBe(2);
@@ -445,9 +450,8 @@ describe("Effect UI Start", () => {
       client: {}
     });
 
-    const result = await preloadRequest(
-      app,
-      new Request("https://example.com/declared-projects")
+    const result = await Effect.runPromise(
+      preloadRequest(app, new Request("https://example.com/declared-projects"))
     );
 
     expect(projectLoads).toBe(1);
@@ -472,7 +476,9 @@ describe("Effect UI Start", () => {
       render: ({ collectionPreload, collections, hydrationScript }) =>
         `<html><body><main>${collectionPreload.routeDeclaredCollections.map((collection) => collection.name).join(",")}</main><aside>${collections.collections.length}</aside>${hydrationScript}</body></html>`
     });
-    const response = await handler(new Request("https://example.com/declared-projects"));
+    const response = await Effect.runPromise(
+      handler(new Request("https://example.com/declared-projects"))
+    );
     const html = await response.text();
 
     expect(projectLoads).toBe(2);
@@ -560,7 +566,7 @@ describe("Effect UI Start", () => {
         })
     });
 
-    const response = await handler(new Request("https://example.com/"));
+    const response = await Effect.runPromise(handler(new Request("https://example.com/")));
 
     expect(interrupted).toBe(false);
     expect(fibers?.size).toBe(1);
@@ -601,12 +607,14 @@ describe("Effect UI Start", () => {
         )
     });
 
-    const response = await handler(
-      new Request("https://example.com/", {
-        headers: {
-          "x-effect-ui-request-id": "req-cancel"
-        }
-      })
+    const response = await Effect.runPromise(
+      handler(
+        new Request("https://example.com/", {
+          headers: {
+            "x-effect-ui-request-id": "req-cancel"
+          }
+        })
+      )
     );
     const reader = response.body!.getReader();
 
@@ -666,12 +674,14 @@ describe("Effect UI Start", () => {
     });
 
     await expect(
-      handler(
-        new Request("https://example.com/", {
-          headers: {
-            "x-effect-ui-request-id": "req-failure"
-          }
-        })
+      Effect.runPromise(
+        handler(
+          new Request("https://example.com/", {
+            headers: {
+              "x-effect-ui-request-id": "req-failure"
+            }
+          })
+        )
       )
     ).rejects.toBe("render-failed");
 
@@ -704,7 +714,7 @@ describe("Effect UI Start", () => {
     ]);
   });
 
-  it("keeps a Promise request handler as the host boundary", async () => {
+  it("keeps an Effect request handler as the host boundary", async () => {
     const Home = route("/", {});
     const app = defineApp({
       routes: [Home] as const,
@@ -712,7 +722,7 @@ describe("Effect UI Start", () => {
     });
     const handler = createRequestHandler(app);
 
-    await expect(handler(new Request("https://example.com/"))).resolves.toBeInstanceOf(Response);
+    await expect(Effect.runPromise(handler(new Request("https://example.com/")))).resolves.toBeInstanceOf(Response);
   });
 
   it("applies response context mutations from Start render effects", async () => {
@@ -737,7 +747,7 @@ describe("Effect UI Start", () => {
         )
     });
 
-    const response = await handler(new Request("https://example.com/"));
+    const response = await Effect.runPromise(handler(new Request("https://example.com/")));
 
     expect(response.status).toBe(202);
     expect(response.headers.get("x-effect-ui-render-context")).toBe("yes");
@@ -813,36 +823,40 @@ describe("Effect UI Start", () => {
         })
     });
 
-    const rpcResponse = await handler(
-      new Request(`https://example.com${serverRpcPath}`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-effect-ui-request-id": "req-rpc-trace"
-        },
-        body: JSON.stringify({
-          name: echo.name,
-          input: { value: "ada" }
+    const rpcResponse = await Effect.runPromise(
+      handler(
+        new Request(`https://example.com${serverRpcPath}`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-effect-ui-request-id": "req-rpc-trace"
+          },
+          body: JSON.stringify({
+            name: echo.name,
+            input: { value: "ada" }
+          })
         })
-      })
+      )
     );
     await expect(rpcResponse.json()).resolves.toEqual({
       _tag: "Success",
       value: { value: "ADA" }
     });
 
-    const actionResponse = await handler(
-      new Request(`https://example.com${serverActionPath}`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          "x-effect-ui-request-id": "req-action-trace"
-        },
-        body: JSON.stringify({
-          name: Ping.name,
-          input: { value: "pong" }
+    const actionResponse = await Effect.runPromise(
+      handler(
+        new Request(`https://example.com${serverActionPath}`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "x-effect-ui-request-id": "req-action-trace"
+          },
+          body: JSON.stringify({
+            name: Ping.name,
+            input: { value: "pong" }
+          })
         })
-      })
+      )
     );
     await expect(actionResponse.json()).resolves.toEqual({
       _tag: "Success",
@@ -895,7 +909,7 @@ describe("Effect UI Start", () => {
       client: {}
     });
     const handler = createRequestHandler(app);
-    const fetcher: typeof globalThis.fetch = (input, init) =>
+    const fetcher: StartFetch = (input, init) =>
       handler(new Request(input, init));
     const runtime = Layer.succeed(ServerClient)(
       makeRpcClient({
@@ -929,7 +943,7 @@ describe("Effect UI Start", () => {
       client: {}
     });
     const handler = createRequestHandler(app);
-    const fetcher: typeof globalThis.fetch = (input, init) =>
+    const fetcher: StartFetch = (input, init) =>
       handler(new Request(input, init));
     const runtime = Layer.succeed(ServerClient)(
       makeRpcClient({
@@ -1042,12 +1056,14 @@ describe("Effect UI Start", () => {
       form.hiddenFields.map((field) => [field.name, field.value])
     );
     formBody.set("name", "Atlas Forms");
-    const redirect = await handler(
-      new Request(`https://example.com${form.action}`, {
-        method: form.method.toUpperCase(),
-        headers: { "content-type": "application/x-www-form-urlencoded" },
-        body: formBody
-      })
+    const redirect = await Effect.runPromise(
+      handler(
+        new Request(`https://example.com${form.action}`, {
+          method: form.method.toUpperCase(),
+          headers: { "content-type": "application/x-www-form-urlencoded" },
+          body: formBody
+        })
+      )
     );
 
     expect(validation.status).toBe(422);
@@ -1073,15 +1089,17 @@ describe("Effect UI Start", () => {
       routes: [route("/", {})] as const,
       client: {}
     });
-    const response = await createRequestHandler(app)(
-      new Request(`https://example.com${serverActionPath}`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          name: Ping.name,
-          input: { value: "registry" }
+    const response = await Effect.runPromise(
+      createRequestHandler(app)(
+        new Request(`https://example.com${serverActionPath}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            name: Ping.name,
+            input: { value: "registry" }
+          })
         })
-      })
+      )
     );
 
     await expect(response.json()).resolves.toEqual({
@@ -1128,7 +1146,7 @@ describe("Effect UI Start", () => {
     });
     const clientRuntime = makeRuntime();
     const ref = Project("atlas");
-    const fetcher: typeof fetch = (input, init) => {
+    const fetcher: StartFetch = (input, init) => {
       const url = input instanceof Request
         ? input.url
         : new URL(String(input), "https://example.com").href;
@@ -1190,7 +1208,7 @@ describe("Effect UI Start", () => {
         runtime: clientRuntime
       });
       await expect(
-        action.submit({ id: "atlas", name: "Renamed Through StartAction" })
+        Effect.runPromise(action.submitEffect({ id: "atlas", name: "Renamed Through StartAction" }))
       ).resolves.toMatchObject({
         _tag: "Success",
         value: {
@@ -1227,7 +1245,7 @@ describe("Effect UI Start", () => {
         name: "Renamed Through StartAction"
       });
     } finally {
-      await clientRuntime.dispose();
+      await Effect.runPromise(clientRuntime.disposeEffect);
     }
   });
 
@@ -1245,8 +1263,8 @@ describe("Effect UI Start", () => {
       output: ProjectSchema,
       run: ({ id, name }) => Effect.succeed({ id, name })
     });
-    const badFetch: typeof fetch = () =>
-      Effect.runPromise(Effect.succeed(
+    const badFetch: StartFetch = () =>
+      Effect.succeed(
         new Response(
           JSON.stringify({
             _tag: "Success",
@@ -1259,7 +1277,7 @@ describe("Effect UI Start", () => {
             headers: { "content-type": "application/json" }
           }
         )
-      ));
+      );
 
     const exit = await Effect.runPromiseExit(
       submitStartActionEffect(
@@ -1314,7 +1332,7 @@ describe("Effect UI Start", () => {
     });
     const clientRuntime = makeRuntime();
     const ref = Project("atlas");
-    const fetcher: typeof fetch = (input, init) => {
+    const fetcher: StartFetch = (input, init) => {
       const url = input instanceof Request
         ? input.url
         : new URL(String(input), "https://example.com").href;
@@ -1354,7 +1372,7 @@ describe("Effect UI Start", () => {
         name: "Renamed Through Tag"
       });
     } finally {
-      await clientRuntime.dispose();
+      await Effect.runPromise(clientRuntime.disposeEffect);
     }
   });
 
@@ -1373,7 +1391,7 @@ describe("Effect UI Start", () => {
       actions: [Ping]
     });
     const runtime = makeRuntime();
-    const fetcher: typeof fetch = (input, init) => {
+    const fetcher: StartFetch = (input, init) => {
       const url = input instanceof Request
         ? input.url
         : new URL(String(input), "https://example.com").href;
@@ -1383,7 +1401,7 @@ describe("Effect UI Start", () => {
 
     try {
       expect(action.state.get()).toEqual({ _tag: "Idle" });
-      const submission = action.submit({ value: "transport" });
+      const submission = Effect.runPromise(action.submitEffect({ value: "transport" }));
       expect(action.state.get()).toMatchObject({
         _tag: "Pending",
         input: { value: "transport" }
@@ -1401,7 +1419,7 @@ describe("Effect UI Start", () => {
         }
       });
     } finally {
-      await runtime.dispose();
+      await Effect.runPromise(runtime.disposeEffect);
     }
   });
 
@@ -1417,21 +1435,22 @@ describe("Effect UI Start", () => {
       },
       run: ({ value }) => Effect.succeed({ value })
     });
-    const fetcher: typeof fetch = async () => {
-      const requestNumber = ++requests;
-      await Effect.runPromise(Deferred.await(release));
-      return new Response(
-        JSON.stringify({
-          _tag: "Success",
-          value: { value: `response-${requestNumber}` }
-        }),
-        {
-          headers: {
-            "content-type": "application/json"
+    const fetcher: StartFetch = () =>
+      Effect.gen(function* () {
+        const requestNumber = ++requests;
+        yield* Deferred.await(release);
+        return new Response(
+          JSON.stringify({
+            _tag: "Success",
+            value: { value: `response-${requestNumber}` }
+          }),
+          {
+            headers: {
+              "content-type": "application/json"
+            }
           }
-        }
-      );
-    };
+        );
+      });
     const runtime = makeRuntime();
     const action = StartAction.use(Ping, { fetch: fetcher, runtime });
 
@@ -1455,7 +1474,7 @@ describe("Effect UI Start", () => {
         input: { value: "first" }
       });
     } finally {
-      await runtime.dispose();
+      await Effect.runPromise(runtime.disposeEffect);
     }
   });
 
@@ -1608,7 +1627,7 @@ describe("Effect UI Start", () => {
         $synced: true
       });
     } finally {
-      await runtime.dispose();
+      await Effect.runPromise(runtime.disposeEffect);
     }
   });
 
@@ -1676,7 +1695,7 @@ describe("Effect UI Start", () => {
       });
       expect(loads).toBe(0);
     } finally {
-      await runtime.dispose();
+      await Effect.runPromise(runtime.disposeEffect);
     }
   });
 
@@ -1755,7 +1774,7 @@ describe("Effect UI Start", () => {
         ["atlas", "kepler"]
       );
     } finally {
-      await runtime.dispose();
+      await Effect.runPromise(runtime.disposeEffect);
     }
   });
 
@@ -1787,7 +1806,7 @@ describe("Effect UI Start", () => {
       expect(second).toHaveLength(1);
       expect(streamElement.getAttribute(streamHydrationConsumedAttribute)).toBeNull();
     } finally {
-      await runtime.dispose();
+      await Effect.runPromise(runtime.disposeEffect);
     }
   });
 
@@ -2369,28 +2388,30 @@ describe("Effect UI Start", () => {
       );
 
       await expect(
-        loadStartAppGraphDiagnostics({
-          root,
-          configFile: false,
-          start: {
-            fileRoutes: ["src/routes/index.ts"],
-            fileRouteOptions: {
-              routeDirectory: "src/routes"
-            },
-            buildPolicy: {
-              wireSchemas: false,
-              diagnostics: {
-                routePreloadResources: {
-                  requireDeclaredForPreload: true
-                },
-                routePreloadCollections: {
-                  requireDeclaredForPreload: true
+        Effect.runPromise(
+          loadStartAppGraphDiagnostics({
+            root,
+            configFile: false,
+            start: {
+              fileRoutes: ["src/routes/index.ts"],
+              fileRouteOptions: {
+                routeDirectory: "src/routes"
+              },
+              buildPolicy: {
+                wireSchemas: false,
+                diagnostics: {
+                  routePreloadResources: {
+                    requireDeclaredForPreload: true
+                  },
+                  routePreloadCollections: {
+                    requireDeclaredForPreload: true
+                  }
                 }
               }
-            }
-          },
-          vite: startDiagnosticsRunnerViteConfig()
-        })
+            },
+            vite: startDiagnosticsRunnerViteConfig()
+          })
+        )
       ).rejects.toMatchObject({
         name: "StartAppGraphDiagnosticsPolicyError"
       });
@@ -2648,11 +2669,13 @@ describe("Effect UI Start", () => {
     const report = createStartDiagnosticsReport(loadedDiagnostics);
     const formatted = formatStartDiagnosticsReport(report);
     const stdout: string[] = [];
-    const result = await runStartDiagnosticsCli(["diagnostics"], {
-      stdout: (text) => stdout.push(text),
-      stderr: () => undefined,
-      loadDiagnostics: async () => loadedDiagnostics
-    });
+    const result = await Effect.runPromise(
+      runStartDiagnosticsCli(["diagnostics"], {
+        stdout: (text) => stdout.push(text),
+        stderr: () => undefined,
+        loadDiagnosticsEffect: () => Effect.succeed(loadedDiagnostics)
+      })
+    );
 
     expect(report.status).toBe("needs-attention");
     expect(formatted).toContain("Owner: src/routes/projects/$id.tsx");
@@ -2732,13 +2755,13 @@ describe("Effect UI Start", () => {
         unknownRoutePreloadCollections: []
       }
     });
-    const result = await runStartDiagnosticsCli(["diagnostics"], {
-      stdout: () => undefined,
-      stderr: (text) => stderr.push(text),
-      loadDiagnostics: async () => {
-        throw failure;
-      }
-    });
+    const result = await Effect.runPromise(
+      runStartDiagnosticsCli(["diagnostics"], {
+        stdout: () => undefined,
+        stderr: (text) => stderr.push(text),
+        loadDiagnosticsEffect: () => Effect.fail(failure)
+      })
+    );
 
     expect(result.exitCode).toBe(1);
     expect(stderr.join("\n")).toContain("Routes with preload must declare preloadResources.");
@@ -2870,10 +2893,12 @@ describe("Effect UI Start", () => {
       ssrLoadModule: async (id: string) => {
         loadedEntries.push(id);
         return {
-          default: async (request: Request) =>
-            new Response(`<html><body>${new URL(request.url).pathname}</body></html>`, {
-              headers: { "content-type": "text/html" }
-            })
+          default: (request: Request) =>
+            Effect.succeed(
+              new Response(`<html><body>${new URL(request.url).pathname}</body></html>`, {
+                headers: { "content-type": "text/html" }
+              })
+            )
         };
       },
       transformIndexHtml: async (url: string, html: string) => {
@@ -2882,10 +2907,12 @@ describe("Effect UI Start", () => {
       }
     };
 
-    const response = await handleSsrDevRequest(
-      server,
-      new Request("https://example.com/projects/atlas?tab=activity"),
-      { serverEntry: "/src/server.tsx" }
+    const response = await Effect.runPromise(
+      handleSsrDevRequest(
+        server,
+        new Request("https://example.com/projects/atlas?tab=activity"),
+        { serverEntry: "/src/server.tsx" }
+      )
     );
     const html = await response.text();
 

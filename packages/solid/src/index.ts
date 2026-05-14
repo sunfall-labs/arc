@@ -9,6 +9,7 @@ import {
   forkScoped,
   makeRuntime,
   onDispose,
+  runFork,
   runWithRuntime,
   runWithScope,
   Signal,
@@ -42,11 +43,13 @@ type ResourceInput<I, A, E, R = unknown> = ResourceRef<I, A, E, R> | (() => Reso
 
 type AnyRoute = Route.Definition<string, unknown, unknown>;
 
+/** Metadata passed to resource success render branches. */
 export interface ResourceSuccessMeta<A, E> {
   readonly refreshing: boolean;
   readonly state: ResourceState<A, E>;
 }
 
+/** Exhaustive render cases for `ResourceHandle.match`. */
 export interface ResourceMatch<A, E, B> {
   readonly initial: () => B;
   readonly pending: (previous: A | undefined) => B;
@@ -54,6 +57,13 @@ export interface ResourceMatch<A, E, B> {
   readonly failure: (error: E, previous: A | undefined) => B;
 }
 
+/**
+ * Solid-facing handle for an Effect UI resource.
+ *
+ * Accessors track resource state reactively. `refreshEffect` and
+ * `prefetchEffect` keep resource work in Effect so callers can compose it with
+ * the active runtime instead of starting Promise work implicitly.
+ */
 export interface ResourceHandle<I, A, E, R = unknown> {
   readonly ref: Accessor<ResourceRef<I, A, E, R>>;
   readonly state: Accessor<ResourceState<A, E>>;
@@ -63,12 +73,11 @@ export interface ResourceHandle<I, A, E, R = unknown> {
   readonly refreshing: Accessor<boolean>;
   readonly hasValue: Accessor<boolean>;
   refreshEffect(): Effect.Effect<A, E, R>;
-  refresh(): Promise<A>;
   prefetchEffect(): Effect.Effect<A, E, R>;
-  prefetch(): Promise<A>;
   match<B>(cases: ResourceMatch<A, E, B>): B;
 }
 
+/** Reactive browser router state emitted while matching and preloading routes. */
 export type BrowserRouterState<
   Routes extends readonly AnyRoute[] = readonly AnyRoute[]
 > =
@@ -77,15 +86,18 @@ export type BrowserRouterState<
   | { readonly _tag: "Failure"; readonly href: string; readonly match: Route.Match<Routes[number]>; readonly error: unknown }
   | { readonly _tag: "NotFound"; readonly href: string };
 
+/** Options for router navigation history behavior. */
 export interface BrowserNavigateOptions {
   readonly replace?: boolean;
 }
 
+/** Options for creating a Solid browser router. */
 export interface BrowserRouterOptions {
   readonly initialHref?: string;
   readonly runtime?: EffectUiRuntime<unknown, unknown>;
 }
 
+/** Solid browser router backed by Effect UI route definitions and preload. */
 export interface BrowserRouter<Routes extends readonly AnyRoute[] = readonly AnyRoute[]> {
   readonly routes: Routes;
   readonly state: Accessor<BrowserRouterState<Routes>>;
@@ -97,9 +109,10 @@ export interface BrowserRouter<Routes extends readonly AnyRoute[] = readonly Any
     navigateOptions?: BrowserNavigateOptions
   ): void;
   navigateHref(href: string, options?: BrowserNavigateOptions): void;
-  preload<R extends Routes[number]>(definition: R, options: Route.HrefOptions<R>): Promise<void>;
+  preloadEffect<R extends Routes[number]>(definition: R, options: Route.HrefOptions<R>): Effect.Effect<void, unknown>;
 }
 
+/** Props for `RouterProvider`, including route definitions and render fallbacks. */
 export interface RouterProviderProps<Routes extends readonly AnyRoute[]> extends RouterOutletProps {
   readonly routes: Routes;
   readonly initialHref?: string;
@@ -107,6 +120,7 @@ export interface RouterProviderProps<Routes extends readonly AnyRoute[]> extends
   readonly children?: JSX.Element;
 }
 
+/** Render fallbacks for route pending, failure, and not-found states. */
 export interface RouterOutletProps {
   readonly pending?: (state: Extract<BrowserRouterState, { readonly _tag: "Pending" }>) => JSX.Element;
   readonly failure?: (state: Extract<BrowserRouterState, { readonly _tag: "Failure" }>) => JSX.Element;
@@ -126,26 +140,36 @@ const currentHref = (fallback = "/"): string =>
 const RouterContext = createContext<BrowserRouter>();
 const RuntimeContext = createContext<EffectUiRuntime<unknown, unknown>>();
 
+/** Error thrown when router hooks are used outside `RouterProvider`. */
 export class RouterContextMissing extends Data.TaggedError("RouterContextMissing")<{
   readonly hook: string;
 }> {}
 
+/** Props for providing an Effect UI runtime to Solid descendants. */
 export interface RuntimeProviderProps {
   readonly runtime?: EffectUiRuntime<unknown, unknown>;
   readonly source?: RuntimeSource<unknown, unknown>;
   readonly children?: JSX.Element;
 }
 
+/** Creates an Effect UI runtime for Solid applications. */
 export const createEffectRuntime = makeRuntime;
 
+/** Reads the nearest Solid runtime context, falling back to the current/default runtime. */
 export const useRuntime = (): EffectUiRuntime<unknown, unknown> =>
   useContext(RuntimeContext) ?? currentOrDefaultRuntime();
 
+/**
+ * Provides an Effect UI runtime to Solid children.
+ *
+ * Pass an existing runtime when the host owns lifecycle. Pass a runtime source
+ * to let the provider create and dispose a runtime with the Solid owner.
+ */
 export const RuntimeProvider = (props: RuntimeProviderProps): JSX.Element => {
   const runtime = props.runtime ?? (props.source ? makeRuntime(props.source) : defaultRuntime);
   if (!props.runtime && props.source) {
     onCleanup(() => {
-      void runtime.dispose();
+      void runtime.runFork(runtime.disposeEffect);
     });
   }
 
@@ -174,14 +198,21 @@ const stateHasValue = <A, E>(state: ResourceState<A, E>): boolean => {
   }
 };
 
+/** Creates a `UiScope` bound to the current Solid owner cleanup. */
 export const createComponentScope = <A>(f: (scope: UiScope) => A): A => {
   const scope = new UiScope();
   onCleanup(() => {
-    void scope.dispose();
+    void runFork(scope.disposeEffect().pipe(Effect.catch(() => Effect.void)));
   });
   return runWithScope(scope, () => f(scope));
 };
 
+/**
+ * Creates a Solid browser router from Effect UI route definitions.
+ *
+ * Navigation preloads matched route resources in the configured runtime and
+ * interrupts stale preload work when navigation changes.
+ */
 export const createBrowserRouter = <const Routes extends readonly AnyRoute[]>(
   routes: Routes,
   options: BrowserRouterOptions = {}
@@ -201,7 +232,7 @@ export const createBrowserRouter = <const Routes extends readonly AnyRoute[]>(
 
   const disposePreloadScope = (): void => {
     if (preloadScope) {
-      void preloadScope.dispose();
+      void runFork(preloadScope.disposeEffect().pipe(Effect.catch(() => Effect.void)));
       preloadScope = undefined;
     }
   };
@@ -290,17 +321,16 @@ export const createBrowserRouter = <const Routes extends readonly AnyRoute[]>(
 
       setLocation(currentHref());
     },
-    preload: (definition, options) => {
+    preloadEffect: (definition, options) => {
       const match = definition.match(Route.href(definition, options));
-      return match
-        ? runtime.runPromise(Route.preloadEffect(match))
-        : runtime.runPromise(Effect.void);
+      return match ? Route.preloadEffect(match) : Effect.void;
     }
   };
 
   return router;
 };
 
+/** Reads the current router from `RouterProvider`. */
 export const useRouter = <
   Routes extends readonly AnyRoute[] = readonly AnyRoute[]
 >(): BrowserRouter<Routes> => {
@@ -349,7 +379,7 @@ const renderRouteState = (
       const node = createRoot((disposeSolid) => {
         disposeRoute = () => {
           disposeSolid();
-          void routeScope.dispose();
+          void runFork(routeScope.disposeEffect().pipe(Effect.catch(() => Effect.void)));
         };
 
         return runWithRuntime(runtime, () =>
@@ -368,6 +398,7 @@ const renderRouteState = (
   }
 };
 
+/** Renders the matched route component and owns its route `UiScope`. */
 export const RouterOutlet = (props: RouterOutletProps): JSX.Element => {
   const router = useRouter();
   const runtime = useRuntime();
@@ -404,6 +435,14 @@ export const RouterOutlet = (props: RouterOutletProps): JSX.Element => {
   });
 };
 
+/**
+ * Provides router and runtime context, then renders either children or outlet.
+ *
+ * @example
+ * ```tsx
+ * <RouterProvider routes={routes} />
+ * ```
+ */
 export const RouterProvider = <const Routes extends readonly AnyRoute[]>(
   props: RouterProviderProps<Routes>
 ): JSX.Element => {
@@ -427,6 +466,7 @@ export const RouterProvider = <const Routes extends readonly AnyRoute[]>(
   });
 };
 
+/** Bridges an Effect UI readable signal into a Solid accessor. */
 export const useSignal = <A>(signal: ReadableSignal<A>): Accessor<A> => {
   const [value, setValue] = createSignal(coreRead(signal));
   const unsubscribe = signal.subscribe(() => {
@@ -436,6 +476,7 @@ export const useSignal = <A>(signal: ReadableSignal<A>): Accessor<A> => {
   return value;
 };
 
+/** Subscribes to an Effect stream through a Solid accessor. */
 export const useStream = <A>(
   stream: Stream.Stream<A, never, never>,
   initial: A
@@ -449,6 +490,7 @@ export const useStream = <A>(
     return useSignal(signal);
   });
 
+/** Returns the reactive `ResourceState` for a resource ref or ref accessor. */
 export const useResourceResult = <I, A, E, R = unknown>(
   ref: ResourceInput<I, A, E, R>
 ): Accessor<ResourceState<A, E>> => {
@@ -483,6 +525,7 @@ export const useResourceResult = <I, A, E, R = unknown>(
   return state;
 };
 
+/** Returns the latest successful value for a resource, if one exists. */
 export const useResourceValue = <I, A, E, R = unknown>(
   ref: ResourceInput<I, A, E, R>
 ): Accessor<A | undefined> => {
@@ -490,6 +533,7 @@ export const useResourceValue = <I, A, E, R = unknown>(
   return createMemo(() => Resource.value(state()));
 };
 
+/** Returns the latest resource error, if the resource is failed. */
 export const useResourceError = <I, A, E, R = unknown>(
   ref: ResourceInput<I, A, E, R>
 ): Accessor<E | undefined> => {
@@ -497,6 +541,24 @@ export const useResourceError = <I, A, E, R = unknown>(
   return createMemo(() => Resource.error(state()));
 };
 
+/**
+ * Creates a Solid handle for an Effect UI resource.
+ *
+ * The hook subscribes to resource state, prefetches initial resources, and
+ * exposes Effect-returning refresh/prefetch methods for event handlers or
+ * composed workflows.
+ *
+ * @example
+ * ```tsx
+ * const project = useResource(() => ProjectResource(params.id));
+ * return project.match({
+ *   initial: () => null,
+ *   pending: () => "Loading",
+ *   success: (value) => value.name,
+ *   failure: () => "Could not load"
+ * });
+ * ```
+ */
 export const useResource = <I, A, E, R = unknown>(ref: ResourceInput<I, A, E, R>): ResourceHandle<I, A, E, R> => {
   const runtime = useRuntime();
   const getRef = resourceAccessor(ref);
@@ -519,9 +581,7 @@ export const useResource = <I, A, E, R = unknown>(ref: ResourceInput<I, A, E, R>
     refreshing,
     hasValue,
     refreshEffect: () => Resource.refreshEffect(getRef()),
-    refresh: () => runtime.runPromise(Resource.refreshEffect(getRef())),
     prefetchEffect: () => Resource.prefetchEffect(getRef()),
-    prefetch: () => runtime.runPromise(Resource.prefetchEffect(getRef())),
     match: (cases) => {
       const current = state();
       switch (current._tag) {
@@ -538,6 +598,7 @@ export const useResource = <I, A, E, R = unknown>(ref: ResourceInput<I, A, E, R>
   };
 };
 
+/** Suspense-style resource accessor that throws pending work or failures. */
 export const useResourceSuspense = <I, A, E, R = unknown>(ref: ResourceInput<I, A, E, R>): Accessor<A> => {
   const runtime = useRuntime();
   const getRef = resourceAccessor(ref);
@@ -561,6 +622,7 @@ export const useResourceSuspense = <I, A, E, R = unknown>(ref: ResourceInput<I, 
   });
 };
 
+/** Creates an Action instance bound to the nearest Solid runtime. */
 export const useAction = <I, A, E, R>(
   definition: Action.Definition<I, A, E, R>
 ): ActionInstance<I, A, E, R> => Action.use(definition, { runtime: useRuntime() as EffectUiRuntime<R, unknown> });
