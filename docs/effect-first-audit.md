@@ -23,10 +23,17 @@ Effect-native interruption.
   - Moved response stream pull, cancel, error, and finalization lifecycle into
     Effect programs that the Web Stream host callbacks run through the request
     runtime.
+  - Request-runtime provision, request-handler Promise wrappers, StartAction
+    fiber joins/workflow launches, and stream pull/cancel programs now hand
+    Effects directly to runtime/Effect primitives instead of adding local
+    requirement-erasure casts.
   - Runtime disposal and request trace emission happen from the same
     `disposeEffect` finalizer.
   - Added trace tests for response stream close, cancellation, and request
     failure paths.
+- `packages/start/src/hydration.ts`
+  - Hydration sync helpers now run schema/collection hydration Effects directly
+    through the selected runtime without local requirement erasure.
 - `packages/core/src/runtime.ts`
   - Replaced Promise `.then(...)` disposal sequencing with a single
     `disposeEffect` run from the public `dispose()` host-boundary method.
@@ -239,3 +246,13 @@ Effect-native interruption.
   with 1 extension test file / 6 tests, basic starter verify, project-console
   starter packaging, project-console typecheck, 4 project-console test files /
   23 tests, project-console build, and leak scan.
+- `pnpm --filter @effect-ui/start typecheck`, `pnpm typecheck:types`, and
+  `pnpm exec vitest run packages/start/test/adapters.test.ts packages/start/test/start.test.ts -t "hydration|adapter|Node|fetch|StartAction|stream|request handler"`
+  passed after removing Start runtime call-site casts: 2 files, 20 selected
+  tests.
+- Full `pnpm verify` passed after removing Start runtime call-site casts: 9
+  package builds, workspace typecheck, type tests, 38 root test files / 320
+  tests, devtools-panel verify, devtools-extension verify with 1 extension test
+  file / 6 tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.

@@ -176,6 +176,12 @@ Last evidence pass: May 14, 2026.
   run through request runtimes.
   - Evidence: `packages/start/test/start.test.ts` request-runtime, RPC, action,
     hydration, and stream-finalizer tests.
+- [x] Start runtime call sites keep service erasure at runtime/host boundaries.
+  - Evidence: `packages/start/src/index.ts` and
+    `packages/start/src/hydration.ts` pass request-runtime provision,
+    request-handler work, StartAction fibers, response stream pull/cancel
+    programs, and hydration sync Effects directly through runtime/Effect
+    primitives.
 - [x] Request runtimes use fresh request-local `ResourceStore` and
   `Collection.Store` state.
   - Evidence: `uses a fresh resource store for each SSR request`,
@@ -591,8 +597,8 @@ Last evidence pass: May 14, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026 after the DB collection
-    EffectInput cleanup: 9 package builds, workspace typecheck, type tests,
+  - Evidence: root `pnpm verify` passed on May 14, 2026 after the Start runtime
+    call-site cast cleanup: 9 package builds, workspace typecheck, type tests,
     38 root test files / 320 tests, devtools-panel verify,
     devtools-extension verify with 1 extension test file / 6 tests, basic starter
     verify, project-console starter packaging, project-console typecheck, 4

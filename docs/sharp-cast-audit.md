@@ -63,6 +63,10 @@ Solid adapter, and DB query-builder cleanup sweeps.
   longer need outer generator assertions.
 - `runEffectInput(...)` and route preload effects now pass their converted
   `EffectInput` values through Effect/runtime helpers directly.
+- Start request-runtime provision, request-handler runners, StartAction
+  submission fibers, response stream pull/cancel programs, and hydration sync
+  helpers now pass Effects directly through `EffectUiRuntime`/Effect primitives
+  instead of erasing requirements at each call site.
 - DB sync adapters, SQLite persistence helpers, flush policies, and server
   collection adapters now rely on typed `toEffect(...)` wrappers, explicit method
   return types, or a named server-collection PromiseLike bridge instead of
@@ -89,9 +93,10 @@ Solid adapter, and DB query-builder cleanup sweeps.
 - Framework type-id declarations now preserve their `unique symbol` types with
   self-type assertions such as `as typeof ActionTypeId` instead of bottoming out
   through `as never`.
-- Test-only `as unknown as` and `as never` casts have been removed; the broad
-  sharp-cast grep now reports only three DB query context-variance `as unknown
-  as` seams.
+- Test-only `as unknown as` and `as never` casts have been removed; remaining
+  package-source casts are implementation boundaries such as DB query
+  context-variance, schema encode/decode helpers, runtime service provision, and
+  Start host/runtime adapter crossings.
 
 ## Verification Evidence
 
@@ -319,6 +324,16 @@ Solid adapter, and DB query-builder cleanup sweeps.
   tests, basic starter verify, project-console starter packaging, project-console
   typecheck, 4 project-console test files / 23 tests, project-console build, and
   leak scan.
+- `pnpm --filter @effect-ui/start typecheck`, `pnpm typecheck:types`, and
+  `pnpm exec vitest run packages/start/test/adapters.test.ts packages/start/test/start.test.ts -t "hydration|adapter|Node|fetch|StartAction|stream|request handler"`
+  passed after removing Start runtime call-site casts: 2 files, 20 selected
+  tests.
+- `pnpm verify` passed after the Start runtime call-site cleanup: 9 package
+  builds, workspace typecheck, type tests, 38 root test files / 320 tests,
+  devtools-panel verify, devtools-extension verify with 1 extension test file / 6
+  tests, basic starter verify, project-console starter packaging,
+  project-console typecheck, 4 project-console test files / 23 tests,
+  project-console build, and leak scan.
 
 ## Follow-Up
 

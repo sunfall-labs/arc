@@ -120,6 +120,12 @@ Latest full gate on May 14, 2026:
 - Type-id declarations no longer appear in the broad `as never` cast sweep.
 - The latest `pnpm verify` passed after tightening runtime-provided scoped
   Effects and removing Solid/Solid-DB hook call-site requirement erasure.
+- Start request-runtime provision, request-handler wrappers, StartAction fiber
+  workflows, response stream pull/cancel programs, and hydration sync helpers
+  now pass Effects directly through runtime/Effect primitives instead of local
+  requirement-erasure casts.
+- The latest `pnpm verify` passed after the Start runtime call-site cast
+  cleanup.
 
 ## Notable Limits
 

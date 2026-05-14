@@ -131,7 +131,7 @@ const runHydrationSync = <A>(
   effect: Effect.Effect<A>,
   runtime: EffectUiRuntime<any, any> | undefined
 ): A =>
-  (runtime ?? currentOrDefaultRuntime()).runSync(effect as Effect.Effect<A, never, any>);
+  (runtime ?? currentOrDefaultRuntime()).runSync(effect);
 
 export const collectionHydrationPayloadEffect = (
   options: StartCollectionHydrationOptions = {}

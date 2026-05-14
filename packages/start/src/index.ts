@@ -490,7 +490,7 @@ const provideRequestRuntime = <A, E, R>(
     provideRequest(request)(
       provideResponse(responseContext)(provideLocalServerClient(effect))
     )
-  ) as Effect.Effect<A, E, unknown>;
+  );
 
 const provideLocalServerClient = <A, E, R>(
   effect: Effect.Effect<A, E, R>
@@ -502,7 +502,7 @@ const provideLocalServerClient = <A, E, R>(
     }
 
     return yield* Effect.provideService(effect, ServerClient, Server.localClient());
-  }) as Effect.Effect<A, E, R>;
+  });
 
 export const isServerRpcRequest = (request: Request): boolean =>
   new URL(request.url).pathname === serverRpcPath;
@@ -1944,7 +1944,7 @@ export namespace StartAction {
         const concurrency = definition.policy?.concurrency ?? "latest";
         const current = currentSubmission;
         if (concurrency === "exhaust" && current?.fiber) {
-          return Fiber.join(current.fiber) as Effect.Effect<Result<D>, Server.ClientError | ActionInterrupted, unknown>;
+          return Fiber.join(current.fiber);
         }
 
         const previousFiber = concurrency === "latest" ? current?.fiber : undefined;
@@ -1968,7 +1968,7 @@ export namespace StartAction {
               updateOnlyLatest: true
             });
           }).pipe(Effect.ensuring(clearCurrentEffect(submissionToken)));
-        }) as Effect.Effect<Result<D>, Server.ClientError | ActionInterrupted, unknown>;
+        });
       });
 
     const resetEffect = (): Effect.Effect<void> =>
@@ -1995,9 +1995,7 @@ export namespace StartAction {
           return current.promise;
         }
         if (current?.fiber) {
-          return runtime.runPromise(
-            Fiber.join(current.fiber) as Effect.Effect<Result<D>, Server.ClientError | ActionInterrupted, unknown>
-          );
+          return runtime.runPromise(Fiber.join(current.fiber));
         }
       }
 
@@ -2018,11 +2016,11 @@ export namespace StartAction {
             interruptStale: concurrency === "latest",
             updateOnlyLatest: true
           });
-        }) as Effect.Effect<Result<D>, Server.ClientError | ActionInterrupted, unknown>
-      ) as Fiber.Fiber<Result<D>, Server.ClientError | ActionInterrupted>;
+        })
+      );
 
       const promise = runtime.runPromise(
-        (Fiber.join(fiber) as Effect.Effect<Result<D>, Server.ClientError | ActionInterrupted, unknown>).pipe(
+        Fiber.join(fiber).pipe(
           Effect.ensuring(clearCurrentEffect(submissionToken))
         )
       );
@@ -2343,7 +2341,7 @@ const responseWithRuntimeFinalizer = (
               });
             })
           )
-        ) as Effect.Effect<void, never, any>
+        )
       );
     },
     cancel(reason) {
@@ -2363,7 +2361,7 @@ const responseWithRuntimeFinalizer = (
               typeof reason === "string" ? reason : "stream-cancel"
             )
           )
-        ) as Effect.Effect<void, unknown, any>
+        )
       );
     }
   });
@@ -2633,7 +2631,7 @@ export const createRequestHandler =
     options: CreateRequestHandlerOptions<Routes, Client, ServerServices, ServerError> = {}
   ): StartRequestHandler => {
     const handler = createRequestHandlerEffect(app, options);
-    return (request) => app.runtime.runPromise(handler(request) as Effect.Effect<Response, unknown, never>);
+    return (request) => app.runtime.runPromise(handler(request));
   };
 
 export const createServerHandler = createRequestHandler;
