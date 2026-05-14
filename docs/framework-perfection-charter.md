@@ -272,6 +272,8 @@ Progress:
     `renderDevtoolsPanelsHtmlEffect`, `mountDevtoolsPanels`, and
     `mountDevtoolsPanelsEffect` in `@effect-ui/devtools`, covered by focused
     devtools tests and public type tests.
+- [x] Checked app-shell integration for the browser panel renderer.
+  - Evidence: `examples/devtools-panel`.
 
 Deliver:
 

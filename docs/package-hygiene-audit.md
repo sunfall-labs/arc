@@ -42,6 +42,7 @@ exports. It supports the release-engineering charter workstream.
   - root `package.json`
   - `packages/*/package.json`
   - `examples/basic-starter/package.json`
+  - `examples/devtools-panel/package.json`
   - `examples/project-console/package.json`
   - `pnpm-lock.yaml`
 - `pnpm install --lockfile-only --offline` completed successfully after the

@@ -109,6 +109,8 @@ or command result that proves it.
 | 59 | Full verification after adapter facade packages | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md` | Escalated full verification passed after the Node/fetch facade package slice: 9 package builds, workspace typecheck, type tests, 35 package test files / 308 tests, example typecheck, 4 example test files / 23 tests, example build, and leak scan. | Use this as the latest green checkpoint before the next implementation sweep. |
 | 60 | Minimal checked starter | `examples/basic-starter`; `docs/starter.md`; `README.md`; `package.json`; `pnpm-lock.yaml`; `vitest.config.ts`; `docs/example-copyability-and-leak-audit.md`; `docs/ultimate-goal-checklist.md`; `docs/framework-perfection-charter.md` | Added `@effect-ui/starter-basic` with Start SSR, browser hydration, one route-owned Resource preload, an SSR test, production build, and server-only leak scan. `pnpm starter:verify` passed. | Project-console-as-rich-starter packaging and platform-specific adapters remain future work. |
 | 61 | Full verification after minimal starter | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md` | Escalated full verification passed after wiring `@effect-ui/starter-basic` into the root gate: 9 package builds, workspace typecheck, type tests, 36 root test files / 309 tests, starter verify, example typecheck, 4 example test files / 23 tests, example build, and leak scan. | Use this as the latest green checkpoint before the next implementation sweep. |
+| 62 | Devtools panel app shell | `examples/devtools-panel`; `docs/devtools.md`; `README.md`; `package.json`; `pnpm-lock.yaml`; `docs/ultimate-goal-checklist.md`; `docs/framework-perfection-charter.md` | Added `@effect-ui/example-devtools-panel`, a Vite app shell that mounts `DevtoolsPanels` through the browser renderer using public sample facts. `pnpm devtools-panel:verify` passed: typecheck, 1 example test, and production build. | Browser extension packaging remains optional future product work. |
+| 63 | Full verification after devtools panel app shell | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md` | Escalated full verification passed after wiring `@effect-ui/example-devtools-panel` into the root gate: 9 package builds, workspace typecheck, type tests, 37 root test files / 310 tests, devtools-panel verify, starter verify, example typecheck, 4 example test files / 23 tests, example build, and leak scan. | Use this as the latest green checkpoint before the next implementation sweep. |
 
 ## Thirty-Sweep Gate
 
@@ -127,8 +129,8 @@ pass finds no improvements to make.
 
 ## Open Release-Candidate Slices
 
-1. Integrate the devtools browser renderer into a dedicated app or extension
-   shell if productizing beyond the embedded UI surface.
+1. Package the devtools browser renderer as an extension only if productizing
+   beyond the checked app-shell example.
 2. Add platform-specific adapter packages beyond the generic Node/fetch
    facades.
 3. Re-run the public API inventory after any rename/removal work and update

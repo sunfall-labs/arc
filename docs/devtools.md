@@ -201,6 +201,11 @@ The scoped mount clears the root and removes tab listeners when the Effect scope
 closes. Use `mount.update(...)` when a host shell wants to refresh the panel
 after recording new devtools facts.
 
+The checked app-shell integration lives at
+[`examples/devtools-panel`](../examples/devtools-panel). It mounts sample
+public facts into the browser renderer and verifies typecheck, render output,
+and production build.
+
 ## Target Panels
 
 The devtools product should grow in this order:

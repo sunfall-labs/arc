@@ -547,8 +547,8 @@ Last evidence pass: May 14, 2026.
   - Evidence: every checked item above has path/test/command evidence.
 - [x] Remaining unchecked competitive-bar items listed.
   - Evidence: richer starter packaging, platform-specific deployment packages
-    beyond generic Node/fetch, and any dedicated devtools app or extension shell
-    remain future production-readiness items from
+    beyond generic Node/fetch, and optional devtools browser extension
+    packaging remain future production-readiness items from
     `docs/winning-spec.md`.
 - [x] Remaining unchecked winning-bar items listed.
   - Evidence: next section.
@@ -557,10 +557,11 @@ Last evidence pass: May 14, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026 after the minimal
-    starter slice: 9 package builds, workspace typecheck, type tests, 36 root
-    test files / 309 tests, starter verify, example typecheck, 4 example test
-    files / 23 tests, example build, and leak scan.
+  - Evidence: root `pnpm verify` passed on May 14, 2026 after the devtools
+    panel app-shell slice: 9 package builds, workspace typecheck, type tests,
+    37 root test files / 310 tests, devtools-panel verify, starter verify,
+    example typecheck, 4 example test files / 23 tests, example build, and leak
+    scan.
 
 ## Remaining Winning-Bar Items
 
@@ -568,8 +569,11 @@ Last evidence pass: May 14, 2026.
   UI once the trace payload is stable.
   - Evidence: `@effect-ui/devtools` now exposes deterministic HTML rendering
     and an Effect-scoped DOM mount helper for the `DevtoolsPanels` contract.
-- [ ] Integrate the browser panel renderer into a dedicated app or extension
-  shell if productizing beyond the embedded UI surface.
+- [x] Integrate the browser panel renderer into a dedicated app shell.
+  - Evidence: `examples/devtools-panel` mounts the renderer in a Vite app shell
+    and `pnpm devtools-panel:verify` passed.
+- [ ] Package the devtools panel as a browser extension if productizing beyond
+  the checked app-shell example.
 - [ ] Add richer starter packaging and broader host-specific adapter packages
   when the framework is ready for users outside this repo.
   - Evidence: current Node/fetch deployment guidance exists in
@@ -589,8 +593,8 @@ Use [`docs/framework-perfection-charter.md`](./framework-perfection-charter.md)
 as the several-week cleanup, improvement, iteration, and release-candidate
 quality goal.
 
-1. Integrate the browser panel renderer into a dedicated devtools app or
-   extension shell if productizing beyond the embedded UI surface.
+1. Package the devtools panel as a browser extension if productizing beyond the
+   checked app-shell example.
 2. Extend request traces with any missing response context, collection, and
    request-fiber details uncovered by real panel usage.
 3. Add platform-specific adapter packages beyond the generic Node/fetch
