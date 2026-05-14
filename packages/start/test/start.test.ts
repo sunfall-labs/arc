@@ -897,6 +897,184 @@ describe("Effect UI Start", () => {
     ]);
   });
 
+  it("classifies RPC and Start action request trace failures by layer", async () => {
+    const traces: DevtoolsRequestTrace[] = [];
+    const FailsDomain = Server.contract<{ readonly value: string }, string, string>("Start.trace.failure.domain", {
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.String,
+      error: Schema.String
+    });
+    const failsDomain = Server.implement(FailsDomain, () => Effect.fail("domain-failed"));
+    const ActionFailsDomain = Action.define<{ readonly value: string }, string, string>({
+      name: "Start.trace.action.failure.domain",
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.String,
+      error: Schema.String,
+      run: () => Effect.fail("action-domain-failed")
+    });
+    const app = defineApp({
+      routes: [route("/", {})] as const,
+      client: {}
+    });
+    const handler = createRequestHandler(app, {
+      actions: [ActionFailsDomain],
+      onRequestTrace: (trace) =>
+        Effect.sync(() => {
+          traces.push(trace);
+        })
+    });
+    const rpcRequest = (id: string, body: unknown, init: RequestInit = {}) =>
+      new Request(`https://example.com${serverRpcPath}`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-effect-ui-request-id": id,
+          ...init.headers
+        },
+        body: JSON.stringify(body)
+      });
+    const actionRequest = (id: string, body: unknown) =>
+      new Request(`https://example.com${serverActionPath}`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-effect-ui-request-id": id
+        },
+        body: JSON.stringify(body)
+      });
+
+    const rpcDomain = await Effect.runPromise(
+      handler(rpcRequest("req-rpc-domain-failure", {
+        name: failsDomain.name,
+        input: { value: "ada" }
+      }))
+    );
+    await expect(rpcDomain.json()).resolves.toEqual({
+      _tag: "Failure",
+      error: "domain-failed"
+    });
+
+    const rpcValidation = await Effect.runPromise(
+      handler(rpcRequest("req-rpc-validation-failure", {
+        name: failsDomain.name,
+        input: { value: 1 }
+      }))
+    );
+    expect(rpcValidation.status).toBe(400);
+    await rpcValidation.text();
+
+    const rpcProtocol = await Effect.runPromise(
+      handler(rpcRequest("req-rpc-protocol-failure", {
+        name: "Start.trace.missing",
+        input: {}
+      }))
+    );
+    expect(rpcProtocol.status).toBe(404);
+    await rpcProtocol.text();
+
+    const rpcTransport = await Effect.runPromise(
+      handler(
+        new Request(`https://example.com${serverRpcPath}`, {
+          method: "GET",
+          headers: {
+            "x-effect-ui-request-id": "req-rpc-transport-failure"
+          }
+        })
+      )
+    );
+    expect(rpcTransport.status).toBe(405);
+    await rpcTransport.text();
+
+    const actionDomain = await Effect.runPromise(
+      handler(actionRequest("req-action-domain-failure", {
+        name: ActionFailsDomain.name,
+        input: { value: "ada" }
+      }))
+    );
+    await expect(actionDomain.json()).resolves.toEqual({
+      _tag: "Failure",
+      error: "action-domain-failed"
+    });
+
+    const actionValidation = await Effect.runPromise(
+      handler(actionRequest("req-action-validation-failure", {
+        name: ActionFailsDomain.name,
+        input: { value: 1 }
+      }))
+    );
+    expect(actionValidation.status).toBe(400);
+    await actionValidation.text();
+
+    expect(traces).toEqual([
+      expect.objectContaining({
+        request: expect.objectContaining({ id: "req-rpc-domain-failure", transport: "rpc" }),
+        status: "failure",
+        failureKind: "domain",
+        serverFunctions: [
+          {
+            name: failsDomain.name,
+            status: "failure",
+            failureKind: "domain"
+          }
+        ]
+      }),
+      expect.objectContaining({
+        request: expect.objectContaining({ id: "req-rpc-validation-failure", transport: "rpc" }),
+        status: "failure",
+        failureKind: "validation",
+        serverFunctions: [
+          {
+            name: failsDomain.name,
+            status: "failure",
+            failureKind: "validation"
+          }
+        ]
+      }),
+      expect.objectContaining({
+        request: expect.objectContaining({ id: "req-rpc-protocol-failure", transport: "rpc" }),
+        status: "failure",
+        failureKind: "protocol",
+        serverFunctions: [
+          {
+            name: "Start.trace.missing",
+            status: "failure",
+            failureKind: "protocol"
+          }
+        ]
+      }),
+      expect.objectContaining({
+        request: expect.objectContaining({ id: "req-rpc-transport-failure", transport: "rpc" }),
+        status: "failure",
+        failureKind: "transport",
+        serverFunctions: []
+      }),
+      expect.objectContaining({
+        request: expect.objectContaining({ id: "req-action-domain-failure", transport: "action" }),
+        status: "failure",
+        failureKind: "domain",
+        actions: [
+          {
+            name: ActionFailsDomain.name,
+            state: "Failure",
+            failureKind: "domain"
+          }
+        ]
+      }),
+      expect.objectContaining({
+        request: expect.objectContaining({ id: "req-action-validation-failure", transport: "action" }),
+        status: "failure",
+        failureKind: "validation",
+        actions: [
+          {
+            name: ActionFailsDomain.name,
+            state: "Failure",
+            failureKind: "validation"
+          }
+        ]
+      })
+    ]);
+  });
+
   it("lets browser runtimes call server functions through ServerClient", async () => {
     const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>("Start.echo.remote", {
       input: Schema.Struct({ value: Schema.String }),

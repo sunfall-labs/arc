@@ -1046,6 +1046,7 @@ describe("devtools invalidation plans", () => {
         url: "https://example.test/projects/atlas?tab=activity",
         transport: "rpc",
         status: "success",
+        failureKind: null,
         responseStatus: 200,
         serviceCount: 2,
         resourceCount: 1,
@@ -1090,6 +1091,7 @@ describe("devtools invalidation plans", () => {
           ]),
           data: {
             id: "req-project-atlas",
+            failureKind: null,
             routeHref: "/projects/atlas?tab=activity",
             teardownReason: "response-end",
             runtimeDisposed: true

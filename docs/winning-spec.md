@@ -194,7 +194,10 @@ application topology.
 - Ensure optimistic updates commit or roll back correctly under success,
   failure, interruption, and concurrent submissions.
 - Separate server RPC domain failures, protocol errors, transport errors,
-  defects, and interruption.
+  defects, and interruption. Request traces expose this as a narrow
+  `failureKind` fact on the request plus the affected RPC function or Start
+  action, so devtools can count and route fixes by layer instead of treating
+  every non-success as a generic failure.
 
 Exit bar: every async boundary has an Effect form, a Promise adapter, lifecycle
 tests, and observable runtime facts.

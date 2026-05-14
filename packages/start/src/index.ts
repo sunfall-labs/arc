@@ -11,8 +11,6 @@ import {
   runWithRuntime,
   applyResponseContext,
   makeResponseContext,
-  provideRequest,
-  provideResponse,
   Route,
   Server,
   ServerClient,
@@ -34,9 +32,9 @@ import {
   type ReadableSignal
 } from "@effect-ui/core";
 import { Collection, type AnyCollection, type CollectionHydrationPayload } from "@effect-ui/db";
-import { Cause, Clock, Effect, Exit, Fiber, Layer, Option, Schema, type Scope } from "effect";
+import { Cause, Effect, Exit, Fiber, Layer, Schema } from "effect";
 import type { EffectInput } from "@effect-ui/core";
-import { makeResourceStore, toEffect, withResourceStore } from "@effect-ui/core";
+import { toEffect } from "@effect-ui/core";
 import {
   createHydrationScript,
   createStartHydrationPayload,
@@ -47,12 +45,9 @@ import {
 } from "./hydration.js";
 import {
   hasContentType,
-  makeStartRequestIdEffect,
   serverActionPath,
   serverRpcPath,
   startJsonMediaType,
-  startRequestIdHeader,
-  startTraceparentHeader,
   startTransportDiagnosticsEffect,
   validateStartActionRequestEffect,
   validateStartRpcRequestEffect,
@@ -60,6 +55,31 @@ import {
   withStartTransportDiagnostics,
   type StartTransportRequestError
 } from "./rpc.js";
+import {
+  completeRequestRuntimeWithResponse,
+  makeRequestRuntime,
+  provideRequestRuntime,
+  type RequestRuntimeFinalizeState,
+  type RequestRuntimeStreamFinalizeState
+} from "./request-runtime.js";
+import {
+  buildStartRequestTrace,
+  emitStartRequestTraceEffect,
+  requestRuntimeDisposeTraceEffect,
+  startRequestTraceFactsEffect,
+  startRequestTraceTeardown,
+  traceCollectionPreload,
+  traceRoutePlan,
+  type StartRequestTraceFacts,
+  type StartRequestTraceFailureKind,
+  type StartRequestTraceHandler
+} from "./request-trace.js";
+import {
+  callStartFetchEffect,
+  getStartTransportHeadersEffect as getRpcHeadersEffect,
+  resolveStartFetchEffect,
+  type ServerRpcClientOptions
+} from "./start-fetch.js";
 
 export * from "./hydration.js";
 export * from "./streaming.js";
@@ -211,27 +231,12 @@ export type StartRequestHandlerEffect = (request: Request) => Effect.Effect<Resp
 /** Public handler type consumed by platform adapters and server entries. */
 export type StartRequestHandler = StartRequestHandlerEffect;
 
-/** Input accepted by the Start client transport fetch hook. */
-export type StartFetchInput = Parameters<typeof globalThis.fetch>[0];
-
-/** Request options accepted by the Start client transport fetch hook. */
-export type StartFetchInit = Parameters<typeof globalThis.fetch>[1];
-
-/** Effect hook used by Start clients to perform fetch-shaped transport work. */
-export type StartFetch = (
-  input: StartFetchInput,
-  init?: StartFetchInit
-) => Effect.Effect<Response, unknown>;
-
-/** Options for clients that call Start server functions over HTTP RPC. */
-export interface ServerRpcClientOptions {
-  /** RPC endpoint. Defaults to the Start server function path. */
-  readonly endpoint?: string | URL;
-  /** Fetch implementation for browsers, tests, edge runtimes, or Effect handlers. */
-  readonly fetch?: StartFetch;
-  /** Static or lazily computed headers added to every RPC request. */
-  readonly headers?: HeadersInit | (() => HeadersInit);
-}
+export type {
+  ServerRpcClientOptions,
+  StartFetch,
+  StartFetchInit,
+  StartFetchInput
+} from "./start-fetch.js";
 
 /**
  * Options for clients that submit Start actions.
@@ -243,140 +248,28 @@ export interface StartActionClientOptions extends ServerRpcClientOptions, StartC
   readonly runtime?: EffectUiRuntime<unknown, unknown>;
 }
 
-export type StartRequestTraceTransport = "ssr" | "rpc" | "action" | "unknown";
-export type StartRequestTraceStatus = "success" | "failure" | "cancelled";
-export type StartRequestTraceStreamState = "open" | "closed" | "cancelled" | "errored";
-export type StartRequestTraceFiberStatus = "running" | "done" | "interrupted" | "failed";
-
-export interface StartRequestTraceHeader {
-  readonly name: string;
-  readonly value: string;
-}
-
-export interface StartRequestTraceCookie {
-  readonly name: string;
-  readonly value: string;
-}
-
-export interface StartRequestTraceRequest {
-  readonly id?: string;
-  readonly traceparent?: string;
-  readonly method: string;
-  readonly url: string;
-  readonly path: string;
-  readonly transport: StartRequestTraceTransport;
-  readonly headers?: ReadonlyArray<StartRequestTraceHeader>;
-  readonly cookies?: ReadonlyArray<StartRequestTraceCookie>;
-}
-
-export interface StartRequestTraceResponse {
-  readonly status: number;
-  readonly statusText?: string;
-  readonly headers?: ReadonlyArray<StartRequestTraceHeader>;
-  readonly setCookieCount?: number;
-}
-
-export interface StartRequestTraceResource {
-  readonly key: string;
-  readonly family: string;
-  readonly input?: unknown;
-  readonly state?: string;
-}
-
-export interface StartRequestTraceCollection {
-  readonly name: string;
-  readonly state?: string;
-  readonly eventCount?: number;
-}
-
-export interface StartRequestTraceServerFunction {
-  readonly name: string;
-  readonly status?: StartRequestTraceStatus;
-}
-
-export interface StartRequestTraceAction {
-  readonly name: string;
-  readonly state?: string;
-  readonly invalidationIndexes?: ReadonlyArray<number>;
-}
-
-export interface StartRequestTraceFiber {
-  readonly name: string;
-  readonly status: StartRequestTraceFiberStatus;
-}
-
-export interface StartRequestTraceStream {
-  readonly name: string;
-  readonly state: StartRequestTraceStreamState;
-  readonly chunkCount?: number;
-}
-
-export interface StartRequestTraceTeardownSnapshot {
-  readonly fiberCount: number;
-  readonly familyCount: number;
-  readonly moduleCount: number;
-  readonly tagCount: number;
-}
-
-export interface StartRequestTraceTeardown {
-  readonly runtimeDisposed: boolean;
-  readonly reason?: string;
-  readonly at?: number;
-  readonly startedAt?: number;
-  readonly completedAt?: number;
-  readonly durationMillis?: number;
-  readonly beforeDispose?: StartRequestTraceTeardownSnapshot;
-  readonly afterDispose?: StartRequestTraceTeardownSnapshot;
-}
-
-export interface StartRequestTrace {
-  readonly request: StartRequestTraceRequest;
-  readonly response?: StartRequestTraceResponse;
-  readonly services: ReadonlyArray<string>;
-  readonly routePlan?: StartRequestTraceRoutePlan;
-  readonly resources: ReadonlyArray<StartRequestTraceResource>;
-  readonly collections: ReadonlyArray<StartRequestTraceCollection>;
-  readonly serverFunctions: ReadonlyArray<StartRequestTraceServerFunction>;
-  readonly actions: ReadonlyArray<StartRequestTraceAction>;
-  readonly fibers: ReadonlyArray<StartRequestTraceFiber>;
-  readonly streams: ReadonlyArray<StartRequestTraceStream>;
-  readonly status: StartRequestTraceStatus;
-  readonly teardown?: StartRequestTraceTeardown;
-}
-
-export interface StartRequestTraceRoutePlan {
-  readonly _tag: "Matched" | "NotFound";
-  readonly href: string;
-  readonly match:
-    | {
-        readonly path: string;
-        readonly href: string;
-        readonly params: unknown;
-        readonly search: unknown;
-      }
-    | undefined;
-  readonly resources: ReadonlyArray<{
-    readonly key: string;
-    readonly family: string;
-    readonly input: unknown;
-  }>;
-  readonly hydration: {
-    readonly resourceCount: number;
-  };
-}
-
-interface StartRequestTraceFacts {
-  readonly requestId: string;
-  readonly transport: StartRequestTraceTransport;
-  readonly startedAt: number;
-  routePlan?: StartRequestTraceRoutePlan;
-  collections: StartRequestTraceCollection[];
-  serverFunctions: StartRequestTraceServerFunction[];
-  actions: StartRequestTraceAction[];
-}
-
-/** Best-effort request diagnostics hook. Failures from the hook are ignored. */
-export type StartRequestTraceHandler = (trace: StartRequestTrace) => EffectInput<void, unknown, never>;
+export type {
+  StartRequestTrace,
+  StartRequestTraceAction,
+  StartRequestTraceCollection,
+  StartRequestTraceCookie,
+  StartRequestTraceFiber,
+  StartRequestTraceFiberStatus,
+  StartRequestTraceFailureKind,
+  StartRequestTraceHandler,
+  StartRequestTraceHeader,
+  StartRequestTraceRequest,
+  StartRequestTraceResource,
+  StartRequestTraceResponse,
+  StartRequestTraceRoutePlan,
+  StartRequestTraceServerFunction,
+  StartRequestTraceStatus,
+  StartRequestTraceStream,
+  StartRequestTraceStreamState,
+  StartRequestTraceTeardown,
+  StartRequestTraceTeardownSnapshot,
+  StartRequestTraceTransport
+} from "./request-trace.js";
 
 /** JSON payload accepted by the Start action transport. */
 export interface StartActionRequest {
@@ -567,283 +460,11 @@ export const startActionForm = <I, A, E, R>(
   ]
 });
 
-const makeRequestRuntime = <
-  Routes extends readonly Route.Definition<string, unknown, unknown>[],
-  Client,
-  ServerServices,
-  ServerError
->(
-  app: AppDefinition<Routes, Client, ServerServices, ServerError>
-): EffectUiRuntime<ServerServices, ServerError> =>
-  withResourceStore(app.runtime, makeResourceStore());
-
-const provideRequestRuntime = <A, E, R, RuntimeServices, RuntimeError>(
-  runtime: EffectUiRuntime<RuntimeServices, RuntimeError>,
-  request: Request,
-  effect: Effect.Effect<A, E, R>,
-  responseContext: ResponseContext = makeResponseContext()
-): Effect.Effect<A, E | RuntimeError, Scope.Scope> =>
-  runtime.provide(
-    provideRequest(request)(
-      provideResponse(responseContext)(provideLocalServerClient(effect))
-    )
-  );
-
-const provideLocalServerClient = <A, E, R>(
-  effect: Effect.Effect<A, E, R>
-): Effect.Effect<A, E, R> =>
-  Effect.gen(function* () {
-    const client = yield* Effect.serviceOption(ServerClient);
-    if (Option.isSome(client)) {
-      return yield* effect;
-    }
-
-    return yield* Effect.provideService(effect, ServerClient, Server.localClient());
-  });
-
 export const isServerRpcRequest = (request: Request): boolean =>
   new URL(request.url).pathname === serverRpcPath;
 
 export const isServerActionRequest = (request: Request): boolean =>
   new URL(request.url).pathname === serverActionPath;
-
-const startRequestTraceTransport = (request: Request): StartRequestTraceTransport =>
-  isServerRpcRequest(request)
-    ? "rpc"
-    : isServerActionRequest(request)
-      ? "action"
-      : "ssr";
-
-const traceHeaders = (headers: Headers): ReadonlyArray<StartRequestTraceHeader> => {
-  const out: StartRequestTraceHeader[] = [];
-  headers.forEach((value, name) => {
-    out.push({ name, value });
-  });
-  return out.sort((left, right) => {
-    const byName = left.name.localeCompare(right.name);
-    return byName === 0 ? left.value.localeCompare(right.value) : byName;
-  });
-};
-
-const traceCookies = (headers: Headers): ReadonlyArray<StartRequestTraceCookie> => {
-  const cookie = headers.get("cookie");
-  if (!cookie) {
-    return [];
-  }
-
-  return cookie
-    .split(";")
-    .flatMap((part) => {
-      const [rawName, ...rawValue] = part.trim().split("=");
-      return rawName
-        ? [
-            {
-              name: decodeURIComponent(rawName),
-              value: decodeURIComponent(rawValue.join("="))
-            }
-          ]
-        : [];
-    })
-    .sort((left, right) => left.name.localeCompare(right.name));
-};
-
-const traceResponse = (response: Response): StartRequestTraceResponse => {
-  const headers = traceHeaders(response.headers);
-  const setCookieCount = response.headers.getSetCookie().length;
-  return {
-    status: response.status,
-    ...(response.statusText === "" ? {} : { statusText: response.statusText }),
-    ...(headers.length === 0 ? {} : { headers }),
-    ...(setCookieCount === 0 ? {} : { setCookieCount })
-  };
-};
-
-const traceRequest = (
-  request: Request,
-  facts: StartRequestTraceFacts
-): StartRequestTraceRequest => {
-  const url = new URL(request.url);
-  const headers = traceHeaders(request.headers);
-  const cookies = traceCookies(request.headers);
-  const traceparent = request.headers.get(startTraceparentHeader)?.trim() || undefined;
-  return {
-    id: facts.requestId,
-    ...(traceparent === undefined ? {} : { traceparent }),
-    method: request.method,
-    url: request.url,
-    path: url.pathname,
-    transport: facts.transport,
-    ...(headers.length === 0 ? {} : { headers }),
-    ...(cookies.length === 0 ? {} : { cookies })
-  };
-};
-
-const traceResourceRefs = (
-  refs: ReadonlyArray<{ readonly key: string; readonly family: { readonly options: { readonly name: string } }; readonly input: unknown }>
-): ReadonlyArray<StartRequestTraceResource> =>
-  refs.map((ref) => ({
-    key: ref.key,
-    family: ref.family.options.name,
-    input: ref.input
-  }));
-
-const traceRoutePlan = (
-  plan: Route.NavigationPlan
-): StartRequestTraceRoutePlan => ({
-  _tag: plan._tag,
-  href: plan.href,
-  match: plan.match
-    ? {
-        path: plan.match.route.path,
-        href: plan.match.href,
-        params: plan.match.params,
-        search: plan.match.search
-      }
-    : undefined,
-  resources: traceResourceRefs(plan.refs).map((resource) => ({
-    key: resource.key,
-    family: resource.family,
-    input: resource.input
-  })),
-  hydration: {
-    resourceCount: plan.resources.resources.length
-  }
-});
-
-const collectionTraceState = (
-  runtime: EffectUiRuntime<unknown, unknown>,
-  collection: AnyCollection
-): string | undefined => {
-  try {
-    return runWithRuntime(runtime, () => collection.state().get()._tag);
-  } catch {
-    return undefined;
-  }
-};
-
-const traceCollectionPreload = (
-  runtime: EffectUiRuntime<unknown, unknown>,
-  collectionPreload: StartCollectionPreload
-): ReadonlyArray<StartRequestTraceCollection> =>
-  uniqueCollections([
-    ...collectionPreload.routeTouchedCollections,
-    ...collectionPreload.routeDeclaredCollections,
-    ...collectionPreload.registeredCollections,
-    ...collectionPreload.dehydratedCollections
-  ])
-    .map((collection) => {
-      const state = collectionTraceState(runtime, collection);
-      return {
-        name: collection.name,
-        ...(state === undefined ? {} : { state })
-      };
-    })
-    .sort((left, right) => left.name.localeCompare(right.name));
-
-const startRequestTraceFactsEffect = (
-  request: Request
-): Effect.Effect<StartRequestTraceFacts> =>
-  Effect.gen(function* () {
-    const incomingRequestId = request.headers.get(startRequestIdHeader)?.trim();
-    const startedAt = yield* Clock.currentTimeMillis;
-    return {
-      requestId: incomingRequestId && !/[\r\n]/.test(incomingRequestId)
-        ? incomingRequestId
-        : yield* makeStartRequestIdEffect,
-      transport: startRequestTraceTransport(request),
-      startedAt,
-      collections: [],
-      serverFunctions: [],
-      actions: []
-    };
-  });
-
-const emitStartRequestTraceEffect = (
-  handler: StartRequestTraceHandler | undefined,
-  trace: StartRequestTrace
-): Effect.Effect<void> =>
-  handler === undefined
-    ? Effect.void
-    : toEffect(handler(trace)).pipe(
-        Effect.catchCause(() => Effect.void)
-      );
-
-const buildStartRequestTrace = (
-  request: Request,
-  facts: StartRequestTraceFacts,
-  status: StartRequestTraceStatus,
-  options: {
-    readonly response?: Response;
-    readonly teardown: StartRequestTraceTeardown;
-    readonly stream?: StartRequestTraceStream;
-  }
-): StartRequestTrace => ({
-  request: traceRequest(request, facts),
-  ...(options.response === undefined ? {} : { response: traceResponse(options.response) }),
-  services: ["RequestContext", "ResponseContext"],
-  ...(facts.routePlan === undefined ? {} : { routePlan: facts.routePlan }),
-  resources: facts.routePlan?.resources ?? [],
-  collections: facts.collections,
-  serverFunctions: [...facts.serverFunctions],
-  actions: [...facts.actions],
-  fibers: [
-    {
-      name: "request-runtime",
-      status: status === "success" ? "done" : status === "cancelled" ? "interrupted" : "failed"
-    }
-  ],
-  streams: options.stream === undefined ? [] : [options.stream],
-  status,
-  teardown: options.teardown
-});
-
-const requestRuntimeTeardownSnapshot = (
-  runtime: EffectUiRuntime<unknown, unknown>
-): StartRequestTraceTeardownSnapshot => ({
-  fiberCount: runtime.resourceStore.fibers.size,
-  familyCount: runtime.resourceStore.families.size,
-  moduleCount: runtime.resourceStore.modules.size,
-  tagCount: runtime.resourceStore.tagIndex.size
-});
-
-const requestRuntimeDisposeTraceEffect = (
-  runtime: EffectUiRuntime<unknown, unknown>
-): Effect.Effect<{
-  readonly beforeDispose: StartRequestTraceTeardownSnapshot;
-  readonly afterDispose: StartRequestTraceTeardownSnapshot;
-  readonly completedAt: number;
-}> =>
-  Effect.gen(function* () {
-    const beforeDispose = requestRuntimeTeardownSnapshot(runtime);
-    yield* runtime.disposeEffect;
-    const afterDispose = requestRuntimeTeardownSnapshot(runtime);
-    const completedAt = yield* Clock.currentTimeMillis;
-    return {
-      beforeDispose,
-      afterDispose,
-      completedAt
-    };
-  });
-
-const startRequestTraceTeardown = (
-  facts: StartRequestTraceFacts,
-  options: {
-    readonly runtimeDisposed: boolean;
-    readonly reason: string;
-    readonly completedAt: number;
-    readonly beforeDispose: StartRequestTraceTeardownSnapshot;
-    readonly afterDispose: StartRequestTraceTeardownSnapshot;
-  }
-): StartRequestTraceTeardown => ({
-  runtimeDisposed: options.runtimeDisposed,
-  reason: options.reason,
-  at: options.completedAt,
-  startedAt: facts.startedAt,
-  completedAt: options.completedAt,
-  durationMillis: Math.max(0, options.completedAt - facts.startedAt),
-  beforeDispose: options.beforeDispose,
-  afterDispose: options.afterDispose
-});
 
 const rpcJson = (body: Server.RpcResponse, status = 200): Response =>
   new Response(JSON.stringify(body), {
@@ -1054,6 +675,71 @@ const firstDefect = <E>(cause: Cause.Cause<E>): unknown | undefined => {
   return reason?.defect;
 };
 
+const rpcFailureKindEffect = (
+  fn: ServerFunction<unknown, unknown, unknown, unknown>,
+  exit: Exit.Exit<unknown, unknown>
+): Effect.Effect<StartRequestTraceFailureKind> => {
+  if (Exit.isSuccess(exit)) {
+    return Effect.succeed("domain");
+  }
+
+  const failure = firstFail(exit.cause);
+  if (failure !== undefined) {
+    if (Schema.isSchemaError(failure)) {
+      return Effect.succeed("validation");
+    }
+
+    return Effect.map(
+      Effect.exit(Server.encodeError(fn, failure)),
+      (encoded) => Exit.isSuccess(encoded) ? "domain" : "defect"
+    );
+  }
+
+  return Effect.succeed(
+    exit.cause.reasons.some(Cause.isInterruptReason) ? "interruption" : "defect"
+  );
+};
+
+const actionResultFailureKind = (
+  result: unknown
+): StartRequestTraceFailureKind | undefined => {
+  if (!ActionResult.is(result)) {
+    return undefined;
+  }
+  if (ActionResult.isValidationFailure(result)) {
+    return "validation";
+  }
+  if (ActionResult.isFailure(result)) {
+    return "domain";
+  }
+  return undefined;
+};
+
+const actionFailureKindEffect = (
+  action: StartActionDefinition,
+  exit: Exit.Exit<unknown, unknown>
+): Effect.Effect<StartRequestTraceFailureKind | undefined> => {
+  if (Exit.isSuccess(exit)) {
+    return Effect.succeed(actionResultFailureKind(exit.value));
+  }
+
+  const failure = firstFail(exit.cause);
+  if (failure !== undefined) {
+    if (Schema.isSchemaError(failure)) {
+      return Effect.succeed("validation");
+    }
+
+    return Effect.map(
+      Effect.exit(encodeWithSchema(action.error, failure)),
+      (encoded) => Exit.isSuccess(encoded) ? "domain" : "defect"
+    );
+  }
+
+  return Effect.succeed(
+    exit.cause.reasons.some(Cause.isInterruptReason) ? "interruption" : "defect"
+  );
+};
+
 const protocolFailureResponse = (error: ServerRpcProtocolError, status = 400): Response =>
   rpcJson(
     {
@@ -1167,7 +853,14 @@ const createServerRpcResponseEffectWithRuntime = <
     const diagnostics = yield* startTransportDiagnosticsEffect("rpc", request);
     const validation = yield* validateStartRpcRequestEffect(request).pipe(
       Effect.as(undefined),
-      Effect.catch((error) => Effect.succeed(rpcTransportRequestFailureResponse(error)))
+      Effect.catch((error) =>
+        Effect.sync(() => {
+          if (traceFacts) {
+            traceFacts.failureKind = "transport";
+          }
+          return rpcTransportRequestFailureResponse(error);
+        })
+      )
     );
     if (validation instanceof Response) {
       return withStartTransportDiagnostics(validation, diagnostics);
@@ -1178,7 +871,14 @@ const createServerRpcResponseEffectWithRuntime = <
       request,
       Effect.gen(function* () {
         const payload = yield* readJsonEffect(request).pipe(
-          Effect.catch((error) => Effect.succeed(protocolFailureResponse(error)))
+          Effect.catch((error) =>
+            Effect.sync(() => {
+              if (traceFacts) {
+                traceFacts.failureKind = "protocol";
+              }
+              return protocolFailureResponse(error);
+            })
+          )
         );
         if (payload instanceof Response) {
           return payload;
@@ -1186,14 +886,17 @@ const createServerRpcResponseEffectWithRuntime = <
 
         const decoded = yield* Server.decodeRpcRequest(payload).pipe(
           Effect.catch((error) =>
-            Effect.succeed(
-              protocolFailureResponse(
+            Effect.sync(() => {
+              if (traceFacts) {
+                traceFacts.failureKind = "protocol";
+              }
+              return protocolFailureResponse(
                 new ServerRpcProtocolError({
                   message: error.message,
                   payload: Server.serializeDefect(error)
                 })
-              )
-            )
+              );
+            })
           )
         );
         if (decoded instanceof Response) {
@@ -1202,22 +905,42 @@ const createServerRpcResponseEffectWithRuntime = <
 
         const fn = Server.get(decoded.name);
         if (!fn) {
+          if (traceFacts) {
+            traceFacts.failureKind = "protocol";
+          }
           traceFacts?.serverFunctions.push({
             name: decoded.name,
-            status: "failure"
+            status: "failure",
+            failureKind: "protocol"
           });
           return functionNotFoundResponse(decoded.name);
         }
 
         const exit = yield* Effect.exit(fn.invoke(decoded.input));
+        const failureKind = Exit.isSuccess(exit)
+          ? undefined
+          : yield* rpcFailureKindEffect(fn, exit);
+        if (failureKind !== undefined && traceFacts) {
+          traceFacts.failureKind = failureKind;
+        }
         traceFacts?.serverFunctions.push({
           name: decoded.name,
-          status: Exit.isSuccess(exit) ? "success" : "failure"
+          status: Exit.isSuccess(exit) ? "success" : "failure",
+          ...(failureKind === undefined ? {} : { failureKind })
         });
         return yield* exitToRpcResponse(fn, exit);
       }),
       responseContext
-    ).pipe(Effect.catch((error) => Effect.succeed(rpcRuntimeFailureResponse(error))));
+    ).pipe(
+      Effect.catch((error) =>
+        Effect.sync(() => {
+          if (traceFacts) {
+            traceFacts.failureKind = "defect";
+          }
+          return rpcRuntimeFailureResponse(error);
+        })
+      )
+    );
 
     return withStartTransportDiagnostics(response, diagnostics);
   });
@@ -1562,7 +1285,14 @@ const createServerActionResponseEffectWithRuntime = <
     const diagnostics = yield* startTransportDiagnosticsEffect("action", request);
     const validation = yield* validateStartActionRequestEffect(request).pipe(
       Effect.as(undefined),
-      Effect.catch((error) => Effect.succeed(actionTransportRequestFailureResponse(error)))
+      Effect.catch((error) =>
+        Effect.sync(() => {
+          if (traceFacts) {
+            traceFacts.failureKind = "transport";
+          }
+          return actionTransportRequestFailureResponse(error);
+        })
+      )
     );
     if (validation instanceof Response) {
       return withStartTransportDiagnostics(validation, diagnostics);
@@ -1573,7 +1303,14 @@ const createServerActionResponseEffectWithRuntime = <
       request,
       Effect.gen(function* () {
         const decoded = yield* readStartActionRequestEffect(request).pipe(
-          Effect.catch((error) => Effect.succeed(actionProtocolFailureResponse(error)))
+          Effect.catch((error) =>
+            Effect.sync(() => {
+              if (traceFacts) {
+                traceFacts.failureKind = "protocol";
+              }
+              return actionProtocolFailureResponse(error);
+            })
+          )
         );
         if (decoded instanceof Response) {
           return decoded;
@@ -1581,40 +1318,66 @@ const createServerActionResponseEffectWithRuntime = <
 
         const action = makeActionMap(actions).get(decoded.name);
         if (!action) {
+          if (traceFacts) {
+            traceFacts.failureKind = "protocol";
+          }
           traceFacts?.actions.push({
             name: decoded.name,
-            state: "Failure"
+            state: "Failure",
+            failureKind: "protocol"
           });
           return actionFunctionNotFoundResponse(decoded.name);
         }
 
         const input = yield* decodeWithSchema(action.input, decoded.input).pipe(
           Effect.catch((error) =>
-            Effect.succeed(
-              actionProtocolFailureResponse(
+            Effect.sync(() => {
+              if (traceFacts) {
+                traceFacts.failureKind = "validation";
+              }
+              return actionProtocolFailureResponse(
                 new ServerRpcProtocolError({
                   message: error.message,
                   payload: Server.serializeDefect(error)
                 })
-              )
-            )
+              );
+            })
           )
         );
         if (input instanceof Response) {
+          traceFacts?.actions.push({
+            name: action.name,
+            state: "Failure",
+            failureKind: "validation"
+          });
           return input;
         }
 
         const instance = Action.use(action, { runtime });
         const exit = yield* Effect.exit(instance.submitEffect(input));
         const meta = yield* actionResponseMetaEffect(instance.invalidationPlan.get());
+        const failureKind = yield* actionFailureKindEffect(action, exit);
+        if (failureKind !== undefined && traceFacts) {
+          traceFacts.failureKind = failureKind;
+        }
         traceFacts?.actions.push({
           name: action.name,
-          state: Exit.isSuccess(exit) ? "Success" : "Failure"
+          state: failureKind === undefined ? "Success" : "Failure",
+          ...(failureKind === undefined ? {} : { failureKind })
         });
         return yield* actionExitResponseEffect(action, exit, meta, actionResponseMode(request));
       }),
       responseContext
-    ).pipe(Effect.catch((error) => Effect.succeed(actionRuntimeFailureResponse(error))));
+    ).pipe(
+      Effect.catch((error) =>
+        Effect.sync(() => {
+          if (traceFacts) {
+            traceFacts.failureKind = "defect";
+          }
+          return actionRuntimeFailureResponse(error);
+        })
+      )
+    );
 
     return withStartTransportDiagnostics(response, diagnostics);
   });
@@ -1645,54 +1408,6 @@ export const createServerActionResponseEffect = <
       (response) => applyResponseContext(responseContext, response)
     ),
     runtime.disposeEffect
-  );
-};
-
-const getRpcHeadersEffect = (
-  options: ServerRpcClientOptions
-): Effect.Effect<Headers> =>
-  Effect.gen(function* () {
-    const headers = new Headers(
-      typeof options.headers === "function" ? options.headers() : options.headers
-    );
-    if (!headers.has(startRequestIdHeader)) {
-      headers.set(startRequestIdHeader, yield* makeStartRequestIdEffect);
-    }
-    headers.set("accept", startJsonMediaType);
-    headers.set("content-type", startJsonMediaType);
-    return headers;
-  });
-
-const callStartFetchEffect = (
-  fetcher: StartFetch,
-  input: StartFetchInput,
-  init: StartFetchInit,
-  onError: (cause: unknown) => ServerTransportError
-): Effect.Effect<Response, ServerTransportError> =>
-  fetcher(input, init).pipe(Effect.mapError(onError));
-
-const resolveStartFetchEffect = (
-  fetcher: StartFetch | undefined,
-  unavailableMessage: string
-): Effect.Effect<StartFetch, ServerTransportError> => {
-  if (fetcher) {
-    return Effect.succeed(fetcher);
-  }
-
-  if (typeof globalThis.fetch !== "function") {
-    return Effect.fail(
-      new ServerTransportError({
-        reason: "Network",
-        message: unavailableMessage
-      })
-    );
-  }
-
-  return Effect.succeed((input, init) =>
-    Effect.tryPromise({
-      try: () => globalThis.fetch(input, init),
-      catch: (cause) => cause
-    })
   );
 };
 
@@ -2388,177 +2103,6 @@ const preloadRequestEffectWithRuntime = <
     }), responseContext)
   );
 
-const responseWithRuntimeFinalizer = (
-  response: Response,
-  runtime: EffectUiRuntime<unknown, unknown>,
-  options: {
-    readonly onFinalize?: (state: {
-      readonly stream: StartRequestTraceStream;
-      readonly status: StartRequestTraceStatus;
-      readonly teardownReason: string;
-      readonly beforeDispose: StartRequestTraceTeardownSnapshot;
-      readonly afterDispose: StartRequestTraceTeardownSnapshot;
-      readonly completedAt: number;
-    }) => Effect.Effect<void>;
-  } = {}
-): Response => {
-  if (!response.body) {
-    return response;
-  }
-
-  const reader = response.body.getReader();
-  let disposed = false;
-  let chunkCount = 0;
-  const disposeEffect = (
-    stream: StartRequestTraceStream,
-    status: StartRequestTraceStatus,
-    teardownReason: string
-  ): Effect.Effect<void> =>
-    Effect.gen(function* () {
-      const shouldDispose = yield* Effect.sync(() => {
-        if (disposed) {
-          return false;
-        }
-
-        disposed = true;
-        return true;
-      });
-      if (!shouldDispose) {
-        return;
-      }
-
-      const teardown = yield* requestRuntimeDisposeTraceEffect(runtime);
-      if (options.onFinalize) {
-        yield* options.onFinalize({
-          stream,
-          status,
-          teardownReason,
-          ...teardown
-        });
-      }
-    });
-
-  const body = new ReadableStream<Uint8Array>({
-    pull(controller) {
-      return runtime.runPromise(
-        Effect.gen(function* () {
-          const result = yield* Effect.tryPromise({
-            try: () => reader.read(),
-            catch: (cause) => cause
-          });
-          if (result.done) {
-            yield* disposeEffect(
-              {
-                name: "response",
-                state: "closed",
-                chunkCount
-              },
-              "success",
-              "stream-close"
-            );
-            yield* Effect.sync(() => {
-              controller.close();
-            });
-            return;
-          }
-
-          yield* Effect.sync(() => {
-            chunkCount += 1;
-            controller.enqueue(result.value);
-          });
-        }).pipe(
-          Effect.catch((cause) =>
-            Effect.gen(function* () {
-              yield* disposeEffect(
-                {
-                  name: "response",
-                  state: "errored",
-                  chunkCount
-                },
-                "failure",
-                "stream-error"
-              );
-              yield* Effect.sync(() => {
-                controller.error(cause);
-              });
-            })
-          )
-        )
-      );
-    },
-    cancel(reason) {
-      return runtime.runPromise(
-        Effect.tryPromise({
-          try: () => reader.cancel(reason),
-          catch: (cause) => cause
-        }).pipe(
-          Effect.ensuring(
-            disposeEffect(
-              {
-                name: "response",
-                state: "cancelled",
-                chunkCount
-              },
-              "cancelled",
-              typeof reason === "string" ? reason : "stream-cancel"
-            )
-          )
-        )
-      );
-    }
-  });
-
-  return new Response(body, {
-    status: response.status,
-    statusText: response.statusText,
-    headers: response.headers
-  });
-};
-
-const completeRequestRuntimeWithResponse = (
-  runtime: EffectUiRuntime<unknown, unknown>,
-  response: Response,
-  options: {
-    readonly onFinalize?: (state: {
-      readonly stream?: StartRequestTraceStream;
-      readonly status: StartRequestTraceStatus;
-      readonly teardownReason: string;
-      readonly beforeDispose: StartRequestTraceTeardownSnapshot;
-      readonly afterDispose: StartRequestTraceTeardownSnapshot;
-      readonly completedAt: number;
-    }) => Effect.Effect<void>;
-    readonly onStreamFinalize?: (state: {
-      readonly stream: StartRequestTraceStream;
-      readonly status: StartRequestTraceStatus;
-      readonly teardownReason: string;
-      readonly beforeDispose: StartRequestTraceTeardownSnapshot;
-      readonly afterDispose: StartRequestTraceTeardownSnapshot;
-      readonly completedAt: number;
-    }) => Effect.Effect<void>;
-  } = {}
-): Effect.Effect<Response> =>
-  response.body
-    ? Effect.succeed(
-        responseWithRuntimeFinalizer(
-          response,
-          runtime,
-          options.onStreamFinalize === undefined
-            ? {}
-            : { onFinalize: options.onStreamFinalize }
-        )
-      )
-    : Effect.gen(function* () {
-        const teardown = yield* requestRuntimeDisposeTraceEffect(runtime);
-        if (options.onFinalize) {
-          yield* options.onFinalize({
-            status: "success",
-            teardownReason: "response-end",
-            ...teardown
-          });
-        }
-        return response;
-      });
-
 /**
  * Matches a request URL and preloads route resources and collections.
  *
@@ -2731,14 +2275,7 @@ export const createRequestHandlerEffect =
       const traceFinalizeOptions = options.onRequestTrace === undefined
         ? {}
         : {
-            onFinalize: (state: {
-              readonly stream?: StartRequestTraceStream;
-              readonly status: StartRequestTraceStatus;
-              readonly teardownReason: string;
-              readonly beforeDispose: StartRequestTraceTeardownSnapshot;
-              readonly afterDispose: StartRequestTraceTeardownSnapshot;
-              readonly completedAt: number;
-            }) =>
+            onFinalize: (state: RequestRuntimeFinalizeState) =>
               emitStartRequestTraceEffect(
                 options.onRequestTrace,
                 buildStartRequestTrace(request, traceFacts, state.status, {
@@ -2753,14 +2290,7 @@ export const createRequestHandlerEffect =
                   ...(state.stream === undefined ? {} : { stream: state.stream })
                 })
               ),
-            onStreamFinalize: (state: {
-              readonly stream: StartRequestTraceStream;
-              readonly status: StartRequestTraceStatus;
-              readonly teardownReason: string;
-              readonly beforeDispose: StartRequestTraceTeardownSnapshot;
-              readonly afterDispose: StartRequestTraceTeardownSnapshot;
-              readonly completedAt: number;
-            }) =>
+            onStreamFinalize: (state: RequestRuntimeStreamFinalizeState) =>
               emitStartRequestTraceEffect(
                 options.onRequestTrace,
                 buildStartRequestTrace(request, traceFacts, state.status, {

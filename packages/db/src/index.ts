@@ -5,7 +5,6 @@ import {
   stableStringify,
   type ReadableSignal,
   type ResourceStore as ResourceStoreState,
-  type WritableSignal,
   runFork
 } from "@effect-ui/core";
 import {
@@ -87,6 +86,94 @@ import {
   type CollectionResourceSyncAdapterOptions,
   type CollectionSyncUpdatePayload
 } from "./sync-adapter.js";
+import {
+  UnknownCollectionIndex,
+  applyCollectionUpdate,
+  augmentCollectionRow,
+  bumpCollectionState,
+  cloneStoredRow,
+  collectionIndexJoinKeys,
+  collectionIndexes,
+  initializeCollectionState,
+  makeCollectionState,
+  markStoredRowsSynced,
+  replaceCollectionRows,
+  restoreStoredRows,
+  rowsByCollectionIndex,
+  rowsMatchingCollectionIndex,
+  type CollectionState,
+  type PendingMutationEntry,
+  type StoredRow
+} from "./collection-state.js";
+import {
+  createCollectionTransaction,
+  dequeuePendingMutation,
+  enqueuePendingMutation,
+  pendingMutationSnapshots,
+  recordPendingMutationAttempt
+} from "./collection-mutation-queue.js";
+import {
+  collectionPersistenceConfig,
+  collectionPersistenceKey,
+  collectionStorageFromSync,
+  dehydrateCollections as dehydrateCollectionsWithStore,
+  dehydrateCollectionsEffect as dehydrateCollectionsWithStoreEffect,
+  hydrateCollectionEffect as hydrateCollectionWithStoreEffect,
+  hydrateCollectionsEffect as hydrateCollectionsWithStoreEffect,
+  makeCollectionMemoryStorage,
+  persistCollectionEffect as persistCollectionWithStoreEffect,
+  persistCollectionForReasonEffect,
+  restoreCollectionBeforePreloadEffect as restoreCollectionBeforePreloadWithStoreEffect,
+  restoreCollectionEffect as restoreCollectionWithStoreEffect,
+  snapshotCollection as snapshotCollectionWithStore,
+  snapshotCollectionEffect as snapshotCollectionWithStoreEffect
+} from "./collection-persistence.js";
+import {
+  UnsupportedLiveQuery,
+  buildQueryContexts,
+  buildQueryExecution,
+  compareRows,
+  compareValue,
+  joinKey,
+  projectCurrentContext,
+  querySources,
+  type AnyCollectionRow,
+  type AnyQueryAggregateRecord,
+  type AnyQueryContext,
+  type AnyQueryGrouping,
+  type QueryAggregate,
+  type QueryAggregateRecord,
+  type QueryAggregateResult,
+  type QueryContext,
+  type QueryJoin,
+  type QueryJoinKey,
+  type QueryJoinResult,
+  type QueryJoinedContext,
+  type QueryJoinStrategy,
+  type QueryOrder,
+  type QueryPlanDiagnostics,
+  type QueryPlanJoinDiagnostics,
+  type QueryPlanSourceDiagnostics,
+  type QueryProjectOptions,
+  type QuerySortDirection,
+  type QuerySortValue,
+  type SourceRecord
+} from "./query-plan.js";
+
+export { UnknownCollectionIndex } from "./collection-state.js";
+export { UnsupportedLiveQuery } from "./query-plan.js";
+export type {
+  QueryAggregate,
+  QueryAggregateRecord,
+  QueryAggregateResult,
+  QueryJoinKey,
+  QueryJoinStrategy,
+  QueryPlanDiagnostics,
+  QueryPlanJoinDiagnostics,
+  QueryPlanSourceDiagnostics,
+  QuerySortDirection,
+  QuerySortValue
+} from "./query-plan.js";
 
 export const CollectionTypeId: unique symbol = Symbol.for("@effect-ui/db/Collection") as typeof CollectionTypeId;
 export const CollectionStoreTypeId: unique symbol = Symbol.for("@effect-ui/db/CollectionStore") as typeof CollectionStoreTypeId;
@@ -335,7 +422,6 @@ export interface CollectionDefinition<A extends object, K extends CollectionKey 
 }
 
 export type AnyCollection<E = any, R = any> = CollectionDefinition<any, any, E, R>;
-type AnyCollectionRow = CollectionRow<any, any>;
 export type CollectionValue<C> = C extends CollectionDefinition<infer A, infer _K, infer _E, infer _R> ? A : never;
 export type CollectionRowValue<C> = C extends CollectionDefinition<infer A, infer K, infer _E, infer _R> ? CollectionRow<A, K> : never;
 export type CollectionError<C> = C extends CollectionDefinition<infer _A, infer _K, infer E, infer _R> ? E : never;
@@ -551,57 +637,11 @@ export class ReadonlyCollectionMutation extends Data.TaggedError("ReadonlyCollec
   readonly operation: string;
 }> {}
 
-/**
- * Error raised when reading an index that was not declared on the collection.
- */
-export class UnknownCollectionIndex extends Data.TaggedError("UnknownCollectionIndex")<{
-  readonly collection: string;
-  readonly index: string;
-}> {}
-
-/**
- * Error raised when the query builder cannot be represented as a live query.
- */
-export class UnsupportedLiveQuery extends Data.TaggedError("UnsupportedLiveQuery")<{
-  readonly reason: string;
-}> {}
-
-interface StoredRow<A extends object, K extends CollectionKey> {
-  readonly key: K;
-  value: A;
-  synced: boolean;
-  origin: CollectionOrigin;
-}
-
-interface PendingMutationEntry<A extends object, K extends CollectionKey> {
-  readonly transaction: CollectionTransaction<A, K>;
-  readonly rollbackRows: ReadonlyMap<K, StoredRow<A, K> | undefined>;
-  readonly createdAt: number;
-  attempts: number;
-}
-
-interface CollectionIndexCacheEntry<A extends object, K extends CollectionKey> {
-  readonly version: number;
-  readonly buckets: ReadonlyMap<string, ReadonlyArray<StoredRow<A, K>>>;
-}
-
-interface CollectionState<A extends object, K extends CollectionKey, E> {
-  readonly rows: Map<K, StoredRow<A, K>>;
-  readonly pendingMutations: Map<string, PendingMutationEntry<A, K>>;
-  readonly indexCache: Map<string, CollectionIndexCacheEntry<A, K>>;
-  readonly version: WritableSignal<number>;
-  readonly loadState: WritableSignal<CollectionLoadState<E>>;
-  initialized: boolean;
-  persistenceRestored: boolean;
-}
-
 export interface CollectionStore {
   readonly [CollectionStoreTypeId]: typeof CollectionStoreTypeId;
   readonly disposeEffect: Effect.Effect<void>;
   subscribeEventsEffect(): Effect.Effect<PubSub.Subscription<CollectionStoreEvent>, never, Scope.Scope>;
 }
-
-let nextTransactionId = 0;
 
 class RuntimeCollectionStore implements CollectionStore {
   readonly [CollectionStoreTypeId]: typeof CollectionStoreTypeId = CollectionStoreTypeId;
@@ -617,17 +657,9 @@ class RuntimeCollectionStore implements CollectionStore {
       return existing as CollectionState<A, K, E>;
     }
 
-    const state: CollectionState<A, K, E> = {
-      rows: new Map(),
-      pendingMutations: new Map(),
-      indexCache: new Map(),
-      version: Signal.make(0),
-      loadState: Signal.make<CollectionLoadState<E>>({ _tag: "Initial", waiting: false }),
-      initialized: false,
-      persistenceRestored: false
-    };
+    const state = makeCollectionState<A, K, E>();
     this.#states.set(definition, state as CollectionState<any, CollectionKey, any>);
-    initializeCollection(definition, state);
+    initializeCollectionState(definition, state);
     return state;
   }
 
@@ -686,11 +718,6 @@ const publishStoreEvent = (
 ): Effect.Effect<void> =>
   store.publish(event);
 
-const bump = (state: CollectionState<any, any, any>): void => {
-  state.indexCache.clear();
-  state.version.update((value) => value + 1);
-};
-
 const toArray = <A>(input: A | ReadonlyArray<A>): ReadonlyArray<A> =>
   Array.isArray(input) ? input as ReadonlyArray<A> : [input as A];
 
@@ -701,157 +728,13 @@ const collectionState = <A extends object, K extends CollectionKey, E, R>(
   return store.state(definition);
 };
 
-const initializeCollection = <A extends object, K extends CollectionKey, E, R>(
-  definition: CollectionDefinition<A, K, E, R>,
-  state: CollectionState<A, K, E>
-): void => {
-  if (state.initialized) {
-    return;
-  }
-
-  state.initialized = true;
-  const initialData = definition.options.initialData ?? [];
-  if (initialData.length === 0) {
-    return;
-  }
-
-  for (const value of initialData) {
-    const key = definition.getKey(value);
-    state.rows.set(key, {
-      key,
-      value,
-      synced: true,
-      origin: "remote"
-    });
-  }
-  state.loadState.set({ _tag: "Ready", waiting: false, updatedAt: Date.now() });
-  bump(state);
-};
-
-const augmentRow = <A extends object, K extends CollectionKey>(
-  definition: CollectionDefinition<A, K, any, any>,
-  row: StoredRow<A, K>
-): CollectionRow<A, K> =>
-  Object.assign({}, row.value, {
-    $key: row.key,
-    $collection: definition.name,
-    $synced: row.synced,
-    $origin: row.origin
-  }) as CollectionRow<A, K>;
-
-const collectionIndexKey = (value: CollectionIndexValue): string =>
-  value instanceof Date ? `Date:${value.toISOString()}` : stableStringify(value);
-
-const normalizeCollectionIndex = <A extends object>(
-  index: CollectionIndexInput<A>
-): CollectionIndexDefinition<A> =>
-  typeof index === "function" ? { key: index } : index;
-
-const isCollectionIndexValueArray = (
-  value: CollectionIndexResult
-): value is ReadonlyArray<CollectionIndexValue> =>
-  Array.isArray(value);
-
-const collectionIndexes = <A extends object>(
-  options: { readonly indexes?: CollectionIndexRecord<A> }
-): ReadonlyMap<string, CollectionIndexDefinition<A>> =>
-  new Map(
-    Object.entries(options.indexes ?? {}).map(([name, index]) => [
-      name,
-      normalizeCollectionIndex(index as CollectionIndexInput<A>)
-    ])
-  );
-
-const collectionIndex = <A extends object>(
-  definition: CollectionDefinition<A, any, any, any>,
-  name: string
-): CollectionIndexDefinition<A> => {
-  const index = collectionIndexes(definition.options).get(name);
-  if (!index) {
-    throw new UnknownCollectionIndex({ collection: definition.name, index: name });
-  }
-  return index;
-};
-
-const collectionIndexValues = <A extends object>(
-  index: CollectionIndexDefinition<A>,
-  value: A
-): ReadonlyArray<CollectionIndexValue> => {
-  const result = index.key(value);
-  return isCollectionIndexValueArray(result) ? result : [result];
-};
-
-const uniqueCollectionIndexValues = <A extends object>(
-  index: CollectionIndexDefinition<A>,
-  value: A
-): ReadonlyArray<CollectionIndexValue> => {
-  const values: Array<CollectionIndexValue> = [];
-  const seen = new Set<string>();
-  for (const candidate of collectionIndexValues(index, value)) {
-    const key = collectionIndexKey(candidate);
-    if (!seen.has(key)) {
-      seen.add(key);
-      values.push(candidate);
-    }
-  }
-  return values;
-};
-
-const rowsMatchingIndex = <A extends object, K extends CollectionKey>(
-  definition: CollectionDefinition<A, K, any, any>,
-  rows: ReadonlyArray<CollectionRow<A, K>>,
-  index: string,
-  value: CollectionIndexValue
-): ReadonlyArray<CollectionRow<A, K>> => {
-  const definitionIndex = collectionIndex(definition, index);
-  const key = collectionIndexKey(value);
-  return rows.filter((row) =>
-    collectionIndexValues(definitionIndex, row).some((candidate) =>
-      collectionIndexKey(candidate) === key
-    )
-  );
-};
-
-const buildCollectionIndexCache = <A extends object, K extends CollectionKey>(
-  state: CollectionState<A, K, any>,
-  version: number,
-  index: CollectionIndexDefinition<A>
-): CollectionIndexCacheEntry<A, K> => {
-  const buckets = new Map<string, Array<StoredRow<A, K>>>();
-  for (const row of state.rows.values()) {
-    for (const value of uniqueCollectionIndexValues(index, row.value)) {
-      const key = collectionIndexKey(value);
-      const bucket = buckets.get(key);
-      if (bucket) {
-        bucket.push(row);
-      } else {
-        buckets.set(key, [row]);
-      }
-    }
-  }
-
-  return {
-    version,
-    buckets
-  };
-};
-
 const rowsByIndex = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   index: string,
   value: CollectionIndexValue
 ): ReadonlyArray<CollectionRow<A, K>> => {
-  const definitionIndex = collectionIndex(definition, index);
   const state = collectionState(definition);
-  const version = state.version.get();
-  let cache = state.indexCache.get(index);
-  if (!cache || cache.version !== version) {
-    cache = buildCollectionIndexCache(state, version, definitionIndex);
-    state.indexCache.set(index, cache);
-  }
-
-  return (cache.buckets.get(collectionIndexKey(value)) ?? [])
-    .map((row) => augmentRow(definition, row));
+  return rowsByCollectionIndex(definition, state, index, value);
 };
 
 const indexJoinKeys = <A extends object>(
@@ -859,79 +742,7 @@ const indexJoinKeys = <A extends object>(
   index: string,
   row: CollectionRow<A, any>
 ): ReadonlyArray<QueryJoinKey> =>
-  uniqueCollectionIndexValues(collectionIndex(definition, index), row) as ReadonlyArray<QueryJoinKey>;
-
-const replaceRows = <A extends object, K extends CollectionKey>(
-  definition: CollectionDefinition<A, K, any, any>,
-  state: CollectionState<A, K, any>,
-  values: ReadonlyArray<A>
-): void => {
-  const pending = Array.from(state.rows.values()).filter((row) => !row.synced);
-  state.rows.clear();
-
-  for (const value of values) {
-    const key = definition.getKey(value);
-    state.rows.set(key, {
-      key,
-      value,
-      synced: true,
-      origin: "remote"
-    });
-  }
-
-  for (const row of pending) {
-    state.rows.set(row.key, row);
-  }
-
-  bump(state);
-};
-
-const rowSnapshot = <A extends object, K extends CollectionKey>(
-  row: StoredRow<A, K>
-): CollectionRowSnapshot<A, K> => ({
-  key: row.key,
-  value: row.value,
-  synced: row.synced,
-  origin: row.origin
-});
-
-const rowFromSnapshot = <A extends object, K extends CollectionKey>(
-  snapshot: CollectionRowSnapshot<A, K>
-): StoredRow<A, K> => ({
-  key: snapshot.key,
-  value: snapshot.value,
-  synced: snapshot.synced,
-  origin: snapshot.origin
-});
-
-const rollbackRowSnapshot = <A extends object, K extends CollectionKey>(
-  key: K,
-  row: StoredRow<A, K> | undefined
-): CollectionRollbackRow<A, K> =>
-  row
-    ? { key, row: rowSnapshot(row) }
-    : { key };
-
-const pendingMutationSnapshot = <A extends object, K extends CollectionKey>(
-  entry: PendingMutationEntry<A, K>
-): CollectionPendingMutation<A, K> => ({
-  transaction: entry.transaction,
-  rollbackRows: Array.from(entry.rollbackRows, ([key, row]) => rollbackRowSnapshot(key, row)),
-  createdAt: entry.createdAt,
-  attempts: entry.attempts
-});
-
-const pendingEntryFromSnapshot = <A extends object, K extends CollectionKey>(
-  snapshot: CollectionPendingMutation<A, K>
-): PendingMutationEntry<A, K> => ({
-  transaction: snapshot.transaction,
-  rollbackRows: new Map(snapshot.rollbackRows.map((rollback) => [
-    rollback.key,
-    rollback.row ? rowFromSnapshot(rollback.row) : undefined
-  ])),
-  createdAt: snapshot.createdAt,
-  attempts: snapshot.attempts
-});
+  collectionIndexJoinKeys(definition, index, row) as ReadonlyArray<QueryJoinKey>;
 
 const collectionPendingMutations = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
@@ -939,7 +750,7 @@ const collectionPendingMutations = <A extends object, K extends CollectionKey, E
 ): ReadonlyArray<CollectionPendingMutation<A, K>> => {
   const state = collectionState(definition, store);
   state.version.get();
-  return Array.from(state.pendingMutations.values(), pendingMutationSnapshot);
+  return pendingMutationSnapshots(state);
 };
 
 const collectionPendingMutationsEffect = <A extends object, K extends CollectionKey, E, R>(
@@ -951,25 +762,13 @@ const snapshotCollection = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   store: RuntimeCollectionStore = storeFor(currentOrDefaultRuntime().resourceStore),
   updatedAt = Date.now()
-): CollectionSnapshot<A, K> => {
-  const state = collectionState(definition, store);
-  state.version.get();
-  return {
-    name: definition.name,
-    rows: Array.from(state.rows.values(), rowSnapshot),
-    pendingMutations: Array.from(state.pendingMutations.values(), pendingMutationSnapshot),
-    updatedAt
-  };
-};
+): CollectionSnapshot<A, K> =>
+  snapshotCollectionWithStore(definition, store, updatedAt);
 
 const snapshotCollectionEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>
 ): Effect.Effect<CollectionSnapshot<A, K>> =>
-  Effect.gen(function* () {
-    const store = yield* collectionStoreEffect;
-    const updatedAt = yield* Clock.currentTimeMillis;
-    return snapshotCollection(definition, store, updatedAt);
-  });
+  snapshotCollectionWithStoreEffect(definition, collectionStoreEffect);
 
 const hydrateCollectionEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
@@ -977,40 +776,12 @@ const hydrateCollectionEffect = <A extends object, K extends CollectionKey, E, R
   options: CollectionHydrateOptions = {},
   store?: RuntimeCollectionStore
 ): Effect.Effect<void> =>
-  Effect.gen(function* () {
-    const dbStore = store ?? (yield* collectionStoreEffect);
-    const state = collectionState(definition, dbStore);
-    if (options.replace !== false) {
-      state.rows.clear();
-      state.pendingMutations.clear();
-    }
-
-    for (const row of snapshot.rows) {
-      state.rows.set(row.key, rowFromSnapshot(row));
-    }
-
-    for (const pending of snapshot.pendingMutations ?? []) {
-      state.pendingMutations.set(pending.transaction.id, pendingEntryFromSnapshot(pending));
-    }
-
-    state.loadState.set({
-      _tag: "Ready",
-      waiting: false,
-      updatedAt: snapshot.updatedAt
-    });
-    bump(state);
-    yield* publishStoreEvent(dbStore, {
-      _tag: "CollectionHydrated",
-      collection: definition.name,
-      count: snapshot.rows.length,
-      updatedAt: snapshot.updatedAt
-    });
-  });
+  hydrateCollectionWithStoreEffect(definition, snapshot, options, collectionStoreEffect, store);
 
 const persistenceKey = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   options: CollectionPersistOptions = {}
-): string => options.key ?? `effect-ui:collection:${definition.name}`;
+): string => collectionPersistenceKey(definition, options);
 
 const persistCollectionEffect = <A extends object, K extends CollectionKey, E, R, PE, PR>(
   definition: CollectionDefinition<A, K, E, R>,
@@ -1018,19 +789,7 @@ const persistCollectionEffect = <A extends object, K extends CollectionKey, E, R
   options: CollectionPersistOptions = {},
   store?: RuntimeCollectionStore
 ): Effect.Effect<void, PE, PR> =>
-  Effect.gen(function* () {
-    const dbStore = store ?? (yield* collectionStoreEffect);
-    const key = persistenceKey(definition, options);
-    const updatedAt = yield* Clock.currentTimeMillis;
-    const snapshot = snapshotCollection(definition, dbStore, updatedAt);
-    yield* collectionInputEffect(storage.setItem(key, JSON.stringify(snapshot)));
-    yield* publishStoreEvent(dbStore, {
-      _tag: "CollectionPersisted",
-      collection: definition.name,
-      key,
-      count: snapshot.rows.length
-    });
-  });
+  persistCollectionWithStoreEffect(definition, storage, options, collectionStoreEffect, store);
 
 const restoreCollectionEffect = <A extends object, K extends CollectionKey, E, R, PE, PR>(
   definition: CollectionDefinition<A, K, E, R>,
@@ -1038,126 +797,44 @@ const restoreCollectionEffect = <A extends object, K extends CollectionKey, E, R
   options: CollectionPersistOptions & CollectionHydrateOptions = {},
   store?: RuntimeCollectionStore
 ): Effect.Effect<void, PE, PR> =>
-  Effect.gen(function* () {
-    const dbStore = store ?? (yield* collectionStoreEffect);
-    const key = persistenceKey(definition, options);
-    const encoded = yield* collectionInputEffect(storage.getItem(key));
-    if (encoded === null) {
-      return;
-    }
-
-    const snapshot = JSON.parse(encoded) as CollectionSnapshot<A, K>;
-    yield* hydrateCollectionEffect(definition, snapshot, options, dbStore);
-    yield* publishStoreEvent(dbStore, {
-      _tag: "CollectionRestored",
-      collection: definition.name,
-      key,
-      count: snapshot.rows.length
-    });
-  });
+  restoreCollectionWithStoreEffect(definition, storage, options, collectionStoreEffect, store);
 
 const persistenceConfig = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>
 ): CollectionPersistenceConfig<E, R> | undefined =>
-  definition.options.persistence;
-
-const persistencePersistOptions = <E, R>(
-  config: CollectionPersistenceConfig<E, R>
-): CollectionPersistOptions => ({
-  ...(config.key === undefined ? {} : { key: config.key })
-});
-
-const persistenceRestoreOptions = <E, R>(
-  config: CollectionPersistenceConfig<E, R>
-): CollectionPersistOptions & CollectionHydrateOptions => ({
-  ...persistencePersistOptions(config),
-  ...(config.hydrate ?? {})
-});
+  collectionPersistenceConfig(definition);
 
 const persistForReasonEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   store: RuntimeCollectionStore,
   reason: "load" | "mutation" | "write"
-): Effect.Effect<void, E, R> => {
-  const config = persistenceConfig(definition);
-  if (!config) {
-    return Effect.succeed(undefined);
-  }
-
-  const shouldPersist =
-    reason === "load"
-      ? config.persistOnLoad !== false
-      : reason === "mutation"
-        ? config.persistOnMutation !== false
-        : config.persistOnWrite !== false;
-
-  if (!shouldPersist) {
-    return Effect.succeed(undefined);
-  }
-
-  return persistCollectionEffect(
-    definition,
-    config.storage,
-    persistencePersistOptions(config),
-    store
-  );
-};
+): Effect.Effect<void, E, R> =>
+  persistCollectionForReasonEffect(definition, store, collectionStoreEffect, reason);
 
 const restoreBeforePreloadEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   state: CollectionState<A, K, E>,
   store: RuntimeCollectionStore
 ): Effect.Effect<boolean, E, R> =>
-  Effect.gen(function* () {
-    const config = persistenceConfig(definition);
-    if (!config || config.restoreOnPreload === false || state.persistenceRestored) {
-      return false;
-    }
-
-    const before = state.loadState.get()._tag;
-    yield* restoreCollectionEffect(
-      definition,
-      config.storage,
-      persistenceRestoreOptions(config),
-      store
-    );
-    state.persistenceRestored = true;
-    return before !== "Ready" && state.loadState.get()._tag === "Ready";
-  });
+  restoreCollectionBeforePreloadWithStoreEffect(definition, state, store, collectionStoreEffect);
 
 const dehydrateCollections = (
   collections: Iterable<AnyCollection>,
   store: RuntimeCollectionStore = storeFor(currentOrDefaultRuntime().resourceStore)
-): CollectionHydrationPayload => ({
-  collections: Array.from(collections, (collection) => snapshotCollection(collection, store))
-});
+): CollectionHydrationPayload =>
+  dehydrateCollectionsWithStore(collections, store);
 
 const dehydrateCollectionsEffect = (
   collections: Iterable<AnyCollection>
 ): Effect.Effect<CollectionHydrationPayload> =>
-  Effect.gen(function* () {
-    const store = yield* collectionStoreEffect;
-    const updatedAt = yield* Clock.currentTimeMillis;
-    return {
-      collections: Array.from(collections, (collection) => snapshotCollection(collection, store, updatedAt))
-    };
-  });
+  dehydrateCollectionsWithStoreEffect(collections, collectionStoreEffect);
 
 const hydrateCollectionsEffect = (
   collections: Iterable<AnyCollection>,
   payload: CollectionHydrationPayload,
   options: CollectionHydrateOptions = {}
 ): Effect.Effect<void> =>
-  Effect.gen(function* () {
-    const dbStore = yield* collectionStoreEffect;
-    const definitions = new Map(Array.from(collections, (collection) => [collection.name, collection] as const));
-    for (const snapshot of payload.collections) {
-      const collection = definitions.get(snapshot.name);
-      if (collection) {
-        yield* hydrateCollectionEffect(collection, snapshot, options, dbStore);
-      }
-    }
-  });
+  hydrateCollectionsWithStoreEffect(collections, payload, options, collectionStoreEffect);
 
 const changeFeedUnsubscribe = (
   subscription: CollectionChangeFeedSubscription
@@ -1191,140 +868,6 @@ const subscribeCollectionChangesEffect = <
         : Effect.void;
     }
   ).pipe(Effect.asVoid);
-
-const makeMemoryStorage = (initial?: Iterable<readonly [string, string]>): CollectionMemoryStorage => {
-  const values = new Map(initial);
-  return {
-    values,
-    getItem: (key) => values.get(key) ?? null,
-    setItem: (key, value) => {
-      values.set(key, value);
-    },
-    removeItem: (key) => {
-      values.delete(key);
-    },
-    clear: () => {
-      values.clear();
-    }
-  };
-};
-
-const fromStorage = (storage: CollectionStorageLike): CollectionPersistenceStorage<never, never> => {
-  const removeItem = storage.removeItem;
-  return {
-    getItem: (key) => Effect.sync(() => storage.getItem(key)),
-    setItem: (key, value) => Effect.sync(() => storage.setItem(key, value)),
-    ...(removeItem
-      ? { removeItem: (key: string) => Effect.sync(() => removeItem(key)) }
-      : {})
-  };
-};
-
-const cloneRow = <A extends object, K extends CollectionKey>(
-  row: StoredRow<A, K>
-): StoredRow<A, K> => ({
-  key: row.key,
-  value: row.value,
-  synced: row.synced,
-  origin: row.origin
-});
-
-const restoreRows = <A extends object, K extends CollectionKey>(
-  state: CollectionState<A, K, any>,
-  snapshots: ReadonlyMap<K, StoredRow<A, K> | undefined>
-): void => {
-  for (const [key, row] of snapshots) {
-    if (row) {
-      state.rows.set(key, cloneRow(row));
-    } else {
-      state.rows.delete(key);
-    }
-  }
-  bump(state);
-};
-
-const enqueuePendingMutation = <A extends object, K extends CollectionKey>(
-  state: CollectionState<A, K, any>,
-  mutation: CollectionTransaction<A, K>,
-  rollbackRows: ReadonlyMap<K, StoredRow<A, K> | undefined>,
-  createdAt: number
-): PendingMutationEntry<A, K> => {
-  const existing = state.pendingMutations.get(mutation.id);
-  if (existing) {
-    return existing;
-  }
-
-  const entry: PendingMutationEntry<A, K> = {
-    transaction: mutation,
-    rollbackRows: new Map(rollbackRows),
-    createdAt,
-    attempts: 0
-  };
-  state.pendingMutations.set(mutation.id, entry);
-  bump(state);
-  return entry;
-};
-
-const dequeuePendingMutation = <A extends object, K extends CollectionKey>(
-  state: CollectionState<A, K, any>,
-  id: string
-): void => {
-  if (state.pendingMutations.delete(id)) {
-    bump(state);
-  }
-};
-
-const markSynced = <A extends object, K extends CollectionKey>(
-  state: CollectionState<A, K, any>,
-  keys: ReadonlyArray<K>
-): void => {
-  for (const key of keys) {
-    const row = state.rows.get(key);
-    if (row) {
-      row.synced = true;
-    }
-  }
-  bump(state);
-};
-
-const diffChanges = <A extends object>(previous: A, value: A): Partial<A> => {
-  const changes: Partial<A> = {};
-  for (const key of Object.keys(value) as Array<keyof A>) {
-    if (!Object.is(previous[key], value[key])) {
-      changes[key] = value[key];
-    }
-  }
-  return changes;
-};
-
-const applyUpdate = <A extends object>(previous: A, update: CollectionUpdate<A>): {
-  readonly value: A;
-  readonly changes: Partial<A>;
-} => {
-  if (typeof update === "function") {
-    const draft = { ...previous } as A;
-    const result = update(draft);
-    const value = result === undefined ? draft : result;
-    return {
-      value,
-      changes: diffChanges(previous, value)
-    };
-  }
-
-  return {
-    value: { ...previous, ...update },
-    changes: update
-  };
-};
-
-const transaction = <A extends object, K extends CollectionKey>(
-  collection: string,
-  mutations: ReadonlyArray<CollectionMutation<A, K>>
-): CollectionTransaction<A, K> => ({
-  id: `ctx_${++nextTransactionId}`,
-  collection,
-  mutations
-});
 
 const withCollectionRetry = <A, E, R>(
   definition: AnyCollection<E, R>,
@@ -1387,8 +930,7 @@ const runPendingMutation = <A extends object, K extends CollectionKey, E, R>(
   handler: Effect.Effect<void, E, R>
 ): Effect.Effect<CollectionTransaction<A, K>, E, R> =>
   Effect.gen(function* () {
-    const mutation = pending.transaction;
-    pending.attempts += 1;
+    const mutation = recordPendingMutationAttempt(pending);
     yield* publishStoreEvent(dbStore, {
       _tag: "CollectionMutateStarted",
       collection: definition.name,
@@ -1399,7 +941,7 @@ const runPendingMutation = <A extends object, K extends CollectionKey, E, R>(
     return yield* withCollectionRetry(definition, handler).pipe(
       Effect.tap(() =>
         Effect.gen(function* () {
-          markSynced(state, Array.from(pending.rollbackRows.keys()));
+          markStoredRowsSynced(state, Array.from(pending.rollbackRows.keys()));
           dequeuePendingMutation(state, mutation.id);
           yield* publishStoreEvent(dbStore, {
             _tag: "CollectionMutationDequeued",
@@ -1419,7 +961,7 @@ const runPendingMutation = <A extends object, K extends CollectionKey, E, R>(
       Effect.as(mutation),
       Effect.catch((error: E) =>
         Effect.gen(function* () {
-          restoreRows(state, pending.rollbackRows);
+          restoreStoredRows(state, pending.rollbackRows);
           dequeuePendingMutation(state, mutation.id);
           yield* publishStoreEvent(dbStore, {
             _tag: "CollectionMutationDequeued",
@@ -1526,7 +1068,7 @@ const loadCollectionEffect = <A extends object, K extends CollectionKey, E, R>(
       )
     );
     const updatedAt = yield* Clock.currentTimeMillis;
-    replaceRows(definition, state, values);
+    replaceCollectionRows(definition, state, values);
     state.loadState.set({ _tag: "Ready", waiting: false, updatedAt });
     yield* publishStoreEvent(dbStore, {
       _tag: "CollectionLoaded",
@@ -1555,7 +1097,7 @@ const writeRows = <A extends object, K extends CollectionKey, E, R>(
         origin: options.origin ?? "remote"
       });
     }
-    bump(state);
+    bumpCollectionState(state);
     yield* publishStoreEvent(dbStore, {
       _tag: "CollectionWritten",
       collection: definition.name,
@@ -1581,7 +1123,7 @@ const writeUpdateRow = <A extends object, K extends CollectionKey, E, R>(
     row.value = { ...row.value, ...changes };
     row.synced = options.synced ?? true;
     row.origin = options.origin ?? "remote";
-    bump(state);
+    bumpCollectionState(state);
     yield* publishStoreEvent(dbStore, {
       _tag: "CollectionWritten",
       collection: definition.name,
@@ -1598,7 +1140,7 @@ const writeDeleteRow = <A extends object, K extends CollectionKey, E, R>(
     const dbStore = yield* collectionStoreEffect;
     const state = collectionState(definition, dbStore);
     state.rows.delete(key);
-    bump(state);
+    bumpCollectionState(state);
     yield* publishStoreEvent(dbStore, {
       _tag: "CollectionWritten",
       collection: definition.name,
@@ -1740,9 +1282,9 @@ export const makeLiveQueryCollection = <
     },
     rows: () => materialized().map(row),
     index: (index, value) =>
-      rowsMatchingIndex(definition, materialized().map(row), index, value),
+      rowsMatchingCollectionIndex(definition, materialized().map(row), index, value),
     firstByIndex: (index, value) =>
-      rowsMatchingIndex(definition, materialized().map(row), index, value)[0],
+      rowsMatchingCollectionIndex(definition, materialized().map(row), index, value)[0],
     preloadEffect: () =>
       Effect.gen(function* () {
         yield* recordCollectionPreload(definition);
@@ -1811,113 +1353,6 @@ export const makeLiveQueryCollection = <
   collectionDefinitions.set(options.name, definition as AnyCollection);
 
   return definition;
-};
-
-export type QuerySortDirection = "asc" | "desc";
-export type QuerySortValue = string | number | boolean | Date | null | undefined;
-export type QueryJoinKey = string | number | boolean | Date | null | undefined;
-export type QueryJoinStrategy = "collection-scan" | "collection-index";
-
-type SourceRecord = Record<string, AnyCollection>;
-type AnyQueryContext = Record<string, any>;
-type QueryContext<Sources extends SourceRecord> = {
-  readonly [Key in keyof Sources]: CollectionRowValue<Sources[Key]>;
-};
-type QueryJoinedContext<
-  TContext extends AnyQueryContext,
-  Alias extends string,
-  C extends AnyCollection
-> = TContext & {
-  readonly [Key in Alias]: CollectionRowValue<C>;
-};
-type QueryJoinResult<TContext, TResult, TNextContext> =
-  [TResult] extends [TContext]
-    ? [TContext] extends [TResult]
-      ? TNextContext
-      : TResult
-    : TResult;
-
-interface QueryOrder<TContext> {
-  readonly direction: QuerySortDirection;
-  readonly selector: (row: TContext) => QuerySortValue;
-}
-
-interface QueryJoin {
-  readonly alias: string;
-  readonly collection: AnyCollection;
-  readonly leftKey: (row: AnyQueryContext) => QueryJoinKey;
-  readonly rightKeys: (row: AnyCollectionRow) => ReadonlyArray<QueryJoinKey>;
-  readonly rightIndex?: string;
-}
-
-export interface QueryPlanSourceDiagnostics {
-  readonly alias: string;
-  readonly collection: string;
-  readonly rows: number;
-}
-
-export interface QueryPlanJoinDiagnostics {
-  readonly alias: string;
-  readonly collection: string;
-  readonly strategy: QueryJoinStrategy;
-  readonly index?: string;
-  readonly leftRows: number;
-  readonly rightRows: number;
-  readonly outputRows: number;
-  readonly estimatedComparisons: number;
-}
-
-export interface QueryPlanDiagnostics {
-  readonly sources: ReadonlyArray<QueryPlanSourceDiagnostics>;
-  readonly joins: ReadonlyArray<QueryPlanJoinDiagnostics>;
-  readonly filters: number;
-  readonly orders: number;
-  readonly grouped: boolean;
-  readonly offset: number;
-  readonly limit?: number;
-  readonly contextRows: number;
-}
-
-interface QueryExecution<TContext> {
-  readonly contexts: Array<TContext>;
-  readonly diagnostics: QueryPlanDiagnostics;
-}
-
-/**
- * Aggregate definition used by `Query.groupBy`.
- */
-export interface QueryAggregate<TContext, R, V = unknown> {
-  readonly preMap: (row: TContext) => V;
-  readonly reduce: (values: Array<[V, number]>) => V;
-  readonly postMap?: (value: V) => R;
-}
-
-export type QueryAggregateRecord<TContext> = Record<string, QueryAggregate<TContext, any, any>>;
-type AnyQueryAggregateRecord = QueryAggregateRecord<any>;
-export type QueryAggregateResult<
-  TKey extends Record<string, unknown>,
-  Aggregates extends AnyQueryAggregateRecord
-> = TKey & {
-  readonly [Key in keyof Aggregates]: Aggregates[Key] extends QueryAggregate<infer _Context, infer R, infer _Value> ? R : never;
-};
-
-interface QueryGrouping<TSource extends AnyQueryContext, TResult extends Record<string, unknown>> {
-  readonly key: (row: TSource) => Record<string, unknown>;
-  readonly aggregates: QueryAggregateRecord<TSource>;
-  readonly sourceFilters: ReadonlyArray<(row: TSource) => boolean>;
-}
-
-type AnyQueryGrouping = QueryGrouping<AnyQueryContext, Record<string, unknown>>;
-
-interface QueryProjectOptions {
-  readonly filter?: boolean;
-  readonly order?: boolean;
-  readonly window?: boolean;
-}
-
-const projectCurrentContext = <TContext, TResult>(row: TContext): TResult => {
-  const value: unknown = row;
-  return value as TResult;
 };
 
 /**
@@ -2207,172 +1642,6 @@ const queryRoot: QueryRoot = {
   )
 };
 
-const buildContexts = <TContext extends AnyQueryContext>(
-  sources: ReadonlyArray<readonly [string, AnyCollection]>
-): Array<TContext> => {
-  if (sources.length === 0) {
-    throw new UnsupportedLiveQuery({ reason: "Live queries require at least one source collection." });
-  }
-
-  const contexts: Array<TContext> = [];
-  const visit = (index: number, current: Record<string, unknown>): void => {
-    if (index >= sources.length) {
-      contexts.push({ ...current } as TContext);
-      return;
-    }
-
-    const source = sources[index];
-    if (!source) {
-      return;
-    }
-
-    const [alias, collection] = source;
-    for (const row of collection.rows()) {
-      current[alias] = row;
-      visit(index + 1, current);
-    }
-    delete current[alias];
-  };
-
-  visit(0, {});
-  return contexts;
-};
-
-const buildQueryContexts = <TContext extends AnyQueryContext>(
-  builder: QueryBuilder<TContext, unknown>
-): Array<TContext> =>
-  buildQueryExecution(builder).contexts;
-
-const buildQueryExecution = <TContext extends AnyQueryContext>(
-  builder: QueryBuilder<TContext, unknown>
-): QueryExecution<TContext> => {
-  const joinAliases = new Set(builder.joins.map((join) => join.alias));
-  const baseSources = builder.sources.filter(([alias]) => !joinAliases.has(alias));
-  const sourceDiagnostics = builder.sources.map(([alias, collection]): QueryPlanSourceDiagnostics => ({
-    alias,
-    collection: collection.name,
-    rows: collection.rows().length
-  }));
-  const joins: Array<QueryPlanJoinDiagnostics> = [];
-  let contexts = buildContexts<AnyQueryContext>(baseSources);
-
-  for (const join of builder.joins) {
-    const joined: Array<AnyQueryContext> = [];
-    const leftRows = contexts.length;
-    const rightRows = join.collection.rows().length;
-    for (const context of contexts) {
-      const leftValue = join.leftKey(context);
-      const left = joinKey(leftValue);
-      const rows = join.rightIndex
-        ? join.collection.index(join.rightIndex, leftValue as CollectionIndexValue)
-        : join.collection.rows();
-      for (const row of rows) {
-        if (join.rightKeys(row).some((rightValue) => left === joinKey(rightValue))) {
-          joined.push({
-            ...context,
-            [join.alias]: row
-          });
-        }
-      }
-    }
-    joins.push({
-      alias: join.alias,
-      collection: join.collection.name,
-      strategy: join.rightIndex ? "collection-index" : "collection-scan",
-      ...(join.rightIndex === undefined ? {} : { index: join.rightIndex }),
-      leftRows,
-      rightRows,
-      outputRows: joined.length,
-      estimatedComparisons: join.rightIndex ? leftRows : leftRows * rightRows
-    });
-    contexts = joined;
-  }
-
-  let resultContexts: Array<AnyQueryContext>;
-  if (builder.grouping) {
-    resultContexts = groupContexts(contexts, builder.grouping);
-  } else {
-    resultContexts = contexts;
-  }
-
-  return {
-    contexts: resultContexts as Array<TContext>,
-    diagnostics: {
-      sources: sourceDiagnostics,
-      joins,
-      filters: builder.filters.length,
-      orders: builder.orders.length,
-      grouped: builder.grouping !== undefined,
-      offset: builder.offsetCount,
-      ...(builder.limitCount === undefined ? {} : { limit: builder.limitCount }),
-      contextRows: resultContexts.length
-    }
-  };
-};
-
-const groupContexts = (
-  contexts: ReadonlyArray<AnyQueryContext>,
-  grouping: AnyQueryGrouping
-): Array<Record<string, unknown>> => {
-  const groups = new Map<string, {
-    readonly key: Record<string, unknown>;
-    readonly values: Array<AnyQueryContext>;
-  }>();
-
-  for (const context of contexts) {
-    if (!grouping.sourceFilters.every((filter) => filter(context))) {
-      continue;
-    }
-
-    const key = grouping.key(context);
-    const keyString = stableStringify(key);
-    const existing = groups.get(keyString);
-    if (existing) {
-      existing.values.push(context);
-    } else {
-      groups.set(keyString, { key, values: [context] });
-    }
-  }
-
-  return Array.from(groups.values(), (group) => {
-    const result: Record<string, unknown> = { ...group.key };
-    for (const [name, aggregate] of Object.entries(grouping.aggregates)) {
-      const values = group.values.map((value) => [aggregate.preMap(value), 1] as [unknown, number]);
-      const reduced = aggregate.reduce(values);
-      result[name] = aggregate.postMap ? aggregate.postMap(reduced) : reduced;
-    }
-    return result;
-  });
-};
-
-const compareValue = (left: QuerySortValue, right: QuerySortValue): number => {
-  const leftValue = left instanceof Date ? left.getTime() : left;
-  const rightValue = right instanceof Date ? right.getTime() : right;
-
-  if (leftValue === rightValue) return 0;
-  if (leftValue === null || leftValue === undefined) return 1;
-  if (rightValue === null || rightValue === undefined) return -1;
-  return leftValue < rightValue ? -1 : 1;
-};
-
-const compareRows = <TContext>(
-  left: TContext,
-  right: TContext,
-  leftIndex: number,
-  rightIndex: number,
-  orders: ReadonlyArray<QueryOrder<TContext>>
-): number => {
-  for (const order of orders) {
-    const direction = order.direction === "asc" ? 1 : -1;
-    const comparison = compareValue(order.selector(left), order.selector(right));
-    if (comparison !== 0) {
-      return comparison * direction;
-    }
-  }
-
-  return leftIndex - rightIndex;
-};
-
 const compareIvmContexts = <TContext extends AnyQueryContext>(
   orders: ReadonlyArray<QueryOrder<TContext>>
 ) => (left: TContext, right: TContext): number => {
@@ -2387,14 +1656,8 @@ const compareIvmContexts = <TContext extends AnyQueryContext>(
   );
 };
 
-const querySources = (builder: AnyQueryBuilder): ReadonlyArray<AnyCollection> =>
-  builder.sources.map(([, collection]) => collection);
-
 const contextKeySymbol: unique symbol = Symbol.for("@effect-ui/db/QueryContextKey") as typeof contextKeySymbol;
 const crossJoinKey = "__effect_ui_db_all__";
-
-const joinKey = (value: QueryJoinKey): string =>
-  value instanceof Date ? `Date:${value.toISOString()}` : stableStringify(value);
 
 type IvmRuntimeOperator = IOperator<unknown>;
 
@@ -3029,12 +2292,12 @@ export namespace Collection {
         const state = collectionState(definition);
         state.version.get();
         const row = state.rows.get(key);
-        return row ? augmentRow(definition, row) : undefined;
+        return row ? augmentCollectionRow(definition, row) : undefined;
       },
       rows: () => {
         const state = collectionState(definition);
         state.version.get();
-        return Array.from(state.rows.values(), (row) => augmentRow(definition, row));
+        return Array.from(state.rows.values(), (row) => augmentCollectionRow(definition, row));
       },
       index: (index: string, value: CollectionIndexValue) =>
         rowsByIndex(definition, index, value),
@@ -3079,13 +2342,13 @@ export namespace Collection {
           for (const value of values) {
             const key = definition.getKey(value);
             const previous = state.rows.get(key);
-            snapshots.set(key, previous ? cloneRow(previous) : undefined);
+            snapshots.set(key, previous ? cloneStoredRow(previous) : undefined);
             state.rows.set(key, { key, value, synced: false, origin: "local" });
             mutations.push(previous ? { _tag: "Insert", key, value, previous: previous.value } : { _tag: "Insert", key, value });
           }
-          bump(state);
+          bumpCollectionState(state);
 
-          const tx = transaction(definition.name, mutations);
+          const tx = createCollectionTransaction(definition.name, mutations);
           const handler = definition.options.onInsert
             ? collectionInputEffect(definition.options.onInsert(values, { transaction: tx }))
             : Effect.succeed(undefined);
@@ -3100,15 +2363,15 @@ export namespace Collection {
             return yield* new CollectionRowNotFound({ collection: definition.name, key });
           }
 
-          const previous = cloneRow(row);
-          const updated = applyUpdate(row.value, update);
+          const previous = cloneStoredRow(row);
+          const updated = applyCollectionUpdate(row.value, update);
           row.value = updated.value;
           row.synced = false;
           row.origin = "local";
-          bump(state);
+          bumpCollectionState(state);
 
           const snapshots = new Map<K, StoredRow<A, K> | undefined>([[key, previous]]);
-          const tx = transaction(definition.name, [{
+          const tx = createCollectionTransaction(definition.name, [{
             _tag: "Update",
             key,
             previous: previous.value,
@@ -3134,12 +2397,12 @@ export namespace Collection {
             return yield* new CollectionRowNotFound({ collection: definition.name, key });
           }
 
-          const previous = cloneRow(row);
+          const previous = cloneStoredRow(row);
           state.rows.delete(key);
-          bump(state);
+          bumpCollectionState(state);
 
           const snapshots = new Map<K, StoredRow<A, K> | undefined>([[key, previous]]);
-          const tx = transaction(definition.name, [{
+          const tx = createCollectionTransaction(definition.name, [{
             _tag: "Delete",
             key,
             previous: previous.value
@@ -3379,11 +2642,11 @@ export namespace Collection {
 
   /** Create in-memory persistence storage for tests, demos, or ephemeral data. */
   export const memoryStorage = (initial?: Iterable<readonly [string, string]>): CollectionMemoryStorage =>
-    makeMemoryStorage(initial);
+    makeCollectionMemoryStorage(initial);
 
   /** Adapt synchronous Web Storage style APIs to Effect-aware persistence storage. */
   export const storage = (storage: CollectionStorageLike): CollectionPersistenceStorage<never, never> =>
-    fromStorage(storage);
+    collectionStorageFromSync(storage);
 
   /** Access the current runtime collection store as an Effect. */
   export const storeEffect = (): Effect.Effect<CollectionStore> =>

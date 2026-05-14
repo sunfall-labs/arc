@@ -114,6 +114,13 @@ export type DevtoolsCollectionStoreEvent =
 
 export type DevtoolsRequestTraceTransport = "ssr" | "rpc" | "action" | "unknown";
 export type DevtoolsRequestTraceStatus = "success" | "failure" | "cancelled";
+export type DevtoolsRequestTraceFailureKind =
+  | "domain"
+  | "validation"
+  | "protocol"
+  | "transport"
+  | "defect"
+  | "interruption";
 export type DevtoolsRequestTraceStreamState = "open" | "closed" | "cancelled" | "errored";
 export type DevtoolsRequestTraceFiberStatus = "running" | "done" | "interrupted" | "failed";
 
@@ -174,11 +181,13 @@ export interface DevtoolsRequestTraceCollection {
 export interface DevtoolsRequestTraceServerFunction {
   readonly name: string;
   readonly status?: DevtoolsRequestTraceStatus;
+  readonly failureKind?: DevtoolsRequestTraceFailureKind;
 }
 
 export interface DevtoolsRequestTraceAction {
   readonly name: string;
   readonly state?: string;
+  readonly failureKind?: DevtoolsRequestTraceFailureKind;
   readonly invalidationIndexes?: ReadonlyArray<number>;
 }
 
@@ -223,6 +232,7 @@ export interface DevtoolsRequestTrace {
   readonly fibers: ReadonlyArray<DevtoolsRequestTraceFiber>;
   readonly streams: ReadonlyArray<DevtoolsRequestTraceStream>;
   readonly status: DevtoolsRequestTraceStatus;
+  readonly failureKind?: DevtoolsRequestTraceFailureKind;
   readonly teardown?: DevtoolsRequestTraceTeardown;
 }
 
@@ -582,6 +592,7 @@ export interface DevtoolsSummaryRequestTrace {
   readonly url: string;
   readonly transport: DevtoolsRequestTraceTransport;
   readonly status: DevtoolsRequestTraceStatus;
+  readonly failureKind: DevtoolsRequestTraceFailureKind | null;
   readonly responseStatus: number | null;
   readonly serviceCount: number;
   readonly resourceCount: number;
@@ -1128,6 +1139,7 @@ const copyRequestTrace = (
     fibers: trace.fibers.map((fiber) => ({ ...fiber })),
     streams: trace.streams.map((stream) => ({ ...stream })),
     status: trace.status,
+    ...(trace.failureKind === undefined ? {} : { failureKind: trace.failureKind }),
     ...(trace.teardown === undefined ? {} : { teardown: copyRequestTraceTeardown(trace.teardown) })
   };
 };
@@ -1353,6 +1365,7 @@ const summarizeRequestTrace = (
   url: trace.request.url,
   transport: trace.request.transport,
   status: trace.status,
+  failureKind: trace.failureKind ?? null,
   responseStatus: trace.response?.status ?? null,
   serviceCount: trace.services.length,
   resourceCount: trace.resources.length,
@@ -2187,6 +2200,7 @@ const makeDevtoolsCausalGraph = (
         response: trace.response ?? null,
         services: trace.services,
         status: trace.status,
+        failureKind: trace.failureKind ?? null,
         teardown: trace.teardown ?? null,
         fibers: trace.fibers,
         streams: trace.streams
@@ -2804,7 +2818,7 @@ export const describeDevtoolsPanels = (
           panelItem({
             id: `request:${trace.id}`,
             label: `${trace.method} ${trace.path}`,
-            detail: `${trace.transport} ${trace.status}`,
+            detail: `${trace.transport} ${trace.status}${trace.failureKind === null ? "" : ` (${trace.failureKind})`}`,
             severity: requestTraceSeverity(trace),
             metrics: [
               panelMetric("resources", trace.resourceCount),
@@ -2816,6 +2830,7 @@ export const describeDevtoolsPanels = (
             ],
             data: {
               id: trace.id,
+              failureKind: trace.failureKind,
               routeHref: trace.routeHref,
               teardownReason: trace.teardownReason,
               runtimeDisposed: trace.runtimeDisposed

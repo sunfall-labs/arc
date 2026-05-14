@@ -99,8 +99,8 @@ Subpath exports:
   build-policy validation, app graph diagnostics loading, and SSR dev handling.
   `effectUiStart` returns the concrete `EffectUiStartPlugin` interface rather
   than a broad Vite `PluginOption`, and its SSR module handler type is named
-  `StartSsrRequestHandler` so it cannot be confused with the root Promise-only
-  `StartRequestHandler`.
+  `StartSsrRequestHandler` so it cannot be confused with the root Effect
+  request handler.
 - `./diagnostics-report` owns grouped repair reports with owner/edit guidance.
 - `./adapters` owns Node/fetch adapter conversion and response writing.
 - `./virtual` owns virtual module typings only.

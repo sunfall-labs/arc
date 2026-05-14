@@ -40,6 +40,7 @@ import {
   preloadRequestEffect,
   readStartHydrationChunks,
   StartAction,
+  startActionForm,
   type StartActionInvalidationPlan,
   type StartRequestHandler,
   type StartRequestTrace,
@@ -914,6 +915,8 @@ const TouchProject = Action.define<{ readonly id: string }, Project>({
     Effect.gen(function* () {
       const label = Signal.make("idle");
       yield* transaction.signal(label, id);
+      // @ts-expect-error optimistic patches must match the target signal value type
+      yield* transaction.signal(label, 123);
       return Effect.void;
     }),
   run: ({ id }) => Effect.succeed({ id, name: "Touched" }),
@@ -954,6 +957,12 @@ submitStartActionEffect(TouchProject, { id: "atlas" }).pipe(
   })
 );
 
+// @ts-expect-error Start action submissions require the action input shape
+submitStartActionEffect(TouchProject, { slug: "atlas" });
+
+// @ts-expect-error Start action submissions reject wrong input value types
+submitStartActionEffect(TouchProject, { id: 123 });
+
 submitStartActionEffect(TouchProjectWithResultInvalidation, { id: "atlas" }).pipe(
   Effect.map((result) => {
     if (result._tag === "Success") {
@@ -973,6 +982,23 @@ touchStart.submitEffect({ id: "atlas" }).pipe(
     }
   })
 );
+
+// @ts-expect-error StartAction client instances preserve action input fields
+touchStart.submitEffect({ slug: "atlas" });
+
+startActionForm(TouchProject, {
+  input: { id: "atlas" }
+});
+
+startActionForm(TouchProject, {
+  // @ts-expect-error progressive action form defaults must match known action input fields
+  input: { slug: "atlas" }
+});
+
+startActionForm(TouchProject, {
+  // @ts-expect-error progressive action form defaults must match action input value types
+  input: { id: 123 }
+});
 
 const devtoolsStore = makeDevtoolsStore();
 const devtoolsPanels: DevtoolsPanels = devtoolsStore.getPanels();
@@ -1098,6 +1124,18 @@ const ProjectFormSchema = Schema.Struct({
   id: Schema.String,
   name: Schema.String,
   spend: Schema.Number
+});
+type ProjectFormValues = typeof ProjectFormSchema.Type;
+
+ActionResult.fieldError<ProjectFormValues, "name", string>("name", "Required");
+ActionResult.fields<ProjectFormValues, string>({
+  spend: ["Must be positive"]
+});
+// @ts-expect-error validation field errors must target known form fields
+ActionResult.fieldError<ProjectFormValues, "missing", string>("missing", "Required");
+ActionResult.fields<ProjectFormValues, string>({
+  // @ts-expect-error validation field maps reject unknown form fields
+  missing: ["Required"]
 });
 
 const projectForm = Form.make({

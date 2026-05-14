@@ -681,3 +681,12 @@ interruption.
   converting Start streaming tests to returned Effect programs. Stream
   collection, sequencing, typed failure, and interruption checks now stay inside
   Effect pipelines; `Response.text()` remains the host Promise seam.
+- Full `pnpm verify` passed after the internal module extraction and request
+  failure diagnostics slice. Resource lifetime/dependency helpers, DB
+  collection state/mutation/persistence/query planning, Start request
+  runtime/trace/fetch, and Vite manifest/virtual-module helpers now live behind
+  focused modules while public entrypoints stay Effect-first. The gate covered
+  9 package builds, workspace typecheck, type tests, 39 root test files / 322
+  tests, devtools-panel verify, devtools-extension verify, basic starter
+  verify, project-console starter packaging/typecheck/tests/build, and leak
+  scan.

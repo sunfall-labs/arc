@@ -59,7 +59,7 @@ Latest full gate on May 14, 2026:
 
 - 9 package builds;
 - workspace typecheck and public type tests;
-- 39 root test files / 321 tests;
+- 39 root test files / 322 tests;
 - devtools panel verify;
 - devtools extension verify;
 - basic starter verify;
@@ -78,6 +78,10 @@ Latest full gate on May 14, 2026:
   Effect-native runner; the bin entry is the Promise boundary.
 - The Vite dev SSR middleware now keeps request conversion, handler loading,
   response writing, and error forwarding inside an Effect program.
+- Resource, DB collection, and Start request/Vite internals are split into
+  focused modules behind the same public entrypoints.
+- Start request traces now classify RPC/action failures by layer with a
+  `failureKind` fact that devtools summaries can display.
 - The devtools extension now keeps sample data as a fallback and updates from a
   live inspected-page `__EFFECT_UI_DEVTOOLS__` panel payload when present.
 - Apps can expose that payload through `installDevtoolsBridgeEffect(...)`, which
