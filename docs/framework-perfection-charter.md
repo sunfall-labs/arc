@@ -215,6 +215,9 @@ the audit finds them.
 - [x] Error message audit with repair guidance.
   - Evidence: `docs/error-message-audit.md`; no raw `Error`/`TypeError` throws
     remain in package source as of the typed-error sweep.
+- [x] Sharp cast audit.
+  - Evidence: `docs/sharp-cast-audit.md`; remaining package-source casts are
+    named as runtime service-erasure and query context-variance boundaries.
 - [x] Docs drift audit.
   - Evidence: `docs/docs-drift-audit.md`; stale teardown and Promise-method
     follow-ups were updated after implementation landed.
