@@ -112,6 +112,9 @@ Latest full gate on May 14, 2026:
 - DB sync, SQLite persistence, flush-policy, and server-collection adapters now
   keep EffectInput conversion in typed helper seams instead of repeated
   adapter-local assertions.
+- DB collection persistence, load, mutation, change-feed, and live-query preload
+  paths now share the same typed EffectInput helper; remaining DB sharp casts are
+  the documented query context-variance bridges.
 - The DB query builder projector variance helper no longer uses a broad
   `unknown` bridge.
 - Type-id declarations no longer appear in the broad `as never` cast sweep.

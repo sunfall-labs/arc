@@ -44,6 +44,11 @@ Effect-native interruption.
   - Adapter EffectInput conversions now stay in typed helpers and Effect
     combinators. Server collection PromiseLike support is isolated behind a
     named bridge before entering the collection sync adapter path.
+- `packages/db/src/index.ts`
+  - Collection persistence, restore, load, mutation handlers, change-feed
+    subscriptions, live-query persistence, and source preloads now reuse
+    `collectionInputEffect(...)` or direct Effect combinators instead of local
+    requirement-erasure casts.
 - `packages/core/src/effect-like.ts`, `packages/core/src/route.ts`, and
   `packages/core/src/server.ts`
   - Effect-input and route preload helpers now hand converted Effects directly to

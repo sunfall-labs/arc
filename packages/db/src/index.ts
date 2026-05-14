@@ -505,6 +505,11 @@ const resourceStoreEffect: Effect.Effect<ResourceStoreState> =
 const collectionStoreEffect: Effect.Effect<RuntimeCollectionStore> =
   Effect.map(resourceStoreEffect, storeFor);
 
+const collectionInputEffect = <A, E, R>(
+  input: EffectInput<A, E, R>
+): Effect.Effect<A, E, R> =>
+  toEffect(input);
+
 const recordCollectionPreload = (
   definition: AnyCollection
 ): Effect.Effect<void> =>
@@ -858,7 +863,7 @@ const persistCollectionEffect = <A extends object, K extends CollectionKey, E, R
     const key = persistenceKey(definition, options);
     const updatedAt = yield* Clock.currentTimeMillis;
     const snapshot = snapshotCollection(definition, dbStore, updatedAt);
-    yield* (toEffect(storage.setItem(key, JSON.stringify(snapshot))) as Effect.Effect<void, PE, PR>);
+    yield* collectionInputEffect(storage.setItem(key, JSON.stringify(snapshot)));
     yield* publishStoreEvent(dbStore, {
       _tag: "CollectionPersisted",
       collection: definition.name,
@@ -876,7 +881,7 @@ const restoreCollectionEffect = <A extends object, K extends CollectionKey, E, R
   Effect.gen(function* () {
     const dbStore = store ?? (yield* collectionStoreEffect);
     const key = persistenceKey(definition, options);
-    const encoded = yield* (toEffect(storage.getItem(key)) as Effect.Effect<string | null, PE, PR>);
+    const encoded = yield* collectionInputEffect(storage.getItem(key));
     if (encoded === null) {
       return;
     }
@@ -916,7 +921,7 @@ const persistForReasonEffect = <A extends object, K extends CollectionKey, E, R>
 ): Effect.Effect<void, E, R> => {
   const config = persistenceConfig(definition);
   if (!config) {
-    return Effect.void as Effect.Effect<void, E, R>;
+    return Effect.succeed(undefined);
   }
 
   const shouldPersist =
@@ -927,7 +932,7 @@ const persistForReasonEffect = <A extends object, K extends CollectionKey, E, R>
         : config.persistOnWrite !== false;
 
   if (!shouldPersist) {
-    return Effect.void as Effect.Effect<void, E, R>;
+    return Effect.succeed(undefined);
   }
 
   return persistCollectionEffect(
@@ -935,7 +940,7 @@ const persistForReasonEffect = <A extends object, K extends CollectionKey, E, R>
     config.storage,
     persistencePersistOptions(config),
     store
-  ) as Effect.Effect<void, E, R>;
+  );
 };
 
 const restoreBeforePreloadEffect = <A extends object, K extends CollectionKey, E, R>(
@@ -955,7 +960,7 @@ const restoreBeforePreloadEffect = <A extends object, K extends CollectionKey, E
       config.storage,
       persistenceRestoreOptions(config),
       store
-    ) as Effect.Effect<void, E, R>;
+    );
     state.persistenceRestored = true;
     return before !== "Ready" && state.loadState.get()._tag === "Ready";
   });
@@ -1018,7 +1023,7 @@ const subscribeCollectionChangesEffect = <
       collection: definition.name,
       emit: (changes, writeOptions) =>
         applyCollectionChangesEffect(definition, changes, writeOptions ?? options.write)
-    })) as Effect.Effect<CollectionChangeFeedSubscription, E | FeedError, R | FeedRequirements>,
+    })),
     (subscription) => {
       const unsubscribe = changeFeedUnsubscribe(subscription);
       return unsubscribe
@@ -1204,13 +1209,13 @@ const mutationHandler = <A extends object, K extends CollectionKey, E, R>(
 
     const context: CollectionMutationContext<A, K> = { transaction };
     if (inserts.length > 0 && definition.options.onInsert) {
-      yield* (toEffect(definition.options.onInsert(inserts, context)) as Effect.Effect<void, E, R>);
+      yield* collectionInputEffect(definition.options.onInsert(inserts, context));
     }
     if (updates.length > 0 && definition.options.onUpdate) {
-      yield* (toEffect(definition.options.onUpdate(updates, context)) as Effect.Effect<void, E, R>);
+      yield* collectionInputEffect(definition.options.onUpdate(updates, context));
     }
     if (deletes.length > 0 && definition.options.onDelete) {
-      yield* (toEffect(definition.options.onDelete(deletes, context)) as Effect.Effect<void, E, R>);
+      yield* collectionInputEffect(definition.options.onDelete(deletes, context));
     }
   });
 
@@ -1346,7 +1351,7 @@ const loadCollectionEffect = <A extends object, K extends CollectionKey, E, R>(
     }
 
     state.loadState.set({ _tag: "Pending", waiting: true });
-    const load = toEffect(definition.options.load()) as Effect.Effect<ReadonlyArray<A>, E, R>;
+    const load = collectionInputEffect(definition.options.load());
     const values = yield* withCollectionRetry(definition, load).pipe(
       Effect.catch((error: E) =>
         Effect.gen(function* () {
@@ -1359,7 +1364,7 @@ const loadCollectionEffect = <A extends object, K extends CollectionKey, E, R>(
           return yield* Effect.fail(error);
         })
       )
-    ) as Effect.Effect<ReadonlyArray<A>, E, R>;
+    );
     const updatedAt = yield* Clock.currentTimeMillis;
     replaceRows(definition, state, values);
     state.loadState.set({ _tag: "Ready", waiting: false, updatedAt });
@@ -1613,7 +1618,7 @@ export const makeLiveQueryCollection = <
       Effect.gen(function* () {
         const key = persistenceKey(definition, persistOptions);
         const snapshot = yield* definition.snapshotEffect();
-        yield* (toEffect(storage.setItem(key, JSON.stringify(snapshot))) as Effect.Effect<void, PE, PR>);
+        yield* collectionInputEffect(storage.setItem(key, JSON.stringify(snapshot)));
       }),
     persist: <PE = unknown, PR = never>(
       storage: CollectionPersistenceStorage<PE, PR>,
@@ -2498,7 +2503,7 @@ const preloadSourcesEffect = <E, R>(
 ): Effect.Effect<void, E, R> =>
   Effect.gen(function* () {
     for (const source of sources) {
-      yield* (force ? source.refetchEffect() : source.preloadEffect()) as Effect.Effect<void, E, R>;
+      yield* (force ? source.refetchEffect() : source.preloadEffect());
     }
   });
 
@@ -2868,8 +2873,8 @@ export namespace Collection {
 
           const tx = transaction(definition.name, mutations);
           const handler = definition.options.onInsert
-            ? toEffect(definition.options.onInsert(values, { transaction: tx })) as Effect.Effect<void, E, R>
-            : Effect.void as Effect.Effect<void, E, R>;
+            ? collectionInputEffect(definition.options.onInsert(values, { transaction: tx }))
+            : Effect.succeed(undefined);
           return yield* runMutation(definition, tx, snapshots, handler);
         }),
       insert: (input: A | ReadonlyArray<A>) => runPromise(definition.insertEffect(input)),
@@ -2898,13 +2903,13 @@ export namespace Collection {
             changes: updated.changes
           }]);
           const handler = definition.options.onUpdate
-            ? toEffect(definition.options.onUpdate([{
+            ? collectionInputEffect(definition.options.onUpdate([{
                 key,
                 previous: previous.value,
                 value: updated.value,
                 changes: updated.changes
-              }], { transaction: tx })) as Effect.Effect<void, E, R>
-            : Effect.void as Effect.Effect<void, E, R>;
+              }], { transaction: tx }))
+            : Effect.succeed(undefined);
           return yield* runMutation(definition, tx, snapshots, handler);
         }),
       update: (key: K, update: CollectionUpdate<A>) => runPromise(definition.updateEffect(key, update)),
@@ -2928,8 +2933,8 @@ export namespace Collection {
             previous: previous.value
           }]);
           const handler = definition.options.onDelete
-            ? toEffect(definition.options.onDelete([{ key, previous: previous.value }], { transaction: tx })) as Effect.Effect<void, E, R>
-            : Effect.void as Effect.Effect<void, E, R>;
+            ? collectionInputEffect(definition.options.onDelete([{ key, previous: previous.value }], { transaction: tx }))
+            : Effect.succeed(undefined);
           return yield* runMutation(definition, tx, snapshots, handler);
         }),
       delete: (key: K) => runPromise(definition.deleteEffect(key)),

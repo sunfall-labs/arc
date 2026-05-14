@@ -237,6 +237,11 @@ Last evidence pass: May 14, 2026.
   - Evidence: sync, SQLite persistence, flush-policy, and server-collection
     adapters use typed helpers/combinators or a named PromiseLike bridge before
     entering collection Effects.
+- [x] DB collection internals avoid local Effect requirement erasure outside query
+  variance.
+  - Evidence: `packages/db/src/index.ts` uses `collectionInputEffect(...)` for
+    persistence, load, mutation, change-feed, and source-preload paths; the DB
+    sharp-cast sweep now reports only the three query context-variance bridges.
 - [x] Collection retry policy uses Effect `Schedule`.
   - Evidence: collection load and mutation retry tests.
 - [x] Optimistic insert/update/delete mutations publish events and preserve
@@ -586,8 +591,8 @@ Last evidence pass: May 14, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026 after the DB adapter
-    EffectInput cast cleanup: 9 package builds, workspace typecheck, type tests,
+  - Evidence: root `pnpm verify` passed on May 14, 2026 after the DB collection
+    EffectInput cleanup: 9 package builds, workspace typecheck, type tests,
     38 root test files / 320 tests, devtools-panel verify,
     devtools-extension verify with 1 extension test file / 6 tests, basic starter
     verify, project-console starter packaging, project-console typecheck, 4

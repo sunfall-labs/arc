@@ -42,8 +42,8 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest full verification gate is green after the DB adapter EffectInput
-  cast cleanup: 38 root test files / 320 tests plus devtools panel, devtools
+- The latest full verification gate is green after the DB collection EffectInput
+  cleanup: 38 root test files / 320 tests plus devtools panel, devtools
   extension, starter, rich starter packaging, project-console build, and
   leak-scan gates.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
@@ -95,6 +95,10 @@ or command result that proves it.
 - DB sync, SQLite persistence, flush policy, and server collection adapters now
   use typed Effect primitives and a named PromiseLike bridge instead of repeated
   adapter-local `Effect.Effect<..., R>` casts.
+- DB collection persistence, load, mutation-handler, change-feed, and live-query
+  source-preload paths now use `collectionInputEffect(...)` or direct Effect
+  combinators; DB source sharp-cast grep is limited to the three query
+  context-variance bridges.
 - DB query joins now carry selected projectors with a direct function assertion
   instead of the broader `unknown` bridge used by the remaining predicate/order
   variance helpers.
@@ -250,6 +254,8 @@ or command result that proves it.
 | 134 | Full verification after core server/effect-input cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/public-api-inventory.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after the server/effect-input cast cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 | 135 | DB adapter EffectInput cast cleanup | `packages/db/src/sync-adapter.ts`; `packages/db/src/sqlite-persistence.ts`; `packages/db/src/flush-policy.ts`; `packages/db/src/server-collection.ts`; `docs/sharp-cast-audit.md`; `docs/perfection-progress.md` | Removed repeated adapter-local `toEffect(...) as Effect.Effect<..., R>` casts by relying on typed wrappers, explicit return annotations, Effect combinators, and a named server-collection PromiseLike bridge. DB package typecheck, public type tests, and focused DB adapter/server-collection tests passed: 4 files / 20 tests. | Run full verification before committing this DB adapter cast cleanup. |
 | 136 | Full verification after DB adapter EffectInput cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after the DB adapter EffectInput cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
+| 137 | DB collection EffectInput cast cleanup | `packages/db/src/index.ts`; `docs/sharp-cast-audit.md`; `docs/perfection-progress.md` | Added `collectionInputEffect(...)` and removed collection persistence, restore, load, mutation-handler, change-feed, live-query persistence, and source-preload `Effect.Effect<..., R>` casts. DB source sharp-cast grep now reports only the three query context-variance bridges. DB package typecheck, public type tests, and focused collection/live-query tests passed: 2 matched files / 35 tests. | Run full verification before committing this DB collection cast cleanup. |
+| 138 | Full verification after DB collection EffectInput cleanup | `pnpm verify`; `docs/perfection-progress.md`; `docs/ultimate-goal-checklist.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md` | Escalated full verification passed after the DB collection EffectInput cleanup: 9 package builds, workspace typecheck, type tests, 38 root test files / 320 tests, devtools-panel verify, devtools-extension verify with 1 extension test file / 6 tests, basic starter verify, project-console starter packaging, project-console typecheck, 4 project-console test files / 23 tests, project-console build, and leak scan. | Use this as the latest green checkpoint before the next clean-sweep attempt. |
 
 ## Thirty-Sweep Gate
 
