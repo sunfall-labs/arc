@@ -14,6 +14,7 @@ import {
   useRuntime,
   watch
 } from "@effect-ui/solid";
+import type { EffectUiRuntime } from "@effect-ui/core";
 import type { CollectionRow } from "@effect-ui/db";
 import { useCollection } from "@effect-ui/solid-db";
 import { StartAction } from "@effect-ui/start";
@@ -84,6 +85,15 @@ const healthLabel = (health: ProjectHealth): string => {
 };
 
 const formatSpend = (spend: number): string => `${spend}%`;
+
+function runUiEffect<A>(
+  runtime: EffectUiRuntime<any, any>,
+  effect: Effect.Effect<A, unknown, any>
+): void {
+  void runtime.runPromise(
+    effect.pipe(Effect.catch(() => Effect.void)) as Effect.Effect<A | void, never, any>
+  );
+}
 
 const SearchIcon = () => (
   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -187,8 +197,13 @@ function AppShell() {
 
     const refreshVisibleData = () => {
       const id = projectIdFromMatch(router.match());
-      Resource.invalidate(id ? [ProjectsRef, ProjectById(id)] : ProjectsRef);
-      void runtime.runPromise(ProjectSummaries.refetchEffect() as Effect.Effect<void, unknown, any>).catch(() => undefined);
+      runUiEffect(
+        runtime,
+        Effect.gen(function* () {
+          yield* Resource.invalidateEffect(id ? [ProjectsRef, ProjectById(id)] : ProjectsRef);
+          yield* ProjectSummaries.refetchEffect();
+        }) as Effect.Effect<void, unknown, any>
+      );
     };
 
     return (
@@ -549,21 +564,24 @@ function ProjectActions(props: { readonly project: Project }) {
         onSubmit={(event) => {
           event.preventDefault();
           const form = new FormData(event.currentTarget);
-          void rename
-            .submit({
-              id: props.project.id,
-              name: String(form.get("name") ?? ""),
-              redirectTo: renameRedirect()
-            })
-            .then((result) => {
+          runUiEffect(
+            runtime,
+            Effect.gen(function* () {
+              const result = yield* rename.submitEffect({
+                id: props.project.id,
+                name: String(form.get("name") ?? ""),
+                redirectTo: renameRedirect()
+              });
               if (result._tag === "Redirect") {
-                router.navigateHref(
-                  result.location,
-                  result.replace === undefined ? undefined : { replace: result.replace }
+                yield* Effect.sync(() =>
+                  router.navigateHref(
+                    result.location,
+                    result.replace === undefined ? undefined : { replace: result.replace }
+                  )
                 );
               }
             })
-            .catch(() => undefined);
+          );
         }}
       >
         <For each={renameForm().hiddenFields}>
@@ -588,7 +606,7 @@ function ProjectActions(props: { readonly project: Project }) {
         class="commandButton secondary"
         type="button"
         disabled={advancePending()}
-        onClick={() => void advance.submit({ id: props.project.id }).catch(() => undefined)}
+        onClick={() => runUiEffect(runtime, advance.submitEffect({ id: props.project.id }))}
       >
         <ArrowIcon />
         {advancePending() ? "Advancing" : "Advance"}
