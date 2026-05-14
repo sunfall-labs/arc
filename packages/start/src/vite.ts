@@ -374,7 +374,7 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
               options.handlerExport === undefined
                 ? { serverEntry }
                 : { serverEntry, handlerExport: options.handlerExport }
-            ) as Effect.Effect<void, never>
+            )
           );
         });
       };
