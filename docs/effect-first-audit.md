@@ -1017,17 +1017,17 @@ interruption.
   Query Sync post-commit invalidation is best-effort, Solid scope disposal uses
   the owning runtime, and Start/Devtools host-boundary metadata checks fail
   through typed Effect errors instead of escaping as raw callback defects.
-- The latest full `pnpm verify` passed after the Review 85 Solid Route Render
-  Scope Controller extraction: 11 package builds, workspace typecheck, type
-  tests, public API inventory audit, Effect-first audit over 199
+- The latest full `pnpm verify` passed after the Review 86 Public API Type-Test
+  Manifest: 11 package builds, workspace typecheck, type tests, public API
+  inventory audit, Effect-first audit over 216
   package/example/script/type-test files, 52 root test files / 856 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
   verify with 1 starter test file / 2 tests, React starter verify with 1
   starter test file / 3 tests, project-console starter packaging, typecheck,
   4 project-console test files / 27 tests, build, and leak scans. Review 75
-  added the public API inventory audit to the full gate, and Review 85 kept the
-  Effect-first scanner green over its expanded 199-file scope.
+  added the public API inventory audit to the full gate, and Review 86 kept the
+  Effect-first scanner green over its expanded 216-file scope.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

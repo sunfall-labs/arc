@@ -11,9 +11,40 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 85, immediately after Review 84. Some older review
+The newest review is Review 86, immediately after Review 85. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 86: Public API Type-Test Manifest
+
+Status: fixed for this bounded Review 75 follow-up and fully verified in the
+current worktree. Larger candidates may still emerge from future sweeps, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Type tests: added `type-tests/public-api.manifest.json` plus focused
+  entrypoint type-test files for every package export, including Start
+  subpaths and platform adapter packages. The existing
+  `type-tests/framework.test-d.ts` remains as cross-package integration
+  coverage rather than the only failure domain.
+- Audit: strengthened `scripts/audit-public-api-inventory.mjs` so every
+  package `exports` entry and bin must appear in the manifest, every manifest
+  entry must map back to a real workspace package export/bin, every
+  import-shaped entry must have a focused type-test file, and each focused
+  type-test file must import its claimed entrypoint.
+- Docs: public API inventory now names the manifest as the owner of
+  import-path type-test coverage.
+- Review cleanup: the package-split public type-test manifest candidate is now
+  closed. New architecture sweeps should look for fresh opportunities rather
+  than re-opening the old Review 75 list by default.
+
+Focused verification: `pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm
+audit:effect-first` over 216 auditable files, and `git diff --check` passed.
+Full `pnpm verify` passed: 11 package builds, workspace typecheck, public type
+tests, public API inventory audit, Effect-first audit over 216 auditable files,
+52 root test files / 856 tests, devtools-panel verify with 2 tests,
+devtools-extension verify with 20 tests, basic starter verify with 2 tests,
+React starter verify with 3 tests, project-console packaging, project-console
+typecheck/tests/build with 4 files / 27 tests, and leak scans.
 
 ## Review 85: Solid Route Render Scope Controller
 
@@ -29,7 +60,8 @@ counter remains at 0.
   adapting typed outlet props, and wiring Solid effects/cleanup to the
   controller. Public router APIs and route render semantics remain unchanged.
 - Review cleanup: the older Solid Route Render Scope Controller candidate is
-  now closed. The package-split public type-test manifest remains open.
+  now closed. The package-split public type-test manifest remained open after
+  this review.
 
 Focused verification: `pnpm --filter @effect-ui/solid typecheck`, `pnpm vitest
 run packages/solid/test/router.test.ts` (1 file / 25 tests), `pnpm

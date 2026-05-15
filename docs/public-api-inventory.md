@@ -40,6 +40,17 @@ unless this document explicitly promotes them.
 | `@effect-ui/solid-db` | `.` | `packages/solid-db/src/index.ts` | Public | Keep as the Solid collection adapter surface. |
 | `@effect-ui/tsrx` | `.` | `packages/tsrx/src/index.ts` | Public | Keep as the Vite/TSRX preset. |
 
+## Type-Test Coverage
+
+Public import-path type coverage is owned by
+`type-tests/public-api.manifest.json`. Each package export maps to its source
+file, this inventory, and a focused `type-tests/*.test-d.ts` file; package
+bins may omit an import-shaped type test only with an explicit reason. The
+public API inventory audit verifies the manifest against package
+`exports`/`bin` maps and checks that each focused type-test file imports the
+entrypoint it claims to cover. The broad `type-tests/framework.test-d.ts` file
+remains as cross-package integration coverage.
+
 ## Source Surface By Package
 
 ### `@effect-ui/core`

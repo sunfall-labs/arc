@@ -1,0 +1,150 @@
+{
+  "entrypoints": [
+    {
+      "package": "@effect-ui/core",
+      "export": ".",
+      "import": "@effect-ui/core",
+      "source": "packages/core/src/index.ts",
+      "docs": "docs/public-api-inventory.md",
+      "typeTest": "type-tests/core.test-d.ts"
+    },
+    {
+      "package": "@effect-ui/db",
+      "export": ".",
+      "import": "@effect-ui/db",
+      "source": "packages/db/src/index.ts",
+      "docs": "docs/public-api-inventory.md",
+      "typeTest": "type-tests/db.test-d.ts"
+    },
+    {
+      "package": "@effect-ui/devtools",
+      "export": ".",
+      "import": "@effect-ui/devtools",
+      "source": "packages/devtools/src/index.ts",
+      "docs": "docs/public-api-inventory.md",
+      "typeTest": "type-tests/devtools.test-d.ts"
+    },
+    {
+      "package": "@effect-ui/react",
+      "export": ".",
+      "import": "@effect-ui/react",
+      "source": "packages/react/src/index.ts",
+      "docs": "docs/public-api-inventory.md",
+      "typeTest": "type-tests/react.test-d.ts"
+    },
+    {
+      "package": "@effect-ui/react-db",
+      "export": ".",
+      "import": "@effect-ui/react-db",
+      "source": "packages/react-db/src/index.ts",
+      "docs": "docs/public-api-inventory.md",
+      "typeTest": "type-tests/react-db.test-d.ts"
+    },
+    {
+      "package": "@effect-ui/solid",
+      "export": ".",
+      "import": "@effect-ui/solid",
+      "source": "packages/solid/src/index.ts",
+      "docs": "docs/public-api-inventory.md",
+      "typeTest": "type-tests/solid.test-d.ts"
+    },
+    {
+      "package": "@effect-ui/solid-db",
+      "export": ".",
+      "import": "@effect-ui/solid-db",
+      "source": "packages/solid-db/src/index.ts",
+      "docs": "docs/public-api-inventory.md",
+      "typeTest": "type-tests/solid-db.test-d.ts"
+    },
+    {
+      "package": "@effect-ui/start",
+      "export": ".",
+      "import": "@effect-ui/start",
+      "source": "packages/start/src/index.ts",
+      "docs": "docs/public-api-inventory.md",
+      "typeTest": "type-tests/start.test-d.ts"
+    },
+    {
+      "package": "@effect-ui/start",
+      "export": "./adapters",
+      "import": "@effect-ui/start/adapters",
+      "source": "packages/start/src/adapters.ts",
+      "docs": "docs/public-api-inventory.md",
+      "typeTest": "type-tests/start-adapters.test-d.ts"
+    },
+    {
+      "package": "@effect-ui/start",
+      "export": "./diagnostics-report",
+      "import": "@effect-ui/start/diagnostics-report",
+      "source": "packages/start/src/diagnostics-report.ts",
+      "docs": "docs/public-api-inventory.md",
+      "typeTest": "type-tests/start-diagnostics-report.test-d.ts"
+    },
+    {
+      "package": "@effect-ui/start",
+      "export": "./fetch-adapter",
+      "import": "@effect-ui/start/fetch-adapter",
+      "source": "packages/start/src/fetch-adapter.ts",
+      "docs": "docs/public-api-inventory.md",
+      "typeTest": "type-tests/start-fetch-adapter.test-d.ts"
+    },
+    {
+      "package": "@effect-ui/start",
+      "export": "./node-adapter",
+      "import": "@effect-ui/start/node-adapter",
+      "source": "packages/start/src/node-adapter.ts",
+      "docs": "docs/public-api-inventory.md",
+      "typeTest": "type-tests/start-node-adapter.test-d.ts"
+    },
+    {
+      "package": "@effect-ui/start",
+      "export": "./virtual",
+      "import": "@effect-ui/start/virtual",
+      "source": "packages/start/src/virtual-modules.d.ts",
+      "docs": "docs/public-api-inventory.md",
+      "typeTest": "type-tests/start-virtual.test-d.ts"
+    },
+    {
+      "package": "@effect-ui/start",
+      "export": "./vite",
+      "import": "@effect-ui/start/vite",
+      "source": "packages/start/src/vite.ts",
+      "docs": "docs/public-api-inventory.md",
+      "typeTest": "type-tests/start-vite.test-d.ts"
+    },
+    {
+      "package": "@effect-ui/start-fetch",
+      "export": ".",
+      "import": "@effect-ui/start-fetch",
+      "source": "packages/start-fetch/src/index.ts",
+      "docs": "docs/public-api-inventory.md",
+      "typeTest": "type-tests/start-fetch.test-d.ts"
+    },
+    {
+      "package": "@effect-ui/start-node",
+      "export": ".",
+      "import": "@effect-ui/start-node",
+      "source": "packages/start-node/src/index.ts",
+      "docs": "docs/public-api-inventory.md",
+      "typeTest": "type-tests/start-node.test-d.ts"
+    },
+    {
+      "package": "@effect-ui/tsrx",
+      "export": ".",
+      "import": "@effect-ui/tsrx",
+      "source": "packages/tsrx/src/index.ts",
+      "docs": "docs/public-api-inventory.md",
+      "typeTest": "type-tests/tsrx.test-d.ts"
+    }
+  ],
+  "bins": [
+    {
+      "package": "@effect-ui/start",
+      "bin": "effect-ui-start",
+      "source": "packages/start/src/cli.ts",
+      "docs": "docs/public-api-inventory.md",
+      "typeTest": null,
+      "reason": "CLI behavior is verified by package and starter runtime tests rather than import-shaped type tests."
+    }
+  ]
+}

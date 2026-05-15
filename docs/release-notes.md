@@ -69,7 +69,7 @@ Latest full gate on May 15, 2026:
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 199 package/example/script/type-test files;
+- Effect-first audit over 216 package/example/script/type-test files;
 - 52 root test files / 856 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
@@ -109,6 +109,9 @@ Latest full gate on May 15, 2026:
   creation, Solid root cleanup, runtime-bound route finalizers, transition
   disposal ordering, and stale queued-render suppression while public Solid
   router APIs stay unchanged.
+- Review 86 added a public API type-test manifest: every package export and
+  Start subpath now maps to source, docs, and a focused type-test file, while
+  the broad framework type test remains as cross-package integration coverage.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime
@@ -597,10 +600,10 @@ Latest full gate on May 15, 2026:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 85 extracted the Solid Route
-  Render Scope Controller while keeping public Solid router APIs unchanged: 11
-  package builds, workspace typecheck, public type tests, public API inventory
-  audit, Effect-first audit over 199 files, 52 root test files / 856 tests,
+- The latest full `pnpm verify` passed after Review 86 added the public API
+  type-test manifest while keeping public package exports unchanged: 11 package
+  builds, workspace typecheck, public type tests, public API inventory audit,
+  Effect-first audit over 216 files, 52 root test files / 856 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,
   project-console packaging/typecheck/tests/build with 4 files / 27 tests, and
