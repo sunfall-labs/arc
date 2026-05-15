@@ -507,6 +507,11 @@ Release decisions:
   diagnostics, and projection stages shared by `Query.build(...).execute()`,
   `Query.onceEffect(...)`, `Query.diagnostics(...)`, and live-query state.
   It is not exported; public Query APIs stay unchanged.
+- The internal Collection Value Detachment Module owns deep collection value
+  cloning, frozen value/transaction copies, mutation and transaction cloning,
+  update-draft detachment, value-change diffing, and public row DTO detachment
+  before values cross store, snapshot, live-query, mutation, or adapter seams.
+  It is not exported; public Collection row and mutation APIs stay unchanged.
 - Multi-collection flush and background sync error channels use
   `CollectionRuntimeError<E>` for each collection, so handler failures, snapshot
   codec failures, and synchronous callback failures stay visible through the

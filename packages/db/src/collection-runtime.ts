@@ -10,15 +10,11 @@ import { CollectionRowKeyChanged, CollectionRowNotFound, ReadonlyCollectionMutat
 import { CollectionTypeId } from "./collection-ids.js";
 import { CollectionPreloadCollector } from "./collection-preload.js";
 import {
-  applyCollectionUpdate,
   applyCollectionBaseRow,
   applyOptimisticTransaction,
   augmentCollectionRow,
   bumpCollectionState,
-  cloneFrozenCollectionTransaction,
-  cloneFrozenCollectionValue,
   cloneStoredRow,
-  collectionValueChanges,
   commitOptimisticTransaction,
   deleteCollectionBaseRow,
   markStoredRowsSynced,
@@ -32,6 +28,12 @@ import {
   type PendingMutationEntry,
   type StoredRow
 } from "./collection-state.js";
+import {
+  applyCollectionUpdate,
+  cloneFrozenCollectionTransaction,
+  cloneFrozenCollectionValue,
+  collectionValueChanges
+} from "./collection-value-detachment.js";
 import type { CollectionSnapshotCodecError } from "./collection-snapshot-codec.js";
 import {
   ingestCollectionMutationRowsEffect,

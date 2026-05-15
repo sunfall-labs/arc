@@ -7,11 +7,14 @@ import {
 import { Effect } from "effect";
 import type { ReadonlyCollectionMutation } from "./collection-errors.js";
 import {
-  cloneCollectionValue,
   collectionIndex,
   collectionIndexKey,
   uniqueCollectionIndexValues
 } from "./collection-state.js";
+import {
+  cloneCollectionValue,
+  detachCollectionRow
+} from "./collection-value-detachment.js";
 import { CollectionSnapshotCodecError } from "./collection-snapshot-codec.js";
 import { ingestCollectionOutputRowsSync } from "./collection-row-ingress.js";
 import {
@@ -217,12 +220,13 @@ export const makeLiveQueryCollectionMaterialization = <
       currentProjectionDirect()
     );
     const row = (entry: MaterializedEntry<A, K>): CollectionRow<A, K> =>
-      Object.assign(cloneCollectionValue(entry.value), {
-        $key: entry.key,
-        $collection: options.name,
-        $synced: true,
-        $origin: "remote"
-      }) as CollectionRow<A, K>;
+      detachCollectionRow({
+        collection: options.name,
+        key: entry.key,
+        value: entry.value,
+        synced: true,
+        origin: "remote"
+      });
     const rows = (): ReadonlyArray<CollectionRow<A, K>> =>
       currentProjection().entries.map(row);
     const indexEntries = (

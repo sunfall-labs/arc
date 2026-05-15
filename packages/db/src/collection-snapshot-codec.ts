@@ -16,10 +16,7 @@ import type {
 import {
   applyCollectionBaseRow,
   bumpCollectionState,
-  cloneFrozenCollectionTransaction,
-  cloneCollectionValue,
   cloneStoredRow,
-  collectionValueChanges,
   rebaseCollectionBaseRows,
   restoreStoredRows,
   syncOptimisticRowsFromPendingMutations,
@@ -27,6 +24,11 @@ import {
   type PendingMutationEntry,
   type StoredRow
 } from "./collection-state.js";
+import {
+  cloneCollectionValue,
+  cloneFrozenCollectionTransaction,
+  collectionValueChanges
+} from "./collection-value-detachment.js";
 
 export type CollectionSnapshotCodecOperation =
   | "decode"

@@ -10,11 +10,11 @@ import {
 } from "./collection-snapshot-codec.js";
 import {
   bumpCollectionState,
-  cloneFrozenCollectionTransaction,
   type CollectionState,
   type PendingMutationEntry,
   type StoredRow
 } from "./collection-state.js";
+import { cloneFrozenCollectionTransaction } from "./collection-value-detachment.js";
 
 const transactionIdPattern = /^ctx_(\d+)$/;
 

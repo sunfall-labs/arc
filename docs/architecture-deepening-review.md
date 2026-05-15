@@ -11,9 +11,47 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 88, immediately after Review 87. Some older review
+The newest review is Review 89, immediately after Review 88. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 89: Collection Value Detachment Module
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- DB: added `packages/db/src/collection-value-detachment.ts` as the internal
+  Collection Value Detachment Module. It owns deep collection value cloning,
+  frozen value/transaction copies, mutation and transaction cloning, update
+  draft detachment, value-change diffing, and public row DTO detachment.
+- Collection State: now stays focused on mutable row maps, index caches,
+  optimistic row stacks, pending mutation entries, rebasing, rollback, and
+  version/load-state invalidation while delegating value copy policy to the
+  detachment Module.
+- Runtime/materialization/codec/ingress: collection runtime, mutation queue,
+  snapshot codec, row ingress, and live-query materialization now consume the
+  detachment Module directly for clone/freeze/DTO policy instead of importing
+  those helpers from mutable Collection State.
+- Review cleanup: the DB Collection Value Detachment candidate is closed. Fresh
+  sweeps still leave Browser Router Host Adapter Facade, Core Action Execution
+  Workflow, DB Collection Secondary Index Materialization, DB Collection Change
+  Feed Runtime, Start Action Response Application, Start Diagnostics CLI
+  Command Runner, Devtools Public Contract Module, and deeper focused public
+  type-test ownership candidates.
+
+Focused verification: `pnpm --filter @effect-ui/db typecheck`, `pnpm vitest run
+packages/db/test/collection.test.ts packages/db/test/persistence.test.ts
+packages/db/test/live-query-collection.test.ts
+packages/db/test/sync-adapter.test.ts packages/db/test/sqlite-persistence.test.ts`
+(4 files / 154 tests), `pnpm audit:effect-first` over 218 files, and `git diff
+--check` passed. Full `pnpm verify` passed: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 218 files, 52 root test files / 856 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests,
+project-console packaging/typecheck/tests/build with 4 files / 27 tests, and
+leak scans.
 
 ## Review 88: Public API Source Surface Coverage Gate
 
@@ -34,9 +72,9 @@ Thirty-Sweep clean counter remains at 0.
 - Review cleanup: the Public API Source Surface Coverage Gate candidate is
   closed. Fresh sweeps still leave Browser Router Host Adapter Facade, Core
   Action Execution Workflow, DB Collection Secondary Index Materialization, DB
-  Collection Value Detachment, DB Collection Change Feed Runtime, Start Action
-  Response Application, Start Diagnostics CLI Command Runner, Devtools Public
-  Contract Module, and deeper focused public type-test ownership candidates.
+  Collection Change Feed Runtime, Start Action Response Application, Start
+  Diagnostics CLI Command Runner, Devtools Public Contract Module, and deeper
+  focused public type-test ownership candidates.
 
 Focused verification: `pnpm audit:public-api`, `pnpm audit:effect-first`, and
 `git diff --check` passed. Full `pnpm verify` passed: 11 package builds,

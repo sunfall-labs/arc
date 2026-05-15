@@ -69,7 +69,7 @@ Latest full gate on May 15, 2026:
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 217 package/example/script/type-test files;
+- Effect-first audit over 218 package/example/script/type-test files;
 - 52 root test files / 856 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
@@ -120,6 +120,10 @@ Latest full gate on May 15, 2026:
   barrel's local re-exported modules must now be named in the package's Source
   Surface docs, so exported source modules and LSP-facing explanations drift
   together.
+- Review 89 extracted the internal DB Collection Value Detachment Module:
+  collection value cloning, frozen transaction/value copies, mutation
+  detachment, update-draft detachment, value-change diffs, and public row DTO
+  detachment now share one policy instead of living in mutable Collection State.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime

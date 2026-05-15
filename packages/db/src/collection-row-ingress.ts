@@ -5,10 +5,8 @@ import type {
   CollectionKey,
   CollectionOrigin
 } from "./collection-contract.js";
-import {
-  cloneCollectionValue,
-  type StoredRow
-} from "./collection-state.js";
+import type { StoredRow } from "./collection-state.js";
+import { cloneCollectionValue } from "./collection-value-detachment.js";
 import {
   CollectionSnapshotCodecError,
   decodeCollectionOutputValuesEffect,
