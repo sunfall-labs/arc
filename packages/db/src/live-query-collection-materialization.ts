@@ -10,7 +10,7 @@ import {
   collectionIndex,
   collectionIndexKey,
   uniqueCollectionIndexValues
-} from "./collection-state.js";
+} from "./collection-index-materialization.js";
 import {
   cloneCollectionValue,
   detachCollectionRow

@@ -70,7 +70,7 @@ import {
   type CollectionResourceSyncAdapterOptions,
   type CollectionSyncUpdatePayload
 } from "./sync-adapter.js";
-import { UnknownCollectionIndex } from "./collection-state.js";
+import { UnknownCollectionIndex } from "./collection-index-materialization.js";
 import {
   collectionStorageFromSync,
   makeCollectionMemoryStorage,
@@ -227,7 +227,7 @@ type RejectCollectionPromiseOutputs<Definition> =
   RejectCollectionPromiseOutput<CollectionOptionalReturn<Definition, "onUpdate">> &
   RejectCollectionPromiseOutput<CollectionOptionalReturn<Definition, "onDelete">>;
 
-export { UnknownCollectionIndex } from "./collection-state.js";
+export { UnknownCollectionIndex } from "./collection-index-materialization.js";
 export { CollectionStoreTypeId, CollectionTypeId } from "./collection-ids.js";
 export { CollectionRowKeyChanged, CollectionRowNotFound, ReadonlyCollectionMutation } from "./collection-errors.js";
 export { CollectionSnapshotCodecError } from "./collection-snapshot-codec.js";

@@ -11,9 +11,44 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 89, immediately after Review 88. Some older review
+The newest review is Review 90, immediately after Review 89. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 90: Collection Index Materialization Module
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- DB: added `packages/db/src/collection-index-materialization.ts` as the
+  Collection Index Materialization Module. It owns secondary-index
+  normalization, lookup-key encoding, duplicate-value dedupe,
+  runtime/request-local bucket caches, index row reads, indexed join keys, and
+  the public `UnknownCollectionIndex` error.
+- Collection State: now keeps only mutable collection state, version/load-state
+  signals, row storage, pending mutations, optimistic stacks, snapshots, and
+  rebasing. Secondary index cache entries are owned by the index
+  materialization Module and stored on the state object.
+- Runtime/query/live-query: collection runtime, query source adapters,
+  collection registry diagnostics, live-query collection materialization, and
+  the public DB root now import index policy from the new Module.
+- Review cleanup: the DB Collection Secondary Index Materialization candidate
+  is closed. Fresh sweeps still leave Browser Router Host Adapter Facade, Core
+  Action Execution Workflow, DB Collection Change Feed Runtime, Start Action
+  Response Application, Start Diagnostics CLI Command Runner, Devtools Public
+  Contract Module, and deeper focused public type-test ownership candidates.
+
+Focused verification: `pnpm --filter @effect-ui/db typecheck`, `pnpm vitest run
+packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
+(2 files / 128 tests), `pnpm audit:public-api`, `pnpm audit:effect-first` over
+219 files, and `git diff --check` passed. Full `pnpm verify` passed: 11 package
+builds, workspace typecheck, public type tests, public API inventory audit,
+Effect-first audit over 219 files, 52 root test files / 856 tests,
+devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
+basic starter verify with 2 tests, React starter verify with 3 tests,
+project-console packaging/typecheck/tests/build with 4 files / 27 tests, and
+leak scans.
 
 ## Review 89: Collection Value Detachment Module
 
@@ -35,10 +70,9 @@ Thirty-Sweep clean counter remains at 0.
   those helpers from mutable Collection State.
 - Review cleanup: the DB Collection Value Detachment candidate is closed. Fresh
   sweeps still leave Browser Router Host Adapter Facade, Core Action Execution
-  Workflow, DB Collection Secondary Index Materialization, DB Collection Change
-  Feed Runtime, Start Action Response Application, Start Diagnostics CLI
-  Command Runner, Devtools Public Contract Module, and deeper focused public
-  type-test ownership candidates.
+  Workflow, DB Collection Change Feed Runtime, Start Action Response
+  Application, Start Diagnostics CLI Command Runner, Devtools Public Contract
+  Module, and deeper focused public type-test ownership candidates.
 
 Focused verification: `pnpm --filter @effect-ui/db typecheck`, `pnpm vitest run
 packages/db/test/collection.test.ts packages/db/test/persistence.test.ts

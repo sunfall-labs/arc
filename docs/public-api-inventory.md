@@ -451,11 +451,12 @@ Release decisions:
 The root export includes:
 
 - Local source modules: `change-feed-dispatcher`, `collection-contract`,
-  `collection-errors`, `collection-ids`, `collection-persistence`,
-  `collection-preload`, `collection-reactive-binding`, `collection-registry`,
+  `collection-errors`, `collection-ids`, `collection-index-materialization`,
+  `collection-persistence`, `collection-preload`,
+  `collection-reactive-binding`, `collection-registry`,
   `collection-snapshot-codec`, `collection-state`, `flush-policy`,
-  `live-query-collection`, `query-builder`, `query-plan`,
-  `server-collection`, and `sqlite-persistence`.
+  `live-query-collection`, `query-builder`, `query-plan`, `server-collection`,
+  and `sqlite-persistence`.
 - `Collection`, `Query`, live query types, collection snapshots, hydration, and
   persistence configuration;
 - sync adapters, server collection helpers, SQLite persistence helpers, and
@@ -512,6 +513,12 @@ Release decisions:
   update-draft detachment, value-change diffing, and public row DTO detachment
   before values cross store, snapshot, live-query, mutation, or adapter seams.
   It is not exported; public Collection row and mutation APIs stay unchanged.
+- The expert-public Collection Index Materialization Module owns secondary
+  index normalization, lookup-key encoding, duplicate-value dedupe,
+  runtime/request-local bucket caches, index row reads, indexed join keys, and
+  the `UnknownCollectionIndex` error. Keep the error public for tests and
+  adapter diagnostics while normal apps continue to use `Collection.index(...)`,
+  `Collection.firstByIndex(...)`, and `Query` joins.
 - Multi-collection flush and background sync error channels use
   `CollectionRuntimeError<E>` for each collection, so handler failures, snapshot
   codec failures, and synchronous callback failures stay visible through the

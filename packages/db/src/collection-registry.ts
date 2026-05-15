@@ -1,4 +1,4 @@
-import { collectionIndexes } from "./collection-state.js";
+import { collectionIndexes } from "./collection-index-materialization.js";
 import type {
   AnyCollection,
   CollectionDefinitionDiagnostics,

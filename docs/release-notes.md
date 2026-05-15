@@ -69,7 +69,7 @@ Latest full gate on May 15, 2026:
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 218 package/example/script/type-test files;
+- Effect-first audit over 219 package/example/script/type-test files;
 - 52 root test files / 856 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
@@ -124,6 +124,10 @@ Latest full gate on May 15, 2026:
   collection value cloning, frozen transaction/value copies, mutation
   detachment, update-draft detachment, value-change diffs, and public row DTO
   detachment now share one policy instead of living in mutable Collection State.
+- Review 90 extracted the DB Collection Index Materialization Module:
+  secondary-index normalization, lookup-key encoding, duplicate-value dedupe,
+  runtime/request-local bucket caches, index row reads, indexed join keys, and
+  `UnknownCollectionIndex` now share one policy.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime

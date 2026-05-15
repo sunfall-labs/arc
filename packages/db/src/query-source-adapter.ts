@@ -3,7 +3,7 @@ import type { Effect } from "effect";
 import {
   collectionIndexJoinKeys,
   collectionIndexes
-} from "./collection-state.js";
+} from "./collection-index-materialization.js";
 import type {
   AnyCollection,
   CollectionIndexValue,

@@ -21,13 +21,13 @@ import {
   rebaseCollectionBaseRows,
   restoreStoredRows,
   rollbackOptimisticTransaction,
-  rowsByCollectionIndex,
   type CollectionState,
   type CollectionLoadAttempt,
   type PendingMutationAttempt,
   type PendingMutationEntry,
   type StoredRow
 } from "./collection-state.js";
+import { rowsByCollectionIndex } from "./collection-index-materialization.js";
 import {
   applyCollectionUpdate,
   cloneFrozenCollectionTransaction,

@@ -35,7 +35,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     node web exchange, Review 84 query execution plan, Review 85 solid route
     render scope controller, Review 86 public API type-test manifest, Review 87
     react route render scope controller, Review 88 public API source surface
-    coverage gate, and Review 89 collection value detachment sweeps.
+    coverage gate, Review 89 collection value detachment, and Review 90
+    collection index materialization sweeps.
 
 ## Current Sweep Results
 
@@ -299,8 +300,12 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Added Review 89 and progress entry 328 evidence for the Collection Value
   Detachment Module. DB docs now name the internal Module that owns collection
   value cloning, frozen copies, update-draft detachment, and row DTO detachment.
-- Updated current-facing verification snapshots after Review 89 full
-  verification so the latest gate points at the 218-file Effect-first audit and
+- Added Review 90 and progress entry 329 evidence for the Collection Index
+  Materialization Module. DB docs now name the Module that owns secondary index
+  normalization, lookup keys, bucket caches, indexed row reads, and indexed join
+  keys.
+- Updated current-facing verification snapshots after Review 90 full
+  verification so the latest gate points at the 219-file Effect-first audit and
   52 root test files / 856 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are
   wrapped with `Effect.tryPromise(...)` at the Adapter seam.
