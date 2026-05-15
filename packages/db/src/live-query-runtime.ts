@@ -14,7 +14,6 @@ import {
   type PipedOperator,
   type RootStreamBuilder
 } from "@tanstack/db-ivm";
-import { Effect } from "effect";
 import type { AnyCollection, CollectionKey } from "./collection-contract.js";
 import {
   UnsupportedLiveQuery,
@@ -22,37 +21,26 @@ import {
   compareValue,
   evaluateQueryOperation,
   joinKey,
-  querySourceAdapters,
-  toQueryEvaluationError,
   validateQueryPlan,
   type AnyCollectionRow,
   type AnyQueryAggregateRecord,
   type AnyQueryContext,
   type AnyQueryGrouping,
-  type QueryEvaluationError,
   type QueryJoin,
   type QueryOrder,
-  type QueryPlanBuilder,
   type QueryProjectOptions
 } from "./query-plan.js";
+import {
+  projectQueryContexts,
+  type QueryExecutionPlanBuilder
+} from "./query-execution-plan.js";
 import {
   makeQuerySourceAdapter,
   type QueryCollectionSourceAdapter
 } from "./query-source-adapter.js";
 
-export interface LiveQueryRuntimeBuilder<TContext extends AnyQueryContext, TResult> {
-  readonly sources: ReadonlyArray<readonly [string, AnyCollection]>;
-  readonly filters: ReadonlyArray<(row: TContext) => boolean>;
-  readonly orders: ReadonlyArray<QueryOrder<TContext>>;
-  readonly offsetCount: number;
-  readonly limitCount: number | undefined;
-  readonly joins: ReadonlyArray<QueryJoin>;
-  readonly grouping: AnyQueryGrouping | undefined;
-  projectContexts(
-    contexts: ReadonlyArray<TContext>,
-    options?: QueryProjectOptions
-  ): ReadonlyArray<TResult>;
-}
+export type LiveQueryRuntimeBuilder<TContext extends AnyQueryContext, TResult> =
+  QueryExecutionPlanBuilder<TContext, TResult>;
 
 export interface LiveQueryRuntime<TResult> {
   evaluate(): ReadonlyArray<TResult>;
@@ -188,7 +176,8 @@ class IvmLiveQueryRuntime<TContext extends AnyQueryContext, TResult> implements 
       rows.sort((left, right) => compareValue(left.order, right.order));
     }
 
-    return this.builder.projectContexts(
+    return projectQueryContexts(
+      this.builder,
       rows.map((row) => row.context),
       {
         filter: false,
@@ -404,25 +393,3 @@ export const makeLiveQueryRuntime = <TContext extends AnyQueryContext, TResult>(
   validateQueryPlan(builder);
   return new IvmLiveQueryRuntime(builder);
 };
-
-export const preloadLiveQuerySourcesEffect = <E, R>(
-  sources: ReadonlyArray<QueryCollectionSourceAdapter>,
-  force: boolean
-): Effect.Effect<void, E, R> =>
-  Effect.gen(function* () {
-    for (const source of sources) {
-      yield* source.preloadEffect(force);
-    }
-  });
-
-export const preloadLiveQueryEffect = <TContext extends AnyQueryContext, E, R>(
-  builder: QueryPlanBuilder<TContext>,
-  force: boolean
-): Effect.Effect<void, E | QueryEvaluationError, R> =>
-  Effect.gen(function* () {
-    yield* Effect.try({
-      try: () => validateQueryPlan(builder),
-      catch: (cause) => toQueryEvaluationError("evaluate", cause)
-    });
-    yield* preloadLiveQuerySourcesEffect<E, R>(querySourceAdapters(builder), force);
-  });

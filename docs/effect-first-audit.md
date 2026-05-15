@@ -1006,6 +1006,10 @@ interruption.
   as an Effect-first Module shared by production Node and Vite dev SSR hosts.
   Its Node stream/cancel work stays behind `Effect.tryPromise(...)` inside the
   adapter seam, and public Node facade exports remain compatibility re-exports.
+- Query Execution Plan now owns DB query validation, source preload/refetch,
+  snapshot execution, diagnostics, and final projection stages for one-shot and
+  live query facades. The added Module remains Effect-first and does not add
+  Promise host seams.
 - Devtools request summaries and panels now preserve teardown snapshots and
   per-server-function/action failure owners, so inspection stays on structured
   Effect facts rather than raw event spelunking.
@@ -1013,17 +1017,17 @@ interruption.
   Query Sync post-commit invalidation is best-effort, Solid scope disposal uses
   the owning runtime, and Start/Devtools host-boundary metadata checks fail
   through typed Effect errors instead of escaping as raw callback defects.
-- The latest full `pnpm verify` passed after the Review 83 Start Node Web
-  Exchange extraction: 11 package builds, workspace typecheck, type tests,
-  public API inventory audit, Effect-first audit over 197
-  package/example/script/type-test files, 52 root test files / 855 tests,
+- The latest full `pnpm verify` passed after the Review 84 Query Execution Plan
+  extraction: 11 package builds, workspace typecheck, type tests, public API
+  inventory audit, Effect-first audit over 198 package/example/script/type-test
+  files, 52 root test files / 856 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
   verify with 1 starter test file / 2 tests, React starter verify with 1
   starter test file / 3 tests, project-console starter packaging, typecheck,
   4 project-console test files / 27 tests, build, and leak scans. Review 75
-  added the public API inventory audit to the full gate, and Review 83 kept the
-  Effect-first scanner green over its expanded 197-file scope.
+  added the public API inventory audit to the full gate, and Review 84 kept the
+  Effect-first scanner green over its expanded 198-file scope.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

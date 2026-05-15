@@ -11,9 +11,47 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 83, immediately after Review 82. Some older review
+The newest review is Review 84, immediately after Review 83. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 84: Query Execution Plan Module
+
+Status: fixed for this bounded Review 75 follow-up and fully verified in the
+current worktree. Larger candidates remain open, so the Thirty-Sweep clean
+counter remains at 0.
+
+- DB: added `packages/db/src/query-execution-plan.ts` as the internal Query
+  Execution Plan Module. It owns Query validation entrypoints, source adapter
+  selection, source preload/refetch, snapshot execution, diagnostics, and
+  remaining projection stages for filtering, ordering, windowing, and
+  projection.
+- Query/Live Query: `QueryBuilder` now stays focused on immutable DSL and
+  aggregate helpers while delegating `execute(...)`, `projectContexts(...)`,
+  `Query.onceEffect(...)`, and `Query.diagnostics(...)` to the plan Module.
+  Live Query State uses the same source-adapter and preload policy, and Live
+  Query Runtime keeps IVM graph mechanics while delegating final projection
+  stages back to the plan.
+- Tests: added grouped query parity coverage proving
+  `Query.build(...).execute()`, `Query.onceEffect(...)`, and
+  `Query.live(...).evaluate()` use the same execution plan stages for source
+  filters, grouping, post-group filters, projection, ordering, and windows.
+- Review cleanup: the older Query Execution Plan Module candidate is now
+  closed. Solid Route Render Scope Controller and package-split public
+  type-test manifest work remain open. Solid `RuntimeProvider` runtime
+  ownership semantics and deeper Effect-first Audit Scanner Module are closed
+  for now because their deletion tests did not justify new Modules.
+
+Focused verification: `pnpm --filter @effect-ui/db typecheck`, `pnpm vitest run
+packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
+(2 files / 128 tests), `pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm
+audit:effect-first` over 198 auditable files, and `git diff --check` passed.
+Full `pnpm verify` passed: 11 package builds, workspace typecheck, public type
+tests, public API inventory audit, Effect-first audit over 198 auditable files,
+52 root test files / 856 tests, devtools-panel verify with 2 tests,
+devtools-extension verify with 20 tests, basic starter verify with 2 tests,
+React starter verify with 3 tests, project-console packaging, project-console
+typecheck/tests/build with 4 files / 27 tests, and leak scans.
 
 ## Review 83: Start Node Web Exchange Module
 

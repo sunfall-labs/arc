@@ -4938,4 +4938,46 @@ describe("Query", () => {
       { status: "queued", count: 3 }
     ]);
   });
+
+  it("shares grouped query execution plan stages across snapshot, once, and live queries", async () => {
+    const Projects = Collection.define<RankedProject>({
+      name: "Projects.query-execution-plan-parity",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 },
+        { id: "kepler", name: "Kepler", status: "active", progress: 52 },
+        { id: "lumen", name: "Lumen", status: "blocked", progress: 34 },
+        { id: "orion", name: "Orion", status: "blocked", progress: 24 },
+        { id: "meridian", name: "Meridian", status: "queued", progress: 80 }
+      ]
+    });
+    const factory = (query: Query.Root) =>
+      query
+        .from({ project: Projects })
+        .where(({ project }) => project.progress >= 20)
+        .groupBy(
+          ({ project }) => ({ status: project.status }),
+          {
+            count: Query.count(),
+            totalProgress: Query.sum(({ project }) => project.progress)
+          }
+        )
+        .where((group) => group.count >= 2)
+        .select((group) => ({
+          status: group.status,
+          count: group.count,
+          totalProgress: group.totalProgress
+        }))
+        .orderBy((group) => group.count, "desc")
+        .orderBy((group) => group.status)
+        .limit(2);
+    const expected = [
+      { status: "active", count: 2, totalProgress: 124 },
+      { status: "blocked", count: 2, totalProgress: 58 }
+    ];
+
+    expect(Query.build(factory).execute()).toEqual(expected);
+    await expect(Effect.runPromise(Query.onceEffect(factory))).resolves.toEqual(expected);
+    expect(Query.live(factory).evaluate()).toEqual(expected);
+  });
 });

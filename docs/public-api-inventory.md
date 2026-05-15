@@ -475,6 +475,11 @@ Release decisions:
   and state signals, and preload/refetch Effects. It is not exported; public
   query access remains `Query.*`, `Collection.liveQuery(...)`, and regular
   Collection read interfaces.
+- The internal Query Execution Plan Module owns query validation entrypoints,
+  source adapter selection, source preload/refetch, snapshot execution,
+  diagnostics, and projection stages shared by `Query.build(...).execute()`,
+  `Query.onceEffect(...)`, `Query.diagnostics(...)`, and live-query state.
+  It is not exported; public Query APIs stay unchanged.
 - Multi-collection flush and background sync error channels use
   `CollectionRuntimeError<E>` for each collection, so handler failures, snapshot
   codec failures, and synchronous callback failures stay visible through the

@@ -125,11 +125,14 @@ const ActiveProjectNames = Query.live((query) =>
 )
 ```
 
-Internally, Query Builder, Query Plan, Live Query State, and Live Query Runtime
-read source collections through the Collection Query Source Adapter. That keeps
-rows, row counts, secondary-index probes, version/state signals, and
-preload/refetch Effects behind one source Interface for normal Collections and
-read-only Live Query Collections.
+Internally, Query Builder, Query Execution Plan, Live Query State, and Live
+Query Runtime read source collections through the Collection Query Source
+Adapter. That keeps rows, row counts, secondary-index probes, version/state
+signals, and preload/refetch Effects behind one source Interface for normal
+Collections and read-only Live Query Collections. Query Execution Plan owns
+validation, source preloading/refetching, snapshot execution, diagnostics, and
+remaining projection stages after the live IVM graph has already applied
+filters, grouping, ordering, or windows.
 
 Use explicit keyed joins when the relationship is known:
 

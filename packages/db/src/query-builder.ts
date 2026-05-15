@@ -1,12 +1,7 @@
 import type { ReadableSignal } from "@effect-ui/core";
 import { Effect } from "effect";
-import { preloadLiveQueryEffect } from "./live-query-runtime.js";
 import { makeLiveQueryState } from "./live-query-state.js";
 import {
-  buildQueryContexts,
-  buildQueryExecution,
-  compareRows,
-  projectCurrentContext,
   type AnyCollectionRow,
   type AnyQueryAggregateRecord,
   type AnyQueryContext,
@@ -31,10 +26,14 @@ import {
   type QuerySortDirection,
   type QuerySortValue,
   type SourceRecord,
-  evaluateQueryOperation,
-  toQueryEvaluationError,
-  validateQueryPlan
+  toQueryEvaluationError
 } from "./query-plan.js";
+import {
+  executeQueryPlan,
+  preloadQueryExecutionPlanEffect,
+  projectQueryContexts,
+  queryExecutionPlanDiagnostics
+} from "./query-execution-plan.js";
 import { makeQuerySourceAdapter } from "./query-source-adapter.js";
 import { collectionStoreEffect, runWithCollectionStore } from "./runtime-collection-store.js";
 import type {
@@ -284,39 +283,11 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
 
   /** Synchronously evaluates the query against the current collection state. */
   execute(): ReadonlyArray<TResult> {
-    const contexts = buildQueryContexts(this);
-    return this.projectContexts(contexts);
+    return executeQueryPlan(this);
   }
 
   projectContexts(contexts: ReadonlyArray<TContext>, options: QueryProjectOptions = {}): ReadonlyArray<TResult> {
-    const shouldFilter = options.filter ?? true;
-    const shouldOrder = options.order ?? true;
-    const shouldWindow = options.window ?? true;
-    let filtered = shouldFilter
-      ? contexts.filter((row) => this.filters.every((filter) =>
-        evaluateQueryOperation("filter", () => filter(row))
-      ))
-      : [...contexts];
-
-    if (shouldOrder && this.orders.length > 0) {
-      filtered = filtered
-        .map((row, index) => ({ row, index }))
-        .sort((left, right) => compareRows(left.row, right.row, left.index, right.index, this.orders))
-        .map(({ row }) => row);
-    }
-
-    if (shouldWindow && this.offsetCount > 0) {
-      filtered = filtered.slice(this.offsetCount);
-    }
-
-    if (shouldWindow && this.limitCount !== undefined) {
-      filtered = filtered.slice(0, this.limitCount);
-    }
-
-    const projector = this.projector ?? projectCurrentContext<TContext, TResult>;
-    return filtered.map((row) =>
-      evaluateQueryOperation("projection", () => projector(row))
-    );
+    return projectQueryContexts(this, contexts, options);
   }
 }
 
@@ -524,8 +495,7 @@ export namespace Query {
   /** Return query plan diagnostics for joins, filters, ordering, and row counts. */
   export const diagnostics = <T>(factory: QueryFactory<T>): QueryPlanDiagnostics => {
     const builder = build(factory);
-    validateQueryPlan(builder);
-    return buildQueryExecution(builder).diagnostics;
+    return queryExecutionPlanDiagnostics(builder);
   };
 
   /**
@@ -539,7 +509,7 @@ export namespace Query {
   ): Effect.Effect<ReadonlyArray<T>, E | QueryEvaluationError, R> =>
     Effect.gen(function* () {
       const builder = build(factory);
-      yield* preloadLiveQueryEffect<any, E, R>(builder, false);
+      yield* preloadQueryExecutionPlanEffect<E, R>(builder, false);
       const store = yield* collectionStoreEffect;
       return yield* Effect.try({
         try: () => runWithCollectionStore(store, () => builder.execute()),

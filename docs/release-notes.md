@@ -69,8 +69,8 @@ Latest full gate on May 15, 2026:
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 197 package/example/script/type-test files;
-- 52 root test files / 855 tests;
+- Effect-first audit over 198 package/example/script/type-test files;
+- 52 root test files / 856 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
 - basic starter verify with 1 starter test file / 2 tests;
@@ -100,6 +100,10 @@ Latest full gate on May 15, 2026:
   conversion, Web Response writing, multiple `Set-Cookie` preservation, stream
   piping, and `HEAD` body cancellation while public Node adapter exports remain
   source-compatible.
+- Review 84 extracted the internal DB Query Execution Plan Module: Query
+  one-shot execution, diagnostics, live-query source/preload policy, and final
+  projection stages now share one plan policy while Query Builder remains the
+  immutable DSL and Live Query Runtime remains focused on IVM graph mechanics.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime
@@ -588,10 +592,10 @@ Latest full gate on May 15, 2026:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 83 extracted the Start Node
-  Web Exchange Module while keeping public Node adapter exports unchanged: 11
-  package builds, workspace typecheck, public type tests, public API inventory
-  audit, Effect-first audit over 197 files, 52 root test files / 855 tests,
+- The latest full `pnpm verify` passed after Review 84 extracted the DB Query
+  Execution Plan Module while keeping public Query APIs unchanged: 11 package
+  builds, workspace typecheck, public type tests, public API inventory audit,
+  Effect-first audit over 198 files, 52 root test files / 856 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,
   project-console packaging/typecheck/tests/build with 4 files / 27 tests, and

@@ -2,7 +2,6 @@ import { Signal, SignalTypeId, type ReadableSignal } from "@effect-ui/core";
 import { Effect } from "effect";
 import {
   makeLiveQueryRuntime,
-  preloadLiveQueryEffect,
   type LiveQueryRuntime
 } from "./live-query-runtime.js";
 import {
@@ -16,10 +15,13 @@ import type {
   LiveQueryState
 } from "./query-builder.js";
 import {
-  querySourceAdapters,
   toQueryEvaluationError,
   type QueryEvaluationError
 } from "./query-plan.js";
+import {
+  preloadQueryExecutionPlanEffect,
+  queryExecutionPlanSourceAdapters
+} from "./query-execution-plan.js";
 
 /**
  * Builds the signal-backed state handle returned by `Query.live(...)`.
@@ -32,7 +34,7 @@ import {
 export const makeLiveQueryState = <T, E = never, R = never>(
   builder: AnyQueryBuilder<T, E, R>
 ): LiveQuery<T, E, R> => {
-  const sourceAdapters = querySourceAdapters(builder);
+  const sourceAdapters = queryExecutionPlanSourceAdapters(builder);
   const sources = sourceAdapters.map((source) => source.collection);
   interface StoreEvaluationState {
     engine: LiveQueryRuntime<T> | undefined;
@@ -180,7 +182,7 @@ export const makeLiveQueryState = <T, E = never, R = never>(
     state,
     sources,
     evaluate: () => data.get(),
-    preloadEffect: (): Effect.Effect<void, E | QueryEvaluationError, R> => preloadLiveQueryEffect(builder, false),
-    refetchEffect: (): Effect.Effect<void, E | QueryEvaluationError, R> => preloadLiveQueryEffect(builder, true)
+    preloadEffect: (): Effect.Effect<void, E | QueryEvaluationError, R> => preloadQueryExecutionPlanEffect(builder, false),
+    refetchEffect: (): Effect.Effect<void, E | QueryEvaluationError, R> => preloadQueryExecutionPlanEffect(builder, true)
   };
 };
