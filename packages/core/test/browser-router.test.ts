@@ -1,6 +1,7 @@
 import { Cause, Context, Deferred, Effect, Layer } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import {
+  createBrowserRouterHostController,
   createBrowserRouterKernel,
   isPlainLeftClick,
   makeBrowserRouterLinkPreloader,
@@ -10,6 +11,7 @@ import {
   opensOutsideRouter,
   route,
   type BrowserHistoryWindow,
+  type BrowserHistoryAdapter,
   RouteNavigationError,
   RouterRouteNotRegistered,
   RoutePreloadError
@@ -167,6 +169,80 @@ describe("browser router kernel", () => {
     expect(externalHrefs).toEqual(["/external"]);
     expect(history.entries()).toEqual(["/initial", "/replacement", "/external"]);
   });
+
+  it("centralizes host controller start, navigation, replace, and disposal policy", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+
+          const Project = route("/host-projects/:id");
+          let href = "/host-projects/atlas";
+          let listens = 0;
+          let stops = 0;
+          const entries = [href];
+          const listeners = new Set<(nextHref: string) => void>();
+          const history: BrowserHistoryAdapter = {
+            currentHref: () => href,
+            listen: (onChange: (nextHref: string) => void) => {
+              listens++;
+              listeners.add(onChange);
+              return () => {
+                stops++;
+                listeners.delete(onChange);
+              };
+            },
+            commit: (nextHref: string, options = {}) => {
+              href = nextHref;
+              if (options.replace) {
+                entries[entries.length - 1] = href;
+              } else {
+                entries.push(href);
+              }
+              return href;
+            }
+          };
+          const externalNavigate = (nextHref: string): void => {
+            href = nextHref;
+            entries.push(href);
+            listeners.forEach((listener) => listener(href));
+          };
+
+          const router = createBrowserRouterHostController([Project] as const, {
+            history,
+            runtime
+          });
+          const stop = router.start();
+          const secondStop = router.start();
+
+          expect(listens).toBe(1);
+          secondStop();
+          expect(stops).toBe(0);
+
+          router.navigate(Project, { params: { id: "lumen" } });
+          expect(entries).toEqual(["/host-projects/atlas", "/host-projects/lumen"]);
+          expect(router.state.get()).toMatchObject({
+            href: "/host-projects/lumen"
+          });
+
+          router.navigateByPath("/host-projects/:id", { params: { id: "orion" } }, { replace: true });
+          expect(entries).toEqual(["/host-projects/atlas", "/host-projects/orion"]);
+
+          externalNavigate("/host-projects/vega");
+          expect(router.state.get()).toMatchObject({
+            href: "/host-projects/vega"
+          });
+
+          stop();
+          expect(stops).toBe(1);
+          externalNavigate("/host-projects/ignored");
+          expect(router.state.get()).toMatchObject({
+            href: "/host-projects/vega"
+          });
+        })
+      )
+    ));
 
   it("preloads shadowed hrefs with the same route match as navigation", () =>
     Effect.runPromise(

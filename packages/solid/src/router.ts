@@ -1,6 +1,5 @@
 import {
-  createBrowserRouterKernel,
-  makeWindowBrowserHistoryAdapter,
+  createBrowserRouterHostController,
   Route,
   currentOrDefaultRuntime,
   runWithRuntime,
@@ -186,36 +185,33 @@ export const createBrowserRouter = <
   options: BrowserRouterOptions<Routes, ER, Runtime> = {}
 ): BrowserRouter<Routes, ER> => {
   const runtime = (options.runtime ?? currentOrDefaultRuntime()) as AnyEffectUiRuntime<ER>;
-  const history = options.history ?? makeWindowBrowserHistoryAdapter();
-  const initialHref = options.initialHref ?? history.currentHref();
-  const kernel = createBrowserRouterKernel(routes, {
+  const controller = createBrowserRouterHostController(routes, {
     runtime,
-    initialHref,
+    ...(options.history === undefined ? {} : { history: options.history }),
+    ...(options.initialHref === undefined ? {} : { initialHref: options.initialHref }),
     initialMatchedState: (href, match) =>
       canUseBrowser() && !isHydratingExistingDom()
         ? { _tag: "Pending", href, match }
         : { _tag: "Ready", href, match }
   });
   const [state, setState] = createSignal<BrowserRouterState<Routes, ER>>(
-    kernel.state.get()
+    controller.state.get()
   );
   const [match, setMatch] = createSignal<Route.Match<Routes[number]> | undefined>(
-    kernel.match.get()
+    controller.match.get()
   );
-  const unsubscribeState = kernel.state.subscribe(() => {
-    setState(() => kernel.state.get());
+  const unsubscribeState = controller.state.subscribe(() => {
+    setState(() => controller.state.get());
   });
-  const unsubscribeMatch = kernel.match.subscribe(() => {
-    setMatch(() => kernel.match.get());
+  const unsubscribeMatch = controller.match.subscribe(() => {
+    setMatch(() => controller.match.get());
   });
-  const stopHistory = history.listen(kernel.navigateHref);
-  kernel.navigateHref(initialHref);
+  const stopController = controller.start();
 
   onCleanup(() => {
-    stopHistory();
+    stopController();
     unsubscribeState();
     unsubscribeMatch();
-    kernel.dispose();
   });
 
   const router: BrowserRouter<Routes, ER> = {
@@ -223,21 +219,15 @@ export const createBrowserRouter = <
     runtime,
     state,
     match,
-    canHandleRoute: kernel.canHandleRoute,
-    href: kernel.href,
-    hrefByPath: kernel.hrefByPath,
-    navigate: (definition, ...args) => {
-      kernel.navigate(definition, router.navigateHref, ...args);
-    },
-    navigateByPath: (path, ...args) => {
-      kernel.navigateByPath(path, router.navigateHref, ...args);
-    },
-    navigateHref: (href, options = {}) => {
-      kernel.navigateHref(history.commit(href, options));
-    },
-    matchByPath: kernel.matchByPath,
-    preloadEffect: kernel.preloadEffect,
-    preloadByPathEffect: kernel.preloadByPathEffect
+    canHandleRoute: controller.canHandleRoute,
+    href: controller.href,
+    hrefByPath: controller.hrefByPath,
+    navigate: controller.navigate,
+    navigateByPath: controller.navigateByPath,
+    navigateHref: controller.navigateHref,
+    matchByPath: controller.matchByPath,
+    preloadEffect: controller.preloadEffect,
+    preloadByPathEffect: controller.preloadByPathEffect
   };
 
   return router;

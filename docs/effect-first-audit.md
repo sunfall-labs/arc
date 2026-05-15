@@ -1022,17 +1022,21 @@ interruption.
   `emit(...)` completion, host `emitChanges(...)` queueing, and failure
   publication as Effects, while Collection Runtime supplies the store-local row
   application Effect.
-- The latest full `pnpm verify` passed after the Review 93 Collection Change
-  Feed Runtime Module: 11 package builds, workspace typecheck, type tests,
-  public API inventory audit, Effect-first audit over 222
-  package/example/script/type-test files, 52 root test files / 856 tests,
+- The Browser Router Host Controller now owns history listener lifecycle,
+  programmatic commits, initial navigation, typed route forwarding, and preload
+  disposal for React and Solid router adapters without adding Promise host
+  seams.
+- The latest full `pnpm verify` passed after the Review 94 Browser Router Host
+  Controller Facade: 11 package builds, workspace typecheck, type tests, public
+  API inventory audit, Effect-first audit over 222
+  package/example/script/type-test files, 52 root test files / 857 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
   verify with 1 starter test file / 2 tests, React starter verify with 1
   starter test file / 3 tests, project-console starter packaging, typecheck,
   4 project-console test files / 27 tests, build, and leak scans. Review 75
   added the public API inventory audit to the full gate, Review 86 kept the
-  scanner green over the expanded public type-test scope, and Review 93 kept
+  scanner green over the expanded public type-test scope, and Review 94 kept
   the Effect-first scanner green over its expanded 222-file scope.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core

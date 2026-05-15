@@ -37,8 +37,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     react route render scope controller, Review 88 public API source surface
     coverage gate, Review 89 collection value detachment, Review 90 collection
     index materialization, Review 91 start diagnostics CLI runner, Review
-    92 start action response application, and Review 93 collection change feed
-    runtime sweeps.
+    92 start action response application, Review 93 collection change feed
+    runtime, and Review 94 browser router host controller sweeps.
 
 ## Current Sweep Results
 
@@ -319,9 +319,13 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   feed subscription lifecycle, dispatcher fibers, adapter unsubscribe
   normalization, direct `emit(...)` completion, host `emitChanges(...)`
   queueing, and asynchronous failure publication.
-- Updated current-facing verification snapshots after Review 93 full
+- Added Review 94 and progress entry 333 evidence for the Browser Router Host
+  Controller facade. Core public API docs now name the controller that owns
+  idempotent start/dispose, history listener wiring, programmatic commits, and
+  route preload disposal for React and Solid router adapters.
+- Updated current-facing verification snapshots after Review 94 full
   verification so the latest gate points at the 222-file Effect-first audit and
-  52 root test files / 856 tests.
+  52 root test files / 857 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are
   wrapped with `Effect.tryPromise(...)` at the Adapter seam.
 - Clarified that `virtual:effect-ui/routes` exposes runtime helpers while the

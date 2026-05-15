@@ -125,10 +125,14 @@ Release decisions:
   the grammar seam, so match results cannot silently collapse repeated params.
 - `browser-router` is an expert-public Browser Router Kernel and Browser
   History Adapter Module. React and Solid router Adapters use it for shared
-  route matching, preload state, link click/preload policy, current-href
-  reads, external history listeners, and programmatic history commits. App code
-  should usually use framework router exports, while tests and future adapters
-  can use `makeMemoryBrowserHistoryAdapter(...)`,
+  route matching, preload state, link click/preload policy, current-href reads,
+  external history listeners, and programmatic history commits. The
+  `BrowserRouterHostController` facade binds the Kernel to a History Adapter
+  and owns idempotent start/dispose plus commit forwarding; framework adapters
+  keep only reactivity projection and host owner cleanup. App code should
+  usually use framework router exports, while tests and future adapters can use
+  `createBrowserRouterHostController(...)`,
+  `makeMemoryBrowserHistoryAdapter(...)`,
   `makeWindowBrowserHistoryAdapter(...)`, and the browser-router types directly.
 - `Action.use(definition, { runtime })` is a runtime-bound action instance:
   services provided by the explicit runtime are removed from `submitEffect(...)`

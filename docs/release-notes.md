@@ -70,7 +70,7 @@ Latest full gate on May 15, 2026:
 - workspace typecheck and public type tests;
 - public API inventory audit;
 - Effect-first audit over 222 package/example/script/type-test files;
-- 52 root test files / 856 tests;
+- 52 root test files / 857 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
 - basic starter verify with 1 starter test file / 2 tests;
@@ -145,6 +145,11 @@ Latest full gate on May 15, 2026:
   asynchronous failure publication now live behind one Effect-first Module
   while Collection Runtime keeps store-local row mutation and persistence
   policy.
+- Review 94 added the Core Browser Router Host Controller facade:
+  React and Solid routers now share idempotent start/dispose, initial
+  navigation, external history listener wiring, programmatic commit forwarding,
+  typed route navigation helpers, and preload disposal while each framework
+  keeps its own reactivity and owner cleanup.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime
