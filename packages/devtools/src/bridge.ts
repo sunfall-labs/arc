@@ -1,5 +1,5 @@
 import { Effect, type Scope } from "effect";
-import type { DevtoolsPanelId, DevtoolsPanels } from "./index.js";
+import type { DevtoolsPanelId, DevtoolsPanels } from "./devtools-contract.js";
 
 /**
  * Global property name used by app-side Devtools bridge installers.

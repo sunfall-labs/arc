@@ -47,7 +47,7 @@ import type {
   DevtoolsSummaryRoutePlan,
   DevtoolsSummaryRuntimeEvent,
   DevtoolsRequestTrace
-} from "./index.js";
+} from "./devtools-contract.js";
 
 const schemaCoverageData = (
   coverage: DevtoolsStartAppGraphSchemaCoverage

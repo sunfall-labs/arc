@@ -23,7 +23,7 @@ import type {
   DevtoolsSummary,
   DevtoolsSummaryInput,
   DevtoolsSummaryRequestTrace
-} from "./index.js";
+} from "./devtools-contract.js";
 import { devtoolsPanelIds } from "./panel-contract.js";
 import { routeModulePreloadCollections } from "./summary-app-graph.js";
 

@@ -1,6 +1,6 @@
 import { Data } from "effect";
+import type { DevtoolsBridgePayload } from "./bridge.js";
 import type {
-  DevtoolsBridgePayload,
   DevtoolsPanel,
   DevtoolsPanelId,
   DevtoolsPanelItem,
@@ -10,7 +10,7 @@ import type {
   DevtoolsPanelSeverity,
   DevtoolsPanelUiInput,
   DevtoolsSerializableValue
-} from "./index.js";
+} from "./devtools-contract.js";
 
 /** Stable ids for the public Devtools panel contract. */
 export const devtoolsPanelIds: readonly DevtoolsPanelId[] = [

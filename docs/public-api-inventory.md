@@ -606,8 +606,9 @@ Release decisions:
 
 The root export includes:
 
-- Local source modules: `app-graph-normalizer`, `bridge`, `panel-contract`,
-  `panel-renderer`, `serialization`, and `summary`.
+- Local source modules: `app-graph-normalizer`, `bridge`,
+  `devtools-contract`, `panel-contract`, `panel-renderer`, `serialization`,
+  and `summary`.
 - `makeDevtoolsStore`, snapshot APIs, summary APIs, causal graph APIs, and
   panel APIs with Effect wrappers;
 - panel contract ids, severities, guards, and bridge payload normalization:
@@ -645,6 +646,10 @@ Release decisions:
 - `DevtoolsRequestTrace` is public as a data contract. Start emits a compatible
   shape through `onRequestTrace`, with cancellation and failure-path coverage in
   Start request tests.
+- `devtools-contract` owns the public Devtools DTO and Interface vocabulary
+  that renderers, stores, summaries, bridges, and agents share. The root
+  import path re-exports it, while internal Devtools modules import the
+  contract directly instead of depending on the root facade.
 - `DevtoolsInvalidationPlan` is public as an inspection data contract. Start
   emits a compatible `StartActionInvalidationPlan`, and type tests pin the
   structural compatibility so devtools can consume full-stack action metadata

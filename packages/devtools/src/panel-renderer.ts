@@ -9,7 +9,7 @@ import type {
   DevtoolsPanelUiInput,
   DevtoolsPanels,
   DevtoolsSerializableValue
-} from "./index.js";
+} from "./devtools-contract.js";
 import { isDevtoolsPanelId, isDevtoolsPanelOverflowItem } from "./panel-contract.js";
 
 export type DevtoolsPanelsResolver = (input: DevtoolsPanelUiInput) => DevtoolsPanels;

@@ -4,7 +4,7 @@ import type {
   DevtoolsRuntimeEvent,
   DevtoolsSnapshot,
   DevtoolsSnapshotAction
-} from "./index.js";
+} from "./devtools-contract.js";
 import {
   toDevtoolsSerializableFingerprint,
   type DevtoolsSerializationPolicy

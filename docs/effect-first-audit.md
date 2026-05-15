@@ -1030,9 +1030,13 @@ interruption.
   normalization, retry, optimistic commit/rollback, stale interruption,
   invalidation planning/execution, and visible state updates as Effects, while
   the public facade keeps runtime requirement subtraction local.
-- The latest full `pnpm verify` passed after the Review 95 Core Action
-  Execution Workflow Module: 11 package builds, workspace typecheck, type
-  tests, public API inventory audit, Effect-first audit over 223
+- The Devtools Public Contract Module now owns public DTO and Interface
+  vocabulary in one source file, while Store, Summary, Panel Contract, Bridge,
+  renderer, causal graph, serialization, and app-graph helpers import those
+  contracts directly instead of depending on the root facade.
+- The latest full `pnpm verify` passed after the Review 96 Devtools Public
+  Contract Module: 11 package builds, workspace typecheck, type
+  tests, public API inventory audit, Effect-first audit over 224
   package/example/script/type-test files, 52 root test files / 857 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
@@ -1040,8 +1044,8 @@ interruption.
   starter test file / 3 tests, project-console starter packaging, typecheck,
   4 project-console test files / 27 tests, build, and leak scans. Review 75
   added the public API inventory audit to the full gate, Review 86 kept the
-  scanner green over the expanded public type-test scope, and Review 95 kept
-  the Effect-first scanner green over its expanded 223-file scope.
+  scanner green over the expanded public type-test scope, and Review 96 kept
+  the Effect-first scanner green over its expanded 224-file scope.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

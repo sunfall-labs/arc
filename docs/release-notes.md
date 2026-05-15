@@ -69,7 +69,7 @@ Latest full gate on May 15, 2026:
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 223 package/example/script/type-test files;
+- Effect-first audit over 224 package/example/script/type-test files;
 - 52 root test files / 857 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
@@ -156,6 +156,12 @@ Latest full gate on May 15, 2026:
   execution, submission joining, and visible state updates now live behind one
   workflow while the public facade keeps runtime binding and type-level
   requirement subtraction.
+- Review 96 extracted the public Devtools Contract Module: public snapshots,
+  invalidation and route plans, request traces, runtime events, Store
+  Interfaces, Start app graph diagnostics, summaries, causal graphs, panel
+  DTOs, panel UI options, and panel boot contracts now live in
+  `devtools-contract.ts`, while the Devtools root stays the behavior facade and
+  public re-export point.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime

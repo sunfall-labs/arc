@@ -8,7 +8,7 @@ import type {
   DevtoolsStartAppGraphRoutePreloadCollections,
   DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry,
   DevtoolsSummary
-} from "./index.js";
+} from "./devtools-contract.js";
 import {
   normalizeAppGraphCollectionDefinitions,
   normalizeAppGraphUnknownRoutePreloadCollections,

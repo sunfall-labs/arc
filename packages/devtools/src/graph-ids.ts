@@ -6,7 +6,7 @@ import type {
   DevtoolsSummaryInvalidationTarget,
   DevtoolsSummaryRequestTrace,
   DevtoolsSummaryRuntimeEvent
-} from "./index.js";
+} from "./devtools-contract.js";
 
 export const devtoolsActionNodeId = (name: string): string => `action:${name}`;
 

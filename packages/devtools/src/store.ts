@@ -16,14 +16,13 @@ import type {
   DevtoolsRequestTrace,
   DevtoolsRoutePlan,
   DevtoolsRuntimeEvent,
-  DevtoolsSerializationPolicy,
   DevtoolsSnapshot,
   DevtoolsStartActionInstance,
   DevtoolsStartAppGraphDiagnostics,
   DevtoolsStore,
   DevtoolsStoreOptions,
   DevtoolsSummary
-} from "./index.js";
+} from "./devtools-contract.js";
 import {
   ensureRequestTraceId,
   normalizeRequestTraceFacts,
@@ -38,7 +37,8 @@ import {
   copyAppGraphDiagnostics,
   copyDevtoolsRoutePlan,
   copyDevtoolsRuntimeEvent,
-  copyDevtoolsSnapshot
+  copyDevtoolsSnapshot,
+  type DevtoolsSerializationPolicy
 } from "./serialization.js";
 
 export interface DevtoolsStoreRuntime {

@@ -36,7 +36,7 @@ import type {
   DevtoolsSummaryResourceRef,
   DevtoolsSummaryRoutePlan,
   DevtoolsSummaryRuntimeEvent
-} from "./index.js";
+} from "./devtools-contract.js";
 
 export const emptySnapshot = (): DevtoolsSnapshot => ({
   resources: [],

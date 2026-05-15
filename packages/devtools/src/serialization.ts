@@ -23,7 +23,7 @@ import type {
   DevtoolsSerializableValue,
   DevtoolsSnapshot,
   DevtoolsStartAppGraphDiagnostics
-} from "./index.js";
+} from "./devtools-contract.js";
 import { normalizeDevtoolsAppGraphDiagnostics } from "./app-graph-normalizer.js";
 
 export class DevtoolsUnknownInvalidationTarget extends Data.TaggedError(

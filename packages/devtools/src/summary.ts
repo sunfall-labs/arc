@@ -15,7 +15,7 @@ import {
 import type {
   DevtoolsSummary,
   DevtoolsSummaryInput
-} from "./index.js";
+} from "./devtools-contract.js";
 
 export {
   describeDevtoolsCausalGraph,

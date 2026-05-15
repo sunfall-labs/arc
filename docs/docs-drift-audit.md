@@ -38,8 +38,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     coverage gate, Review 89 collection value detachment, Review 90 collection
     index materialization, Review 91 start diagnostics CLI runner, Review
     92 start action response application, Review 93 collection change feed
-    runtime, Review 94 browser router host controller, and Review 95 core
-    action execution workflow sweeps.
+    runtime, Review 94 browser router host controller, Review 95 core action
+    execution workflow, and Review 96 devtools public contract sweeps.
 
 ## Current Sweep Results
 
@@ -329,8 +329,12 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   that owns live action callback normalization, optimistic commit/rollback,
   stale interruption, invalidation planning/execution, and visible submission
   state updates.
-- Updated current-facing verification snapshots after Review 95 full
-  verification so the latest gate points at the 223-file Effect-first audit and
+- Added Review 96 and progress entry 335 evidence for the Devtools Public
+  Contract Module. Devtools public API docs now name `devtools-contract` as the
+  DTO/Interface source behind public snapshots, traces, summaries, causal
+  graphs, panels, store contracts, and boot contracts.
+- Updated current-facing verification snapshots after Review 96 full
+  verification so the latest gate points at the 224-file Effect-first audit and
   52 root test files / 857 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are
   wrapped with `Effect.tryPromise(...)` at the Adapter seam.

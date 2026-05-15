@@ -5,7 +5,7 @@ import type {
   DevtoolsStartAppGraphRouteModuleDiagnostics,
   DevtoolsStartAppGraphRoutePreloadCollections,
   DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry
-} from "./index.js";
+} from "./devtools-contract.js";
 
 const copyStringArray = (values: readonly string[]): readonly string[] => [...values];
 

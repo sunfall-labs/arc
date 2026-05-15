@@ -7,7 +7,7 @@ import type {
   DevtoolsCausalEdge,
   DevtoolsCausalNode,
   DevtoolsSummaryRoutePlan
-} from "./index.js";
+} from "./devtools-contract.js";
 
 export interface DevtoolsRoutePlanFactSink {
   addNode(node: DevtoolsCausalNode): void;
