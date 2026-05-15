@@ -11,9 +11,48 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 82, immediately after Review 81. Some older review
+The newest review is Review 83, immediately after Review 82. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 83: Start Node Web Exchange Module
+
+Status: fixed for this bounded Review 75 follow-up and fully verified in the
+current worktree. Larger candidates remain open, so the Thirty-Sweep clean
+counter remains at 0.
+
+- Start: added `packages/start/src/node-web-exchange.ts` as the internal Start
+  Node Web Exchange Module. It owns forwarded origin policy, Node header/body
+  conversion, Node response status/header writing, multiple `Set-Cookie`
+  preservation, Web stream piping, `HEAD` response body cancellation, and typed
+  `StartNodeAdapterError` exchange failures.
+- Node/Vite: `node-adapter.ts` now stays focused on Start handler invocation,
+  Node `createServer` callback wiring, typed runtime requirements, and
+  Node-only error hooks while re-exporting the expert-public exchange helpers
+  for compatibility. `start-vite-dev-ssr.ts` and `start-manifest-wall.ts`
+  consume the internal exchange Module directly, so dev SSR and production Node
+  hosts share request/response mechanics.
+- Review cleanup: the older Node Web Exchange Module candidate is now closed.
+  The Start Client Transport Runtime Module candidate is also closed for now:
+  the deletion test shows the existing Start Client Transport Module is already
+  deep, while RPC/action runtime provision belongs to their public client
+  Modules unless a third transport client or shared lifecycle policy appears.
+  Solid `RuntimeProvider` runtime ownership semantics, Route Render Scope
+  Controller, Query Execution Plan Module, deeper Effect-first Audit Scanner
+  Module, and package-split public type-test manifest work remain open
+  candidates.
+
+Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm
+--filter @effect-ui/start-node typecheck`, `pnpm vitest run
+packages/start/test/adapters.test.ts packages/start/test/start.test.ts` (2
+files / 148 tests), `pnpm typecheck:types`, `pnpm audit:public-api`, and `pnpm
+audit:effect-first` over 197 auditable files passed. Full `pnpm verify` passed:
+11 package builds, workspace typecheck, public type tests, public API inventory
+audit, Effect-first audit over 197 auditable files, 52 root test files / 855
+tests, devtools-panel verify with 2 tests, devtools-extension verify with 20
+tests, basic starter verify with 2 tests, React starter verify with 3 tests,
+project-console packaging, project-console typecheck/tests/build with 4 files /
+27 tests, and leak scans.
 
 ## Review 82: Start Host Runtime Runner Module
 

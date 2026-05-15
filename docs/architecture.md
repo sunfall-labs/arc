@@ -725,13 +725,15 @@ export can wrap `createRequestHandlerEffect(app)` with
 `createNodeHandler` functions remain the canonical interfaces for hosts that
 want custom supervision. Host facades provide the per-request Scope themselves
 but require a typed runtime whenever the handler still needs app services. The
-Node adapter converts `IncomingMessage` to a Web
-`Request`, makes forwarded-origin trust explicit with `trustForwardedHeaders`,
-writes Web `Response`
-headers/status back to `ServerResponse`, streams response bodies with Node
-backpressure and Effect interruption through an `AbortSignal`, preserves
-multiple `Set-Cookie` headers, and keeps `HEAD` responses bodyless at the host
-boundary.
+Node adapter callback facades delegate the lower Node/Web exchange mechanics to
+the internal Start Node Web Exchange Module. That Module converts
+`IncomingMessage` to a Web `Request`, makes forwarded-origin trust explicit with
+`trustForwardedHeaders`, writes Web `Response` headers/status back to
+`ServerResponse`, streams response bodies with Node backpressure and Effect
+interruption through an `AbortSignal`, preserves multiple `Set-Cookie` headers,
+and keeps `HEAD` responses bodyless at the host boundary. Vite dev SSR consumes
+the same exchange Module, so production Node and dev middleware share the same
+request/response policy while keeping their own handler-selection concerns.
 
 ## Isomorphic Server Functions
 

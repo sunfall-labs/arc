@@ -47,7 +47,7 @@ import {
   type ServerFunctionManifestError,
   type ServerFunctionManifestSource
 } from "./server-function-manifest.js";
-import type { StartNodeRequestOptions } from "./node-adapter.js";
+import type { StartNodeRequestOptions } from "./node-web-exchange.js";
 
 /** Options for generated file-route definition modules written by the plugin. */
 export interface FileRouteGenerationOptions

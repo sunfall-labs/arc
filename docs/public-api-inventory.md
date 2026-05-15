@@ -330,9 +330,10 @@ Subpath exports:
   and preserves handler service requirements. `createFetchHandler(...)` remains
   a compatibility host facade for Fetch-style platforms that require
   `(request) => Promise<Response>`.
-- `./node-adapter` owns Node request origin reconstruction, Web Request
-  conversion, Web Response writing, and Node HTTP server callback wiring.
-  Response write failures are `StartNodeAdapterError` values, Effect-first Node
+- `./node-adapter` owns Start Node handler invocation and Node HTTP server
+  callback wiring. It re-exports expert-public Node Web Exchange helpers for
+  compatibility: Node request origin reconstruction, Web Request conversion,
+  Web Response writing, and `StartNodeAdapterError` values. Effect-first Node
   handlers preserve Start handler service requirements, and Node server error
   hooks accept pure values or Effects, not Promise-shaped callbacks.
 - `./virtual` owns virtual module typings only.

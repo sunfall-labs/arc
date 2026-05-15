@@ -31,7 +31,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     runtime collection store, Review 77 collection write commit, Review 78
     live query collection materialization, and Review 79 collection query
     source adapter, Review 80 request runtime lifecycle, Review 81 resource UI
-    binding controller, and Review 82 start host runtime runner sweeps.
+    binding controller, Review 82 start host runtime runner, and Review 83
+    start node web exchange sweeps.
 
 ## Current Sweep Results
 
@@ -271,8 +272,11 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Added Review 82 and progress entry 321 evidence for the Start Host Runtime
   Runner extraction. Public host adapter docs now point at the internal runner
   for the final Promise/fork host seams while keeping adapter APIs unchanged.
-- Updated current-facing verification snapshots after Review 82 full
-  verification so the latest gate points at the 196-file Effect-first audit and
+- Added Review 83 and progress entry 322 evidence for the Start Node Web
+  Exchange extraction. Public host adapter docs now keep Node exports stable
+  while naming the internal Module that production Node and Vite dev SSR share.
+- Updated current-facing verification snapshots after Review 83 full
+  verification so the latest gate points at the 197-file Effect-first audit and
   52 root test files / 855 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are
   wrapped with `Effect.tryPromise(...)` at the Adapter seam.

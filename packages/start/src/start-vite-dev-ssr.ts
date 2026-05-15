@@ -3,9 +3,9 @@ import { toEffect, type EffectInput } from "@effect-ui/core";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   nodeRequestToWebRequestEffect,
-  writeNodeResponseEffect,
+  writeNodeExchangeResponseEffect,
   type StartNodeRequestOptions
-} from "./node-adapter.js";
+} from "./node-web-exchange.js";
 import { acceptsMediaType, startHtmlMediaType } from "./rpc.js";
 import type { StartRequestHandlerError } from "./start-request-handler.js";
 import { defaultServerEntry } from "./start-manifest-wall.js";
@@ -144,9 +144,7 @@ export const handleSsrDevMiddlewareEffect = <R = never>(
 
     const webRequest = yield* nodeRequestToWebRequestEffect(request, options.nodeRequest);
     const webResponse = yield* handleSsrDevRequestEffect(server, webRequest, options);
-    yield* writeNodeResponseEffect(response, webResponse, {
-      headOnly: request.method === "HEAD"
-    });
+    yield* writeNodeExchangeResponseEffect(request, response, webResponse);
   }).pipe(
     Effect.catch((error) => reportSsrDevMiddlewareError(server, next, error)),
     Effect.catchCause((cause) =>

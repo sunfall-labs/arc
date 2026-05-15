@@ -69,7 +69,7 @@ Latest full gate on May 15, 2026:
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 196 package/example/script/type-test files;
+- Effect-first audit over 197 package/example/script/type-test files;
 - 52 root test files / 855 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
@@ -95,6 +95,11 @@ Latest full gate on May 15, 2026:
   middleware callback launches now share one Effect-to-host runtime policy for
   explicit/default runtime selection, `Effect.runPromise(...)`, `runFork(...)`,
   and response Scope lifetime wrapping.
+- Review 83 extracted the internal Start Node Web Exchange Module: production
+  Node and Vite dev SSR hosts now share Node origin reconstruction, Web Request
+  conversion, Web Response writing, multiple `Set-Cookie` preservation, stream
+  piping, and `HEAD` body cancellation while public Node adapter exports remain
+  source-compatible.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime
@@ -583,10 +588,10 @@ Latest full gate on May 15, 2026:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 82 extracted the Start Host
-  Runtime Runner while keeping public host adapter behavior unchanged: 11
+- The latest full `pnpm verify` passed after Review 83 extracted the Start Node
+  Web Exchange Module while keeping public Node adapter exports unchanged: 11
   package builds, workspace typecheck, public type tests, public API inventory
-  audit, Effect-first audit over 196 files, 52 root test files / 855 tests,
+  audit, Effect-first audit over 197 files, 52 root test files / 855 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,
   project-console packaging/typecheck/tests/build with 4 files / 27 tests, and
