@@ -33,8 +33,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     source adapter, Review 80 request runtime lifecycle, Review 81 resource UI
     binding controller, Review 82 start host runtime runner, Review 83 start
     node web exchange, Review 84 query execution plan, Review 85 solid route
-    render scope controller, and Review 86 public API type-test manifest
-    sweeps.
+    render scope controller, Review 86 public API type-test manifest, and
+    Review 87 react route render scope controller sweeps.
 
 ## Current Sweep Results
 
@@ -288,8 +288,12 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   Type-Test Manifest. Public API docs now name
   `type-tests/public-api.manifest.json` as the owner of import-path type-test
   coverage.
-- Updated current-facing verification snapshots after Review 86 full
-  verification so the latest gate points at the 216-file Effect-first audit and
+- Added Review 87 and progress entry 326 evidence for the React Route Render
+  Scope Controller extraction. React public API docs now name the internal
+  Module that owns route `UiScope`, keyed route frame remounting, runtime
+  provider re-entry, and route finalizer policy.
+- Updated current-facing verification snapshots after Review 87 full
+  verification so the latest gate points at the 217-file Effect-first audit and
   52 root test files / 856 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are
   wrapped with `Effect.tryPromise(...)` at the Adapter seam.

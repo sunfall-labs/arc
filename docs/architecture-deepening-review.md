@@ -11,9 +11,42 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 86, immediately after Review 85. Some older review
+The newest review is Review 87, immediately after Review 86. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 87: React Route Render Scope Controller
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- React: added `packages/react/src/route-render-scope.ts` as the internal React
+  Route Render Scope Controller. It owns `RouterOutlet` branch rendering,
+  route-owned `UiScope` creation, keyed route frame remounting, runtime
+  provider re-entry, and runtime-bound route finalizers.
+- Router: `RouterOutlet` now stays focused on reading the current router state,
+  adapting typed outlet props, and delegating render lifetime policy to the
+  controller. Public React router APIs and route render behavior remain
+  unchanged.
+- Review cleanup: the React Route Render Scope Controller candidate is closed.
+  Fresh sweeps also found Browser Router Host Adapter Facade, Core Action
+  Execution Workflow, DB Collection Secondary Index Materialization, DB
+  Collection Value Detachment, DB Collection Change Feed Runtime, Start Action
+  Response Application, Start Diagnostics CLI Command Runner, Public API Source
+  Surface Coverage Gate, Devtools Public Contract Module, and deeper focused
+  public type-test ownership candidates.
+
+Focused verification: `pnpm --filter @effect-ui/react typecheck`, `pnpm vitest
+run packages/react/test/router.test.ts` (1 file / 7 tests), `pnpm
+typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first` over 217
+files, and `git diff --check` passed. Full `pnpm verify` passed: 11 package
+builds, workspace typecheck, public type tests, public API inventory audit,
+Effect-first audit over 217 files, 52 root test files / 856 tests,
+devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
+basic starter verify with 2 tests, React starter verify with 3 tests,
+project-console packaging/typecheck/tests/build with 4 files / 27 tests, and
+leak scans.
 
 ## Review 86: Public API Type-Test Manifest
 

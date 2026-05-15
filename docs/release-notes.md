@@ -69,7 +69,7 @@ Latest full gate on May 15, 2026:
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 216 package/example/script/type-test files;
+- Effect-first audit over 217 package/example/script/type-test files;
 - 52 root test files / 856 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
@@ -112,6 +112,10 @@ Latest full gate on May 15, 2026:
 - Review 86 added a public API type-test manifest: every package export and
   Start subpath now maps to source, docs, and a focused type-test file, while
   the broad framework type test remains as cross-package integration coverage.
+- Review 87 extracted the internal React Route Render Scope Controller:
+  `RouterOutlet` now delegates route branch rendering, route-owned `UiScope`
+  creation, keyed route frame remounting, runtime provider re-entry, and route
+  finalizer policy while public React router APIs stay unchanged.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime

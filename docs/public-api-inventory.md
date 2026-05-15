@@ -692,7 +692,9 @@ Release decisions:
   branches inside the router Runtime Spine and a route-owned `UiScope`, so Core
   render-seam helpers such as `Resource.status(...)`, `read(...)`,
   `onDispose(...)`, and `forkScoped(...)` observe the same ownership as route
-  preloads.
+  preloads. The internal React Route Render Scope Controller owns this branch
+  rendering, keyed route frame remounting, runtime provider re-entry, and route
+  finalizer policy while the public router surface stays unchanged.
 - `useResource<..., ER>(...)` exposes `preloadFailure` and accepts
   `onPreloadFailure(...)` for automatic mount-time preloads. Returned
   `prefetchEffect(...)` and `refreshEffect(...)` remain Effect-returning and
