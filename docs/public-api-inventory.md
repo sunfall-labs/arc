@@ -363,6 +363,11 @@ Subpath exports:
   and `Argument` primitives, while the internal Start Diagnostics CLI Runner
   Module owns parsed command execution, app graph diagnostics loading, agent
   graph/impact projection, output formatting, and failure reporting.
+- Start action clients apply accepted response metadata through the internal
+  Start Action Response Application Module. Transport Protocol owns wire DTOs,
+  parsing, status policy, and decoding; response application owns invalidation
+  target validation, Resource Tag/Ref resolution, hydration, hydrated-ref
+  filtering, and malformed metadata transport errors.
 
 Release decisions:
 

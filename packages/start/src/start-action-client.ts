@@ -15,11 +15,11 @@ import {
 import { Effect, Fiber } from "effect";
 import type { StartHydrationPayload } from "./hydration.js";
 import { executeStartClientTransportEffect } from "./start-client-transport.js";
+import { applyStartActionResponseEffect } from "./start-action-response-application.js";
 import { resolveStartActionEndpoint } from "./start-transport-endpoints.js";
 import {
   decodeStartActionResponseEffect,
   encodeStartActionRequestEffect,
-  hydrateActionResponseEffect,
   parseStartActionResponse,
   startActionForm,
   type ActionDefinitionErrorValue,
@@ -157,7 +157,7 @@ export function submitStartActionEffect<
 > {
   return Effect.gen(function* () {
     const submitted = yield* submitStartActionTransportEffect(definition, input, options);
-    yield* hydrateActionResponseEffect(submitted.response, options);
+    yield* applyStartActionResponseEffect(submitted.response, options);
     return submitted.result;
   });
 }
@@ -277,7 +277,7 @@ export namespace StartAction {
 
         const value = submitted.result;
         if (submissions.acceptsStateUpdate(submission)) {
-          yield* hydrateActionResponseEffect(submitted.response, {
+          yield* applyStartActionResponseEffect(submitted.response, {
             ...options,
             runtime
           });

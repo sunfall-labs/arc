@@ -3,11 +3,9 @@ import {
   ActionResult,
   type CoreDefinitionRegistry,
   isResourceRef,
-	  isResourceTag,
-	  Resource,
-	  ResourceTagIdentityTypeId,
-	  ResourceTagTypeId,
-	  Server,
+  isResourceTag,
+  Resource,
+  Server,
   ServerFunctionNotFound,
   ServerRpcProtocolError,
   ServerTransportError,
@@ -15,16 +13,14 @@ import {
   type AnyEffectUiRuntime,
   type EffectUiRuntime,
   type FormFieldErrors,
-  type ResourceInvalidation,
   type ResourceInvalidationCause,
-	  type ResourceInvalidationPlan,
+  type ResourceInvalidationPlan,
   type ResourceSnapshotCodecError,
-	  type ServerFunction
-	} from "@effect-ui/core";
+  type ServerFunction
+} from "@effect-ui/core";
 import { Cause, Data, Effect, Exit, Schema } from "effect";
 import {
   createStartHydrationPayload,
-  hydrateStartPayloadEffect,
   type StartCollectionHydrationOptions,
   type StartHydrationPayload
 } from "./hydration.js";
@@ -49,6 +45,11 @@ import {
 } from "./start-transport-endpoints.js";
 import type { StartRequestTraceFailureKind } from "./request-trace.js";
 import type { ServerRpcClientOptions } from "./start-fetch.js";
+
+export {
+  applyStartActionResponseEffect,
+  hydrateActionResponseEffect
+} from "./start-action-response-application.js";
 
 /**
  * Options for clients that submit Start actions.
@@ -1472,185 +1473,3 @@ export const decodeStartActionResponseEffect = <D extends StartActionDefinition>
       ActionDefinitionErrorValue<D>
     >
   );
-
-const startActionInvalidationTransportError = (
-  body: StartActionResponseBody,
-  target: unknown,
-  message: string
-): ServerTransportError =>
-  new ServerTransportError({
-    reason: "InvalidResponse",
-    message,
-    payload: {
-      body,
-      target
-    }
-  });
-
-const resourceTagIdentityFromStartTarget = (
-  target: Extract<StartActionInvalidationTarget, { readonly _tag: "Tag" }>
-) =>
-  target.key === target.name
-    ? {
-        _tag: "Unkeyed" as const,
-        name: target.name
-      }
-    : target.key.startsWith(`${target.name}:`)
-      ? {
-          _tag: "Keyed" as const,
-          name: target.name,
-          key: target.key.slice(target.name.length + 1)
-        }
-      : undefined;
-
-const malformedStartActionTagTransportError = (
-  body: StartActionResponseBody,
-  target: StartActionInvalidationTarget | StartActionInvalidationCause
-): ServerTransportError =>
-  startActionInvalidationTransportError(
-    body,
-    target,
-    "Start action invalidation metadata did not match the Resource tag key."
-  );
-
-const startActionInvalidationTargetEffect = (
-  body: StartActionResponseBody,
-  target: StartActionInvalidationTarget
-): Effect.Effect<ResourceInvalidation<any>, ServerTransportError> => {
-  if (target._tag === "Tag") {
-    const identity = resourceTagIdentityFromStartTarget(target);
-    if (identity === undefined) {
-      return Effect.fail(malformedStartActionTagTransportError(body, target));
-    }
-    return Effect.succeed({
-      [ResourceTagTypeId]: ResourceTagTypeId,
-      [ResourceTagIdentityTypeId]: identity,
-      name: target.name,
-      key: target.key
-    });
-  }
-
-  return Effect.flatMap(Resource.definitionEffect(target.family), (family) => {
-    if (!family) {
-      return Effect.fail(
-        startActionInvalidationTransportError(
-          body,
-          target,
-          "Start action invalidation metadata referenced an unknown Resource family."
-        )
-      );
-    }
-
-    const ref = family.ref(target.input);
-    return ref.key === target.key
-      ? Effect.succeed(ref)
-      : Effect.fail(
-          startActionInvalidationTransportError(
-            body,
-            target,
-            "Start action invalidation metadata did not match the Resource input."
-          )
-        );
-  });
-};
-
-const startActionInvalidationCauseEffect = (
-  body: StartActionResponseBody,
-  cause: StartActionInvalidationCause
-): Effect.Effect<void, ServerTransportError> => {
-  if (cause._tag === "Tag") {
-    return resourceTagIdentityFromStartTarget(cause) === undefined
-      ? Effect.fail(malformedStartActionTagTransportError(body, cause))
-      : Effect.void;
-  }
-
-  return Effect.flatMap(Resource.definitionEffect(cause.family), (family) =>
-    family
-      ? Effect.void
-      : Effect.fail(
-          startActionInvalidationTransportError(
-            body,
-            cause,
-            "Start action invalidation metadata referenced an unknown Resource family."
-          )
-        )
-  );
-};
-
-const validateStartActionInvalidationPlanEffect = (
-  body: StartActionResponseBody,
-  plan: StartActionInvalidationPlan | undefined
-): Effect.Effect<ReadonlyArray<ResourceInvalidation<any>>, ServerTransportError> =>
-  plan === undefined
-    ? Effect.succeed([])
-    : Effect.gen(function* () {
-        const targets = yield* Effect.forEach(
-          plan.targets,
-          (target) => startActionInvalidationTargetEffect(body, target)
-        );
-        yield* Effect.forEach(
-          plan.entries,
-          (entry) =>
-            Effect.gen(function* () {
-              yield* startActionInvalidationTargetEffect(body, {
-                _tag: "Ref",
-                key: entry.ref.key,
-                family: entry.ref.family,
-                input: entry.ref.input
-              });
-              yield* Effect.forEach(
-                entry.causes,
-                (cause) => startActionInvalidationCauseEffect(body, cause),
-                { discard: true }
-              );
-            }),
-          { discard: true }
-        );
-        return targets;
-      });
-
-const startActionHydrationTransportError = (
-  body: StartActionResponseBody,
-  cause: unknown
-): ServerTransportError =>
-  new ServerTransportError({
-    reason: "InvalidResponse",
-    message: "Start action response metadata could not be applied.",
-    cause,
-    payload: body
-  });
-
-export const hydrateActionResponseEffect = <FetchError = never, FetchRequirements = never, RuntimeError = never>(
-  body: StartActionResponseBody,
-  options: StartActionClientOptions<FetchError, FetchRequirements, RuntimeError>
-): Effect.Effect<void, ServerTransportError | RuntimeError> => {
-  const effect = Effect.gen(function* () {
-    const invalidationTargets = "invalidation" in body
-      ? yield* validateStartActionInvalidationPlanEffect(body, body.invalidation)
-      : [];
-
-    if ("hydration" in body && body.hydration !== undefined) {
-      yield* hydrateStartPayloadEffect(body.hydration, options).pipe(
-        Effect.mapError((error) => startActionHydrationTransportError(body, error))
-      );
-    }
-
-    const hydrationKeys = new Set(
-      "hydration" in body && body.hydration
-        ? body.hydration.resources.map((resource) => resource.key)
-        : []
-    );
-
-    if (invalidationTargets.length > 0) {
-      const plan = yield* Resource.planInvalidationEffect(invalidationTargets);
-      yield* Resource.runInvalidationPlanEffect({
-        targets: plan.targets,
-        entries: plan.entries.filter((entry) => !hydrationKeys.has(entry.ref.key))
-      });
-    }
-  });
-
-  return (options.runtime
-    ? options.runtime.provide(effect)
-    : effect) as Effect.Effect<void, ServerTransportError | RuntimeError>;
-};

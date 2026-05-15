@@ -11,9 +11,43 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 91, immediately after Review 90. Some older review
+The newest review is Review 92, immediately after Review 91. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 92: Start Action Response Application Module
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Start: added `packages/start/src/start-action-response-application.ts` as the
+  internal Start Action Response Application Module. It owns accepted action
+  response metadata application: invalidation target validation, Resource Tag
+  and Ref resolution, hydration payload application, hydrated-ref filtering,
+  and malformed metadata mapping to `ServerTransportError`.
+- Transport protocol: `packages/start/src/start-transport-protocol.ts` now
+  keeps action request/response DTOs, parsing, status policy, encoding, and
+  decoding while re-exporting the action response application helpers for
+  compatibility.
+- Action client: `packages/start/src/start-action-client.ts` now calls the
+  application Module explicitly for direct submissions and stateful
+  `StartAction.use(...)` submissions.
+- Review cleanup: the Start Action Response Application candidate is closed.
+  Fresh sweeps still leave Browser Router Host Adapter Facade, Core Action
+  Execution Workflow, DB Collection Change Feed Runtime, Devtools Public
+  Contract Module, and deeper focused public type-test ownership candidates.
+
+Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm vitest
+run packages/start/test/start.test.ts` (1 file / 130 tests), `pnpm
+typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first` over 221
+files, and `git diff --check` passed. Full `pnpm verify` passed: 11 package
+builds, workspace typecheck, public type tests, public API inventory audit,
+Effect-first audit over 221 files, 52 root test files / 856 tests,
+devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
+basic starter verify with 2 tests, React starter verify with 3 tests,
+project-console packaging/typecheck/tests/build with 4 files / 27 tests, and
+leak scans.
 
 ## Review 91: Start Diagnostics CLI Runner Module
 
@@ -31,9 +65,8 @@ Thirty-Sweep clean counter remains at 0.
   diagnostics/graph/impact command execution to the runner.
 - Review cleanup: the Start Diagnostics CLI Command Runner candidate is
   closed. Fresh sweeps still leave Browser Router Host Adapter Facade, Core
-  Action Execution Workflow, DB Collection Change Feed Runtime, Start Action
-  Response Application, Devtools Public Contract Module, and deeper focused
-  public type-test ownership candidates.
+  Action Execution Workflow, DB Collection Change Feed Runtime, Devtools Public
+  Contract Module, and deeper focused public type-test ownership candidates.
 
 Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm vitest
 run packages/start/test/start.test.ts` (1 file / 130 tests), `pnpm
