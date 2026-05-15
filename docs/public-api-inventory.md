@@ -358,9 +358,11 @@ Subpath exports:
   handlers preserve Start handler service requirements, and Node server error
   hooks accept pure values or Effects, not Promise-shaped callbacks.
 - `./virtual` owns virtual module typings only.
-- `effect-ui-start` owns diagnostics and agent graph CLI execution. The
-  internal runner is Effect-native; bin/host wrappers are compatibility
-  adapters around that Effect program.
+- `effect-ui-start` owns diagnostics and agent graph CLI execution. Its
+  bin/host wrapper defines the command tree with Effect v4 `Command`, `Flag`,
+  and `Argument` primitives, while the internal Start Diagnostics CLI Runner
+  Module owns parsed command execution, app graph diagnostics loading, agent
+  graph/impact projection, output formatting, and failure reporting.
 
 Release decisions:
 

@@ -69,7 +69,7 @@ Latest full gate on May 15, 2026:
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 219 package/example/script/type-test files;
+- Effect-first audit over 220 package/example/script/type-test files;
 - 52 root test files / 856 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
@@ -128,6 +128,11 @@ Latest full gate on May 15, 2026:
   secondary-index normalization, lookup-key encoding, duplicate-value dedupe,
   runtime/request-local bucket caches, index row reads, indexed join keys, and
   `UnknownCollectionIndex` now share one policy.
+- Review 91 extracted the internal Start Diagnostics CLI Runner Module and
+  moved `effect-ui-start` parsing onto Effect v4 `Command`, `Flag`, and
+  `Argument` primitives. Diagnostics loading, agent graph/impact projection,
+  JSON/text formatting, write effects, and failure reporting now live behind
+  the parsed CLI command runner while `cli.ts` remains the argv/bin adapter.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime

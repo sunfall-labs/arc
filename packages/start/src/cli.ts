@@ -1,27 +1,33 @@
 #!/usr/bin/env node
 import { pathToFileURL } from "node:url";
-import { Data, Effect } from "effect";
 import {
-  loadStartAppGraphDiagnosticsEffect,
-  type StartAppGraphDiagnosticsLoadError,
-  type LoadedStartAppGraphDiagnostics,
-  type LoadStartAppGraphDiagnosticsOptions
-} from "./vite.js";
+  Console,
+  Data,
+  Effect,
+  FileSystem,
+  Layer,
+  Option,
+  Path,
+  Ref,
+  Stdio,
+  Terminal
+} from "effect";
+import { Argument, CliError, Command, Flag } from "effect/unstable/cli";
+import { ChildProcessSpawner } from "effect/unstable/process";
 import {
-  createStartDiagnosticsReport,
-  formatStartDiagnosticsReport,
-  type StartDiagnosticsReport
-} from "./diagnostics-report.js";
-import { decodeStartAppGraphDiagnosticsDtoEffect } from "./app-graph.js";
-import {
-  createStartAgentGraphImpact,
-  createStartAgentGraph,
-  formatStartAgentGraphImpact,
-  formatStartAgentGraph,
-  queryStartAgentGraph,
   type StartAgentGraphQuery,
   type StartAgentGraphQueryKind
 } from "./agent-graph.js";
+import type {
+  LoadedStartAppGraphDiagnostics,
+  LoadStartAppGraphDiagnosticsOptions,
+  StartAppGraphDiagnosticsLoadError
+} from "./vite.js";
+import {
+  runStartDiagnosticsCliCommandEffect,
+  startDiagnosticsCliErrorPayload,
+  writeStartDiagnosticsCliLineEffect
+} from "./start-diagnostics-cli-runner.js";
 
 /** Parsed command supported by the `effect-ui-start` CLI. */
 export type StartCliCommand =
@@ -112,22 +118,7 @@ export const startDiagnosticsCliUsage = [
   "  -h, --help         Show this help message."
 ].join("\n");
 
-const readOptionValue = (
-  args: readonly string[],
-  index: number,
-  flag: string
-): readonly [string, number] => {
-  const value = args[index + 1];
-  if (value === undefined || value.startsWith("-")) {
-    throw new StartDiagnosticsCliUsageError({
-      message: `Expected a value after ${flag}.`,
-      guidance: startDiagnosticsCliUsage
-    });
-  }
-  return [value, index + 1] as const;
-};
-
-const graphQueryKinds = new Set<StartAgentGraphQueryKind>([
+const graphQueryKinds = [
   "action",
   "collection",
   "endpoint",
@@ -138,10 +129,12 @@ const graphQueryKinds = new Set<StartAgentGraphQueryKind>([
   "resource-tag",
   "route",
   "server-function"
-]);
+] as const satisfies ReadonlyArray<StartAgentGraphQueryKind>;
+
+const graphQueryKindSet = new Set<StartAgentGraphQueryKind>(graphQueryKinds);
 
 const isGraphQueryKind = (value: string): value is StartAgentGraphQueryKind =>
-  graphQueryKinds.has(value as StartAgentGraphQueryKind);
+  graphQueryKindSet.has(value as StartAgentGraphQueryKind);
 
 const queryFromPositionals = (
   positionals: readonly string[]
@@ -175,207 +168,300 @@ const queryFromPositionals = (
   return { text: first };
 };
 
+const startDiagnosticsCliCommandNames = new Set([
+  "diagnostics",
+  "graph",
+  "impact"
+]);
+
+const isStartDiagnosticsCliCommandName = (value: string): boolean =>
+  startDiagnosticsCliCommandNames.has(value);
+
+const isHelpFlag = (value: string | undefined): boolean =>
+  value === "-h" || value === "--help";
+
+const isTopLevelHelpRequest = (args: readonly string[]): boolean =>
+  args.length === 0 || isHelpFlag(args[0]);
+
+const isNestedHelpRequest = (args: readonly string[]): boolean =>
+  args[0] !== undefined &&
+  isStartDiagnosticsCliCommandName(args[0]) &&
+  args.slice(1).some(isHelpFlag);
+
+const makeUsageError = (message: string): StartDiagnosticsCliUsageError =>
+  new StartDiagnosticsCliUsageError({
+    message,
+    guidance: startDiagnosticsCliUsage
+  });
+
+const noopConsole: Console.Console = {
+  assert: () => undefined,
+  clear: () => undefined,
+  count: () => undefined,
+  countReset: () => undefined,
+  debug: () => undefined,
+  dir: () => undefined,
+  dirxml: () => undefined,
+  error: () => undefined,
+  group: () => undefined,
+  groupCollapsed: () => undefined,
+  groupEnd: () => undefined,
+  info: () => undefined,
+  log: () => undefined,
+  table: () => undefined,
+  time: () => undefined,
+  timeEnd: () => undefined,
+  timeLog: () => undefined,
+  trace: () => undefined,
+  warn: () => undefined
+};
+
+const noopTerminal = Terminal.make({
+  columns: Effect.succeed(80),
+  readInput: Effect.die("effect-ui-start CLI parser does not read interactive input"),
+  readLine: Effect.fail(new Terminal.QuitError()),
+  display: () => Effect.void
+});
+
+const noopChildProcessSpawner = ChildProcessSpawner.make(() =>
+  Effect.die("effect-ui-start CLI parser does not spawn child processes")
+);
+
+const startDiagnosticsCliCommandEnvironmentLayer = Layer.mergeAll(
+  FileSystem.layerNoop({}),
+  Path.layer,
+  Stdio.layerTest({}),
+  Layer.succeed(Terminal.Terminal)(noopTerminal),
+  Layer.succeed(ChildProcessSpawner.ChildProcessSpawner)(noopChildProcessSpawner)
+);
+
+interface StartDiagnosticsCliCommonConfig {
+  readonly root: Option.Option<string>;
+  readonly configFile: Option.Option<string>;
+  readonly mode: Option.Option<string>;
+  readonly json: boolean;
+  readonly pretty: boolean;
+}
+
+const commonStartDiagnosticsCliFlags = {
+  root: Flag.string("root").pipe(
+    Flag.withDescription("Vite project root. Defaults to the current directory."),
+    Flag.optional
+  ),
+  configFile: Flag.string("config").pipe(
+    Flag.withDescription("Vite config file. Use \"false\" to disable config loading."),
+    Flag.optional
+  ),
+  mode: Flag.string("mode").pipe(
+    Flag.withDescription("Vite mode to use while loading diagnostics."),
+    Flag.optional
+  ),
+  json: Flag.boolean("json").pipe(
+    Flag.withDescription("Print the resolved payload as JSON.")
+  ),
+  pretty: Flag.boolean("pretty").pipe(
+    Flag.withDescription("Pretty-print JSON output.")
+  )
+} as const;
+
+const commonOptionsFromCliConfig = (
+  config: StartDiagnosticsCliCommonConfig
+): StartDiagnosticsCliOptions => {
+  const root = Option.getOrUndefined(config.root);
+  const configFile = Option.getOrUndefined(config.configFile);
+  const mode = Option.getOrUndefined(config.mode);
+
+  return {
+    ...(root === undefined ? {} : { root }),
+    ...(configFile === undefined ? {} : { configFile: configFile === "false" ? false : configFile }),
+    ...(mode === undefined ? {} : { mode }),
+    json: config.json || config.pretty,
+    pretty: config.pretty
+  };
+};
+
+const commandFromCliConfigEffect = (
+  command: () => Exclude<StartCliCommand, { readonly _tag: "Help" }>
+): Effect.Effect<Exclude<StartCliCommand, { readonly _tag: "Help" }>, unknown> =>
+  Effect.try({
+    try: command,
+    catch: (cause) => cause
+  });
+
+const makeStartDiagnosticsCliCommand = (
+  handleCommand: (
+    command: Exclude<StartCliCommand, { readonly _tag: "Help" }>
+  ) => Effect.Effect<void, unknown>
+) => {
+  const emitCommand = (
+    command: () => Exclude<StartCliCommand, { readonly _tag: "Help" }>
+  ): Effect.Effect<void, unknown> =>
+    commandFromCliConfigEffect(command).pipe(Effect.flatMap(handleCommand));
+
+  const diagnostics = Command.make(
+    "diagnostics",
+    commonStartDiagnosticsCliFlags,
+    (config) =>
+      emitCommand(() => ({
+        _tag: "Diagnostics",
+        options: commonOptionsFromCliConfig(config)
+      }))
+  ).pipe(
+    Command.withDescription("Print app graph diagnostics and repair findings.")
+  );
+
+  const graph = Command.make(
+    "graph",
+    {
+      ...commonStartDiagnosticsCliFlags,
+      positionals: Argument.string("query").pipe(
+        Argument.variadic(),
+        Argument.withDescription("Optional graph kind and query text.")
+      ),
+      verbose: Flag.boolean("verbose").pipe(
+        Flag.withDescription("Print raw graph ids, facts, and edges for graph output.")
+      )
+    },
+    (config) =>
+      emitCommand(() => {
+        const positionals = config.positionals as ReadonlyArray<string>;
+        const query = queryFromPositionals(positionals);
+        return {
+          _tag: "Graph",
+          options: {
+            ...commonOptionsFromCliConfig(config),
+            verbose: config.verbose,
+            ...(query === undefined ? {} : { query })
+          }
+        };
+      })
+  ).pipe(
+    Command.withDescription("Print the agent-readable semantic app graph.")
+  );
+
+  const impact = Command.make(
+    "impact",
+    {
+      ...commonStartDiagnosticsCliFlags,
+      positionals: Argument.string("query").pipe(
+        Argument.variadic(),
+        Argument.withDescription("Required impact kind and query text.")
+      )
+    },
+    (config) =>
+      emitCommand(() => {
+        const positionals = config.positionals as ReadonlyArray<string>;
+        const query = queryFromPositionals(positionals);
+        if (query?.text === undefined || query.text.trim().length === 0) {
+          throw makeUsageError("Expected an impact query such as `impact route /projects/:id`.");
+        }
+        return {
+          _tag: "Impact",
+          options: {
+            ...commonOptionsFromCliConfig(config),
+            query
+          }
+        };
+      })
+  ).pipe(
+    Command.withDescription("Print edit impact for one route/action/resource/module.")
+  );
+
+  return Command.make("effect-ui-start").pipe(
+    Command.withDescription("Inspect Effect UI Start app graph diagnostics."),
+    Command.withExamples([
+      {
+        command: "effect-ui-start diagnostics --root examples/project-console",
+        description: "Print diagnostics for a Vite project."
+      },
+      {
+        command: "effect-ui-start graph route /projects/:id",
+        description: "Inspect a route in the semantic app graph."
+      },
+      {
+        command: "effect-ui-start impact action Project.rename --json",
+        description: "Print machine-readable impact for an action."
+      }
+    ]),
+    Command.withSubcommands([diagnostics, graph, impact])
+  );
+};
+
+const runStartDiagnosticsCliCommandGrammarEffect = (
+  command: ReturnType<typeof makeStartDiagnosticsCliCommand>,
+  args: readonly string[]
+): Effect.Effect<void, unknown> =>
+  Command.runWith(command, { version: "0.0.0" })(args).pipe(
+    Effect.provideService(Console.Console, noopConsole),
+    Effect.provide(startDiagnosticsCliCommandEnvironmentLayer)
+  );
+
+const usageErrorFromCliCause = (cause: unknown): StartDiagnosticsCliUsageError => {
+  if (cause instanceof StartDiagnosticsCliUsageError) {
+    return cause;
+  }
+
+  if (CliError.isCliError(cause)) {
+    if (cause._tag === "ShowHelp" && cause.errors.length > 0) {
+      return makeUsageError(cause.errors.map((error) => error.message).join("\n"));
+    }
+    return makeUsageError(cause.message);
+  }
+
+  if (cause instanceof Error) {
+    return makeUsageError(cause.message);
+  }
+
+  return makeUsageError(String(cause));
+};
+
+const rejectUnknownStartDiagnosticsCliCommandEffect = (
+  args: readonly string[]
+): Effect.Effect<void, StartDiagnosticsCliUsageError> => {
+  const command = args[0];
+  if (command !== undefined && !isStartDiagnosticsCliCommandName(command)) {
+    return Effect.fail(makeUsageError(`Unknown command "${command}".`));
+  }
+
+  return Effect.void;
+};
+
+/** Parses CLI argv into a diagnostics command or help request as an Effect. */
+export const parseStartDiagnosticsCliArgsEffect = (
+  args: readonly string[]
+): Effect.Effect<StartCliCommand, StartDiagnosticsCliUsageError> => {
+  if (isTopLevelHelpRequest(args) || isNestedHelpRequest(args)) {
+    return Effect.succeed({ _tag: "Help" });
+  }
+
+  return Effect.gen(function* () {
+    yield* rejectUnknownStartDiagnosticsCliCommandEffect(args);
+
+    const parsedCommandRef = yield* Ref.make<
+      Exclude<StartCliCommand, { readonly _tag: "Help" }> | undefined
+    >(undefined);
+    const command = makeStartDiagnosticsCliCommand((parsedCommand) =>
+      Ref.set(parsedCommandRef, parsedCommand)
+    );
+
+    yield* runStartDiagnosticsCliCommandGrammarEffect(command, args).pipe(
+      Effect.mapError(usageErrorFromCliCause)
+    );
+
+    const parsedCommand = yield* Ref.get(parsedCommandRef);
+    if (parsedCommand === undefined) {
+      return yield* Effect.fail(makeUsageError("Expected a diagnostics command."));
+    }
+
+    return parsedCommand;
+  });
+};
+
 /** Parses CLI argv into a diagnostics command or help request. */
 export const parseStartDiagnosticsCliArgs = (
   args: readonly string[]
-): StartCliCommand => {
-  if (args.length === 0 || args[0] === "-h" || args[0] === "--help") {
-    return { _tag: "Help" };
-  }
-
-  const command = args[0];
-  if (
-    command !== "diagnostics" &&
-    command !== "graph" &&
-    command !== "impact"
-  ) {
-    throw new StartDiagnosticsCliUsageError({
-      message: `Unknown command "${command}".`,
-      guidance: startDiagnosticsCliUsage
-    });
-  }
-
-  let root: string | undefined;
-  let configFile: string | false | undefined;
-  let mode: string | undefined;
-  let json = false;
-  let pretty = false;
-  let verbose = false;
-  const positionals: string[] = [];
-
-  for (let index = 1; index < args.length; index++) {
-    const arg = args[index]!;
-    if (arg === "-h" || arg === "--help") {
-      return { _tag: "Help" };
-    }
-    if (arg === "--json") {
-      json = true;
-      continue;
-    }
-    if (arg === "--pretty") {
-      pretty = true;
-      json = true;
-      continue;
-    }
-    if (arg === "--verbose" && command === "graph") {
-      verbose = true;
-      continue;
-    }
-    if (arg === "--root") {
-      const [value, nextIndex] = readOptionValue(args, index, arg);
-      root = value;
-      index = nextIndex;
-      continue;
-    }
-    if (arg.startsWith("--root=")) {
-      root = arg.slice("--root=".length);
-      continue;
-    }
-    if (arg === "--config") {
-      const [value, nextIndex] = readOptionValue(args, index, arg);
-      configFile = value === "false" ? false : value;
-      index = nextIndex;
-      continue;
-    }
-    if (arg.startsWith("--config=")) {
-      const value = arg.slice("--config=".length);
-      configFile = value === "false" ? false : value;
-      continue;
-    }
-    if (arg === "--mode") {
-      const [value, nextIndex] = readOptionValue(args, index, arg);
-      mode = value;
-      index = nextIndex;
-      continue;
-    }
-    if (arg.startsWith("--mode=")) {
-      mode = arg.slice("--mode=".length);
-      continue;
-    }
-    if (!arg.startsWith("-") && (command === "graph" || command === "impact")) {
-      positionals.push(arg);
-      continue;
-    }
-
-    throw new StartDiagnosticsCliUsageError({
-      message: `Unknown option "${arg}".`,
-      guidance: startDiagnosticsCliUsage
-    });
-  }
-
-  const baseOptions = {
-    ...(root === undefined ? {} : { root }),
-    ...(configFile === undefined ? {} : { configFile }),
-    ...(mode === undefined ? {} : { mode }),
-    json,
-    pretty
-  };
-
-  if (command === "graph") {
-    const query = queryFromPositionals(positionals);
-    return {
-      _tag: "Graph",
-      options: {
-        ...baseOptions,
-        verbose,
-        ...(query === undefined ? {} : { query })
-      }
-    };
-  }
-
-  if (command === "impact") {
-    const query = queryFromPositionals(positionals);
-    if (query?.text === undefined || query.text.trim().length === 0) {
-      throw new StartDiagnosticsCliUsageError({
-        message: "Expected an impact query such as `impact route /projects/:id`.",
-        guidance: startDiagnosticsCliUsage
-      });
-    }
-    return {
-      _tag: "Impact",
-      options: {
-        ...baseOptions,
-        query
-      }
-    };
-  }
-
-  return {
-    _tag: "Diagnostics",
-    options: baseOptions
-  };
-};
-
-const diagnosticOptions = (
-  options: StartDiagnosticsCliOptions
-): LoadStartAppGraphDiagnosticsOptions => ({
-  ...(options.root === undefined ? {} : { root: options.root }),
-  ...(options.configFile === undefined ? {} : { configFile: options.configFile }),
-  ...(options.mode === undefined ? {} : { mode: options.mode })
-});
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
-
-const errorPayload = (cause: unknown): Record<string, unknown> => {
-  if (cause instanceof Error) {
-    return {
-      name: cause.name,
-      message: cause.message,
-      ...("violations" in cause ? { violations: (cause as { readonly violations: unknown }).violations } : {})
-    };
-  }
-
-  if (isRecord(cause) && typeof cause.message === "string") {
-    return {
-      name: typeof cause.name === "string"
-        ? cause.name
-        : typeof cause._tag === "string"
-          ? cause._tag
-          : "Error",
-      message: cause.message,
-      ...("violations" in cause ? { violations: cause.violations } : {})
-    };
-  }
-
-  return {
-    name: "UnknownError",
-    message: String(cause)
-  };
-};
-
-const diagnosticsReportFromErrorEffect = (
-  cause: unknown
-): Effect.Effect<StartDiagnosticsReport | undefined> =>
-  isRecord(cause)
-    ? decodeStartAppGraphDiagnosticsDtoEffect({
-        diagnostics: cause.diagnostics,
-        diagnosticsPolicyViolations: "violations" in cause ? cause.violations : []
-      }).pipe(
-        Effect.map(createStartDiagnosticsReport),
-        Effect.catch(() => Effect.succeed(undefined))
-      )
-    : Effect.succeed(undefined);
-
-const loadDiagnosticsFromIo = (
-  io: StartDiagnosticsCliIo
-): ((
-  options: LoadStartAppGraphDiagnosticsOptions
-) => Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsLoadError>) => {
-  if (io.loadDiagnosticsEffect) {
-    return io.loadDiagnosticsEffect;
-  }
-
-  return loadStartAppGraphDiagnosticsEffect;
-};
-
-const writeLineEffect = (
-  write: (text: string) => void,
-  text: string
-): Effect.Effect<void> =>
-  Effect.sync(() => {
-    write(text);
-  });
+): StartCliCommand =>
+  Effect.runSync(parseStartDiagnosticsCliArgsEffect(args));
 
 /**
  * Runs the Start diagnostics CLI as an Effect.
@@ -390,120 +476,26 @@ export const runStartDiagnosticsCliEffect = (
   Effect.gen(function* () {
     const stdout = io.stdout ?? ((text) => process.stdout.write(`${text}\n`));
     const stderr = io.stderr ?? ((text) => process.stderr.write(`${text}\n`));
-    const load = loadDiagnosticsFromIo(io);
 
-    const parsed = yield* Effect.try({
-      try: () => parseStartDiagnosticsCliArgs(args),
-      catch: (cause) => cause
-    }).pipe(
+    const parsed = yield* parseStartDiagnosticsCliArgsEffect(args).pipe(
       Effect.map((command) => ({ _tag: "Success" as const, command })),
       Effect.catch((cause) => Effect.succeed({ _tag: "Failure" as const, cause }))
     );
 
     if (parsed._tag === "Failure") {
-      const payload = errorPayload(parsed.cause);
-      yield* writeLineEffect(stderr, `${payload.message}\n\n${startDiagnosticsCliUsage}`);
+      const payload = startDiagnosticsCliErrorPayload(parsed.cause);
+      yield* writeStartDiagnosticsCliLineEffect(stderr, `${payload.message}\n\n${startDiagnosticsCliUsage}`);
       return { exitCode: 1 };
     }
 
     const command = parsed.command;
 
     if (command._tag === "Help") {
-      yield* writeLineEffect(stdout, startDiagnosticsCliUsage);
+      yield* writeStartDiagnosticsCliLineEffect(stdout, startDiagnosticsCliUsage);
       return { exitCode: 0 };
     }
 
-    const loaded = yield* load(diagnosticOptions(command.options)).pipe(
-      Effect.map((result) => ({ _tag: "Success" as const, result })),
-      Effect.catch((cause) => Effect.succeed({ _tag: "Failure" as const, cause }))
-    );
-
-    if (loaded._tag === "Success") {
-      if (command._tag === "Graph" || command._tag === "Impact") {
-        const agentGraph = createStartAgentGraph(loaded.result);
-        if (command._tag === "Impact") {
-          const impact = createStartAgentGraphImpact(
-            agentGraph,
-            command.options.query,
-            command.options.root === undefined
-              ? {}
-              : { root: command.options.root }
-          );
-          if (command.options.json) {
-            yield* writeLineEffect(
-              stdout,
-              JSON.stringify(impact, null, command.options.pretty ? 2 : 0)
-            );
-          } else {
-            yield* writeLineEffect(stdout, formatStartAgentGraphImpact(impact));
-          }
-          return { exitCode: 0 };
-        }
-
-        if (command.options.json) {
-          yield* writeLineEffect(
-            stdout,
-            JSON.stringify(
-              command.options.query === undefined
-                ? agentGraph
-                : {
-                    graph: agentGraph,
-                    result: queryStartAgentGraph(agentGraph, command.options.query)
-                  },
-              null,
-              command.options.pretty ? 2 : 0
-            )
-          );
-        } else {
-          yield* writeLineEffect(
-            stdout,
-            formatStartAgentGraph(
-              agentGraph,
-              command.options.query === undefined
-                ? { verbose: command.options.verbose }
-                : { query: command.options.query, verbose: command.options.verbose }
-            )
-          );
-        }
-        return { exitCode: 0 };
-      }
-
-      const result = loaded.result;
-      if (command.options.json) {
-        yield* writeLineEffect(
-          stdout,
-          JSON.stringify(result, null, command.options.pretty ? 2 : 0)
-        );
-      } else {
-        yield* writeLineEffect(
-          stdout,
-          formatStartDiagnosticsReport(createStartDiagnosticsReport(result))
-        );
-      }
-      return { exitCode: 0 };
-    }
-
-    const cause = loaded.cause;
-    const payload = errorPayload(cause);
-    const report = yield* diagnosticsReportFromErrorEffect(cause);
-    if (command.options.json) {
-      yield* writeLineEffect(
-        stderr,
-        JSON.stringify(
-          { ok: false, error: payload, ...(report === undefined ? {} : { report }) },
-          null,
-          command.options.pretty ? 2 : 0
-        )
-      );
-    } else {
-      yield* writeLineEffect(
-        stderr,
-        report === undefined
-          ? `Effect UI Start diagnostics failed: ${payload.message}`
-          : `Effect UI Start diagnostics failed: ${payload.message}\n\n${formatStartDiagnosticsReport(report)}`
-      );
-    }
-    return { exitCode: 1 };
+    return yield* runStartDiagnosticsCliCommandEffect(command, io);
   });
 
 /** Alias for `runStartDiagnosticsCliEffect` on the current CLI surface. */
