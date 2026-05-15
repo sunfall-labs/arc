@@ -48,8 +48,11 @@ file, this inventory, and a focused `type-tests/*.test-d.ts` file; package
 bins may omit an import-shaped type test only with an explicit reason. The
 public API inventory audit verifies the manifest against package
 `exports`/`bin` maps and checks that each focused type-test file imports the
-entrypoint it claims to cover. The broad `type-tests/framework.test-d.ts` file
-remains as cross-package integration coverage.
+entrypoint it claims to cover. It also checks that every package root barrel's
+local re-exported modules are named in that package's Source Surface section so
+hover/LSP docs cannot drift from exported source files. The broad
+`type-tests/framework.test-d.ts` file remains as cross-package integration
+coverage.
 
 ## Source Surface By Package
 
@@ -200,6 +203,13 @@ Release decisions:
 
 The root export includes:
 
+- Local source modules: `action-manifest`, `agent-graph`, `app-graph`,
+  `diagnostics-report`, `effect-rpc-compat`, `file-route`,
+  `file-route-modules`, `file-routes`, `hydration`, `render-hydration-plan`,
+  `request-trace`, `rpc`, `server-function-manifest`, `start-action-client`,
+  `start-collection-resolution`, `start-fetch`, `start-request-handler`,
+  `start-rpc-client`, `start-transport-endpoints`,
+  `start-transport-protocol`, and `streaming`.
 - hydration, streaming, server-function manifest, action manifest, app graph,
   agent graph, diagnostics report, file-route module helpers, and file-route
   definitions;
@@ -440,6 +450,12 @@ Release decisions:
 
 The root export includes:
 
+- Local source modules: `change-feed-dispatcher`, `collection-contract`,
+  `collection-errors`, `collection-ids`, `collection-persistence`,
+  `collection-preload`, `collection-reactive-binding`, `collection-registry`,
+  `collection-snapshot-codec`, `collection-state`, `flush-policy`,
+  `live-query-collection`, `query-builder`, `query-plan`,
+  `server-collection`, and `sqlite-persistence`.
 - `Collection`, `Query`, live query types, collection snapshots, hydration, and
   persistence configuration;
 - sync adapters, server collection helpers, SQLite persistence helpers, and
@@ -552,6 +568,8 @@ Release decisions:
 
 The root export includes:
 
+- Local source modules: `app-graph-normalizer`, `bridge`, `panel-contract`,
+  `panel-renderer`, `serialization`, and `summary`.
 - `makeDevtoolsStore`, snapshot APIs, summary APIs, causal graph APIs, and
   panel APIs with Effect wrappers;
 - panel contract ids, severities, guards, and bridge payload normalization:
@@ -666,6 +684,7 @@ Release decisions:
 
 The root export includes:
 
+- Local source modules: `hooks`, `link`, `router`, and `runtime`.
 - `RuntimeProvider`, `createEffectRuntime`, `useRuntime`, component scopes, and
   core re-exports used by React apps;
 - router APIs: `createBrowserRouter`, `RouterProvider`, `RouterOutlet`,
@@ -710,6 +729,7 @@ Release decisions:
 
 The root export includes:
 
+- Local source modules: `collection` and `live-query`.
 - `useCollection`, `useLiveQuery`, collection/live-query handles, and preload
   options;
 - `Collection` and `Query` re-exports for adapter-local ergonomics.
@@ -729,6 +749,7 @@ Release decisions:
 
 The root export includes:
 
+- Local source modules: `hooks`, `link`, `router`, and `runtime`.
 - `RuntimeProvider`, `createEffectRuntime`, `useRuntime`, component scopes, and
   core re-exports used by Solid apps;
 - router APIs: `createBrowserRouter`, `RouterProvider`, `RouterOutlet`,
@@ -792,6 +813,7 @@ Release decisions:
 
 The root export includes:
 
+- Local source modules: `collection` and `live-query`.
 - `useCollection`, `useLiveQuery`, collection/live-query handles, and preload
   options;
 - `Collection` and `Query` re-exports for adapter-local ergonomics.

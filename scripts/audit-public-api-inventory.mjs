@@ -152,7 +152,7 @@ for (const [key, entry] of expectedBins) {
 
 const sectionForPackage = (packageName) => {
   const escaped = packageName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const pattern = new RegExp(`^### \`${escaped}\`\\n([\\s\\S]*?)(?=^### \`|^## |\\z)`, "m");
+  const pattern = new RegExp(`^### \`${escaped}\`\\n([\\s\\S]*?)(?=^### \`|^## |(?![\\s\\S]))`, "m");
   return inventory.match(pattern)?.[1] ?? "";
 };
 
@@ -165,13 +165,26 @@ const exportedModules = (entrypoint) => {
   return [...new Set(modules)].sort();
 };
 
-const coreSection = sectionForPackage("@effect-ui/core");
-if (coreSection.length === 0) {
-  failures.push("@effect-ui/core section is missing from docs/public-api-inventory.md");
-} else {
-  for (const moduleName of exportedModules(join(root, "packages/core/src/index.ts"))) {
-    if (!coreSection.includes(`\`${moduleName}\``)) {
-      failures.push(`@effect-ui/core root export ${moduleName} is not classified in its Source Surface section`);
+for (const [key, entry] of expectedEntrypoints) {
+  const [packageName, exportPath] = key.split("\0");
+  if (exportPath !== "." || !existsSync(join(root, entry.source))) {
+    continue;
+  }
+
+  const rootExportedModules = exportedModules(join(root, entry.source));
+  if (rootExportedModules.length === 0) {
+    continue;
+  }
+
+  const packageSection = sectionForPackage(packageName);
+  if (packageSection.length === 0) {
+    failures.push(`${packageName} section is missing from docs/public-api-inventory.md`);
+    continue;
+  }
+
+  for (const moduleName of rootExportedModules) {
+    if (!packageSection.includes(`\`${moduleName}\``)) {
+      failures.push(`${packageName} root export ${moduleName} is not classified in its Source Surface section`);
     }
   }
 }

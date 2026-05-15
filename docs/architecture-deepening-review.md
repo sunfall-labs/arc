@@ -11,9 +11,41 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 87, immediately after Review 86. Some older review
+The newest review is Review 88, immediately after Review 87. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 88: Public API Source Surface Coverage Gate
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Audit: generalized `scripts/audit-public-api-inventory.mjs` so every package
+  root barrel's local re-exported modules must be named in that package's
+  Source Surface section. This extends the previous Core-only source-surface
+  guard to Start, DB, Devtools, React, React DB, Solid, and Solid DB.
+- Audit fix: replaced the non-JavaScript `\z` end-of-input regex escape in the
+  inventory section parser with a real end-of-input sentinel, so package
+  sections are not accidentally truncated at ordinary `z` characters.
+- Docs: `docs/public-api-inventory.md` now names the root-local source modules
+  for every package barrel that exports them, keeping LSP/hover-facing docs
+  aligned with actual source modules.
+- Review cleanup: the Public API Source Surface Coverage Gate candidate is
+  closed. Fresh sweeps still leave Browser Router Host Adapter Facade, Core
+  Action Execution Workflow, DB Collection Secondary Index Materialization, DB
+  Collection Value Detachment, DB Collection Change Feed Runtime, Start Action
+  Response Application, Start Diagnostics CLI Command Runner, Devtools Public
+  Contract Module, and deeper focused public type-test ownership candidates.
+
+Focused verification: `pnpm audit:public-api`, `pnpm audit:effect-first`, and
+`git diff --check` passed. Full `pnpm verify` passed: 11 package builds,
+workspace typecheck, public type tests, public API inventory audit,
+Effect-first audit over 217 files, 52 root test files / 856 tests,
+devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
+basic starter verify with 2 tests, React starter verify with 3 tests,
+project-console packaging/typecheck/tests/build with 4 files / 27 tests, and
+leak scans.
 
 ## Review 87: React Route Render Scope Controller
 
@@ -33,9 +65,8 @@ Thirty-Sweep clean counter remains at 0.
   Fresh sweeps also found Browser Router Host Adapter Facade, Core Action
   Execution Workflow, DB Collection Secondary Index Materialization, DB
   Collection Value Detachment, DB Collection Change Feed Runtime, Start Action
-  Response Application, Start Diagnostics CLI Command Runner, Public API Source
-  Surface Coverage Gate, Devtools Public Contract Module, and deeper focused
-  public type-test ownership candidates.
+  Response Application, Start Diagnostics CLI Command Runner, Devtools Public
+  Contract Module, and deeper focused public type-test ownership candidates.
 
 Focused verification: `pnpm --filter @effect-ui/react typecheck`, `pnpm vitest
 run packages/react/test/router.test.ts` (1 file / 7 tests), `pnpm

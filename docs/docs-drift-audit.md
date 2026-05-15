@@ -33,8 +33,9 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     source adapter, Review 80 request runtime lifecycle, Review 81 resource UI
     binding controller, Review 82 start host runtime runner, Review 83 start
     node web exchange, Review 84 query execution plan, Review 85 solid route
-    render scope controller, Review 86 public API type-test manifest, and
-    Review 87 react route render scope controller sweeps.
+    render scope controller, Review 86 public API type-test manifest, Review 87
+    react route render scope controller, and Review 88 public API source
+    surface coverage gate sweeps.
 
 ## Current Sweep Results
 
@@ -292,7 +293,10 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   Scope Controller extraction. React public API docs now name the internal
   Module that owns route `UiScope`, keyed route frame remounting, runtime
   provider re-entry, and route finalizer policy.
-- Updated current-facing verification snapshots after Review 87 full
+- Added Review 88 and progress entry 327 evidence for the Public API Source
+  Surface Coverage Gate. Public API docs now name root-local source modules for
+  every package barrel that exports them.
+- Updated current-facing verification snapshots after Review 88 full
   verification so the latest gate points at the 217-file Effect-first audit and
   52 root test files / 856 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are

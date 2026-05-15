@@ -116,6 +116,10 @@ Latest full gate on May 15, 2026:
   `RouterOutlet` now delegates route branch rendering, route-owned `UiScope`
   creation, keyed route frame remounting, runtime provider re-entry, and route
   finalizer policy while public React router APIs stay unchanged.
+- Review 88 added a public API source-surface coverage gate: every package root
+  barrel's local re-exported modules must now be named in the package's Source
+  Surface docs, so exported source modules and LSP-facing explanations drift
+  together.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime
