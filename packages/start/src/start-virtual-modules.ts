@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 import {
+  describeStartAppGraph,
   serializeStartAppGraph as serializeStartAppGraphArtifact,
   type StartAppGraph
 } from "./app-graph.js";
@@ -13,7 +14,9 @@ import {
 } from "./file-routes.js";
 import {
   createFileRouteDefinitionsModule,
-  createFileRouteModuleReferences
+  createFileRouteModuleReferences,
+  isFileRouteDefinitionsModuleError,
+  type FileRouteDefinitionsModuleError
 } from "./file-route-modules.js";
 import {
   makeStartActionManifestEffect,
@@ -36,16 +39,19 @@ export const actionManifestVirtualModuleId = "virtual:effect-ui/actions";
 export const fileRouteManifestVirtualModuleId = "virtual:effect-ui/file-routes";
 export const fileRouteDefinitionsVirtualModuleId = "virtual:effect-ui/routes";
 export const appGraphVirtualModuleId = "virtual:effect-ui/app-graph";
+export const appGraphRuntimeDiagnosticsVirtualModuleId = "virtual:effect-ui/app-graph/runtime-diagnostics";
 
 const resolvedServerFunctionManifestVirtualModuleId = `\0${serverFunctionManifestVirtualModuleId}`;
 const resolvedActionManifestVirtualModuleId = `\0${actionManifestVirtualModuleId}`;
 const resolvedFileRouteManifestVirtualModuleId = `\0${fileRouteManifestVirtualModuleId}`;
 const resolvedFileRouteDefinitionsVirtualModuleId = `\0${fileRouteDefinitionsVirtualModuleId}`;
 const resolvedAppGraphVirtualModuleId = `\0${appGraphVirtualModuleId}`;
+const resolvedAppGraphRuntimeDiagnosticsVirtualModuleId = `\0${appGraphRuntimeDiagnosticsVirtualModuleId}`;
 
 export type StartVirtualModuleLoadError =
   | StartAppGraphError
-  | StartBuildPolicyError;
+  | StartBuildPolicyError
+  | FileRouteDefinitionsModuleError;
 
 export const resolveStartVirtualModuleId = (id: string): string | null => {
   switch (id) {
@@ -59,6 +65,8 @@ export const resolveStartVirtualModuleId = (id: string): string | null => {
       return resolvedFileRouteDefinitionsVirtualModuleId;
     case appGraphVirtualModuleId:
       return resolvedAppGraphVirtualModuleId;
+    case appGraphRuntimeDiagnosticsVirtualModuleId:
+      return resolvedAppGraphRuntimeDiagnosticsVirtualModuleId;
     default:
       return null;
   }
@@ -105,6 +113,20 @@ export const createFileRouteDefinitionsVirtualModule = (
   manifest: FileRouteManifest
 ): string => createFileRouteDefinitionsModule(manifest, { importMode: "rootAbsolute" });
 
+const createFileRouteDefinitionsVirtualModuleEffect = (
+  manifest: FileRouteManifest
+): Effect.Effect<string, FileRouteDefinitionsModuleError> =>
+  Effect.suspend(() => {
+    try {
+      return Effect.succeed(createFileRouteDefinitionsVirtualModule(manifest));
+    } catch (cause) {
+      if (isFileRouteDefinitionsModuleError(cause)) {
+        return Effect.fail(cause);
+      }
+      throw cause;
+    }
+  });
+
 const diagnosticsPolicyLiteral = (
   policy: StartBuildPolicy | undefined
 ): string =>
@@ -112,6 +134,24 @@ const diagnosticsPolicyLiteral = (
 
 /** Creates the Vite virtual module source for the resolved Start app graph. */
 export const createStartAppGraphVirtualModule = (
+  graph: StartAppGraph,
+  _policy?: StartBuildPolicy
+): string => {
+  const serialized = serializeStartAppGraphArtifact(graph);
+  const diagnostics = JSON.stringify(describeStartAppGraph(graph));
+  return [
+    `export const graph = ${serialized};`,
+    `export const diagnostics = ${diagnostics};`,
+    "export const diagnosticsPolicyViolations = [];",
+    "export const routes = graph.routes;",
+    "export const serverFunctions = graph.serverFunctions;",
+    "export const actions = graph.actions;",
+    "export default graph;"
+  ].join("\n");
+};
+
+/** Creates the runtime diagnostics virtual module that explicitly loads route implementations. */
+export const createStartAppGraphRuntimeDiagnosticsVirtualModule = (
   graph: StartAppGraph,
   policy?: StartBuildPolicy
 ): string => {
@@ -161,6 +201,21 @@ export const createStartAppGraphVirtualModule = (
   ].join("\n");
 };
 
+const createStartAppGraphRuntimeDiagnosticsVirtualModuleEffect = (
+  graph: StartAppGraph,
+  policy?: StartBuildPolicy
+): Effect.Effect<string, FileRouteDefinitionsModuleError> =>
+  Effect.suspend(() => {
+    try {
+      return Effect.succeed(createStartAppGraphRuntimeDiagnosticsVirtualModule(graph, policy));
+    } catch (cause) {
+      if (isFileRouteDefinitionsModuleError(cause)) {
+        return Effect.fail(cause);
+      }
+      throw cause;
+    }
+  });
+
 export const loadStartVirtualModuleEffect = (
   id: string,
   options: EffectUiStartOptions = {}
@@ -182,14 +237,22 @@ export const loadStartVirtualModuleEffect = (
         createFileRouteManifestVirtualModule
       );
     case resolvedFileRouteDefinitionsVirtualModuleId:
-      return Effect.map(
+      return Effect.flatMap(
         makeStartFileRouteManifestEffect(options),
-        createFileRouteDefinitionsVirtualModule
+        createFileRouteDefinitionsVirtualModuleEffect
       );
     case resolvedAppGraphVirtualModuleId:
       return Effect.map(
         makeStartBuildAppGraphEffect(options),
         (graph) => createStartAppGraphVirtualModule(
+          graph,
+          normalizeStartBuildPolicy(options.buildPolicy)
+        )
+      );
+    case resolvedAppGraphRuntimeDiagnosticsVirtualModuleId:
+      return Effect.flatMap(
+        makeStartBuildAppGraphEffect(options),
+        (graph) => createStartAppGraphRuntimeDiagnosticsVirtualModuleEffect(
           graph,
           normalizeStartBuildPolicy(options.buildPolicy)
         )

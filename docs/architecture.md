@@ -58,8 +58,9 @@ Effect UI should stay unusually strict in these places:
 - resources and collections live in the active runtime/store, never global
   process state;
 - actions own mutation policy, optimistic work, invalidation, and result shape;
-- public async APIs return Effects;
-- Promise boundaries are explicit host or platform adapters;
+- public async APIs return Effect v4 values;
+- Promise boundaries are compatibility adapters for host or platform contracts,
+  never alternate framework APIs;
 - generated artifacts are deterministic and source-attributed;
 - devtools use public Effect streams and app graph facts;
 - tests mock services through layers and contracts.
@@ -99,10 +100,17 @@ return project.match({
 TSRX remains the authoring language for component templates, while Effect handles
 retry, cancellation, scoped cleanup, error recovery, and server boundaries.
 
+Core owns the Resource UI Binding Controller used by React and Solid resource
+hooks. That Module keeps ref identity, runtime-bound refresh/prefetch Effects,
+automatic preload fibers, keyed preload failures, stale preload interruption,
+and Suspense preload-token dedupe consistent across adapters. React and Solid
+still own host reactivity and host Suspense thenable throwing.
+
 Framework callbacks are intentionally Effect-typed. `Resource.load`,
 `Action.run`, `Server.implement` handlers, and route preload should return
-`Effect` or a pure value. Promise APIs are converted with `Effect.tryPromise` at
-the adapter edge, not hidden inside application definitions.
+`Effect` or a pure value. Promise-shaped host work is converted with
+`Effect.tryPromise` at the adapter edge, not hidden inside application
+definitions.
 
 Schemas carry nominal meaning, not only runtime validation. Domain identifiers
 that cross framework seams should use `Schema.brand`, so route params, resource
@@ -131,11 +139,15 @@ browser sessions, and test runtimes from sharing hidden process-global async
 state.
 
 Start creates a Request Runtime for every SSR or RPC request. A Request Runtime
-shares the app's Effect services but gets a fresh Resource Store. Route preload,
-render, server functions, hydration payload creation, and synchronous
-`Resource.read(...)` during render all run through that request runtime, then
-the Resource Store is disposed at request completion to interrupt any lifetime
-fibers.
+shares the app's Effect services but gets a fresh Resource Store and a
+request-local `Server.localClient(...)`. Route preload, render, server
+functions, hydration payload creation, and synchronous `Resource.read(...)`
+during render all run through that request runtime, then the Resource Store is
+disposed at request completion to interrupt any lifetime fibers. Internally,
+the Request Runtime Lifecycle Module owns failure/interruption teardown,
+ResponseContext application, request trace emission, runtime disposal, and
+streamed response finalization after the request handler has selected the
+response Effect to run.
 
 Request and response facts are ordinary services. `RequestContext` exposes the
 current `Request`, parsed `URL`, headers, and cookies. `ResponseContext` lets
@@ -167,14 +179,15 @@ adapter cancels it. This keeps server render streams, deferred hydration chunks,
 resource GC fibers, and request-local services alive for the actual lifetime of
 the HTTP response.
 
-The runtime is the one place where host boundaries are allowed to run Effects:
+The Runtime Spine is the one place where host boundaries are allowed to run Effects:
 
-- Server function Promise calls use the current runtime.
+- Server function host calls run through the current runtime.
 - `Resource.prefetch` / `refresh` use the current runtime.
-- `Action.use(...).submit` can run on an explicit runtime.
+- `Action.use(...).submitEffect` can run on an explicit runtime.
 - Start request handlers run SSR preload and render through `app.runtime`.
 - Solid `RuntimeProvider` / `RouterProvider` pass the runtime to resources,
-  actions, route preloads, and route components.
+  actions, route preloads, route components, and ambient Core helpers used while
+  rendering those components.
 
 That means services, tagged errors, request context, scopes, retries, and
 fibers all flow through one Effect-native execution model instead of being
@@ -244,15 +257,24 @@ leaving the Start request path. It also exposes read-only `invalidation` and
 `hydration` signals for the latest successful response, giving devtools and UI
 code the same causal facts carried by the transport.
 
+JSON action clients and progressive form helpers share the same Start Action
+Request Codec. Schema-backed input encoding happens before values cross the
+wire/form seam; synchronous form helpers fail with `StartActionFormEncodeError`
+when defaults cannot be encoded.
+The RPC and action browser clients also share a private Start client transport
+Module for request serialization, fetch invocation, status validation, and
+transport error mapping; the protocol Modules still own RPC/action-specific
+request and response decoding.
+
 The small `startActionForm(action, { input })` helper generates the form method,
 action URL, and hidden metadata fields. Visible form controls are merged over
 the hidden JSON input before schema decode, so a form can carry stable values
 such as `id` and `redirectTo` while the user edits fields like `name`.
 
 This is the progressive enhancement seam: with JavaScript, the Solid handler can
-intercept and call `Action.use(...).submit`; without JavaScript, the same form
-posts to Start and runs the same Action Definition, Capability services,
-schemas, retries, and invalidation policy.
+intercept and fork or run `Action.use(...).submitEffect`; without JavaScript,
+the same form posts to Start and runs the same Action Definition, Capability
+services, schemas, retries, and invalidation policy.
 
 ## Resource Dependency Graph
 
@@ -339,9 +361,11 @@ runtime-native signals.
 
 ## Component Runtime
 
-Every mounted component gets a `UiScope` backed by Effect `Scope`. Closing the UI
-scope closes the Effect scope, so finalizers run and scoped fibers are
-interrupted.
+Components that call `createComponentScope(...)`, `useRuntimeEffect(...)`,
+`useStream(...)`, or render through `RouterOutlet` get a `UiScope` backed by
+Effect `Scope`. Closing the UI scope closes the Effect scope, so finalizers run
+and scoped fibers are interrupted. Plain Solid components stay unscoped until
+they opt into one of those Solid Adapter seams.
 
 ```ts
 const title = Signal.make("Effect UI")
@@ -370,6 +394,24 @@ Resource families keep a synchronous signal for UI reads, but their backing
 cache is Effect `Cache` stored in the current Resource Store. `prefetchEffect`
 uses `Cache.get`, `refreshEffect` uses `Cache.refresh`, failures are not
 retained as cache hits, and `gcFor` is applied as the Effect cache TTL.
+In-flight loads are Resource Store-owned: callers join the store fiber, so
+interrupting one caller detaches that caller without cancelling work for
+navigation or another consumer. Resource deletion, invalidation, and Resource
+Store disposal remain the cancellation seams for the underlying load.
+Synchronous Resource reads and status checks still stay render-friendly, but
+their lifetime decisions use the active Runtime Spine clock so custom Effect
+clocks agree with `statusEffect(...)`. Missing synchronous reads use a peek-first
+path and do not register absent Resource refs as live store facts. Effect code
+should use `Resource.readEffect(...)` so missing, pending, collected, and failed
+states stay in the typed Effect error channel.
+
+Default Resource keys are encoded through a Resource key codec rather than raw
+object stringification. JSON-compatible values plus Date, URL, Map, and Set have
+tagged stable encodings; unsupported or circular inputs fail with
+`ResourceKeyError` and guidance to provide an explicit `key`.
+The more general `stableStringify(...)` identity helper now follows the same
+structured policy for Date, URL, Map, Set, binary values, undefined, sparse
+array holes, marker-shaped plain objects, and typed unsupported-value failures.
 
 Visible resource entry GC is also Effect-native. Successful loads fork an
 immediately-started, interruptible `Effect.sleep(gcFor)` fiber; refreshes,
@@ -389,22 +431,26 @@ reading private cache maps.
 progressive resource payloads:
 
 ```ts
-const response = yield* createHtmlResponseEffect({
+const response = yield* createStartStreamedHtmlResponseEffect({
   shell: "<!doctype html><html><body>",
-  chunks: Stream.make(
-    htmlChunk("<main>ready</main>"),
-    streamHydrationChunk(payload)
-  ),
+  chunks: Stream.make(htmlChunk("<main>ready</main>")),
+  hydrationPlan,
   tail: "</body></html>"
 })
 ```
 
 The core Interface is `createHtmlStreamEffect`, which returns an Effect `Stream`
 of bytes. `createReadableHtmlStreamEffect` and `createHtmlResponseEffect` are
-host adapters. Shell, chunk, and tail failures become typed `StartStreamError`
-values, so streaming remains Effect-native until the final web platform seam.
+host adapters. `createStartStreamedHtmlResponseEffect(...)` is the Start render
+helper that appends `StartRenderHydrationPlan` streamed chunks before the tail.
+Shell, chunk, and tail failures become typed `StartStreamError` values, so
+streaming remains Effect-native until the final web platform seam.
 When a Start render returns a streamed `Response`, the Request Runtime is held
-open until the body is consumed or cancelled.
+open until the body is consumed or cancelled, and finalizer/request-trace facts
+preserve the stream failure phase for diagnostics.
+Streaming renderers receive a `StartRenderHydrationPlan` that separates the root
+payload/script from streamed resource chunks, so adapters do not need to
+rediscover which Resource refs belong in the root document versus the stream.
 
 ## Router Runtime
 
@@ -427,8 +473,19 @@ Route.href(ProjectRoute, {
 The Solid adapter owns browser history through `RouterProvider`. On navigation it
 matches the route, runs `Route.preloadEffect` in an interruptible `UiScope`, then
 mounts the matched route component in a fresh route `UiScope`. Navigating away
-disposes the route scope, so streams, watches, actions, and scoped fibers close
+runs Solid cleanup inside that route runtime/scope before disposing the route
+scope, so cleanup callbacks, streams, watches, actions, and scoped fibers close
 with the page they belong to.
+Router navigation, link preload, and click interception share one route
+membership policy: unregistered links are allowed to behave as normal anchors,
+while programmatic navigation reports `RouterRouteNotRegistered`.
+
+Links use the same typed route definitions. `RouterLink` builds the href from a
+route plus `Route.HrefOptions`, preloads that route on hover in the router
+runtime, lets modified clicks and external targets behave like normal anchors,
+and intercepts only plain left clicks for client navigation. Route grammar
+rejects invalid or duplicate parameter names at definition/match planning time
+instead of allowing later segments to overwrite earlier params.
 
 Preload is also inspectable as a route data graph:
 
@@ -445,7 +502,9 @@ if (plan._tag === "Matched") {
 This runs route preload through `Resource.collectEffect`, so the framework can
 explain which resources a navigation touched and which hydration entries it
 would send before rendering the page. Start uses this same route plan for
-SSR preload. When `@effect-ui/start` is present, it separately composes
+SSR preload. If a touched resource cannot be serialized, planning fails through
+the typed `ResourceSnapshotCodecError` Effect error channel. When
+`@effect-ui/start` is present, it separately composes
 `Collection.collectEffect` around the route plan so DB collection preload can be
 observed without making `@effect-ui/core` depend on `@effect-ui/db`.
 
@@ -493,19 +552,36 @@ route-id/segment mismatches before the router sees them.
 The same manifest generates a typed route definition module. On Vite startup and
 build, Start writes `src/routeTree.gen.ts` by default, following the file-based
 routing convention of keeping generated route types in the project for editors,
-agents, and non-Vite tooling. Route files export a named `Route`, usually via
-`defineFileRoute("/projects/:id")({ ... })`; the generated file imports those
-route modules, checks each imported route's literal `path` against the manifest,
-and then emits a `routes` tuple, a `routeTree` alias, a `routeById` map, and a
-`routeByPath` map. The matching Vite virtual module `virtual:effect-ui/routes`
-exposes the same route surface with Vite-root absolute imports. Because the
-generated definitions keep the route module's schema-typed params/search,
-downstream code gets the existing `Route.href` param checking from
-`@effect-ui/core`. The generated file also exports app-specific type maps such
-as `FileRouteId`, `FileRoutePath`, `FileRouteParamsById`, `FileRouteSearchByPath`, and
-`FileRouteHrefOptionsById`, giving agents and editors a route-id/path indexed
-view without introducing a second runtime link abstraction. Apps can disable or
-move the generated file with
+agents, and non-Vite tooling. Route files export a named `Route`, usually by
+binding a builder so schemas, preload metadata, and preload work stay together:
+
+```ts
+const RouteBuilder = defineFileRoute("/projects/:id")
+
+export const Route = RouteBuilder({
+  ...RouteBuilder.preload({
+    params: ProjectRouteParams,
+    search: ProjectRouteSearch,
+    resources: ({ resource }) => [
+      resource(ProjectById, ({ params }) => params.id)
+    ],
+    collections: [ProjectSummaries]
+  })
+})
+```
+
+The generated file imports those route modules, checks each imported route's
+literal `path` against the manifest, and then emits a `routes` tuple, a
+`routeTree` alias, a `routeById` map, a `routeByPath` map, and direct typed href
+helpers such as `hrefById(...)` and `hrefByPath(...)`. The matching Vite virtual
+module `virtual:effect-ui/routes` exposes runtime helpers with Vite-root
+absolute imports. Precise app-specific route id, params, search, href, and match
+type maps live in the written `src/routeTree.gen.ts` module, where editors and
+non-Vite tooling can index them without relying on virtual-module inference. The
+generated file also exports friendly aliases such as `RouteId`, `RoutePath`,
+`ParamsById`, `SearchByPath`, `Href`, `HrefById`, `HrefByPath`, and `Match`,
+giving agents and editors a route-id/path indexed view without introducing a
+second runtime link abstraction. Apps can disable or move the generated file with
 `effectUiStart({ fileRouteGeneration: { outputFile: false } })` or a custom
 `outputFile`.
 
@@ -546,23 +622,27 @@ const ProjectRoute = route("/projects/:id", {
 })
 ```
 
-Matched routes can also declare concrete Collection Definitions with
-`preloadCollections`; Start resolves those declarations from the DB registry,
-preloads any that the route did not already touch, and dehydrates their
-request-runtime snapshots. Handlers can still pass explicit collection
-definitions as a registry or override. Registered collections are always
-dehydrated, route-declared collections are included next, and route-touched
-collections that are not already registered or declared are appended:
+Matched routes can also declare Collection Definitions with `preloadCollections`;
+concrete definitions need no lookup, while string declarations must resolve
+through the request/app-local `collections`, `collectionRegistry`, or
+`resolveCollection` inputs. Start fails unresolved string declarations with
+`StartPreloadError` instead of consulting the process-global DB registry. It
+preloads resolved route declarations that the route did not already touch and
+dehydrates their request-runtime snapshots. Handlers can still pass explicit
+collection definitions as a registry or override. Registered collections are
+always dehydrated, route-declared collections are included next, and
+route-touched collections that are not already registered or declared are
+appended:
 
 ```ts
 createRequestHandler(app, {
   collections: [Projects, Tasks],
-  render: ({ collectionPreload, hydrationScript }) => {
+  render: ({ collectionPreload, legacyHydrationScript }) => {
     collectionPreload.routeTouchedCollections
     collectionPreload.routeDeclaredCollections
     collectionPreload.registeredCollections
     collectionPreload.dehydratedCollections
-    return html(hydrationScript)
+    return html(legacyHydrationScript)
   }
 })
 ```
@@ -580,10 +660,12 @@ hydrateFromDocument(document, "__EFFECT_UI_HYDRATION__", {
 })
 ```
 
-`createRequestHandler(app, { render })` passes renderers a `hydrationScript`
-string. Browser entrypoints can call `hydrateFromDocument(...)` before mounting
-the app, or `hydrateFromDocumentEffect(...)` when they want the host runtime to
-run the hydration Effect directly.
+`createRequestHandler(app, { render })` passes renderers a
+`legacyHydrationScript` string for full non-streaming payloads and a
+`hydrationRootScript`/`hydrationPlan` pair for streamed HTML. Browser
+entrypoints can call `hydrateFromDocument(...)` before mounting the app, or
+`hydrateFromDocumentEffect(...)` when they want the host runtime to run the
+hydration Effect directly.
 
 Streamed SSR chunks are emitted as JSON scripts with
 `data-effect-ui-hydration-chunk`. Browser entries that progressively inspect the
@@ -597,11 +679,13 @@ const chunks = hydrateStartHydrationChunksFromDocument(document, {
 ```
 
 The Effect form, `hydrateStartHydrationChunksFromDocumentEffect`, is for hosts
-that already run inside the browser runtime. Both helpers delegate each parsed
-Start hydration payload through the normal Start hydration transport, so
-resources and DB collection snapshots hydrate together. Consumed DOM chunks are
-marked with `data-effect-ui-hydration-consumed` by default, making repeated
-scans skip the same script unless `markConsumed: false` is passed.
+that already run inside the browser runtime. Streamed chunk hydration is
+progressive by design: each parsed Start hydration payload validates before that
+payload mutates Resource or Collection state, but a later chunk failure does not
+roll back chunks that already applied. Consumed DOM chunks are marked with
+`data-effect-ui-hydration-consumed` only after the full chunk scan succeeds,
+making repeated scans skip the same script unless `markConsumed: false` is
+passed.
 Malformed root hydration payload scripts fail with
 `StartHydrationPayloadParseError`; malformed streamed chunk scripts fail with
 `StartHydrationChunkParseError`; malformed Resource or Collection snapshots
@@ -615,10 +699,15 @@ state and Effect `Cache` entries.
 
 `createRequestHandlerEffect(app)` is the native Effect request boundary.
 `createRequestHandler(app)` is an alias for the same Effect-returning handler.
-Host facades can own the final runtime seam, so ordinary Fetch hosts receive a
-Promise-returning handler and ordinary Node HTTP hosts receive a `createServer`
-callback without repeating `runtime.runPromise(...)` or `runFork(...)` in every
-deployment file.
+Host facades can own the final runtime seam when a platform contract requires
+one, so Fetch hosts that require `(request) => Promise<Response>` and ordinary
+Node HTTP hosts that require a `createServer` callback do not repeat runtime
+launch policy in every deployment file. These facades are compatibility
+adapters, not alternate application APIs. The internal Start Host Runtime Runner
+is the shared Module for that final Effect-to-host step: Fetch/Vite host
+facades and Node/Vite callback facades delegate runtime selection,
+`Effect.runPromise(...)`, `runFork(...)`, and response Scope lifetime policy to
+it while adapters keep request/response translation local.
 When `defineApp({ server })` is present, Start provides it while running SSR
 preload and render work, so app services can be normal Effect `Layer`s.
 Every request gets a fresh Request Runtime, so SSR behaves like TanStack Start's
@@ -627,12 +716,16 @@ isomorphic request model without sharing cache state across users.
 Deployment adapter implementations live in `@effect-ui/start/adapters`.
 Application imports should prefer the host-shaped facades:
 `@effect-ui/start-fetch` for Fetch-style hosts and `@effect-ui/start-node` for
-Node HTTP. Edge-style hosts can wrap `createRequestHandlerEffect(app)` with
+Node HTTP. Effect-capable hosts should use `toFetchHandlerEffect(handler)` or
+`toFetchHandler(handler)`. Edge-style hosts that require a Promise-shaped
+export can wrap `createRequestHandlerEffect(app)` with
 `createFetchHandler(handler, { runtime })`, while Node HTTP servers use
 `createNodeServerHandler(handler, { runtime })`. The Effect-first
 `toFetchHandlerEffect`, `toFetchHandler`, `createNodeHandlerEffect`, and
-`createNodeHandler` functions remain the lower interfaces for hosts that want
-custom supervision. The Node adapter converts `IncomingMessage` to a Web
+`createNodeHandler` functions remain the canonical interfaces for hosts that
+want custom supervision. Host facades provide the per-request Scope themselves
+but require a typed runtime whenever the handler still needs app services. The
+Node adapter converts `IncomingMessage` to a Web
 `Request`, makes forwarded-origin trust explicit with `trustForwardedHeaders`,
 writes Web `Response`
 headers/status back to `ServerResponse`, streams response bodies with Node
@@ -705,11 +798,16 @@ export const getProjectLegacy = Server.fn("Project.get", {
 })
 ```
 
-On the server, Start provides a local `ServerClient` during request preload and
-render, so shared clients dispatch to registered local handlers through the
-Effect runtime. In the browser, `BrowserRpcLive` provides a fetch-backed
-`ServerClient` that posts to `POST /__effect-ui/rpc`. The resource/action/router
-code above does not change.
+On the server, Start provides a request-local `ServerClient` during request
+preload and render, so shared clients dispatch to registered local handlers
+through the Effect runtime even when the app runtime also provides a remote
+client service. In the browser, `BrowserRpcLive` provides a fetch-backed
+`ServerClient` that posts to the configured Start RPC endpoint, defaulting to
+`POST /__effect-ui/rpc`. Start action clients and progressive forms use the same
+shared endpoint policy, defaulting to `POST /__effect-ui/action`, so custom
+`rpcPath`/`actionPath` values can flow from manifests and handler options into
+clients without a second transport rule. The resource/action/router code above
+does not change.
 
 The Vite plugin treats `*.server.ts` / `*.server.tsx` as server-only modules.
 Client transforms fail if one enters the browser graph. Use a shared contract
@@ -719,8 +817,9 @@ only from the server entry so the handlers are registered for SSR and RPC.
 Start also has a production-shaped Server Function Manifest Module. It gives
 each function a deterministic `sf_*` id, records the server export, emits either
 RPC-only or browser-safe import client references, tracks whether input/output/
-error schemas exist, and rejects duplicate names, ids, and server module exports
-before bundling. The Start Vite plugin exposes the artifact as
+error schemas exist, and rejects duplicate names, ids, server module exports,
+and invalid import-client module/export references before bundling. The Start
+Vite plugin exposes the artifact as
 `__EFFECT_UI_SERVER_FUNCTIONS__` and as the Vite virtual module
 `virtual:effect-ui/server-functions`. Progressive action manifests mirror this
 for `Action.define(...)` values through `__EFFECT_UI_ACTIONS__` and
@@ -736,6 +835,11 @@ compile-time facts in one inspectable object. `deserializeStartAppGraph`
 round-trips the artifact and revalidates each nested manifest before tooling
 trusts it.
 
+Example-local graph summaries, such as the project-console SSR header helper,
+are narrow non-Vite fallbacks for tests and early server rendering. They should
+not grow into a second topology Interface; build-time and tooling consumers
+should use the generated Start App Graph instead.
+
 `describeStartAppGraph(graph)` turns that artifact into diagnostics: route
 paths, route ids, owning route files, path param metadata, server function
 ownership, action ownership, server-only modules, browser client modules,
@@ -743,16 +847,22 @@ RPC/action endpoints, and schema coverage for server functions and actions.
 Server function and action diagnostics include stable ids, server exports,
 client transport/import references, module kinds, and wire-schema completeness.
 Static graph diagnostics mark route-module features like params schemas, search
-schemas, preloads, declared preload resources/collections, and components as `unknown`; the
-`virtual:effect-ui/app-graph` module imports the route modules and exports the
-same `diagnostics` shape with those route-module facts resolved to `present` or
-`absent` for devtools and agents. Declared preload resource families are exposed
-as source-attributed route facts, and declared preload collections are exposed
-as route-to-collection facts, while runtime route plans continue to show the
-exact resource refs touched for a specific navigation. The virtual graph also
-includes static `Resource.diagnostics()` and `Collection.diagnostics()` facts so
-devtools can explain resource families, tags, and DB collection definitions
-without executing private stores. Builds can enforce static manifest policy with
+schemas, preloads, declared preload resources/collections, and components as
+`unknown`; the `virtual:effect-ui/app-graph` module stays a pure static DTO and
+does not import application route implementations. Runtime route-module facts
+are available only from the explicit
+`virtual:effect-ui/app-graph/runtime-diagnostics` module, which SSR-loads the
+route modules and resolves those feature flags to `present` or `absent` for
+devtools and agents that ask for runtime diagnostics. Declared preload resource
+families are exposed as source-attributed route facts, and declared preload
+collections are exposed as route-to-collection facts, while runtime route plans
+continue to show the exact resource refs touched for a specific navigation.
+Runtime diagnostics can also include static `Resource.diagnostics()` and
+`Collection.diagnostics()` facts so devtools can explain resource families,
+tags, and DB collection definitions without reading private stores. A shared
+diagnostics DTO decoder is used by Vite, CLI, and virtual modules instead of
+duplicate loose shape guards at each Adapter seam. Builds can enforce static
+manifest policy with
 `validateStartAppGraphWireSchemasEffect(graph)`, which fails with
 `StartAppGraphMissingWireSchemas` when required input/output schemas are absent;
 projects can opt into requiring error schemas too. Resolved route-module policy
@@ -760,7 +870,7 @@ lives on `StartBuildPolicy.diagnostics`. During Vite builds, the Start Vite
 Diagnostics Gate SSR-loads the resolved graph through Vite and fails the build
 if configured resource or collection preload declarations are still unknown,
 even when application code never imports `virtual:effect-ui/app-graph`. The
-generated virtual module exports `diagnosticsPolicyViolations` as a readonly
+runtime diagnostics virtual module exports `diagnosticsPolicyViolations` as a readonly
 `StartAppGraphDiagnosticsPolicyViolation[]` after the diagnostics policy guard
 succeeds; if the guard finds unknown preload declarations, module evaluation
 fails with the diagnostics-bearing policy exception instead.
@@ -777,6 +887,28 @@ owning route, action, or server module. The same report model is available from
 `@effect-ui/start/diagnostics-report` via `createStartDiagnosticsReport(...)`
 and `formatStartDiagnosticsReport(...)`, so CI bots can attach exact "what to
 edit" guidance without reverse-engineering the raw graph payload.
+For semantic inspection, the same resolved diagnostics can be projected into a
+Start Agent Graph:
+
+```sh
+effect-ui-start impact route /projects/:id
+effect-ui-start impact action Project.rename --json
+effect-ui-start graph route /projects/:id
+effect-ui-start graph route /projects/:id --verbose
+effect-ui-start graph action Project.rename --json
+```
+
+`createStartAgentGraph(...)` turns diagnostics into typed Route, Action,
+ServerFunction, ResourceFamily, ResourceTag, Collection, Endpoint, Module, and
+Finding nodes with deterministic edges and self-review facts. This is the
+agent-operable map: agents can query the app by framework meaning before they
+edit source files, while the underlying facts still come from the compile-time
+and Vite-resolved diagnostics pipeline. The default text output is intentionally
+brief and edit-oriented; `--verbose` exposes raw graph ids, facts, and edges for
+debugging. For the default agent workflow, `createStartAgentGraphImpact(...)`
+and `formatStartAgentGraphImpact(...)` compress a focused graph query into an
+edit brief: where to work, which contracts must hold, which neighboring nodes
+may be affected, and which framework checks should be rerun.
 
 Tests should mock contracts, not modules:
 
@@ -893,4 +1025,5 @@ const validation = ActionResult.fieldError("name", new ProjectNameTooShort({
 failure. `ActionResult.validateFormEffect(form)` turns a form validation failure
 into a success-channel `ValidationFailure`, and `ActionResult.withInvalidation`
 lets the result carry Resource invalidation targets into existing action
-workflows.
+workflows while preserving any services required by those invalidated Resource
+refs.

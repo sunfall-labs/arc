@@ -1,6 +1,5 @@
 import { Data, Effect, Fiber } from "effect";
 import type { ResourceInvalidationPlan } from "./resource.js";
-import type { EffectUiRuntime } from "./runtime.js";
 import { Signal, type ReadableSignal } from "./signal.js";
 
 /**
@@ -80,7 +79,7 @@ export interface ActionSubmissionController<I, A, E, P = ResourceInvalidationPla
   ) => Effect.Effect<void>;
   readonly clearCurrentEffect: (token: object) => Effect.Effect<void>;
   readonly resetEffect: () => Effect.Effect<void>;
-  readonly reset: <R, ER>(runtime: EffectUiRuntime<R, ER>) => void;
+  readonly reset: () => void;
 }
 
 export interface ActionSubmissionControllerOptions {
@@ -110,17 +109,28 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
   const invalidationPlan = Signal.make<P | undefined>(undefined);
   let version = 0;
   let currentSubmission: CurrentActionSubmission<A, E> | undefined;
+  const activeSubmissions = new Map<object, ActionSubmissionFiber<A, E>>();
 
   const concurrency = options.concurrency ?? "latest";
   const isLatest = (submission: ActionSubmissionRun<A, E>): boolean =>
     submission.version === version;
   const acceptsStateUpdate = (submission: ActionSubmissionRun<A, E>): boolean =>
     !submission.updateOnlyLatest || isLatest(submission);
-  const resetEffect = (): Effect.Effect<void> =>
+  const resetStateEffect = (): Effect.Effect<void> =>
     Effect.sync(() => {
       version++;
       invalidationPlan.set(undefined);
       state.set({ _tag: "Idle" });
+    });
+  const resetEffect = (): Effect.Effect<void> =>
+    Effect.gen(function* () {
+      const fibers = Array.from(activeSubmissions.values());
+      currentSubmission = undefined;
+      activeSubmissions.clear();
+      for (const fiber of fibers) {
+        yield* Fiber.interrupt(fiber);
+      }
+      yield* resetStateEffect();
     });
 
   return {
@@ -142,6 +152,7 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
           interruptStale: concurrency === "latest",
           updateOnlyLatest: true
         };
+        activeSubmissions.set(submission.clearToken, fiber);
 
         if (concurrency !== "parallel") {
           currentSubmission = {
@@ -169,7 +180,8 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
       }),
     interruptStaleEffect: (submission) =>
       Effect.suspend(() =>
-        submission.interruptStale && !isLatest(submission)
+        !activeSubmissions.has(submission.clearToken) ||
+        (submission.interruptStale && !isLatest(submission))
           ? Effect.fail(new ActionInterrupted({ actionName: options.actionName }))
           : Effect.void
       ),
@@ -203,18 +215,14 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
       }),
     clearCurrentEffect: (token) =>
       Effect.sync(() => {
+        activeSubmissions.delete(token);
         if (currentSubmission?.token === token) {
           currentSubmission = undefined;
         }
       }),
     resetEffect,
-    reset: (runtime) => {
-      const submission = currentSubmission;
-      if (submission?.fiber) {
-        void runtime.runFork(Fiber.interrupt(submission.fiber));
-      }
-      currentSubmission = undefined;
-      runtime.runSync(resetEffect());
+    reset: () => {
+      void Effect.runFork(resetEffect());
     }
   };
 };

@@ -5,10 +5,13 @@ export {
 } from "./request-trace.js";
 
 export * from "./hydration.js";
+export * from "./start-collection-resolution.js";
 export * from "./streaming.js";
+export * from "./render-hydration-plan.js";
 export * from "./server-function-manifest.js";
 export * from "./action-manifest.js";
 export * from "./app-graph.js";
+export * from "./agent-graph.js";
 export * from "./effect-rpc-compat.js";
 export * from "./diagnostics-report.js";
 export * from "./file-route-modules.js";
@@ -17,6 +20,8 @@ export * from "./file-route.js";
 export {
   /** Builds the inline script that transfers Start hydration payloads to HTML. */
   createHydrationScript,
+  /** Builds the inline hydration script inside Effect, surfacing serialization failures as typed errors. */
+  createHydrationScriptEffect,
   /** Combines resource and collection payloads into the Start hydration shape. */
   createStartHydrationPayload,
   /** Hydrates resources and collections from a Start payload as an Effect. */
@@ -35,6 +40,8 @@ export {
   createStreamHydrationScript,
   /** Parses ordered streamed hydration chunks from a document-like object. */
   readStartHydrationChunks,
+  /** Error raised when a Start hydration payload cannot be serialized for HTML. */
+  StartHydrationPayloadSerializeError,
   /** Start SSR hydration payload for resources and collections. */
   type StartHydrationPayload,
   /** Shared options for request preload and client hydration collections. */
@@ -59,6 +66,7 @@ export {
   FileRouteManifestInvalidSegment,
   FileRouteManifestParseError,
   FileRouteManifestDuplicateModuleRole,
+  FileRouteManifestRouteModuleMismatch,
   FileRouteId,
   FileRouteSourceId,
   describeFileRouteManifest,
@@ -133,6 +141,12 @@ export {
   describeStartActionInvalidationPlan,
   isServerActionRequest,
   isServerRpcRequest,
+  encodeStartActionFormInputEffect,
+  encodeStartActionInputEffect,
+  encodeStartActionPartialInputEffect,
+  encodeStartActionRequestEffect,
+  StartActionDuplicateName,
+  StartActionFormEncodeError,
   startActionForm,
   startActionInputField,
   startActionNameField,
@@ -171,6 +185,7 @@ export {
   makeStartRequestId,
   makeStartRequestIdEffect,
   mediaTypeOf,
+  negotiateAcceptedMediaType,
   serverActionPath,
   serverRpcPath,
   startBaggageHeader,
@@ -181,6 +196,7 @@ export {
   startRequestIdHeader,
   startTraceparentHeader,
   startTransportDiagnosticsEffect,
+  startTransportEndpointEnvelopeEffect,
   startTransportKindHeader,
   startTransportProtocolHeader,
   startTransportProtocolVersion,
@@ -188,6 +204,7 @@ export {
   startTransportResponseHeaders,
   StartTransportRequestError,
   validateStartActionRequestEffect,
+  validateStartActionResponseEffect,
   validateStartRpcRequestEffect,
   validateStartRpcResponseEffect,
   validateStartTransportAcceptEffect,
@@ -195,9 +212,35 @@ export {
   validateStartTransportMethodEffect,
   withStartTransportDiagnostics,
   type StartTransportDiagnostics,
+  type StartTransportDiagnosticsOptions,
+  type StartTransportEndpointEnvelope,
   type StartTransportKind,
   type StartTransportRequestHeadersOptions
 } from "./rpc.js";
+
+export {
+  defaultStartTransportEndpoints,
+  isStartActionEndpointRequest,
+  isStartRpcEndpointRequest,
+  normalizeStartEndpointPath,
+  resolveStartActionEndpoint,
+  resolveStartRpcEndpoint,
+  resolveStartTransportEndpoints,
+  startEndpointPathGuidance,
+  startEndpointPathInvalidReason,
+  StartTransportEndpointPathError,
+  validateStartEndpointPathEffect,
+  type StartActionEndpointManifest,
+  type StartActionEndpointSource,
+  type StartEndpointPathErrorInput,
+  type StartEndpointPathInvalidReason,
+  type StartRpcEndpointSource,
+  type StartServerFunctionEndpointManifest,
+  type StartTransportEndpointManifestSource,
+  type StartTransportEndpointOverrides,
+  type StartTransportEndpoints,
+  type StartTransportEndpointSource
+} from "./start-transport-endpoints.js";
 
 export {
   Action,

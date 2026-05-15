@@ -31,6 +31,14 @@
       "types": "./dist/adapters.d.ts",
       "default": "./dist/adapters.js"
     },
+    "./fetch-adapter": {
+      "types": "./dist/fetch-adapter.d.ts",
+      "default": "./dist/fetch-adapter.js"
+    },
+    "./node-adapter": {
+      "types": "./dist/node-adapter.d.ts",
+      "default": "./dist/node-adapter.js"
+    },
     "./virtual": {
       "types": "./dist/virtual.d.ts",
       "default": "./dist/virtual.js"

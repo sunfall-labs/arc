@@ -125,21 +125,27 @@ Typed routers help catch bad links. Effect UI leans into that, but keeps schemas
 and generated route facts close to the app graph:
 
 ```ts
-export const Route = defineFileRoute("/projects/:id")({
-  params: Schema.Struct({ id: ProjectId }),
-  search: Schema.Struct({
-    tab: Schema.optional(Schema.Literals(["overview", "activity"]))
-  }),
-  preloadResources: [ProjectById],
-  preloadCollections: [ProjectSummaries],
-  preload: ({ params }) => preloadProjectRouteEffect(params)
+const RouteBuilder = defineFileRoute("/projects/:id")
+
+export const Route = RouteBuilder({
+  ...RouteBuilder.preload({
+    params: Schema.Struct({ id: ProjectId }),
+    search: Schema.Struct({
+      tab: Schema.optional(Schema.Literals(["overview", "activity"]))
+    }),
+    resources: ({ resource }) => [
+      resource(ProjectById, ({ params }) => params.id)
+    ],
+    collections: [ProjectSummaries]
+  })
 })
 ```
 
 The generated route file exposes maps such as `routeById`, `routeByPath`,
-params-by-id, search-by-path, and href options. The Start app graph can then
-tell diagnostics and agents which route owns params, search, preload resources,
-collections, server functions, actions, schemas, and modules.
+direct helpers such as `hrefByPath("/projects/:id", ...)`, params-by-id,
+search-by-path, route `Match` aliases, and href options. The Start app graph can
+then tell diagnostics and agents which route owns params, search, preload
+resources, collections, server functions, actions, schemas, and modules.
 
 That makes "what does this route touch?" a generated fact instead of an import
 hunt.
@@ -212,6 +218,83 @@ a component can own a scope, a resource can publish lifecycle facts, and an
 action can invalidate semantic tags. Local state does not become a separate
 mental model from server state and mutation state.
 
+## Compared With Foldkit
+
+Foldkit's strongest product idea is the frontend program loop: one model, typed
+messages, an update function, subscriptions, and a view that can stay boring.
+Effect UI now keeps that clarity as a headless Core primitive while routing the
+hard parts through Effect:
+
+```ts
+const ProjectProgram = Program.define({
+  initial: { selected: undefined as Project | undefined, loading: false },
+  update: (model, message: ProjectMessage) => {
+    switch (message._tag) {
+      case "Load":
+        return Program.next(
+          { ...model, loading: true },
+          Program.command(
+            ProjectApi.use((api) =>
+              Effect.map(api.get(message.id), (project) => ({ _tag: "Loaded", project }))
+            )
+          )
+        )
+      case "Loaded":
+        return { selected: message.project, loading: false }
+    }
+  },
+  subscriptions: (model) =>
+    model.selected ? ProjectEvents.changes(model.selected.id) : undefined
+})
+```
+
+The Solid adapter is intentionally small:
+
+```tsx
+const program = useProgram(ProjectProgram)
+
+return <button onClick={() => program.dispatch({ _tag: "Load", id })}>
+  {program.model().loading ? "Loading" : "Open"}
+</button>
+```
+
+So the public shape is Foldkit-simple, but commands can require app services,
+subscriptions are Effect streams, failures are typed state, and cleanup follows
+the active UI scope/runtime rather than becoming a separate frontend runtime.
+
+The test shape now follows the same model:
+
+```ts
+const story = Program.story(ProjectProgram)
+const load = yield* story.send({ _tag: "Load", id: "atlas" })
+
+expect(load.commands).toHaveLength(1)
+yield* story.resolve(load.commands[0]!)
+expect(read(story.model).selected?.id).toBe("atlas")
+```
+
+That keeps Foldkit's "story test" clarity while preserving Effect services and
+typed command failures instead of inventing a separate frontend-only test
+runtime.
+
+At runtime, the same Program exposes an inspectable timeline:
+
+```ts
+program.timeline().map((event) => event._tag)
+// ["Message", "CommandStarted", "CommandCompleted", "Message"]
+```
+
+That closes the biggest remaining frontend-architecture polish gap: apps and
+devtools can watch the Program think without reaching into private state.
+Devtools does that through the public Effect API:
+
+```ts
+yield* store.trackProgramEffect(program)
+```
+
+Those rows go through the same bounded/redacted Devtools serialization contract
+as request traces and action inputs.
+
 ## Compared With Solid
 
 Solid's fine-grained reactivity is a great fit for this project. Effect UI uses
@@ -228,7 +311,7 @@ return (
   <form
     onSubmit={(event) => {
       event.preventDefault()
-      void runtime.runPromise(rename.submitEffect({ id: props.id, name: nextName() }))
+      void runtime.runFork(rename.submitEffect({ id: props.id, name: nextName() }))
     }}
   >
     <button disabled={renameState()._tag === "Pending"}>Save</button>

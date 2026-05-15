@@ -1,17 +1,23 @@
-import { Effect, PubSub } from "effect";
+import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import { disposeResourceStoreEffect, makeResourceStore } from "../src/index.js";
+import {
+  disposeResourceStoreEffect,
+  makeResourceStore,
+  makeRuntime,
+  Resource
+} from "../src/index.js";
 
 describe("Resource Store disposal", () => {
   it("shuts down its event pubsub", () => {
     const store = makeResourceStore();
 
-    expect(PubSub.isShutdownUnsafe(store.events)).toBe(false);
+    expect(store.eventBus.isShutdownUnsafe()).toBe(false);
 
     return Effect.runPromise(
       Effect.gen(function* () {
         yield* disposeResourceStoreEffect(store);
-        expect(PubSub.isShutdownUnsafe(store.events)).toBe(true);
+        const shutdown = yield* store.diagnostics.eventBusShutdownEffect;
+        expect(shutdown).toBe(true);
         yield* disposeResourceStoreEffect(store);
       })
     );
@@ -19,16 +25,65 @@ describe("Resource Store disposal", () => {
 
   it("shuts down its event pubsub when a module finalizer fails", () => {
     const store = makeResourceStore();
-    store.modules.set(Symbol("failing-module"), {
+    let secondFinalizerRan = false;
+    store.moduleRegistry.register(Symbol("failing-module"), {
       disposeEffect: Effect.fail("dispose failed")
+    });
+    store.moduleRegistry.register(Symbol("second-module"), {
+      disposeEffect: Effect.sync(() => {
+        secondFinalizerRan = true;
+      })
     });
 
     return Effect.runPromise(
       Effect.gen(function* () {
         yield* Effect.flip(disposeResourceStoreEffect(store));
-        expect(PubSub.isShutdownUnsafe(store.events)).toBe(true);
-        expect(store.modules.size).toBe(0);
+        const shutdown = yield* store.diagnostics.eventBusShutdownEffect;
+        const moduleCount = yield* store.diagnostics.moduleCountEffect;
+        expect(shutdown).toBe(true);
+        expect(moduleCount).toBe(0);
+        expect(secondFinalizerRan).toBe(true);
       })
     );
+  });
+
+  it("exposes stable diagnostics count snapshots without private store maps", async () => {
+    const runtime = makeRuntime();
+    const ProjectTag = Resource.tag("ResourceStore.diagnostics.project");
+    const Project = Resource.family({
+      name: "ResourceStore.diagnostics.project",
+      load: (id: string) => Effect.succeed({ id }),
+      provides: () => [ProjectTag]
+    });
+
+    runtime.resourceStore.moduleRegistry.register(Symbol("diagnostics-module"), {});
+
+    try {
+      await Effect.runPromise(
+        runtime.provide(Resource.prefetchEffect(Project("atlas")))
+      );
+
+      const snapshot = await Effect.runPromise(
+        runtime.resourceStore.diagnostics.snapshotEffect
+      );
+
+      expect(snapshot).toEqual({
+        fiberCount: 0,
+        familyCount: 1,
+        moduleCount: 1,
+        tagCount: 1
+      });
+      await expect(
+        Effect.runPromise(runtime.resourceStore.diagnostics.familyCountEffect)
+      ).resolves.toBe(1);
+      await expect(
+        Effect.runPromise(runtime.resourceStore.diagnostics.tagCountEffect)
+      ).resolves.toBe(1);
+      expect(runtime.resourceStore.diagnostics.snapshotUnsafe()).toEqual(snapshot);
+      expect(snapshot).not.toHaveProperty("families");
+      expect(snapshot).not.toHaveProperty("tagIndex");
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
   });
 });

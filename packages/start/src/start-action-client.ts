@@ -3,32 +3,32 @@ import {
   currentOrDefaultRuntime,
   makeActionSubmissionController,
   Server,
-  ServerTransportError,
   Signal,
   type ActionSubmissionFiber,
   type ActionSubmissionRun,
   type ActionSubmissionState,
+  type ActionDefinition,
+  type AnyEffectUiRuntime,
   type EffectUiRuntime,
   type ReadableSignal
 } from "@effect-ui/core";
 import { Effect, Fiber } from "effect";
 import type { StartHydrationPayload } from "./hydration.js";
-import { serverActionPath } from "./rpc.js";
-import {
-  callStartFetchEffect,
-  getStartTransportHeadersEffect as getRpcHeadersEffect,
-  resolveStartFetchEffect
-} from "./start-fetch.js";
+import { executeStartClientTransportEffect } from "./start-client-transport.js";
+import { resolveStartActionEndpoint } from "./start-transport-endpoints.js";
 import {
   decodeStartActionResponseEffect,
-  encodeWithSchema,
+  encodeStartActionRequestEffect,
   hydrateActionResponseEffect,
   parseStartActionResponse,
+  startActionForm,
   type ActionDefinitionErrorValue,
   type ActionDefinitionInputValue,
   type ActionDefinitionOutputValue,
   type StartActionClientOptions,
   type StartActionDefinition,
+  type StartActionForm,
+  type StartActionFormOptions,
   type StartActionInvalidationPlan,
   type StartActionRequest,
   type StartActionResponseBody,
@@ -43,67 +43,48 @@ interface SubmittedStartAction<D extends StartActionDefinition> {
   >;
 }
 
+type StartActionTransportRuntime<FetchRequirements, RuntimeError> =
+  | EffectUiRuntime<FetchRequirements, RuntimeError>
+  | AnyEffectUiRuntime<RuntimeError>;
+
+type StartActionClientOptionsWithRuntime<
+  FetchError,
+  FetchRequirements,
+  RuntimeError
+> =
+  StartActionClientOptions<FetchError, FetchRequirements, RuntimeError> &
+    (
+      | { readonly runtime: StartActionTransportRuntime<FetchRequirements, RuntimeError> }
+      | { readonly transportRuntime: StartActionTransportRuntime<FetchRequirements, RuntimeError> }
+    );
+
+type StartActionSubmitResult<D extends StartActionDefinition> =
+  StartActionResultFor<ActionDefinitionOutputValue<D>, ActionDefinitionErrorValue<D>>;
+
 const submitStartActionTransportEffect = <
   D extends StartActionDefinition,
   FetchError = never,
+  FetchRequirements = never,
   RuntimeError = never
 >(
   definition: D,
   input: ActionDefinitionInputValue<D>,
-  options: StartActionClientOptions<FetchError, RuntimeError> = {}
-): Effect.Effect<SubmittedStartAction<D>, Server.ClientError, unknown> =>
-  Effect.gen(function* () {
-    const fetcher = yield* resolveStartFetchEffect(
-      options.fetch,
-      "No fetch implementation is available for Start actions."
-    );
-
-    const encodedInput = yield* encodeWithSchema(definition.input, input);
-    const request: StartActionRequest = {
-      name: definition.name,
-      input: encodedInput
-    };
-    const body = yield* Effect.try({
-      try: () => JSON.stringify(request),
-      catch: (cause) =>
-        new ServerTransportError({
-          reason: "InvalidResponse",
-          message: "Could not encode the action request body.",
-          cause,
-          payload: request
-        })
-    });
-    const headers = yield* getRpcHeadersEffect(options);
-    const response = yield* callStartFetchEffect(
-      fetcher,
-      options.endpoint ?? serverActionPath,
-      {
-        method: "POST",
-        headers,
-        body,
+  options: StartActionClientOptions<FetchError, FetchRequirements, RuntimeError> = {}
+): Effect.Effect<SubmittedStartAction<D>, Server.ClientError | RuntimeError, FetchRequirements> => {
+  const transportRuntime = options.transportRuntime ?? options.runtime;
+  const workflow = Effect.gen(function* () {
+    const request: StartActionRequest = yield* encodeStartActionRequestEffect(definition, input);
+    const { body: actionResponse } = yield* executeStartClientTransportEffect({
+      kind: "action",
+      ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
+      ...(options.headers === undefined ? {} : { headers: options.headers }),
+      endpoint: resolveStartActionEndpoint(options),
+      request,
+      init: {
         redirect: "manual"
       },
-      (cause) =>
-        new ServerTransportError({
-          reason: "Network",
-          message: "Start action request failed.",
-          cause
-        })
-    );
-    const actionResponse = yield* parseStartActionResponse(response);
-
-    if (actionResponse._tag === "ServerError") {
-      return yield* Effect.fail(Server.deserializeServerError(actionResponse.error));
-    }
-
-    if (actionResponse._tag === "Defect") {
-      return yield* new ServerTransportError({
-        reason: "Defect",
-        status: response.status,
-        message: "Start action failed with a defect.",
-        payload: actionResponse.defect
-      });
-    }
+      parseResponse: parseStartActionResponse
+    });
 
     const result = yield* decodeStartActionResponseEffect(definition, actionResponse);
     return {
@@ -111,6 +92,11 @@ const submitStartActionTransportEffect = <
       response: actionResponse
     };
   });
+
+  return transportRuntime
+    ? transportRuntime.provide(workflow) as Effect.Effect<SubmittedStartAction<D>, Server.ClientError | RuntimeError, FetchRequirements>
+    : workflow;
+};
 
 /**
  * Submits a Start action over the action transport.
@@ -128,24 +114,53 @@ const submitStartActionTransportEffect = <
  * });
  * ```
  */
-export const submitStartActionEffect = <
+export function submitStartActionEffect<
   D extends StartActionDefinition,
   FetchError = never,
+  FetchRequirements = never,
   RuntimeError = never
 >(
   definition: D,
   input: ActionDefinitionInputValue<D>,
-  options: StartActionClientOptions<FetchError, RuntimeError> = {}
+  options: StartActionClientOptionsWithRuntime<FetchError, FetchRequirements, RuntimeError>
 ): Effect.Effect<
-  StartActionResultFor<ActionDefinitionOutputValue<D>, ActionDefinitionErrorValue<D>>,
-  Server.ClientError,
-  unknown
-> =>
-  Effect.gen(function* () {
+  StartActionSubmitResult<D>,
+  Server.ClientError | RuntimeError
+>;
+export function submitStartActionEffect<
+  D extends StartActionDefinition,
+  FetchError = never,
+  FetchRequirements = never,
+  RuntimeError = never
+>(
+  definition: D,
+  input: ActionDefinitionInputValue<D>,
+  options?: StartActionClientOptions<FetchError, FetchRequirements, RuntimeError>
+): Effect.Effect<
+  StartActionSubmitResult<D>,
+  Server.ClientError | RuntimeError,
+  FetchRequirements
+>;
+export function submitStartActionEffect<
+  D extends StartActionDefinition,
+  FetchError = never,
+  FetchRequirements = never,
+  RuntimeError = never
+>(
+  definition: D,
+  input: ActionDefinitionInputValue<D>,
+  options: StartActionClientOptions<FetchError, FetchRequirements, RuntimeError> = {}
+): Effect.Effect<
+  StartActionSubmitResult<D>,
+  Server.ClientError | RuntimeError,
+  FetchRequirements
+> {
+  return Effect.gen(function* () {
     const submitted = yield* submitStartActionTransportEffect(definition, input, options);
     yield* hydrateActionResponseEffect(submitted.response, options);
     return submitted.result;
   });
+}
 
 /** Stateful client helpers for Start actions. */
 export namespace StartAction {
@@ -154,27 +169,40 @@ export namespace StartAction {
     StartActionResultFor<ActionDefinitionOutputValue<D>, ActionDefinitionErrorValue<D>>;
 
   /** Signal state used by a Start action client instance. */
-  export type State<D extends StartActionDefinition> =
+  export type State<D extends StartActionDefinition, RuntimeError = never> =
     ActionSubmissionState<
       ActionDefinitionInputValue<D>,
       Result<D>,
-      Server.ClientError,
+      Server.ClientError | RuntimeError,
       StartActionInvalidationPlan
     >;
 
+  /** Progressive POST form description for a Start action definition. */
+  export type Form<D extends StartActionDefinition> = StartActionForm;
+
   /** Client-side action instance with state, metadata, and submissions. */
-  export interface Instance<D extends StartActionDefinition> {
+  export interface Instance<D extends StartActionDefinition, RuntimeError = never, Requirements = never> {
     readonly definition: D;
-    readonly state: ReadableSignal<State<D>>;
+    readonly state: ReadableSignal<State<D, RuntimeError>>;
     readonly invalidation: ReadableSignal<StartActionInvalidationPlan | undefined>;
     readonly hydration: ReadableSignal<StartHydrationPayload | undefined>;
     /** Submit through the action transport and update instance signals. */
-    submitEffect(input: ActionDefinitionInputValue<D>): Effect.Effect<Result<D>, Server.ClientError | ActionInterrupted, unknown>;
+    submitEffect(input: ActionDefinitionInputValue<D>): Effect.Effect<Result<D>, Server.ClientError | RuntimeError | ActionInterrupted, Requirements>;
     /** Reset state and clear response metadata. */
     resetEffect(): Effect.Effect<void>;
     /** Interrupt an in-flight submission, then reset synchronously. */
     reset(): void;
   }
+
+  /**
+   * Creates the hidden POST fields needed to submit a Start action from HTML.
+   *
+   * Alias for `startActionForm(...)` that keeps action-related helpers together.
+   */
+  export const form = <I, A, E, R>(
+    definition: ActionDefinition<I, A, E, R>,
+    options: StartActionFormOptions<I> = {}
+  ): StartActionForm => startActionForm(definition, options);
 
   /**
    * Creates a stateful Start action client.
@@ -188,21 +216,41 @@ export namespace StartAction {
    * const result = yield* rename.submitEffect({ id: "atlas", name: "Atlas" });
    * ```
    */
-  export const use = <
+  export function use<
     D extends StartActionDefinition,
     FetchError = never,
+    FetchRequirements = never,
     RuntimeError = never
   >(
     definition: D,
-    options: StartActionClientOptions<FetchError, RuntimeError> = {}
-  ): Instance<D> => {
-    const runtime: EffectUiRuntime<unknown, RuntimeError> =
-      options.runtime ?? (currentOrDefaultRuntime() as EffectUiRuntime<unknown, RuntimeError>);
+    options: StartActionClientOptionsWithRuntime<FetchError, FetchRequirements, RuntimeError>
+  ): Instance<D, RuntimeError>;
+  export function use<
+    D extends StartActionDefinition,
+    FetchError = never,
+    FetchRequirements = never,
+    RuntimeError = never
+  >(
+    definition: D,
+    options?: StartActionClientOptions<FetchError, FetchRequirements, RuntimeError>
+  ): Instance<D, RuntimeError, FetchRequirements>;
+  export function use<
+    D extends StartActionDefinition,
+    FetchError = never,
+    FetchRequirements = never,
+    RuntimeError = never
+  >(
+    definition: D,
+    options: StartActionClientOptions<FetchError, FetchRequirements, RuntimeError> = {}
+  ): Instance<D, RuntimeError, FetchRequirements> {
+    const runtime =
+      options.runtime ?? (currentOrDefaultRuntime() as AnyEffectUiRuntime<RuntimeError>);
+    const transportRuntime = options.transportRuntime ?? options.runtime;
     const hydration = Signal.make<StartHydrationPayload | undefined>(undefined);
     const submissions = makeActionSubmissionController<
       ActionDefinitionInputValue<D>,
       Result<D>,
-      Server.ClientError,
+      Server.ClientError | RuntimeError,
       StartActionInvalidationPlan
     >({
       actionName: definition.name,
@@ -211,8 +259,8 @@ export namespace StartAction {
 
     const runWorkflow = (
       input: ActionDefinitionInputValue<D>,
-      submission: ActionSubmissionRun<Result<D>, Server.ClientError>
-    ): Effect.Effect<Result<D>, Server.ClientError | ActionInterrupted, unknown> =>
+      submission: ActionSubmissionRun<Result<D>, Server.ClientError | RuntimeError>
+    ): Effect.Effect<Result<D>, Server.ClientError | RuntimeError | ActionInterrupted, FetchRequirements> =>
       Effect.gen(function* () {
         yield* submissions.pendingEffect(submission, input);
         yield* Effect.sync(() => {
@@ -223,7 +271,7 @@ export namespace StartAction {
 
         const submitted = yield* submitStartActionTransportEffect(definition, input, {
           ...options,
-          runtime
+          ...(transportRuntime === undefined ? {} : { transportRuntime })
         });
         yield* submissions.interruptStaleEffect(submission);
 
@@ -244,7 +292,7 @@ export namespace StartAction {
 
         return value;
       }).pipe(
-        Effect.catch((error: Server.ClientError | ActionInterrupted): Effect.Effect<never, Server.ClientError | ActionInterrupted> => {
+        Effect.catch((error: Server.ClientError | RuntimeError | ActionInterrupted): Effect.Effect<never, Server.ClientError | RuntimeError | ActionInterrupted> => {
           if (error instanceof ActionInterrupted) {
             return Effect.fail(error);
           }
@@ -257,10 +305,10 @@ export namespace StartAction {
 
     const submitEffect = (
       input: ActionDefinitionInputValue<D>
-    ): Effect.Effect<Result<D>, Server.ClientError | ActionInterrupted, unknown> =>
+    ): Effect.Effect<Result<D>, Server.ClientError | RuntimeError | ActionInterrupted, FetchRequirements> =>
       Effect.suspend(() => {
         return Effect.withFiber((fiber) => {
-          const submissionFiber = fiber as ActionSubmissionFiber<Result<D>, Server.ClientError>;
+          const submissionFiber = fiber as ActionSubmissionFiber<Result<D>, Server.ClientError | RuntimeError>;
 
           return submissions.beginEffect(submissionFiber).pipe(
             Effect.flatMap((submission) => {
@@ -296,9 +344,9 @@ export namespace StartAction {
       submitEffect,
       resetEffect,
       reset: () => {
-        submissions.reset(runtime);
+        submissions.reset();
         hydration.set(undefined);
       }
     };
-  };
+  }
 }

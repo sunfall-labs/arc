@@ -11,19 +11,26 @@ import type {
 } from "./server-function-manifest.js";
 import { deserializeServerFunctionManifest, serializeServerFunctionManifest } from "./server-function-manifest.js";
 
+/** Static Start app graph artifact combining route, server function, and action manifests. */
 export interface StartAppGraph {
+  /** Graph schema version. */
   readonly version: 1;
+  /** File-route manifest used for generated routes and diagnostics. */
   readonly routes: FileRouteManifest;
+  /** Server function manifest used for RPC diagnostics. */
   readonly serverFunctions: ServerFunctionManifest;
+  /** Action manifest used for action transport diagnostics. */
   readonly actions: ActionManifest;
 }
 
+/** Inputs for creating a Start app graph artifact. */
 export interface StartAppGraphOptions {
   readonly routes: FileRouteManifest;
   readonly serverFunctions: ServerFunctionManifest;
   readonly actions: ActionManifest;
 }
 
+/** Count of total definitions and schemas present on wire-facing contracts. */
 export interface StartAppGraphSchemaCoverage {
   readonly total: number;
   readonly input: number;
@@ -31,8 +38,10 @@ export interface StartAppGraphSchemaCoverage {
   readonly error: number;
 }
 
+/** Whether a route feature is statically present, absent, or unknown until runtime. */
 export type StartAppGraphRouteFeaturePresence = "present" | "absent" | "unknown";
 
+/** Route-module diagnostics projected from static file routes and loaded runtime routes. */
 export interface StartAppGraphRouteDiagnostics {
   readonly routeId: string;
   readonly routePath: string;
@@ -52,8 +61,10 @@ export interface StartAppGraphRouteDiagnostics {
   readonly component: StartAppGraphRouteFeaturePresence;
 }
 
+/** Wire schema fields tracked for server function and action contracts. */
 export type StartAppGraphWireSchemaField = "input" | "output" | "error";
 
+/** Schema completeness diagnostics for one wire-facing contract. */
 export interface StartAppGraphWireDiagnostics {
   readonly inputSchema: boolean;
   readonly outputSchema: boolean;
@@ -62,6 +73,7 @@ export interface StartAppGraphWireDiagnostics {
   readonly missing: readonly StartAppGraphWireSchemaField[];
 }
 
+/** Server function diagnostics used by app graph virtual modules and devtools. */
 export interface StartAppGraphServerFunctionDiagnostics {
   readonly id: string;
   readonly name: string;
@@ -89,6 +101,7 @@ export interface StartAppGraphServerFunctionDiagnostics {
   readonly wire: StartAppGraphWireDiagnostics;
 }
 
+/** Action diagnostics used by app graph virtual modules and devtools. */
 export interface StartAppGraphActionDiagnostics {
   readonly id: string;
   readonly name: string;
@@ -116,12 +129,15 @@ export interface StartAppGraphActionDiagnostics {
   readonly behavior: ActionManifest["entries"][number]["behavior"];
 }
 
+/** Resource family diagnostics included in the Start app graph. */
 export type StartAppGraphResourceFamilyDiagnostics =
   import("@effect-ui/core").Resource.FamilyDiagnostics;
 
+/** Resource tag diagnostics included in the Start app graph. */
 export type StartAppGraphResourceTagDiagnostics =
   import("@effect-ui/core").Resource.TagDiagnostics;
 
+/** Collection diagnostics included in the Start app graph. */
 export type StartAppGraphCollectionDiagnostics =
   import("@effect-ui/db").Collection.DefinitionDiagnostics;
 
@@ -129,6 +145,7 @@ export type StartAppGraphCollectionDiagnostics =
 export const startAppGraphCollectionDefinitions = (): readonly StartAppGraphCollectionDiagnostics[] =>
   Collection.diagnostics().collections;
 
+/** Contract missing one or more input/output/error schemas. */
 export interface StartAppGraphMissingSchema {
   readonly kind: "serverFunction" | "action";
   readonly name: string;
@@ -137,6 +154,7 @@ export interface StartAppGraphMissingSchema {
   readonly error: boolean;
 }
 
+/** Action whose static behavior cannot be fully described. */
 export interface StartAppGraphUnknownActionBehaviorEntry {
   readonly kind: "action";
   readonly name: string;
@@ -146,6 +164,7 @@ export interface StartAppGraphUnknownActionBehaviorEntry {
   readonly concurrency: ActionManifest["entries"][number]["behavior"]["concurrency"];
 }
 
+/** Route whose preload resource declarations are unknown or incomplete. */
 export interface StartAppGraphUnknownRoutePreloadResourcesEntry {
   readonly kind: "route";
   readonly routeId: string;
@@ -156,6 +175,7 @@ export interface StartAppGraphUnknownRoutePreloadResourcesEntry {
   readonly preloadResources: import("@effect-ui/core").Route.PreloadResourceDiagnostics;
 }
 
+/** Route whose preload collection declarations are unknown or incomplete. */
 export interface StartAppGraphUnknownRoutePreloadCollectionsEntry {
   readonly kind: "route";
   readonly routeId: string;
@@ -166,6 +186,7 @@ export interface StartAppGraphUnknownRoutePreloadCollectionsEntry {
   readonly preloadCollections: import("@effect-ui/core").Route.PreloadCollectionDiagnostics;
 }
 
+/** Full diagnostic projection of a Start app graph for LSPs, CI, and devtools. */
 export interface StartAppGraphDiagnostics {
   readonly version: 1;
   readonly routeCount: number;
@@ -293,10 +314,29 @@ export type StartAppGraphDiagnosticsPolicyViolation =
       readonly routes: readonly StartAppGraphUnknownRoutePreloadCollectionsEntry[];
     };
 
-export interface StartAppGraphDiagnosticsPolicyException extends Error {
-  readonly name: "StartAppGraphDiagnosticsPolicyError";
+export class StartAppGraphDiagnosticsPolicyException extends Data.TaggedError(
+  "StartAppGraphDiagnosticsPolicyError"
+)<{
+  readonly message: string;
   readonly violations: readonly StartAppGraphDiagnosticsPolicyViolation[];
   readonly diagnostics: StartAppGraphDiagnostics;
+}> {}
+
+export class StartAppGraphDiagnosticsDtoError extends Data.TaggedError(
+  "StartAppGraphDiagnosticsDtoError"
+)<{
+  readonly message: string;
+  readonly value: unknown;
+}> {}
+
+export interface StartAppGraphDiagnosticsDtoInput {
+  readonly diagnostics: unknown;
+  readonly diagnosticsPolicyViolations?: unknown;
+}
+
+export interface StartAppGraphDiagnosticsDto {
+  readonly diagnostics: StartAppGraphDiagnostics;
+  readonly diagnosticsPolicyViolations: readonly StartAppGraphDiagnosticsPolicyViolation[];
 }
 
 export type StartAppGraphDeserializeError =
@@ -310,6 +350,279 @@ export type StartAppGraphDeserializeError =
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
+
+const diagnosticsDtoError = (
+  message: string,
+  value: unknown
+): StartAppGraphDiagnosticsDtoError =>
+  new StartAppGraphDiagnosticsDtoError({ message, value });
+
+const isStringArray = (value: unknown): value is readonly string[] =>
+  Array.isArray(value) && value.every((item) => typeof item === "string");
+
+const isFeaturePresence = (
+  value: unknown
+): value is StartAppGraphRouteFeaturePresence =>
+  value === "present" || value === "absent" || value === "unknown";
+
+const isWireSchemaField = (
+  value: unknown
+): value is StartAppGraphWireSchemaField =>
+  value === "input" || value === "output" || value === "error";
+
+const isRouteParamDiagnostics = (
+  value: unknown
+): value is StartAppGraphRouteDiagnostics["params"][number] =>
+  isRecord(value) &&
+  typeof value.name === "string" &&
+  typeof value.optional === "boolean";
+
+const isPreloadResourceDiagnostics = (
+  value: unknown
+): value is import("@effect-ui/core").Route.PreloadResourceDiagnostics =>
+  isRecord(value) &&
+  typeof value.status === "string" &&
+  isStringArray(value.families);
+
+const isPreloadCollectionDiagnostics = (
+  value: unknown
+): value is import("@effect-ui/core").Route.PreloadCollectionDiagnostics =>
+  isRecord(value) &&
+  typeof value.status === "string" &&
+  isStringArray(value.collections);
+
+const isRouteDiagnostics = (
+  value: unknown
+): value is StartAppGraphRouteDiagnostics =>
+  isRecord(value) &&
+  typeof value.routeId === "string" &&
+  typeof value.routePath === "string" &&
+  typeof value.moduleId === "string" &&
+  typeof value.filePath === "string" &&
+  typeof value.pathParamCount === "number" &&
+  typeof value.hasPathParams === "boolean" &&
+  Array.isArray(value.params) &&
+  value.params.every(isRouteParamDiagnostics) &&
+  isFeaturePresence(value.paramsSchema) &&
+  isFeaturePresence(value.searchSchema) &&
+  isFeaturePresence(value.preload) &&
+  isPreloadResourceDiagnostics(value.preloadResources) &&
+  isPreloadCollectionDiagnostics(value.preloadCollections) &&
+  isFeaturePresence(value.component);
+
+const isWireDiagnostics = (
+  value: unknown
+): value is StartAppGraphWireDiagnostics =>
+  isRecord(value) &&
+  typeof value.inputSchema === "boolean" &&
+  typeof value.outputSchema === "boolean" &&
+  typeof value.errorSchema === "boolean" &&
+  typeof value.complete === "boolean" &&
+  Array.isArray(value.missing) &&
+  value.missing.every(isWireSchemaField);
+
+const isServerFunctionDiagnostics = (
+  value: unknown
+): value is StartAppGraphServerFunctionDiagnostics => {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    typeof value.name !== "string" ||
+    !isRecord(value.server) ||
+    typeof value.server.module !== "string" ||
+    typeof value.server.exportName !== "string" ||
+    typeof value.server.moduleKind !== "string" ||
+    typeof value.server.hasHandler !== "boolean" ||
+    !isRecord(value.client) ||
+    !isWireDiagnostics(value.wire)
+  ) {
+    return false;
+  }
+
+  if (value.client._tag === "Rpc") {
+    return typeof value.client.rpcPath === "string";
+  }
+
+  return value.client._tag === "Import" &&
+    typeof value.client.rpcPath === "string" &&
+    typeof value.client.module === "string" &&
+    typeof value.client.exportName === "string" &&
+    typeof value.client.moduleKind === "string";
+};
+
+const isActionDiagnostics = (
+  value: unknown
+): value is StartAppGraphActionDiagnostics => {
+  if (
+    !isRecord(value) ||
+    typeof value.id !== "string" ||
+    typeof value.name !== "string" ||
+    !isRecord(value.server) ||
+    typeof value.server.module !== "string" ||
+    typeof value.server.exportName !== "string" ||
+    typeof value.server.moduleKind !== "string" ||
+    !isRecord(value.client) ||
+    !isWireDiagnostics(value.wire) ||
+    !isRecord(value.behavior) ||
+    typeof value.behavior.invalidates !== "string" ||
+    typeof value.behavior.optimistic !== "string" ||
+    typeof value.behavior.retry !== "string" ||
+    typeof value.behavior.concurrency !== "string"
+  ) {
+    return false;
+  }
+
+  if (value.client._tag === "Post") {
+    return typeof value.client.actionPath === "string";
+  }
+
+  return value.client._tag === "Import" &&
+    typeof value.client.actionPath === "string" &&
+    typeof value.client.module === "string" &&
+    typeof value.client.exportName === "string" &&
+    typeof value.client.moduleKind === "string";
+};
+
+const isSchemaCoverage = (
+  value: unknown
+): value is StartAppGraphSchemaCoverage =>
+  isRecord(value) &&
+  typeof value.total === "number" &&
+  typeof value.input === "number" &&
+  typeof value.output === "number" &&
+  typeof value.error === "number";
+
+const isMissingSchemaDiagnostics = (
+  value: unknown
+): value is StartAppGraphMissingSchema =>
+  isRecord(value) &&
+  (value.kind === "serverFunction" || value.kind === "action") &&
+  typeof value.name === "string" &&
+  typeof value.input === "boolean" &&
+  typeof value.output === "boolean" &&
+  typeof value.error === "boolean";
+
+const isUnknownActionBehaviorDiagnostics = (
+  value: unknown
+): value is StartAppGraphUnknownActionBehaviorEntry =>
+  isRecord(value) &&
+  value.kind === "action" &&
+  typeof value.name === "string" &&
+  typeof value.invalidates === "string" &&
+  typeof value.optimistic === "string" &&
+  typeof value.retry === "string" &&
+  typeof value.concurrency === "string";
+
+const isUnknownRoutePreloadResourcesDiagnostics = (
+  value: unknown
+): value is StartAppGraphUnknownRoutePreloadResourcesEntry =>
+  isRecord(value) &&
+  value.kind === "route" &&
+  typeof value.routeId === "string" &&
+  typeof value.routePath === "string" &&
+  typeof value.moduleId === "string" &&
+  typeof value.filePath === "string" &&
+  isFeaturePresence(value.preload) &&
+  isPreloadResourceDiagnostics(value.preloadResources);
+
+const isUnknownRoutePreloadCollectionsDiagnostics = (
+  value: unknown
+): value is StartAppGraphUnknownRoutePreloadCollectionsEntry =>
+  isRecord(value) &&
+  value.kind === "route" &&
+  typeof value.routeId === "string" &&
+  typeof value.routePath === "string" &&
+  typeof value.moduleId === "string" &&
+  typeof value.filePath === "string" &&
+  isFeaturePresence(value.preload) &&
+  isPreloadCollectionDiagnostics(value.preloadCollections);
+
+const isStartAppGraphDiagnostics = (
+  value: unknown
+): value is StartAppGraphDiagnostics =>
+  isRecord(value) &&
+  value.version === 1 &&
+  typeof value.routeCount === "number" &&
+  typeof value.serverFunctionCount === "number" &&
+  typeof value.actionCount === "number" &&
+  isStringArray(value.routePaths) &&
+  Array.isArray(value.routeModules) &&
+  value.routeModules.every(isRouteDiagnostics) &&
+  Array.isArray(value.serverFunctionModules) &&
+  value.serverFunctionModules.every(isServerFunctionDiagnostics) &&
+  Array.isArray(value.actionModules) &&
+  value.actionModules.every(isActionDiagnostics) &&
+  Array.isArray(value.resourceFamilies) &&
+  Array.isArray(value.resourceTags) &&
+  Array.isArray(value.collectionDefinitions) &&
+  isStringArray(value.serverOnlyModules) &&
+  isStringArray(value.browserClientModules) &&
+  typeof value.rpcPath === "string" &&
+  typeof value.actionPath === "string" &&
+  isRecord(value.schemaCoverage) &&
+  isSchemaCoverage(value.schemaCoverage.serverFunctions) &&
+  isSchemaCoverage(value.schemaCoverage.actions) &&
+  Array.isArray(value.missingSchemas) &&
+  value.missingSchemas.every(isMissingSchemaDiagnostics) &&
+  Array.isArray(value.unknownActionBehavior) &&
+  value.unknownActionBehavior.every(isUnknownActionBehaviorDiagnostics) &&
+  Array.isArray(value.unknownRoutePreloadResources) &&
+  value.unknownRoutePreloadResources.every(isUnknownRoutePreloadResourcesDiagnostics) &&
+  Array.isArray(value.unknownRoutePreloadCollections) &&
+  value.unknownRoutePreloadCollections.every(isUnknownRoutePreloadCollectionsDiagnostics);
+
+const isStartAppGraphDiagnosticsPolicyViolation = (
+  value: unknown
+): value is StartAppGraphDiagnosticsPolicyViolation =>
+  isRecord(value) &&
+  typeof value.message === "string" &&
+  (
+    value._tag === "UnknownRoutePreloadResources"
+      ? Array.isArray(value.routes) &&
+        value.routes.every(isUnknownRoutePreloadResourcesDiagnostics)
+      : value._tag === "UnknownRoutePreloadCollections" &&
+        Array.isArray(value.routes) &&
+        value.routes.every(isUnknownRoutePreloadCollectionsDiagnostics)
+  );
+
+export const decodeStartAppGraphDiagnosticsEffect = (
+  value: unknown
+): Effect.Effect<StartAppGraphDiagnostics, StartAppGraphDiagnosticsDtoError> =>
+  isStartAppGraphDiagnostics(value)
+    ? Effect.succeed(value)
+    : Effect.fail(
+        diagnosticsDtoError(
+          "Expected a Start app graph diagnostics DTO.",
+          value
+        )
+      );
+
+export const decodeStartAppGraphDiagnosticsPolicyViolationsEffect = (
+  value: unknown
+): Effect.Effect<readonly StartAppGraphDiagnosticsPolicyViolation[], StartAppGraphDiagnosticsDtoError> =>
+  Array.isArray(value) && value.every(isStartAppGraphDiagnosticsPolicyViolation)
+    ? Effect.succeed(value)
+    : Effect.fail(
+        diagnosticsDtoError(
+          "Expected Start app graph diagnostics policy violations DTOs.",
+          value
+        )
+      );
+
+export const decodeStartAppGraphDiagnosticsDtoEffect = (
+  input: StartAppGraphDiagnosticsDtoInput
+): Effect.Effect<StartAppGraphDiagnosticsDto, StartAppGraphDiagnosticsDtoError> =>
+  Effect.gen(function* () {
+    const diagnostics = yield* decodeStartAppGraphDiagnosticsEffect(input.diagnostics);
+    const diagnosticsPolicyViolations = yield* decodeStartAppGraphDiagnosticsPolicyViolationsEffect(
+      input.diagnosticsPolicyViolations ?? []
+    );
+
+    return {
+      diagnostics,
+      diagnosticsPolicyViolations
+    };
+  });
 
 export const createStartAppGraph = (
   options: StartAppGraphOptions
@@ -381,6 +694,14 @@ export const describeStartAppGraphRouteDiagnosticsRuntimeCandidate = (
     preloadCollections: candidate.preloadCollections,
     component: runtimeFeaturePresence(candidate.route.options?.component)
   });
+
+const routeModuleDiagnosticsKey = (
+  routeModule: Pick<StartAppGraphRouteDiagnostics, "routeId" | "moduleId">
+): string => `${routeModule.routeId}\u0000${routeModule.moduleId}`;
+
+const routeModuleEntryKey = (
+  entry: Pick<FileRouteManifest["entries"][number], "routeId" | "moduleId">
+): string => `${String(entry.routeId)}\u0000${entry.moduleId}`;
 
 const describeWireContract = (
   wire: { readonly inputSchema: boolean; readonly outputSchema: boolean; readonly errorSchema: boolean }
@@ -609,21 +930,25 @@ export const describeStartAppGraph = (
  * Rebuilds app graph diagnostics from static manifest data plus runtime
  * definition facts.
  *
- * Runtime route candidates replace static route-module feature placeholders and
+ * Runtime route candidates enrich matching static route-module placeholders and
  * unknown preload-resource/preload-collection diagnostics are recomputed from
- * that runtime evidence.
+ * the merged static/runtime evidence. Static manifest routes without runtime
+ * candidates remain present in the output.
  */
 export const describeStartAppGraphRuntimeDiagnostics = (
   graph: StartAppGraph,
   candidates: StartAppGraphDiagnosticsRuntimeCandidates = {}
 ): StartAppGraphDiagnostics => {
   const staticDiagnostics = describeStartAppGraph(graph);
-  const routeModules = candidates.routeModules === undefined
-    ? staticDiagnostics.routeModules
-    : Array.from(
-        candidates.routeModules,
-        describeStartAppGraphRouteDiagnosticsRuntimeCandidate
-      );
+  const runtimeRouteModules = new Map(
+    Array.from(candidates.routeModules ?? [], (candidate) => [
+      routeModuleEntryKey(candidate.entry),
+      describeStartAppGraphRouteDiagnosticsRuntimeCandidate(candidate)
+    ] as const)
+  );
+  const routeModules = staticDiagnostics.routeModules.map((routeModule) =>
+    runtimeRouteModules.get(routeModuleDiagnosticsKey(routeModule)) ?? routeModule
+  );
 
   return {
     ...staticDiagnostics,
@@ -794,18 +1119,13 @@ export const createStartAppGraphDiagnosticsPolicyException = (
   diagnostics: StartAppGraphDiagnostics,
   violations: readonly StartAppGraphDiagnosticsPolicyViolation[]
 ): StartAppGraphDiagnosticsPolicyException =>
-  Object.assign(
-    new Error(
-      `Effect UI app graph diagnostics policy failed: ${violations
-        .map(formatStartAppGraphDiagnosticsPolicyViolation)
-        .join("; ")}`
-    ),
-    {
-      name: "StartAppGraphDiagnosticsPolicyError" as const,
-      violations,
-      diagnostics
-    }
-  );
+  new StartAppGraphDiagnosticsPolicyException({
+    message: `Effect UI app graph diagnostics policy failed: ${violations
+      .map(formatStartAppGraphDiagnosticsPolicyViolation)
+      .join("; ")}`,
+    violations,
+    diagnostics
+  });
 
 export const enforceStartAppGraphDiagnosticsPolicy = (
   diagnostics: StartAppGraphDiagnostics,

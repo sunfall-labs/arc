@@ -356,6 +356,35 @@ describe("flushCollectionsPendingMutationsEffect", () => {
     );
   });
 
+  it("reports flush skip predicate throws in the Effect error channel", async () => {
+    const runtime = makeRuntime();
+    const Projects = Collection.define<Project, string, never>({
+      name: "Projects.flush-policy.skip-throw",
+      getKey: (project) => project.id
+    });
+    const cause = new Error("skip failed");
+
+    try {
+      await Effect.runPromise(runtime.provide(Projects.hydrateEffect(pendingProjectSnapshot(Projects.name))));
+
+      await expect(
+        Effect.runPromise(runtime.provide(
+          flushCollectionsPendingMutationsEffect([Projects], {
+            skip: () => {
+              throw cause;
+            }
+          })
+        ))
+      ).rejects.toMatchObject({
+        _tag: "EffectInputCallbackError",
+        operation: "Collection.flush.skip",
+        cause
+      });
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
   it("flushes pending mutations through a background sync adapter", () => {
     const runtime = makeRuntime();
     const persistedProjects: Array<Project> = [];
@@ -423,6 +452,38 @@ describe("flushCollectionsPendingMutationsEffect", () => {
         expect(runWithRuntime(runtime, () => Projects.pendingMutations())).toEqual([]);
       }).pipe(Effect.ensuring(runtime.disposeEffect))
     );
+  });
+
+  it("reports background sync readiness throws in the Effect error channel", async () => {
+    const runtime = makeRuntime();
+    const Projects = Collection.define<Project, string, never>({
+      name: "Projects.background-sync.should-flush-throw",
+      getKey: (project) => project.id
+    });
+    const cause = new Error("readiness failed");
+
+    try {
+      await Effect.runPromise(runtime.provide(Projects.hydrateEffect(pendingProjectSnapshot(Projects.name))));
+
+      await expect(
+        Effect.runPromise(runtime.provide(
+          Collection.backgroundSyncPendingMutationsEffect([Projects], {
+            adapter: {
+              name: "test-throw",
+              shouldFlush: () => {
+                throw cause;
+              }
+            }
+          })
+        ))
+      ).rejects.toMatchObject({
+        _tag: "EffectInputCallbackError",
+        operation: "Collection.backgroundSync.shouldFlush",
+        cause
+      });
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
   });
 
   it("defers background sync when the adapter is not ready", () => {

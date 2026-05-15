@@ -1,16 +1,19 @@
-import { Cause, Context, Deferred, Effect, Exit, Fiber, Layer, Metric, Schema } from "effect";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { Cause, Context, Deferred, Effect, Exit, Fiber, Layer, Metric, Schema, Scope, Stream } from "effect";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { build } from "vite";
 import { describe, expect, it } from "vitest";
-import { Action, ActionResult, defineApp, makeRuntime, Resource, ResponseContext, route, Route, runWithRuntime, Server, ServerClient } from "@effect-ui/core";
+import { Action, ActionResult, defineApp, EffectInputCallbackError, makeRuntime, read, Resource, RequestContext, ResponseContext, route, Route, RoutePreloadError, runWithRuntime, Server, ServerClient, ServerTransportError, type EffectUiRuntime } from "@effect-ui/core";
 import { Collection, CollectionSnapshotCodecError } from "@effect-ui/db";
 import type { DevtoolsRequestTrace } from "@effect-ui/devtools";
 import {
   createServerActionResponseEffect,
   createHydrationScript,
+  createHydrationScriptEffect,
+  createHtmlResponseEffect,
+  createStartRenderHydrationPlanEffect,
   createStreamHydrationScript,
   createServerRpcResponseEffect,
   createRequestHandlerEffect,
@@ -23,6 +26,7 @@ import {
   hydrateStartPayloadEffect,
   hydrateStartHydrationChunksFromDocument,
   hydrateStartHydrationChunksFromDocumentEffect,
+  readStartHydrationChunks,
   makeRpcClient,
   preloadRequest,
   preloadRequestEffect,
@@ -31,12 +35,24 @@ import {
   streamHydrationAttribute,
   streamHydrationConsumedAttribute,
   streamHydrationSequenceAttribute,
+  startRequestIdHeader,
   startActionForm,
+  startActionInputField,
   StartHydrationChunkParseError,
   StartHydrationPayloadParseError,
+  StartHydrationPayloadSerializeError,
+  StartPreloadError,
   StartAction,
+  StartActionFormEncodeError,
+  StartActionDuplicateName,
+  StartTransportEndpointPathError,
+  FileRoutePreloadError,
   type StartFetch,
   submitStartActionEffect,
+  encodeStartActionRequestEffect,
+  resolveStartActionEndpoint,
+  resolveStartRpcEndpoint,
+  resolveStartTransportEndpoints,
   defineFileRoute
 } from "../src/index.js";
 import {
@@ -48,12 +64,17 @@ import {
   makeRequestRuntime
 } from "../src/request-runtime.js";
 import {
+  buildStartRequestTrace,
+  requestRuntimeTeardownSnapshot
+} from "../src/request-trace.js";
+import {
   parseStartDiagnosticsCliArgs,
   runStartDiagnosticsCli,
   runStartDiagnosticsCliEffect
 } from "../src/cli.js";
 import {
   actionManifestVirtualModuleId,
+  appGraphRuntimeDiagnosticsVirtualModuleId,
   appGraphVirtualModuleId,
   defaultFileRouteGeneratedFile,
   defaultFileRouteDirectory,
@@ -68,16 +89,20 @@ import {
   loadStartAppGraphDiagnostics,
   loadStartAppGraphDiagnosticsEffect,
   makeStartBuildAppGraphEffect,
+  makeStartActionManifestEffect,
+  makeStartServerFunctionManifestEffect,
   resolveStartHandler,
   serializeStartActionManifest,
   serializeStartAppGraph,
   serializeStartFileRouteManifest,
   serializeStartServerFunctionManifest,
   serverFunctionManifestVirtualModuleId,
+  startDevServerFromVite,
   StartAppGraphMissingWireSchemas,
   StartAppGraphUnknownActionBehavior,
   StartDevServerError,
   StartHandlerNotFound,
+  StartManifestDirectReferenceError,
   StartServerOnlyModuleError,
   validateStartBuildPolicyEffect,
   shouldHandleSsrRequest
@@ -85,6 +110,12 @@ import {
 
 const scriptText = (script: string): string =>
   script.replace(/^<script[^>]*>/, "").replace("</script>", "");
+
+const runInRuntime = <A, E, R, RuntimeError>(
+  runtime: EffectUiRuntime<unknown, RuntimeError>,
+  effect: Effect.Effect<A, E, R>
+): Promise<A> =>
+  Effect.runPromise(runtime.provide(effect));
 
 const makeStreamHydrationElement = (script: string, sequence: number) => {
   const attributes = new Map<string, string>([
@@ -102,6 +133,17 @@ const makeStreamHydrationElement = (script: string, sequence: number) => {
 
 const workspacePackageAlias = (path: string): string =>
   join(process.cwd(), path);
+
+const sourceFiles = (directory: URL): readonly URL[] =>
+  readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const child = new URL(`${entry.name}${entry.isDirectory() ? "/" : ""}`, directory);
+    if (entry.isDirectory()) {
+      return sourceFiles(child);
+    }
+    return /\.[cm]?tsx?$/.test(entry.name) && !entry.name.endsWith(".d.ts")
+      ? [child]
+      : [];
+  });
 
 const startDiagnosticsRunnerViteConfig = () => ({
   resolve: {
@@ -225,7 +267,7 @@ describe("Effect UI Start", () => {
     });
   });
 
-  it("passes hydration script to custom renderers", async () => {
+  it("passes legacy hydration scripts and the streaming plan to custom renderers", async () => {
     const Project = Resource.family({
       name: "Start.Project.render",
       load: (id: string) => Effect.succeed({ id })
@@ -238,9 +280,18 @@ describe("Effect UI Start", () => {
       routes: [ProjectRoute] as const,
       client: {}
     });
+    let renderPlanResourceNames: readonly string[] = [];
+    let renderPlanRootResourceCount = -1;
+    let renderRootScript = "";
     const handler = createRequestHandler(app, {
-      render: ({ match, hydrationScript }) =>
-        `<html><body><main>${match?.href}</main>${hydrationScript}</body></html>`
+      render: ({ match, legacyHydrationScript, hydrationRootScript, hydrationPlan }) => {
+        renderPlanRootResourceCount = hydrationPlan.root.payload.resources.length;
+        renderPlanResourceNames = hydrationPlan.streamedResourceChunks.flatMap((chunk) =>
+          chunk.resources.map((resource) => resource.name)
+        );
+        renderRootScript = hydrationRootScript;
+        return `<html><body><main>${match?.href}</main>${legacyHydrationScript}</body></html>`;
+      }
     });
 
     const response = await Effect.runPromise(
@@ -252,6 +303,182 @@ describe("Effect UI Start", () => {
     expect(html).toContain("<main>/projects/kepler</main>");
     expect(html).toContain("Start.Project.render");
     expect(html).toContain("id=\"__EFFECT_UI_HYDRATION__\"");
+    expect(renderPlanRootResourceCount).toBe(0);
+    expect(renderPlanResourceNames).toEqual(["Start.Project.render"]);
+    expect(renderRootScript).not.toContain("Start.Project.render");
+  });
+
+  it("lets streamed renderers use the plan-derived root script without duplicating resource hydration", async () => {
+    const Project = Resource.family({
+      name: "Start.Project.stream-render",
+      load: (id: string) => Effect.succeed({ id })
+    });
+    const ProjectRoute = route("/projects/:id", {
+      params: Schema.Struct({ id: Schema.String }),
+      preload: ({ params }) => Resource.prefetchEffect(Project(params.id))
+    });
+    const app = defineApp({
+      routes: [ProjectRoute] as const,
+      client: {}
+    });
+    const handler = createRequestHandler(app, {
+      render: ({ hydrationRootScript, hydrationPlan }) => {
+        const streamedScripts = hydrationPlan.streamedResourceChunks
+          .map((chunk, index) => createStreamHydrationScript(chunk, index))
+          .join("");
+        return `<html><body>${hydrationRootScript}${streamedScripts}</body></html>`;
+      }
+    });
+
+    const response = await Effect.runPromise(
+      handler(new Request("https://example.com/projects/atlas"))
+    );
+    const html = await response.text();
+
+    expect(html.match(/"name":"Start\.Project\.stream-render"/g)).toHaveLength(1);
+    expect(html).toContain("id=\"__EFFECT_UI_HYDRATION__\"");
+    expect(html).toContain("data-effect-ui-hydration-chunk");
+  });
+
+  it("does not serialize the full legacy hydration script for streamed renderers that do not read it", async () => {
+    const Project = Resource.family({
+      name: "Start.Project.lazy-legacy-script",
+      load: (id: string) => Effect.succeed({ id, count: 1n })
+    });
+    const ProjectRoute = route("/projects/:id", {
+      params: Schema.Struct({ id: Schema.String }),
+      preload: ({ params }) => Resource.prefetchEffect(Project(params.id))
+    });
+    const app = defineApp({
+      routes: [ProjectRoute] as const,
+      client: {}
+    });
+    const handler = createRequestHandler(app, {
+      render: ({ hydrationRootScript }) =>
+        `<html><body>${hydrationRootScript}<main>stream shell</main></body></html>`
+    });
+
+    const response = await Effect.runPromise(
+      handler(new Request("https://example.com/projects/atlas"))
+    );
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(html).toContain("<main>stream shell</main>");
+    expect(html).toContain("id=\"__EFFECT_UI_HYDRATION__\"");
+    expect(html).not.toContain("Start.Project.lazy-legacy-script");
+  });
+
+  it("creates a render hydration plan without duplicating root and streamed resource refs", async () => {
+    const resources = {
+      resources: [
+        {
+          name: "Start.Project.render-plan",
+          key: "Start.Project.render-plan:atlas",
+          input: "atlas",
+          state: {
+            _tag: "Success",
+            value: { id: "atlas", name: "Atlas" }
+          }
+        }
+      ]
+    };
+    const collections = {
+      collections: [
+        {
+          name: "Start.Collection.render-plan",
+          rows: [
+            {
+              key: "atlas",
+              value: { id: "atlas", name: "Atlas" },
+              synced: true,
+              origin: "remote"
+            }
+          ],
+          pendingMutations: []
+        }
+      ]
+    };
+
+    const plan = await Effect.runPromise(
+      createStartRenderHydrationPlanEffect({ resources, collections })
+    );
+    const rootPairs = new Set(
+      plan.root.payload.resources.map((resource) => `${resource.name}:${resource.key}`)
+    );
+    const streamedPairs = plan.streamedResourceChunks.flatMap((chunk) =>
+      chunk.resources.map((resource) => `${resource.name}:${resource.key}`)
+    );
+
+    expect(plan.root.payload.resources).toEqual([]);
+    expect(plan.root.payload.collections?.map((collection) => collection.name)).toEqual([
+      "Start.Collection.render-plan"
+    ]);
+    expect(plan.legacy.payload.resources.map((resource) => resource.name)).toEqual([
+      "Start.Project.render-plan"
+    ]);
+    expect(plan.legacy.script).toContain("Start.Project.render-plan");
+    expect(plan.root.script).toContain("__EFFECT_UI_HYDRATION__");
+    expect(plan.root.script).toContain("Start.Collection.render-plan");
+    expect(plan.root.script).not.toContain("Start.Project.render-plan");
+    expect(streamedPairs).toEqual(["Start.Project.render-plan:Start.Project.render-plan:atlas"]);
+    expect(streamedPairs.filter((pair) => rootPairs.has(pair))).toEqual([]);
+  });
+
+  it("defers full legacy render hydration script serialization until it is read", async () => {
+    const plan = await Effect.runPromise(
+      createStartRenderHydrationPlanEffect({
+        resources: {
+          resources: [
+            {
+              name: "Start.Project.lazy-plan",
+              key: "Start.Project.lazy-plan:atlas",
+              input: "atlas",
+              state: {
+                _tag: "Success",
+                value: { id: "atlas", count: 1n }
+              }
+            }
+          ]
+        },
+        collections: { collections: [] }
+      })
+    );
+
+    expect(plan.root.script).toContain("__EFFECT_UI_HYDRATION__");
+    expect(plan.root.script).not.toContain("Start.Project.lazy-plan");
+    expect(() => plan.legacy.script).toThrow(StartHydrationPayloadSerializeError);
+  });
+
+  it("surfaces render hydration plan root serialization failures as typed errors", async () => {
+    const collections = {
+      collections: [
+        {
+          name: "Start.Collection.render-plan.invalid",
+          rows: [
+            {
+              key: "bigint",
+              value: { count: 1n },
+              synced: true,
+              origin: "remote"
+            }
+          ],
+          pendingMutations: []
+        }
+      ]
+    };
+
+    const exit = await Effect.runPromiseExit(
+      createStartRenderHydrationPlanEffect({
+        resources: { resources: [] },
+        collections
+      })
+    );
+    const failure = Exit.isFailure(exit)
+      ? exit.cause.reasons.find(Cause.isFailReason)?.error
+      : undefined;
+
+    expect(failure).toBeInstanceOf(StartHydrationPayloadSerializeError);
   });
 
   it("emits Devtools-compatible request traces for SSR requests", async () => {
@@ -325,7 +552,11 @@ describe("Effect UI Start", () => {
               family: "Start.Project.trace",
               input: "atlas"
             }
-          ]
+          ],
+          hydration: {
+            resourceCount: 1,
+            resourceKeys: [Project("atlas").key]
+          }
         }),
         resources: [
           {
@@ -406,6 +637,60 @@ describe("Effect UI Start", () => {
     expect(loads).toBe(2);
   });
 
+  it("uses request-local server clients even when the app runtime provides one", async () => {
+    const LookupProject = Server.contract<
+      { readonly id: string },
+      { readonly id: string; readonly path: string }
+    >("Start.Project.request-local-server-client", {
+      input: Schema.Struct({ id: Schema.String }),
+      output: Schema.Struct({ id: Schema.String, path: Schema.String })
+    });
+    const lookupProject = Server.client(LookupProject);
+    const calls: Array<string> = [];
+    Server.implement(LookupProject, ({ id }) =>
+      RequestContext.use((request) =>
+        ResponseContext.use((response) =>
+          Effect.gen(function* () {
+            calls.push(`${id}:${request.url.pathname}`);
+            yield* response.setStatus(209);
+            yield* response.setHeader("x-effect-ui-local-server-client", "yes");
+            return { id, path: request.url.pathname };
+          })
+        )
+      )
+    );
+    const ambientClient: ServerClient = {
+      call: () =>
+        Effect.fail(
+          new ServerTransportError({
+            reason: "Network",
+            message: "ambient ServerClient should not handle request-runtime calls"
+          })
+        )
+    };
+    const ProjectRoute = route("/local-server-client/:id", {
+      params: Schema.Struct({ id: Schema.String }),
+      preload: ({ params }) => lookupProject.effect({ id: params.id })
+    });
+    const app = defineApp({
+      routes: [ProjectRoute] as const,
+      client: {},
+      server: Layer.succeed(ServerClient)(ambientClient)
+    });
+    const handler = createRequestHandler(app, {
+      render: ({ match }) => `<html><body><main>${match?.params.id}</main></body></html>`
+    });
+
+    const response = await Effect.runPromise(
+      handler(new Request("https://example.com/local-server-client/atlas"))
+    );
+
+    expect(calls).toEqual(["atlas:/local-server-client/atlas"]);
+    expect(response.status).toBe(209);
+    expect(response.headers.get("x-effect-ui-local-server-client")).toBe("yes");
+    await expect(response.text()).resolves.toContain("<main>atlas</main>");
+  });
+
   it("dehydrates DB collections from the SSR request runtime", async () => {
     const traces: DevtoolsRequestTrace[] = [];
     const Projects = Collection.define<{ readonly id: string; readonly name: string; readonly sequence: number }>({
@@ -432,9 +717,9 @@ describe("Effect UI Start", () => {
         Effect.sync(() => {
           traces.push(trace);
         }),
-      render: ({ collections, hydrationScript }) => {
+      render: ({ collections, legacyHydrationScript }) => {
         const project = Projects.rows()[0];
-        return `<html><body><main>${project?.id}:${project?.sequence}</main><aside>${collections.collections[0]?.rows.length}</aside>${hydrationScript}</body></html>`;
+        return `<html><body><main>${project?.id}:${project?.sequence}</main><aside>${collections.collections[0]?.rows.length}</aside>${legacyHydrationScript}</body></html>`;
       }
     });
 
@@ -516,8 +801,8 @@ describe("Effect UI Start", () => {
     ]);
 
     const handler = createRequestHandler(app, {
-      render: ({ collectionPreload, collections, hydrationScript }) =>
-        `<html><body><main>${collectionPreload.routeTouchedCollections.map((collection) => collection.name).join(",")}</main><aside>${collections.collections.length}</aside>${hydrationScript}</body></html>`
+      render: ({ collectionPreload, collections, legacyHydrationScript }) =>
+        `<html><body><main>${collectionPreload.routeTouchedCollections.map((collection) => collection.name).join(",")}</main><aside>${collections.collections.length}</aside>${legacyHydrationScript}</body></html>`
     });
     const response = await Effect.runPromise(
       handler(new Request("https://example.com/projects/atlas"))
@@ -574,8 +859,8 @@ describe("Effect UI Start", () => {
     ]);
 
     const handler = createRequestHandler(app, {
-      render: ({ collectionPreload, collections, hydrationScript }) =>
-        `<html><body><main>${collectionPreload.routeDeclaredCollections.map((collection) => collection.name).join(",")}</main><aside>${collections.collections.length}</aside>${hydrationScript}</body></html>`
+      render: ({ collectionPreload, collections, legacyHydrationScript }) =>
+        `<html><body><main>${collectionPreload.routeDeclaredCollections.map((collection) => collection.name).join(",")}</main><aside>${collections.collections.length}</aside>${legacyHydrationScript}</body></html>`
     });
     const response = await Effect.runPromise(
       handler(new Request("https://example.com/declared-projects"))
@@ -586,6 +871,262 @@ describe("Effect UI Start", () => {
     expect(html).toContain("<main>Start.Collection.route-declared.projects</main>");
     expect(html).toContain("<aside>1</aside>");
     expect(html).toContain("\"Start.Collection.route-declared.projects\"");
+  });
+
+  it("defines file route preload metadata and work from the preload helper", async () => {
+    let resourceLoads = 0;
+    let collectionLoads = 0;
+    let extraPreloads = 0;
+    const ProjectById = Resource.family<string, { readonly id: string; readonly name: string }>({
+      name: "Start.FileRoutePreloadHelper.projectById",
+      load: (id) =>
+        Effect.sync(() => {
+          resourceLoads += 1;
+          return { id, name: "Atlas" };
+        })
+    });
+    const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
+      name: "Start.FileRoutePreloadHelper.projects",
+      getKey: (project) => project.id,
+      load: () =>
+        Effect.sync(() => {
+          collectionLoads += 1;
+          return [{ id: "atlas", name: "Atlas" }];
+        })
+	    });
+	    const ProjectRouteBuilder = defineFileRoute("/file-helper-projects/:id");
+	    const preload = ProjectRouteBuilder.preload(
+	      {
+	        params: Schema.Struct({ id: Schema.String }),
+	        resources: ({ resource }) => [
+	          resource(ProjectById, ({ params }) => params.id)
+	        ],
+	        collections: [Projects]
+	      },
+	      ({ params }) =>
+	        Effect.sync(() => {
+	          if (params.id === "atlas") {
+	            extraPreloads += 1;
+	          }
+	        })
+	    );
+	    const ProjectRoute = preload.route();
+    const app = defineApp({
+      routes: [ProjectRoute] as const,
+      client: {}
+    });
+
+    expect(Object.keys(preload)).not.toContain("route");
+
+    expect(Route.describePreloadResources(ProjectRoute)).toEqual({
+      status: "declared",
+      families: ["Start.FileRoutePreloadHelper.projectById"]
+    });
+    expect(Route.describePreloadCollections(ProjectRoute)).toEqual({
+      status: "declared",
+      collections: ["Start.FileRoutePreloadHelper.projects"]
+    });
+
+    const result = await Effect.runPromise(
+      preloadRequest(app, new Request("https://example.com/file-helper-projects/atlas"))
+    );
+
+    expect(resourceLoads).toBe(1);
+    expect(collectionLoads).toBe(1);
+    expect(extraPreloads).toBe(1);
+    expect(result.resources.resources.map((resource) => resource.name)).toEqual([
+      "Start.FileRoutePreloadHelper.projectById"
+    ]);
+    expect(result.collectionPreload.routeDeclaredCollections).toEqual([Projects]);
+  });
+
+  it("allows file route preload helpers to declare collections by name", async () => {
+    let collectionLoads = 0;
+    const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
+      name: "Start.FileRoutePreloadHelper.named-projects",
+      getKey: (project) => project.id,
+      load: () =>
+        Effect.sync(() => {
+          collectionLoads += 1;
+          return [{ id: "atlas", name: "Atlas" }];
+        })
+    });
+    const ProjectRouteBuilder = defineFileRoute("/file-helper-named-projects");
+    const preload = ProjectRouteBuilder.preload({
+      collections: [Projects.name]
+    });
+    const ProjectRoute = preload.route();
+    const app = defineApp({
+      routes: [ProjectRoute] as const,
+      client: {}
+    });
+
+    expect(Route.describePreloadCollections(ProjectRoute)).toEqual({
+      status: "declared",
+      collections: [Projects.name]
+    });
+
+    const result = await Effect.runPromise(
+      preloadRequest(app, new Request("https://example.com/file-helper-named-projects"), {
+        collectionRegistry: Collection.defaultRegistry
+      })
+    );
+
+    expect(collectionLoads).toBe(1);
+    expect(result.collectionPreload.routeDeclaredCollections).toEqual([Projects]);
+    expect(result.collections.collections.map((collection) => collection.name)).toEqual([Projects.name]);
+  });
+
+  it("rejects Promise-shaped file route preload helper work as typed preload failure", async () => {
+    const ProjectRouteBuilder = defineFileRoute("/file-helper-promise");
+    const ProjectRoute = ProjectRouteBuilder({
+      ...ProjectRouteBuilder.preload(
+        {},
+        (() => Promise.resolve()) as never
+      )
+    });
+    const app = defineApp({
+      routes: [ProjectRoute] as const,
+      client: {}
+    });
+
+    const failure = await Effect.runPromise(
+      Effect.flip(preloadRequest(app, new Request("https://example.com/file-helper-promise")))
+    );
+
+    expect(failure).toBeInstanceOf(StartPreloadError);
+    expect(failure.operation).toBe("route-navigation");
+    expect(failure.cause).toBeInstanceOf(RoutePreloadError);
+    const routeFailure = failure.cause as RoutePreloadError;
+    expect(routeFailure.cause).toBeInstanceOf(FileRoutePreloadError);
+    expect(routeFailure.cause).toMatchObject({
+      operation: "custom-preload",
+      path: "/file-helper-promise"
+    });
+    expect((routeFailure.cause as FileRoutePreloadError).guidance).toContain("Effect.tryPromise");
+  });
+
+  it("captures thrown file route resource selectors as typed preload failure", async () => {
+    const thrown = new Error("bad resource selector");
+    const ProjectById = Resource.family<string, { readonly id: string }>({
+      name: "Start.FileRoutePreloadHelper.selector-error.projectById",
+      load: (id) => Effect.succeed({ id })
+    });
+    const ProjectRouteBuilder = defineFileRoute("/file-helper-selector-error/:id");
+    const ProjectRoute = ProjectRouteBuilder({
+      ...ProjectRouteBuilder.preload({
+        resources: [
+          ProjectRouteBuilder.resource(ProjectById, () => {
+            throw thrown;
+          })
+        ]
+      })
+    });
+    const app = defineApp({
+      routes: [ProjectRoute] as const,
+      client: {}
+    });
+
+    const failure = await Effect.runPromise(
+      Effect.flip(preloadRequest(app, new Request("https://example.com/file-helper-selector-error/atlas")))
+    );
+
+    expect(failure).toBeInstanceOf(StartPreloadError);
+    expect(failure.operation).toBe("route-navigation");
+    expect(failure.cause).toBeInstanceOf(RoutePreloadError);
+    const routeFailure = failure.cause as RoutePreloadError;
+    expect(routeFailure.cause).toBeInstanceOf(FileRoutePreloadError);
+    expect(routeFailure.cause).toMatchObject({
+      operation: "resource-selector",
+      path: "/file-helper-selector-error/:id",
+      cause: thrown
+    });
+  });
+
+  it("resolves route-declared collections from registered request collections before the default registry", async () => {
+    let projectLoads = 0;
+    const registry = Collection.makeRegistry();
+    const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
+      name: "Start.Collection.route-declared.isolated-projects",
+      getKey: (project) => project.id,
+      load: () =>
+        Effect.sync(() => {
+          projectLoads += 1;
+          return [{ id: "atlas", name: "Atlas" }];
+        })
+    }, registry);
+    const ProjectRoute = route("/isolated-declared-projects", {
+      preloadCollections: [Projects]
+    });
+    const app = defineApp({
+      routes: [ProjectRoute] as const,
+      client: {}
+    });
+
+    expect(Collection.definitions().has(Projects.name)).toBe(false);
+
+    const result = await Effect.runPromise(
+      preloadRequest(app, new Request("https://example.com/isolated-declared-projects"), {
+        collections: [Projects]
+      })
+    );
+
+    expect(projectLoads).toBe(1);
+    expect(result.collectionPreload.routeDeclaredCollections).toEqual([Projects]);
+    expect(result.collectionPreload.dehydratedCollections).toEqual([Projects]);
+    expect(result.collections.collections[0]?.rows).toEqual([
+      {
+        key: "atlas",
+        value: { id: "atlas", name: "Atlas" },
+        synced: true,
+        origin: "remote"
+      }
+    ]);
+  });
+
+  it("requires an explicit registry to resolve route-declared collection strings", async () => {
+    let projectLoads = 0;
+    const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
+      name: "Start.Collection.route-declared.default-string",
+      getKey: (project) => project.id,
+      load: () =>
+        Effect.sync(() => {
+          projectLoads += 1;
+          return [{ id: "atlas", name: "Atlas" }];
+        })
+    });
+    const ProjectRoute = route("/default-string-declared-projects", {
+      preloadCollections: [Projects.name]
+    });
+    const app = defineApp({
+      routes: [ProjectRoute] as const,
+      client: {}
+    });
+
+    expect(Collection.definitions().get(Projects.name)).toBe(Projects);
+
+    const error = await Effect.runPromise(
+      Effect.flip(
+        preloadRequest(app, new Request("https://example.com/default-string-declared-projects"))
+      )
+    );
+
+    expect(error).toBeInstanceOf(StartPreloadError);
+    expect(error).toMatchObject({
+      operation: "declared-collection-resolution",
+      collectionName: Projects.name
+    });
+    expect(projectLoads).toBe(0);
+
+    const result = await Effect.runPromise(
+      preloadRequest(app, new Request("https://example.com/default-string-declared-projects"), {
+        collectionRegistry: Collection.defaultRegistry
+      })
+    );
+
+    expect(projectLoads).toBe(1);
+    expect(result.collectionPreload.routeDeclaredCollections).toEqual([Projects]);
+    expect(result.collectionPreload.dehydratedCollections).toEqual([Projects]);
   });
 
   it("preloads and renders with an app server layer", async () => {
@@ -634,7 +1175,7 @@ describe("Effect UI Start", () => {
       client: {}
     });
     let interrupted = false;
-    let fibers: Set<Fiber.Fiber<unknown, unknown>> | undefined;
+    let fiberCount: (() => number) | undefined;
     const handler = createRequestHandler(app, {
       render: ({ runtime }) =>
         Effect.gen(function* () {
@@ -646,8 +1187,8 @@ describe("Effect UI Start", () => {
             ),
             Effect.forkDetach({ startImmediately: true })
           );
-          runtime.resourceStore.fibers.add(fiber as Fiber.Fiber<unknown, unknown>);
-          fibers = runtime.resourceStore.fibers;
+          runtime.resourceStore.fiberRegistry.track(fiber as Fiber.Fiber<unknown, never>);
+          fiberCount = () => runtime.resourceStore.fiberRegistry.size();
 
           return new Response(
             new ReadableStream<Uint8Array>({
@@ -670,10 +1211,10 @@ describe("Effect UI Start", () => {
     const response = await Effect.runPromise(handler(new Request("https://example.com/")));
 
     expect(interrupted).toBe(false);
-    expect(fibers?.size).toBe(1);
+    expect(fiberCount?.()).toBe(1);
     await expect(response.text()).resolves.toContain("streamed");
     await Effect.runPromise(Effect.sleep("10 millis"));
-    expect(fibers?.size).toBe(0);
+    expect(fiberCount?.()).toBe(0);
     expect(interrupted).toBe(true);
   });
 
@@ -754,6 +1295,64 @@ describe("Effect UI Start", () => {
           afterDispose: expect.objectContaining({
             fiberCount: 0
           })
+        })
+      })
+    ]);
+  });
+
+  it("records Start stream failure phases in request trace stream summaries", async () => {
+    const traces: DevtoolsRequestTrace[] = [];
+    const Home = route("/", {});
+    const app = defineApp({
+      routes: [Home] as const,
+      client: {}
+    });
+    const handler = createRequestHandler(app, {
+      onRequestTrace: (trace) =>
+        Effect.sync(() => {
+          traces.push(trace);
+        }),
+      render: () =>
+        createHtmlResponseEffect({
+          shell: "<html>",
+          chunks: Stream.fail("render chunk failed")
+        })
+    });
+
+    const response = await Effect.runPromise(
+      handler(
+        new Request("https://example.com/", {
+          headers: {
+            "x-effect-ui-request-id": "req-stream-failure"
+          }
+        })
+      )
+    );
+    await expect(response.text()).rejects.toBeDefined();
+
+    expect(traces).toEqual([
+      expect.objectContaining({
+        request: expect.objectContaining({
+          id: "req-stream-failure",
+          transport: "ssr"
+        }),
+        status: "failure",
+        streams: [
+          expect.objectContaining({
+            name: "response",
+            state: "errored",
+            failurePhase: "Chunk"
+          })
+        ],
+        fibers: [
+          {
+            name: "request-runtime",
+            status: "failed"
+          }
+        ],
+        teardown: expect.objectContaining({
+          runtimeDisposed: true,
+          reason: "stream-error"
         })
       })
     ]);
@@ -862,6 +1461,114 @@ describe("Effect UI Start", () => {
     ]);
   });
 
+  it("emits cancelled request traces when handlers are interrupted before a response", async () => {
+    const traces: DevtoolsRequestTrace[] = [];
+    const Home = route("/", {});
+    const app = defineApp({
+      routes: [Home] as const,
+      client: {}
+    });
+    const handler = createRequestHandler(app, {
+      onRequestTrace: (trace) =>
+        Effect.sync(() => {
+          traces.push(trace);
+        }),
+      render: () => Effect.interrupt
+    });
+
+    const exit = await Effect.runPromiseExit(
+      handler(
+        new Request("https://example.com/", {
+          headers: {
+            "x-effect-ui-request-id": "req-interrupted"
+          }
+        })
+      )
+    );
+
+    expect(Exit.isFailure(exit)).toBe(true);
+    expect(traces).toEqual([
+      expect.objectContaining({
+        request: expect.objectContaining({
+          id: "req-interrupted",
+          transport: "ssr"
+        }),
+        status: "cancelled",
+        failureKind: "interruption",
+        streams: [],
+        fibers: [
+          {
+            name: "request-runtime",
+            status: "interrupted"
+          }
+        ],
+        teardown: expect.objectContaining({
+          runtimeDisposed: true,
+          reason: "interruption",
+          afterDispose: expect.objectContaining({
+            fiberCount: 0
+          })
+        })
+      })
+    ]);
+  });
+
+  it("projects malformed trace cookies without throwing", () => {
+    const trace = buildStartRequestTrace(
+      new Request("https://example.com/", {
+        headers: {
+          cookie: "%E0%A4%A=secret"
+        }
+      }),
+      {
+        requestId: "req-malformed-cookie",
+        transport: "ssr",
+        startedAt: 0,
+        collections: [],
+        serverFunctions: [],
+        actions: []
+      },
+      "failure",
+      {
+        teardown: {
+          runtimeDisposed: true
+        }
+      }
+    );
+
+    expect(trace.request.cookies).toEqual([
+      {
+        name: "%E0%A4%A",
+        value: "<redacted>"
+      }
+    ]);
+    expect(trace.status).toBe("failure");
+  });
+
+  it("reads request runtime teardown snapshots through ResourceStore diagnostics", async () => {
+    const runtime = makeRuntime();
+    runtime.resourceStore.moduleRegistry.register(Symbol("start-trace-module"), {});
+
+    try {
+      expect(requestRuntimeTeardownSnapshot(runtime)).toEqual({
+        fiberCount: 0,
+        familyCount: 0,
+        moduleCount: 1,
+        tagCount: 0
+      });
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("keeps Start source off unsafe mutable ResourceStore internals", () => {
+    const offenders = sourceFiles(new URL("../src/", import.meta.url))
+      .filter((file) => readFileSync(file, "utf8").includes("unsafeMutableResourceStore"))
+      .map((file) => file.pathname);
+
+    expect(offenders).toEqual([]);
+  });
+
   it("keeps an Effect request handler as the host boundary", async () => {
     const Home = route("/", {});
     const app = defineApp({
@@ -871,6 +1578,32 @@ describe("Effect UI Start", () => {
     const handler = createRequestHandler(app);
 
     await expect(Effect.runPromise(handler(new Request("https://example.com/")))).resolves.toBeInstanceOf(Response);
+  });
+
+  it("reports synchronous render callback throws through the Start request Effect error", async () => {
+    const thrown = new Error("render exploded");
+    const Home = route("/", {});
+    const app = defineApp({
+      routes: [Home] as const,
+      client: {}
+    });
+    const handler = createRequestHandlerEffect(app, {
+      render: () => {
+        throw thrown;
+      }
+    });
+
+    const failure = await Effect.runPromise(
+      Effect.flip(handler(new Request("https://example.com/")))
+    );
+
+    expect(failure).toMatchObject({
+      _tag: "StartRequestHandlerError",
+      operation: "handle-request"
+    });
+    expect(failure.cause).toBeInstanceOf(EffectInputCallbackError);
+    expect((failure.cause as EffectInputCallbackError).operation).toBe("Start.render");
+    expect((failure.cause as EffectInputCallbackError).cause).toBe(thrown);
   });
 
   it("applies response context mutations from Start render effects", async () => {
@@ -946,6 +1679,55 @@ describe("Effect UI Start", () => {
     expect(response.headers.getSetCookie()).toEqual(["rpc=ada; Path=/rpc"]);
   });
 
+  it("maps non-JSON-safe RPC and action response bodies to defect responses", async () => {
+    const BigRpc = Server.contract<null, bigint>("Start.bigint.rpc");
+    const bigRpc = Server.implement(BigRpc, () => Effect.succeed(1n));
+    const BigAction = Action.define<null, bigint>({
+      name: "Start.bigint.action",
+      run: () => Effect.succeed(1n)
+    });
+    const app = defineApp({
+      routes: [route("/", {})] as const,
+      client: {}
+    });
+    const rpcResponse = await Effect.runPromise(
+      createServerRpcResponseEffect(
+        app,
+        new Request(`https://example.com${serverRpcPath}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            name: bigRpc.name,
+            input: null
+          })
+        })
+      )
+    );
+    const actionResponse = await Effect.runPromise(
+      createServerActionResponseEffect(
+        app,
+        new Request(`https://example.com${serverActionPath}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            name: BigAction.name,
+            input: null
+          })
+        }),
+        [BigAction]
+      )
+    );
+
+    expect(rpcResponse.status).toBe(500);
+    await expect(rpcResponse.json()).resolves.toMatchObject({
+      _tag: "Defect"
+    });
+    expect(actionResponse.status).toBe(500);
+    await expect(actionResponse.json()).resolves.toMatchObject({
+      _tag: "Defect"
+    });
+  });
+
   it("emits request traces for RPC and Start action transports", async () => {
     const traces: DevtoolsRequestTrace[] = [];
     const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>("Start.echo.trace", {
@@ -990,6 +1772,7 @@ describe("Effect UI Start", () => {
       _tag: "Success",
       value: { value: "ADA" }
     });
+    expect(rpcResponse.headers.get(startRequestIdHeader)).toBe("req-rpc-trace");
 
     const actionResponse = await Effect.runPromise(
       handler(
@@ -1010,6 +1793,7 @@ describe("Effect UI Start", () => {
       _tag: "Success",
       value: { value: "PONG" }
     });
+    expect(actionResponse.headers.get(startRequestIdHeader)).toBe("req-action-trace");
 
     expect(traces).toEqual([
       expect.objectContaining({
@@ -1043,6 +1827,230 @@ describe("Effect UI Start", () => {
         status: "success"
       })
     ]);
+  });
+
+  it("uses one generated request id for transport diagnostics and request traces", async () => {
+    const traces: DevtoolsRequestTrace[] = [];
+    const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>("Start.echo.trace.generated-id", {
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String })
+    });
+    const echo = Server.implement(Echo, ({ value }) => Effect.succeed({ value }));
+    const app = defineApp({
+      routes: [route("/", {})] as const,
+      client: {}
+    });
+    const handler = createRequestHandler(app, {
+      onRequestTrace: (trace) =>
+        Effect.sync(() => {
+          traces.push(trace);
+        })
+    });
+
+    const response = await Effect.runPromise(
+      handler(
+        new Request(`https://example.com${serverRpcPath}`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json"
+          },
+          body: JSON.stringify({
+            name: echo.name,
+            input: { value: "ada" }
+          })
+        })
+      )
+    );
+    await expect(response.json()).resolves.toEqual({
+      _tag: "Success",
+      value: { value: "ada" }
+    });
+
+    expect(traces).toHaveLength(1);
+    expect(response.headers.get(startRequestIdHeader)).toBe(traces[0]!.request.id);
+  });
+
+  it("uses manifest transport endpoint paths for handler routing, traces, and clients", async () => {
+    const endpoints = {
+      serverFunctions: { rpcPath: "/custom/start-rpc" },
+      actions: { actionPath: "/custom/start-action" }
+    } as const;
+    const traces: DevtoolsRequestTrace[] = [];
+    const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>("Start.echo.custom-endpoint", {
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String })
+    });
+    const echo = Server.client(Echo);
+    Server.implement(Echo, ({ value }) => Effect.succeed({ value: `rpc:${value}` }));
+    const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
+      name: "Start.action.custom-endpoint",
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+      run: ({ value }) => Effect.succeed({ value: `action:${value}` })
+    });
+    const app = defineApp({
+      routes: [route("/", {})] as const,
+      client: {}
+    });
+    const handler = createRequestHandler(app, {
+      actions: [Ping],
+      appGraph: endpoints,
+      onRequestTrace: (trace) =>
+        Effect.sync(() => {
+          traces.push(trace);
+        })
+    });
+    const fetcher: StartFetch = (input, init) => {
+      const url = input instanceof Request
+        ? input.url
+        : new URL(String(input), "https://example.com").href;
+      return handler(new Request(url, init));
+    };
+    const rpcRuntime = Layer.succeed(ServerClient)(
+      makeRpcClient({
+        fetch: fetcher,
+        serverFunctionManifest: endpoints.serverFunctions
+      })
+    );
+
+    await expect(
+      Effect.runPromise(Effect.provide(echo.effect({ value: "atlas" }), rpcRuntime))
+    ).resolves.toEqual({ value: "rpc:atlas" });
+
+    await expect(
+      Effect.runPromise(
+        submitStartActionEffect(Ping, { value: "submit" }, {
+          fetch: fetcher,
+          actionManifest: endpoints.actions
+        })
+      )
+    ).resolves.toMatchObject({
+      _tag: "Success",
+      value: { value: "action:submit" }
+    });
+
+    const startPing = StartAction.use(Ping, {
+      fetch: fetcher,
+      actionManifest: endpoints.actions
+    });
+    await expect(
+      Effect.runPromise(startPing.submitEffect({ value: "stateful" }))
+    ).resolves.toMatchObject({
+      _tag: "Success",
+      value: { value: "action:stateful" }
+    });
+
+    expect(StartAction.form(Ping, { actionManifest: endpoints.actions }).action).toBe(
+      endpoints.actions.actionPath
+    );
+    expect(traces).toEqual([
+      expect.objectContaining({
+        request: expect.objectContaining({
+          transport: "rpc",
+          path: endpoints.serverFunctions.rpcPath
+        }),
+        serverFunctions: [
+          {
+            name: Echo.name,
+            status: "success"
+          }
+        ],
+        status: "success"
+      }),
+      expect.objectContaining({
+        request: expect.objectContaining({
+          transport: "action",
+          path: endpoints.actions.actionPath
+        }),
+        actions: [
+          {
+            name: Ping.name,
+            state: "Success"
+          }
+        ],
+        status: "success"
+      }),
+      expect.objectContaining({
+        request: expect.objectContaining({
+          transport: "action",
+          path: endpoints.actions.actionPath
+        }),
+        actions: [
+          {
+            name: Ping.name,
+            state: "Success"
+          }
+        ],
+        status: "success"
+      })
+    ]);
+  });
+
+  it("rejects invalid direct endpoint paths while preserving explicit adapter URLs", async () => {
+    const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
+      name: "Start.action.endpoint-policy",
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+      run: ({ value }) => Effect.succeed({ value })
+    });
+    const app = defineApp({
+      routes: [route("/", {})] as const,
+      client: {}
+    });
+    const calls: string[] = [];
+    const fetcher: StartFetch = (input) => {
+      calls.push(input instanceof Request ? input.url : String(input));
+      return Effect.succeed(
+        new Response(
+          JSON.stringify({
+            _tag: "Success",
+            value: { value: "ok" }
+          }),
+          {
+            headers: { "content-type": "application/json" }
+          }
+        )
+      );
+    };
+
+    expect(() => resolveStartTransportEndpoints({ rpcPath: "rpc" })).toThrow(StartTransportEndpointPathError);
+    expect(() => resolveStartTransportEndpoints({ actionPath: "https://example.com/action" })).toThrow(
+      StartTransportEndpointPathError
+    );
+    expect(() => createRequestHandler(app, { rpcPath: "/__effect-ui/rpc\nx" })).toThrow(
+      StartTransportEndpointPathError
+    );
+    expect(() =>
+      shouldHandleSsrRequest(
+        { method: "POST", url: "/__effect-ui/rpc", headers: {} },
+        { rpcPath: "https://example.com/rpc" }
+      )
+    ).toThrow(StartTransportEndpointPathError);
+    expect(resolveStartRpcEndpoint({ endpoint: "https://api.example.test/rpc" })).toBe(
+      "https://api.example.test/rpc"
+    );
+    expect(resolveStartActionEndpoint({ action: "https://forms.example.test/action" })).toBe(
+      "https://forms.example.test/action"
+    );
+    expect(() => StartAction.form(Ping, { actionPath: "https://example.com/action" })).toThrow(
+      StartTransportEndpointPathError
+    );
+    expect(StartAction.form(Ping, { action: "https://forms.example.test/action" }).action).toBe(
+      "https://forms.example.test/action"
+    );
+
+    await expect(
+      Effect.runPromise(
+        submitStartActionEffect(Ping, { value: "ok" }, {
+          fetch: fetcher,
+          endpoint: "https://api.example.test/action"
+        })
+      )
+    ).resolves.toMatchObject({
+      _tag: "Success",
+      value: { value: "ok" }
+    });
+    expect(calls).toEqual(["https://api.example.test/action"]);
   });
 
   it("classifies RPC and Start action request trace failures by layer", async () => {
@@ -1404,6 +2412,165 @@ describe("Effect UI Start", () => {
     expect(submitted).toEqual(["Atlas Forms"]);
   });
 
+  it("uses the same schema action request codec for JSON submits and progressive form defaults", async () => {
+    const EncodedInput = Schema.Struct({
+      id: Schema.String.pipe(Schema.brand("StartActionCodecProjectId")),
+      count: Schema.NumberFromString
+    });
+    type EncodedInput = typeof EncodedInput.Type;
+    const Submit = Action.define<EncodedInput, { readonly ok: boolean }>({
+      name: "Start.action.codec.shared",
+      input: EncodedInput,
+      output: Schema.Struct({ ok: Schema.Boolean }),
+      run: () => Effect.succeed({ ok: true })
+    });
+    const input: EncodedInput = {
+      id: "atlas" as EncodedInput["id"],
+      count: 7
+    };
+
+    const jsonRequest = await Effect.runPromise(
+      encodeStartActionRequestEffect(Submit, input)
+    );
+    const form = startActionForm(Submit, { input });
+    const formInput = form.hiddenFields.find((field) => field.name === startActionInputField);
+
+    expect(jsonRequest).toEqual({
+      name: Submit.name,
+      input: {
+        id: "atlas",
+        count: "7"
+      }
+    });
+    expect(JSON.parse(formInput?.value ?? "{}")).toEqual(jsonRequest.input);
+  });
+
+  it("fails progressive form default encoding with typed errors for circular and BigInt inputs", () => {
+    const Submit = Action.define<Record<string, unknown>, { readonly ok: boolean }>({
+      name: "Start.action.codec.form-failure",
+      output: Schema.Struct({ ok: Schema.Boolean }),
+      run: () => Effect.succeed({ ok: true })
+    });
+    const circular: Record<string, unknown> = {};
+    circular.self = circular;
+
+    expect(() => startActionForm(Submit, { input: circular })).toThrow(StartActionFormEncodeError);
+    expect(() => startActionForm(Submit, { input: { count: 1n } })).toThrow(StartActionFormEncodeError);
+  });
+
+  it("returns typed JSON redirects for form actions that explicitly accept JSON", async () => {
+    const SubmitResult = Schema.TaggedUnion({
+      Success: {
+        value: Schema.Struct({ ok: Schema.Boolean })
+      },
+      ValidationFailure: {
+        fieldErrors: Schema.Struct({
+          redirectTo: Schema.optional(Schema.Array(Schema.String))
+        }),
+        formErrors: Schema.Array(Schema.String)
+      },
+      Redirect: {
+        location: Schema.String,
+        status: Schema.Number,
+        replace: Schema.optional(Schema.Boolean)
+      },
+      Failure: {
+        error: Schema.String
+      }
+    });
+    const Submit = Action.define<
+      { readonly redirectTo: string },
+      ActionResult<{ readonly ok: boolean }, { readonly redirectTo: string }, string, string>
+    >({
+      name: "Start.action.form.accept-json",
+      input: Schema.Struct({ redirectTo: Schema.String }),
+      output: SubmitResult,
+      run: ({ redirectTo }) => Effect.succeed(ActionResult.redirect(redirectTo, { status: 303, replace: true }))
+    });
+    const app = defineApp({
+      routes: [route("/", {})] as const,
+      client: {}
+    });
+    const form = startActionForm(Submit, { input: { redirectTo: "/projects/json" } });
+    const formBody = new URLSearchParams(
+      form.hiddenFields.map((field) => [field.name, field.value])
+    );
+    const response = await Effect.runPromise(
+      createRequestHandler(app, { actions: [Submit] })(
+        new Request(`https://example.com${form.action}`, {
+          method: form.method.toUpperCase(),
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            accept: "application/json"
+          },
+          body: formBody
+        })
+      )
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      _tag: "Redirect",
+      location: "/projects/json",
+      status: 303,
+      replace: true
+    });
+  });
+
+  it("honors Accept quality when choosing form action redirect responses", async () => {
+    const SubmitResult = Schema.TaggedUnion({
+      Success: {
+        value: Schema.Struct({ ok: Schema.Boolean })
+      },
+      ValidationFailure: {
+        fieldErrors: Schema.Struct({
+          redirectTo: Schema.optional(Schema.Array(Schema.String))
+        }),
+        formErrors: Schema.Array(Schema.String)
+      },
+      Redirect: {
+        location: Schema.String,
+        status: Schema.Number,
+        replace: Schema.optional(Schema.Boolean)
+      },
+      Failure: {
+        error: Schema.String
+      }
+    });
+    const Submit = Action.define<
+      { readonly redirectTo: string },
+      ActionResult<{ readonly ok: boolean }, { readonly redirectTo: string }, string, string>
+    >({
+      name: "Start.action.form.accept-quality",
+      input: Schema.Struct({ redirectTo: Schema.String }),
+      output: SubmitResult,
+      run: ({ redirectTo }) => Effect.succeed(ActionResult.redirect(redirectTo, { status: 303 }))
+    });
+    const app = defineApp({
+      routes: [route("/", {})] as const,
+      client: {}
+    });
+    const form = startActionForm(Submit, { input: { redirectTo: "/projects/html" } });
+    const formBody = new URLSearchParams(
+      form.hiddenFields.map((field) => [field.name, field.value])
+    );
+    const response = await Effect.runPromise(
+      createRequestHandler(app, { actions: [Submit] })(
+        new Request(`https://example.com${form.action}`, {
+          method: form.method.toUpperCase(),
+          headers: {
+            "content-type": "application/x-www-form-urlencoded",
+            accept: "text/html, application/json;q=0.1"
+          },
+          body: formBody
+        })
+      )
+    );
+
+    expect(response.status).toBe(303);
+    expect(response.headers.get("location")).toBe("/projects/html");
+  });
+
   it("discovers Start actions from the Action registry when no explicit list is supplied", async () => {
     const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
       name: "Start.action.registry.ping",
@@ -1432,6 +2599,47 @@ describe("Effect UI Start", () => {
       _tag: "Success",
       value: { value: "REGISTRY" }
     });
+  });
+
+  it("rejects duplicate explicit Start action names before dispatch", async () => {
+    const First = Action.define<{ readonly value: string }, { readonly value: string }>({
+      name: "Start.action.explicit-duplicate",
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+      run: ({ value }) => Effect.succeed({ value: `first:${value}` })
+    });
+    const Second = Action.define<{ readonly value: string }, { readonly value: string }>({
+      name: "Start.action.explicit-duplicate",
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+      run: ({ value }) => Effect.succeed({ value: `second:${value}` })
+    });
+    const app = defineApp({
+      routes: [route("/", {})] as const,
+      client: {}
+    });
+    const handler = createRequestHandler(app, {
+      actions: [First, Second]
+    });
+    const response = await Effect.runPromise(
+      handler(
+        new Request(`https://example.com${serverActionPath}`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            name: First.name,
+            input: { value: "x" }
+          })
+        })
+      )
+    );
+    const body = await response.json();
+    const serialized = JSON.stringify(body);
+
+    expect(response.status).toBe(500);
+    expect(body).toMatchObject({ _tag: "Defect" });
+    expect(serialized).toContain(StartActionDuplicateName.name);
+    expect(serialized).toContain("Start.action.explicit-duplicate");
   });
 
   it("uses the app registry snapshot for RPC and action dispatch", () => {
@@ -1491,6 +2699,73 @@ describe("Effect UI Start", () => {
     );
   });
 
+  it("dispatches RPC and actions from an explicit app-local registry", () => {
+    const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>("Start.registry.local.echo", {
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String })
+    });
+    const localEcho = Server.implement(Echo, ({ value }) => Effect.succeed({ value: `local:${value}` }));
+    const LocalPing = Action.define<{ readonly value: string }, { readonly value: string }>({
+      name: "Start.registry.local.ping",
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+      run: ({ value }) => Effect.succeed({ value: `local:${value}` })
+    });
+    const app = defineApp({
+      routes: [route("/", {})] as const,
+      client: {},
+      registry: {
+        actions: [LocalPing],
+        serverFunctions: [localEcho]
+      }
+    });
+
+    Server.implement(Echo, ({ value }) => Effect.succeed({ value: `global:${value}` }));
+    Action.define<{ readonly value: string }, { readonly value: string }>({
+      name: LocalPing.name,
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+      run: ({ value }) => Effect.succeed({ value: `global:${value}` })
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const handler = createRequestHandler(app);
+        const rpc = yield* handler(
+          new Request(`https://example.com${serverRpcPath}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              name: localEcho.name,
+              input: { value: "registry" }
+            })
+          })
+        );
+        const action = yield* handler(
+          new Request(`https://example.com${serverActionPath}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              name: LocalPing.name,
+              input: { value: "registry" }
+            })
+          })
+        );
+
+        const rpcBody = yield* Effect.tryPromise(() => rpc.json());
+        const actionBody = yield* Effect.tryPromise(() => action.json());
+        expect(rpcBody).toEqual({
+          _tag: "Success",
+          value: { value: "local:registry" }
+        });
+        expect(actionBody).toEqual({
+          _tag: "Success",
+          value: { value: "local:registry" }
+        });
+      })
+    );
+  });
+
   it("returns action invalidation hydration to JSON clients", async () => {
     const ProjectSchema = Schema.Struct({
       id: Schema.String,
@@ -1537,7 +2812,7 @@ describe("Effect UI Start", () => {
     };
 
     try {
-      await clientRuntime.runPromise(Resource.prefetchEffect(ref));
+      await runInRuntime(clientRuntime, Resource.prefetchEffect(ref));
 
       const result = await Effect.runPromise(
         submitStartActionEffect(
@@ -1673,6 +2948,480 @@ describe("Effect UI Start", () => {
     expect(Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined).toBeInstanceOf(Schema.SchemaError);
   });
 
+  it("rejects successful Start action bodies carried by failing HTTP statuses", async () => {
+    const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
+      name: "Start.action.client.success-bad-status",
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+      run: ({ value }) => Effect.succeed({ value })
+    });
+    const fetcher: StartFetch = () =>
+      Effect.succeed(
+        new Response(
+          JSON.stringify({
+            _tag: "Success",
+            value: { value: "ok" }
+          }),
+          {
+            status: 500,
+            headers: { "content-type": "application/json" }
+          }
+        )
+      );
+
+    const exit = await Effect.runPromiseExit(
+      submitStartActionEffect(Ping, { value: "ok" }, { fetch: fetcher })
+    );
+    const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
+
+    expect(failure).toBeInstanceOf(ServerTransportError);
+    expect(failure).toMatchObject({
+      reason: "BadStatus",
+      status: 500,
+      payload: {
+        _tag: "Success"
+      }
+    });
+  });
+
+  it("requires Start action validation bodies to use HTTP 422", async () => {
+    type PingResult = ActionResult<
+      { readonly value: string },
+      { readonly value: string },
+      string,
+      string
+    >;
+    const PingResult = Schema.TaggedUnion({
+      Success: {
+        value: Schema.Struct({ value: Schema.String })
+      },
+      ValidationFailure: {
+        fieldErrors: Schema.Struct({
+          value: Schema.optional(Schema.Array(Schema.String))
+        }),
+        formErrors: Schema.Array(Schema.String),
+        cause: Schema.optional(Schema.Unknown)
+      },
+      Redirect: {
+        location: Schema.String,
+        status: Schema.Number,
+        replace: Schema.optional(Schema.Boolean)
+      },
+      Failure: {
+        error: Schema.String
+      }
+    });
+    const Ping = Action.define<
+      { readonly value: string },
+      PingResult
+    >({
+      name: "Start.action.client.validation-status",
+      input: Schema.Struct({ value: Schema.String }),
+      output: PingResult,
+      run: ({ value }) => Effect.succeed(ActionResult.success({ value }))
+    });
+    const validationBody = {
+      _tag: "ValidationFailure" as const,
+      fieldErrors: {
+        value: ["Too short."]
+      },
+      formErrors: [],
+      cause: undefined
+    };
+    const validationWithStatus = (status: number): StartFetch => () =>
+      Effect.succeed(
+        new Response(JSON.stringify(validationBody), {
+          status,
+          headers: { "content-type": "application/json" }
+        })
+      );
+
+    const badExit = await Effect.runPromiseExit(
+      submitStartActionEffect(Ping, { value: "x" }, { fetch: validationWithStatus(200) })
+    );
+    const ok = await Effect.runPromise(
+      submitStartActionEffect(Ping, { value: "x" }, { fetch: validationWithStatus(422) })
+    );
+    const failure = Exit.isFailure(badExit) ? firstFailure(badExit.cause) : undefined;
+
+    expect(failure).toBeInstanceOf(ServerTransportError);
+    expect(failure).toMatchObject({
+      reason: "BadStatus",
+      status: 200,
+      payload: {
+        _tag: "ValidationFailure"
+      }
+    });
+    expect(ok).toMatchObject({
+      _tag: "ValidationFailure",
+      fieldErrors: {
+        value: ["Too short."]
+      }
+    });
+  });
+
+  it("rejects malformed Start action response metadata as transport errors", async () => {
+    const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
+      name: "Start.action.client.malformed-meta",
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+      run: ({ value }) => Effect.succeed({ value })
+    });
+    const malformedInvalidation: StartFetch = () =>
+      Effect.succeed(
+        new Response(
+          JSON.stringify({
+            _tag: "Success",
+            value: { value: "ok" },
+            invalidation: {
+              targets: {},
+              entries: []
+            }
+          }),
+          { headers: { "content-type": "application/json" } }
+        )
+      );
+    const malformedHydration: StartFetch = () =>
+      Effect.succeed(
+        new Response(
+          JSON.stringify({
+            _tag: "Success",
+            value: { value: "ok" },
+            hydration: {
+              resources: {}
+            }
+          }),
+          { headers: { "content-type": "application/json" } }
+        )
+      );
+    const missingSuccessValue: StartFetch = () =>
+      Effect.succeed(
+        new Response(
+          JSON.stringify({
+            _tag: "Success"
+          }),
+          { headers: { "content-type": "application/json" } }
+        )
+      );
+    const missingRefInput: StartFetch = () =>
+      Effect.succeed(
+        new Response(
+          JSON.stringify({
+            _tag: "Success",
+            value: { value: "ok" },
+            invalidation: {
+              targets: [{
+                _tag: "Ref",
+                key: "Project:atlas",
+                family: "Project"
+              }],
+              entries: [{
+                ref: {
+                  key: "Project:atlas",
+                  family: "Project"
+                },
+                causes: []
+              }]
+            }
+          }),
+          { headers: { "content-type": "application/json" } }
+        )
+      );
+
+    const invalidationExit = await Effect.runPromiseExit(
+      submitStartActionEffect(Ping, { value: "ok" }, { fetch: malformedInvalidation })
+    );
+    const hydrationExit = await Effect.runPromiseExit(
+      submitStartActionEffect(Ping, { value: "ok" }, { fetch: malformedHydration })
+    );
+    const missingSuccessValueExit = await Effect.runPromiseExit(
+      submitStartActionEffect(Ping, { value: "ok" }, { fetch: missingSuccessValue })
+    );
+    const missingRefInputExit = await Effect.runPromiseExit(
+      submitStartActionEffect(Ping, { value: "ok" }, { fetch: missingRefInput })
+    );
+
+    for (const exit of [invalidationExit, hydrationExit, missingSuccessValueExit, missingRefInputExit]) {
+      const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
+      expect(failure).toBeInstanceOf(ServerTransportError);
+      expect(failure).toMatchObject({
+        reason: "InvalidResponse",
+        message: "Action response did not match the Effect UI Start action protocol."
+      });
+    }
+  });
+
+  it("rejects semantically invalid Start action invalidation metadata", async () => {
+    const Project = Resource.family({
+      name: "Start.action.client.semantic-ref",
+      load: (id: string) => Effect.succeed({ id })
+    });
+    const validRef = Project("valid");
+    const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
+      name: "Start.action.client.semantic-meta",
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+      run: ({ value }) => Effect.succeed({ value })
+    });
+    const responseWithInvalidation = (invalidation: unknown): StartFetch => () =>
+      Effect.succeed(
+        new Response(
+          JSON.stringify({
+            _tag: "Success",
+            value: { value: "ok" },
+            invalidation
+          }),
+          { headers: { "content-type": "application/json" } }
+        )
+      );
+    const responseWithTarget = (target: unknown): StartFetch =>
+      responseWithInvalidation({
+        targets: [target],
+        entries: []
+      });
+
+    const unknownFamilyExit = await Effect.runPromiseExit(
+      submitStartActionEffect(Ping, { value: "ok" }, {
+        fetch: responseWithTarget({
+          _tag: "Ref",
+          key: "missing",
+          family: "Start.action.client.missing-family",
+          input: "valid"
+        })
+      })
+    );
+    const keyMismatchExit = await Effect.runPromiseExit(
+      submitStartActionEffect(Ping, { value: "ok" }, {
+        fetch: responseWithTarget({
+          _tag: "Ref",
+          key: validRef.key,
+          family: "Start.action.client.semantic-ref",
+          input: "different"
+        })
+      })
+    );
+    const entryMismatchExit = await Effect.runPromiseExit(
+      submitStartActionEffect(Ping, { value: "ok" }, {
+        fetch: responseWithInvalidation({
+          targets: [{
+            _tag: "Ref",
+            key: validRef.key,
+            family: "Start.action.client.semantic-ref",
+            input: "valid"
+          }],
+          entries: [{
+            ref: {
+              key: validRef.key,
+              family: "Start.action.client.semantic-ref",
+              input: "different"
+            },
+            causes: []
+          }]
+        })
+      })
+    );
+    const malformedTagTargetExit = await Effect.runPromiseExit(
+      submitStartActionEffect(Ping, { value: "ok" }, {
+        fetch: responseWithTarget({
+          _tag: "Tag",
+          key: "Start.action.client.semantic-tag-wrong:valid",
+          name: "Start.action.client.semantic-tag"
+        })
+      })
+    );
+    const malformedTagCauseExit = await Effect.runPromiseExit(
+      submitStartActionEffect(Ping, { value: "ok" }, {
+        fetch: responseWithInvalidation({
+          targets: [],
+          entries: [{
+            ref: {
+              key: validRef.key,
+              family: "Start.action.client.semantic-ref",
+              input: "valid"
+            },
+            causes: [{
+              _tag: "Tag",
+              key: "Start.action.client.semantic-tag-wrong:valid",
+              name: "Start.action.client.semantic-tag"
+            }]
+          }]
+        })
+      })
+    );
+
+    const unknownFamily = Exit.isFailure(unknownFamilyExit) ? firstFailure(unknownFamilyExit.cause) : undefined;
+    const keyMismatch = Exit.isFailure(keyMismatchExit) ? firstFailure(keyMismatchExit.cause) : undefined;
+    const entryMismatch = Exit.isFailure(entryMismatchExit) ? firstFailure(entryMismatchExit.cause) : undefined;
+    const malformedTagTarget = Exit.isFailure(malformedTagTargetExit) ? firstFailure(malformedTagTargetExit.cause) : undefined;
+    const malformedTagCause = Exit.isFailure(malformedTagCauseExit) ? firstFailure(malformedTagCauseExit.cause) : undefined;
+
+    expect(unknownFamily).toBeInstanceOf(ServerTransportError);
+    expect(unknownFamily).toMatchObject({
+      reason: "InvalidResponse",
+      message: "Start action invalidation metadata referenced an unknown Resource family."
+    });
+    expect(keyMismatch).toBeInstanceOf(ServerTransportError);
+    expect(keyMismatch).toMatchObject({
+      reason: "InvalidResponse",
+      message: "Start action invalidation metadata did not match the Resource input."
+    });
+    expect(entryMismatch).toBeInstanceOf(ServerTransportError);
+    expect(entryMismatch).toMatchObject({
+      reason: "InvalidResponse",
+      message: "Start action invalidation metadata did not match the Resource input."
+    });
+    expect(malformedTagTarget).toBeInstanceOf(ServerTransportError);
+    expect(malformedTagTarget).toMatchObject({
+      reason: "InvalidResponse",
+      message: "Start action invalidation metadata did not match the Resource tag key."
+    });
+    expect(malformedTagCause).toBeInstanceOf(ServerTransportError);
+    expect(malformedTagCause).toMatchObject({
+      reason: "InvalidResponse",
+      message: "Start action invalidation metadata did not match the Resource tag key."
+    });
+  });
+
+  it("replays action ref invalidations through runtime-local Resource families", async () => {
+    const runtime = makeRuntime();
+    let count = 0;
+    const load = () => Effect.succeed(count);
+    const Count = Resource.family({
+      name: "Start.action.client.runtime-local-ref",
+      load: (_input: null) => load()
+    });
+    const ref = Count(null);
+    const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
+      name: "Start.action.client.runtime-local-ref",
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+      run: ({ value }) => Effect.succeed({ value })
+    });
+    const definitions = Resource.definitions() as Map<string, unknown>;
+    const globalDefinition = definitions.get("Start.action.client.runtime-local-ref");
+    const fetcher: StartFetch = () =>
+      Effect.succeed(
+        new Response(
+          JSON.stringify({
+            _tag: "Success",
+            value: { value: "ok" },
+            invalidation: {
+              targets: [{
+                _tag: "Ref",
+                key: ref.key,
+                family: "Start.action.client.runtime-local-ref",
+                input: null
+              }],
+              entries: []
+            }
+          }),
+          { headers: { "content-type": "application/json" } }
+        )
+      );
+
+    try {
+      await Effect.runPromise(runtime.provide(Resource.prefetchEffect(ref)));
+      definitions.delete("Start.action.client.runtime-local-ref");
+      count = 1;
+
+      await expect(
+        Effect.runPromise(submitStartActionEffect(Ping, { value: "ok" }, { fetch: fetcher, runtime }))
+      ).resolves.toMatchObject({
+        _tag: "Success",
+        value: { value: "ok" }
+      });
+
+      expect(runWithRuntime(runtime, () => read(ref))).toBe(1);
+    } finally {
+      if (globalDefinition) {
+        definitions.set("Start.action.client.runtime-local-ref", globalDefinition);
+      }
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("reports malformed Start action hydration payloads as transport errors", async () => {
+    const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
+      name: "Start.action.client.bad-hydration-meta",
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+      run: ({ value }) => Effect.succeed({ value })
+    });
+    const fetcher: StartFetch = () =>
+      Effect.succeed(
+        new Response(
+          JSON.stringify({
+            _tag: "Success",
+            value: { value: "ok" },
+            hydration: {
+              resources: [{ name: 1 }]
+            }
+          }),
+          { headers: { "content-type": "application/json" } }
+        )
+      );
+
+    const exit = await Effect.runPromiseExit(
+      submitStartActionEffect(Ping, { value: "ok" }, { fetch: fetcher })
+    );
+    const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
+
+    expect(failure).toBeInstanceOf(ServerTransportError);
+    expect(failure).toMatchObject({
+      reason: "InvalidResponse",
+      message: "Start action response metadata could not be applied."
+    });
+  });
+
+  it("normalizes Start action client header and fetch setup throws as transport errors", async () => {
+    const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
+      name: "Start.action.client.transport-setup-throw",
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+      run: ({ value }) => Effect.succeed({ value })
+    });
+    const headerCause = new Error("headers failed");
+    const fetchCause = new Error("fetcher failed");
+
+    const headerExit = await Effect.runPromiseExit(
+      submitStartActionEffect(
+        Ping,
+        { value: "ok" },
+        {
+          headers: () => {
+            throw headerCause;
+          }
+        }
+      )
+    );
+    const fetchExit = await Effect.runPromiseExit(
+      submitStartActionEffect(
+        Ping,
+        { value: "ok" },
+        {
+          fetch: () => {
+            throw fetchCause;
+          }
+        }
+      )
+    );
+    const headerFailure = Exit.isFailure(headerExit) ? firstFailure(headerExit.cause) : undefined;
+    const fetchFailure = Exit.isFailure(fetchExit) ? firstFailure(fetchExit.cause) : undefined;
+
+    expect(headerFailure).toBeInstanceOf(ServerTransportError);
+    expect(headerFailure).toMatchObject({
+      reason: "Network",
+      message: "Could not construct Start transport headers.",
+      cause: headerCause
+    });
+    expect(fetchFailure).toBeInstanceOf(ServerTransportError);
+    expect(fetchFailure).toMatchObject({
+      reason: "Network",
+      message: "Start action request failed.",
+      cause: fetchCause
+    });
+  });
+
   it("replays semantic action tag invalidations on JSON clients", async () => {
     const ProjectSchema = Schema.Struct({
       id: Schema.String,
@@ -1723,7 +3472,7 @@ describe("Effect UI Start", () => {
     };
 
     try {
-      await clientRuntime.runPromise(Resource.prefetchEffect(ref));
+      await runInRuntime(clientRuntime, Resource.prefetchEffect(ref));
 
       const result = await Effect.runPromise(
         submitStartActionEffect(
@@ -1753,6 +3502,97 @@ describe("Effect UI Start", () => {
       expect(runWithRuntime(clientRuntime, () => Resource.status(ref).value)).toEqual({
         id: "atlas",
         name: "Renamed Through Tag"
+      });
+    } finally {
+      await Effect.runPromise(clientRuntime.disposeEffect);
+    }
+  });
+
+  it("replays direct action ref invalidations on JSON clients", async () => {
+    const ProjectSchema = Schema.Struct({
+      id: Schema.String,
+      name: Schema.String
+    });
+    let project = {
+      id: "atlas",
+      name: "Initial"
+    };
+    const Project = Resource.family({
+      name: "Start.action.Project.ref",
+      input: Schema.String,
+      output: ProjectSchema,
+      load: () => Effect.succeed(project)
+    });
+    const RenameProject = Action.define<
+      { readonly id: string; readonly name: string },
+      typeof ProjectSchema.Type
+    >({
+      name: "Start.action.project.rename.ref",
+      input: Schema.Struct({ id: Schema.String, name: Schema.String }),
+      output: ProjectSchema,
+      run: ({ id, name }) =>
+        Effect.sync(() => {
+          project = { id, name };
+          return project;
+        }),
+      invalidates: (_project, input) => [Project(input.id)]
+    });
+    const app = defineApp({
+      routes: [route("/", {})] as const,
+      client: {}
+    });
+    const handler = createRequestHandler(app, {
+      actions: [RenameProject]
+    });
+    const clientRuntime = makeRuntime();
+    const ref = Project("atlas");
+    const fetcher: StartFetch = (input, init) =>
+      Effect.gen(function* () {
+        const url = input instanceof Request
+          ? input.url
+          : new URL(String(input), "https://example.com").href;
+        const response = yield* handler(new Request(url, init));
+        const body = yield* Effect.tryPromise(() => response.json() as Promise<Record<string, unknown>>);
+        delete body.hydration;
+        return new Response(JSON.stringify(body), {
+          status: response.status,
+          headers: {
+            "content-type": response.headers.get("content-type") ?? "application/json"
+          }
+        });
+      });
+
+    try {
+      await runInRuntime(clientRuntime, Resource.prefetchEffect(ref));
+
+      const result = await Effect.runPromise(
+        submitStartActionEffect(
+          RenameProject,
+          { id: "atlas", name: "Renamed Through Ref" },
+          {
+            fetch: fetcher,
+            runtime: clientRuntime
+          }
+        )
+      );
+
+      expect(result).toMatchObject({
+        _tag: "Success",
+        invalidation: {
+          targets: [
+            {
+              _tag: "Ref",
+              key: ref.key,
+              family: "Start.action.Project.ref",
+              input: "atlas"
+            }
+          ]
+        }
+      });
+      expect(result.hydration).toBeUndefined();
+      expect(runWithRuntime(clientRuntime, () => Resource.status(ref).value)).toEqual({
+        id: "atlas",
+        name: "Renamed Through Ref"
       });
     } finally {
       await Effect.runPromise(clientRuntime.disposeEffect);
@@ -1843,11 +3683,11 @@ describe("Effect UI Start", () => {
       const second = runtime.runFork(action.submitEffect({ value: "second" }));
       Effect.runSync(Deferred.succeed(release, undefined));
 
-      await expect(runtime.runPromise(Fiber.join(first))).resolves.toMatchObject({
+      await expect(runInRuntime(runtime, Fiber.join(first))).resolves.toMatchObject({
         _tag: "Success",
         value: { value: "response-1" }
       });
-      await expect(runtime.runPromise(Fiber.join(second))).resolves.toMatchObject({
+      await expect(runInRuntime(runtime, Fiber.join(second))).resolves.toMatchObject({
         _tag: "Success",
         value: { value: "response-1" }
       });
@@ -1932,13 +3772,13 @@ describe("Effect UI Start", () => {
     const action = StartAction.use(RenameProject, { fetch: fetcher, runtime });
 
     try {
-      await runtime.runPromise(Resource.prefetchEffect(ref));
+      await runInRuntime(runtime, Resource.prefetchEffect(ref));
       const first = runtime.runFork(action.submitEffect({ name: "First" }));
       await Effect.runPromise(Effect.sleep("10 millis"));
       const second = runtime.runFork(action.submitEffect({ name: "Second" }));
 
       Effect.runSync(Deferred.succeed(secondRelease, undefined));
-      await expect(runtime.runPromise(Fiber.join(second))).resolves.toMatchObject({
+      await expect(runInRuntime(runtime, Fiber.join(second))).resolves.toMatchObject({
         _tag: "Success",
         value: { name: "Second" }
       });
@@ -1948,7 +3788,7 @@ describe("Effect UI Start", () => {
       });
 
       Effect.runSync(Deferred.succeed(firstRelease, undefined));
-      await expect(runtime.runPromise(Fiber.join(first))).resolves.toMatchObject({
+      await expect(runInRuntime(runtime, Fiber.join(first))).resolves.toMatchObject({
         _tag: "Success",
         value: { name: "First" }
       });
@@ -2047,6 +3887,45 @@ describe("Effect UI Start", () => {
     });
   });
 
+  it("resolves Start hydration collections from a registry when concrete collections are not supplied", async () => {
+    const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
+      name: "Start.Collection.registry-hydration",
+      getKey: (project) => project.id
+    });
+
+    await Effect.runPromise(
+      hydrateStartPayloadEffect(
+        {
+          resources: [],
+          collections: [
+            {
+              name: Projects.name,
+              rows: [
+                {
+                  key: "atlas",
+                  value: { id: "atlas", name: "Registry Atlas" },
+                  synced: true,
+                  origin: "remote" as const
+                }
+              ],
+              pendingMutations: [],
+              updatedAt: Date.now()
+            }
+          ]
+        },
+        {
+          collectionRegistry: Collection.defaultRegistry
+        }
+      )
+    );
+
+    expect(Projects.get("atlas")).toMatchObject({
+      id: "atlas",
+      name: "Registry Atlas",
+      $synced: true
+    });
+  });
+
   it("surfaces collection snapshot codec failures from Start hydration effects", async () => {
     const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
       name: "Start.Collection.invalid-hydration",
@@ -2076,6 +3955,87 @@ describe("Effect UI Start", () => {
     expect(firstFailure(exit.cause)).toBeInstanceOf(CollectionSnapshotCodecError);
   });
 
+  it("fails Start hydration when collection snapshots have no resolvable definition", async () => {
+    const exit = await Effect.runPromiseExit(
+      hydrateStartPayloadEffect(
+        {
+          resources: [],
+          collections: [
+            {
+              name: "Start.Collection.missing-hydration-definition",
+              rows: [],
+              pendingMutations: [],
+              updatedAt: 1
+            }
+          ]
+        },
+        {
+          collectionRegistry: Collection.makeRegistry()
+        }
+      )
+    );
+
+    expect(Exit.isFailure(exit)).toBe(true);
+    expect(firstFailure(exit.cause)).toMatchObject({
+      _tag: "CollectionSnapshotCodecError",
+      operation: "hydrate",
+      path: "$.collections[0].name"
+    });
+  });
+
+  it("does not partially apply resources when collection hydration validation fails", async () => {
+    const runtime = makeRuntime();
+    try {
+      const User = Resource.family({
+        name: "Start.User.invalid-collection-hydration",
+        load: (id: string) => Effect.succeed({ id, name: "Loaded" })
+      });
+      const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
+        name: "Start.Collection.invalid-after-resource",
+        getKey: (project) => project.id
+      });
+      const ref = User("1");
+      const exit = await Effect.runPromiseExit(
+        runtime.provide(
+          hydrateStartPayloadEffect(
+            {
+              resources: [
+                {
+                  name: "Start.User.invalid-collection-hydration",
+                  key: ref.key,
+                  input: "1",
+                  state: {
+                    _tag: "Success" as const,
+                    waiting: false as const,
+                    value: { id: "1", name: "Hydrated" },
+                    updatedAt: 1
+                  }
+                }
+              ],
+              collections: [
+                {
+                  name: "Start.Collection.invalid-after-resource",
+                  rows: "not-rows",
+                  pendingMutations: [],
+                  updatedAt: 1
+                } as never
+              ]
+            },
+            {
+              collections: [Projects]
+            }
+          )
+        )
+      );
+
+      expect(Exit.isFailure(exit)).toBe(true);
+      expect(firstFailure(exit.cause)).toBeInstanceOf(CollectionSnapshotCodecError);
+      expect(runWithRuntime(runtime, () => Resource.status(ref)._tag)).toBe("Initial");
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
   it("surfaces malformed document hydration JSON through the Effect error channel", async () => {
     const document = {
       getElementById: (id: string) =>
@@ -2093,9 +4053,135 @@ describe("Effect UI Start", () => {
     expect(firstFailure(exit.cause)).toBeInstanceOf(StartHydrationPayloadParseError);
   });
 
+  it("rejects root hydration payloads with malformed collection data", async () => {
+    const document = {
+      getElementById: (id: string) =>
+        id === "__EFFECT_UI_HYDRATION__"
+          ? { textContent: JSON.stringify({ resources: [], collections: "not-array" }) }
+          : null,
+      querySelectorAll: () => []
+    };
+
+    const exit = await Effect.runPromiseExit(
+      hydrateFromDocumentEffect(document as Parameters<typeof hydrateFromDocumentEffect>[0])
+    );
+
+    expect(Exit.isFailure(exit)).toBe(true);
+    expect(firstFailure(exit.cause)).toBeInstanceOf(StartHydrationPayloadParseError);
+  });
+
+  it("surfaces empty document hydration scripts as malformed JSON", async () => {
+    const document = {
+      getElementById: (id: string) =>
+        id === "__EFFECT_UI_HYDRATION__"
+          ? { textContent: "" }
+          : null,
+      querySelectorAll: () => []
+    };
+
+    const exit = await Effect.runPromiseExit(
+      hydrateFromDocumentEffect(document as Parameters<typeof hydrateFromDocumentEffect>[0])
+    );
+
+    expect(Exit.isFailure(exit)).toBe(true);
+    expect(firstFailure(exit.cause)).toBeInstanceOf(StartHydrationPayloadParseError);
+  });
+
+  it("surfaces hydration script serialization failures through the Effect error channel", async () => {
+    const payload: { readonly resources: ReadonlyArray<never>; self?: unknown } = {
+      resources: []
+    };
+    payload.self = payload;
+
+    const exit = await Effect.runPromiseExit(createHydrationScriptEffect(payload));
+    const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
+
+    expect(Exit.isFailure(exit)).toBe(true);
+    expect(failure).toBeInstanceOf(StartHydrationPayloadSerializeError);
+    expect(failure).toMatchObject({
+      operation: "root-payload",
+      value: payload,
+      guidance: expect.stringContaining("JSON-serializable")
+    });
+    expect(failure?.cause).toBeInstanceOf(TypeError);
+  });
+
+  it("escapes custom hydration script ids as HTML attributes", async () => {
+    const script = await Effect.runPromise(
+      createHydrationScriptEffect({ resources: [] }, `root"<&`)
+    );
+
+    expect(script).toContain(`id="root&quot;&lt;&amp;"`);
+    expect(script.match(/<script/g)).toHaveLength(1);
+    expect(script).toContain(`{"resources":[]}`);
+  });
+
+  it("throws hydration script serialization failures from the sync facade", () => {
+    const payload: { readonly resources: ReadonlyArray<never>; self?: unknown } = {
+      resources: []
+    };
+    payload.self = payload;
+
+    expect(() => createHydrationScript(payload)).toThrow(StartHydrationPayloadSerializeError);
+
+    try {
+      createHydrationScript(payload);
+    } catch (error) {
+      expect(error).toMatchObject({
+        operation: "root-payload",
+        value: payload,
+        guidance: expect.stringContaining("JSON-serializable")
+      });
+      expect((error as StartHydrationPayloadSerializeError).cause).toBeInstanceOf(TypeError);
+    }
+  });
+
   it("surfaces malformed streamed hydration JSON through the Effect error channel", async () => {
     const element = {
       textContent: "{",
+      getAttribute: (name: string) =>
+        name === streamHydrationSequenceAttribute ? "2" : null
+    };
+    const document = {
+      querySelectorAll: (selector: string) =>
+        selector === `[${streamHydrationAttribute}]` ? [element] : []
+    };
+
+    const exit = await Effect.runPromiseExit(
+      hydrateStartHydrationChunksFromDocumentEffect(document)
+    );
+
+    expect(Exit.isFailure(exit)).toBe(true);
+    expect(firstFailure(exit.cause)).toBeInstanceOf(StartHydrationChunkParseError);
+  });
+
+  it("rejects streamed hydration chunks with malformed collection data", async () => {
+    const element = {
+      textContent: JSON.stringify({
+        _tag: "StartHydrationChunk",
+        version: 1,
+        sequence: 0,
+        payload: { resources: [], collections: "not-array" }
+      }),
+      getAttribute: (name: string) =>
+        name === streamHydrationSequenceAttribute ? "0" : null
+    };
+    const document = {
+      querySelectorAll: (selector: string) =>
+        selector === `[${streamHydrationAttribute}]` ? [element] : []
+    };
+
+    const exit = await Effect.runPromiseExit(
+      hydrateStartHydrationChunksFromDocumentEffect(document)
+    );
+
+    expect(Exit.isFailure(exit)).toBe(true);
+    expect(firstFailure(exit.cause)).toBeInstanceOf(StartHydrationChunkParseError);
+  });
+
+  it("surfaces empty streamed hydration chunks as malformed JSON", async () => {
+    const element = {
+      textContent: "",
       getAttribute: (name: string) =>
         name === streamHydrationSequenceAttribute ? "2" : null
     };
@@ -2243,11 +4329,89 @@ describe("Effect UI Start", () => {
         id: "1",
         name: "Hydrated"
       });
-      await expect(runtime.runPromise(Resource.prefetchEffect(ref))).resolves.toEqual({
+      await expect(runInRuntime(runtime, Resource.prefetchEffect(ref))).resolves.toEqual({
         id: "1",
         name: "Hydrated"
       });
       expect(loads).toBe(0);
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("returns merged root and streamed payloads from document hydration effects", async () => {
+    const runtime = makeRuntime();
+    try {
+      const User = Resource.family({
+        name: "Start.User.document-return-merged",
+        load: (id: string) => Effect.succeed({ id, name: "Loaded" })
+      });
+      const rootRef = User("root");
+      const streamRef = User("stream");
+      const rootPayload = {
+        resources: [
+          {
+            name: "Start.User.document-return-merged",
+            key: rootRef.key,
+            input: "root",
+            state: {
+              _tag: "Success" as const,
+              waiting: false as const,
+              value: { id: "root", name: "Root" },
+              updatedAt: 1
+            }
+          }
+        ]
+      };
+      const streamPayload = {
+        resources: [
+          {
+            name: "Start.User.document-return-merged",
+            key: streamRef.key,
+            input: "stream",
+            state: {
+              _tag: "Success" as const,
+              waiting: false as const,
+              value: { id: "stream", name: "Stream" },
+              updatedAt: 2
+            }
+          }
+        ]
+      };
+      const streamElement = makeStreamHydrationElement(
+        createStreamHydrationScript(streamPayload, 1),
+        1
+      );
+      const document = {
+        getElementById: (id: string) =>
+          id === "__EFFECT_UI_HYDRATION__"
+            ? { textContent: scriptText(createHydrationScript(rootPayload)) }
+            : null,
+        querySelectorAll: (selector: string) =>
+          selector === `[${streamHydrationAttribute}]` ? [streamElement] : []
+      };
+
+      const hydrated = await runInRuntime(
+        runtime,
+        hydrateFromDocumentEffect(
+          document as Parameters<typeof hydrateFromDocumentEffect>[0],
+          "__EFFECT_UI_HYDRATION__"
+        )
+      );
+
+      expect(hydrated?.resources.map((resource) => resource.key)).toEqual([
+        rootRef.key,
+        streamRef.key
+      ]);
+      expect(streamElement.getAttribute(streamHydrationConsumedAttribute)).toBe("true");
+      expect(runWithRuntime(runtime, () => Resource.read(rootRef))).toEqual({
+        id: "root",
+        name: "Root"
+      });
+      expect(runWithRuntime(runtime, () => Resource.read(streamRef))).toEqual({
+        id: "stream",
+        name: "Stream"
+      });
     } finally {
       await Effect.runPromise(runtime.disposeEffect);
     }
@@ -2306,12 +4470,12 @@ describe("Effect UI Start", () => {
           selector === `[${streamHydrationAttribute}]` ? streamElements : []
       };
 
-      const hydrated = await runtime.runPromise(
+      const hydrated = await runInRuntime(runtime,
         hydrateStartHydrationChunksFromDocumentEffect(document, {
           collections: [Projects]
         })
       );
-      const secondHydration = await runtime.runPromise(
+      const secondHydration = await runInRuntime(runtime,
         hydrateStartHydrationChunksFromDocumentEffect(document, {
           collections: [Projects]
         })
@@ -2327,6 +4491,88 @@ describe("Effect UI Start", () => {
       expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.id))).toEqual(
         ["atlas", "kepler"]
       );
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("keeps earlier streamed hydration chunks applied when a later chunk fails", async () => {
+    const runtime = makeRuntime();
+    try {
+      const User = Resource.family({
+        name: "Start.User.stream-progressive-failure",
+        input: Schema.String,
+        output: Schema.Struct({
+          id: Schema.String,
+          name: Schema.String
+        }),
+        load: (id: string) => Effect.succeed({ id, name: "Loaded" })
+      });
+      const validRef = User("valid");
+      const invalidRef = User("invalid");
+      const validPayload = {
+        resources: [
+          {
+            name: "Start.User.stream-progressive-failure",
+            key: validRef.key,
+            input: "valid",
+            state: {
+              _tag: "Success" as const,
+              waiting: false as const,
+              value: { id: "valid", name: "Valid" },
+              updatedAt: 1
+            }
+          }
+        ]
+      };
+      const invalidChunk = {
+        _tag: "StartHydrationChunk",
+        version: 1,
+        sequence: 1,
+        payload: {
+          resources: [
+            {
+              name: "Start.User.stream-progressive-failure",
+              key: invalidRef.key,
+              input: "invalid",
+              state: {
+                _tag: "Success",
+                waiting: false,
+                value: { id: "invalid" },
+                updatedAt: 2
+              }
+            }
+          ]
+        }
+      };
+      const streamElements = [
+        makeStreamHydrationElement(createStreamHydrationScript(validPayload, 0), 0),
+        makeStreamHydrationElement(JSON.stringify(invalidChunk), 1)
+      ];
+      const document = {
+        querySelectorAll: (selector: string) =>
+          selector === `[${streamHydrationAttribute}]` ? streamElements : []
+      };
+
+      const exit = await Effect.runPromiseExit(
+        runtime.provide(hydrateStartHydrationChunksFromDocumentEffect(document))
+      );
+
+      expect(Exit.isFailure(exit)).toBe(true);
+      if (Exit.isFailure(exit)) {
+        const error = exit.cause.reasons.find(Cause.isFailReason)?.error;
+        expect(error).toMatchObject({
+          _tag: "ResourceSnapshotCodecError"
+        });
+      }
+      expect(runWithRuntime(runtime, () => Resource.read(validRef))).toEqual({
+        id: "valid",
+        name: "Valid"
+      });
+      expect(runWithRuntime(runtime, () => Resource.status(invalidRef)._tag)).toBe("Initial");
+      expect(
+        streamElements.map((element) => element.getAttribute(streamHydrationConsumedAttribute))
+      ).toEqual([null, null]);
     } finally {
       await Effect.runPromise(runtime.disposeEffect);
     }
@@ -2378,6 +4624,39 @@ describe("Effect UI Start", () => {
     expect(() => hydrateStartHydrationChunksFromDocument(document)).toThrow(
       StartHydrationChunkParseError
     );
+
+    try {
+      hydrateStartHydrationChunksFromDocument(document);
+    } catch (error) {
+      expect(error).toMatchObject({
+        sequence: 4,
+        value: { resources: "invalid" }
+      });
+    }
+  });
+
+  it("reads legacy streamed root payloads as ordered chunks through the sync facade", () => {
+    const payload = {
+      resources: []
+    };
+    const element = {
+      textContent: JSON.stringify(payload),
+      getAttribute: (name: string) =>
+        name === streamHydrationSequenceAttribute ? "7" : null
+    };
+    const document = {
+      querySelectorAll: (selector: string) =>
+        selector === `[${streamHydrationAttribute}]` ? [element] : []
+    };
+
+    expect(readStartHydrationChunks(document)).toEqual([
+      {
+        _tag: "StartHydrationChunk",
+        version: 1,
+        sequence: 7,
+        payload
+      }
+    ]);
   });
 
   it("surfaces streamed hydration chunk parse failures from Effect helpers", async () => {
@@ -2438,8 +4717,43 @@ describe("Effect UI Start", () => {
     expect(
       shouldHandleSsrRequest({
         method: "GET",
+        url: "/users/alice@example.com",
+        headers: { accept: "text/html" }
+      })
+    ).toBe(true);
+    expect(
+      shouldHandleSsrRequest({
+        method: "GET",
+        url: "/releases/1.0",
+        headers: { accept: "text/html" }
+      })
+    ).toBe(true);
+    expect(
+      shouldHandleSsrRequest({
+        method: "GET",
+        url: "/projects/foo.json",
+        headers: { accept: "text/html" }
+      })
+    ).toBe(true);
+    expect(
+      shouldHandleSsrRequest({
+        method: "GET",
+        url: "/projects/atlas",
+        headers: { accept: "text/html;q=0,application/json" }
+      })
+    ).toBe(false);
+    expect(
+      shouldHandleSsrRequest({
+        method: "GET",
         url: "/src/main.tsx",
         headers: { accept: "text/html" }
+      })
+    ).toBe(false);
+    expect(
+      shouldHandleSsrRequest({
+        method: "GET",
+        url: "/assets/app.js",
+        headers: { accept: "application/javascript" }
       })
     ).toBe(false);
     expect(
@@ -2463,17 +4777,106 @@ describe("Effect UI Start", () => {
         headers: { accept: "text/html" }
       })
     ).toBe(true);
+    expect(
+      shouldHandleSsrRequest(
+        {
+          method: "POST",
+          url: "/__effect-ui/rpc",
+          headers: { accept: "application/json" }
+        },
+        {
+          rpcPath: "/custom/start-rpc",
+          actionPath: "/custom/start-action"
+        }
+      )
+    ).toBe(false);
+    expect(
+      shouldHandleSsrRequest(
+        {
+          method: "POST",
+          url: "/custom/start-rpc",
+          headers: { accept: "application/json" }
+        },
+        {
+          rpcPath: "/custom/start-rpc",
+          actionPath: "/custom/start-action"
+        }
+      )
+    ).toBe(true);
+    expect(
+      shouldHandleSsrRequest(
+        {
+          method: "POST",
+          url: "/custom/start-action",
+          headers: { accept: "text/html" }
+        },
+        {
+          rpcPath: "/custom/start-rpc",
+          actionPath: "/custom/start-action"
+        }
+      )
+    ).toBe(true);
   });
 
   it("keeps .server modules out of the client transform graph", () => {
     const plugin = effectUiStart();
 
     expect(isServerOnlyModule("/src/domain.server.ts")).toBe(true);
+    expect(isServerOnlyModule("/src/domain.server.tsrx")).toBe(true);
     expect(isServerOnlyModule("/src/domain.contract.ts")).toBe(false);
+    expect(isServerOnlyModule("/src/domain.contract.tsrx")).toBe(false);
     expect(() =>
       plugin.transform("", "/src/domain.server.ts", {})
     ).toThrow(StartServerOnlyModuleError);
+    expect(() =>
+      plugin.transform("", "/src/domain.server.tsrx", {})
+    ).toThrow(StartServerOnlyModuleError);
     expect(plugin.transform("", "/src/domain.server.ts", { ssr: true })).toBeNull();
+  });
+
+  it("rejects direct server function arrays instead of inferring export names from wire names", async () => {
+    const getProject = Server.fn<string, string>("Start.Project.get-by-id", {
+      handler: (id) => Effect.succeed(id)
+    });
+    const exit = await Effect.runPromiseExit(
+      makeStartServerFunctionManifestEffect({
+        serverEntry: "/src/project.server.ts",
+        serverFunctions: [getProject]
+      })
+    );
+    const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
+
+    expect(failure).toBeInstanceOf(StartManifestDirectReferenceError);
+    expect(failure).toMatchObject({
+      kind: "serverFunctions",
+      count: 1,
+      serverEntry: "/src/project.server.ts"
+    });
+    expect((failure as StartManifestDirectReferenceError).guidance).toContain("serverFunctionSources");
+    expect((failure as StartManifestDirectReferenceError).guidance).toContain("exportName");
+  });
+
+  it("rejects direct action arrays instead of inferring export names from wire names", async () => {
+    const RenameProject = Action.define<string, string>({
+      name: "Start.Project.rename-from-form",
+      run: (name) => Effect.succeed(name)
+    });
+    const exit = await Effect.runPromiseExit(
+      makeStartActionManifestEffect({
+        serverEntry: "/src/project.actions.ts",
+        actions: [RenameProject]
+      })
+    );
+    const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
+
+    expect(failure).toBeInstanceOf(StartManifestDirectReferenceError);
+    expect(failure).toMatchObject({
+      kind: "actions",
+      count: 1,
+      serverEntry: "/src/project.actions.ts"
+    });
+    expect((failure as StartManifestDirectReferenceError).guidance).toContain("actionSources");
+    expect((failure as StartManifestDirectReferenceError).guidance).toContain("exportName");
   });
 
   it("emits a production-shaped server function manifest from the Vite preset", async () => {
@@ -2481,9 +4884,9 @@ describe("Effect UI Start", () => {
       serverFunctionManifest: [
         {
           name: "Start.Project.manifest",
-          module: "/src/project/project.server.ts",
+          module: "/src/project/project.server.tsrx",
           exportName: "getProject",
-          clientModule: "/src/project/project.contract.ts",
+          clientModule: "/src/project/project.contract.tsrx",
           clientExportName: "getProject",
           inputSchema: true,
           outputSchema: true
@@ -2494,9 +4897,9 @@ describe("Effect UI Start", () => {
       serverFunctionManifest: [
         {
           name: "Start.Project.manifest",
-          module: "/src/project/project.server.ts",
+          module: "/src/project/project.server.tsrx",
           exportName: "getProject",
-          clientModule: "/src/project/project.contract.ts",
+          clientModule: "/src/project/project.contract.tsrx",
           clientExportName: "getProject",
           inputSchema: true,
           outputSchema: true
@@ -2517,7 +4920,7 @@ describe("Effect UI Start", () => {
           },
           client: {
             _tag: "Import",
-            module: "/src/project/project.contract.ts",
+            module: "/src/project/project.contract.tsrx",
             moduleKind: "contract"
           }
         }
@@ -2667,6 +5070,8 @@ describe("Effect UI Start", () => {
       writeFileSync(join(root, "src/routes/projects/$id.tsx"), "export default null;\n");
       writeFileSync(join(root, "src/routes/projects/_layout.tsx"), "export default null;\n");
       writeFileSync(join(root, "src/routes/projects/types.d.ts"), "export {};\n");
+      writeFileSync(join(root, "src/routes/projects/types.d.mts"), "export {};\n");
+      writeFileSync(join(root, "src/routes/projects/types.d.cts"), "export {};\n");
       writeFileSync(join(root, "src/routes/projects/readme.md"), "# project routes\n");
 
       const plugin = effectUiStart();
@@ -2723,13 +5128,16 @@ describe("Effect UI Start", () => {
       const generated = readFileSync(generatedPath, "utf8");
 
       expect(generated).toContain("This file is generated by @effect-ui/start. Do not edit.");
-      expect(generated).toContain('import type { Route } from "@effect-ui/core";');
+      expect(generated).toContain('import { Route } from "@effect-ui/core";');
       expect(generated).toContain('import { Route as route_root } from "./routes/index.js";');
       expect(generated).toContain('import { Route as route_projects_$id } from "./routes/projects/$id.js";');
       expect(generated).toContain('const route_projects_$id_path: "/projects/:id" = route_projects_$id.path;');
       expect(generated).toContain("export const routeTree = routes;");
       expect(generated).toContain('  "/projects/:id": route_projects_$id');
       expect(generated).toContain("export type FileRouteHrefOptionsById = { readonly [Id in FileRouteId]: Route.HrefOptions<RouteById[Id]> };");
+      expect(generated).toContain("export const hrefByPath = <Path extends RoutePath>(");
+      expect(generated).toContain("export type Href<Id extends RouteId> = FileRouteHrefOptions<Id>;");
+      expect(generated).toContain("export type Match<Path extends RoutePath> = FileRouteMatch<Path>;");
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -2823,69 +5231,56 @@ describe("Effect UI Start", () => {
     });
     expect(resolved).toBe(`\0${appGraphVirtualModuleId}`);
     expect(String(loaded)).toMatchInlineSnapshot(`
-      "import { Effect } from "effect";
-      import { Resource, Route } from "@effect-ui/core";
-      import { describeStartAppGraphRuntimeDiagnostics, startAppGraphCollectionDefinitions, validateStartAppGraphDiagnosticsPolicyExceptionEffect } from "@effect-ui/start";
-
-      import { Route as route_root } from "/src/routes/index.js";
-      import { Route as route_projects_$id } from "/src/routes/projects/$id.js";
-
-      export const graph = {"version":1,"routes":{"version":1,"routeDirectory":"src/routes","entries":[{"id":"index","routeId":"route_root","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","routePath":"/","segments":[],"params":[]},{"id":"projects/$id","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}]}],"modules":[{"id":"index","kind":"Route","routeId":"route_root","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","routePath":"/","segments":[],"params":[],"exportName":"Route"},{"id":"projects/$id","kind":"Route","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}],"exportName":"Route"}]},"serverFunctions":{"version":1,"rpcPath":"/__effect-ui/rpc","entries":[{"id":"sf_1pkzsl7_start-project-appgraph","name":"Start.Project.appGraph","server":{"module":"/src/project/project.server.ts","exportName":"getProject","moduleKind":"server-only","hasHandler":true},"client":{"_tag":"Rpc","id":"sf_1pkzsl7_start-project-appgraph","name":"Start.Project.appGraph","rpcPath":"/__effect-ui/rpc"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false}}]},"actions":{"version":1,"actionPath":"/__effect-ui/action","entries":[{"id":"act_11c8g85_start-project-appgraph-rename","name":"Start.Project.appGraph.rename","server":{"module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"client":{"_tag":"Post","id":"act_11c8g85_start-project-appgraph-rename","name":"Start.Project.appGraph.rename","actionPath":"/__effect-ui/action"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false},"behavior":{"invalidates":"unknown","optimistic":"unknown","retry":"unknown","concurrency":"unknown"}}]}};
-      const resourceDiagnostics = Resource.diagnostics();
-      const collectionDefinitions = startAppGraphCollectionDefinitions();
-      const routeModuleCandidates = [
-      {
-          entry: graph.routes.entries[0],
-          route: route_root,
-          preloadResources: Route.describePreloadResources(route_root),
-          preloadCollections: Route.describePreloadCollections(route_root)
-        },
-      {
-          entry: graph.routes.entries[1],
-          route: route_projects_$id,
-          preloadResources: Route.describePreloadResources(route_projects_$id),
-          preloadCollections: Route.describePreloadCollections(route_projects_$id)
-        }
-      ];
-      export const diagnostics = describeStartAppGraphRuntimeDiagnostics(graph, {
-        routeModules: routeModuleCandidates,
-        resourceFamilies: resourceDiagnostics.families,
-        resourceTags: resourceDiagnostics.tags,
-        collectionDefinitions
-      });
-      const diagnosticsPolicy = null;
-      export const diagnosticsPolicyViolations = Effect.runSync(validateStartAppGraphDiagnosticsPolicyExceptionEffect(diagnostics, diagnosticsPolicy));
+      "export const graph = {"version":1,"routes":{"version":1,"routeDirectory":"src/routes","entries":[{"id":"index","routeId":"route_root","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","routePath":"/","segments":[],"params":[]},{"id":"projects/$id","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}]}],"modules":[{"id":"index","kind":"Route","routeId":"route_root","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","routePath":"/","segments":[],"params":[],"exportName":"Route"},{"id":"projects/$id","kind":"Route","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}],"exportName":"Route"}]},"serverFunctions":{"version":1,"rpcPath":"/__effect-ui/rpc","entries":[{"id":"sf_1pkzsl7_start-project-appgraph","name":"Start.Project.appGraph","server":{"module":"/src/project/project.server.ts","exportName":"getProject","moduleKind":"server-only","hasHandler":true},"client":{"_tag":"Rpc","id":"sf_1pkzsl7_start-project-appgraph","name":"Start.Project.appGraph","rpcPath":"/__effect-ui/rpc"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false}}]},"actions":{"version":1,"actionPath":"/__effect-ui/action","entries":[{"id":"act_11c8g85_start-project-appgraph-rename","name":"Start.Project.appGraph.rename","server":{"module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"client":{"_tag":"Post","id":"act_11c8g85_start-project-appgraph-rename","name":"Start.Project.appGraph.rename","actionPath":"/__effect-ui/action"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false},"behavior":{"invalidates":"unknown","optimistic":"unknown","retry":"unknown","concurrency":"unknown"}}]}};
+      export const diagnostics = {"version":1,"routeCount":2,"serverFunctionCount":1,"actionCount":1,"routePaths":["/","/projects/:id"],"routeModules":[{"routeId":"route_root","routePath":"/","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","pathParamCount":0,"hasPathParams":false,"params":[],"paramsSchema":"unknown","searchSchema":"unknown","preload":"unknown","preloadResources":{"status":"unknown","families":[]},"preloadCollections":{"status":"unknown","collections":[]},"component":"unknown"},{"routeId":"route_projects_$id","routePath":"/projects/:id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","pathParamCount":1,"hasPathParams":true,"params":[{"name":"id","optional":false}],"paramsSchema":"unknown","searchSchema":"unknown","preload":"unknown","preloadResources":{"status":"unknown","families":[]},"preloadCollections":{"status":"unknown","collections":[]},"component":"unknown"}],"serverFunctionModules":[{"id":"sf_1pkzsl7_start-project-appgraph","name":"Start.Project.appGraph","server":{"module":"/src/project/project.server.ts","exportName":"getProject","moduleKind":"server-only","hasHandler":true},"client":{"_tag":"Rpc","rpcPath":"/__effect-ui/rpc"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false,"complete":false,"missing":["error"]}}],"actionModules":[{"id":"act_11c8g85_start-project-appgraph-rename","name":"Start.Project.appGraph.rename","server":{"module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"client":{"_tag":"Post","actionPath":"/__effect-ui/action"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false,"complete":false,"missing":["error"]},"behavior":{"invalidates":"unknown","optimistic":"unknown","retry":"unknown","concurrency":"unknown"}}],"resourceFamilies":[],"resourceTags":[],"collectionDefinitions":[],"serverOnlyModules":["/src/project/project.server.ts"],"browserClientModules":[],"rpcPath":"/__effect-ui/rpc","actionPath":"/__effect-ui/action","schemaCoverage":{"serverFunctions":{"total":1,"input":1,"output":1,"error":0},"actions":{"total":1,"input":1,"output":1,"error":0}},"missingSchemas":[{"kind":"serverFunction","name":"Start.Project.appGraph","input":true,"output":true,"error":false},{"kind":"action","name":"Start.Project.appGraph.rename","input":true,"output":true,"error":false}],"unknownActionBehavior":[{"kind":"action","name":"Start.Project.appGraph.rename","invalidates":"unknown","optimistic":"unknown","retry":"unknown","concurrency":"unknown"}],"unknownRoutePreloadResources":[],"unknownRoutePreloadCollections":[]};
+      export const diagnosticsPolicyViolations = [];
       export const routes = graph.routes;
       export const serverFunctions = graph.serverFunctions;
       export const actions = graph.actions;
       export default graph;"
     `);
     expect(String(loaded)).toContain("export const graph = ");
-    expect(String(loaded)).toContain("export const diagnostics = describeStartAppGraphRuntimeDiagnostics(graph, {");
-    expect(String(loaded)).toContain('import { Resource, Route } from "@effect-ui/core";');
-    expect(String(loaded)).toContain("startAppGraphCollectionDefinitions");
-    expect(String(loaded)).toContain("describeStartAppGraphRuntimeDiagnostics");
-    expect(String(loaded)).toContain("validateStartAppGraphDiagnosticsPolicyExceptionEffect");
-    expect(String(loaded)).toContain('import { Effect } from "effect";');
-    expect(String(loaded)).toContain('import { Route as route_root } from "/src/routes/index.js";');
-    expect(String(loaded)).toContain('import { Route as route_projects_$id } from "/src/routes/projects/$id.js";');
-    expect(String(loaded)).toContain("const resourceDiagnostics = Resource.diagnostics();");
-    expect(String(loaded)).toContain("const collectionDefinitions = startAppGraphCollectionDefinitions();");
-    expect(String(loaded)).toContain("const routeModuleCandidates = [");
-    expect(String(loaded)).toContain("entry: graph.routes.entries[1]");
-    expect(String(loaded)).toContain("route: route_projects_$id");
-    expect(String(loaded)).toContain("preloadResources: Route.describePreloadResources(route_projects_$id)");
-    expect(String(loaded)).toContain("preloadCollections: Route.describePreloadCollections(route_projects_$id)");
-    expect(String(loaded)).toContain("routeModules: routeModuleCandidates,");
-    expect(String(loaded)).toContain("resourceFamilies: resourceDiagnostics.families");
-    expect(String(loaded)).toContain("resourceTags: resourceDiagnostics.tags");
-    expect(String(loaded)).toContain("collectionDefinitions");
+    expect(String(loaded)).toContain("export const diagnostics = {");
+    expect(String(loaded)).not.toContain('import { Resource, Route } from "@effect-ui/core";');
+    expect(String(loaded)).not.toContain("startAppGraphCollectionDefinitions");
+    expect(String(loaded)).not.toContain("describeStartAppGraphRuntimeDiagnostics");
+    expect(String(loaded)).not.toContain("validateStartAppGraphDiagnosticsPolicyExceptionEffect");
+    expect(String(loaded)).not.toContain('import { Effect } from "effect";');
+    expect(String(loaded)).toContain("export const diagnosticsPolicyViolations = [];");
+    expect(String(loaded)).not.toContain('import { Route as route_root } from "/src/routes/index.js";');
+    expect(String(loaded)).not.toContain('import { Route as route_projects_$id } from "/src/routes/projects/$id.js";');
+    expect(String(loaded)).not.toContain("const resourceDiagnostics = Resource.diagnostics();");
+    expect(String(loaded)).not.toContain("const routeModuleCandidates = [");
+    expect(String(loaded)).not.toContain("preloadResources: Route.describePreloadResources(route_projects_$id)");
+    expect(String(loaded)).not.toContain("preloadCollections: Route.describePreloadCollections(route_projects_$id)");
     expect(String(loaded)).not.toContain("routeModulePresence");
     expect(String(loaded)).toContain("export const routes = graph.routes;");
     expect(String(loaded)).toContain("Start.Project.appGraph.rename");
   });
 
-  it("emits a resolved diagnostics policy guard in the app graph virtual module", async () => {
+  it("keeps route implementation imports behind the runtime diagnostics virtual module", () => {
+    const plugin = effectUiStart({
+      fileRoutes: [
+        "src/routes/projects/$id.tsx",
+        "src/routes/index.tsx"
+      ],
+      fileRouteOptions: {
+        routeDirectory: "src/routes"
+      }
+    });
+    const resolved = plugin.resolveId(appGraphRuntimeDiagnosticsVirtualModuleId);
+    const loaded = resolved === null ? undefined : plugin.load(resolved);
+
+    expect(resolved).toBe(`\0${appGraphRuntimeDiagnosticsVirtualModuleId}`);
+    expect(String(loaded)).toContain("export const diagnostics = describeStartAppGraphRuntimeDiagnostics(graph, {");
+    expect(String(loaded)).toContain('import { Resource, Route } from "@effect-ui/core";');
+    expect(String(loaded)).toContain('import { Route as route_root } from "/src/routes/index.js";');
+    expect(String(loaded)).toContain('import { Route as route_projects_$id } from "/src/routes/projects/$id.js";');
+    expect(String(loaded)).toContain("routeModules: routeModuleCandidates,");
+    expect(String(loaded)).toContain("preloadResources: Route.describePreloadResources(route_projects_$id)");
+  });
+
+  it("emits a resolved diagnostics policy guard in the runtime diagnostics virtual module", async () => {
     const plugin = effectUiStart({
       buildPolicy: {
         wireSchemas: false,
@@ -2905,7 +5300,7 @@ describe("Effect UI Start", () => {
         routeDirectory: "src/routes"
       }
     });
-    const resolved = plugin.resolveId(appGraphVirtualModuleId);
+    const resolved = plugin.resolveId(appGraphRuntimeDiagnosticsVirtualModuleId);
     const loaded = resolved === null ? undefined : plugin.load(resolved);
 
     expect(String(loaded)).toMatchInlineSnapshot(`
@@ -3167,6 +5562,64 @@ describe("Effect UI Start", () => {
         pretty: true
       }
     });
+    expect(
+      parseStartDiagnosticsCliArgs([
+        "graph",
+        "route",
+        "/projects/:id",
+        "--json"
+      ])
+    ).toEqual({
+      _tag: "Graph",
+      options: {
+        query: {
+          kind: "route",
+          text: "/projects/:id"
+        },
+        json: true,
+        pretty: false,
+        verbose: false
+      }
+    });
+    expect(
+      parseStartDiagnosticsCliArgs([
+        "graph",
+        "action",
+        "Project.rename",
+        "--verbose"
+      ])
+    ).toEqual({
+      _tag: "Graph",
+      options: {
+        query: {
+          kind: "action",
+          text: "Project.rename"
+        },
+        json: false,
+        pretty: false,
+        verbose: true
+      }
+    });
+    expect(
+      parseStartDiagnosticsCliArgs([
+        "impact",
+        "action",
+        "Project.rename",
+        "--root",
+        "app"
+      ])
+    ).toEqual({
+      _tag: "Impact",
+      options: {
+        root: "app",
+        query: {
+          kind: "action",
+          text: "Project.rename"
+        },
+        json: false,
+        pretty: false
+      }
+    });
 
     const stdout: string[] = [];
     const stderr: string[] = [];
@@ -3219,6 +5672,168 @@ describe("Effect UI Start", () => {
       },
       diagnosticsPolicyViolations: []
     });
+  });
+
+  it("prints a queryable Start agent graph from the CLI", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const result = await Effect.runPromise(
+      runStartDiagnosticsCliEffect(["graph", "route", "/projects/:id"], {
+        stdout: (text) => stdout.push(text),
+        stderr: (text) => stderr.push(text),
+        loadDiagnosticsEffect: () => Effect.succeed({
+          graph: {
+            version: 1,
+            routes: { version: 1, entries: [], modules: [], routeDirectory: "src/routes" },
+            serverFunctions: { version: 1, rpcPath: "/__effect-ui/rpc", entries: [] },
+            actions: { version: 1, actionPath: "/__effect-ui/action", entries: [] }
+          },
+          diagnostics: {
+            version: 1,
+            routeCount: 1,
+            serverFunctionCount: 0,
+            actionCount: 0,
+            routePaths: ["/projects/:id"],
+            routeModules: [
+              {
+                routeId: "route_projects_$id",
+                routePath: "/projects/:id",
+                moduleId: "src/routes/projects/$id.tsx",
+                filePath: "src/routes/projects/$id.tsx",
+                pathParamCount: 1,
+                hasPathParams: true,
+                params: [{ name: "id", optional: false }],
+                paramsSchema: "present",
+                searchSchema: "absent",
+                preload: "present",
+                preloadResources: {
+                  status: "declared",
+                  families: ["Project.byId"]
+                },
+                preloadCollections: {
+                  status: "declared",
+                  collections: ["ProjectRows"]
+                },
+                component: "present"
+              }
+            ],
+            serverFunctionModules: [],
+            actionModules: [],
+            resourceFamilies: [],
+            resourceTags: [],
+            collectionDefinitions: [],
+            serverOnlyModules: [],
+            browserClientModules: [],
+            rpcPath: "/__effect-ui/rpc",
+            actionPath: "/__effect-ui/action",
+            schemaCoverage: {
+              serverFunctions: { total: 0, input: 0, output: 0, error: 0 },
+              actions: { total: 0, input: 0, output: 0, error: 0 }
+            },
+            missingSchemas: [],
+            unknownActionBehavior: [],
+            unknownRoutePreloadResources: [],
+            unknownRoutePreloadCollections: []
+          },
+          diagnosticsPolicyViolations: []
+        })
+      })
+    );
+
+    expect(result.exitCode).toBe(0);
+    expect(stderr).toEqual([]);
+    expect(stdout.join("\n")).toContain("Query: route /projects/:id");
+    expect(stdout.join("\n")).toContain("Route /projects/:id");
+    expect(stdout.join("\n")).toContain("Status: pass");
+    expect(stdout.join("\n")).toContain("Edit: src/routes/projects/$id.tsx");
+    expect(stdout.join("\n")).toContain("Params: id");
+    expect(stdout.join("\n")).toContain("Preloads: resources Project.byId; collections ProjectRows");
+    expect(stdout.join("\n")).toContain("Related: module: src/routes/projects/$id.tsx");
+    expect(stdout.join("\n")).not.toContain("route:route_projects_$id");
+  });
+
+  it("prints a high-signal Start impact brief from the CLI", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const result = await Effect.runPromise(
+      runStartDiagnosticsCliEffect([
+        "impact",
+        "route",
+        "/projects/:id",
+        "--root",
+        "examples/project-console"
+      ], {
+        stdout: (text) => stdout.push(text),
+        stderr: (text) => stderr.push(text),
+        loadDiagnosticsEffect: () => Effect.succeed({
+          graph: {
+            version: 1,
+            routes: { version: 1, entries: [], modules: [], routeDirectory: "src/routes" },
+            serverFunctions: { version: 1, rpcPath: "/__effect-ui/rpc", entries: [] },
+            actions: { version: 1, actionPath: "/__effect-ui/action", entries: [] }
+          },
+          diagnostics: {
+            version: 1,
+            routeCount: 1,
+            serverFunctionCount: 0,
+            actionCount: 0,
+            routePaths: ["/projects/:id"],
+            routeModules: [
+              {
+                routeId: "route_projects_$id",
+                routePath: "/projects/:id",
+                moduleId: "src/routes/projects/$id.tsx",
+                filePath: "src/routes/projects/$id.tsx",
+                pathParamCount: 1,
+                hasPathParams: true,
+                params: [{ name: "id", optional: false }],
+                paramsSchema: "present",
+                searchSchema: "absent",
+                preload: "present",
+                preloadResources: {
+                  status: "declared",
+                  families: ["Project.byId"]
+                },
+                preloadCollections: {
+                  status: "declared",
+                  collections: ["ProjectRows"]
+                },
+                component: "present"
+              }
+            ],
+            serverFunctionModules: [],
+            actionModules: [],
+            resourceFamilies: [],
+            resourceTags: [],
+            collectionDefinitions: [],
+            serverOnlyModules: [],
+            browserClientModules: [],
+            rpcPath: "/__effect-ui/rpc",
+            actionPath: "/__effect-ui/action",
+            schemaCoverage: {
+              serverFunctions: { total: 0, input: 0, output: 0, error: 0 },
+              actions: { total: 0, input: 0, output: 0, error: 0 }
+            },
+            missingSchemas: [],
+            unknownActionBehavior: [],
+            unknownRoutePreloadResources: [],
+            unknownRoutePreloadCollections: []
+          },
+          diagnosticsPolicyViolations: []
+        })
+      })
+    );
+
+    const text = stdout.join("\n");
+    expect(result.exitCode).toBe(0);
+    expect(stderr).toEqual([]);
+    expect(text).toContain("Impact: route /projects/:id");
+    expect(text).toContain("Contracts");
+    expect(text).toContain("- preloads: resources Project.byId; collections ProjectRows");
+    expect(text).toContain("Depends on");
+    expect(text).toContain("- effect-ui-start diagnostics --root examples/project-console");
+    expect(text).toContain("- effect-ui-start graph route /projects/:id --root examples/project-console");
+    expect(text).not.toContain("route:route_projects_$id");
   });
 
   it("returns a usage result for invalid Start diagnostics CLI input", async () => {
@@ -3622,7 +6237,7 @@ describe("Effect UI Start", () => {
     const loadedEntries: Array<string> = [];
     const transformedUrls: Array<string> = [];
     const server = {
-      ssrLoadModule: async (id: string) => {
+      ssrLoadModule: (id: string) => Effect.sync(() => {
         loadedEntries.push(id);
         return {
           default: (request: Request) =>
@@ -3632,11 +6247,11 @@ describe("Effect UI Start", () => {
               })
             )
         };
-      },
-      transformIndexHtml: async (url: string, html: string) => {
+      }),
+      transformIndexHtml: (url: string, html: string) => Effect.sync(() => {
         transformedUrls.push(url);
         return html.replace("</body>", "<script>dev()</script></body>");
-      }
+      })
     };
 
     const response = await Effect.runPromise(
@@ -3661,16 +6276,169 @@ describe("Effect UI Start", () => {
     ).resolves.toBeInstanceOf(Response);
   });
 
+  it("does not finalize dev SSR request traces as success before host transform failures", async () => {
+    const traces: DevtoolsRequestTrace[] = [];
+    const app = defineApp({
+      routes: [route("/", {})] as const,
+      client: {}
+    });
+    const handler = createRequestHandler(app, {
+      onRequestTrace: (trace) =>
+        Effect.sync(() => {
+          traces.push(trace);
+        }),
+      render: () => "<html><body>home</body></html>"
+    });
+    const server = {
+      ssrLoadModule: (_id: string) =>
+        Effect.succeed({
+          default: handler
+        }),
+      transformIndexHtml: (_url: string, _html: string) =>
+        Effect.fail(
+          new StartDevServerError({
+            operation: "transform-html",
+            error: new Error("vite transform failed")
+          })
+        )
+    };
+
+    const exit = await Effect.runPromiseExit(
+      handleSsrDevRequestEffect(server, new Request("https://example.com/"))
+    );
+    const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
+
+    expect(failure).toBeInstanceOf(StartDevServerError);
+    expect(failure).toMatchObject({ operation: "transform-html" });
+    expect(traces.map((trace) => trace.status)).toEqual(["failure"]);
+    expect(traces[0]).toMatchObject({
+      streams: [
+        {
+          name: "response",
+          state: "errored"
+        }
+      ],
+      teardown: {
+        reason: "dev-ssr-host-transform"
+      }
+    });
+  });
+
+  it("provides a request Scope to Vite dev SSR handler Effects", async () => {
+    let finalized = false;
+    const server = {
+      ssrLoadModule: (_id: string) =>
+        Effect.succeed({
+          default: () =>
+            Effect.gen(function* () {
+              const scope = yield* Scope.Scope;
+              yield* Scope.addFinalizer(scope, Effect.sync(() => {
+                finalized = true;
+              }));
+              return new Response("<html><body>scoped</body></html>", {
+                headers: { "content-type": "text/html" }
+              });
+            })
+        }),
+      transformIndexHtml: (_url: string, html: string) => Effect.succeed(html)
+    };
+
+    const response = await Effect.runPromise(
+      handleSsrDevRequestEffect(server, new Request("https://example.com/scoped"))
+    );
+
+    await expect(response.text()).resolves.toContain("scoped");
+    expect(finalized).toBe(true);
+  });
+
+  it("keeps Vite dev SSR pass-through Scope alive until streamed bodies are cancelled", async () => {
+    let finalized = false;
+    let cancelled: unknown;
+    const server = {
+      ssrLoadModule: (_id: string) =>
+        Effect.succeed({
+          default: () =>
+            Effect.gen(function* () {
+              const scope = yield* Scope.Scope;
+              yield* Scope.addFinalizer(scope, Effect.sync(() => {
+                finalized = true;
+              }));
+              return new Response(
+                new ReadableStream<Uint8Array>({
+                  pull(controller) {
+                    controller.enqueue(new TextEncoder().encode("chunk"));
+                  },
+                  cancel(reason) {
+                    cancelled = reason;
+                  }
+                }),
+                {
+                  headers: { "content-type": "text/plain" }
+                }
+              );
+            })
+        }),
+      transformIndexHtml: (_url: string, html: string) => Effect.sync(() => {
+        expect.fail("text/plain pass-through responses should not be transformed");
+        return html;
+      })
+    };
+
+    const response = await Effect.runPromise(
+      handleSsrDevRequestEffect(server, new Request("https://example.com/pass-through"))
+    );
+    const reader = response.body!.getReader();
+
+    expect(finalized).toBe(false);
+    await expect(reader.read()).resolves.toMatchObject({ done: false });
+    expect(finalized).toBe(false);
+    await reader.cancel("dev-client-cancel");
+
+    expect(cancelled).toBe("dev-client-cancel");
+    expect(finalized).toBe(true);
+  });
+
+  it("adapts the Vite Promise dev server host to Effect operations", async () => {
+    const fixedErrors: Array<Error> = [];
+    const server = startDevServerFromVite({
+      ssrLoadModule: async (id: string) => ({ id }),
+      transformIndexHtml: async (url: string, html: string) => `${url}:${html}`,
+      ssrFixStacktrace: (error) => {
+        fixedErrors.push(error);
+      }
+    });
+
+    await expect(Effect.runPromise(server.ssrLoadModule("/src/server.tsx"))).resolves.toEqual({
+      id: "/src/server.tsx"
+    });
+    await expect(Effect.runPromise(server.transformIndexHtml("/projects", "<html />"))).resolves.toBe(
+      "/projects:<html />"
+    );
+
+    const error = new Error("stack");
+    await Effect.runPromise(server.ssrFixStacktrace?.(error) ?? Effect.void);
+    expect(fixedErrors).toEqual([error]);
+
+    const failing = startDevServerFromVite({
+      ssrLoadModule: async () => {
+        throw new Error("load failed");
+      },
+      transformIndexHtml: async (_url: string, html: string) => html
+    });
+    const exit = await Effect.runPromiseExit(failing.ssrLoadModule("/src/server.tsx"));
+    const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
+
+    expect(failure).toBeInstanceOf(StartDevServerError);
+    expect(failure).toMatchObject({ operation: "load-module" });
+  });
+
   it("rejects Promise-returning dev SSR handlers at the EffectInput seam", async () => {
     const server = {
       ssrLoadModule: (_id: string) =>
-        Effect.runPromise(
-          Effect.succeed({
-            default: () => Effect.runPromise(Effect.succeed(new Response("promise")))
-          })
-        ),
-      transformIndexHtml: (_url: string, html: string) =>
-        Effect.runPromise(Effect.succeed(html))
+        Effect.succeed({
+          default: () => Effect.runPromise(Effect.succeed(new Response("promise")))
+        }),
+      transformIndexHtml: (_url: string, html: string) => Effect.succeed(html)
     };
 
     const exit = await Effect.runPromiseExit(
@@ -3692,10 +6460,10 @@ describe("Effect UI Start", () => {
     await Effect.runPromise(
       handleSsrDevMiddlewareEffect(
         {
-          ssrLoadModule: async () => {
+          ssrLoadModule: () => Effect.sync(() => {
             expect.fail("should not load static requests");
-          },
-          transformIndexHtml: async (_url, html) => html
+          }),
+          transformIndexHtml: (_url, html) => Effect.succeed(html)
         },
         {
           headers: {},
@@ -3711,16 +6479,45 @@ describe("Effect UI Start", () => {
 
     expect(nextCalls).toBe(1);
 
+    let throwingNextCalls = 0;
+    let loadedStatic = false;
+    await expect(
+      Effect.runPromise(
+        handleSsrDevMiddlewareEffect(
+          {
+            ssrLoadModule: () => Effect.sync(() => {
+              loadedStatic = true;
+              return {};
+            }),
+            transformIndexHtml: (_url, html) => Effect.succeed(html)
+          },
+          {
+            headers: {},
+            method: "GET",
+            url: "/src/static.ts"
+          } as IncomingMessage,
+          {} as ServerResponse,
+          () => {
+            throwingNextCalls += 1;
+            throw new Error("pass-through next failed");
+          }
+        )
+      )
+    ).resolves.toBeUndefined();
+
+    expect(throwingNextCalls).toBe(1);
+    expect(loadedStatic).toBe(false);
+
     const fixedErrors: Array<Error> = [];
     const nextErrors: Array<unknown> = [];
     await Effect.runPromise(
       handleSsrDevMiddlewareEffect(
         {
-          ssrLoadModule: async () => ({}),
-          transformIndexHtml: async (_url, html) => html,
-          ssrFixStacktrace: (error) => {
+          ssrLoadModule: () => Effect.succeed({}),
+          transformIndexHtml: (_url, html) => Effect.succeed(html),
+          ssrFixStacktrace: (error) => Effect.sync(() => {
             fixedErrors.push(error);
-          }
+          })
         },
         {
           headers: { host: "example.com" },
@@ -3738,6 +6535,118 @@ describe("Effect UI Start", () => {
     expect(nextErrors).toHaveLength(1);
     expect(nextErrors[0]).toBeInstanceOf(StartHandlerNotFound);
     expect(fixedErrors).toEqual([nextErrors[0]]);
+  });
+
+  it("passes Node origin policy into Vite dev SSR middleware", async () => {
+    let handledUrl: string | undefined;
+    let responseEnded = false;
+    const nextErrors: Array<unknown> = [];
+    const response = {
+      setHeader: () => undefined,
+      end: () => {
+        responseEnded = true;
+      }
+    } as unknown as ServerResponse;
+
+    await Effect.runPromise(
+      handleSsrDevMiddlewareEffect(
+        {
+          ssrLoadModule: () =>
+            Effect.succeed({
+              default: (request: Request) => {
+                handledUrl = request.url;
+                return new Response(null, { status: 204 });
+              }
+            }),
+          transformIndexHtml: (_url, html) => Effect.succeed(html)
+        },
+        {
+          headers: {
+            host: "internal.local",
+            "x-forwarded-proto": "https",
+            "x-forwarded-host": "public.example.com"
+          },
+          method: "GET",
+          url: "/settings"
+        } as IncomingMessage,
+        response,
+        (error) => {
+          nextErrors.push(error);
+        },
+        {
+          serverEntry: "/src/server.tsx",
+          nodeRequest: { trustForwardedHeaders: false }
+        }
+      )
+    );
+
+    expect(nextErrors).toEqual([]);
+    expect(responseEnded).toBe(true);
+    expect(handledUrl).toBe("http://internal.local/settings");
+  });
+
+  it("continues middleware error reporting when Vite ssrFixStacktrace throws", async () => {
+    let fixAttempts = 0;
+    const nextErrors: Array<unknown> = [];
+    const server = startDevServerFromVite({
+      ssrLoadModule: async () => ({}),
+      transformIndexHtml: async (_url: string, html: string) => html,
+      ssrFixStacktrace: () => {
+        fixAttempts += 1;
+        throw new Error("stack trace fix failed");
+      }
+    });
+
+    await expect(
+      Effect.runPromise(
+        handleSsrDevMiddlewareEffect(
+          server,
+          {
+            headers: { host: "example.com" },
+            method: "GET",
+            url: "/projects/atlas"
+          } as IncomingMessage,
+          {} as ServerResponse,
+          (error) => {
+            nextErrors.push(error);
+          },
+          { serverEntry: "/src/server.tsx" }
+        )
+      )
+    ).resolves.toBeUndefined();
+
+    expect(fixAttempts).toBe(1);
+    expect(nextErrors).toHaveLength(1);
+    expect(nextErrors[0]).toBeInstanceOf(StartHandlerNotFound);
+  });
+
+  it("keeps Vite dev SSR middleware failures contained when next throws", async () => {
+    let nextCalls = 0;
+    const server = startDevServerFromVite({
+      ssrLoadModule: async () => ({}),
+      transformIndexHtml: async (_url: string, html: string) => html
+    });
+
+    await expect(
+      Effect.runPromise(
+        handleSsrDevMiddlewareEffect(
+          server,
+          {
+            headers: { host: "example.com" },
+            method: "GET",
+            url: "/projects/atlas"
+          } as IncomingMessage,
+          {} as ServerResponse,
+          () => {
+            nextCalls += 1;
+            throw new Error("next failed");
+          },
+          { serverEntry: "/src/server.tsx" }
+        )
+      )
+    ).resolves.toBeUndefined();
+
+    expect(nextCalls).toBe(1);
   });
 });
 

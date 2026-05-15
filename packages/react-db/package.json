@@ -1,0 +1,33 @@
+{
+  "name": "@effect-ui/react-db",
+  "version": "0.0.0-alpha.0",
+  "description": "React bindings for Effect UI collections and live queries.",
+  "license": "UNLICENSED",
+  "type": "module",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsgo -p tsconfig.json",
+    "typecheck": "tsgo -b tsconfig.json --pretty false"
+  },
+  "dependencies": {
+    "@effect-ui/core": "workspace:*",
+    "@effect-ui/db": "workspace:*",
+    "@effect-ui/react": "workspace:*",
+    "effect": "^4.0.0-beta.66"
+  },
+  "peerDependencies": {
+    "react": ">=18.3.0 <21"
+  }
+}

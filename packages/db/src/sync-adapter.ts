@@ -1,4 +1,4 @@
-import { Resource, toEffect, type EffectInput } from "@effect-ui/core";
+import { Resource, invokeEffectInput, type EffectInput, type EffectInputCallbackError } from "@effect-ui/core";
 import { Effect } from "effect";
 import type {
   CollectionIndexRecord,
@@ -7,10 +7,11 @@ import type {
   CollectionOptions,
   CollectionPersistenceConfig,
   CollectionPolicy,
+  CollectionRuntimeError,
   CollectionTransaction,
   CollectionWriteOptions
 } from "./collection-contract.js";
-import type { CollectionSnapshotCodecError } from "./collection-snapshot-codec.js";
+import type { CollectionChangeFeedDispatchPolicy } from "./change-feed-dispatcher.js";
 
 /**
  * Insert payload delivered to a collection sync adapter.
@@ -124,6 +125,17 @@ export interface CollectionQuerySyncClient<A extends object, E = never, R = neve
 }
 
 /**
+ * Policy for post-mutation query cache invalidation failures.
+ *
+ * `best-effort` preserves the historical behavior: once the mutation callback
+ * succeeds, invalidation failures are ignored so the optimistic commit remains
+ * synced. `rollback-on-failure` treats invalidation as part of the mutation
+ * handler, so invalidation failures roll back the optimistic transaction and
+ * fail the mutation Effect.
+ */
+export type CollectionQuerySyncMutationInvalidationPolicy = "best-effort" | "rollback-on-failure";
+
+/**
  * Options for adapting query-client cache reads and invalidation to sync.
  */
 export interface CollectionQuerySyncAdapterOptions<
@@ -138,6 +150,7 @@ export interface CollectionQuerySyncAdapterOptions<
   readonly queryClient: CollectionQuerySyncClient<A, E, R>;
   readonly invalidateOnRefetch?: boolean;
   readonly invalidateOnMutation?: boolean;
+  readonly mutationInvalidation?: CollectionQuerySyncMutationInvalidationPolicy;
 }
 
 /**
@@ -158,8 +171,10 @@ export type CollectionChangeFeedSubscription =
 /**
  * Context passed to change-feed adapters.
  *
- * `emit` writes through the target Collection runtime, so adapters that call it
- * must account for the Collection write and snapshot-codec error channel.
+ * `emit` returns the Effect for composed Effect adapters. `emitChanges` is the
+ * host-callback helper for websocket, worker, and observer feeds; it queues
+ * changes into the Collection Runtime consumer owned by
+ * `Collection.subscribeChangesEffect(...)`.
  */
 export interface CollectionChangeFeedContext<
   A extends object,
@@ -171,7 +186,11 @@ export interface CollectionChangeFeedContext<
   readonly emit: (
     changes: ReadonlyArray<CollectionChange<A, K>>,
     options?: CollectionWriteOptions
-  ) => EffectInput<void, E | CollectionSnapshotCodecError, R>;
+  ) => EffectInput<void, CollectionRuntimeError<E>, R>;
+  readonly emitChanges: (
+    changes: ReadonlyArray<CollectionChange<A, K>>,
+    options?: CollectionWriteOptions
+  ) => void;
 }
 
 /**
@@ -202,50 +221,25 @@ export interface CollectionChangeFeedAdapter<
  */
 export interface CollectionChangeFeedSubscribeOptions {
   readonly write?: CollectionWriteOptions;
+  readonly dispatch?: CollectionChangeFeedDispatchPolicy;
 }
-
-const runSyncInput = <A, E, R>(
-  input: EffectInput<A, E, R>
-): Effect.Effect<A, E, R> =>
-  toEffect(input);
 
 const runSyncCallback = <A, E, R>(
   callback: () => EffectInput<A, E, R>
-): Effect.Effect<A, E, R> =>
-  Effect.try({
-    try: callback,
-    catch: (error) => error as E
-  }).pipe(Effect.flatMap(runSyncInput));
+): Effect.Effect<A, E | EffectInputCallbackError, R> =>
+  invokeEffectInput("collection sync adapter callback", callback);
 
 const queryKeyName = (queryKey: CollectionQuerySyncKey): string => {
   const [first] = queryKey;
   return `query:${typeof first === "string" || typeof first === "number" ? String(first) : "collection"}`;
 };
 
-const syncLoad = <A extends object, K extends CollectionKey, E, R>(
-  adapter: CollectionSyncAdapter<A, K, E, R>
-): (() => Effect.Effect<ReadonlyArray<A>, E, R>) | undefined => {
-  const initial = adapter.load ?? adapter.refetch;
-  if (!initial) {
-    return undefined;
-  }
-
-  let loaded = false;
-  return () =>
-    Effect.gen(function* () {
-      const operation = loaded && adapter.refetch ? adapter.refetch : initial;
-      const rows = yield* runSyncCallback(() => operation());
-      loaded = true;
-      return rows;
-    });
-};
-
 /**
  * Convert a sync adapter into `Collection.define` options.
  *
- * `load` uses adapter `load` on first preload and adapter `refetch` after that
- * when available. Mutation callbacks are wired to optimistic transaction
- * handlers.
+ * The Collection Runtime owns the first-load versus forced-refetch decision.
+ * This Adapter maps sync `load` and `refetch` callbacks independently and wires
+ * mutation callbacks to optimistic transaction handlers.
  *
  * @example
  * const todos = Collection.define(collectionSyncOptions({
@@ -261,22 +255,33 @@ export const collectionSyncOptions = <
   R = never
 >(
   options: CollectionSyncOptions<A, K, E, R>
-): CollectionOptions<A, K, E, R> => {
-  const load = syncLoad(options.sync);
+): CollectionOptions<A, K, E | EffectInputCallbackError, R> => {
+  const hasLoad = options.sync.load !== undefined || options.sync.refetch !== undefined;
+  const hasRefetch = options.sync.refetch !== undefined;
 
   return {
     name: options.name,
     getKey: options.getKey,
     ...(options.input === undefined ? {} : { input: options.input }),
     ...(options.output === undefined ? {} : { output: options.output }),
-    ...(options.policy === undefined ? {} : { policy: options.policy }),
-    ...(options.persistence === undefined ? {} : { persistence: options.persistence }),
+    ...(options.policy === undefined ? {} : { policy: options.policy as CollectionPolicy<E | EffectInputCallbackError> }),
+    ...(options.persistence === undefined ? {} : { persistence: options.persistence as CollectionPersistenceConfig<E | EffectInputCallbackError, R> }),
     sync: {
       adapter: options.sync.name
     },
     ...(options.indexes === undefined ? {} : { indexes: options.indexes }),
     ...(options.initialData === undefined ? {} : { initialData: options.initialData }),
-    ...(load === undefined ? {} : { load }),
+    ...(hasLoad
+      ? {
+          load: () =>
+            runSyncCallback(() =>
+              options.sync.load !== undefined
+                ? options.sync.load()
+                : options.sync.refetch!()
+            )
+        }
+      : {}),
+    ...(hasRefetch ? { refetch: () => runSyncCallback(() => options.sync.refetch!()) } : {}),
     ...(options.sync.insert === undefined
       ? {}
       : {
@@ -304,7 +309,7 @@ export const collectionSyncOptions = <
               transaction: context.transaction
             }))
         })
-  } satisfies CollectionOptions<A, K, E, R>;
+  } satisfies CollectionOptions<A, K, E | EffectInputCallbackError, R>;
 };
 
 /**
@@ -322,7 +327,7 @@ export const collectionResourceSyncAdapter = <
   R = never
 >(
   options: CollectionResourceSyncAdapterOptions<I, A, K, E, R>
-): CollectionSyncAdapter<A, K, E, R> => ({
+): CollectionSyncAdapter<A, K, Resource.LoadError<E>, R> => ({
   name: options.name ?? `resource:${options.ref.family.options.name}`,
   load: () => Resource.prefetchEffect(options.ref),
   refetch: () => Resource.refreshEffect(options.ref),
@@ -344,24 +349,28 @@ export const collectionQuerySyncAdapter = <
   R = never
 >(
   options: CollectionQuerySyncAdapterOptions<A, K, E, R>
-): CollectionSyncAdapter<A, K, E, R> => {
-  const fetch = (): Effect.Effect<ReadonlyArray<A>, E, R> =>
+): CollectionSyncAdapter<A, K, E | EffectInputCallbackError, R> => {
+  const fetch = (): Effect.Effect<ReadonlyArray<A>, E | EffectInputCallbackError, R> =>
     runSyncCallback(() => options.queryClient.fetchQuery({
       queryKey: options.queryKey,
-      queryFn: options.queryFn
+      queryFn: () => options.queryFn()
     }));
-  const invalidate = (): Effect.Effect<void, E, R> =>
+  const invalidate = (): Effect.Effect<void, E | EffectInputCallbackError, R> =>
     options.queryClient.invalidateQueries
       ? Effect.flatMap(
           runSyncCallback(() => options.queryClient.invalidateQueries!({ queryKey: options.queryKey })),
           () => Effect.void
         )
       : Effect.succeed(undefined);
+  const invalidateAfterMutation = (): Effect.Effect<void, E | EffectInputCallbackError, R> =>
+    options.mutationInvalidation === "rollback-on-failure"
+      ? invalidate()
+      : invalidate().pipe(Effect.catch(() => Effect.void));
 
   return {
     name: options.name ?? queryKeyName(options.queryKey),
     load: fetch,
-    refetch: (): Effect.Effect<ReadonlyArray<A>, E, R> =>
+    refetch: (): Effect.Effect<ReadonlyArray<A>, E | EffectInputCallbackError, R> =>
       Effect.gen(function* () {
         if (options.invalidateOnRefetch !== false && options.queryClient.invalidateQueries) {
           yield* invalidate();
@@ -371,33 +380,33 @@ export const collectionQuerySyncAdapter = <
     ...(options.insert === undefined
       ? {}
       : {
-          insert: (payload: CollectionSyncInsertPayload<A, K>): Effect.Effect<void, E, R> =>
+          insert: (payload: CollectionSyncInsertPayload<A, K>): Effect.Effect<void, E | EffectInputCallbackError, R> =>
             Effect.gen(function* () {
               yield* runSyncCallback(() => options.insert!(payload));
               if (options.invalidateOnMutation !== false) {
-                yield* invalidate();
+                yield* invalidateAfterMutation();
               }
             })
         }),
     ...(options.update === undefined
       ? {}
       : {
-          update: (payload: CollectionSyncUpdatePayload<A, K>): Effect.Effect<void, E, R> =>
+          update: (payload: CollectionSyncUpdatePayload<A, K>): Effect.Effect<void, E | EffectInputCallbackError, R> =>
             Effect.gen(function* () {
               yield* runSyncCallback(() => options.update!(payload));
               if (options.invalidateOnMutation !== false) {
-                yield* invalidate();
+                yield* invalidateAfterMutation();
               }
             })
         }),
     ...(options.delete === undefined
       ? {}
       : {
-          delete: (payload: CollectionSyncDeletePayload<A, K>): Effect.Effect<void, E, R> =>
+          delete: (payload: CollectionSyncDeletePayload<A, K>): Effect.Effect<void, E | EffectInputCallbackError, R> =>
             Effect.gen(function* () {
               yield* runSyncCallback(() => options.delete!(payload));
               if (options.invalidateOnMutation !== false) {
-                yield* invalidate();
+                yield* invalidateAfterMutation();
               }
             })
         })
@@ -425,6 +434,7 @@ export namespace CollectionSync {
     CollectionQuerySyncClient<A, E, R>;
   export type QueryAdapterOptions<A extends object, K extends CollectionKey = string, E = never, R = never> =
     CollectionQuerySyncAdapterOptions<A, K, E, R>;
+  export type QueryMutationInvalidationPolicy = CollectionQuerySyncMutationInvalidationPolicy;
   export type ChangeFeedUnsubscribe = CollectionChangeFeedUnsubscribe;
   export type ChangeFeedSubscription = CollectionChangeFeedSubscription;
   export type ChangeFeedContext<A extends object, K extends CollectionKey = string, E = never, R = never> =

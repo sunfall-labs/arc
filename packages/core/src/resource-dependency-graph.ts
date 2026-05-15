@@ -1,13 +1,17 @@
-import { ResourceTagTypeId, ResourceTypeId } from "./resource-identifiers.js";
+import { Effect } from "effect";
+import { EffectInputCallbackError } from "./effect-like.js";
+import { ResourceTagIdentityTypeId, ResourceTagTypeId, ResourceTypeId } from "./resource-identifiers.js";
 import type {
   AnyResourceRef,
+  ResourceInvalidation,
   ResourceInvalidationCause,
   ResourceInvalidationPlan,
   ResourceInvalidationTarget,
   ResourceRef,
-  ResourceTag
+  ResourceTag,
+  ResourceTagIdentity
 } from "./resource.js";
-import type { ResourceStore as ResourceStoreState } from "./resource-store.js";
+import type { MutableResourceStore as ResourceStoreState } from "./resource-store.js";
 
 const familyIds = new WeakMap<object, number>();
 let nextFamilyId = 0;
@@ -23,7 +27,7 @@ const familyStoreId = (family: object): number => {
   return id;
 };
 
-export const resourceRefStoreKey = (ref: AnyResourceRef): string =>
+export const resourceRefStoreKey = (ref: AnyResourceRef<any>): string =>
   `${familyStoreId(ref.family)}:${ref.key}`;
 
 export const isResourceTag = (value: unknown): value is ResourceTag =>
@@ -32,23 +36,34 @@ export const isResourceTag = (value: unknown): value is ResourceTag =>
   (value as { [ResourceTagTypeId]?: unknown })[ResourceTagTypeId] === ResourceTagTypeId &&
   typeof (value as { readonly key?: unknown }).key === "string";
 
-export const isResourceRef = (value: unknown): value is AnyResourceRef =>
+const resourceTagStoreKey = (tag: ResourceTag): string => {
+  const identity = (tag as { readonly [ResourceTagIdentityTypeId]?: ResourceTagIdentity })[ResourceTagIdentityTypeId];
+  if (identity === undefined) {
+    return JSON.stringify(["Legacy", tag.key]);
+  }
+
+  return identity._tag === "Unkeyed"
+    ? JSON.stringify(["Unkeyed", identity.name])
+    : JSON.stringify(["Keyed", identity.name, identity.key]);
+};
+
+export const isResourceRef = (value: unknown): value is AnyResourceRef<any> =>
   typeof value === "object" &&
   value !== null &&
   (value as { [ResourceTypeId]?: unknown })[ResourceTypeId] === ResourceTypeId;
 
-export const removeResourceRefFromTagIndex = (ref: AnyResourceRef, store: ResourceStoreState): void => {
+export const removeResourceRefFromTagIndex = (ref: AnyResourceRef<any>, store: ResourceStoreState): void => {
   const storeKey = resourceRefStoreKey(ref);
   const tags = store.refTags.get(storeKey);
   if (!tags) {
     return;
   }
 
-  for (const tagKey of tags) {
-    const refs = store.tagIndex.get(tagKey);
+  for (const tagStoreKey of tags) {
+    const refs = store.tagIndex.get(tagStoreKey);
     refs?.delete(storeKey);
     if (refs?.size === 0) {
-      store.tagIndex.delete(tagKey);
+      store.tagIndex.delete(tagStoreKey);
     }
   }
 
@@ -57,10 +72,9 @@ export const removeResourceRefFromTagIndex = (ref: AnyResourceRef, store: Resour
 
 export const recordResourceProvidedTags = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
-  value: A,
+  tags: readonly ResourceTag[],
   store: ResourceStoreState
 ): void => {
-  const tags = ref.family.options.provides?.(value, ref.input) ?? [];
   removeResourceRefFromTagIndex(ref, store);
 
   if (tags.length === 0) {
@@ -70,31 +84,59 @@ export const recordResourceProvidedTags = <I, A, E, R>(
   const storeKey = resourceRefStoreKey(ref);
   const keys = new Set<string>();
   for (const tag of tags) {
-    let refs = store.tagIndex.get(tag.key);
+    const tagStoreKey = resourceTagStoreKey(tag);
+    let refs = store.tagIndex.get(tagStoreKey);
     if (!refs) {
       refs = new Map();
-      store.tagIndex.set(tag.key, refs);
+      store.tagIndex.set(tagStoreKey, refs);
     }
     refs.set(storeKey, ref);
-    keys.add(tag.key);
+    keys.add(tagStoreKey);
   }
 
   store.refTags.set(storeKey, keys);
 };
 
+export const resourceProvidedTagsEffect = <I, A, E, R>(
+  ref: ResourceRef<I, A, E, R>,
+  value: A
+): Effect.Effect<readonly ResourceTag[], EffectInputCallbackError> =>
+  Effect.try({
+    try: () => ref.family.options.provides?.(value, ref.input) ?? [],
+    catch: (cause) =>
+      new EffectInputCallbackError({
+        operation: `Resource.provides(${ref.family.options.name})`,
+        cause,
+        guidance: "Resource provides callbacks must be pure and total. Synchronous callback throws are reported in the Effect error channel."
+      })
+  });
+
+export const recordResourceProvidedTagsEffect = <I, A, E, R>(
+  ref: ResourceRef<I, A, E, R>,
+  value: A,
+  store: ResourceStoreState
+): Effect.Effect<void, EffectInputCallbackError> =>
+  Effect.gen(function* () {
+    const tags = yield* resourceProvidedTagsEffect(ref, value);
+    recordResourceProvidedTags(ref, tags, store);
+  });
+
 export const resourceRefsForTag = (
   tag: ResourceTag,
   store: ResourceStoreState
-): ReadonlyArray<AnyResourceRef> =>
-  Array.from(store.tagIndex.get(tag.key)?.values() ?? []) as ReadonlyArray<AnyResourceRef>;
+): ReadonlyArray<AnyResourceRef<any>> =>
+  Array.from(store.tagIndex.get(resourceTagStoreKey(tag))?.values() ?? []) as ReadonlyArray<AnyResourceRef<any>>;
 
-export const planResourceInvalidationTargets = (
-  target: ResourceInvalidationTarget,
+const freezeArray = <A>(values: Iterable<A>): ReadonlyArray<A> =>
+  Object.freeze(Array.from(values));
+
+export const planResourceInvalidationTargets = <R = never>(
+  target: ResourceInvalidationTarget<R>,
   store: ResourceStoreState
-): ResourceInvalidationPlan => {
-  const targets = Array.isArray(target) ? target : [target];
-  const entries = new Map<string, { readonly ref: AnyResourceRef<any>; readonly causes: Array<ResourceInvalidationCause> }>();
-  const addCause = (ref: AnyResourceRef<any>, cause: ResourceInvalidationCause): void => {
+): ResourceInvalidationPlan<R> => {
+  const targets = freezeArray(Array.isArray(target) ? target : [target]) as ReadonlyArray<ResourceInvalidation<R>>;
+  const entries = new Map<string, { readonly ref: AnyResourceRef<R>; readonly causes: Array<ResourceInvalidationCause> }>();
+  const addCause = (ref: AnyResourceRef<R>, cause: ResourceInvalidationCause): void => {
     const storeKey = resourceRefStoreKey(ref);
     const existing = entries.get(storeKey);
     if (existing) {
@@ -106,27 +148,29 @@ export const planResourceInvalidationTargets = (
 
   for (const candidate of targets) {
     if (isResourceRef(candidate)) {
-      addCause(candidate, { _tag: "Ref", ref: candidate });
+      addCause(candidate as AnyResourceRef<R>, { _tag: "Ref", ref: candidate });
       continue;
     }
 
     if (isResourceTag(candidate)) {
-      const taggedRefs = store.tagIndex.get(candidate.key);
+      const taggedRefs = store.tagIndex.get(resourceTagStoreKey(candidate));
       if (!taggedRefs) {
         continue;
       }
 
       for (const ref of taggedRefs.values() as Iterable<AnyResourceRef<any>>) {
-        addCause(ref, { _tag: "Tag", tag: candidate });
+        addCause(ref as AnyResourceRef<R>, { _tag: "Tag", tag: candidate });
       }
     }
   }
 
-  return {
+  return Object.freeze({
     targets,
-    entries: Array.from(entries.values()).map((entry) => ({
-      ref: entry.ref,
-      causes: entry.causes
-    }))
-  };
+    entries: freezeArray(Array.from(entries.values()).map((entry) =>
+      Object.freeze({
+        ref: entry.ref,
+        causes: freezeArray(entry.causes)
+      })
+    ))
+  });
 };

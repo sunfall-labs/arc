@@ -28,8 +28,8 @@ points show we are no longer merely experimental.
 - Every request has an Effect-native Request Runtime with services, Resource
   Store, request context, scoped fibers, interruption, retries, and event
   streams.
-- Every async public API has an Effect form first; Promise APIs are host/UI
-  adapters.
+- Every async public API is Effect v4 first; Promise-shaped entrypoints are
+  compatibility host/UI adapters only.
 - Async framework callbacks are rejected at compile time, forcing retries,
   cancellation, services, and typed errors to stay in Effect.
 - Errors and redirects are typed data, not ambient thrown values.
@@ -175,6 +175,12 @@ Effect UI is winning when these are also true:
   to a grouped repair report, and `@effect-ui/start/diagnostics-report` exposes
   the same report builder/formatter for bots that need exact owner and edit
   guidance.
+- Agent-readable semantic graph: `effect-ui-start graph` and
+  `createStartAgentGraph(...)` expose typed Route, Action, ServerFunction,
+  ResourceFamily, ResourceTag, Collection, Endpoint, Module, and Finding nodes
+  with deterministic edges and self-review facts. The default CLI output is a
+  concise briefing, with raw graph detail reserved for `--verbose`, so agents
+  can inspect app affordances before changing code without drowning in ids.
 
 ## Active Win Conditions
 

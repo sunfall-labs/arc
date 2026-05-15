@@ -29,7 +29,9 @@ export {
   type StartNodeServerErrorHandler,
   /** Options for Node `createServer` callback facades. */
   type StartNodeServerHandlerOptions,
-  /** Runtime boundary used by callback-shaped host facades. */
+  /** Runtime-required options for serviceful Node callback facades. */
+  type StartNodeServerHandlerRuntimeOptions,
+  /** Erased Runtime Runner seam used by callback-shaped host facades. */
   type StartForkRuntime,
   /** Proxy trust policy for resolving Node request origins. */
   type StartNodeOriginPolicy,
@@ -37,4 +39,4 @@ export {
   type StartNodeRequestOptions,
   /** Options for writing HEAD responses. */
   type WriteNodeResponseOptions
-} from "@effect-ui/start/adapters";
+} from "@effect-ui/start/node-adapter";

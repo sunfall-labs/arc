@@ -172,7 +172,7 @@ Actions and forms should not split into "JS app" and "HTML fallback" versions.
 One `Action.define` should support:
 
 - component event handlers through `action.submitEffect`;
-- Promise event helpers through `action.submit`;
+- event helpers that fork or run `action.submitEffect` at the host boundary;
 - JSON Start action clients through `submitStartActionEffect`;
 - Action-like full-stack state through `StartAction.use`;
 - plain form posts through `startActionForm`;

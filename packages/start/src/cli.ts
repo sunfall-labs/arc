@@ -12,13 +12,30 @@ import {
   formatStartDiagnosticsReport,
   type StartDiagnosticsReport
 } from "./diagnostics-report.js";
-import type { StartAppGraphDiagnosticsPolicyViolation } from "./app-graph.js";
+import { decodeStartAppGraphDiagnosticsDtoEffect } from "./app-graph.js";
+import {
+  createStartAgentGraphImpact,
+  createStartAgentGraph,
+  formatStartAgentGraphImpact,
+  formatStartAgentGraph,
+  queryStartAgentGraph,
+  type StartAgentGraphQuery,
+  type StartAgentGraphQueryKind
+} from "./agent-graph.js";
 
 /** Parsed command supported by the `effect-ui-start` CLI. */
 export type StartCliCommand =
   | {
       readonly _tag: "Diagnostics";
       readonly options: StartDiagnosticsCliOptions;
+    }
+  | {
+      readonly _tag: "Graph";
+      readonly options: StartGraphCliOptions;
+    }
+  | {
+      readonly _tag: "Impact";
+      readonly options: StartImpactCliOptions;
     }
   | {
       readonly _tag: "Help";
@@ -31,6 +48,17 @@ export interface StartDiagnosticsCliOptions {
   readonly mode?: string;
   readonly json: boolean;
   readonly pretty: boolean;
+}
+
+/** Options for the `effect-ui-start graph` command. */
+export interface StartGraphCliOptions extends StartDiagnosticsCliOptions {
+  readonly query?: StartAgentGraphQuery;
+  readonly verbose: boolean;
+}
+
+/** Options for the `effect-ui-start impact` command. */
+export interface StartImpactCliOptions extends StartDiagnosticsCliOptions {
+  readonly query: StartAgentGraphQuery;
 }
 
 /**
@@ -63,13 +91,24 @@ export class StartDiagnosticsCliUsageError extends Data.TaggedError(
 /** Help text for the Start diagnostics CLI. */
 export const startDiagnosticsCliUsage = [
   "Usage: effect-ui-start diagnostics [options]",
+  "       effect-ui-start graph [kind] [query] [options]",
+  "       effect-ui-start impact [kind] [query] [options]",
+  "",
+  "Commands:",
+  "  diagnostics       Print app graph diagnostics and repair findings.",
+  "  graph             Print the agent-readable semantic app graph.",
+  "  impact            Print edit impact for one route/action/resource/module.",
+  "",
+  "Graph and impact query kinds:",
+  "  route, action, server-function, resource, resource-tag, collection, module, endpoint, finding, node",
   "",
   "Options:",
   "  --root <dir>       Vite project root. Defaults to the current directory.",
   "  --config <file>    Vite config file. Use \"false\" to disable config loading.",
   "  --mode <mode>      Vite mode to use while loading diagnostics.",
-  "  --json             Print the resolved graph, diagnostics, and policy violations as JSON.",
+  "  --json             Print the resolved payload as JSON.",
   "  --pretty           Pretty-print JSON output.",
+  "  --verbose          Print raw graph ids, facts, and edges for graph output.",
   "  -h, --help         Show this help message."
 ].join("\n");
 
@@ -88,6 +127,54 @@ const readOptionValue = (
   return [value, index + 1] as const;
 };
 
+const graphQueryKinds = new Set<StartAgentGraphQueryKind>([
+  "action",
+  "collection",
+  "endpoint",
+  "finding",
+  "module",
+  "node",
+  "resource",
+  "resource-tag",
+  "route",
+  "server-function"
+]);
+
+const isGraphQueryKind = (value: string): value is StartAgentGraphQueryKind =>
+  graphQueryKinds.has(value as StartAgentGraphQueryKind);
+
+const queryFromPositionals = (
+  positionals: readonly string[]
+): StartAgentGraphQuery | undefined => {
+  if (positionals.length === 0) {
+    return undefined;
+  }
+  if (positionals.length > 2) {
+    throw new StartDiagnosticsCliUsageError({
+      message: `Expected at most a graph kind and one query, received ${positionals.length} positional values.`,
+      guidance: startDiagnosticsCliUsage
+    });
+  }
+
+  const [first, second] = positionals;
+  if (first === undefined) {
+    return undefined;
+  }
+  if (isGraphQueryKind(first)) {
+    return {
+      kind: first,
+      ...(second === undefined ? {} : { text: second })
+    };
+  }
+  if (second !== undefined) {
+    throw new StartDiagnosticsCliUsageError({
+      message: `Unknown graph query kind "${first}".`,
+      guidance: startDiagnosticsCliUsage
+    });
+  }
+  return { text: first };
+};
+
 /** Parses CLI argv into a diagnostics command or help request. */
 export const parseStartDiagnosticsCliArgs = (
   args: readonly string[]
@@ -97,7 +184,11 @@ export const parseStartDiagnosticsCliArgs = (
   }
 
   const command = args[0];
-  if (command !== "diagnostics") {
+  if (
+    command !== "diagnostics" &&
+    command !== "graph" &&
+    command !== "impact"
+  ) {
     throw new StartDiagnosticsCliUsageError({
       message: `Unknown command "${command}".`,
       guidance: startDiagnosticsCliUsage
@@ -109,6 +200,8 @@ export const parseStartDiagnosticsCliArgs = (
   let mode: string | undefined;
   let json = false;
   let pretty = false;
+  let verbose = false;
+  const positionals: string[] = [];
 
   for (let index = 1; index < args.length; index++) {
     const arg = args[index]!;
@@ -122,6 +215,10 @@ export const parseStartDiagnosticsCliArgs = (
     if (arg === "--pretty") {
       pretty = true;
       json = true;
+      continue;
+    }
+    if (arg === "--verbose" && command === "graph") {
+      verbose = true;
       continue;
     }
     if (arg === "--root") {
@@ -155,6 +252,10 @@ export const parseStartDiagnosticsCliArgs = (
       mode = arg.slice("--mode=".length);
       continue;
     }
+    if (!arg.startsWith("-") && (command === "graph" || command === "impact")) {
+      positionals.push(arg);
+      continue;
+    }
 
     throw new StartDiagnosticsCliUsageError({
       message: `Unknown option "${arg}".`,
@@ -162,15 +263,46 @@ export const parseStartDiagnosticsCliArgs = (
     });
   }
 
+  const baseOptions = {
+    ...(root === undefined ? {} : { root }),
+    ...(configFile === undefined ? {} : { configFile }),
+    ...(mode === undefined ? {} : { mode }),
+    json,
+    pretty
+  };
+
+  if (command === "graph") {
+    const query = queryFromPositionals(positionals);
+    return {
+      _tag: "Graph",
+      options: {
+        ...baseOptions,
+        verbose,
+        ...(query === undefined ? {} : { query })
+      }
+    };
+  }
+
+  if (command === "impact") {
+    const query = queryFromPositionals(positionals);
+    if (query?.text === undefined || query.text.trim().length === 0) {
+      throw new StartDiagnosticsCliUsageError({
+        message: "Expected an impact query such as `impact route /projects/:id`.",
+        guidance: startDiagnosticsCliUsage
+      });
+    }
+    return {
+      _tag: "Impact",
+      options: {
+        ...baseOptions,
+        query
+      }
+    };
+  }
+
   return {
     _tag: "Diagnostics",
-    options: {
-      ...(root === undefined ? {} : { root }),
-      ...(configFile === undefined ? {} : { configFile }),
-      ...(mode === undefined ? {} : { mode }),
-      json,
-      pretty
-    }
+    options: baseOptions
   };
 };
 
@@ -212,57 +344,18 @@ const errorPayload = (cause: unknown): Record<string, unknown> => {
   };
 };
 
-const isStringArray = (value: unknown): value is readonly string[] =>
-  Array.isArray(value) && value.every((item) => typeof item === "string");
-
-const isStartAppGraphDiagnostics = (
-  value: unknown
-): value is LoadedStartAppGraphDiagnostics["diagnostics"] =>
-  isRecord(value) &&
-  value.version === 1 &&
-  typeof value.routeCount === "number" &&
-  typeof value.serverFunctionCount === "number" &&
-  typeof value.actionCount === "number" &&
-  isStringArray(value.routePaths) &&
-  Array.isArray(value.routeModules) &&
-  Array.isArray(value.serverFunctionModules) &&
-  Array.isArray(value.actionModules) &&
-  Array.isArray(value.resourceFamilies) &&
-  Array.isArray(value.resourceTags) &&
-  Array.isArray(value.collectionDefinitions) &&
-  isStringArray(value.serverOnlyModules) &&
-  isStringArray(value.browserClientModules) &&
-  typeof value.rpcPath === "string" &&
-  typeof value.actionPath === "string" &&
-  isRecord(value.schemaCoverage) &&
-  Array.isArray(value.missingSchemas) &&
-  Array.isArray(value.unknownActionBehavior) &&
-  Array.isArray(value.unknownRoutePreloadResources) &&
-  Array.isArray(value.unknownRoutePreloadCollections);
-
-const isStartAppGraphDiagnosticsPolicyViolation = (
-  value: unknown
-): value is StartAppGraphDiagnosticsPolicyViolation =>
-  isRecord(value) &&
-  (value._tag === "UnknownRoutePreloadResources" ||
-    value._tag === "UnknownRoutePreloadCollections") &&
-  typeof value.message === "string" &&
-  Array.isArray(value.routes);
-
-const diagnosticsReportFromError = (cause: unknown): StartDiagnosticsReport | undefined => {
-  if (!isRecord(cause) || !isStartAppGraphDiagnostics(cause.diagnostics)) {
-    return undefined;
-  }
-
-  const diagnosticsPolicyViolations = Array.isArray(cause.violations)
-    ? cause.violations.filter(isStartAppGraphDiagnosticsPolicyViolation)
-    : [];
-
-  return createStartDiagnosticsReport({
-    diagnostics: cause.diagnostics,
-    diagnosticsPolicyViolations
-  });
-};
+const diagnosticsReportFromErrorEffect = (
+  cause: unknown
+): Effect.Effect<StartDiagnosticsReport | undefined> =>
+  isRecord(cause)
+    ? decodeStartAppGraphDiagnosticsDtoEffect({
+        diagnostics: cause.diagnostics,
+        diagnosticsPolicyViolations: "violations" in cause ? cause.violations : []
+      }).pipe(
+        Effect.map(createStartDiagnosticsReport),
+        Effect.catch(() => Effect.succeed(undefined))
+      )
+    : Effect.succeed(undefined);
 
 const loadDiagnosticsFromIo = (
   io: StartDiagnosticsCliIo
@@ -326,6 +419,55 @@ export const runStartDiagnosticsCliEffect = (
     );
 
     if (loaded._tag === "Success") {
+      if (command._tag === "Graph" || command._tag === "Impact") {
+        const agentGraph = createStartAgentGraph(loaded.result);
+        if (command._tag === "Impact") {
+          const impact = createStartAgentGraphImpact(
+            agentGraph,
+            command.options.query,
+            command.options.root === undefined
+              ? {}
+              : { root: command.options.root }
+          );
+          if (command.options.json) {
+            yield* writeLineEffect(
+              stdout,
+              JSON.stringify(impact, null, command.options.pretty ? 2 : 0)
+            );
+          } else {
+            yield* writeLineEffect(stdout, formatStartAgentGraphImpact(impact));
+          }
+          return { exitCode: 0 };
+        }
+
+        if (command.options.json) {
+          yield* writeLineEffect(
+            stdout,
+            JSON.stringify(
+              command.options.query === undefined
+                ? agentGraph
+                : {
+                    graph: agentGraph,
+                    result: queryStartAgentGraph(agentGraph, command.options.query)
+                  },
+              null,
+              command.options.pretty ? 2 : 0
+            )
+          );
+        } else {
+          yield* writeLineEffect(
+            stdout,
+            formatStartAgentGraph(
+              agentGraph,
+              command.options.query === undefined
+                ? { verbose: command.options.verbose }
+                : { query: command.options.query, verbose: command.options.verbose }
+            )
+          );
+        }
+        return { exitCode: 0 };
+      }
+
       const result = loaded.result;
       if (command.options.json) {
         yield* writeLineEffect(
@@ -343,7 +485,7 @@ export const runStartDiagnosticsCliEffect = (
 
     const cause = loaded.cause;
     const payload = errorPayload(cause);
-    const report = diagnosticsReportFromError(cause);
+    const report = yield* diagnosticsReportFromErrorEffect(cause);
     if (command.options.json) {
       yield* writeLineEffect(
         stderr,

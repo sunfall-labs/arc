@@ -274,6 +274,61 @@ describe("SQLite persistence storage", () => {
     );
   });
 
+  it("preserves SQLite table receivers for method-style ensure callbacks", () => {
+    interface MethodStyleTable extends SQLitePersistenceTable<never, never> {
+      ensured: number;
+    }
+
+    const table: MethodStyleTable = {
+      ensured: 0,
+      ensure(this: MethodStyleTable) {
+        this.ensured++;
+      },
+      get: () => null,
+      upsert: () => undefined
+    };
+    const storage = makeSQLitePersistenceStorage({
+      table: () => table
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const value = yield* toEffect(storage.getItem("projects-cache"));
+
+        expect(value).toBeNull();
+        expect(table.ensured).toBe(1);
+      })
+    );
+  });
+
+  it("preserves SQLite storage receivers for method-style now callbacks", () => {
+    interface MethodOptions {
+      readonly namespace: string;
+      readonly clock: number;
+      now(this: MethodOptions): number;
+    }
+
+    const fake = makeFakeDriver();
+    const options: MethodOptions = {
+      namespace: "workspace:a",
+      clock: 12_345,
+      now(this: MethodOptions) {
+        return this.clock;
+      }
+    };
+    const storage = makeSQLitePersistenceStorage(fake.driver, options);
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* toEffect(storage.setItem("projects-cache", "{\"rows\":[]}"));
+
+        expect(fake.table().row("workspace:a", "projects-cache")).toMatchObject({
+          updatedAt: 12_345
+        });
+      })
+    );
+  });
+
   it("adapts SQL statement databases into the persistence driver interface", () => {
     const fake = makeFakeStatementDatabase();
     const storage = makeSQLitePersistenceStorage(
@@ -354,6 +409,46 @@ describe("SQLite persistence storage", () => {
     );
   });
 
+  it("reports SQLite persistence callback throws in the Effect error channel", async () => {
+    const getFailure = new Error("get failed");
+    const prepareFailure = new Error("prepare failed");
+    const nowFailure = new Error("now failed");
+    const storage = makeSQLitePersistenceStorage({
+      table: () => ({
+        get: () => {
+          throw getFailure;
+        },
+        upsert: () => undefined
+      })
+    });
+    const prepared = makeSQLitePreparedStatementDatabase({
+      prepare: () => {
+        throw prepareFailure;
+      }
+    });
+    const clockStorage = makeSQLitePersistenceStorage(makeSQLiteStatementPersistenceDriver(makeSQLiteMemoryStatementDatabase()), {
+      now: () => {
+        throw nowFailure;
+      }
+    });
+
+    await expect(Effect.runPromise(toEffect(storage.getItem("projects-cache")))).rejects.toMatchObject({
+      _tag: "EffectInputCallbackError",
+      operation: "SQLitePersistence.get"
+    });
+    await expect(Effect.runPromise(toEffect(clockStorage.setItem("projects-cache", "{}")))).rejects.toMatchObject({
+      _tag: "EffectInputCallbackError",
+      operation: "SQLitePersistence.now"
+    });
+    await expect(Effect.runPromise(prepared.execute("SELECT 1"))).rejects.toMatchObject({
+      _tag: "EffectInputCallbackError",
+      operation: "SQLitePersistence.prepare"
+    });
+    void getFailure;
+    void prepareFailure;
+    void nowFailure;
+  });
+
   it("provides an in-memory statement database for the generated SQLite persistence SQL", () => {
     const memory = makeSQLiteMemoryStatementDatabase();
     const storage = makeSQLitePersistenceStorage(
@@ -401,27 +496,41 @@ describe("SQLite persistence storage", () => {
     );
   });
 
-  it("throws typed SQLite persistence errors for invalid adapter input", () => {
-    expect(() =>
-      makeSQLitePersistenceStorage(makeSQLiteStatementPersistenceDriver(makeSQLiteMemoryStatementDatabase()), {
-        tableName: ""
+  it("reports typed SQLite persistence errors for invalid adapter input", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const storage = makeSQLitePersistenceStorage(makeSQLiteStatementPersistenceDriver(makeSQLiteMemoryStatementDatabase()), {
+          tableName: ""
+        });
+        const tableNameFailure = yield* Effect.flip(storage.getItem("projects-cache"));
+
+        expect(tableNameFailure).toBeInstanceOf(SQLitePersistenceInvalidTableName);
+        expect(tableNameFailure).toMatchObject({
+          _tag: "SQLitePersistenceInvalidTableName",
+          reason: "Empty"
+        });
+
+        expect(() =>
+          makeSQLitePersistenceStorage(makeSQLiteStatementPersistenceDriver(makeSQLiteMemoryStatementDatabase()), {
+            tableName: ""
+          })
+        ).not.toThrow();
+
+        const memory = makeSQLiteMemoryStatementDatabase();
+        expect(() => memory.execute("DROP TABLE \"collection-snapshots\"")).toThrow(
+          SQLitePersistenceUnsupportedStatement
+        );
+
+        try {
+          memory.select("DELETE FROM \"collection-snapshots\"");
+          expect.fail("Expected memory select to reject non-SELECT SQL");
+        } catch (error) {
+          expect(error).toBeInstanceOf(SQLitePersistenceUnsupportedStatement);
+          expect(error).toMatchObject({
+            _tag: "SQLitePersistenceUnsupportedStatement",
+            operation: "select"
+          });
+        }
       })
-    ).toThrow(SQLitePersistenceInvalidTableName);
-
-    const memory = makeSQLiteMemoryStatementDatabase();
-    expect(() => memory.execute("DROP TABLE \"collection-snapshots\"")).toThrow(
-      SQLitePersistenceUnsupportedStatement
-    );
-
-    try {
-      memory.select("DELETE FROM \"collection-snapshots\"");
-      expect.fail("Expected memory select to reject non-SELECT SQL");
-    } catch (error) {
-      expect(error).toBeInstanceOf(SQLitePersistenceUnsupportedStatement);
-      expect(error).toMatchObject({
-        _tag: "SQLitePersistenceUnsupportedStatement",
-        operation: "select"
-      });
-    }
-  });
+    ));
 });

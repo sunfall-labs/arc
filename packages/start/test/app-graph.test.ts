@@ -2,12 +2,15 @@ import { Cause, Effect, Exit } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   createStartAppGraph,
+  decodeStartAppGraphDiagnosticsDtoEffect,
   deserializeStartAppGraph,
   describeStartAppGraphRuntimeDiagnostics,
   describeStartAppGraph,
   describeStartAppGraphEffect,
   enforceStartAppGraphDiagnosticsPolicy,
   serializeStartAppGraph,
+  StartAppGraphDiagnosticsDtoError,
+  StartAppGraphDiagnosticsPolicyException,
   StartAppGraphMissingWireSchemas,
   StartAppGraphParseError,
   StartAppGraphUnknownActionBehavior,
@@ -22,6 +25,12 @@ import {
   validateStartAppGraphRoutePreloadResourcesDiagnosticsEffect,
   validateStartAppGraphWireSchemasEffect
 } from "../src/app-graph.js";
+import {
+  createStartAgentGraphImpact,
+  createStartAgentGraph,
+  formatStartAgentGraphImpact,
+  queryStartAgentGraph
+} from "../src/agent-graph.js";
 import { makeActionManifest } from "../src/action-manifest.js";
 import { FileRouteManifestParseError, generateFileRouteManifestArtifact } from "../src/file-routes.js";
 import { makeServerFunctionManifest } from "../src/server-function-manifest.js";
@@ -252,6 +261,53 @@ describe("Start app graph", () => {
         const description = yield* describeStartAppGraphEffect(graph);
         yield* Effect.sync(() => {
           expect(description).toEqual(describeStartAppGraph(graph));
+        });
+      })
+    );
+  });
+
+  it("validates diagnostics DTOs and policy violations through the shared Effect decoder", () => {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const graph = yield* makeGraphEffect();
+        const diagnostics = describeStartAppGraph(graph);
+        const decoded = yield* decodeStartAppGraphDiagnosticsDtoEffect({
+          diagnostics,
+          diagnosticsPolicyViolations: []
+        });
+        const invalidDiagnosticsExit = yield* Effect.exit(
+          decodeStartAppGraphDiagnosticsDtoEffect({
+            diagnostics: {
+              ...diagnostics,
+              routeModules: [{}]
+            },
+            diagnosticsPolicyViolations: []
+          })
+        );
+        const invalidPolicyExit = yield* Effect.exit(
+          decodeStartAppGraphDiagnosticsDtoEffect({
+            diagnostics,
+            diagnosticsPolicyViolations: [
+              {
+                _tag: "UnknownRoutePreloadResources",
+                message: "Routes with preload must declare preloadResources.",
+                routes: [{}]
+              }
+            ]
+          })
+        );
+
+        yield* Effect.sync(() => {
+          expect(decoded).toEqual({
+            diagnostics,
+            diagnosticsPolicyViolations: []
+          });
+          expect(firstFailure(invalidDiagnosticsExit)).toBeInstanceOf(
+            StartAppGraphDiagnosticsDtoError
+          );
+          expect(firstFailure(invalidPolicyExit)).toBeInstanceOf(
+            StartAppGraphDiagnosticsDtoError
+          );
         });
       })
     );
@@ -564,6 +620,7 @@ describe("Start app graph", () => {
               }
             });
           } catch (error) {
+            expect(error).toBeInstanceOf(StartAppGraphDiagnosticsPolicyException);
             expect(error).toMatchObject({
               name: "StartAppGraphDiagnosticsPolicyError",
               diagnostics,
@@ -574,6 +631,229 @@ describe("Start app graph", () => {
               ]
             });
           }
+        });
+      })
+    );
+  });
+
+  it("merges runtime route candidates without dropping static manifest routes", () => {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const graph = yield* makeGraphEffect();
+        const projectEntry = graph.routes.entries.find((entry) =>
+          entry.routePath === "/projects/:id"
+        );
+
+        if (projectEntry === undefined) {
+          throw new Error("Expected project route entry.");
+        }
+
+        const diagnostics = describeStartAppGraphRuntimeDiagnostics(graph, {
+          routeModules: [
+            {
+              entry: projectEntry,
+              route: {
+                options: {
+                  params: {},
+                  preload: () => undefined,
+                  component: () => null
+                }
+              },
+              preloadResources: {
+                status: "declared" as const,
+                families: ["Project.byId"]
+              },
+              preloadCollections: {
+                status: "none" as const,
+                collections: []
+              }
+            }
+          ]
+        });
+
+        yield* Effect.sync(() => {
+          expect(diagnostics.routeModules).toHaveLength(2);
+          expect(diagnostics.routeModules.map((routeModule) => routeModule.routePath)).toEqual([
+            "/",
+            "/projects/:id"
+          ]);
+          expect(diagnostics.routeModules.find((routeModule) => routeModule.routePath === "/")).toMatchObject({
+            routePath: "/",
+            paramsSchema: "unknown",
+            preload: "unknown",
+            preloadResources: {
+              status: "unknown"
+            }
+          });
+          expect(diagnostics.routeModules.find((routeModule) => routeModule.routePath === "/projects/:id")).toMatchObject({
+            routePath: "/projects/:id",
+            paramsSchema: "present",
+            preload: "present",
+            preloadResources: {
+              status: "declared",
+              families: ["Project.byId"]
+            },
+            component: "present"
+          });
+        });
+      })
+    );
+  });
+
+  it("projects resolved diagnostics into an agent-readable semantic graph", () => {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const graph = yield* makeGraphEffect();
+        const projectEntry = graph.routes.entries.find((entry) =>
+          entry.routePath === "/projects/:id"
+        );
+
+        if (projectEntry === undefined) {
+          throw new Error("Expected project route entry.");
+        }
+
+        const diagnostics = describeStartAppGraphRuntimeDiagnostics(graph, {
+          routeModules: [
+            {
+              entry: projectEntry,
+              route: {
+                options: {
+                  params: {},
+                  preload: () => undefined,
+                  component: () => null
+                }
+              },
+              preloadResources: {
+                status: "declared" as const,
+                families: ["Project.byId"]
+              },
+              preloadCollections: {
+                status: "declared" as const,
+                collections: ["ProjectRows"]
+              }
+            }
+          ]
+        });
+        const agentGraph = createStartAgentGraph({ graph, diagnostics });
+        const projectRoute = queryStartAgentGraph(agentGraph, {
+          kind: "route",
+          text: "/projects/:id"
+        });
+        const renameAction = queryStartAgentGraph(agentGraph, {
+          kind: "action",
+          text: "Project.rename"
+        });
+
+        yield* Effect.sync(() => {
+          expect(agentGraph.selfReview).toMatchObject({
+            status: "needs-attention",
+            policyClean: true,
+            routePreloadsDeclared: true
+          });
+          expect(projectRoute.nodes).toEqual([
+            expect.objectContaining({
+              id: "route:route_projects_$id",
+              kind: "Route",
+              status: "known"
+            })
+          ]);
+          expect(projectRoute.edges).toEqual(
+            expect.arrayContaining([
+              expect.objectContaining({
+                kind: "PreloadsResourceFamily",
+                to: "resource-family:Project.byId"
+              }),
+              expect.objectContaining({
+                kind: "PreloadsCollection",
+                to: "collection:ProjectRows"
+              })
+            ])
+          );
+          expect(renameAction.nodes).toEqual([
+            expect.objectContaining({
+              id: "action:Project.rename",
+              kind: "Action",
+              status: "needs-attention"
+            })
+          ]);
+        });
+      })
+    );
+  });
+
+  it("derives a concise edit impact brief from the semantic graph", () => {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const graph = yield* makeGraphEffect();
+        const projectEntry = graph.routes.entries.find((entry) =>
+          entry.routePath === "/projects/:id"
+        );
+
+        if (projectEntry === undefined) {
+          throw new Error("Expected project route entry.");
+        }
+
+        const diagnostics = describeStartAppGraphRuntimeDiagnostics(graph, {
+          routeModules: [
+            {
+              entry: projectEntry,
+              route: {
+                options: {
+                  params: {},
+                  preload: () => undefined,
+                  component: () => null
+                }
+              },
+              preloadResources: {
+                status: "declared" as const,
+                families: ["Project.byId"]
+              },
+              preloadCollections: {
+                status: "declared" as const,
+                collections: ["ProjectRows"]
+              }
+            }
+          ]
+        });
+        const agentGraph = createStartAgentGraph({ graph, diagnostics });
+        const impact = createStartAgentGraphImpact(
+          agentGraph,
+          { kind: "route", text: "/projects/:id" },
+          { root: "examples/project-console" }
+        );
+        const text = formatStartAgentGraphImpact(impact);
+
+        yield* Effect.sync(() => {
+          expect(impact.matches).toBe(1);
+          expect(impact.items[0]).toMatchObject({
+            editTarget: "src/routes/projects/$id.tsx",
+            contracts: expect.arrayContaining([
+              "params: id",
+              "preloads: resources Project.byId; collections ProjectRows"
+            ]),
+            dependencies: expect.arrayContaining([
+              expect.objectContaining({
+                kind: "resource",
+                label: "Project.byId",
+                reason: "preloaded resource"
+              }),
+              expect.objectContaining({
+                kind: "collection",
+                label: "ProjectRows",
+                reason: "preloaded collection"
+              })
+            ]),
+            verify: [
+              "effect-ui-start diagnostics --root examples/project-console",
+              "effect-ui-start graph route /projects/:id --root examples/project-console"
+            ]
+          });
+          expect(text).toContain("Impact: route /projects/:id");
+          expect(text).toContain("Contracts");
+          expect(text).toContain("- preloads: resources Project.byId; collections ProjectRows");
+          expect(text).toContain("Depends on");
+          expect(text).toContain("- effect-ui-start diagnostics --root examples/project-console");
+          expect(text).not.toContain("route:route_projects_$id");
         });
       })
     );

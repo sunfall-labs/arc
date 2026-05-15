@@ -1,9 +1,8 @@
 import { RuntimeProvider } from "@effect-ui/solid";
 import {
-  createHtmlResponseEffect,
+  createStartStreamedHtmlResponseEffect,
   createRequestHandler,
-  htmlChunk,
-  streamHydrationChunk
+  htmlChunk
 } from "@effect-ui/start";
 import { Effect, Stream } from "effect";
 import { createComponent, generateHydrationScript, renderToString } from "solid-js/web";
@@ -30,7 +29,7 @@ const shellClose = (hydrationScript: string): string => `</div>
 </html>`;
 
 export const handleRequest = createRequestHandler(app, {
-  render: ({ resources, hydrationScript, runtime }) =>
+  render: ({ hydrationRootScript, hydrationPlan, runtime }) =>
     Effect.gen(function* () {
       const body = renderToString(() =>
         createComponent(RuntimeProvider, {
@@ -41,13 +40,11 @@ export const handleRequest = createRequestHandler(app, {
         })
       );
 
-      return yield* createHtmlResponseEffect({
+      return yield* createStartStreamedHtmlResponseEffect({
         shell: htmlChunk(shellOpen(generateHydrationScript())),
-        chunks: Stream.make(
-          htmlChunk(body),
-          streamHydrationChunk(resources)
-        ),
-        tail: htmlChunk(shellClose(hydrationScript)),
+        chunks: Stream.make(htmlChunk(body)),
+        hydrationPlan,
+        tail: htmlChunk(shellClose(hydrationRootScript)),
         headers: {
           "x-effect-ui-starter": "basic"
         }

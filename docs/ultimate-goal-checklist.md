@@ -10,7 +10,7 @@ Legend:
 - `[ ]` means the item is still a future win condition or needs stronger
   verification before it can be claimed.
 
-Last evidence pass: May 14, 2026.
+Last evidence pass: May 15, 2026.
 
 ## Prompt-To-Artifact Audit
 
@@ -36,7 +36,7 @@ Last evidence pass: May 14, 2026.
 
 ## Start Of Push
 
-- [x] Current overnight operating requirement recorded.
+- [x] Initial overnight operating requirement recorded.
   - Evidence: `docs/framework-perfection-charter.md` requires continuing the
     current push until 8:00 AM America/Denver on May 14, 2026, with
     Effect-first implementation and focused verification after each slice.
@@ -142,11 +142,21 @@ Last evidence pass: May 14, 2026.
   in-flight lifecycle with fibers.
   - Evidence: `packages/core/src/resource.ts`; `packages/core/test/resource.test.ts`
     covers dedupe and runtime-disposal interruption.
+- [x] Resource Store has LSP-facing public seams instead of requiring private
+  map access.
+  - Evidence: `packages/core/src/resource-store.ts` exposes `eventBus`,
+    `moduleRegistry`, `fiberRegistry`, and `diagnostics`; Resource Store tests
+    use those seams for event/module/fiber assertions.
 - [x] Core Action and Resource runtime calls keep service erasure at the runtime
   boundary.
   - Evidence: `packages/core/src/action.ts` and `packages/core/src/resource.ts`
     pass `Fiber.join`, interruption, in-flight refresh, and workflow Effects
     directly through `EffectUiRuntime` methods.
+- [x] Program runtime errors preserve Runtime Spine failures.
+  - Evidence: `packages/core/src/program.ts`, `packages/solid/src/hooks.ts`,
+    `packages/react/src/hooks.ts`, and `type-tests/framework.test-d.ts` keep
+    Program-domain failures separate from adapter/runtime provision failures
+    through `Program.RuntimeError<E, ER>` and hook `ER` parameters.
 - [x] Core runtime service erasure is named at the runtime value boundary.
   - Evidence: `packages/core/src/runtime.ts` erases ManagedRuntime services at
     the `ManagedRuntime<any, ER>` value boundary, so runtime helpers no longer
@@ -278,7 +288,7 @@ Last evidence pass: May 14, 2026.
     runtime-isolation tests.
 - [x] Streamed responses keep request runtimes open until body close or
   cancellation.
-  - Evidence: `responseWithRuntimeFinalizer` handles stream `pull` completion
+  - Evidence: `responseWithStreamFinalizer` handles stream `pull` completion
     and `cancel`; `keeps request runtime fibers alive until streamed response
     bodies close` verifies the lifecycle.
 - [x] `ResponseContext` supports status, headers, and cookies across SSR, RPC,
@@ -324,7 +334,9 @@ Last evidence pass: May 14, 2026.
 ## Data Layer And Local-First Foundation
 
 - [x] Collections are runtime/request-local definitions with isolated row state.
-  - Evidence: `packages/db/test/collection.test.ts` runtime/store isolation.
+  - Evidence: `packages/db/src/runtime-collection-store.ts` owns store lookup
+    and initialization, and `packages/db/test/collection.test.ts` covers
+    runtime/store isolation.
 - [x] Collection load/refetch/mutation handlers are Effect-first.
   - Evidence: DB source exports `*Effect` methods; type tests reject async
     loaders; collection/server/sync tests exercise Effect handlers.
@@ -563,8 +575,9 @@ Last evidence pass: May 14, 2026.
     package tests; `examples/project-console/README.md` now records the
     copyable example path, monorepo-only alias caveat, and checked rich-starter
     packaging command; `docs/starter.md` points to `examples/basic-starter` as
-    the minimal checked starter and documents the generated project-console
-    starter payload.
+    the minimal checked starter, `examples/react-starter` as the checked React
+    adapter starter, and documents the generated project-console starter
+    payload.
 - [x] New architectural decisions are recorded in docs or ADRs.
   - Evidence: no new architecture decision was introduced in this pass; existing
     decisions remain in docs. No ADR needed.
@@ -578,16 +591,19 @@ Last evidence pass: May 14, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Evidence: `pnpm verify` ran all root package tests: 43 test files, 365
+  - Evidence: `pnpm verify` ran all root package tests: 50 test files, 804
     tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.
   - Evidence: `pnpm example:typecheck` completed inside `pnpm verify`.
 - [x] Example tests pass.
-  - Evidence: 4 example test files, 23 tests passed.
+  - Evidence: root example tests passed, React starter verify passed with 1
+    starter test file / 2 tests, and project-console passed 4 test files / 27
+    tests.
 - [x] Example build passes.
-  - Evidence: Vite production build completed inside `pnpm verify`.
+  - Evidence: Vite production builds for the basic starter, React starter, and
+    project-console completed inside `pnpm verify`.
 - [x] Example leak scan passes.
   - Evidence: example-local `pnpm leak-scan` returned no matches for
     server-only seed data or server module sentinels.
@@ -714,14 +730,17 @@ Last evidence pass: May 14, 2026.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
-- [x] `pnpm verify` final result recorded.
-  - Evidence: root `pnpm verify` passed on May 14, 2026 after the Start
-    Request Handler, Core Resource Runtime, and Devtools Summary extractions:
-    9 package builds, workspace typecheck, type tests, 43 root test files / 365 tests,
-    devtools-panel verify, devtools-extension verify with 1 extension test file
-    / 6 tests, basic starter verify, project-console starter packaging,
-    project-console typecheck, 4 project-console test files / 23 tests,
-    project-console build, and leak scan.
+- [x] `pnpm verify` latest result recorded.
+  - Evidence: root `pnpm verify` passed on May 15, 2026 after the Review 82
+    Start Host Runtime Runner extraction: 11 package builds, workspace
+    typecheck, type tests, public API inventory audit, Effect-first audit over
+    196 files, 52 root test files / 855 tests,
+    devtools-panel verify with 1 panel test file / 2 tests, devtools-extension
+    verify with 1 extension test file / 20 tests, basic starter verify with 1
+    starter test file / 2 tests, React starter verify with 1 starter test file
+    / 3 tests, project-console starter packaging, project-console typecheck, 4
+    project-console test files / 27 tests, project-console build, and leak
+    scans.
 
 ## Remaining Winning-Bar Items
 

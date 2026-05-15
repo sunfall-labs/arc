@@ -3,12 +3,16 @@ import { Data } from "effect";
 import type {
   AnyCollection,
   CollectionError,
-  CollectionIndexValue,
+  CollectionRuntimeError,
   CollectionRequirements,
   CollectionRow,
   CollectionRowValue
 } from "./collection-contract.js";
-import type { CollectionSnapshotCodecError } from "./collection-snapshot-codec.js";
+import {
+  makeQuerySourceAdapter,
+  makeQuerySourceAdapters,
+  type QueryCollectionSourceAdapter
+} from "./query-source-adapter.js";
 
 /**
  * Error raised when the query builder cannot be represented as a live query.
@@ -45,7 +49,7 @@ export type AnyQueryContext = Record<string, any>;
 export type AnyCollectionRow = CollectionRow<any, any>;
 
 export type QuerySourcesError<Sources extends SourceRecord> =
-  CollectionError<Sources[keyof Sources]> | CollectionSnapshotCodecError;
+  CollectionRuntimeError<CollectionError<Sources[keyof Sources]>>;
 
 export type QuerySourcesRequirements<Sources extends SourceRecord> =
   CollectionRequirements<Sources[keyof Sources]>;
@@ -188,6 +192,67 @@ export const evaluateQueryOperation = <A>(
 export const joinKey = (value: QueryJoinKey): string =>
   value instanceof Date ? `Date:${value.toISOString()}` : stableStringify(value);
 
+/** Validates alias and join invariants before a Query plan reads source rows. */
+export const validateQueryPlan = <TContext extends AnyQueryContext>(
+  builder: QueryPlanBuilder<TContext>
+): void => {
+  if (builder.sources.length === 0) {
+    throw new UnsupportedLiveQuery({ reason: "Live queries require at least one source collection." });
+  }
+  if (!Number.isSafeInteger(builder.offsetCount) || builder.offsetCount < 0) {
+    throw new UnsupportedLiveQuery({ reason: "Query offset must be a finite non-negative safe integer." });
+  }
+  if (
+    builder.limitCount !== undefined &&
+    (!Number.isSafeInteger(builder.limitCount) || builder.limitCount < 0)
+  ) {
+    throw new UnsupportedLiveQuery({ reason: "Query limit must be a finite non-negative safe integer." });
+  }
+
+  const aliases = new Map<string, AnyCollection>();
+  for (const [alias, collection] of builder.sources) {
+    const existing = aliases.get(alias);
+    if (existing) {
+      throw new UnsupportedLiveQuery({
+        reason: `Query source alias "${alias}" is registered more than once.`
+      });
+    }
+    aliases.set(alias, collection);
+  }
+
+  for (const join of builder.joins) {
+    const source = aliases.get(join.alias);
+    if (!source) {
+      throw new UnsupportedLiveQuery({
+        reason: `Join source "${join.alias}" is not registered.`
+      });
+    }
+    if (source !== join.collection) {
+      throw new UnsupportedLiveQuery({
+        reason: `Join source "${join.alias}" is registered for collection "${source.name}" but the join uses "${join.collection.name}".`
+      });
+    }
+    if (
+      join.rightIndex !== undefined &&
+      !makeQuerySourceAdapter(join.collection).hasIndex(join.rightIndex)
+    ) {
+      throw new UnsupportedLiveQuery({
+        reason: `Join source "${join.alias}" uses unknown index "${join.rightIndex}" on collection "${join.collection.name}".`
+      });
+    }
+  }
+
+  if (builder.joins.length > 0) {
+    const joinAliases = new Set(builder.joins.map((join) => join.alias));
+    const hasBaseSource = builder.sources.some(([alias]) => !joinAliases.has(alias));
+    if (!hasBaseSource) {
+      throw new UnsupportedLiveQuery({
+        reason: "Live queries with joins require at least one non-join source collection."
+      });
+    }
+  }
+};
+
 export const buildContexts = <TContext extends AnyQueryContext>(
   sources: ReadonlyArray<readonly [string, AnyCollection]>
 ): Array<TContext> => {
@@ -208,7 +273,8 @@ export const buildContexts = <TContext extends AnyQueryContext>(
     }
 
     const [alias, collection] = source;
-    for (const row of collection.rows()) {
+    const adapter = makeQuerySourceAdapter(collection);
+    for (const row of adapter.rows()) {
       current[alias] = row;
       visit(index + 1, current);
     }
@@ -227,26 +293,31 @@ export const buildQueryContexts = <TContext extends AnyQueryContext>(
 export const buildQueryExecution = <TContext extends AnyQueryContext>(
   builder: QueryPlanBuilder<TContext>
 ): QueryExecution<TContext> => {
+  validateQueryPlan(builder);
   const joinAliases = new Set(builder.joins.map((join) => join.alias));
   const baseSources = builder.sources.filter(([alias]) => !joinAliases.has(alias));
-  const sourceDiagnostics = builder.sources.map(([alias, collection]): QueryPlanSourceDiagnostics => ({
-    alias,
-    collection: collection.name,
-    rows: collection.rows().length
-  }));
+  const sourceDiagnostics = builder.sources.map(([alias, collection]): QueryPlanSourceDiagnostics => {
+    const source = makeQuerySourceAdapter(collection);
+    return {
+      alias,
+      collection: source.name,
+      rows: source.rowCount()
+    };
+  });
   const joins: Array<QueryPlanJoinDiagnostics> = [];
   let contexts = buildContexts<AnyQueryContext>(baseSources);
 
   for (const join of builder.joins) {
     const joined: Array<AnyQueryContext> = [];
     const leftRows = contexts.length;
-    const rightRows = join.collection.rows().length;
+    const source = makeQuerySourceAdapter(join.collection);
+    const rightRows = source.rowCount();
     for (const context of contexts) {
       const leftValue = evaluateQueryOperation("join", () => join.leftKey(context));
       const left = joinKey(leftValue);
       const rows = join.rightIndex
-        ? join.collection.index(join.rightIndex, leftValue as CollectionIndexValue)
-        : join.collection.rows();
+        ? source.indexRows(join.rightIndex, leftValue)
+        : source.rows();
       for (const row of rows) {
         const rightKeys = evaluateQueryOperation("join", () => join.rightKeys(row));
         if (rightKeys.some((rightValue) => left === joinKey(rightValue))) {
@@ -259,7 +330,7 @@ export const buildQueryExecution = <TContext extends AnyQueryContext>(
     }
     joins.push({
       alias: join.alias,
-      collection: join.collection.name,
+      collection: source.name,
       strategy: join.rightIndex ? "collection-index" : "collection-scan",
       ...(join.rightIndex === undefined ? {} : { index: join.rightIndex }),
       leftRows,
@@ -364,4 +435,7 @@ export const compareRows = <TContext>(
 };
 
 export const querySources = (builder: QueryPlanBuilder<any>): ReadonlyArray<AnyCollection> =>
-  builder.sources.map(([, collection]) => collection);
+  querySourceAdapters(builder).map((source) => source.collection);
+
+export const querySourceAdapters = (builder: QueryPlanBuilder<any>): ReadonlyArray<QueryCollectionSourceAdapter> =>
+  makeQuerySourceAdapters(builder.sources);

@@ -1,98 +1,81 @@
-export const projectConsoleFileRoutes = [
-  "src/routes/index.ts",
-  "src/routes/projects/index.ts",
-  "src/routes/projects/$id.ts"
-] as const;
+import type {
+  ActionManifestSource,
+  ServerFunctionManifestSource
+} from "@effect-ui/start";
+import { SubmitProjectName } from "./domain.js";
+import {
+  advanceProject,
+  getProject,
+  listProjects,
+  renameProject,
+  submitProjectName
+} from "./domain.server.js";
+import { RenameProjectFromCollection } from "./project-collections.js";
 
-export const projectConsoleServerFunctionManifest = [
+export const projectConsoleServerFunctionSources = [
   {
-    name: "Project.advance",
+    fn: advanceProject,
     module: "/src/domain.server.ts",
     exportName: "advanceProject",
     clientModule: "/src/domain.contract.ts",
-    clientExportName: "advanceProject",
-    inputSchema: true,
-    outputSchema: true,
-    errorSchema: true
+    clientExportName: "advanceProject"
   },
   {
-    name: "Project.get",
+    fn: getProject,
     module: "/src/domain.server.ts",
     exportName: "getProject",
     clientModule: "/src/domain.contract.ts",
-    clientExportName: "getProject",
-    inputSchema: true,
-    outputSchema: true,
-    errorSchema: true
+    clientExportName: "getProject"
   },
   {
-    name: "Project.list",
+    fn: listProjects,
     module: "/src/domain.server.ts",
     exportName: "listProjects",
     clientModule: "/src/domain.contract.ts",
-    clientExportName: "listProjects",
-    inputSchema: true,
-    outputSchema: true,
-    errorSchema: true
+    clientExportName: "listProjects"
   },
   {
-    name: "Project.name.submit",
+    fn: submitProjectName,
     module: "/src/domain.server.ts",
     exportName: "submitProjectName",
     clientModule: "/src/domain.contract.ts",
-    clientExportName: "submitProjectName",
-    inputSchema: true,
-    outputSchema: true,
-    errorSchema: true
+    clientExportName: "submitProjectName"
   },
   {
-    name: "Project.rename",
+    fn: renameProject,
     module: "/src/domain.server.ts",
     exportName: "renameProject",
     clientModule: "/src/domain.contract.ts",
-    clientExportName: "renameProject",
-    inputSchema: true,
-    outputSchema: true,
-    errorSchema: true
+    clientExportName: "renameProject"
   }
-] as const;
+] as const satisfies readonly ServerFunctionManifestSource[];
 
-export const projectConsoleActionManifest = [
+export const projectConsoleActionSources = [
   {
-    name: "Project.collection.rename",
+    action: RenameProjectFromCollection,
     module: "/src/project-collections.ts",
     exportName: "RenameProjectFromCollection",
     clientModule: "/src/project-collections.ts",
-    clientExportName: "RenameProjectFromCollection",
-    inputSchema: true,
-    outputSchema: true,
-    errorSchema: true,
-    invalidates: true,
-    optimistic: true,
-    retry: true,
-    concurrency: "latest"
+    clientExportName: "RenameProjectFromCollection"
   },
   {
-    name: "Project.name.submit",
+    action: SubmitProjectName,
     module: "/src/domain.ts",
     exportName: "SubmitProjectName",
     clientModule: "/src/domain.ts",
-    clientExportName: "SubmitProjectName",
-    inputSchema: true,
-    outputSchema: true,
-    errorSchema: true,
-    invalidates: true,
-    optimistic: false,
-    retry: true,
-    concurrency: "latest"
+    clientExportName: "SubmitProjectName"
   }
-] as const;
+] as const satisfies readonly ActionManifestSource[];
+
+export const projectConsoleServerRegistry = {
+  actions: projectConsoleActionSources.map((source) => source.action),
+  serverFunctions: projectConsoleServerFunctionSources.map((source) => source.fn)
+} as const;
 
 export const projectConsoleStartOptions = {
   serverEntry: "/src/server.tsx",
-  serverFunctionManifest: projectConsoleServerFunctionManifest,
-  actionManifest: projectConsoleActionManifest,
-  fileRoutes: projectConsoleFileRoutes,
+  serverFunctionSources: projectConsoleServerFunctionSources,
+  actionSources: projectConsoleActionSources,
   fileRouteOptions: {
     routeDirectory: "src/routes"
   },

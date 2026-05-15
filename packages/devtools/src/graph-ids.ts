@@ -14,6 +14,10 @@ export const devtoolsCollectionNodeId = (collection: string): string => `collect
 
 export const devtoolsEndpointNodeId = (name: string): string => `endpoint:${name}`;
 
+export const devtoolsProgramNodeId = (name: string): string => `program:${name}`;
+
+export const devtoolsProgramPanelItemId = (eventId: string): string => `program-event:${eventId}`;
+
 export const devtoolsInvalidationNodeId = (index: number): string => `invalidation:${index}`;
 
 export const devtoolsMissingSchemaNodeId = (schema: DevtoolsStartAppGraphMissingSchema): string =>
@@ -84,13 +88,23 @@ export const devtoolsRuntimeTargetLabel = (
 ): string =>
   target.kind === "Collection" && target.id.startsWith("collection:")
     ? target.id.slice("collection:".length)
+    : target.kind === "Program" && target.id.startsWith("program:")
+      ? target.id.slice("program:".length)
     : target.kind === "RequestTrace" && target.id.startsWith("request-trace:")
       ? target.id.slice("request-trace:".length)
       : target.id;
 
+const framedGraphId = (
+  tag: string,
+  parts: ReadonlyArray<string>
+): string =>
+  `${tag}[${parts.map((part) => `${part.length}:${part}`).join("|")}]`;
+
 export const devtoolsCausalEdgeId = (
-  index: number,
   kind: DevtoolsCausalEdgeKind,
   source: string,
-  target: string
-): string => `edge:${index}:${kind}:${source}->${target}`;
+  target: string,
+  label: string | null,
+  ordinal: number
+): string =>
+  framedGraphId("edge", [kind, source, target, label ?? "", String(ordinal)]);

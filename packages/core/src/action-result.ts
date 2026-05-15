@@ -1,5 +1,5 @@
 import { Effect, type Schema } from "effect";
-import type { EffectInput } from "./effect-like.js";
+import type { EffectInput, EffectInputCallbackError } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
 import {
   FormValidationError,
@@ -13,119 +13,207 @@ export const ActionResultTypeId: unique symbol = Symbol.for(
   "@effect-ui/core/ActionResult"
 ) as typeof ActionResultTypeId;
 
+/** HTTP redirect statuses supported by Start action redirects. */
 export type ActionRedirectStatus = 303 | 307 | 308;
 
-export interface ActionResultOptions {
-  readonly invalidates?: ReadonlyArray<ResourceInvalidation>;
+/** Shared metadata carried by action results. */
+export interface ActionResultOptions<R = never> {
+  /** Resources or tags to invalidate after the action result is accepted. */
+  readonly invalidates?: ReadonlyArray<ResourceInvalidation<R>>;
 }
 
-export interface ActionResultRedirectOptions extends ActionResultOptions {
+/** Options for an action result that redirects the client. */
+export interface ActionResultRedirectOptions<R = never> extends ActionResultOptions<R> {
+  /** Redirect status. Defaults to `303`, which turns form posts into a GET navigation. */
   readonly status?: ActionRedirectStatus;
+  /** Extra headers to attach to the redirect response. */
   readonly headers?: Readonly<Record<string, string>>;
+  /** Hint for clients that track history: replace the current entry instead of pushing one. */
   readonly replace?: boolean;
 }
 
+/** Input used to build a field/form validation failure result. */
 export interface ActionResultValidationInput<Values extends object, E> {
+  /** Per-field errors keyed by known form field names. */
   readonly fieldErrors?: FormFieldErrors<Values, E>;
+  /** Errors that apply to the whole form rather than one field. */
   readonly formErrors?: ReadonlyArray<E>;
+  /** Original validation cause retained for diagnostics. */
   readonly cause?: unknown;
 }
 
-export interface ActionResultBase<Tag extends string> {
+/** Common marker and invalidation metadata shared by every action result variant. */
+export interface ActionResultBase<Tag extends string, R = never> {
   readonly [ActionResultTypeId]: typeof ActionResultTypeId;
   readonly _tag: Tag;
-  readonly invalidates?: ReadonlyArray<ResourceInvalidation>;
+  readonly invalidates?: ReadonlyArray<ResourceInvalidation<R>>;
 }
 
-export interface ActionResultSuccess<A> extends ActionResultBase<"Success"> {
+/** Successful action result, optionally carrying resource invalidations. */
+export interface ActionResultSuccess<A, R = never> extends ActionResultBase<"Success", R> {
   readonly value: A;
 }
 
-export interface ActionResultValidationFailure<Values extends object, E>
-  extends ActionResultBase<"ValidationFailure"> {
+/** Validation failure result that can be rendered by form UIs without throwing. */
+export interface ActionResultValidationFailure<Values extends object, E, R = never>
+  extends ActionResultBase<"ValidationFailure", R> {
   readonly fieldErrors: FormFieldErrors<Values, E>;
   readonly formErrors: ReadonlyArray<E>;
   readonly cause: unknown | undefined;
 }
 
-export interface ActionResultRedirect extends ActionResultBase<"Redirect"> {
+/** Redirect result for progressive actions and Start form submissions. */
+export interface ActionResultRedirect<R = never> extends ActionResultBase<"Redirect", R> {
   readonly location: string;
   readonly status: ActionRedirectStatus;
   readonly headers?: Readonly<Record<string, string>>;
   readonly replace?: boolean;
 }
 
-export interface ActionResultFailure<E> extends ActionResultBase<"Failure"> {
+/** Typed domain failure result produced by action workflows. */
+export interface ActionResultFailure<E, R = never> extends ActionResultBase<"Failure", R> {
   readonly error: E;
 }
 
-export type ActionResultBoundary<Values extends object = never, ValidationError = never, E = never> =
-  | ActionResultValidationFailure<Values, ValidationError>
-  | ActionResultRedirect
-  | ActionResultFailure<E>;
+/** Non-success action result variants that callers can handle explicitly. */
+export type ActionResultBoundary<
+  Values extends object = never,
+  ValidationError = never,
+  E = never,
+  R = never
+> =
+  | ActionResultValidationFailure<Values, ValidationError, R>
+  | ActionResultRedirect<R>
+  | ActionResultFailure<E, R>;
 
-export type ActionResult<A, Values extends object = never, ValidationError = never, E = never> =
-  | ActionResultSuccess<A>
-  | ActionResultBoundary<Values, ValidationError, E>;
+/** Serializable action outcome used by core actions and Start action transports. */
+export type ActionResult<
+  A,
+  Values extends object = never,
+  ValidationError = never,
+  E = never,
+  R = never
+> =
+  | ActionResultSuccess<A, R>
+  | ActionResultBoundary<Values, ValidationError, E, R>;
 
 export type AnyActionResult =
-  | ActionResultSuccess<unknown>
-  | ActionResultValidationFailure<Record<string, unknown>, unknown>
-  | ActionResultRedirect
-  | ActionResultFailure<unknown>;
+  | ActionResultSuccess<unknown, any>
+  | ActionResultValidationFailure<Record<string, unknown>, unknown, any>
+  | ActionResultRedirect<any>
+  | ActionResultFailure<unknown, any>;
 
+type IsAny<T> = 0 extends (1 & T) ? true : false;
+
+export type ActionResultInvalidationRequirements<Value> =
+  Value extends {
+    readonly [ActionResultTypeId]: typeof ActionResultTypeId;
+    readonly invalidates?: ReadonlyArray<ResourceInvalidation<infer R>>;
+  }
+    ? IsAny<R> extends true ? never : R
+    : never;
+
+type WithActionResultInvalidation<Result, R> =
+  Result extends ActionResultSuccess<infer A, infer Existing>
+    ? ActionResultSuccess<A, Existing | R>
+    : Result extends ActionResultValidationFailure<infer Values, infer E, infer Existing>
+      ? ActionResultValidationFailure<Values, E, Existing | R>
+      : Result extends ActionResultRedirect<infer Existing>
+        ? ActionResultRedirect<Existing | R>
+        : Result extends ActionResultFailure<infer E, infer Existing>
+          ? ActionResultFailure<E, Existing | R>
+          : Result;
+
+/** Exhaustive matcher callbacks for an `ActionResult`. */
 export interface ActionResultMatch<
   A,
   Values extends object,
   ValidationError,
   E,
-  B
+  B,
+  R = never
 > {
-  readonly success: (value: A, result: ActionResultSuccess<A>) => B;
+  readonly success: (value: A, result: ActionResultSuccess<A, R>) => B;
   readonly validation: (
-    failure: ActionResultValidationFailure<Values, ValidationError>
+    failure: ActionResultValidationFailure<Values, ValidationError, R>
   ) => B;
-  readonly redirect: (redirect: ActionResultRedirect) => B;
-  readonly failure: (error: E, result: ActionResultFailure<E>) => B;
+  readonly redirect: (redirect: ActionResultRedirect<R>) => B;
+  readonly failure: (error: E, result: ActionResultFailure<E, R>) => B;
 }
 
 const optionalInvalidates = (
-  options: ActionResultOptions = {}
-): Pick<ActionResultBase<string>, "invalidates"> =>
+  options: ActionResultOptions<any> = {}
+): Pick<ActionResultBase<string, any>, "invalidates"> =>
   options.invalidates && options.invalidates.length > 0
-    ? { invalidates: options.invalidates }
+    ? { invalidates: Object.freeze([...options.invalidates]) }
     : {};
 
-const success = <A>(
+const emptyInvalidations = Object.freeze([]) as ReadonlyArray<ResourceInvalidation<never>>;
+const emptyFieldErrors = Object.freeze({}) as FormFieldErrors<any, never>;
+const emptyFormErrors = Object.freeze([]) as ReadonlyArray<never>;
+
+const freezeHeaders = (
+  headers: Readonly<Record<string, string>>
+): Readonly<Record<string, string>> =>
+  Object.freeze({ ...headers });
+
+const freezeFieldErrors = <Values extends object, E>(
+  fieldErrors: FormFieldErrors<Values, E> | undefined
+): FormFieldErrors<Values, E> => {
+  if (fieldErrors === undefined) {
+    return emptyFieldErrors as FormFieldErrors<Values, E>;
+  }
+
+  const snapshot: Partial<Record<FormFieldKey<Values>, ReadonlyArray<E>>> = {};
+  for (const field of Object.keys(fieldErrors) as Array<FormFieldKey<Values>>) {
+    const errors = fieldErrors[field];
+    if (errors !== undefined) {
+      snapshot[field] = Object.freeze([...errors]);
+    }
+  }
+  return Object.freeze(snapshot) as FormFieldErrors<Values, E>;
+};
+
+const freezeFormErrors = <E>(
+  formErrors: ReadonlyArray<E> | undefined
+): ReadonlyArray<E> =>
+  formErrors === undefined
+    ? emptyFormErrors as ReadonlyArray<E>
+    : Object.freeze([...formErrors]);
+
+/** Builds a successful action result. */
+const success = <A, R = never>(
   value: A,
-  options: ActionResultOptions = {}
-): ActionResultSuccess<A> => ({
+  options: ActionResultOptions<R> = {}
+): ActionResultSuccess<A, R> => ({
   [ActionResultTypeId]: ActionResultTypeId,
   _tag: "Success",
   value,
   ...optionalInvalidates(options)
 });
 
-const failure = <E>(
+/** Builds a typed action failure result without throwing or failing the Effect. */
+const failure = <E, R = never>(
   error: E,
-  options: ActionResultOptions = {}
-): ActionResultFailure<E> => ({
+  options: ActionResultOptions<R> = {}
+): ActionResultFailure<E, R> => ({
   [ActionResultTypeId]: ActionResultTypeId,
   _tag: "Failure",
   error,
   ...optionalInvalidates(options)
 });
 
-const redirect = (
+/** Builds a redirect result for form posts or action transports. */
+const redirect = <R = never>(
   location: string,
-  options: ActionResultRedirectOptions = {}
-): ActionResultRedirect => ({
+  options: ActionResultRedirectOptions<R> = {}
+): ActionResultRedirect<R> => ({
   [ActionResultTypeId]: ActionResultTypeId,
   _tag: "Redirect",
   location,
   status: options.status ?? 303,
   ...optionalInvalidates(options),
-  ...(options.headers === undefined ? {} : { headers: options.headers }),
+  ...(options.headers === undefined ? {} : { headers: freezeHeaders(options.headers) }),
   ...(options.replace === undefined ? {} : { replace: options.replace })
 });
 
@@ -141,10 +229,11 @@ const isFormValidationError = <Values extends object, E>(
     "formErrors" in value
   );
 
-const validation = <Values extends object, E>(
+/** Builds a validation failure from form validation output or explicit errors. */
+const validation = <Values extends object, E, R = never>(
   input: FormValidationError<Values, E> | ActionResultValidationInput<Values, E>,
-  options: ActionResultOptions = {}
-): ActionResultValidationFailure<Values, E> => {
+  options: ActionResultOptions<R> = {}
+): ActionResultValidationFailure<Values, E, R> => {
   const source: ActionResultValidationInput<Values, E> = isFormValidationError<Values, E>(input)
     ? {
         fieldErrors: input.fieldErrors,
@@ -156,18 +245,19 @@ const validation = <Values extends object, E>(
   return {
     [ActionResultTypeId]: ActionResultTypeId,
     _tag: "ValidationFailure",
-    fieldErrors: source.fieldErrors ?? {},
-    formErrors: source.formErrors ?? [],
+    fieldErrors: freezeFieldErrors(source.fieldErrors),
+    formErrors: freezeFormErrors(source.formErrors),
     cause: source.cause,
     ...optionalInvalidates(options)
   };
 };
 
-const fields = <Values extends object, E>(
+/** Builds a validation failure from a field-error map. */
+const fields = <Values extends object, E, R = never>(
   fieldErrors: FormFieldErrors<Values, E>,
   options: Omit<ActionResultValidationInput<Values, E>, "fieldErrors"> &
-    ActionResultOptions = {}
-): ActionResultValidationFailure<Values, E> =>
+    ActionResultOptions<R> = {}
+): ActionResultValidationFailure<Values, E, R> =>
   validation(
     {
       fieldErrors,
@@ -177,22 +267,24 @@ const fields = <Values extends object, E>(
     options
   );
 
-const fieldError = <Values extends object, K extends FormFieldKey<Values>, E>(
+/** Builds a validation failure for one field. */
+const fieldError = <Values extends object, K extends FormFieldKey<Values>, E, R = never>(
   field: K,
   error: E,
   options: Omit<ActionResultValidationInput<Values, E>, "fieldErrors"> &
-    ActionResultOptions = {}
-): ActionResultValidationFailure<Values, E> => {
+    ActionResultOptions<R> = {}
+): ActionResultValidationFailure<Values, E, R> => {
   const fieldErrors: FormFieldErrors<Values, E> = {};
   fieldErrors[field] = [error];
   return fields(fieldErrors, options);
 };
 
-const formError = <Values extends object, E>(
+/** Builds a validation failure for one form-level error. */
+const formError = <Values extends object, E, R = never>(
   error: E,
   options: Omit<ActionResultValidationInput<Values, E>, "formErrors"> &
-    ActionResultOptions = {}
-): ActionResultValidationFailure<Values, E> =>
+    ActionResultOptions<R> = {}
+): ActionResultValidationFailure<Values, E, R> =>
   validation(
     {
       formErrors: [error],
@@ -202,43 +294,49 @@ const formError = <Values extends object, E>(
     options
   );
 
-const withInvalidation = <R extends AnyActionResult>(
-  result: R,
-  invalidates: ReadonlyArray<ResourceInvalidation>
-): R =>
+/** Appends invalidations to an existing action result. */
+const withInvalidation = <Result extends AnyActionResult, R = never>(
+  result: Result,
+  invalidates: ReadonlyArray<ResourceInvalidation<R>>
+): WithActionResultInvalidation<Result, R> =>
   ({
     ...result,
-    invalidates: [...(result.invalidates ?? []), ...invalidates]
-  }) as R;
+    invalidates: Object.freeze([...(result.invalidates ?? []), ...invalidates])
+  }) as unknown as WithActionResultInvalidation<Result, R>;
 
-const invalidations = (result: AnyActionResult): ReadonlyArray<ResourceInvalidation> =>
-  result.invalidates ?? [];
+/** Reads invalidations from any action result, returning an empty array when none are present. */
+const invalidations = <R = never>(
+  result: { readonly invalidates?: ReadonlyArray<ResourceInvalidation<R>> }
+): ReadonlyArray<ResourceInvalidation<R>> =>
+  result.invalidates ?? emptyInvalidations;
 
+/** Runtime guard for values produced by `ActionResult` helpers. */
 const is = (value: unknown): value is AnyActionResult =>
   typeof value === "object" &&
   value !== null &&
   (value as { [ActionResultTypeId]?: unknown })[ActionResultTypeId] === ActionResultTypeId;
 
-const isSuccess = <A>(
-  result: ActionResult<A, object, unknown, unknown>
-): result is ActionResultSuccess<A> => result._tag === "Success";
+const isSuccess = <A, R = never>(
+  result: ActionResult<A, object, unknown, unknown, R>
+): result is ActionResultSuccess<A, R> => result._tag === "Success";
 
-const isValidationFailure = <Values extends object, E>(
-  result: ActionResult<unknown, Values, E, unknown>
-): result is ActionResultValidationFailure<Values, E> =>
+const isValidationFailure = <Values extends object, E, R = never>(
+  result: ActionResult<unknown, Values, E, unknown, R>
+): result is ActionResultValidationFailure<Values, E, R> =>
   result._tag === "ValidationFailure";
 
-const isRedirect = (
-  result: ActionResult<unknown, object, unknown, unknown>
-): result is ActionResultRedirect => result._tag === "Redirect";
+const isRedirect = <R = never>(
+  result: ActionResult<unknown, object, unknown, unknown, R>
+): result is ActionResultRedirect<R> => result._tag === "Redirect";
 
-const isFailure = <E>(
-  result: ActionResult<unknown, object, unknown, E>
-): result is ActionResultFailure<E> => result._tag === "Failure";
+const isFailure = <E, R = never>(
+  result: ActionResult<unknown, object, unknown, E, R>
+): result is ActionResultFailure<E, R> => result._tag === "Failure";
 
-const match = <A, Values extends object, ValidationError, E, B>(
-  result: ActionResult<A, Values, ValidationError, E>,
-  handlers: ActionResultMatch<A, Values, ValidationError, E, B>
+/** Runs the matching branch for a result variant. */
+const match = <A, Values extends object, ValidationError, E, B, R = never>(
+  result: ActionResult<A, Values, ValidationError, E, R>,
+  handlers: ActionResultMatch<A, Values, ValidationError, E, B, R>
 ): B => {
   switch (result._tag) {
     case "Success":
@@ -252,51 +350,56 @@ const match = <A, Values extends object, ValidationError, E, B>(
   }
 };
 
-const successEffect = <A>(
+const successEffect = <A, R = never>(
   value: A,
-  options: ActionResultOptions = {}
-): Effect.Effect<ActionResultSuccess<A>> =>
+  options: ActionResultOptions<R> = {}
+): Effect.Effect<ActionResultSuccess<A, R>> =>
   Effect.succeed(success(value, options));
 
-const failureEffect = <E>(
+const failureEffect = <E, R = never>(
   error: E,
-  options: ActionResultOptions = {}
-): Effect.Effect<ActionResultFailure<E>> =>
+  options: ActionResultOptions<R> = {}
+): Effect.Effect<ActionResultFailure<E, R>> =>
   Effect.succeed(failure(error, options));
 
-const redirectEffect = (
+const redirectEffect = <R = never>(
   location: string,
-  options: ActionResultRedirectOptions = {}
-): Effect.Effect<ActionResultRedirect> =>
+  options: ActionResultRedirectOptions<R> = {}
+): Effect.Effect<ActionResultRedirect<R>> =>
   Effect.succeed(redirect(location, options));
 
-const validationEffect = <Values extends object, E>(
+const validationEffect = <Values extends object, E, R = never>(
   input: FormValidationError<Values, E> | ActionResultValidationInput<Values, E>,
-  options: ActionResultOptions = {}
-): Effect.Effect<ActionResultValidationFailure<Values, E>> =>
+  options: ActionResultOptions<R> = {}
+): Effect.Effect<ActionResultValidationFailure<Values, E, R>> =>
   Effect.succeed(validation(input, options));
 
+/** Converts an Effect into a successful or failure `ActionResult`. */
 const fromEffect = <A, E = never, R = never>(
-  effect: EffectInput<A, E, R>
+  effect: EffectInput<A, E, R> & (A extends PromiseLike<unknown> ? never : unknown)
 ): Effect.Effect<ActionResult<A, never, never, E>, never, R> =>
-  toEffect(effect).pipe(
+  toEffect(effect as never).pipe(
     Effect.map((value) => success(value)),
     Effect.catch((error) => Effect.succeed(failure(error)))
-  );
+  ) as Effect.Effect<ActionResult<A, never, never, E>, never, R>;
 
+/** Converts a form validation Effect into success or validation-failure results. */
 const fromValidationEffect = <Values extends object, E, R = never>(
-  effect: EffectInput<Values, FormValidationError<Values, E>, R>
+  effect: EffectInput<Values, FormValidationError<Values, E>, R> &
+    (Values extends PromiseLike<unknown> ? never : unknown)
 ): Effect.Effect<ActionResult<Values, Values, E, never>, never, R> =>
-  toEffect(effect).pipe(
+  toEffect(effect as never).pipe(
     Effect.map((value) => success(value)),
     Effect.catch((error) => Effect.succeed(validation(error)))
-  );
+  ) as Effect.Effect<ActionResult<Values, Values, E, never>, never, R>;
 
+/** Validates a `FormInstance` and returns an action result instead of failing. */
 const validateFormEffect = <Values extends object, E, R = never>(
   form: FormInstance<Values, E, R>
-): Effect.Effect<ActionResult<Values, Values, E | Schema.SchemaError, never>, never, R> =>
-  fromValidationEffect(form.validateEffect());
+): Effect.Effect<ActionResult<Values, Values, E | Schema.SchemaError | EffectInputCallbackError, never>, never, R> =>
+  fromValidationEffect(form.validateEffect() as never);
 
+/** Extracts a success value or fails with the boundary result for explicit handling. */
 const requireSuccessEffect = <A, Values extends object, ValidationError, E>(
   result: ActionResult<A, Values, ValidationError, E>
 ): Effect.Effect<A, ActionResultBoundary<Values, ValidationError, E>> =>
@@ -304,6 +407,7 @@ const requireSuccessEffect = <A, Values extends object, ValidationError, E>(
     ? Effect.succeed(result.value)
     : Effect.fail(result);
 
+/** Constructors, guards, matchers, and Effect helpers for action outcomes. */
 export const ActionResult = {
   success,
   failure,

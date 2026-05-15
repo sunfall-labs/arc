@@ -47,9 +47,9 @@ export const recordStartRequestTraceAction = (
   facts.actions.push(entry);
 };
 
-export const recordStartRequestTracePreload = <RuntimeError>(
+export const recordStartRequestTracePreload = <RuntimeServices, RuntimeError>(
   facts: StartRequestTraceFacts,
-  runtime: EffectUiRuntime<unknown, RuntimeError>,
+  runtime: EffectUiRuntime<RuntimeServices, RuntimeError>,
   routePlan: Route.NavigationPlan,
   collectionPreload: StartCollectionPreloadTraceInput
 ): void => {

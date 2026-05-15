@@ -15,13 +15,16 @@ export const parseDuration = (duration: DurationInput | undefined): number => {
     return duration;
   }
 
-  const match = /^(\d+) (milliseconds?|seconds?|minutes?)$/.exec(duration);
+  const match = /^(-?(?:\d+\.?\d*|\.\d+)(?:e[+-]?\d+)?) (milliseconds?|seconds?|minutes?)$/i.exec(duration);
   if (!match) {
     throw new UnsupportedDuration({ duration });
   }
 
   const amount = Number(match[1]);
-  const unit = match[2] ?? "";
+  if (!Number.isFinite(amount)) {
+    throw new UnsupportedDuration({ duration });
+  }
+  const unit = (match[2] ?? "").toLowerCase();
   if (unit.startsWith("millisecond")) return amount;
   if (unit.startsWith("second")) return amount * 1_000;
   return amount * 60_000;

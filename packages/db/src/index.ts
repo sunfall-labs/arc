@@ -1,9 +1,13 @@
 import {
+  type EffectInputError,
+  type EffectInputRequirements,
+  type EffectInputCallbackError,
   type EffectInput,
+  type EnsureEffectInput,
   type ReadableSignal,
   runFork
 } from "@effect-ui/core";
-import { Effect, PubSub, Scope } from "effect";
+import { Effect, PubSub, Schema, Scope } from "effect";
 import {
   backgroundSyncCollectionsPendingMutationsEffect,
   flushCollectionsPendingMutationsEffect,
@@ -53,6 +57,7 @@ import {
   type CollectionQuerySyncFetchOptions,
   type CollectionQuerySyncInvalidateOptions,
   type CollectionQuerySyncKey,
+  type CollectionQuerySyncMutationInvalidationPolicy,
   type CollectionChangeFeedAdapter,
   type CollectionChangeFeedContext,
   type CollectionChangeFeedSubscribeOptions,
@@ -78,7 +83,7 @@ import {
   type CollectionLiveQueryOptions
 } from "./live-query-collection.js";
 import { CollectionTypeId } from "./collection-ids.js";
-import { CollectionRowNotFound, ReadonlyCollectionMutation } from "./collection-errors.js";
+import { ReadonlyCollectionMutation } from "./collection-errors.js";
 import {
   CollectionPreloadCollector,
   type CollectionPreloadCollected,
@@ -92,6 +97,7 @@ import {
   dehydrateCollections,
   dehydrateCollectionsEffect,
   hydrateCollectionsEffect,
+  validateCollectionsHydrationEffect,
   subscribeCollectionChangesEffect,
   subscribeCollectionEventsEffect
 } from "./collection-runtime.js";
@@ -103,6 +109,10 @@ import {
   makeCollectionDefinitionRegistry
 } from "./collection-registry.js";
 import type { CollectionSnapshotCodecError } from "./collection-snapshot-codec.js";
+import type {
+  CollectionChangeFeedDispatchPolicy,
+  CollectionChangeFeedLateEmitPolicy
+} from "./change-feed-dispatcher.js";
 import type {
   AnyCollection,
   CollectionChange,
@@ -121,6 +131,7 @@ import type {
   CollectionLoadState,
   CollectionMemoryStorage,
   CollectionMutation,
+  CollectionMutationContext,
   CollectionOrigin,
   CollectionOptions,
   CollectionPendingMutation,
@@ -138,6 +149,8 @@ import type {
   CollectionSnapshot,
   CollectionStorageLike,
   CollectionStore,
+  CollectionStoreDiagnostics,
+  CollectionStoreDiagnosticsSnapshot,
   CollectionStoreEvent,
   CollectionSyncDiagnostics,
   CollectionTransaction,
@@ -154,11 +167,75 @@ import type {
   CollectionDefinitionRegistryOptions
 } from "./collection-registry.js";
 
+type CollectionRowFromOutput<Output extends Schema.Top> =
+  Schema.Schema.Type<Output> extends ReadonlyArray<infer A extends object>
+    ? A
+    : Schema.Schema.Type<Output> extends object
+      ? Schema.Schema.Type<Output>
+      : never;
+
+type CollectionKeyFromDefinition<Definition> =
+  Definition extends { readonly getKey: (value: any) => infer K extends CollectionKey }
+    ? K
+    : CollectionKey;
+
+type CollectionOptionalReturn<Definition, Key extends PropertyKey> =
+  Definition extends { readonly [K in Key]?: (...args: any) => infer Out }
+    ? Out
+    : never;
+
+type CollectionPersistenceError<Definition> =
+  Definition extends {
+    readonly persistence: { readonly storage: CollectionPersistenceStorage<infer E, any> };
+  }
+    ? E
+    : never;
+
+type CollectionPersistenceRequirements<Definition> =
+  Definition extends {
+    readonly persistence: { readonly storage: CollectionPersistenceStorage<any, infer R> };
+  }
+    ? R
+    : never;
+
+type CollectionEffectOutputs<Definition> =
+  | CollectionOptionalReturn<Definition, "load">
+  | CollectionOptionalReturn<Definition, "refetch">
+  | CollectionOptionalReturn<Definition, "onInsert">
+  | CollectionOptionalReturn<Definition, "onUpdate">
+  | CollectionOptionalReturn<Definition, "onDelete">;
+
+type CollectionErrorFromDefinition<Definition> =
+  | EffectInputError<CollectionEffectOutputs<Definition>>
+  | CollectionPersistenceError<Definition>;
+
+type CollectionRequirementsFromDefinition<Definition> =
+  | EffectInputRequirements<CollectionEffectOutputs<Definition>>
+  | CollectionPersistenceRequirements<Definition>;
+
+type RejectCollectionPromiseOutput<Out> =
+  [Out] extends [never]
+    ? unknown
+    : EnsureEffectInput<Out> extends never
+      ? never
+      : unknown;
+
+type RejectCollectionPromiseOutputs<Definition> =
+  RejectCollectionPromiseOutput<CollectionOptionalReturn<Definition, "load">> &
+  RejectCollectionPromiseOutput<CollectionOptionalReturn<Definition, "refetch">> &
+  RejectCollectionPromiseOutput<CollectionOptionalReturn<Definition, "onInsert">> &
+  RejectCollectionPromiseOutput<CollectionOptionalReturn<Definition, "onUpdate">> &
+  RejectCollectionPromiseOutput<CollectionOptionalReturn<Definition, "onDelete">>;
+
 export { UnknownCollectionIndex } from "./collection-state.js";
 export { CollectionStoreTypeId, CollectionTypeId } from "./collection-ids.js";
-export { CollectionRowNotFound, ReadonlyCollectionMutation } from "./collection-errors.js";
+export { CollectionRowKeyChanged, CollectionRowNotFound, ReadonlyCollectionMutation } from "./collection-errors.js";
 export { CollectionSnapshotCodecError } from "./collection-snapshot-codec.js";
 export { CollectionPreloadCollector } from "./collection-preload.js";
+export type {
+  CollectionChangeFeedDispatchPolicy,
+  CollectionChangeFeedLateEmitPolicy
+} from "./change-feed-dispatcher.js";
 export {
   defaultCollectionDefinitionRegistry,
   makeCollectionDefinitionRegistry
@@ -301,10 +378,13 @@ export const makeLiveQueryCollection = <
 /**
  * Type guard for runtime collection definitions.
  */
-export const isCollection = (value: unknown): value is AnyCollection =>
+const isCollectionDefinition = (value: unknown): value is AnyCollection =>
   typeof value === "object" &&
   value !== null &&
   (value as { readonly [CollectionTypeId]?: unknown })[CollectionTypeId] === CollectionTypeId;
+
+/** Type guard for runtime collection definitions. */
+export const isCollection = isCollectionDefinition;
 
 /**
  * Main collection API namespace.
@@ -322,6 +402,7 @@ export namespace Collection {
   export type RuntimeError<E = never> = CollectionRuntimeError<E>;
   export type Mutation<A extends object, K extends CollectionKey> = CollectionMutation<A, K>;
   export type Transaction<A extends object, K extends CollectionKey> = CollectionTransaction<A, K>;
+  export type MutationContext<A extends object, K extends CollectionKey> = CollectionMutationContext<A, K>;
   export type RollbackRow<A extends object, K extends CollectionKey> = CollectionRollbackRow<A, K>;
   export type PendingMutation<A extends object, K extends CollectionKey> = CollectionPendingMutation<A, K>;
   export type Policy<E = never> = CollectionPolicy<E>;
@@ -332,6 +413,8 @@ export namespace Collection {
   export type IndexInput<A extends object> = CollectionIndexInput<A>;
   export type IndexRecord<A extends object> = CollectionIndexRecord<A>;
   export type Store = CollectionStore;
+  export type StoreDiagnostics = CollectionStoreDiagnostics;
+  export type StoreDiagnosticsSnapshot = CollectionStoreDiagnosticsSnapshot;
   export type StoreEvent = CollectionStoreEvent;
   export type Update<A extends object> = CollectionUpdate<A>;
   export type Change<A extends object, K extends CollectionKey = CollectionKey> = CollectionChange<A, K>;
@@ -386,6 +469,7 @@ export namespace Collection {
     CollectionQuerySyncClient<A, E, R>;
   export type QuerySyncAdapterOptions<A extends object, K extends CollectionKey = string, E = never, R = never> =
     CollectionQuerySyncAdapterOptions<A, K, E, R>;
+  export type QuerySyncMutationInvalidationPolicy = CollectionQuerySyncMutationInvalidationPolicy;
   export type ChangeFeedUnsubscribe = CollectionChangeFeedUnsubscribe;
   export type ChangeFeedSubscription = CollectionChangeFeedSubscription;
   export type ChangeFeedContext<A extends object, K extends CollectionKey = string, E = never, R = never> =
@@ -400,6 +484,8 @@ export namespace Collection {
   > =
     CollectionChangeFeedAdapter<A, K, E, R, CollectionError, CollectionRequirements>;
   export type ChangeFeedSubscribeOptions = CollectionChangeFeedSubscribeOptions;
+  export type ChangeFeedDispatchPolicy = CollectionChangeFeedDispatchPolicy;
+  export type ChangeFeedLateEmitPolicy = CollectionChangeFeedLateEmitPolicy;
   export type SyncInsertPayload<A extends object, K extends CollectionKey> = CollectionSyncInsertPayload<A, K>;
   export type SyncUpdatePayload<A extends object, K extends CollectionKey> = CollectionSyncUpdatePayload<A, K>;
   export type SyncDeletePayload<A extends object, K extends CollectionKey> = CollectionSyncDeletePayload<A, K>;
@@ -501,7 +587,24 @@ export namespace Collection {
    *   onInsert: (values) => TodoApi.createMany(values)
    * })
    */
-  export const define = <
+  export function define<
+    const Output extends Schema.Top,
+    const Definition extends Omit<
+      CollectionOptions<CollectionRowFromOutput<Output>, CollectionKey, any, any>,
+      "output"
+    > & {
+      readonly output: Output;
+    }
+  >(
+    options: Definition & RejectCollectionPromiseOutputs<Definition>,
+    registry?: CollectionDefinitionRegistryAdapter
+  ): CollectionDefinition<
+    CollectionRowFromOutput<Output>,
+    CollectionKeyFromDefinition<Definition>,
+    CollectionErrorFromDefinition<Definition>,
+    CollectionRequirementsFromDefinition<Definition>
+  >;
+  export function define<
     A extends object,
     K extends CollectionKey = string,
     E = never,
@@ -510,15 +613,23 @@ export namespace Collection {
     options: Omit<CollectionOptions<A, K, E, R>, "load"> & {
       readonly load?: () => EffectInput<ReadonlyArray<A>, E, R>;
     },
+    registry?: CollectionDefinitionRegistryAdapter
+  ): CollectionDefinition<A, K, E, R>;
+  export function define(
+    options: CollectionOptions<any, any, any, any>,
     registry: CollectionDefinitionRegistryAdapter = defaultCollectionDefinitionRegistry
-  ): CollectionDefinition<A, K, E, R> =>
-    defineCollection(options, (name, definition) => {
+  ): CollectionDefinition<any, any, any, any> {
+    return defineCollection(options, (name, definition) => {
       registry.register(name, definition);
     });
+  }
 
   /** Return the process-wide registry of named collection definitions. */
   export const definitions = (): ReadonlyMap<string, AnyCollection> =>
     collectionDefinitionRegistry();
+
+  /** Type guard for values that are full Collection definitions. */
+  export const isCollection = isCollectionDefinition;
 
   /** Describe registered collections, indexes, handlers, sync, and persistence. */
   export const diagnostics = (): CollectionDiagnostics =>
@@ -610,12 +721,12 @@ export namespace Collection {
   /** Retry all queued mutation handlers for one collection. */
   export const flushPendingMutationsEffect = <A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>
-  ): Effect.Effect<ReadonlyArray<CollectionTransaction<A, K>>, E | CollectionSnapshotCodecError, R> => definition.flushPendingMutationsEffect();
+  ): Effect.Effect<ReadonlyArray<CollectionTransaction<A, K>>, CollectionRuntimeError<E>, R> => definition.flushPendingMutationsEffect();
 
   /** Capture a serializable snapshot with an Effect-provided timestamp. */
   export const snapshotEffect = <A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>
-  ): Effect.Effect<CollectionSnapshot<A, K>> => definition.snapshotEffect();
+  ): Effect.Effect<CollectionSnapshot<A, K>, CollectionSnapshotCodecError | EffectInputCallbackError> => definition.snapshotEffect();
 
   /** Capture a serializable snapshot using the current runtime store. */
   export const snapshot = <A extends object, K extends CollectionKey, E, R>(
@@ -632,7 +743,7 @@ export namespace Collection {
     definition: CollectionDefinition<A, K, E, R>,
     value: CollectionSnapshot<A, K>,
     options?: CollectionHydrateOptions
-  ): Effect.Effect<void, CollectionSnapshotCodecError> => definition.hydrateEffect(value, options);
+  ): Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError> => definition.hydrateEffect(value, options);
 
   /** Fork `hydrateEffect` on the current runtime. */
   export const hydrate = <A extends object, K extends CollectionKey, E, R>(
@@ -649,14 +760,21 @@ export namespace Collection {
   /** Snapshot several collections with an Effect-provided timestamp. */
   export const dehydrateEffect = (
     collections: Iterable<AnyCollection>
-  ): Effect.Effect<CollectionHydrationPayload> => dehydrateCollectionsEffect(collections);
+  ): Effect.Effect<CollectionHydrationPayload, CollectionSnapshotCodecError | EffectInputCallbackError> => dehydrateCollectionsEffect(collections);
 
   /** Hydrate matching collections from a multi-collection payload. */
   export const hydratePayloadEffect = (
     collections: Iterable<AnyCollection>,
     payload: CollectionHydrationPayload,
     options?: CollectionHydrateOptions
-  ): Effect.Effect<void, CollectionSnapshotCodecError> => hydrateCollectionsEffect(collections, payload, options);
+  ): Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError> => hydrateCollectionsEffect(collections, payload, options);
+
+  /** Validate a multi-collection hydration payload without applying it. */
+  export const validateHydrationPayloadEffect = (
+    collections: Iterable<AnyCollection>,
+    payload: CollectionHydrationPayload,
+    options?: CollectionHydrateOptions
+  ): Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError> => validateCollectionsHydrationEffect(collections, payload, options);
 
   /** Fork `hydratePayloadEffect` on the current runtime. */
   export const hydratePayload = (
@@ -714,7 +832,7 @@ export namespace Collection {
     definition: CollectionDefinition<A, K, E, R>,
     storage: CollectionPersistenceStorage<PE, PR>,
     options?: CollectionPersistOptions
-  ): Effect.Effect<void, PE | CollectionSnapshotCodecError, PR> => definition.persistEffect(storage, options);
+  ): Effect.Effect<void, PE | CollectionSnapshotCodecError | EffectInputCallbackError, PR> => definition.persistEffect(storage, options);
 
   /**
    * Restore one collection snapshot from storage if present.
@@ -723,7 +841,7 @@ export namespace Collection {
     definition: CollectionDefinition<A, K, E, R>,
     storage: CollectionPersistenceStorage<PE, PR>,
     options?: CollectionPersistOptions & CollectionHydrateOptions
-  ): Effect.Effect<void, PE | CollectionSnapshotCodecError, PR> => definition.restoreEffect(storage, options);
+  ): Effect.Effect<void, PE | CollectionSnapshotCodecError | EffectInputCallbackError, PR> => definition.restoreEffect(storage, options);
 
   /** Create in-memory persistence storage for tests, demos, or ephemeral data. */
   export const memoryStorage = (initial?: Iterable<readonly [string, string]>): CollectionMemoryStorage =>
@@ -754,5 +872,6 @@ export const createLiveQuery = Query.live;
 export const createLiveQueryCollection = Collection.liveQuery;
 export * from "./flush-policy.js";
 export * from "./server-collection.js";
+export * from "./collection-reactive-binding.js";
 export { CollectionStorageError } from "./collection-persistence.js";
 export * from "./sqlite-persistence.js";

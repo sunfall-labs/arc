@@ -27,4 +27,6 @@ yield* installDevtoolsBridgeEffect(() => ({
 
 The extension reads that value with `chrome.devtools.inspectedWindow.eval`,
 structurally validates the public panel contract, and updates the mounted panel
-through the public renderer.
+through the public renderer. When the inspected-window bridge throws or reports
+an eval exception, the panel renders a diagnostics item with the typed transport
+error and bridge guidance instead of silently keeping the sample payload.

@@ -1,12 +1,13 @@
 # Sharp Cast Audit
 
-Last updated: 2026-05-14.
+Last updated: 2026-05-15.
 
 This audit records sharp-cast cleanup evidence and the remaining named
 type-erasure boundaries after the typed-error, route decode, action-result,
 Start CLI, runtime, Solid adapter, DB query-builder, wildcard-boundary, and
-test assertion cleanup sweeps. The broad sharp-cast grep currently reports no
-package, example, script, or type-test hits.
+test assertion cleanup sweeps. The broad sharp-cast grep is still used as a
+review input, but it currently reports named package/example seams rather than
+zero hits.
 
 ## Current Sweep Results
 
@@ -36,6 +37,12 @@ package, example, script, or type-test hits.
 - No package, example, script, or type-test source currently contains `as any`
   or `@ts-ignore`; negative tests use explicit `@ts-expect-error` or
   `unknown`-to-contract casts for runtime validation shapes.
+- The current broad sharp-cast grep still reports named Adapter seams in Core
+  runtime/action/effect-input helpers, Solid runtime/router/link JSX bridges,
+  Start request-runtime/preload/handler/transport host boundaries, Devtools
+  detached value serialization, DB collection EffectInput conversion, and
+  project-console test runtime helpers. Treat those as explicit review targets,
+  not as hidden cleanup debt.
 - DB query builder variance no longer appears in the broad `as unknown as`
   sweep: `QueryBuilder` carries predicate and ordering functions across
   context-widening joins through `NextContext extends TContext`, and its
@@ -120,11 +127,21 @@ package, example, script, or type-test hits.
 - Framework type-id declarations now preserve their `unique symbol` types with
   self-type assertions such as `as typeof ActionTypeId` instead of bottoming out
   through `as never`.
-- Test-only `as unknown as` and `as never` casts have been removed; the broad
-  source sharp-cast grep for `as Effect.Effect`, `as unknown as`, `as never`,
-  `as any`, and `@ts-ignore` now reports no hits.
+- Test-only `as unknown as` and `as never` casts have been reduced, but the
+  broad source sharp-cast grep for `as Effect.Effect`, `as unknown as`,
+  `as never`, `as any`, and `@ts-ignore` still reports named package/example
+  seams that must stay documented or be removed in later sweeps.
 
 ## Verification Evidence
+
+The latest full verification gate is recorded in the Review 82 ledgers: 11
+package builds, workspace typecheck, type tests, public API inventory audit,
+Effect-first audit over 196 files, 52 root test files / 855 tests,
+devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
+basic starter verify, React starter verify, project-console
+packaging/typecheck/tests/build with 4 files / 27 tests, and leak scans. The
+remaining command-result bullets in this section are historical evidence for the
+individual cleanup slices that produced this audit.
 
 - Sharp grep:
   - `rg -n "as Effect\\.Effect|as unknown as |as never|as any|@ts-ignore" packages/*/src examples/*/src scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
@@ -139,7 +156,7 @@ package, example, script, or type-test hits.
   - `rg -n "new Promise|Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
 - Promise-catch grep:
   - `rg -n "\\.catch\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs' | rg -v "Effect\\.catch"`
-- `pnpm verify` passed after the latest cast/fire-and-forget cleanup stack: 9
+- Historical `pnpm verify` passed after the cast/fire-and-forget cleanup stack: 9
   package builds, workspace typecheck, type tests, 38 root test files / 320
   tests, devtools-panel verify, devtools-extension verify with 1 extension test
   file / 6 tests, basic starter verify, project-console starter packaging,
@@ -148,7 +165,7 @@ package, example, script, or type-test hits.
 - `pnpm --filter @effect-ui/start typecheck`, `pnpm typecheck:types`, and
   `pnpm exec vitest run packages/start/test/adapters.test.ts` passed after the
   adapter test raw Promise helper cleanup.
-- `pnpm verify` passed after the adapter test Promise helper cleanup: 9 package
+- Historical `pnpm verify` passed after the adapter test Promise helper cleanup: 9 package
   builds, workspace typecheck, type tests, 38 root test files / 320 tests,
   devtools-panel verify, devtools-extension verify with 1 extension test file / 6
   tests, basic starter verify, project-console starter packaging,
@@ -412,8 +429,10 @@ package, example, script, or type-test hits.
   `pnpm exec vitest run packages/db/test/sync-adapter.test.ts packages/start/test/streaming.test.ts`
   passed after replacing the last test-only `as Effect.Effect` assertions with
   `toEffect(...)` and an explicitly typed stream effect.
-- The broad sharp-cast grep over packages, examples, scripts, and type tests now
-  reports no hits:
+- At that historical checkpoint, the broad sharp-cast grep over packages,
+  examples, scripts, and type tests reported no hits. Current sweeps use the
+  same command as a named-seam review input, and current named hits are listed
+  in `Current Sweep Results`:
   `rg -n 'as Effect\.Effect|as unknown as |as never|as any|@ts-ignore' packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`.
 - `pnpm verify` passed after the test sharp Effect assertion cleanup: 9 package
   builds, workspace typecheck, type tests, 38 root test files / 320 tests,

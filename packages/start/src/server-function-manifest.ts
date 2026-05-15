@@ -10,30 +10,56 @@ import {
   isStartManifestServerOnlyModule,
   parseSerializedStartManifestJson,
   stableManifestEntryId,
+  validateManifestEndpointPathEffect,
   validateManifestEntrySet,
+  type StartManifestEndpointPathErrorInput,
   type StartManifestModuleKind
 } from "./manifest-entry-core.js";
-import { serverRpcPath } from "./rpc.js";
+import { defaultStartTransportEndpoints } from "./start-transport-endpoints.js";
 
+/** Branded stable id for one server function manifest entry. */
 export const ServerFunctionId = Schema.String.pipe(Schema.brand("ServerFunctionId"));
+/** Branded stable id for one server function manifest entry. */
 export type ServerFunctionId = typeof ServerFunctionId.Type;
 
+/**
+ * Manifest module classification for server-function references.
+ *
+ * `server-only` modules may only be imported on the server, `contract` modules
+ * are shared declarations, and `shared` modules are normal client-safe modules.
+ */
 export type ServerFunctionModuleKind = StartManifestModuleKind;
 
+/**
+ * Raw server-function definition before validation and id generation.
+ *
+ * Generated manifests use this shape while turning registered functions into
+ * transport-safe manifest entries.
+ */
 export interface ServerFunctionManifestDefinition {
+  /** Stable function name used on the RPC wire. */
   readonly name: string;
+  /** Server module that owns the implementation or contract. */
   readonly module: string;
+  /** Export name in the server module; omitted only for generated synthetic entries. */
   readonly exportName?: string;
+  /** Optional client-safe module for direct import client references. */
   readonly clientModule?: string;
+  /** Export name in `clientModule`; defaults to the server export name. */
   readonly clientExportName?: string;
+  /** Whether the server definition has a local handler. */
   readonly hasHandler?: boolean;
+  /** Whether the input wire path should apply an Effect Schema. */
   readonly inputSchema?: boolean;
+  /** Whether the output wire path should apply an Effect Schema. */
   readonly outputSchema?: boolean;
+  /** Whether the error wire path should apply an Effect Schema. */
   readonly errorSchema?: boolean;
 }
 
+/** Registered server function plus module metadata discovered by build tools. */
 export interface ServerFunctionManifestSource {
-  readonly fn: ServerFunction<unknown, unknown, unknown, unknown>;
+  readonly fn: ServerFunction<any, any, any, any>;
   readonly module: string;
   readonly exportName?: string;
   readonly clientModule?: string;
@@ -41,15 +67,18 @@ export interface ServerFunctionManifestSource {
 }
 
 export interface ServerFunctionManifestOptions {
+  /** RPC endpoint path used by generated client references. */
   readonly rpcPath?: string;
 }
 
+/** Schema presence flags that describe the server-function wire contract. */
 export interface ServerFunctionWireContract {
   readonly inputSchema: boolean;
   readonly outputSchema: boolean;
   readonly errorSchema: boolean;
 }
 
+/** Server-side module/export metadata for invoking a server function. */
 export interface ServerFunctionServerReference {
   readonly module: string;
   readonly exportName: string;
@@ -57,6 +86,13 @@ export interface ServerFunctionServerReference {
   readonly hasHandler: boolean;
 }
 
+/**
+ * Client-side reference strategy for a server function.
+ *
+ * `Rpc` means calls go through the Start RPC endpoint. `Import` means the
+ * client can import a client-safe module directly while still retaining the RPC
+ * path as the transport fallback.
+ */
 export type ServerFunctionClientReference =
   | {
       readonly _tag: "Rpc";
@@ -74,6 +110,7 @@ export type ServerFunctionClientReference =
       readonly moduleKind: Exclude<ServerFunctionModuleKind, "server-only">;
     };
 
+/** Fully validated server function manifest entry. */
 export interface ServerFunctionManifestEntry {
   readonly id: ServerFunctionId;
   readonly name: string;
@@ -82,6 +119,7 @@ export interface ServerFunctionManifestEntry {
   readonly wire: ServerFunctionWireContract;
 }
 
+/** Complete server function manifest consumed by virtual modules and clients. */
 export interface ServerFunctionManifest {
   readonly version: 1;
   readonly rpcPath: string;
@@ -128,6 +166,15 @@ export class ServerFunctionManifestUnsafeClientReference extends Data.TaggedErro
   readonly clientModule: string;
 }> {}
 
+export class ServerFunctionManifestInvalidEndpointPath extends Data.TaggedError(
+  "ServerFunctionManifestInvalidEndpointPath"
+)<{
+  readonly field: "rpcPath";
+  readonly value: unknown;
+  readonly reason: StartManifestEndpointPathErrorInput["reason"];
+  readonly guidance: string;
+}> {}
+
 export class ServerFunctionManifestParseError extends Data.TaggedError(
   "ServerFunctionManifestParseError"
 )<{
@@ -140,7 +187,8 @@ export type ServerFunctionManifestError =
   | ServerFunctionManifestDuplicateName
   | ServerFunctionManifestDuplicateExport
   | ServerFunctionManifestDuplicateId
-  | ServerFunctionManifestUnsafeClientReference;
+  | ServerFunctionManifestUnsafeClientReference
+  | ServerFunctionManifestInvalidEndpointPath;
 
 const compareEntries = (
   left: ServerFunctionManifestEntry,
@@ -161,8 +209,26 @@ export const classifyServerFunctionModule = (id: string): ServerFunctionModuleKi
 export const stableServerFunctionId = (name: string): ServerFunctionId =>
   Schema.decodeUnknownSync(ServerFunctionId)(stableManifestEntryId("sf", "function", name));
 
+const serverFunctionManifestInvalidEndpointPath = (
+  input: StartManifestEndpointPathErrorInput
+): ServerFunctionManifestInvalidEndpointPath =>
+  new ServerFunctionManifestInvalidEndpointPath({
+    field: "rpcPath",
+    value: input.value,
+    reason: input.reason,
+    guidance: input.guidance
+  });
+
+const normalizeServerFunctionManifestPathEffect = (
+  rpcPath: string | undefined
+): Effect.Effect<string, ServerFunctionManifestInvalidEndpointPath> =>
+  validateManifestEndpointPathEffect(rpcPath ?? defaultStartTransportEndpoints.rpcPath, {
+    field: "rpcPath",
+    invalidPath: serverFunctionManifestInvalidEndpointPath
+  });
+
 export const serverFunctionManifestDefinition = (
-  fn: ServerFunction<unknown, unknown, unknown, unknown>,
+  fn: ServerFunction<any, any, any, any>,
   source: Omit<ServerFunctionManifestSource, "fn">
 ): ServerFunctionManifestDefinition => {
   const base =
@@ -211,51 +277,55 @@ export const makeServerFunctionManifestEntry = (
   index = 0
 ): Effect.Effect<
   ServerFunctionManifestEntry,
-  ServerFunctionManifestInvalidEntry | ServerFunctionManifestUnsafeClientReference
+  | ServerFunctionManifestInvalidEntry
+  | ServerFunctionManifestUnsafeClientReference
+  | ServerFunctionManifestInvalidEndpointPath
 > =>
-  assembleCallableManifestEntry(definition, {
-    index,
-    transportPath: options.rpcPath ?? serverRpcPath,
-    stableId: stableServerFunctionId,
-    invalidEntry: (input) => new ServerFunctionManifestInvalidEntry(input),
-    unsafeClientReference: (input) =>
-      new ServerFunctionManifestUnsafeClientReference(input),
-    server: ({ definition, validated, moduleKind }): ServerFunctionServerReference => ({
-      module: validated.module,
-      exportName: validated.exportName,
-      moduleKind,
-      hasHandler: definition.hasHandler ?? true
-    }),
-    transportClient: ({ id, name, transportPath }): ServerFunctionClientReference => ({
-      _tag: "Rpc",
-      id,
-      name,
-      rpcPath: transportPath
-    }),
-    importClient: ({
-      id,
-      name,
-      transportPath,
-      module,
-      exportName,
-      moduleKind
-    }): ServerFunctionClientReference => ({
-      _tag: "Import",
-      id,
-      name,
-      rpcPath: transportPath,
-      module,
-      exportName,
-      moduleKind
-    }),
-    entry: ({ id, name, server, client, wire }): ServerFunctionManifestEntry => ({
-      id,
-      name,
-      server,
-      client,
-      wire
+  Effect.flatMap(normalizeServerFunctionManifestPathEffect(options.rpcPath), (rpcPath) =>
+    assembleCallableManifestEntry(definition, {
+      index,
+      transportPath: rpcPath,
+      stableId: stableServerFunctionId,
+      invalidEntry: (input) => new ServerFunctionManifestInvalidEntry(input),
+      unsafeClientReference: (input) =>
+        new ServerFunctionManifestUnsafeClientReference(input),
+      server: ({ definition, validated, moduleKind }): ServerFunctionServerReference => ({
+        module: validated.module,
+        exportName: validated.exportName,
+        moduleKind,
+        hasHandler: definition.hasHandler ?? true
+      }),
+      transportClient: ({ id, name, transportPath }): ServerFunctionClientReference => ({
+        _tag: "Rpc",
+        id,
+        name,
+        rpcPath: transportPath
+      }),
+      importClient: ({
+        id,
+        name,
+        transportPath,
+        module,
+        exportName,
+        moduleKind
+      }): ServerFunctionClientReference => ({
+        _tag: "Import",
+        id,
+        name,
+        rpcPath: transportPath,
+        module,
+        exportName,
+        moduleKind
+      }),
+      entry: ({ id, name, server, client, wire }): ServerFunctionManifestEntry => ({
+        id,
+        name,
+        server,
+        client,
+        wire
+      })
     })
-  });
+  );
 
 export const makeServerFunctionManifest = (
   definitions: Iterable<ServerFunctionManifestDefinition>,
@@ -263,10 +333,10 @@ export const makeServerFunctionManifest = (
 ): Effect.Effect<ServerFunctionManifest, ServerFunctionManifestError> =>
   Effect.gen(function* () {
     const entries: ServerFunctionManifestEntry[] = [];
-    const rpcPath = options.rpcPath ?? serverRpcPath;
+    const rpcPath = yield* normalizeServerFunctionManifestPathEffect(options.rpcPath);
     let index = 0;
     for (const definition of definitions) {
-      entries.push(yield* makeServerFunctionManifestEntry(definition, options, index));
+      entries.push(yield* makeServerFunctionManifestEntry(definition, { rpcPath }, index));
       index++;
     }
 

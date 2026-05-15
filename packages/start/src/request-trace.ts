@@ -3,17 +3,20 @@ import {
   toEffect,
   type EffectInput,
   type EffectUiRuntime,
+  type ResourceStoreDiagnosticsSnapshot,
   type Route
 } from "@effect-ui/core";
 import type { AnyCollection } from "@effect-ui/db";
 import { Cause, Clock, Effect, Exit, Metric, Redacted } from "effect";
 import {
   makeStartRequestIdEffect,
-  serverActionPath,
-  serverRpcPath,
   startRequestIdHeader,
   startTraceparentHeader
 } from "./rpc.js";
+import {
+  resolveStartTransportEndpoints,
+  type StartTransportEndpointSource
+} from "./start-transport-endpoints.js";
 
 export type StartRequestTraceTransport = "ssr" | "rpc" | "action" | "unknown";
 export type StartRequestTraceStatus = "success" | "failure" | "cancelled";
@@ -89,14 +92,10 @@ export interface StartRequestTraceStream {
   readonly name: string;
   readonly state: StartRequestTraceStreamState;
   readonly chunkCount?: number;
+  readonly failurePhase?: "Shell" | "Chunk" | "Tail";
 }
 
-export interface StartRequestTraceTeardownSnapshot {
-  readonly fiberCount: number;
-  readonly familyCount: number;
-  readonly moduleCount: number;
-  readonly tagCount: number;
-}
+export interface StartRequestTraceTeardownSnapshot extends ResourceStoreDiagnosticsSnapshot {}
 
 export interface StartRequestTraceTeardown {
   readonly runtimeDisposed: boolean;
@@ -143,6 +142,7 @@ export interface StartRequestTraceRoutePlan {
   }>;
   readonly hydration: {
     readonly resourceCount: number;
+    readonly resourceKeys?: ReadonlyArray<string>;
   };
 }
 
@@ -191,11 +191,15 @@ export const startRequestStatusMetric = Metric.frequency("effect_ui_start_reques
   description: "Start request outcomes by transport, method, path, and status."
 });
 
-export const startRequestTraceTransport = (request: Request): StartRequestTraceTransport => {
+export const startRequestTraceTransport = (
+  request: Request,
+  endpoints?: StartTransportEndpointSource
+): StartRequestTraceTransport => {
   const pathname = new URL(request.url).pathname;
-  return pathname === serverRpcPath
+  const resolved = resolveStartTransportEndpoints(endpoints);
+  return pathname === resolved.rpcPath
     ? "rpc"
-    : pathname === serverActionPath
+    : pathname === resolved.actionPath
       ? "action"
       : "ssr";
 };
@@ -228,6 +232,14 @@ const traceHeaders = (headers: Headers): ReadonlyArray<StartRequestTraceHeader> 
   });
 };
 
+const decodeTraceCookiePart = (value: string): string => {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
+};
+
 const traceCookies = (headers: Headers): ReadonlyArray<StartRequestTraceCookie> => {
   const cookie = headers.get("cookie");
   if (!cookie) {
@@ -241,8 +253,8 @@ const traceCookies = (headers: Headers): ReadonlyArray<StartRequestTraceCookie> 
       return rawName
         ? [
             {
-              name: decodeURIComponent(rawName),
-              value: redactedTraceValue(decodeURIComponent(rawValue.join("=")))
+              name: decodeTraceCookiePart(rawName),
+              value: redactedTraceValue(decodeTraceCookiePart(rawValue.join("=")))
             }
           ]
         : [];
@@ -410,7 +422,8 @@ export const traceRoutePlan = (
     input: resource.input
   })),
   hydration: {
-    resourceCount: plan.resources.resources.length
+    resourceCount: plan.resources.resources.length,
+    resourceKeys: plan.resources.resources.map((resource) => resource.key)
   }
 });
 
@@ -428,8 +441,8 @@ const uniqueCollections = (
   return out;
 };
 
-const collectionTraceState = <RuntimeError>(
-  runtime: EffectUiRuntime<unknown, RuntimeError>,
+const collectionTraceState = <RuntimeServices, RuntimeError>(
+  runtime: EffectUiRuntime<RuntimeServices, RuntimeError>,
   collection: AnyCollection
 ): string | undefined => {
   try {
@@ -439,8 +452,8 @@ const collectionTraceState = <RuntimeError>(
   }
 };
 
-export const traceCollectionPreload = <RuntimeError>(
-  runtime: EffectUiRuntime<unknown, RuntimeError>,
+export const traceCollectionPreload = <RuntimeServices, RuntimeError>(
+  runtime: EffectUiRuntime<RuntimeServices, RuntimeError>,
   collectionPreload: StartCollectionPreloadTraceInput
 ): ReadonlyArray<StartRequestTraceCollection> =>
   uniqueCollections([
@@ -459,7 +472,8 @@ export const traceCollectionPreload = <RuntimeError>(
     .sort((left, right) => left.name.localeCompare(right.name));
 
 export const startRequestTraceFactsEffect = (
-  request: Request
+  request: Request,
+  endpoints?: StartTransportEndpointSource
 ): Effect.Effect<StartRequestTraceFacts> =>
   Effect.gen(function* () {
     const incomingRequestId = request.headers.get(startRequestIdHeader)?.trim();
@@ -468,7 +482,7 @@ export const startRequestTraceFactsEffect = (
       requestId: incomingRequestId && !/[\r\n]/.test(incomingRequestId)
         ? incomingRequestId
         : yield* makeStartRequestIdEffect,
-      transport: startRequestTraceTransport(request),
+      transport: startRequestTraceTransport(request, endpoints),
       startedAt,
       collections: [],
       serverFunctions: [],
@@ -523,17 +537,13 @@ export const buildStartRequestTrace = (
   };
 };
 
-export const requestRuntimeTeardownSnapshot = <RuntimeError>(
-  runtime: EffectUiRuntime<unknown, RuntimeError>
-): StartRequestTraceTeardownSnapshot => ({
-  fiberCount: runtime.resourceStore.fibers.size,
-  familyCount: runtime.resourceStore.families.size,
-  moduleCount: runtime.resourceStore.modules.size,
-  tagCount: runtime.resourceStore.tagIndex.size
-});
+export const requestRuntimeTeardownSnapshot = <RuntimeServices, RuntimeError>(
+  runtime: EffectUiRuntime<RuntimeServices, RuntimeError>
+): StartRequestTraceTeardownSnapshot =>
+  runtime.resourceStore.diagnostics.snapshotUnsafe();
 
-export const requestRuntimeDisposeTraceEffect = <RuntimeError>(
-  runtime: EffectUiRuntime<unknown, RuntimeError>
+export const requestRuntimeDisposeTraceEffect = <RuntimeServices, RuntimeError>(
+  runtime: EffectUiRuntime<RuntimeServices, RuntimeError>
 ): Effect.Effect<{
   readonly beforeDispose: StartRequestTraceTeardownSnapshot;
   readonly afterDispose: StartRequestTraceTeardownSnapshot;

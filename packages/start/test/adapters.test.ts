@@ -1,19 +1,23 @@
 import { Buffer } from "node:buffer";
-import { createServer, type IncomingMessage } from "node:http";
+import { readFileSync } from "node:fs";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { Readable } from "node:stream";
 import { Deferred, Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import { defineApp, route } from "@effect-ui/core";
+import { defineApp, makeRuntime, route } from "@effect-ui/core";
 import {
   createFetchHandler,
   createNodeHandler,
   createNodeServerHandler,
   nodeRequestOrigin,
   nodeRequestToWebRequest,
+  StartRequestHandlerError,
   toFetchHandler,
-  toFetchHandlerEffect
+  toFetchHandlerEffect,
+  writeNodeResponseEffect
 } from "../src/adapters.js";
+import { StartNodeAdapterError } from "../src/node-adapter.js";
 import {
   createFetchHandler as createPackagedFetchHandler,
   toFetchHandlerEffect as toPackagedFetchHandlerEffect
@@ -23,6 +27,8 @@ import {
   nodeRequestOrigin as packagedNodeRequestOrigin
 } from "@effect-ui/start-node";
 import { createRequestHandler } from "../src/start-request-handler.js";
+import { normalizeStartRequestHandlerError } from "../src/start-request-handler-error.js";
+import { startRequestHandlerError } from "../src/start-host-adapter.js";
 
 const listen = (server: ReturnType<typeof createServer>): Promise<number> =>
   Effect.runPromise(Effect.callback<number, unknown>((resume) => {
@@ -151,6 +157,150 @@ describe("Start deployment adapters", () => {
 
       expect(response.status).toBe(503);
       await expect(response.text()).resolves.toBe("custom failure");
+    } finally {
+      await close(server);
+    }
+  });
+
+  it("normalizes synchronous handler throws in fetch adapters", async () => {
+    const cause = new Error("sync handler failed");
+    const request = new Request("https://example.com/sync-throw");
+    const effectHandler = toFetchHandlerEffect(() => {
+      throw cause;
+    });
+    const promiseHandler = createFetchHandler(() => {
+      throw cause;
+    });
+
+    const error = await Effect.runPromise(Effect.flip(effectHandler(request)));
+
+    expect(error).toBeInstanceOf(StartRequestHandlerError);
+    expect(error).toMatchObject({
+      operation: "handle-request",
+      request: {
+        method: "GET",
+        url: "https://example.com/sync-throw"
+      },
+      cause
+    });
+    await expect(promiseHandler(request)).rejects.toBeInstanceOf(StartRequestHandlerError);
+  });
+
+  it("preserves StartRequestHandlerError values through the shared host normalizer", async () => {
+    const request = new Request("https://example.com/already-normalized", {
+      method: "POST"
+    });
+    const cause = new Error("already normalized");
+    const normalized = normalizeStartRequestHandlerError(request, cause);
+    const effectHandler = toFetchHandlerEffect(() => Effect.fail(normalized));
+
+    const error = await Effect.runPromise(Effect.flip(effectHandler(request)));
+
+    expect(startRequestHandlerError(request, normalized)).toBe(normalized);
+    expect(error).toBe(normalized);
+    expect(error).toMatchObject({
+      operation: "handle-request",
+      request: {
+        method: "POST",
+        url: "https://example.com/already-normalized"
+      },
+      cause
+    });
+  });
+
+  it("normalizes synchronous handler throws in Node server facades", async () => {
+    const cause = new Error("sync node failure");
+    let observed: unknown;
+    const nodeHandler = createNodeServerHandler(
+      () => {
+        throw cause;
+      },
+      {
+        onError: (error, _request, response) =>
+          Effect.sync(() => {
+            observed = error;
+            response.statusCode = 502;
+            response.setHeader("content-type", "text/plain; charset=utf-8");
+            response.end("normalized failure");
+          })
+      }
+    );
+    const server = createServer(nodeHandler);
+    const port = await listen(server);
+
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/sync-throw`);
+
+      expect(response.status).toBe(502);
+      await expect(response.text()).resolves.toBe("normalized failure");
+      expect(observed).toBeInstanceOf(StartRequestHandlerError);
+      expect(observed).toMatchObject({ cause });
+    } finally {
+      await close(server);
+    }
+  });
+
+  it("reports Node response header write throws through the adapter error channel", async () => {
+    const cause = new Error("headers unavailable");
+    const response = {
+      statusCode: 0,
+      statusMessage: "",
+      setHeader: () => {
+        throw cause;
+      },
+      end: () => {}
+    } as unknown as ServerResponse;
+
+    const error = await Effect.runPromise(
+      Effect.flip(
+        writeNodeResponseEffect(
+          response,
+          new Response("ok", {
+            headers: {
+              "x-effect-ui-adapter": "node"
+            }
+          })
+        )
+      )
+    );
+
+    expect(error).toBeInstanceOf(StartNodeAdapterError);
+    expect(error).toMatchObject({
+      _tag: "StartNodeAdapterError",
+      operation: "write-response",
+      error: cause
+    });
+  });
+
+  it("routes synchronous runtime fork throws through Node server error hooks", async () => {
+    const cause = new Error("runtime unavailable");
+    let observed: unknown;
+    const nodeHandler = createNodeServerHandler(
+      () => Effect.succeed(new Response("ok")),
+      {
+        runtime: {
+          runFork: () => {
+            throw cause;
+          }
+        },
+        onError: (error, _request, response) =>
+          Effect.sync(() => {
+            observed = error;
+            response.statusCode = 503;
+            response.setHeader("content-type", "text/plain; charset=utf-8");
+            response.end("runtime failure");
+          })
+      }
+    );
+    const server = createServer(nodeHandler);
+    const port = await listen(server);
+
+    try {
+      const response = await fetch(`http://127.0.0.1:${port}/runtime-throw`);
+
+      expect(response.status).toBe(503);
+      await expect(response.text()).resolves.toBe("runtime failure");
+      expect(observed).toBe(cause);
     } finally {
       await close(server);
     }
@@ -345,16 +495,10 @@ describe("Start deployment adapters", () => {
     const fetchHandler = toFetchHandler((request) =>
       Effect.succeed(new Response(request.method))
     );
-    let runtimeCalls = 0;
     const promiseHandler = createFetchHandler(
       (request) => Effect.succeed(new Response(new URL(request.url).pathname)),
       {
-        runtime: {
-          runPromise: (effect, options) => {
-            runtimeCalls += 1;
-            return Effect.runPromise(effect, options);
-          }
-        }
+        runtime: makeRuntime()
       }
     );
 
@@ -371,7 +515,58 @@ describe("Start deployment adapters", () => {
     ).resolves.toBe("POST");
     const promiseResponse = await promiseHandler(new Request("https://example.com/promise"));
     await expect(promiseResponse.text()).resolves.toBe("/promise");
-    expect(runtimeCalls).toBe(1);
+  });
+
+  it("provides request Scope in Promise-shaped fetch facades", async () => {
+    let finalized = false;
+    const promiseHandler = createFetchHandler(() =>
+      Effect.acquireRelease(
+        Effect.succeed(new Response("scoped")),
+        () => Effect.sync(() => {
+          finalized = true;
+        })
+      )
+    );
+
+    const response = await promiseHandler(new Request("https://example.com/scoped"));
+
+    expect(finalized).toBe(false);
+    await expect(response.text()).resolves.toBe("scoped");
+    expect(finalized).toBe(true);
+  });
+
+  it("releases Promise-shaped fetch facade Scope when streamed bodies are cancelled", async () => {
+    let finalized = false;
+    let cancelled: unknown;
+    const promiseHandler = createFetchHandler(() =>
+      Effect.acquireRelease(
+        Effect.succeed(
+          new Response(
+            new ReadableStream<Uint8Array>({
+              pull(controller) {
+                controller.enqueue(new TextEncoder().encode("chunk"));
+              },
+              cancel(reason) {
+                cancelled = reason;
+              }
+            })
+          )
+        ),
+        () => Effect.sync(() => {
+          finalized = true;
+        })
+      )
+    );
+
+    const response = await promiseHandler(new Request("https://example.com/cancel"));
+    const reader = response.body!.getReader();
+
+    await expect(reader.read()).resolves.toMatchObject({ done: false });
+    expect(finalized).toBe(false);
+    await reader.cancel("client-cancel");
+
+    expect(cancelled).toBe("client-cancel");
+    expect(finalized).toBe(true);
   });
 
   it("exposes host facade packages over the tested adapter implementation", async () => {
@@ -398,5 +593,19 @@ describe("Start deployment adapters", () => {
     ).resolves.toMatchObject({
       status: 200
     });
+  });
+
+  it("keeps the packaged fetch facade pointed at the fetch-only adapter module", () => {
+    const fetchAdapterSource = readFileSync(
+      new URL("../src/fetch-adapter.ts", import.meta.url),
+      "utf8"
+    );
+    const packagedFetchSource = readFileSync(
+      new URL("../../start-fetch/src/index.ts", import.meta.url),
+      "utf8"
+    );
+
+    expect(fetchAdapterSource).not.toContain("node:");
+    expect(packagedFetchSource).toContain("@effect-ui/start/fetch-adapter");
   });
 });

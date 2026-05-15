@@ -1,5 +1,5 @@
 export {
-  /** Promise-shaped fetch handler for Fetch-native hosts. */
+  /** Compatibility Fetch-host handler for platforms that require Promise-shaped entrypoints. */
   createFetchHandler,
   /** Handler error normalized by Start fetch adapters. */
   StartRequestHandlerError,
@@ -11,10 +11,10 @@ export {
   type StartFetchHandler,
   /** Effect-first fetch handler type. */
   type StartFetchHandlerEffect,
-  /** Options for Promise-shaped fetch handlers. */
+  /** Compatibility options for Fetch hosts that require Promise-shaped entrypoints. */
   type StartFetchPromiseHandlerOptions,
-  /** Runtime boundary used by Promise-shaped fetch handlers. */
-  type StartPromiseRuntime,
-  /** Promise-shaped fetch handler type. */
+  /** Runtime-required compatibility options for serviceful Fetch host entrypoints. */
+  type StartFetchPromiseHandlerRuntimeOptions,
+  /** Compatibility handler type for Fetch hosts that require Promise-shaped entrypoints. */
   type StartFetchPromiseHandler
-} from "@effect-ui/start/adapters";
+} from "@effect-ui/start/fetch-adapter";

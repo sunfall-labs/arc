@@ -9,33 +9,62 @@ import {
   isStartManifestServerOnlyModule,
   parseSerializedStartManifestJson,
   stableManifestEntryId,
+  validateManifestEndpointPathEffect,
   validateManifestEntrySet,
+  type StartManifestEndpointPathErrorInput,
   type StartManifestModuleKind
 } from "./manifest-entry-core.js";
-import { serverActionPath } from "./rpc.js";
+import { defaultStartTransportEndpoints } from "./start-transport-endpoints.js";
 
+/** Branded stable id for one Start action manifest entry. */
 export const ActionId = Schema.String.pipe(Schema.brand("ActionId"));
+/** Branded stable id for one Start action manifest entry. */
 export type ActionId = typeof ActionId.Type;
 
+/**
+ * Manifest module classification for action references.
+ *
+ * `server-only` actions may only be imported on the server, while `contract`
+ * and `shared` modules are safe for generated client references.
+ */
 export type ActionModuleKind = StartManifestModuleKind;
 
+/**
+ * Raw action definition before validation and id generation.
+ *
+ * Build tools create this shape from registered actions, then normalize it into
+ * an `ActionManifestEntry` for virtual modules and diagnostics.
+ */
 export interface ActionManifestDefinition {
+  /** Stable action name used on the action transport wire. */
   readonly name: string;
+  /** Server module that owns the action implementation or contract. */
   readonly module: string;
+  /** Export name in the server module. */
   readonly exportName?: string;
+  /** Optional client-safe module for direct import client references. */
   readonly clientModule?: string;
+  /** Export name in `clientModule`; defaults to the server export name. */
   readonly clientExportName?: string;
+  /** Whether the input wire path should apply an Effect Schema. */
   readonly inputSchema?: boolean;
+  /** Whether the output wire path should apply an Effect Schema. */
   readonly outputSchema?: boolean;
+  /** Whether the error wire path should apply an Effect Schema. */
   readonly errorSchema?: boolean;
+  /** Whether the action declares invalidation behavior. */
   readonly invalidates?: boolean;
+  /** Whether the action declares optimistic behavior. */
   readonly optimistic?: boolean;
+  /** Whether the action policy includes retry behavior. */
   readonly retry?: boolean;
+  /** Action concurrency policy captured for diagnostics and clients. */
   readonly concurrency?: ActionConcurrency;
 }
 
 type AnyActionDefinition = ActionDefinition<any, any, any, any>;
 
+/** Registered action plus module metadata discovered by build tools. */
 export interface ActionManifestSource {
   readonly action: AnyActionDefinition;
   readonly module: string;
@@ -45,18 +74,23 @@ export interface ActionManifestSource {
 }
 
 export interface ActionManifestOptions {
+  /** Action endpoint path used by generated POST client references. */
   readonly actionPath?: string;
 }
 
+/** Schema presence flags that describe the action wire contract. */
 export interface ActionWireContract {
   readonly inputSchema: boolean;
   readonly outputSchema: boolean;
   readonly errorSchema: boolean;
 }
 
+/** Tri-state flag used when behavior is present, absent, or unknown in raw artifacts. */
 export type ActionBehaviorPresence = "present" | "absent" | "unknown";
+/** Captured action concurrency policy, or `unknown` for untrusted raw artifacts. */
 export type ActionManifestConcurrency = ActionConcurrency | "unknown";
 
+/** Behavior metadata exposed for action diagnostics and generated clients. */
 export interface ActionBehaviorMetadata {
   readonly invalidates: ActionBehaviorPresence;
   readonly optimistic: ActionBehaviorPresence;
@@ -64,12 +98,20 @@ export interface ActionBehaviorMetadata {
   readonly concurrency: ActionManifestConcurrency;
 }
 
+/** Server-side module/export metadata for invoking an action. */
 export interface ActionServerReference {
   readonly module: string;
   readonly exportName: string;
   readonly moduleKind: ActionModuleKind;
 }
 
+/**
+ * Client-side reference strategy for a Start action.
+ *
+ * `Post` means submit through the action endpoint. `Import` means a client-safe
+ * module can be imported directly while retaining the POST path for progressive
+ * forms and transport fallback.
+ */
 export type ActionClientReference =
   | {
       readonly _tag: "Post";
@@ -87,6 +129,7 @@ export type ActionClientReference =
       readonly moduleKind: Exclude<ActionModuleKind, "server-only">;
     };
 
+/** Fully validated action manifest entry. */
 export interface ActionManifestEntry {
   readonly id: ActionId;
   readonly name: string;
@@ -96,6 +139,7 @@ export interface ActionManifestEntry {
   readonly behavior: ActionBehaviorMetadata;
 }
 
+/** Complete action manifest consumed by virtual modules and action clients. */
 export interface ActionManifest {
   readonly version: 1;
   readonly actionPath: string;
@@ -142,6 +186,15 @@ export class ActionManifestUnsafeClientReference extends Data.TaggedError(
   readonly clientModule: string;
 }> {}
 
+export class ActionManifestInvalidEndpointPath extends Data.TaggedError(
+  "ActionManifestInvalidEndpointPath"
+)<{
+  readonly field: "actionPath";
+  readonly value: unknown;
+  readonly reason: StartManifestEndpointPathErrorInput["reason"];
+  readonly guidance: string;
+}> {}
+
 export class ActionManifestParseError extends Data.TaggedError(
   "ActionManifestParseError"
 )<{
@@ -154,7 +207,8 @@ export type ActionManifestError =
   | ActionManifestDuplicateName
   | ActionManifestDuplicateExport
   | ActionManifestDuplicateId
-  | ActionManifestUnsafeClientReference;
+  | ActionManifestUnsafeClientReference
+  | ActionManifestInvalidEndpointPath;
 
 const compareEntries = (
   left: ActionManifestEntry,
@@ -229,56 +283,78 @@ const behaviorFromDefinition = (
   concurrency: definition.concurrency ?? "unknown"
 });
 
+const actionManifestInvalidEndpointPath = (
+  input: StartManifestEndpointPathErrorInput
+): ActionManifestInvalidEndpointPath =>
+  new ActionManifestInvalidEndpointPath({
+    field: "actionPath",
+    value: input.value,
+    reason: input.reason,
+    guidance: input.guidance
+  });
+
+const normalizeActionManifestPathEffect = (
+  actionPath: string | undefined
+): Effect.Effect<string, ActionManifestInvalidEndpointPath> =>
+  validateManifestEndpointPathEffect(actionPath ?? defaultStartTransportEndpoints.actionPath, {
+    field: "actionPath",
+    invalidPath: actionManifestInvalidEndpointPath
+  });
+
 export const makeActionManifestEntry = (
   definition: ActionManifestDefinition,
   options: ActionManifestOptions = {},
   index = 0
 ): Effect.Effect<
   ActionManifestEntry,
-  ActionManifestInvalidEntry | ActionManifestUnsafeClientReference
+  | ActionManifestInvalidEntry
+  | ActionManifestUnsafeClientReference
+  | ActionManifestInvalidEndpointPath
 > =>
-  assembleCallableManifestEntry(definition, {
-    index,
-    transportPath: options.actionPath ?? serverActionPath,
-    stableId: stableActionId,
-    invalidEntry: (input) => new ActionManifestInvalidEntry(input),
-    unsafeClientReference: (input) => new ActionManifestUnsafeClientReference(input),
-    server: ({ validated, moduleKind }): ActionServerReference => ({
-      module: validated.module,
-      exportName: validated.exportName,
-      moduleKind
-    }),
-    transportClient: ({ id, name, transportPath }): ActionClientReference => ({
-      _tag: "Post",
-      id,
-      name,
-      actionPath: transportPath
-    }),
-    importClient: ({
-      id,
-      name,
-      transportPath,
-      module,
-      exportName,
-      moduleKind
-    }): ActionClientReference => ({
-      _tag: "Import",
-      id,
-      name,
-      actionPath: transportPath,
-      module,
-      exportName,
-      moduleKind
-    }),
-    entry: ({ definition, id, name, server, client, wire }): ActionManifestEntry => ({
-      id,
-      name,
-      server,
-      client,
-      wire,
-      behavior: behaviorFromDefinition(definition)
+  Effect.flatMap(normalizeActionManifestPathEffect(options.actionPath), (actionPath) =>
+    assembleCallableManifestEntry(definition, {
+      index,
+      transportPath: actionPath,
+      stableId: stableActionId,
+      invalidEntry: (input) => new ActionManifestInvalidEntry(input),
+      unsafeClientReference: (input) => new ActionManifestUnsafeClientReference(input),
+      server: ({ validated, moduleKind }): ActionServerReference => ({
+        module: validated.module,
+        exportName: validated.exportName,
+        moduleKind
+      }),
+      transportClient: ({ id, name, transportPath }): ActionClientReference => ({
+        _tag: "Post",
+        id,
+        name,
+        actionPath: transportPath
+      }),
+      importClient: ({
+        id,
+        name,
+        transportPath,
+        module,
+        exportName,
+        moduleKind
+      }): ActionClientReference => ({
+        _tag: "Import",
+        id,
+        name,
+        actionPath: transportPath,
+        module,
+        exportName,
+        moduleKind
+      }),
+      entry: ({ definition, id, name, server, client, wire }): ActionManifestEntry => ({
+        id,
+        name,
+        server,
+        client,
+        wire,
+        behavior: behaviorFromDefinition(definition)
+      })
     })
-  });
+  );
 
 export const makeActionManifest = (
   definitions: Iterable<ActionManifestDefinition>,
@@ -286,10 +362,10 @@ export const makeActionManifest = (
 ): Effect.Effect<ActionManifest, ActionManifestError> =>
   Effect.gen(function* () {
     const entries: ActionManifestEntry[] = [];
-    const actionPath = options.actionPath ?? serverActionPath;
+    const actionPath = yield* normalizeActionManifestPathEffect(options.actionPath);
     let index = 0;
     for (const definition of definitions) {
-      entries.push(yield* makeActionManifestEntry(definition, options, index));
+      entries.push(yield* makeActionManifestEntry(definition, { actionPath }, index));
       index++;
     }
 

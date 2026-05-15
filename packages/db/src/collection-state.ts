@@ -1,5 +1,5 @@
 import { Signal, stableStringify, type WritableSignal } from "@effect-ui/core";
-import { Data } from "effect";
+import { Data, type Deferred } from "effect";
 import type {
   CollectionDefinition,
   AnyCollection,
@@ -10,6 +10,7 @@ import type {
   CollectionIndexValue,
   CollectionKey,
   CollectionLoadState,
+  CollectionMutation,
   CollectionRuntimeError,
   CollectionOrigin,
   CollectionRow,
@@ -34,9 +35,32 @@ export interface StoredRow<A extends object, K extends CollectionKey> {
 
 export interface PendingMutationEntry<A extends object, K extends CollectionKey> {
   readonly transaction: CollectionTransaction<A, K>;
-  readonly rollbackRows: ReadonlyMap<K, StoredRow<A, K> | undefined>;
+  readonly rollbackRows: Map<K, StoredRow<A, K> | undefined>;
   readonly createdAt: number;
   attempts: number;
+  activeAttempt: PendingMutationAttempt<A, K> | undefined;
+}
+
+export interface PendingMutationAttempt<A extends object, K extends CollectionKey> {
+  readonly id: number;
+  readonly deferred: Deferred.Deferred<CollectionTransaction<A, K>, any>;
+}
+
+export interface CollectionLoadAttempt {
+  readonly generation: number;
+  readonly force: boolean;
+  readonly deferred: Deferred.Deferred<void, any>;
+}
+
+export interface OptimisticRowPatch<A extends object, K extends CollectionKey> {
+  readonly transactionId: string;
+  readonly mutation: CollectionMutation<A, K>;
+  committed: boolean;
+}
+
+export interface OptimisticRowStack<A extends object, K extends CollectionKey> {
+  base: StoredRow<A, K> | undefined;
+  readonly patches: Array<OptimisticRowPatch<A, K>>;
 }
 
 interface CollectionIndexCacheEntry<A extends object, K extends CollectionKey> {
@@ -47,22 +71,32 @@ interface CollectionIndexCacheEntry<A extends object, K extends CollectionKey> {
 export interface CollectionState<A extends object, K extends CollectionKey, E> {
   readonly rows: Map<K, StoredRow<A, K>>;
   readonly pendingMutations: Map<string, PendingMutationEntry<A, K>>;
+  readonly optimisticRows: Map<K, OptimisticRowStack<A, K>>;
   readonly indexCache: Map<string, CollectionIndexCacheEntry<A, K>>;
   readonly version: WritableSignal<number>;
   readonly loadState: WritableSignal<CollectionLoadState<CollectionRuntimeError<E>>>;
   nextTransactionId: number;
+  nextMutationAttemptId: number;
+  loadGeneration: number;
+  activeLoad: CollectionLoadAttempt | undefined;
   initialized: boolean;
+  initialDataError: CollectionRuntimeError<E> | undefined;
   persistenceRestored: boolean;
 }
 
 export const makeCollectionState = <A extends object, K extends CollectionKey, E>(): CollectionState<A, K, E> => ({
   rows: new Map(),
   pendingMutations: new Map(),
+  optimisticRows: new Map(),
   indexCache: new Map(),
   version: Signal.make(0),
   loadState: Signal.make<CollectionLoadState<CollectionRuntimeError<E>>>({ _tag: "Initial", waiting: false }),
   nextTransactionId: 0,
+  nextMutationAttemptId: 0,
+  loadGeneration: 0,
+  activeLoad: undefined,
   initialized: false,
+  initialDataError: undefined,
   persistenceRestored: false
 });
 
@@ -71,38 +105,170 @@ export const bumpCollectionState = (state: CollectionState<any, any, any>): void
   state.version.update((value) => value + 1);
 };
 
-export const initializeCollectionState = <A extends object, K extends CollectionKey, E, R>(
-  definition: CollectionDefinition<A, K, E, R>,
-  state: CollectionState<A, K, E>
-): void => {
-  if (state.initialized) {
-    return;
+export const cloneCollectionValue = <A>(value: A, seen = new WeakMap<object, unknown>()): A => {
+  if (typeof value !== "object" || value === null) {
+    return value;
   }
 
-  state.initialized = true;
-  const initialData = definition.options.initialData ?? [];
-  if (initialData.length === 0) {
-    return;
+  if (value instanceof Date) {
+    return new Date(value.getTime()) as A;
   }
 
-  for (const value of initialData) {
-    const key = definition.getKey(value);
-    state.rows.set(key, {
-      key,
-      value,
-      synced: true,
-      origin: "remote"
-    });
+  if (value instanceof ArrayBuffer) {
+    return value.slice(0) as A;
   }
-  state.loadState.set({ _tag: "Ready", waiting: false, updatedAt: Date.now() });
-  bumpCollectionState(state);
+
+  const existing = seen.get(value);
+  if (existing) {
+    return existing as A;
+  }
+
+  if (Array.isArray(value)) {
+    const output: Array<unknown> = [];
+    seen.set(value, output);
+    for (const entry of value) {
+      output.push(cloneCollectionValue(entry, seen));
+    }
+    return output as A;
+  }
+
+  if (value instanceof Map) {
+    const output = new Map();
+    seen.set(value, output);
+    for (const [key, entry] of value) {
+      output.set(cloneCollectionValue(key, seen), cloneCollectionValue(entry, seen));
+    }
+    return output as A;
+  }
+
+  if (value instanceof Set) {
+    const output = new Set();
+    seen.set(value, output);
+    for (const entry of value) {
+      output.add(cloneCollectionValue(entry, seen));
+    }
+    return output as A;
+  }
+
+  if (value instanceof DataView) {
+    const bytes = new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+    return new DataView(new Uint8Array(bytes).buffer) as A;
+  }
+
+  if (ArrayBuffer.isView(value)) {
+    const view = value as ArrayBufferView;
+    const bytes = new Uint8Array(view.buffer, view.byteOffset, view.byteLength);
+    const copiedBytes = new Uint8Array(bytes);
+    const buffer = copiedBytes.buffer.slice(
+      copiedBytes.byteOffset,
+      copiedBytes.byteOffset + copiedBytes.byteLength
+    );
+    const constructor = value.constructor as { new(buffer: ArrayBuffer): A };
+    return new constructor(buffer);
+  }
+
+  const prototype = Object.getPrototypeOf(value);
+  const output: Record<string, unknown> = {};
+  seen.set(value, output);
+  for (const [key, entry] of Object.entries(value)) {
+    output[key] = cloneCollectionValue(entry, seen);
+  }
+  if (prototype !== Object.prototype && prototype !== null) {
+    return Object.assign(Object.create(prototype), output) as A;
+  }
+  return output as A;
 };
+
+export const freezeCollectionValue = <A>(value: A, seen = new WeakSet<object>()): A => {
+  if (typeof value !== "object" || value === null) {
+    return value;
+  }
+
+  if (seen.has(value)) {
+    return value;
+  }
+  seen.add(value);
+
+  if (value instanceof Date || value instanceof ArrayBuffer || ArrayBuffer.isView(value)) {
+    return value;
+  }
+
+  if (value instanceof Map) {
+    for (const [key, entry] of value) {
+      freezeCollectionValue(key, seen);
+      freezeCollectionValue(entry, seen);
+    }
+    return Object.freeze(value);
+  }
+
+  if (value instanceof Set) {
+    for (const entry of value) {
+      freezeCollectionValue(entry, seen);
+    }
+    return Object.freeze(value);
+  }
+
+  for (const entry of Object.values(value)) {
+    freezeCollectionValue(entry, seen);
+  }
+  return Object.freeze(value);
+};
+
+export const cloneFrozenCollectionValue = <A>(value: A): A =>
+  freezeCollectionValue(cloneCollectionValue(value));
+
+export const cloneCollectionMutation = <A extends object, K extends CollectionKey>(
+  mutation: CollectionMutation<A, K>
+): CollectionMutation<A, K> => {
+  switch (mutation._tag) {
+    case "Insert":
+      return mutation.previous === undefined
+        ? {
+            _tag: "Insert",
+            key: mutation.key,
+            value: cloneCollectionValue(mutation.value)
+          }
+        : {
+            _tag: "Insert",
+            key: mutation.key,
+            value: cloneCollectionValue(mutation.value),
+            previous: cloneCollectionValue(mutation.previous)
+          };
+    case "Update":
+      return {
+        _tag: "Update",
+        key: mutation.key,
+        previous: cloneCollectionValue(mutation.previous),
+        value: cloneCollectionValue(mutation.value),
+        changes: cloneCollectionValue(mutation.changes)
+      };
+    case "Delete":
+      return {
+        _tag: "Delete",
+        key: mutation.key,
+        previous: cloneCollectionValue(mutation.previous)
+      };
+  }
+};
+
+export const cloneCollectionTransaction = <A extends object, K extends CollectionKey>(
+  transaction: CollectionTransaction<A, K>
+): CollectionTransaction<A, K> => ({
+  id: transaction.id,
+  collection: transaction.collection,
+  mutations: transaction.mutations.map(cloneCollectionMutation)
+});
+
+export const cloneFrozenCollectionTransaction = <A extends object, K extends CollectionKey>(
+  transaction: CollectionTransaction<A, K>
+): CollectionTransaction<A, K> =>
+  cloneFrozenCollectionValue(cloneCollectionTransaction(transaction));
 
 export const augmentCollectionRow = <A extends object, K extends CollectionKey>(
   definition: CollectionDefinition<A, K, any, any>,
   row: StoredRow<A, K>
 ): CollectionRow<A, K> =>
-  Object.assign({}, row.value, {
+  Object.assign(cloneCollectionValue(row.value), {
     $key: row.key,
     $collection: definition.name,
     $synced: row.synced,
@@ -269,7 +435,7 @@ export const markStoredRowsSynced = <A extends object, K extends CollectionKey>(
   bumpCollectionState(state);
 };
 
-const diffChanges = <A extends object>(previous: A, value: A): Partial<A> => {
+export const collectionValueChanges = <A extends object>(previous: A, value: A): Partial<A> => {
   const changes: Partial<A> = {};
   for (const key of Object.keys(value) as Array<keyof A>) {
     if (!Object.is(previous[key], value[key])) {
@@ -284,17 +450,344 @@ export const applyCollectionUpdate = <A extends object>(previous: A, update: Col
   readonly changes: Partial<A>;
 } => {
   if (typeof update === "function") {
-    const draft = { ...previous } as A;
+    const draft = cloneCollectionValue(previous);
     const result = update(draft);
-    const value = result === undefined ? draft : result;
+    const value = cloneCollectionValue(result === undefined ? draft : result);
     return {
       value,
-      changes: diffChanges(previous, value)
+      changes: collectionValueChanges(previous, value)
     };
   }
 
   return {
-    value: { ...previous, ...update },
-    changes: update
+    value: cloneCollectionValue({ ...previous, ...update }),
+    changes: cloneCollectionValue(update)
   };
+};
+
+export const cloneStoredRow = <A extends object, K extends CollectionKey>(
+  row: StoredRow<A, K>
+): StoredRow<A, K> => ({
+  key: row.key,
+  value: cloneCollectionValue(row.value),
+  synced: row.synced,
+  origin: row.origin
+});
+
+export const cloneRollbackRow = <A extends object, K extends CollectionKey>(
+  row: StoredRow<A, K> | undefined
+): StoredRow<A, K> | undefined =>
+  row ? cloneStoredRow(row) : undefined;
+
+export const cloneOptimisticRowStack = <A extends object, K extends CollectionKey>(
+  stack: OptimisticRowStack<A, K>
+): OptimisticRowStack<A, K> => ({
+  base: cloneRollbackRow(stack.base),
+  patches: stack.patches.map((patch) => ({
+    transactionId: patch.transactionId,
+    mutation: cloneCollectionMutation(patch.mutation),
+    committed: patch.committed
+  }))
+});
+
+export const clonePendingMutationEntry = <A extends object, K extends CollectionKey>(
+  entry: PendingMutationEntry<A, K>
+): PendingMutationEntry<A, K> => ({
+  transaction: cloneCollectionTransaction(entry.transaction),
+  rollbackRows: new Map(
+    Array.from(entry.rollbackRows, ([key, row]) => [key, cloneRollbackRow(row)])
+  ),
+  createdAt: entry.createdAt,
+  attempts: entry.attempts,
+  activeAttempt: undefined
+});
+
+export const restoreStoredRows = <A extends object, K extends CollectionKey>(
+  state: CollectionState<A, K, any>,
+  snapshots: ReadonlyMap<K, StoredRow<A, K> | undefined>
+): void => {
+  for (const [key, row] of snapshots) {
+    if (row) {
+      state.rows.set(key, cloneStoredRow(row));
+    } else {
+      state.rows.delete(key);
+    }
+  }
+  bumpCollectionState(state);
+};
+
+export const restoreOptimisticState = <A extends object, K extends CollectionKey>(
+  state: CollectionState<A, K, any>,
+  rows: ReadonlyMap<K, StoredRow<A, K>>,
+  pendingMutations: ReadonlyMap<string, PendingMutationEntry<A, K>>,
+  optimisticRows: ReadonlyMap<K, OptimisticRowStack<A, K>>
+): void => {
+  state.rows.clear();
+  for (const [key, row] of rows) {
+    state.rows.set(key, cloneStoredRow(row));
+  }
+
+  state.pendingMutations.clear();
+  for (const [id, entry] of pendingMutations) {
+    state.pendingMutations.set(id, clonePendingMutationEntry(entry));
+  }
+
+  state.optimisticRows.clear();
+  for (const [key, stack] of optimisticRows) {
+    state.optimisticRows.set(key, cloneOptimisticRowStack(stack));
+  }
+};
+
+export const optimisticMutationKeys = <A extends object, K extends CollectionKey>(
+  transaction: CollectionTransaction<A, K>
+): ReadonlyArray<K> =>
+  Array.from(new Set(transaction.mutations.map((mutation) => mutation.key)));
+
+const applyOptimisticMutationToRow = <A extends object, K extends CollectionKey>(
+  row: StoredRow<A, K> | undefined,
+  mutation: CollectionMutation<A, K>
+): StoredRow<A, K> | undefined => {
+  switch (mutation._tag) {
+    case "Insert":
+      return {
+        key: mutation.key,
+        value: cloneCollectionValue(mutation.value),
+        synced: false,
+        origin: "local"
+      };
+    case "Update": {
+      const previous = row?.value ?? mutation.previous;
+      return {
+        key: mutation.key,
+        value: cloneCollectionValue({ ...previous, ...mutation.changes } as A),
+        synced: false,
+        origin: "local"
+      };
+    }
+    case "Delete":
+      return undefined;
+  }
+};
+
+const collapseCommittedOptimisticPatches = <A extends object, K extends CollectionKey>(
+  stack: OptimisticRowStack<A, K>
+): void => {
+  while (stack.patches[0]?.committed) {
+    const [patch] = stack.patches.splice(0, 1);
+    if (!patch) {
+      return;
+    }
+    stack.base = applyOptimisticMutationToRow(stack.base, patch.mutation);
+    if (stack.base) {
+      stack.base.synced = true;
+    }
+  }
+};
+
+const rebaseOptimisticRow = <A extends object, K extends CollectionKey>(
+  state: CollectionState<A, K, any>,
+  key: K
+): void => {
+  const stack = state.optimisticRows.get(key);
+  if (!stack) {
+    return;
+  }
+
+  collapseCommittedOptimisticPatches(stack);
+
+  if (stack.patches.length === 0) {
+    state.optimisticRows.delete(key);
+    if (stack.base) {
+      state.rows.set(key, cloneStoredRow(stack.base));
+    } else {
+      state.rows.delete(key);
+    }
+    return;
+  }
+
+  let row = cloneRollbackRow(stack.base);
+  let hasPendingPatch = false;
+  for (const patch of stack.patches) {
+    const pending = state.pendingMutations.get(patch.transactionId);
+    if (pending) {
+      pending.rollbackRows.set(key, cloneRollbackRow(row));
+    }
+    row = applyOptimisticMutationToRow(row, patch.mutation);
+    hasPendingPatch = hasPendingPatch || !patch.committed;
+    if (row) {
+      row.synced = !hasPendingPatch;
+      row.origin = "local";
+    }
+  }
+
+  if (row) {
+    state.rows.set(key, row);
+  } else {
+    state.rows.delete(key);
+  }
+};
+
+export const rebaseOptimisticRows = <A extends object, K extends CollectionKey>(
+  state: CollectionState<A, K, any>,
+  keys: ReadonlyArray<K>
+): void => {
+  for (const key of keys) {
+    rebaseOptimisticRow(state, key);
+  }
+  bumpCollectionState(state);
+};
+
+export const applyOptimisticTransaction = <A extends object, K extends CollectionKey>(
+  state: CollectionState<A, K, any>,
+  transaction: CollectionTransaction<A, K>,
+  snapshots: ReadonlyMap<K, StoredRow<A, K> | undefined>
+): void => {
+  for (const mutation of transaction.mutations) {
+    let stack = state.optimisticRows.get(mutation.key);
+    if (!stack) {
+      stack = {
+        base: cloneRollbackRow(snapshots.get(mutation.key)),
+        patches: []
+      };
+      state.optimisticRows.set(mutation.key, stack);
+    }
+    stack.patches.push({
+      transactionId: transaction.id,
+      mutation,
+      committed: false
+    });
+  }
+  rebaseOptimisticRows(state, optimisticMutationKeys(transaction));
+};
+
+export const applyCollectionBaseRow = <A extends object, K extends CollectionKey>(
+  state: CollectionState<A, K, any>,
+  row: StoredRow<A, K>,
+  rebaseKeys: Set<K>
+): void => {
+  const stack = state.optimisticRows.get(row.key);
+  if (stack) {
+    stack.base = cloneStoredRow(row);
+    rebaseKeys.add(row.key);
+    return;
+  }
+
+  state.rows.set(row.key, cloneStoredRow(row));
+};
+
+export const deleteCollectionBaseRow = <A extends object, K extends CollectionKey>(
+  state: CollectionState<A, K, any>,
+  key: K,
+  rebaseKeys: Set<K>
+): void => {
+  const stack = state.optimisticRows.get(key);
+  if (stack) {
+    stack.base = undefined;
+    rebaseKeys.add(key);
+    return;
+  }
+
+  state.rows.delete(key);
+};
+
+export const rebaseCollectionBaseRows = <A extends object, K extends CollectionKey>(
+  state: CollectionState<A, K, any>,
+  rebaseKeys: Set<K>
+): void => {
+  if (rebaseKeys.size > 0) {
+    rebaseOptimisticRows(state, Array.from(rebaseKeys));
+    return;
+  }
+
+  bumpCollectionState(state);
+};
+
+const hasOptimisticTransaction = <A extends object, K extends CollectionKey>(
+  state: CollectionState<A, K, any>,
+  transaction: CollectionTransaction<A, K>
+): boolean =>
+  optimisticMutationKeys(transaction).some((key) =>
+    state.optimisticRows.get(key)?.patches.some((patch) => patch.transactionId === transaction.id)
+  );
+
+export const commitOptimisticTransaction = <A extends object, K extends CollectionKey>(
+  state: CollectionState<A, K, any>,
+  transaction: CollectionTransaction<A, K>
+): boolean => {
+  if (!hasOptimisticTransaction(state, transaction)) {
+    return false;
+  }
+
+  const keys = optimisticMutationKeys(transaction);
+  for (const key of keys) {
+    const stack = state.optimisticRows.get(key);
+    if (!stack) {
+      continue;
+    }
+    for (const patch of stack.patches) {
+      if (patch.transactionId === transaction.id) {
+        patch.committed = true;
+      }
+    }
+  }
+  rebaseOptimisticRows(state, keys);
+  return true;
+};
+
+export const rollbackOptimisticTransaction = <A extends object, K extends CollectionKey>(
+  state: CollectionState<A, K, any>,
+  transaction: CollectionTransaction<A, K>
+): boolean => {
+  if (!hasOptimisticTransaction(state, transaction)) {
+    return false;
+  }
+
+  const keys = optimisticMutationKeys(transaction);
+  for (const key of keys) {
+    const stack = state.optimisticRows.get(key);
+    if (!stack) {
+      continue;
+    }
+    const remaining = stack.patches.filter((patch) => patch.transactionId !== transaction.id);
+    stack.patches.splice(0, stack.patches.length, ...remaining);
+  }
+  rebaseOptimisticRows(state, keys);
+  return true;
+};
+
+export const syncOptimisticRowsFromPendingMutations = <A extends object, K extends CollectionKey>(
+  state: CollectionState<A, K, any>
+): void => {
+  const desired = new Map<K, OptimisticRowStack<A, K>>();
+  const rebaseKeys = new Set<K>(state.optimisticRows.keys());
+
+  for (const entry of state.pendingMutations.values()) {
+    for (const mutation of entry.transaction.mutations) {
+      let stack = desired.get(mutation.key);
+      if (!stack) {
+        const existing = state.optimisticRows.get(mutation.key);
+        const rollback = entry.rollbackRows.has(mutation.key)
+          ? entry.rollbackRows.get(mutation.key)
+          : state.rows.get(mutation.key);
+        stack = {
+          base: existing ? cloneRollbackRow(existing.base) : cloneRollbackRow(rollback),
+          patches: []
+        };
+        desired.set(mutation.key, stack);
+      }
+      stack.patches.push({
+        transactionId: entry.transaction.id,
+        mutation,
+        committed: false
+      });
+      rebaseKeys.add(mutation.key);
+    }
+  }
+
+  state.optimisticRows.clear();
+  for (const [key, stack] of desired) {
+    state.optimisticRows.set(key, stack);
+  }
+
+  rebaseOptimisticRows(state, Array.from(rebaseKeys));
 };

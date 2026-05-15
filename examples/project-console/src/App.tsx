@@ -1,24 +1,27 @@
 import {
   Resource,
   Route,
+  Program,
   Signal,
+  RouterLink,
   RouterOutlet,
   RouterProvider,
   createComponentScope,
   read,
   useAction,
   useResource,
+  useProgram,
   useSignal,
   useStream,
   useRouter,
-  useRuntime,
+  useRuntimeEffect,
   watch
 } from "@effect-ui/solid";
-import type { EffectUiRuntime } from "@effect-ui/core";
+import { Form, type EffectUiRuntime } from "@effect-ui/core";
 import type { CollectionRow } from "@effect-ui/db";
 import { useCollection } from "@effect-ui/solid-db";
-import { StartAction } from "@effect-ui/start";
-import { Effect } from "effect";
+import { StartAction, startActionInputField, startActionNameField } from "@effect-ui/start";
+import { Effect, Schema } from "effect";
 import { For, Show, createEffect, onMount } from "solid-js";
 import { isServer } from "solid-js/web";
 import {
@@ -42,6 +45,7 @@ import {
 } from "./domain.js";
 import { HomeRoute, ProjectRoute, ProjectsRoute, app } from "./app-definition.js";
 import { ProjectSummaries } from "./project-collections.js";
+import { hrefByPath, isRoutePathMatch } from "./routeTree.gen.js";
 import { HealthBadge, Metric, PresencePill } from "./ui.tsrx";
 
 const HomeUiRoute = Route.withComponent(HomeRoute, HomeRouteView);
@@ -49,11 +53,22 @@ const ProjectsUiRoute = Route.withComponent(ProjectsRoute, ProjectIndexRouteView
 const ProjectUiRoute = Route.withComponent(ProjectRoute, ProjectRouteView);
 const routes = [HomeUiRoute, ProjectsUiRoute, ProjectUiRoute] as const;
 type AppRoutes = typeof routes;
+type AppRuntime = EffectUiRuntime<any, never>;
 type ProjectSummaryRow = CollectionRow<ProjectSummary, ProjectId>;
 type ProjectNameSubmissionClientResult = StartAction.Result<typeof SubmitProjectName>;
 
+const ProjectNameFormInput = Schema.Struct({
+  name: Schema.String
+});
+
+const projectHref = (id: ProjectId, tab?: ProjectTab): string =>
+  tab === undefined || tab === "overview"
+    ? hrefByPath("/projects/:id", { params: { id } })
+    : hrefByPath("/projects/:id", { params: { id }, search: { tab } });
+
 export interface AppProps {
   readonly initialHref?: string;
+  readonly runtime?: AppRuntime;
 }
 
 const initialPresence: PresenceEvent = {
@@ -85,13 +100,6 @@ const healthLabel = (health: ProjectHealth): string => {
 };
 
 const formatSpend = (spend: number): string => `${spend}%`;
-
-function runUiEffect<A, E, R, RuntimeError>(
-  runtime: EffectUiRuntime<unknown, RuntimeError>,
-  effect: Effect.Effect<A, E, R>
-): void {
-  void runtime.runFork(effect.pipe(Effect.catch(() => Effect.void)));
-}
 
 const SearchIcon = () => (
   <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -125,9 +133,10 @@ const SaveIcon = () => (
 );
 
 export default function App(props: AppProps = {}) {
+  const runtime = props.runtime ?? app.runtime;
   const routerProps = props.initialHref === undefined
-    ? { routes }
-    : { routes, initialHref: props.initialHref };
+    ? { routes, runtime }
+    : { routes, initialHref: props.initialHref, runtime };
 
   return (
     <RouterProvider {...routerProps}>
@@ -139,10 +148,7 @@ export default function App(props: AppProps = {}) {
 const projectIdFromMatch = (
   match: Route.Match<AppRoutes[number]> | undefined
 ): ProjectId | undefined =>
-  match?.route.path === ProjectUiRoute.path ? (match.params as { readonly id: ProjectId }).id : undefined;
-
-const isPlainLeftClick = (event: MouseEvent): boolean =>
-  event.button === 0 && !event.metaKey && !event.altKey && !event.ctrlKey && !event.shiftKey;
+  isRoutePathMatch("/projects/:id", match) ? match.params.id : undefined;
 
 function HomeRouteView() {
   const router = useRouter<AppRoutes>();
@@ -164,14 +170,14 @@ function ProjectIndexRouteView() {
   );
 }
 
-function ProjectRouteView(props: Route.Props<typeof ProjectUiRoute>) {
+function ProjectRouteView(props: Route.Props<typeof ProjectRoute>) {
   return <ProjectDetail id={props.params.id} tab={props.search.tab ?? "overview"} />;
 }
 
 function AppShell() {
   return createComponentScope(() => {
     const router = useRouter<AppRoutes>();
-    const runtime = useRuntime();
+    const runEffect = useRuntimeEffect();
     const presence = useStream(makePresenceStream(), initialPresence);
     const title = Signal.make("Effect UI Project Console");
 
@@ -195,12 +201,11 @@ function AppShell() {
 
     const refreshVisibleData = () => {
       const id = projectIdFromMatch(router.match());
-      runUiEffect(
-        runtime,
+      runEffect(
         Effect.gen(function* () {
           yield* Resource.invalidateEffect(id ? [ProjectsRef, ProjectById(id)] : ProjectsRef);
           yield* ProjectSummaries.refetchEffect();
-        })
+        }).pipe(Effect.catch(() => Effect.void))
       );
     };
 
@@ -335,24 +340,12 @@ function ProjectRow(props: {
   readonly project: ProjectSummaryRow;
   readonly selected: boolean;
 }) {
-  const router = useRouter<AppRoutes>();
-  const runtime = useRuntime();
-  const href = () => router.href(ProjectUiRoute, { params: { id: props.project.id } });
-
   return (
-    <a
+    <RouterLink
+      route={ProjectUiRoute}
+      options={{ params: { id: props.project.id } }}
       class="projectRow"
       classList={{ selected: props.selected, syncing: !props.project.$synced }}
-      href={href()}
-      onMouseEnter={() => runUiEffect(runtime, router.preloadEffect(ProjectUiRoute, { params: { id: props.project.id } }))}
-      onClick={(event) => {
-        if (!isPlainLeftClick(event)) {
-          return;
-        }
-
-        event.preventDefault();
-        router.navigate(ProjectUiRoute, { params: { id: props.project.id } });
-      }}
     >
       <span class={`healthDot ${props.project.health}`} />
       <span class="projectRowMain">
@@ -367,7 +360,7 @@ function ProjectRow(props: {
           <span class="syncBadge">Saving</span>
         </Show>
       </span>
-    </a>
+    </RouterLink>
   );
 }
 
@@ -428,7 +421,6 @@ function ProjectDetailContent(props: {
 }
 
 function ProjectTabs(props: { readonly project: Project; readonly selected: ProjectTab }) {
-  const router = useRouter<AppRoutes>();
   const tabs: ReadonlyArray<{ readonly id: ProjectTab; readonly label: string }> = [
     { id: "overview", label: "Overview" },
     { id: "activity", label: "Activity" },
@@ -439,36 +431,19 @@ function ProjectTabs(props: { readonly project: Project; readonly selected: Proj
     <nav class="tabStrip" aria-label="Project sections">
       <For each={tabs}>
         {(tab) => {
-          const href = () =>
+          const options = () =>
             tab.id === "overview"
-              ? router.href(ProjectUiRoute, { params: { id: props.project.id } })
-              : router.href(ProjectUiRoute, {
-                  params: { id: props.project.id },
-                  search: { tab: tab.id }
-                });
+              ? { params: { id: props.project.id } }
+              : { params: { id: props.project.id }, search: { tab: tab.id } };
 
           return (
-            <a
-              href={href()}
+            <RouterLink
+              route={ProjectUiRoute}
+              options={options()}
               classList={{ active: props.selected === tab.id }}
-              onClick={(event) => {
-                if (!isPlainLeftClick(event)) {
-                  return;
-                }
-
-                event.preventDefault();
-                if (tab.id === "overview") {
-                  router.navigate(ProjectUiRoute, { params: { id: props.project.id } });
-                } else {
-                  router.navigate(ProjectUiRoute, {
-                    params: { id: props.project.id },
-                    search: { tab: tab.id }
-                  });
-                }
-              }}
             >
               {tab.label}
-            </a>
+            </RouterLink>
           );
         }}
       </For>
@@ -511,47 +486,182 @@ function ProjectTabPanel(props: { readonly project: Project; readonly tab: Proje
   );
 }
 
-function ProjectActions(props: { readonly project: Project }) {
+interface ProjectActionsModel {
+  readonly project: Project;
+  readonly renamePending: boolean;
+  readonly advancePending: boolean;
+  readonly validation?: string;
+  readonly error?: unknown;
+}
+
+type ProjectActionsMessage =
+  | { readonly _tag: "ProjectChanged"; readonly project: Project }
+  | { readonly _tag: "SubmitRename"; readonly formData: FormData }
+  | { readonly _tag: "RenameFinished"; readonly result: ProjectNameSubmissionClientResult }
+  | { readonly _tag: "RenameFailed"; readonly error: unknown }
+  | { readonly _tag: "Advance" }
+  | { readonly _tag: "AdvanceFinished"; readonly project: Project }
+  | { readonly _tag: "AdvanceFailed"; readonly error: unknown };
+
+const projectActionsInitial = (project: Project): ProjectActionsModel => ({
+  project,
+  renamePending: false,
+  advancePending: false
+});
+
+const renameValidationMessage = (
+  result: ProjectNameSubmissionClientResult
+): string | undefined =>
+  result._tag === "ValidationFailure"
+    ? result.fieldErrors.name?.[0] ?? result.formErrors[0]
+    : undefined;
+
+const useProjectActionsProgram = (project: () => Project) => {
   const router = useRouter<AppRoutes>();
-  const runtime = useRuntime();
-  const rename = StartAction.use(SubmitProjectName, { runtime });
+  const rename = StartAction.use(SubmitProjectName);
   const advance = useAction(AdvanceProject);
-  const renameState = useSignal(rename.state);
-  const advanceState = useSignal(advance.state);
+  const actions = useProgram(Program.define<ProjectActionsModel, ProjectActionsMessage>({
+    initial: projectActionsInitial(project()),
+    update: (model, message) => {
+      switch (message._tag) {
+        case "ProjectChanged":
+          return message.project.id === model.project.id
+            ? { ...model, project: message.project }
+            : projectActionsInitial(message.project);
+        case "SubmitRename":
+          if (model.renamePending) {
+            return model;
+          }
 
-  const renamePending = () => renameState()._tag === "Pending";
-  const advancePending = () => advanceState()._tag === "Pending";
-  const renameResult = (): ProjectNameSubmissionClientResult | undefined => {
-    const state = renameState();
-    return state._tag === "Success" ? state.value : undefined;
-  };
-  const renameError = () => {
-    const state = renameState();
-    return state._tag === "Failure" ? state.error : undefined;
-  };
-  const renameValidation = () => {
-    const result = renameResult();
-    if (result?._tag !== "ValidationFailure") {
-      return undefined;
+          return Program.next(
+            {
+              project: model.project,
+              renamePending: true,
+              advancePending: model.advancePending
+            },
+            Program.command(
+              Form.decodeFormDataEffect(ProjectNameFormInput, message.formData, {
+                omitFields: [startActionNameField, startActionInputField]
+              }).pipe(
+                Effect.flatMap(({ name }) =>
+                  rename.submitEffect({
+                    id: model.project.id,
+                    name,
+                    redirectTo: makeProjectReturnTo(projectHref(model.project.id, "activity"))
+                  })
+                ),
+                Effect.match({
+                  onFailure: (error): ProjectActionsMessage => ({ _tag: "RenameFailed", error }),
+                  onSuccess: (result): ProjectActionsMessage => ({ _tag: "RenameFinished", result })
+                })
+              )
+            )
+          );
+        case "RenameFinished": {
+          const result = message.result;
+          switch (result._tag) {
+            case "Success":
+              return {
+                project: result.value,
+                renamePending: false,
+                advancePending: model.advancePending
+              };
+            case "ValidationFailure":
+              const validation = renameValidationMessage(result);
+              return validation === undefined ? {
+                project: model.project,
+                renamePending: false,
+                advancePending: model.advancePending
+              } : {
+                project: model.project,
+                renamePending: false,
+                advancePending: model.advancePending,
+                validation
+              };
+            case "Failure":
+              return {
+                project: model.project,
+                renamePending: false,
+                advancePending: model.advancePending,
+                error: result.error
+              };
+            case "Redirect":
+              return Program.next(
+                {
+                  project: model.project,
+                  renamePending: false,
+                  advancePending: model.advancePending
+                },
+                Program.effect(
+                  Effect.sync(() =>
+                    router.navigateHref(
+                      result.location,
+                      result.replace === undefined ? undefined : { replace: result.replace }
+                    )
+                  )
+                )
+              );
+          }
+        }
+        case "RenameFailed":
+          return {
+            project: model.project,
+            renamePending: false,
+            advancePending: model.advancePending,
+            error: message.error
+          };
+        case "Advance":
+          if (model.advancePending) {
+            return model;
+          }
+
+          return Program.next(
+            {
+              project: model.project,
+              renamePending: model.renamePending,
+              advancePending: true
+            },
+            Program.command(
+              advance.submitEffect({ id: model.project.id }).pipe(
+                Effect.match({
+                  onFailure: (error): ProjectActionsMessage => ({ _tag: "AdvanceFailed", error }),
+                  onSuccess: (project): ProjectActionsMessage => ({ _tag: "AdvanceFinished", project })
+                })
+              )
+            )
+          );
+        case "AdvanceFinished":
+          return {
+            project: message.project,
+            renamePending: model.renamePending,
+            advancePending: false
+          };
+        case "AdvanceFailed":
+          return {
+            project: model.project,
+            renamePending: model.renamePending,
+            advancePending: false,
+            error: message.error
+          };
+      }
     }
+  }));
 
-    return result.fieldErrors.name?.[0] ?? result.formErrors[0];
-  };
-  const renameDomainError = () => {
-    const result = renameResult();
-    return result?._tag === "Failure" ? result.error : undefined;
-  };
-  const renameRedirect = () =>
-    makeProjectReturnTo(
-      router.href(ProjectUiRoute, {
-        params: { id: props.project.id },
-        search: { tab: "activity" }
-      })
-    );
+  createEffect(() => {
+    actions.dispatch({ _tag: "ProjectChanged", project: project() });
+  });
+
+  return actions;
+};
+
+function ProjectActions(props: { readonly project: Project }) {
+  const actions = useProjectActionsProgram(() => props.project);
+  const model = actions.model;
+
   const renameForm = () =>
     projectNameActionTarget({
-      id: props.project.id,
-      redirectTo: renameRedirect()
+      id: model().project.id,
+      redirectTo: makeProjectReturnTo(projectHref(model().project.id, "activity"))
     });
 
   return (
@@ -562,25 +672,10 @@ function ProjectActions(props: { readonly project: Project }) {
         action={renameForm().action}
         onSubmit={(event) => {
           event.preventDefault();
-          const form = new FormData(event.currentTarget);
-          runUiEffect(
-            runtime,
-            Effect.gen(function* () {
-              const result = yield* rename.submitEffect({
-                id: props.project.id,
-                name: String(form.get("name") ?? ""),
-                redirectTo: renameRedirect()
-              });
-              if (result._tag === "Redirect") {
-                yield* Effect.sync(() =>
-                  router.navigateHref(
-                    result.location,
-                    result.replace === undefined ? undefined : { replace: result.replace }
-                  )
-                );
-              }
-            })
-          );
+          actions.dispatch({
+            _tag: "SubmitRename",
+            formData: new FormData(event.currentTarget)
+          });
         }}
       >
         <For each={renameForm().hiddenFields}>
@@ -590,30 +685,30 @@ function ProjectActions(props: { readonly project: Project }) {
           <span>Name</span>
           <input
             name="name"
-            value={props.project.name}
-            aria-invalid={renameValidation() === undefined ? "false" : "true"}
-            aria-describedby={renameValidation() === undefined ? undefined : "project-name-error"}
+            value={model().project.name}
+            aria-invalid={model().validation === undefined ? "false" : "true"}
+            aria-describedby={model().validation === undefined ? undefined : "project-name-error"}
           />
         </label>
-        <button class="commandButton" type="submit" disabled={renamePending()}>
+        <button class="commandButton" type="submit" disabled={model().renamePending}>
           <SaveIcon />
-          {renamePending() ? "Saving" : "Rename"}
+          {model().renamePending ? "Saving" : "Rename"}
         </button>
       </form>
 
       <button
         class="commandButton secondary"
         type="button"
-        disabled={advancePending()}
-        onClick={() => runUiEffect(runtime, advance.submitEffect({ id: props.project.id }))}
+        disabled={model().advancePending}
+        onClick={() => actions.dispatch({ _tag: "Advance" })}
       >
         <ArrowIcon />
-        {advancePending() ? "Advancing" : "Advance"}
+        {model().advancePending ? "Advancing" : "Advance"}
       </button>
 
       <ActionMessage
-        validation={renameValidation()}
-        error={renameError() ?? renameDomainError()}
+        validation={model().validation}
+        error={model().error}
       />
     </div>
   );

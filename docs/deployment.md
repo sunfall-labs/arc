@@ -2,8 +2,10 @@
 
 Effect UI deployment currently centers on the Start request boundary:
 `createRequestHandlerEffect(app)`. Host adapters stay thin, but the public
-facades own the host-shaped runtime seam: Fetch hosts get a Promise-returning
-handler, and Node HTTP gets a `createServer` callback.
+facades own the host-shaped runtime seam. The canonical adapter remains
+Effect-first; compatibility facades exist only where a platform contract is
+already fixed, such as Fetch hosts that require `(request) =>
+Promise<Response>` or Node HTTP servers that require a `createServer` callback.
 
 The tested adapter implementation lives in `@effect-ui/start/adapters`.
 Deployment-facing package facades are split by host shape:
@@ -12,8 +14,18 @@ Node HTTP.
 
 ## Fetch And Edge-Style Hosts
 
-Use `createFetchHandler` when the host expects
-`(request: Request) => Promise<Response>`:
+Use `toFetchHandlerEffect` when the host integration can run Effects itself:
+
+```ts
+import { createRequestHandlerEffect } from "@effect-ui/start";
+import { toFetchHandlerEffect } from "@effect-ui/start-fetch";
+import { app } from "./app-definition.js";
+
+const fetchEffect = toFetchHandlerEffect(createRequestHandlerEffect(app));
+```
+
+Use `createFetchHandler` only as the compatibility adapter when the host itself
+expects `(request: Request) => Promise<Response>`:
 
 ```ts
 import { createRequestHandlerEffect } from "@effect-ui/start";
@@ -29,15 +41,14 @@ export default {
 };
 ```
 
-The lower `toFetchHandlerEffect` and `toFetchHandler` adapters remain
-Effect-first when a host integration needs custom supervision:
+`toFetchHandler` is an alias for the Effect-returning adapter shape:
 
 ```ts
 import { createRequestHandlerEffect } from "@effect-ui/start";
-import { toFetchHandlerEffect } from "@effect-ui/start-fetch";
+import { toFetchHandler } from "@effect-ui/start-fetch";
 import { app } from "./app-definition.js";
 
-const fetchEffect = toFetchHandlerEffect(createRequestHandlerEffect(app));
+const fetchEffect = toFetchHandler(createRequestHandlerEffect(app));
 ```
 
 ## Node HTTP
@@ -79,7 +90,8 @@ The Node adapter is covered for:
 ## Platform Recipes
 
 Cloudflare Workers, Vercel Edge, Netlify Edge, and other Fetch-native hosts
-should start from the generic Fetch facade:
+that require a Promise-shaped exported `fetch` function can use the
+compatibility Fetch facade:
 
 ```ts
 import { createRequestHandlerEffect } from "@effect-ui/start";
@@ -95,7 +107,7 @@ export default {
 };
 ```
 
-Bun's HTTP server can use the same Fetch-shaped boundary:
+Bun's HTTP server can use the same compatibility boundary:
 
 ```ts
 import { createRequestHandlerEffect } from "@effect-ui/start";

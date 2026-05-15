@@ -2,11 +2,12 @@ import { Effect, Fiber } from "effect";
 import { parseDuration } from "./resource-duration.js";
 import { publishResourceStoreEvent } from "./resource-events.js";
 import type { ResourceRef, ResourceState, ResourceStatus } from "./resource.js";
-import type { ResourceStore as ResourceStoreState } from "./resource-store.js";
+import { resourceStoreFiber, type MutableResourceStore as ResourceStoreState } from "./resource-store.js";
 import { Signal, type WritableSignal } from "./signal.js";
 
 export interface ResourceInFlight<A, E> {
   readonly token: object;
+  readonly force: boolean;
   fiber: Fiber.Fiber<A, E>;
 }
 
@@ -34,28 +35,30 @@ export const previousResourceValue = <A, E>(state: ResourceState<A, E>): A | und
   }
 };
 
-export const isResourceStateStale = <A, E>(
-  ref: ResourceRef<unknown, A, E, unknown>,
-  state: ResourceState<A, E>
+export const isResourceStateStale = <A, E, RefError>(
+  ref: ResourceRef<unknown, A, RefError, unknown>,
+  state: ResourceState<A, E>,
+  now: number
 ): boolean => {
   if (state._tag !== "Success") {
     return false;
   }
 
   const staleFor = parseDuration(ref.family.options.policy?.staleFor);
-  return staleFor > 0 && Date.now() - state.updatedAt > staleFor;
+  return staleFor > 0 && now - state.updatedAt > staleFor;
 };
 
-export const isResourceStateCollected = <A, E>(
-  ref: ResourceRef<unknown, A, E, unknown>,
-  state: ResourceState<A, E>
+export const isResourceStateCollected = <A, E, RefError>(
+  ref: ResourceRef<unknown, A, RefError, unknown>,
+  state: ResourceState<A, E>,
+  now: number
 ): boolean => {
   if (state._tag !== "Success") {
     return false;
   }
 
   const gcFor = parseDuration(ref.family.options.policy?.gcFor);
-  return gcFor > 0 && Date.now() - state.updatedAt > gcFor;
+  return gcFor > 0 && now - state.updatedAt > gcFor;
 };
 
 const deadline = (updatedAt: number | undefined, duration: number): number | undefined =>
@@ -64,11 +67,11 @@ const deadline = (updatedAt: number | undefined, duration: number): number | und
 const remaining = (deadlineAt: number | undefined, now: number): number | undefined =>
   deadlineAt === undefined ? undefined : Math.max(0, deadlineAt - now);
 
-export const resourceStatusFromState = <I, A, E, R>(
-  ref: ResourceRef<I, A, E, R>,
+export const resourceStatusFromState = <I, A, E, R, RefError = E>(
+  ref: ResourceRef<I, A, RefError, R>,
   state: ResourceState<A, E>,
   now: number
-): ResourceStatus<I, A, E, R> => {
+): ResourceStatus<I, A, E, R, RefError> => {
   const staleFor = parseDuration(ref.family.options.policy?.staleFor);
   const gcFor = parseDuration(ref.family.options.policy?.gcFor);
   const updatedAt = state._tag === "Success" ? state.updatedAt : undefined;
@@ -146,12 +149,12 @@ export const resourceStatusFromState = <I, A, E, R>(
   }
 };
 
-export const inspectResourceStatus = <I, A, E, R>(
-  ref: ResourceRef<I, A, E, R>,
-  store: ResourceStoreState,
+export const inspectResourceStatus = <I, A, E, R, RefError = E>(
+  ref: ResourceRef<I, A, RefError, R>,
+  state: ResourceState<A, E>,
   now: number
-): ResourceStatus<I, A, E, R> =>
-  resourceStatusFromState(ref, ref.family.entry(ref, store).state.get(), now);
+): ResourceStatus<I, A, E, R, RefError> =>
+  resourceStatusFromState(ref, state, now);
 
 export const interruptResourceGc = <A, E>(
   entry: ResourceLifetimeEntry<A, E>,
@@ -164,7 +167,7 @@ export const interruptResourceGc = <A, E>(
     }
 
     entry.gcFiber = undefined;
-    store.fibers.delete(fiber);
+    store.fiberRegistry.untrack(resourceStoreFiber(fiber));
     return Fiber.interrupt(fiber).pipe(Effect.as(true));
   });
 
@@ -180,7 +183,7 @@ export const clearResourceInFlight = <A, E>(
     }
 
     entry.inFlight = undefined;
-    store.fibers.delete(inFlight.fiber);
+    store.fiberRegistry.untrack(resourceStoreFiber(inFlight.fiber));
   });
 
 export const interruptResourceInFlight = <A, E>(
@@ -194,14 +197,18 @@ export const interruptResourceInFlight = <A, E>(
       return Effect.succeed(false);
     }
 
-    store.fibers.delete(inFlight.fiber);
+    store.fiberRegistry.untrack(resourceStoreFiber(inFlight.fiber));
     return Fiber.interrupt(inFlight.fiber).pipe(Effect.as(true));
   });
 
-export const scheduleResourceGc = <I, A, E, R>(
-  ref: ResourceRef<I, A, E, R>,
+export const scheduleResourceGc = <I, A, E, R, RefError = E>(
+  ref: ResourceRef<I, A, RefError, R>,
   entry: ResourceLifetimeEntry<A, E>,
-  store: ResourceStoreState
+  store: ResourceStoreState,
+  deleteEntryEffect: (
+    ref: ResourceRef<I, A, RefError, R>,
+    store: ResourceStoreState
+  ) => Effect.Effect<void>
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
     const interrupted = yield* interruptResourceGc(entry, store);
@@ -222,13 +229,13 @@ export const scheduleResourceGc = <I, A, E, R>(
       Effect.gen(function* () {
         yield* Effect.sleep(gcFor);
         entry.gcFiber = undefined;
-        store.fibers.delete(fiber);
-        yield* ref.family.deleteEffect(ref, store);
+        store.fiberRegistry.untrack(resourceStoreFiber(fiber));
+        yield* deleteEntryEffect(ref, store);
       }),
       { startImmediately: true }
     );
     entry.gcFiber = fiber;
-    store.fibers.add(fiber);
+    store.fiberRegistry.track(resourceStoreFiber(fiber));
     yield* publishResourceStoreEvent(store, {
       _tag: "ResourceGcScheduled",
       name: ref.family.options.name,
@@ -276,12 +283,13 @@ export const resetResourceEntry = <A, E>(entry: ResourceLifetimeEntry<A, E>): vo
   entry.state.set({ _tag: "Initial", waiting: false });
 };
 
-export const shouldShowResourcePending = <A, E>(
-  ref: ResourceRef<unknown, A, E, unknown>,
+export const shouldShowResourcePending = <A, E, RefError>(
+  ref: ResourceRef<unknown, A, RefError, unknown>,
   state: ResourceState<A, E>,
-  force: boolean
+  force: boolean,
+  now: number
 ): boolean =>
   force ||
   state._tag === "Initial" ||
   state._tag === "Failure" ||
-  isResourceStateCollected(ref, state);
+  isResourceStateCollected(ref, state, now);

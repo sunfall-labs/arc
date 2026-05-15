@@ -18,13 +18,13 @@ describe("Capability", () => {
       })
     );
 
-    return runtime.runPromise(
+    return Effect.runPromise(runtime.provide(
       Numbers.use((numbers) => numbers.get("atlas")).pipe(
         Effect.tap((value) => Effect.sync(() => expect(value).toBe(5))),
         Effect.asVoid,
         Effect.ensuring(runtime.disposeEffect)
       )
-    );
+    ));
   });
 
   it("supports pure and Effect-returning accessors", () =>
@@ -107,7 +107,7 @@ describe("Capability", () => {
       )
     );
 
-    return runtime.runPromise(
+    return Effect.runPromise(runtime.provide(
       Names.useEffect((names) =>
         Numbers.use((numbers) => numbers.get(names.normalize("  ATLAS  ")))
       ).pipe(
@@ -115,6 +115,6 @@ describe("Capability", () => {
         Effect.asVoid,
         Effect.ensuring(runtime.disposeEffect)
       )
-    );
+    ));
   });
 });

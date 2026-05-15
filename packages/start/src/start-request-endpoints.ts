@@ -6,20 +6,25 @@ import {
   makeResponseContext,
   type ActionDefinition,
   type AppDefinition,
+  type AppDefinitionRegistry,
+  type AppDefinitionRegistryActionRequirements,
+  type AppDefinitionRegistryServerFunctionRequirements,
+  type ActionDefinitionRequirements,
   type EffectUiRuntime,
   type Route,
   type ResponseContext
 } from "@effect-ui/core";
-import { Effect, Exit } from "effect";
+import { Effect, Exit, type Scope } from "effect";
 import {
-  startTransportDiagnosticsEffect,
+  startTransportEndpointEnvelopeEffect,
   validateStartActionRequestEffect,
   validateStartRpcRequestEffect,
   withStartTransportDiagnostics
 } from "./rpc.js";
 import {
   makeRequestRuntime,
-  provideRequestRuntime
+  provideRequestRuntime,
+  type RequestRuntimeRemainingRequirements
 } from "./request-runtime.js";
 import {
   withStartActionObservability,
@@ -54,19 +59,30 @@ import {
 } from "./start-transport-protocol.js";
 
 export const createServerRpcResponseEffectWithRuntime = <
-  const Routes extends readonly Route.Definition<string, unknown, unknown>[],
+  const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
   Client,
   ServerServices,
-  ServerError
+  ServerError,
+  Registry extends AppDefinitionRegistry
 >(
-  app: AppDefinition<Routes, Client, ServerServices, ServerError>,
+  app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>,
   request: Request,
   runtime: EffectUiRuntime<ServerServices, ServerError>,
   responseContext: ResponseContext = makeResponseContext(),
   traceFacts?: StartRequestTraceFacts
-): Effect.Effect<Response, never, unknown> => {
+): Effect.Effect<
+  Response,
+  never,
+  Scope.Scope | RequestRuntimeRemainingRequirements<
+    AppDefinitionRegistryServerFunctionRequirements<Registry>,
+    ServerServices
+  >
+> => {
   return Effect.gen(function* () {
-    const diagnostics = yield* startTransportDiagnosticsEffect("rpc", request);
+    const envelope = yield* startTransportEndpointEnvelopeEffect("rpc", request, {
+      requestId: traceFacts?.requestId
+    });
+    const diagnostics = envelope.diagnostics;
     const validation = yield* validateStartRpcRequestEffect(request).pipe(
       Effect.as(undefined),
       Effect.catch((error) =>
@@ -136,7 +152,8 @@ export const createServerRpcResponseEffectWithRuntime = <
         });
         return yield* exitToRpcResponse(fn, exit);
       }),
-      responseContext
+      responseContext,
+      app.registry
     ).pipe(
       Effect.catch((error) =>
         Effect.sync(() => {
@@ -147,7 +164,14 @@ export const createServerRpcResponseEffectWithRuntime = <
     );
 
     return withStartTransportDiagnostics(response, diagnostics);
-  });
+  }) as Effect.Effect<
+    Response,
+    never,
+    Scope.Scope | RequestRuntimeRemainingRequirements<
+      AppDefinitionRegistryServerFunctionRequirements<Registry>,
+      ServerServices
+    >
+  >;
 };
 
 /**
@@ -157,14 +181,22 @@ export const createServerRpcResponseEffectWithRuntime = <
  * `createRequestHandlerEffect`, which routes RPC, actions, and SSR together.
  */
 export const createServerRpcResponseEffect = <
-  const Routes extends readonly Route.Definition<string, unknown, unknown>[],
+  const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
   Client,
   ServerServices,
-  ServerError
+  ServerError,
+  Registry extends AppDefinitionRegistry
 >(
-  app: AppDefinition<Routes, Client, ServerServices, ServerError>,
+  app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>,
   request: Request
-): Effect.Effect<Response, never, unknown> => {
+): Effect.Effect<
+  Response,
+  never,
+  Scope.Scope | RequestRuntimeRemainingRequirements<
+    AppDefinitionRegistryServerFunctionRequirements<Registry>,
+    ServerServices
+  >
+> => {
   const runtime = makeRequestRuntime(app);
   const responseContext = makeResponseContext();
   return Effect.ensuring(
@@ -173,24 +205,43 @@ export const createServerRpcResponseEffect = <
       (response) => applyResponseContext(responseContext, response)
     ),
     runtime.disposeEffect
-  );
+  ) as Effect.Effect<
+    Response,
+    never,
+    Scope.Scope | RequestRuntimeRemainingRequirements<
+      AppDefinitionRegistryServerFunctionRequirements<Registry>,
+      ServerServices
+    >
+  >;
 };
 
 export const createServerActionResponseEffectWithRuntime = <
-  const Routes extends readonly Route.Definition<string, unknown, unknown>[],
+  const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
   Client,
   ServerServices,
-  ServerError
+  ServerError,
+  Registry extends AppDefinitionRegistry,
+  Actions extends StartActionDefinition = never
 >(
-  app: AppDefinition<Routes, Client, ServerServices, ServerError>,
+  app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>,
   request: Request,
   runtime: EffectUiRuntime<ServerServices, ServerError>,
-  actions?: Iterable<StartActionDefinition>,
+  actions?: Iterable<Actions>,
   responseContext: ResponseContext = makeResponseContext(),
   traceFacts?: StartRequestTraceFacts
-): Effect.Effect<Response, never, unknown> => {
+): Effect.Effect<
+  Response,
+  never,
+  Scope.Scope | RequestRuntimeRemainingRequirements<
+    AppDefinitionRegistryActionRequirements<Registry> | ActionDefinitionRequirements<Actions>,
+    ServerServices
+  >
+> => {
   return Effect.gen(function* () {
-    const diagnostics = yield* startTransportDiagnosticsEffect("action", request);
+    const envelope = yield* startTransportEndpointEnvelopeEffect("action", request, {
+      requestId: traceFacts?.requestId
+    });
+    const diagnostics = envelope.diagnostics;
     const validation = yield* validateStartActionRequestEffect(request).pipe(
       Effect.as(undefined),
       Effect.catch((error) =>
@@ -220,7 +271,22 @@ export const createServerActionResponseEffectWithRuntime = <
           return decoded;
         }
 
-        const action = makeActionMap(actions, app.registry).get(decoded.name);
+        const actionMap = yield* Effect.try({
+          try: () => makeActionMap(actions, app.registry),
+          catch: (error) => error
+        }).pipe(
+          Effect.catch((error) =>
+            Effect.sync(() => {
+              recordStartRequestTraceFailure(traceFacts, "defect");
+              return actionRuntimeFailureResponse(error);
+            })
+          )
+        );
+        if (actionMap instanceof Response) {
+          return actionMap;
+        }
+
+        const action = actionMap.get(decoded.name);
         if (!action) {
           recordStartRequestTraceAction(traceFacts, {
             name: decoded.name,
@@ -265,7 +331,8 @@ export const createServerActionResponseEffectWithRuntime = <
         });
         return yield* actionExitResponseEffect(action, exit, meta, actionResponseMode(request));
       }),
-      responseContext
+      responseContext,
+      app.registry
     ).pipe(
       Effect.catch((error) =>
         Effect.sync(() => {
@@ -276,7 +343,14 @@ export const createServerActionResponseEffectWithRuntime = <
     );
 
     return withStartTransportDiagnostics(response, diagnostics);
-  });
+  }) as Effect.Effect<
+    Response,
+    never,
+    Scope.Scope | RequestRuntimeRemainingRequirements<
+      AppDefinitionRegistryActionRequirements<Registry> | ActionDefinitionRequirements<Actions>,
+      ServerServices
+    >
+  >;
 };
 
 /**
@@ -287,15 +361,24 @@ export const createServerActionResponseEffectWithRuntime = <
  * hydration or invalidation metadata when needed.
  */
 export const createServerActionResponseEffect = <
-  const Routes extends readonly Route.Definition<string, unknown, unknown>[],
+  const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
   Client,
   ServerServices,
-  ServerError
+  ServerError,
+  Registry extends AppDefinitionRegistry,
+  Actions extends StartActionDefinition = never
 >(
-  app: AppDefinition<Routes, Client, ServerServices, ServerError>,
+  app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>,
   request: Request,
-  actions?: Iterable<StartActionDefinition>
-): Effect.Effect<Response, never, unknown> => {
+  actions?: Iterable<Actions>
+): Effect.Effect<
+  Response,
+  never,
+  Scope.Scope | RequestRuntimeRemainingRequirements<
+    AppDefinitionRegistryActionRequirements<Registry> | ActionDefinitionRequirements<Actions>,
+    ServerServices
+  >
+> => {
   const runtime = makeRequestRuntime(app);
   const responseContext = makeResponseContext();
   return Effect.ensuring(
@@ -304,5 +387,12 @@ export const createServerActionResponseEffect = <
       (response) => applyResponseContext(responseContext, response)
     ),
     runtime.disposeEffect
-  );
+  ) as Effect.Effect<
+    Response,
+    never,
+    Scope.Scope | RequestRuntimeRemainingRequirements<
+      AppDefinitionRegistryActionRequirements<Registry> | ActionDefinitionRequirements<Actions>,
+      ServerServices
+    >
+  >;
 };

@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import { Resource, makeResourceDefinitionRegistry, type AnyResourceFamily } from "../src/index.js";
 
@@ -73,5 +73,46 @@ describe("Resource definition registry", () => {
         discarded: 2
       }
     ]);
+  });
+
+  it("reports schema diagnostics only for actual Effect schemas", () => {
+    const schemaName = registryName("schema-diagnostics");
+    const metadataName = registryName("metadata-diagnostics");
+    const registry = makeResourceDefinitionRegistry();
+    const SchemaBacked = Resource.family({
+      name: schemaName,
+      input: Schema.String,
+      output: Schema.Number,
+      error: Schema.String,
+      load: () => Effect.succeed(1)
+    });
+    const MetadataBacked = {
+      options: {
+        name: metadataName,
+        input: { description: "not an Effect schema" },
+        output: { description: "not an Effect schema" },
+        error: { description: "not an Effect schema" }
+      }
+    } as unknown as AnyResourceFamily;
+
+    registry.registerFamily(schemaName, SchemaBacked.family);
+    registry.registerFamily(metadataName, MetadataBacked);
+
+    expect(registry.diagnostics().families).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: schemaName,
+          inputSchema: true,
+          outputSchema: true,
+          errorSchema: true
+        }),
+        expect.objectContaining({
+          name: metadataName,
+          inputSchema: false,
+          outputSchema: false,
+          errorSchema: false
+        })
+      ])
+    );
   });
 });

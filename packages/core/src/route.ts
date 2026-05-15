@@ -1,5 +1,5 @@
 import { Data, Effect, Schema } from "effect";
-import type { EffectInput, EnsureEffectInput } from "./effect-like.js";
+import type { EffectInput, EffectInputRequirements, EnsureEffectInput } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
 import {
   Resource,
@@ -8,11 +8,14 @@ import {
   type AnyResourceRef,
   type ResourceHydrationPayload
 } from "./resource.js";
+import type { ResourceSnapshotCodecError } from "./resource-snapshot-codec.js";
 import {
   buildRoutePath,
+  compareRoutePathSpecificity,
   hrefForRouteInput,
   matchRoutePath,
   parseRouteUrl,
+  parseRoutePathSegments,
   type ParamsForPath
 } from "./route-grammar.js";
 
@@ -22,10 +25,11 @@ export type AnySchema<A = unknown> = {
 
 type SchemaType<S> = S extends { readonly Type: infer A } ? A : unknown;
 
+/** Static resource hint accepted by route preload diagnostics. */
 export type RoutePreloadResourceInput =
   | string
   | AnyResourceFamily
-  | AnyResourceRef
+  | AnyResourceRef<any>
   | {
       readonly name: string;
     }
@@ -33,25 +37,33 @@ export type RoutePreloadResourceInput =
       readonly family: AnyResourceFamily;
     };
 
+/** Static collection hint accepted by route preload diagnostics. */
 export type RoutePreloadCollectionInput =
   | string
   | {
       readonly name: string;
     };
 
+/** Static preload resource declaration status for route diagnostics. */
 export type RoutePreloadResourceStatus = "declared" | "none" | "unknown";
 
+/** Resource families statically declared by a route preload hint. */
 export interface RoutePreloadResourceDiagnostics {
   readonly status: RoutePreloadResourceStatus;
   readonly families: readonly string[];
 }
 
+/** Static preload collection declaration status for route diagnostics. */
 export type RoutePreloadCollectionStatus = "declared" | "none" | "unknown";
 
+/** Collections statically declared by a route preload hint. */
 export interface RoutePreloadCollectionDiagnostics {
   readonly status: RoutePreloadCollectionStatus;
   readonly collections: readonly string[];
 }
+
+/** Value accepted from a route preload callback. */
+export type RoutePreloadResult<Requirements = never> = EffectInput<unknown, never, Requirements>;
 
 /**
  * Route configuration with optional schema decoding and Effect-first preload work.
@@ -59,31 +71,45 @@ export interface RoutePreloadCollectionDiagnostics {
  * `preload` can read resources or run Effects before navigation/render. Declare
  * preloadResources or preloadCollections when adapters need static preload hints.
  */
-export interface RouteOptions<Path extends string, Params, Search> {
+export interface RouteOptions<Path extends string, Params, Search, PreloadRequirements = never> {
+  /** Optional schema that decodes path params after route matching. */
   readonly params?: AnySchema<Params>;
+  /** Optional schema that decodes URL search values after route matching. */
   readonly search?: AnySchema<Search>;
-  readonly preload?: (context: RouteContext<RouteDefinition<Path, Params, Search>>) => EffectInput<unknown>;
+  /** Effect-first work run before navigation/render. Promise returns are rejected. */
+  readonly preload?: (
+    context: RouteContext<RouteDefinition<Path, Params, Search, PreloadRequirements>>
+  ) => RoutePreloadResult<PreloadRequirements>;
+  /** Static resource preload hints used by Start diagnostics and devtools. */
   readonly preloadResources?: readonly RoutePreloadResourceInput[];
+  /** Static collection preload hints used by Start diagnostics and devtools. */
   readonly preloadCollections?: readonly RoutePreloadCollectionInput[];
+  /** Framework-owned component value attached by UI adapters. */
   readonly component?: unknown;
 }
 
 export interface RouteOptionsInput {
   readonly params?: AnySchema<unknown>;
   readonly search?: AnySchema<unknown>;
-  readonly preload?: (context: any) => EffectInput<unknown>;
+  readonly preload?: (context: any) => RoutePreloadResult<unknown>;
   readonly preloadResources?: readonly RoutePreloadResourceInput[];
   readonly preloadCollections?: readonly RoutePreloadCollectionInput[];
   readonly component?: unknown;
 }
 
 /** Runtime route object produced by `route`. */
-export interface RouteDefinition<Path extends string, Params, Search> {
+export interface RouteDefinition<Path extends string, Params, Search, PreloadRequirements = never> {
   readonly path: Path;
-  readonly options: RouteOptions<Path, Params, Search>;
+  readonly options: RouteOptions<Path, Params, Search, PreloadRequirements>;
   /** Builds an href from typed path params and optional search values. */
   build(params: Params, search?: Partial<Search>): string;
-  /** Matches a URL and decodes params/search when schemas are present. */
+  /**
+   * Matches a URL and synchronously decodes params/search when schemas are present.
+   *
+   * Schema decode failures throw from this sync API. Use
+   * `Route.planNavigationEffect(...)` when callers need typed
+   * `RouteNavigationError` failures instead.
+   */
   match(input: string | URL): RouteMatch<this> | undefined;
 }
 
@@ -95,11 +121,26 @@ type SearchFromOptions<Options> = Options extends { readonly search: infer Schem
   ? SchemaType<Schema>
   : Record<string, never>;
 
-export type RouteParams<R> = R extends RouteDefinition<infer _Path, infer Params, infer _Search> ? Params : never;
+type PreloadRequirementsFromOptions<Options> = Options extends {
+  readonly preload: (...args: any) => infer Out;
+}
+  ? EffectInputRequirements<Out>
+  : never;
 
-export type RouteSearch<R> = R extends RouteDefinition<infer _Path, infer _Params, infer Search> ? Search : never;
+/** Params type carried by a route definition. */
+export type RouteParams<R> = R extends RouteDefinition<infer _Path, infer Params, infer _Search, infer _PreloadRequirements> ? Params : never;
 
-export type RouteContext<R extends RouteDefinition<string, unknown, unknown>> = {
+/** Search type carried by a route definition. */
+export type RouteSearch<R> = R extends RouteDefinition<infer _Path, infer _Params, infer Search, infer _PreloadRequirements> ? Search : never;
+
+/** Services required by a route preload callback. */
+export type RoutePreloadRequirements<R> =
+  R extends RouteDefinition<infer _Path, infer _Params, infer _Search, infer PreloadRequirements>
+    ? PreloadRequirements
+    : never;
+
+/** Context passed to route preload callbacks and route matches. */
+export type RouteContext<R extends RouteDefinition<string, unknown, unknown, unknown>> = {
   readonly route: R;
   readonly params: RouteParams<R>;
   readonly search: RouteSearch<R>;
@@ -107,16 +148,19 @@ export type RouteContext<R extends RouteDefinition<string, unknown, unknown>> = 
   readonly href: string;
 };
 
-export type RouteMatch<R extends RouteDefinition<string, unknown, unknown> = RouteDefinition<string, unknown, unknown>> =
+/** Successful route match with decoded params and search values. */
+export type RouteMatch<R extends RouteDefinition<string, unknown, unknown, unknown> = RouteDefinition<string, unknown, unknown, unknown>> =
   RouteContext<R>;
 
-export interface RoutePreloadPlan<R extends RouteDefinition<string, unknown, unknown> = RouteDefinition<string, unknown, unknown>> {
+/** Result of preloading one matched route. */
+export interface RoutePreloadPlan<R extends RouteDefinition<string, unknown, unknown, unknown> = RouteDefinition<string, unknown, unknown, unknown>> {
   readonly match: RouteMatch<R>;
   readonly refs: ReadonlyArray<AnyResourceRef>;
   readonly resources: ResourceHydrationPayload;
 }
 
-export type RouteNavigationPlan<R extends RouteDefinition<string, unknown, unknown> = RouteDefinition<string, unknown, unknown>> =
+/** Navigation plan for a href, including match/preload resources or not-found state. */
+export type RouteNavigationPlan<R extends RouteDefinition<string, unknown, unknown, unknown> = RouteDefinition<string, unknown, unknown, unknown>> =
   | {
       readonly _tag: "Matched";
       readonly href: string;
@@ -132,10 +176,21 @@ export type RouteNavigationPlan<R extends RouteDefinition<string, unknown, unkno
       readonly resources: ResourceHydrationPayload;
     };
 
-export type RouteHrefOptions<R extends RouteDefinition<string, unknown, unknown>> = {
-  readonly params: RouteParams<R>;
-  readonly search?: Partial<RouteSearch<R>>;
-};
+type RouteHrefParamsOptions<Params> = {} extends Params
+  ? { readonly params?: Params }
+  : { readonly params: Params };
+
+/** Params and optional search values accepted by `Route.href` and router helpers. */
+export type RouteHrefOptions<R extends RouteDefinition<string, unknown, unknown, unknown>> =
+  RouteHrefParamsOptions<RouteParams<R>> & {
+    readonly search?: Partial<RouteSearch<R>>;
+  };
+
+/** Variadic arguments accepted by `Route.href`; static and optional-param routes can omit options. */
+export type RouteHrefArgs<R extends RouteDefinition<string, unknown, unknown, unknown>> =
+  {} extends RouteParams<R>
+    ? [options?: RouteHrefOptions<R>]
+    : [options: RouteHrefOptions<R>];
 
 export class RoutePreloadError extends Data.TaggedError("RoutePreloadError")<{
   readonly path: string;
@@ -148,7 +203,9 @@ export class RouteNavigationError extends Data.TaggedError("RouteNavigationError
   readonly cause: unknown;
 }> {}
 
-export type RouteNavigationPlanError = RouteNavigationError | RoutePreloadError;
+export type RoutePreloadPlanError = RoutePreloadError | ResourceSnapshotCodecError;
+
+export type RouteNavigationPlanError = RouteNavigationError | RoutePreloadPlanError;
 
 type CheckedRoutePreload<Options> = Options extends {
   readonly preload: (...args: infer Args) => infer Out;
@@ -278,6 +335,21 @@ const routeNavigationError = (
     cause
   });
 
+const orderedRouteDefinitions = <const Routes extends readonly RouteDefinition<string, unknown, unknown, any>[]>(
+  routes: Routes
+): ReadonlyArray<Routes[number]> =>
+  routes
+    .map((definition, index) => ({
+      definition,
+      index,
+      segments: parseRoutePathSegments(definition.path)
+    }))
+    .sort((left, right) => {
+      const comparison = compareRoutePathSpecificity(left.segments, right.segments);
+      return comparison === 0 ? left.index - right.index : comparison;
+    })
+    .map((entry) => entry.definition);
+
 /**
  * Defines a typed route with path params, optional search decoding, and preload work.
  *
@@ -292,16 +364,34 @@ const routeNavigationError = (
  * const href = userRoute.build({ id: "42" });
  * ```
  */
-export const route = <const Path extends string, const Options extends RouteOptionsInput>(
+export function route<const Path extends string>(
+  path: Path
+): RouteDefinition<Path, ParamsForPath<Path>, Record<string, never>>;
+export function route<const Path extends string, const Options extends RouteOptionsInput>(
   path: Path,
   options: Options & CheckedRoutePreload<Options>
-): RouteDefinition<Path, ParamsFromOptions<Path, Options>, SearchFromOptions<Options>> => {
+): RouteDefinition<
+  Path,
+  ParamsFromOptions<Path, Options>,
+  SearchFromOptions<Options>,
+  PreloadRequirementsFromOptions<Options>
+>;
+export function route<const Path extends string, const Options extends RouteOptionsInput>(
+  path: Path,
+  options: Options & CheckedRoutePreload<Options> = {} as Options & CheckedRoutePreload<Options>
+): RouteDefinition<
+  Path,
+  ParamsFromOptions<Path, Options>,
+  SearchFromOptions<Options>,
+  PreloadRequirementsFromOptions<Options>
+> {
   type Params = ParamsFromOptions<Path, Options>;
   type Search = SearchFromOptions<Options>;
+  type PreloadRequirements = PreloadRequirementsFromOptions<Options>;
 
-  const definition: RouteDefinition<Path, Params, Search> = {
+  const definition: RouteDefinition<Path, Params, Search, PreloadRequirements> = {
     path,
-    options: options as RouteOptions<Path, Params, Search>,
+    options: options as RouteOptions<Path, Params, Search, PreloadRequirements>,
     build(params, search) {
       const record = params as Record<string, unknown>;
       const compiled = buildRoutePath(path, record);
@@ -326,29 +416,38 @@ export const route = <const Path extends string, const Options extends RouteOpti
   };
 
   return definition;
-};
+}
 
 /** Helpers for matching, building, and preloading route definitions. */
 export namespace Route {
-  export type Definition<Path extends string = string, Params = unknown, Search = unknown> =
-    RouteDefinition<Path, Params, Search>;
+  export type Definition<
+    Path extends string = string,
+    Params = unknown,
+    Search = unknown,
+    PreloadRequirements = never
+  > =
+    RouteDefinition<Path, Params, Search, PreloadRequirements>;
 
-  export type Match<R extends Definition<string, unknown, unknown> = Definition<string, unknown, unknown>> =
+  export type Match<R extends Definition<string, unknown, unknown, any> = Definition<string, unknown, unknown, any>> =
     RouteMatch<R>;
 
-  export type PreloadPlan<R extends Definition<string, unknown, unknown> = Definition<string, unknown, unknown>> =
+  export type PreloadPlan<R extends Definition<string, unknown, unknown, any> = Definition<string, unknown, unknown, any>> =
     RoutePreloadPlan<R>;
 
-  export type NavigationPlan<R extends Definition<string, unknown, unknown> = Definition<string, unknown, unknown>> =
+  export type NavigationPlan<R extends Definition<string, unknown, unknown, any> = Definition<string, unknown, unknown, any>> =
     RouteNavigationPlan<R>;
 
-  export type Context<R extends Definition<string, unknown, unknown>> = RouteContext<R>;
+  export type Context<R extends Definition<string, unknown, unknown, any>> = RouteContext<R>;
 
   export type Params<R> = RouteParams<R>;
 
   export type Search<R> = RouteSearch<R>;
 
-  export type HrefOptions<R extends Definition<string, unknown, unknown>> = RouteHrefOptions<R>;
+  export type PreloadRequirements<R> = RoutePreloadRequirements<R>;
+
+  export type HrefOptions<R extends Definition<string, unknown, unknown, any>> = RouteHrefOptions<R>;
+
+  export type HrefArgs<R extends Definition<string, unknown, unknown, any>> = RouteHrefArgs<R>;
 
   export type PreloadResourceInput = RoutePreloadResourceInput;
 
@@ -358,38 +457,56 @@ export namespace Route {
 
   export type PreloadCollectionDiagnostics = RoutePreloadCollectionDiagnostics;
 
-  export type PreloadError = RoutePreloadError;
+  export type PreloadError = RoutePreloadPlanError;
 
   export type NavigationError = RouteNavigationPlanError;
 
-  export type Props<R> = R extends RouteDefinition<infer _Path, infer Params, infer Search>
+  export type Props<R> = R extends RouteDefinition<infer _Path, infer Params, infer Search, infer _PreloadRequirements>
     ? {
         readonly params: Params;
         readonly search: Search;
+        readonly match: Match<R>;
       }
     : never;
 
-  /** Builds an href for a route from typed params and optional search values. */
-  export const href = <R extends Definition<string, unknown, unknown>>(
-    definition: R,
-    options: HrefOptions<R>
-  ): string => definition.build(options.params, options.search);
+  export type Component<R extends Definition<string, unknown, unknown, any>> = (
+    props: Props<R>
+  ) => unknown;
 
-  export const withComponent = <R extends Definition<string, unknown, unknown>, Component>(
+  /** Builds an href for a route from typed params and optional search values. */
+  export const href = <R extends Definition<string, unknown, unknown, any>>(
     definition: R,
-    component: Component
-  ): Definition<R["path"], Params<R>, Search<R>> =>
+    ...args: HrefArgs<R>
+  ): string => {
+    const options = (args[0] ?? {}) as HrefOptions<R>;
+    return definition.build((options.params ?? {}) as Params<R>, options.search);
+  };
+
+  export const withComponent = <
+    R extends Definition<string, unknown, unknown, any>,
+    RouteComponent extends Component<R>
+  >(
+    definition: R,
+    component: RouteComponent
+  ): Definition<R["path"], Params<R>, Search<R>, PreloadRequirements<R>> =>
     route(definition.path, {
       ...definition.options,
       component
-    }) as Definition<R["path"], Params<R>, Search<R>>;
+    }) as Definition<R["path"], Params<R>, Search<R>, PreloadRequirements<R>>;
 
-  /** Returns the first matching route for a URL, or undefined when none match. */
-  export const match = <const Routes extends readonly Definition<string, unknown, unknown>[]>(
+  /**
+   * Returns the first matching route for a URL, or undefined when none match.
+   *
+   * This sync helper delegates to each route's `match(...)`; schema-backed
+   * params/search decode failures throw. Use `Route.planNavigationEffect(...)`
+   * for an Effect-returning match path with typed `RouteNavigationError`
+   * failures.
+   */
+  export const match = <const Routes extends readonly Definition<string, unknown, unknown, any>[]>(
     routes: Routes,
     input: string | URL
   ): Match<Routes[number]> | undefined => {
-    for (const definition of routes) {
+    for (const definition of orderedRouteDefinitions(routes)) {
       const matched = definition.match(input);
       if (matched) {
         return matched as Match<Routes[number]>;
@@ -400,15 +517,28 @@ export namespace Route {
   };
 
   /**
+   * Effect-returning route matching for adapters that need typed navigation
+   * failures instead of synchronous schema decode throws.
+   */
+  export const matchEffect = <const Routes extends readonly Definition<string, unknown, unknown, any>[]>(
+    routes: Routes,
+    input: string | URL
+  ): Effect.Effect<Match<Routes[number]> | undefined, RouteNavigationError> =>
+    Effect.try({
+      try: () => match(routes, input),
+      catch: (cause) => routeNavigationError(input, cause)
+    });
+
+  /**
    * Runs a matched route's preload function as an Effect.
    *
    * Prefer this when composing preload with resources or server calls.
    */
-  export const preloadEffect = <R extends Definition<string, unknown, unknown>>(
+  export const preloadEffect = <R extends Definition<string, unknown, unknown, any>>(
     match: Match<R>
-  ): Effect.Effect<void, RoutePreloadError> =>
+  ): Effect.Effect<void, RoutePreloadError, PreloadRequirements<R>> =>
     Effect.try({
-      try: (): EffectInput<unknown> | undefined => {
+      try: (): EffectInput<unknown, never, PreloadRequirements<R>> | undefined => {
         const preload = match.route.options.preload;
         return preload?.(match);
       },
@@ -424,21 +554,21 @@ export namespace Route {
       )
     );
 
-  export const preload = <R extends Definition<string, unknown, unknown>>(
+  export const preload = <R extends Definition<string, unknown, unknown, any>>(
     match: Match<R>
-  ): Effect.Effect<void, RoutePreloadError> => preloadEffect(match);
+  ): Effect.Effect<void, RoutePreloadError, PreloadRequirements<R>> => preloadEffect(match);
 
-  export const preloadResourceFamilies = <R extends Definition<string, unknown, unknown>>(
+  export const preloadResourceFamilies = <R extends Definition<string, unknown, unknown, any>>(
     definition: R
   ): readonly string[] =>
     uniqueSortedResourceFamilies(definition.options.preloadResources ?? []);
 
-  export const preloadCollectionNames = <R extends Definition<string, unknown, unknown>>(
+  export const preloadCollectionNames = <R extends Definition<string, unknown, unknown, any>>(
     definition: R
   ): readonly string[] =>
     uniqueSortedCollectionNames(definition.options.preloadCollections ?? []);
 
-  export const describePreloadResources = <R extends Definition<string, unknown, unknown>>(
+  export const describePreloadResources = <R extends Definition<string, unknown, unknown, any>>(
     definition: R
   ): RoutePreloadResourceDiagnostics => {
     if (definition.options.preloadResources !== undefined) {
@@ -459,7 +589,7 @@ export namespace Route {
         };
   };
 
-  export const describePreloadCollections = <R extends Definition<string, unknown, unknown>>(
+  export const describePreloadCollections = <R extends Definition<string, unknown, unknown, any>>(
     definition: R
   ): RoutePreloadCollectionDiagnostics => {
     if (definition.options.preloadCollections !== undefined) {
@@ -480,9 +610,9 @@ export namespace Route {
         };
   };
 
-  export const planPreloadEffect = <R extends Definition<string, unknown, unknown>>(
+  export const planPreloadEffect = <R extends Definition<string, unknown, unknown, any>>(
     match: Match<R>
-  ): Effect.Effect<PreloadPlan<R>, RoutePreloadError> =>
+  ): Effect.Effect<PreloadPlan<R>, RoutePreloadPlanError, PreloadRequirements<R>> =>
     Resource.collectEffect(preloadEffect(match)).pipe(
       Effect.flatMap((collected) =>
         Resource.hydrationPayloadEffect(collected.refs).pipe(
@@ -495,9 +625,9 @@ export namespace Route {
       )
     );
 
-  export const planPreload = <R extends Definition<string, unknown, unknown>>(
+  export const planPreload = <R extends Definition<string, unknown, unknown, any>>(
     match: Match<R>
-  ): Effect.Effect<PreloadPlan<R>, RoutePreloadError> => planPreloadEffect(match);
+  ): Effect.Effect<PreloadPlan<R>, RoutePreloadPlanError, PreloadRequirements<R>> => planPreloadEffect(match);
 
   /**
    * Matches a URL and produces a navigation plan with collected resource hydration.
@@ -505,21 +635,20 @@ export namespace Route {
    * Route preloads run inside Effect so adapters can await data and serialize only
    * resources touched during the preload.
    */
-  export const planNavigationEffect = <const Routes extends readonly Definition<string, unknown, unknown>[]>(
+  export const planNavigationEffect = <const Routes extends readonly Definition<string, unknown, unknown, any>[]>(
     routes: Routes,
     input: string | URL
-  ): Effect.Effect<NavigationPlan<Routes[number]>, RouteNavigationPlanError> =>
+  ): Effect.Effect<NavigationPlan<Routes[number]>, RouteNavigationPlanError, PreloadRequirements<Routes[number]>> =>
     Effect.try({
-      try: () => ({
-        href: hrefForRouteInput(input),
-        matched: match(routes, input)
-      }),
+      try: () => hrefForRouteInput(input),
       catch: (cause) => routeNavigationError(input, cause)
     }).pipe(
-      Effect.flatMap(({
-        href,
-        matched
-      }): Effect.Effect<NavigationPlan<Routes[number]>, RouteNavigationPlanError> => {
+      Effect.flatMap((href) =>
+        matchEffect(routes, input).pipe(
+          Effect.map((matched) => ({ href, matched }))
+        )
+      ),
+      Effect.flatMap(({ href, matched }): Effect.Effect<NavigationPlan<Routes[number]>, RouteNavigationPlanError, PreloadRequirements<Routes[number]>> => {
         if (!matched) {
           const notFound: NavigationPlan<Routes[number]> = {
             _tag: "NotFound" as const,
@@ -543,9 +672,9 @@ export namespace Route {
       })
     );
 
-  export const planNavigation = <const Routes extends readonly Definition<string, unknown, unknown>[]>(
+  export const planNavigation = <const Routes extends readonly Definition<string, unknown, unknown, any>[]>(
     routes: Routes,
     input: string | URL
-  ): Effect.Effect<NavigationPlan<Routes[number]>, RouteNavigationPlanError> =>
+  ): Effect.Effect<NavigationPlan<Routes[number]>, RouteNavigationPlanError, PreloadRequirements<Routes[number]>> =>
     planNavigationEffect(routes, input);
 }

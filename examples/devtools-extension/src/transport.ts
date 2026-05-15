@@ -1,14 +1,8 @@
 import { Data, Effect } from "effect";
 import {
   effectUiDevtoolsBridgeGlobal,
-  type DevtoolsBridgePayload,
-  type DevtoolsPanel,
-  type DevtoolsPanelId,
-  type DevtoolsPanelItem,
-  type DevtoolsPanelMetric,
-  type DevtoolsPanels,
-  type DevtoolsPanelSeverity,
-  type DevtoolsSerializableValue
+  resolveEffectUiDevtoolsBridgePayload,
+  type DevtoolsBridgePayload
 } from "@effect-ui/devtools";
 
 export interface ChromeDevtoolsEvalException {
@@ -35,9 +29,21 @@ export class DevtoolsExtensionTransportError extends Data.TaggedError(
   "DevtoolsExtensionTransportError"
 )<{
   readonly operation: "read-inspected-window";
+  readonly reason?: "MissingBridge" | "EvaluationFailure" | "InvalidPayload" | "Timeout";
   readonly error: unknown;
   readonly guidance: string;
 }> {}
+
+export interface InspectedWindowEvalOptions {
+  readonly timeoutMillis?: number;
+}
+
+const defaultInspectedWindowEvalTimeoutMillis = 1_000;
+
+const normalizeTimeoutMillis = (value: number | undefined): number =>
+  value === undefined || !Number.isFinite(value) || value < 0
+    ? defaultInspectedWindowEvalTimeoutMillis
+    : Math.floor(value);
 
 export const effectUiDevtoolsBridgeExpression = [
   "(() => {",
@@ -46,106 +52,10 @@ export const effectUiDevtoolsBridgeExpression = [
   "})()"
 ].join("\n");
 
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
-
-const devtoolsPanelIds: ReadonlySet<string> = new Set<DevtoolsPanelId>([
-  "app-graph",
-  "routes",
-  "resources",
-  "actions",
-  "collections",
-  "requests",
-  "diagnostics",
-  "causal-graph"
-]);
-
-const devtoolsPanelSeverities: ReadonlySet<string> = new Set<DevtoolsPanelSeverity>([
-  "ok",
-  "info",
-  "warning",
-  "error"
-]);
-
-const isDevtoolsPanelId = (value: unknown): value is DevtoolsPanelId =>
-  typeof value === "string" && devtoolsPanelIds.has(value);
-
-const isDevtoolsPanelSeverity = (value: unknown): value is DevtoolsPanelSeverity =>
-  typeof value === "string" && devtoolsPanelSeverities.has(value);
-
-const isDevtoolsSerializableValue = (value: unknown): value is DevtoolsSerializableValue => {
-  if (
-    value === null ||
-    typeof value === "boolean" ||
-    typeof value === "number" ||
-    typeof value === "string"
-  ) {
-    return true;
-  }
-
-  if (Array.isArray(value)) {
-    return value.every(isDevtoolsSerializableValue);
-  }
-
-  return isRecord(value) && Object.values(value).every(isDevtoolsSerializableValue);
-};
-
-const isDevtoolsPanelMetric = (value: unknown): value is DevtoolsPanelMetric =>
-  isRecord(value) &&
-  typeof value.label === "string" &&
-  (typeof value.value === "string" || typeof value.value === "number") &&
-  (value.unit === undefined || typeof value.unit === "string");
-
-const isDevtoolsPanelItem = (value: unknown): value is DevtoolsPanelItem =>
-  isRecord(value) &&
-  typeof value.id === "string" &&
-  typeof value.label === "string" &&
-  isDevtoolsPanelSeverity(value.severity) &&
-  (value.detail === undefined || typeof value.detail === "string") &&
-  (value.metrics === undefined || (Array.isArray(value.metrics) && value.metrics.every(isDevtoolsPanelMetric))) &&
-  (value.data === undefined || isDevtoolsSerializableValue(value.data));
-
-const isDevtoolsPanel = (value: unknown): value is DevtoolsPanel =>
-  isRecord(value) &&
-  isDevtoolsPanelId(value.id) &&
-  typeof value.title === "string" &&
-  typeof value.summary === "string" &&
-  isDevtoolsPanelSeverity(value.severity) &&
-  Array.isArray(value.metrics) &&
-  value.metrics.every(isDevtoolsPanelMetric) &&
-  Array.isArray(value.items) &&
-  value.items.every(isDevtoolsPanelItem);
-
-const isDevtoolsPanels = (value: unknown): value is DevtoolsPanels =>
-  isRecord(value) &&
-  value.version === 1 &&
-  Array.isArray(value.panels) &&
-  value.panels.every(isDevtoolsPanel);
-
-export const normalizeEffectUiDevtoolsBridgePayload = (
-  value: unknown
-): DevtoolsBridgePayload | undefined => {
-  if (!isRecord(value)) {
-    return undefined;
-  }
-
-  const panels = value.panels;
-  if (!isDevtoolsPanels(panels)) {
-    return undefined;
-  }
-
-  return {
-    panels,
-    ...(isDevtoolsPanelId(value.selectedPanelId)
-      ? { selectedPanelId: value.selectedPanelId }
-      : {}),
-    ...(typeof value.title === "string" ? { title: value.title } : {})
-  };
-};
-
 export const readInspectedWindowDevtoolsPayloadEffect = (
   api: ChromeInspectedWindowApi | undefined,
-  expression = effectUiDevtoolsBridgeExpression
+  expression = effectUiDevtoolsBridgeExpression,
+  options: InspectedWindowEvalOptions = {}
 ): Effect.Effect<
   DevtoolsBridgePayload | undefined,
   DevtoolsExtensionTransportError
@@ -155,22 +65,122 @@ export const readInspectedWindowDevtoolsPayloadEffect = (
     return Effect.succeed(undefined);
   }
 
-  return Effect.callback((resume) => {
-    evaluate(expression, (result, exceptionInfo) => {
-      if (exceptionInfo?.isException) {
-        resume(
-          Effect.fail(
-            new DevtoolsExtensionTransportError({
-              operation: "read-inspected-window",
-              error: exceptionInfo,
-              guidance: `Expose globalThis.${effectUiDevtoolsBridgeGlobal} as a DevtoolsPanels payload or provider function.`
-            })
-          )
-        );
+  const timeoutMillis = normalizeTimeoutMillis(options.timeoutMillis);
+  return Effect.callback((resume, signal) => {
+    let completed = false;
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const cleanup = () => {
+      completed = true;
+      signal.removeEventListener("abort", abort);
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId);
+        timeoutId = undefined;
+      }
+    };
+    const complete = (
+      effect: Effect.Effect<DevtoolsBridgePayload, DevtoolsExtensionTransportError>
+    ) => {
+      if (completed) {
         return;
       }
+      cleanup();
+      resume(effect);
+    };
+    const abort = () => {
+      cleanup();
+    };
 
-      resume(Effect.succeed(normalizeEffectUiDevtoolsBridgePayload(result)));
+    timeoutId = setTimeout(() => {
+      complete(
+        Effect.fail(
+          new DevtoolsExtensionTransportError({
+            operation: "read-inspected-window",
+            reason: "Timeout",
+            error: { timeoutMillis },
+            guidance: `The inspected-window eval for globalThis.${effectUiDevtoolsBridgeGlobal} did not call back within ${timeoutMillis}ms.`
+          })
+        )
+      );
+    }, timeoutMillis);
+    signal.addEventListener("abort", abort, { once: true });
+
+    try {
+      evaluate(expression, (result, exceptionInfo) => {
+        try {
+          if (exceptionInfo?.isException) {
+            complete(
+              Effect.fail(
+                new DevtoolsExtensionTransportError({
+                  operation: "read-inspected-window",
+                  reason: "EvaluationFailure",
+                  error: exceptionInfo,
+                  guidance: `Expose globalThis.${effectUiDevtoolsBridgeGlobal} as a DevtoolsPanels payload or provider function.`
+                })
+              )
+            );
+            return;
+          }
+
+          if (result === null || result === undefined) {
+            complete(
+              Effect.fail(
+                new DevtoolsExtensionTransportError({
+                  operation: "read-inspected-window",
+                  reason: "MissingBridge",
+                  error: result,
+                  guidance: `Expose globalThis.${effectUiDevtoolsBridgeGlobal} as a DevtoolsPanels payload or provider function.`
+                })
+              )
+            );
+            return;
+          }
+
+          const resolution = resolveEffectUiDevtoolsBridgePayload(result);
+          if (resolution._tag === "Invalid") {
+            complete(
+              Effect.fail(
+                new DevtoolsExtensionTransportError({
+                  operation: "read-inspected-window",
+                  reason: "InvalidPayload",
+                  error: {
+                    contract: resolution.error,
+                    payload: result
+                  },
+                  guidance: `globalThis.${effectUiDevtoolsBridgeGlobal} returned a value that does not satisfy the DevtoolsPanels bridge contract.`
+                })
+              )
+            );
+            return;
+          }
+
+          complete(Effect.succeed(resolution.payload));
+        } catch (error) {
+          complete(
+            Effect.fail(
+              new DevtoolsExtensionTransportError({
+                operation: "read-inspected-window",
+                reason: "EvaluationFailure",
+                error,
+                guidance: `Expose globalThis.${effectUiDevtoolsBridgeGlobal} as a DevtoolsPanels payload or provider function.`
+              })
+            )
+          );
+        }
+      });
+    } catch (error) {
+      complete(
+        Effect.fail(
+          new DevtoolsExtensionTransportError({
+            operation: "read-inspected-window",
+            reason: "EvaluationFailure",
+            error,
+            guidance: `Expose globalThis.${effectUiDevtoolsBridgeGlobal} as a DevtoolsPanels payload or provider function.`
+          })
+        )
+      );
+    }
+    return Effect.sync(() => {
+      cleanup();
     });
   });
 };

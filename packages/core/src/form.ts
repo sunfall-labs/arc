@@ -1,24 +1,29 @@
 import { Data, Effect, Schema, type SchemaIssue } from "effect";
-import type { EffectInput } from "./effect-like.js";
-import { toEffect } from "./effect-like.js";
+import type { EffectInput, EffectInputCallbackError } from "./effect-like.js";
+import { invokeEffectInput } from "./effect-like.js";
 import { Signal, type ReadableSignal } from "./signal.js";
 
 export const FormTypeId: unique symbol = Symbol.for("@effect-ui/core/Form") as typeof FormTypeId;
 
+/** String field key type used by form state, errors, dirty flags, and touched flags. */
 export type FormFieldKey<Values extends object> = Extract<keyof Values, string>;
 
+/** Per-field boolean flags such as dirty and touched state. */
 export type FormFieldFlags<Values extends object> = Partial<
   Record<FormFieldKey<Values>, boolean>
 >;
 
+/** Per-field validation errors keyed by form field. */
 export type FormFieldErrors<Values extends object, E = never> = Partial<
   Record<FormFieldKey<Values>, ReadonlyArray<E>>
 >;
 
+/** Object value decoded by a form schema. Non-object schemas are rejected. */
 export type FormSchemaValues<S extends Schema.Top> = Schema.Schema.Type<S> extends object
   ? Schema.Schema.Type<S>
   : never;
 
+/** Effect services required by the form schema decoder. */
 export type FormSchemaServices<S extends Schema.Top> = Schema.Codec.DecodingServices<S>;
 
 /** Helpers passed to custom form validators to create field or form errors. */
@@ -31,6 +36,7 @@ export interface FormValidationTools<Values extends object, E> {
   form(error: E): FormValidationError<Values, E>;
 }
 
+/** Validation lifecycle state for a form controller. */
 export type FormStatus = "Idle" | "Validating" | "Valid" | "Invalid";
 
 /** Current form snapshot exposed through FormInstance.state. */
@@ -52,13 +58,22 @@ export interface FormOptions<
 > {
   /** Schema used to decode and validate current values. */
   readonly schema: S;
-  /** Initial values used for reset and dirty tracking. */
+  /** Initial values snapshotted for reset and structural dirty tracking. */
   readonly initial: Values;
   /** Optional Effect-first validation after schema decoding succeeds. */
   readonly validate?: (
     values: Values,
     tools: FormValidationTools<Values, E>
   ) => EffectInput<void, FormValidationError<Values, E>, R>;
+}
+
+export type FormDataFileMode = "value" | "name";
+
+export interface FormDataDecodeOptions {
+  /** How file entries should appear in the intermediate object. Defaults to the File value. */
+  readonly file?: FormDataFileMode;
+  /** Field names to omit before schema decoding, useful for framework hidden fields. */
+  readonly omitFields?: ReadonlyArray<string> | ReadonlySet<string>;
 }
 
 /**
@@ -69,14 +84,14 @@ export interface FormOptions<
  */
 export interface FormInstance<Values extends object, E = never, R = never> {
   readonly [FormTypeId]: typeof FormTypeId;
-  readonly state: ReadableSignal<FormState<Values, E | Schema.SchemaError>>;
+  readonly state: ReadableSignal<FormState<Values, E | Schema.SchemaError | EffectInputCallbackError>>;
   setField<K extends FormFieldKey<Values>>(field: K, value: Values[K]): void;
   touchField<K extends FormFieldKey<Values>>(field: K): void;
   reset(values?: Values): void;
   /** Validates current values and updates state before succeeding or failing. */
   validateEffect(): Effect.Effect<
     Values,
-    FormValidationError<Values, E | Schema.SchemaError>,
+    FormValidationError<Values, E | Schema.SchemaError | EffectInputCallbackError>,
     R
   >;
 }
@@ -85,18 +100,218 @@ export class FormValidationError<
   Values extends object = Record<string, unknown>,
   E = never
 > extends Data.TaggedError("FormValidationError")<{
+  /** Field-specific errors keyed by form field name. */
   readonly fieldErrors: FormFieldErrors<Values, E>;
+  /** Form-level errors that are not tied to one field. */
   readonly formErrors: ReadonlyArray<E>;
+  /** Original schema, callback, or custom validation cause when available. */
   readonly cause: unknown | undefined;
 }> {}
+
+const cloneFormSnapshotValue = <A>(
+  value: A,
+  seen = new WeakMap<object, unknown>()
+): A => {
+  if (typeof value !== "object" || value === null) {
+    return value;
+  }
+
+  if (value instanceof Date) {
+    return new Date(value.getTime()) as A;
+  }
+
+  const existing = seen.get(value);
+  if (existing) {
+    return existing as A;
+  }
+
+  if (Array.isArray(value)) {
+    const output: Array<unknown> = [];
+    seen.set(value, output);
+    for (const entry of value) {
+      output.push(cloneFormSnapshotValue(entry, seen));
+    }
+    return output as A;
+  }
+
+  if (value instanceof Map) {
+    const output = new Map<unknown, unknown>();
+    seen.set(value, output);
+    for (const [key, entry] of value) {
+      output.set(
+        cloneFormSnapshotValue(key, seen),
+        cloneFormSnapshotValue(entry, seen)
+      );
+    }
+    return output as A;
+  }
+
+  if (value instanceof Set) {
+    const output = new Set<unknown>();
+    seen.set(value, output);
+    for (const entry of value) {
+      output.add(cloneFormSnapshotValue(entry, seen));
+    }
+    return output as A;
+  }
+
+  const output = Object.create(Object.getPrototypeOf(value)) as Record<PropertyKey, unknown>;
+  seen.set(value, output);
+  for (const key of Reflect.ownKeys(value)) {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    if (!descriptor?.enumerable || !("value" in descriptor)) {
+      continue;
+    }
+    output[key] = cloneFormSnapshotValue(descriptor.value, seen);
+  }
+  return output as A;
+};
+
+const seenSnapshotPair = (
+  seen: WeakMap<object, WeakSet<object>>,
+  left: object,
+  right: object
+): boolean => {
+  const rights = seen.get(left);
+  if (rights?.has(right)) {
+    return true;
+  }
+
+  if (rights) {
+    rights.add(right);
+  } else {
+    seen.set(left, new WeakSet([right]));
+  }
+  return false;
+};
+
+const enumerableValueKeys = (value: object): readonly PropertyKey[] =>
+  Reflect.ownKeys(value).filter((key) => {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    return descriptor?.enumerable === true && "value" in descriptor;
+  });
+
+const formSnapshotEquals = (
+  left: unknown,
+  right: unknown,
+  seen = new WeakMap<object, WeakSet<object>>()
+): boolean => {
+  if (Object.is(left, right)) {
+    return true;
+  }
+
+  if (
+    typeof left !== "object" ||
+    left === null ||
+    typeof right !== "object" ||
+    right === null
+  ) {
+    return false;
+  }
+
+  if (seenSnapshotPair(seen, left, right)) {
+    return true;
+  }
+
+  if (left instanceof Date || right instanceof Date) {
+    return left instanceof Date &&
+      right instanceof Date &&
+      left.getTime() === right.getTime();
+  }
+
+  if (Array.isArray(left) || Array.isArray(right)) {
+    return Array.isArray(left) &&
+      Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((entry, index) => formSnapshotEquals(entry, right[index], seen));
+  }
+
+  if (left instanceof Map || right instanceof Map) {
+    if (!(left instanceof Map) || !(right instanceof Map) || left.size !== right.size) {
+      return false;
+    }
+
+    const unmatched = Array.from(right.entries());
+    return Array.from(left.entries()).every(([leftKey, leftValue]) => {
+      const index = unmatched.findIndex(([rightKey, rightValue]) =>
+        formSnapshotEquals(leftKey, rightKey, seen) &&
+        formSnapshotEquals(leftValue, rightValue, seen)
+      );
+      if (index === -1) {
+        return false;
+      }
+      unmatched.splice(index, 1);
+      return true;
+    });
+  }
+
+  if (left instanceof Set || right instanceof Set) {
+    if (!(left instanceof Set) || !(right instanceof Set) || left.size !== right.size) {
+      return false;
+    }
+
+    const unmatched = Array.from(right.values());
+    return Array.from(left.values()).every((leftValue) => {
+      const index = unmatched.findIndex((rightValue) =>
+        formSnapshotEquals(leftValue, rightValue, seen)
+      );
+      if (index === -1) {
+        return false;
+      }
+      unmatched.splice(index, 1);
+      return true;
+    });
+  }
+
+  if (Object.getPrototypeOf(left) !== Object.getPrototypeOf(right)) {
+    return false;
+  }
+
+  const leftKeys = enumerableValueKeys(left);
+  const rightKeys = enumerableValueKeys(right);
+  return leftKeys.length === rightKeys.length &&
+    leftKeys.every((key) =>
+      rightKeys.some((rightKey) => Object.is(key, rightKey)) &&
+      formSnapshotEquals(
+        (left as Record<PropertyKey, unknown>)[key],
+        (right as Record<PropertyKey, unknown>)[key],
+        seen
+      )
+    );
+};
+
+const cloneFieldErrors = <Values extends object, E>(
+  fieldErrors: FormFieldErrors<Values, E>
+): FormFieldErrors<Values, E> => {
+  const cloned: Partial<Record<FormFieldKey<Values>, ReadonlyArray<E>>> = {};
+  for (const field in fieldErrors) {
+    const errors = fieldErrors[field as FormFieldKey<Values>];
+    if (errors !== undefined) {
+      cloned[field as FormFieldKey<Values>] = [...errors];
+    }
+  }
+  return cloned;
+};
+
+const cloneFormState = <Values extends object, E>(
+  state: FormState<Values, E>
+): FormState<Values, E> => ({
+  status: state.status,
+  initial: cloneFormSnapshotValue(state.initial),
+  values: cloneFormSnapshotValue(state.values),
+  fieldErrors: cloneFieldErrors(state.fieldErrors),
+  formErrors: [...state.formErrors],
+  dirty: { ...state.dirty },
+  touched: { ...state.touched }
+});
 
 const emptyState = <Values extends object, E>(
   initial: Values,
   status: FormStatus = "Idle"
 ): FormState<Values, E> => ({
   status,
-  initial,
-  values: initial,
+  initial: cloneFormSnapshotValue(initial),
+  values: cloneFormSnapshotValue(initial),
   fieldErrors: {},
   formErrors: [],
   dirty: {},
@@ -152,8 +367,8 @@ const makeError = <Values extends object, E>(
   cause?: unknown
 ): FormValidationError<Values, E> =>
   new FormValidationError({
-    fieldErrors,
-    formErrors,
+    fieldErrors: cloneFieldErrors(fieldErrors),
+    formErrors: [...formErrors],
     cause
   });
 
@@ -219,6 +434,86 @@ const normalizeValidationError = <Values extends object, E>(
     error.cause
   );
 
+const callbackValidationError = <Values extends object, E>(
+  error: EffectInputCallbackError
+): FormValidationError<Values, E | Schema.SchemaError | EffectInputCallbackError> =>
+  makeError<Values, E | Schema.SchemaError | EffectInputCallbackError>({}, [error], error);
+
+const isOmittedFormDataField = (
+  field: string,
+  omitted: FormDataDecodeOptions["omitFields"]
+): boolean =>
+  omitted === undefined
+    ? false
+    : typeof (omitted as ReadonlySet<string>).has === "function"
+      ? (omitted as ReadonlySet<string>).has(field)
+      : (omitted as ReadonlyArray<string>).includes(field);
+
+const formDataEntryValue = (
+  value: FormDataEntryValue,
+  options: FormDataDecodeOptions
+): unknown =>
+  typeof value === "string"
+    ? value
+    : options.file === "name"
+      ? value.name
+      : value;
+
+/**
+ * Converts FormData into the object shape Effect Schema expects.
+ *
+ * Repeated field names become arrays, matching browser form semantics while
+ * staying explicit before decoding.
+ */
+export const formDataToObject = (
+  formData: FormData,
+  options: FormDataDecodeOptions = {}
+): Record<string, unknown> => {
+  const input: Record<string, unknown> = {};
+
+  formData.forEach((value, field) => {
+    if (isOmittedFormDataField(field, options.omitFields)) {
+      return;
+    }
+
+    const next = formDataEntryValue(value, options);
+    const existing = input[field];
+    if (existing === undefined) {
+      input[field] = next;
+    } else if (Array.isArray(existing)) {
+      existing.push(next);
+    } else {
+      input[field] = [existing, next];
+    }
+  });
+
+  return input;
+};
+
+/** Decodes FormData through an Effect Schema and maps failures to form errors. */
+const decodeFormDataEffectImpl = <
+  S extends Schema.Top,
+  Values extends FormSchemaValues<S> = FormSchemaValues<S>
+>(
+  schema: S,
+  formData: FormData,
+  options: FormDataDecodeOptions = {}
+): Effect.Effect<
+  Values,
+  FormValidationError<Values, Schema.SchemaError>,
+  FormSchemaServices<S>
+> =>
+  Schema.decodeUnknownEffect(
+    schema as Schema.Decoder<Values, FormSchemaServices<S>>
+  )(formDataToObject(formData, options), {
+    errors: "all"
+  }).pipe(
+    Effect.mapError((schemaError) => fieldErrorsFromSchemaError<Values>(schemaError))
+  );
+
+export const decodeFormDataEffect = decodeFormDataEffectImpl;
+
+/** Runtime guard for values created by `Form.make(...)`. */
 export const isForm = (value: unknown): value is FormInstance<object, unknown, unknown> =>
   typeof value === "object" &&
   value !== null &&
@@ -241,9 +536,17 @@ export namespace Form {
     Values,
     E
   >;
+  export type DataFileMode = FormDataFileMode;
+  export type DataOptions = FormDataDecodeOptions;
 
+  /**
+   * Creates a custom form validation error from field and form errors.
+   *
+   * Use inside custom validators when multiple fields need to fail at once.
+   */
   export const error = makeError;
 
+  /** Creates a validation error for one field. */
   export const fieldError = <Values extends object, K extends FormFieldKey<Values>, E>(
     field: K,
     error: E
@@ -274,47 +577,50 @@ export namespace Form {
   >(
     options: FormOptions<S, Values, E, R>
   ): FormInstance<Values, E, R | FormSchemaServices<S>> => {
-    const state = Signal.make<FormState<Values, E | Schema.SchemaError>>(
-      emptyState<Values, E | Schema.SchemaError>(options.initial)
+    const internalState = Signal.make<FormState<Values, E | Schema.SchemaError | EffectInputCallbackError>>(
+      emptyState<Values, E | Schema.SchemaError | EffectInputCallbackError>(options.initial)
     );
+    const state: ReadableSignal<FormState<Values, E | Schema.SchemaError | EffectInputCallbackError>> =
+      Signal.derive(() => cloneFormState(internalState.get()));
     let validationRevision = 0;
 
     const setField = <K extends FormFieldKey<Values>>(field: K, value: Values[K]): void => {
       validationRevision++;
-      state.update((current) => ({
+      const nextValue = cloneFormSnapshotValue(value);
+      internalState.update((current) => ({
         ...current,
         status: "Idle",
         values: {
           ...current.values,
-          [field]: value
+          [field]: nextValue
         } as Values,
         fieldErrors: clearFieldError(current.fieldErrors, field),
-        dirty: setFlag(current.dirty, field, !Object.is(current.initial[field], value)),
+        dirty: setFlag(current.dirty, field, !formSnapshotEquals(current.initial[field], nextValue)),
         touched: setFlag(current.touched, field, true)
       }));
     };
 
     const touchField = <K extends FormFieldKey<Values>>(field: K): void => {
-      state.update((current) => ({
+      internalState.update((current) => ({
         ...current,
         touched: setFlag(current.touched, field, true)
       }));
     };
 
-    const reset = (values: Values = state.get().initial): void => {
+    const reset = (values: Values = internalState.get().initial): void => {
       validationRevision++;
-      state.set(emptyState<Values, E | Schema.SchemaError>(values));
+      internalState.set(emptyState<Values, E | Schema.SchemaError>(values));
     };
 
     const validateEffect = (): Effect.Effect<
       Values,
-      FormValidationError<Values, E | Schema.SchemaError>,
+      FormValidationError<Values, E | Schema.SchemaError | EffectInputCallbackError>,
       R | FormSchemaServices<S>
     > =>
       Effect.suspend(() => {
         const revision = ++validationRevision;
-        const values = state.get().values;
-        state.update((current) => ({
+        const values = cloneFormSnapshotValue(internalState.get().values);
+        internalState.update((current) => ({
           ...current,
           status: "Validating"
         }));
@@ -331,33 +637,45 @@ export namespace Form {
               Effect.fail(normalizeValidationError(fieldErrorsFromSchemaError<Values>(schemaError)))
             )
           );
+          const decodedSnapshot = cloneFormSnapshotValue(decoded);
 
           if (options.validate) {
-            yield* toEffect(options.validate(decoded, validationTools<Values, E>())).pipe(
-              Effect.catch((error) => Effect.fail(normalizeValidationError(error)))
+            yield* invokeEffectInput(
+              "Form.validate",
+              options.validate,
+              cloneFormSnapshotValue(decodedSnapshot),
+              validationTools<Values, E>()
+            ).pipe(
+              Effect.catch((error) =>
+                Effect.fail(
+                  error instanceof FormValidationError
+                    ? normalizeValidationError(error)
+                    : callbackValidationError<Values, E>(error)
+                )
+              )
             );
           }
 
           if (revision === validationRevision) {
-            state.update((current) => ({
+            internalState.update((current) => ({
               ...current,
               status: "Valid",
-              values: decoded,
+              values: cloneFormSnapshotValue(decodedSnapshot),
               fieldErrors: {},
               formErrors: []
             }));
           }
 
-          return decoded;
+          return cloneFormSnapshotValue(decodedSnapshot);
         }).pipe(
-          Effect.catch((error: FormValidationError<Values, E | Schema.SchemaError>) =>
+          Effect.catch((error: FormValidationError<Values, E | Schema.SchemaError | EffectInputCallbackError>) =>
             Effect.sync(() => {
               if (revision === validationRevision) {
-                state.update((current) => ({
+                internalState.update((current) => ({
                   ...current,
                   status: "Invalid",
-                  fieldErrors: error.fieldErrors,
-                  formErrors: error.formErrors
+                  fieldErrors: cloneFieldErrors(error.fieldErrors),
+                  formErrors: [...error.formErrors]
                 }));
               }
               return error;
@@ -379,7 +697,13 @@ export namespace Form {
   /** Runs validation for a form as an Effect and leaves state updated with the result. */
   export const validateEffect = <Values extends object, E, R>(
     form: FormInstance<Values, E, R>
-  ): Effect.Effect<Values, FormValidationError<Values, E | Schema.SchemaError>, R> =>
+  ): Effect.Effect<Values, FormValidationError<Values, E | Schema.SchemaError | EffectInputCallbackError>, R> =>
     form.validateEffect();
+
+  /** Converts FormData to a schema-friendly object, preserving repeated fields as arrays. */
+  export const data = formDataToObject;
+
+  /** Decodes FormData through Effect Schema and returns typed values in the Effect channel. */
+  export const decodeFormDataEffect = decodeFormDataEffectImpl;
 
 }

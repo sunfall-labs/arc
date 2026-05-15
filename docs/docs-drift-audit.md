@@ -1,14 +1,37 @@
 # Docs Drift Audit
 
-Last updated: 2026-05-14.
+Last updated: 2026-05-15.
 
 This audit checks release-tracking docs for claims that no longer match the
 implementation after the request trace, Effect-first, typed-error, package
 hygiene, generated-artifact, public-API, example cleanup, starter packaging,
 devtools extension, inspected-window bridge, release metadata, Start lifecycle,
 runtime wildcard, route wildcard, `UiScope`, type-test async, DB query wildcard,
-core runtime/signal wildcard, sharp test assertion, and fire-and-forget cleanup
-sweeps.
+core runtime/signal wildcard, sharp test assertion, fire-and-forget cleanup,
+hydration/query/optimistic rebase, atomicity/host-boundary/Solid locality,
+runtime-ownership/transport/devtools import-safety, Review 57 atomic
+rollback/bounded-import/transport-validation, Review 58 hydration wall,
+runtime ownership, Devtools identity, and LSP coverage, Review 59
+registry-local dispatch/structured identity/LSP drift, Review 60 stream
+lifetimes/store-local reactivity/identity depth, Review 61 registry
+requirements/invalidation typing/bounded serialization, Review 62 request
+locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
+    error/atomic hydration/request fact, Review 64 store-owned load/manifest
+    wall/hydration preflight/runtime fact, Review 65 runtime-clock/endpoint
+    policy/snapshot canonicalization/bounded panel, Review 66 Resource
+    key/action codec/row ingress/app graph depth, Review 67 snapshot
+    encoding/client transport/materialization/devtools scale, Review 68
+    preload resolution/runtime coordination/graph-depth, Review 69
+    adapter boundary/typed runtime error/public seam, Review 70 route
+    render scope/hydration laziness/reactive source/audit-depth, Review 71
+    router-kernel/static-graph/public-store/reactive-lifetime, Review 72
+    adapter lifetime/mutation finalization/manifest, Review 73 runtime
+    locality/shared adapter policy, Review 74 read decision/hydration plan,
+    Review 75 history adapter/runtime scope/transport envelope, Review 76
+    runtime collection store, Review 77 collection write commit, Review 78
+    live query collection materialization, and Review 79 collection query
+    source adapter, Review 80 request runtime lifecycle, Review 81 resource UI
+    binding controller, and Review 82 start host runtime runner sweeps.
 
 ## Current Sweep Results
 
@@ -27,6 +50,9 @@ sweeps.
   at the completed audit artifact instead of remaining unchecked.
 - Updated final handoff evidence to point at the latest full `pnpm verify`
   result after API, core, and example cleanup.
+- Updated current-facing release, architecture, public API, and progress docs
+  after extracting the DB Runtime Collection Store Module and rerunning full
+  verification.
 - Updated release-candidate tracking after richer starter packaging, checked
   devtools extension packaging, CLI Effect-runner hardening, tagged CLI usage
   errors, and Start stream/Vite diagnostics lifecycle Effect sweeps.
@@ -50,8 +76,209 @@ sweeps.
 - Updated the progress ledger current-status summary so the clean-sweep gate is
   still open for the right reason: recent sweeps found actionable work beyond
   the earlier benchmark baseline and bridge/metadata slices.
-- Updated the current verification gate evidence from the stale 38/320 and
-  40/328 package-test counts to the current 43/365 gate.
+- Updated the then-current verification gate evidence from stale 38/320, 40/328,
+  43/365, 45/502, 45/511, 45/532, 45/554, and immediately prior package-test
+  counts to the Review 56 45/571 gate.
+- Updated the current-facing verification snapshots after the runtime
+  ownership, transport semantics, and devtools import-safety sweep so the
+  Review 56 gate points at 45 root test files / 571 tests plus the checked
+  extension, starter, project-console, and leak-scan gates.
+- Added Review 56 and progress entry 289 evidence for the DB, Solid, Core,
+  Start, Devtools, and devtools-extension fixes from the fresh subagent sweep.
+- Added Review 57 and progress entry 290 evidence for the DB atomic rollback,
+  Devtools bounded import, Start transport validation, Core/Solid cleanup, and
+  route/docs drift fixes from the fresh subagent sweep.
+- Updated the current verification gate after Review 57 full verification so
+  that checkpoint pointed at 45 root test files / 585 tests plus the checked
+  extension, starter, project-console, and leak-scan gates.
+- Added Review 58 and progress entry 291 evidence for the Start hydration and
+  manifest walls, Core/Solid runtime ownership and typed route matching, DB
+  contract validation, Devtools identity/import/panel fixes, and TSRX/Start
+  public API docs coverage from the fresh subagent sweep.
+- Updated the current verification gate after Review 58 full verification so
+  that checkpoint pointed at 45 root test files / 603 tests plus the checked
+  extension, starter, project-console, and leak-scan gates.
+- Added Review 59 and progress entry 292 evidence for registry-local Start
+  dispatch, structured DB live-query identity, Devtools bridge failure
+  semantics, Start manifest/file-route validation, and LSP docs/type-test drift
+  fixes from the fresh subagent sweep.
+- Updated the verification gate after Review 59 full verification so that
+  checkpoint pointed at 45 root test files / 618 tests plus the checked
+  extension, starter, project-console, and leak-scan gates.
+- Added Review 60 and progress entry 293 evidence for Start stream
+  lifetime/preload locality, DB live-query store locality, Core/Devtools
+  identity depth, and Start diagnostics type-test coverage from the fresh
+  subagent sweep.
+- Updated the current verification gate after Review 60 full verification so
+  that checkpoint pointed at 45 root test files / 632 tests plus the checked
+  extension, starter, project-console, and leak-scan gates.
+- Added Review 61 and progress entry 294 evidence for Start registry
+  requirement preservation, Core/Solid action invalidation typing, DB
+  live-query snapshot locality, Devtools bounded serialization, and LSP
+  docs/type-test coverage from the fresh subagent sweep.
+- Updated the current verification gate after Review 61 full verification so
+  that checkpoint pointed at the 45-file / 643-test root gate plus the checked
+  extension, starter, project-console, and leak-scan gates.
+- Added Review 62 and progress entry 295 evidence for request-local Start
+  server clients, Core/Solid ActionResult/router/runtime typing, DB hydration
+  preflight and getKey errors, Devtools framed/bounded identity, and LSP docs
+  coverage from the fresh subagent sweep.
+- Updated the current verification gate after Review 62 full verification so
+  that checkpoint pointed at 45 root test files / 655 tests plus the checked
+  extension, starter, project-console, and leak-scan gates.
+- Added Review 63 and progress entry 296 evidence for typed Resource snapshot
+  error propagation, serviceful RouterProvider runtime requirements, Start
+  request facts, DB atomic hydration preflight, Devtools bounded structural
+  identity, and LSP type-test coverage from the fresh subagent sweep.
+- Updated the current verification gate after Review 63 full verification so
+  that checkpoint pointed at 45 root test files / 665 tests plus the checked
+  extension, starter, project-console, and leak-scan gates.
+- Added Review 64 and progress entry 297 evidence for store-owned Resource
+  loads, Start stream serialization and manifest path walls, DB hydration
+  preflight/dehydrate validation, Devtools runtime-only causal facts, panel row
+  identity, and LSP type-test/docs drift from the fresh subagent sweep.
+- Updated the current verification gate after Review 64 full verification so
+  that checkpoint pointed at 45 root test files / 690 tests plus the checked
+  extension, starter, project-console, and leak-scan gates.
+- Added Review 65 and progress entry 298 evidence for runtime-clock Resource
+  reads, Solid route cleanup context, Start endpoint policy and stream phase
+  diagnostics, DB snapshot canonicalization/dehydrate validation, Devtools
+  resource panel fact projection, dead node-kind removal, and bridge string
+  bounds from the fresh subagent sweep.
+- Updated the current verification gate after Review 65 full verification so
+  that checkpoint pointed at 45 root test files / 707 tests plus the checked
+  extension, starter, project-console, and leak-scan gates.
+- Added Review 66 and progress entry 299 evidence for Resource key identity,
+  non-mutating sync reads, signal evaluation rollback, Solid route membership,
+  Start action request encoding, render hydration planning, DB row ingress,
+  transaction fact isolation, live-query preload validation, Devtools app graph
+  structured copying, retained fact indexes, and explicit `DevtoolsStore`
+  typing from the fresh subagent sweep.
+- Updated the current verification gate after Review 66 full verification so
+  that checkpoint pointed at 45 root test files / 730 tests plus the checked
+  extension, starter, project-console, and leak-scan gates.
+- Added Review 67 and progress entry 300 evidence for Resource snapshot
+  encoding, Effect-first Resource reads, invalidation DTO detachment, structured
+  stable identity, Start diagnostics validation, request-handler error
+  normalization, shared Start client transport, DB live-query collection
+  materialization, Solid DB mutation handles, scoped change-feed dispatch,
+  Devtools serialization-backed fact identity, Start/Devtools app graph type
+  pins, and large panel windowing from the fresh subagent sweep.
+- Updated the current verification gate after Review 67 full verification so
+  the then-current gate pointed at 45 root test files / 745 tests plus the
+  checked extension, starter, project-console, and leak-scan gates.
+- Added Review 68 and progress entry 302 evidence for Resource read collection,
+  ActionResult metadata detachment, Solid preload matching, Start collection
+  resolution and named file-route declarations, DB active mutation/load
+  coordination, live-query row ingress, Devtools graph/request/rendering depth,
+  and the React Suspense host seam.
+- Updated the then-current verification gate after Review 68 full verification
+  so that checkpoint pointed at 10 package builds, 47 root test files / 765
+  tests, checked devtools, starter, project-console, and leak-scan gates, plus
+  the Effect-first audit's React Suspense host seam.
+- Added Review 69 and progress entry 306 evidence for React ordered preload
+  matching, Program runtime error typing, Resource Store public seams, Start
+  streamed hydration root scripts, app graph route preservation, Vite dev SSR
+  trace locality, DB live-query collection read-only and persistence events,
+  Devtools inspected-window timeout/invalid-payload diagnostics, and the React
+  starter root-runner gate.
+- Updated the current verification gate after Review 69 full verification so
+  the then-current gate points at 11 package builds, 50 root test files / 791 tests,
+  checked devtools, basic starter, React starter, project-console, and leak-scan
+  gates.
+- Updated the current verification gate after Review 70 full verification so
+  the then-current gate points at 11 package builds, 50 root test files / 804 tests,
+  checked devtools-panel with 2 tests, devtools-extension with 19 tests, basic
+  starter, React starter, project-console, and leak-scan gates.
+- Added Review 71 and progress entry 308 evidence for the Core browser-router
+  kernel, React `useAction(...)` lifetime, keyed Resource preload failures,
+  public `ResourceStore` seams, static Start app graph plus explicit runtime
+  diagnostics, React DB/Solid DB source identity, query-sync rollback naming,
+  Devtools entrypoint cleanup, and deeper Promise return-type audit coverage.
+- Updated the current verification gate after Review 71 full verification so
+  the latest gate points at 11 package builds, Effect-first audit over 186
+  files, 51 root test files / 816 tests, checked devtools-panel with 2 tests,
+  devtools-extension with 19 tests, basic starter with 2 tests, React starter
+  with 3 tests, project-console, and leak-scan gates.
+- Added Review 72 and progress entry 309 evidence for React/Solid adapter
+  runtime-bound lifetimes, React Program restart ownership, DB mutation
+  finalization, Live Query Collection last-good projection retention,
+  generation-keyed DB preload failures, direct change-feed dispatcher policy,
+  Start request trace diagnostics, starter route discovery checks, manifest
+  export-name boundaries, devtools extension polling locality, app-graph
+  normalizer docs, and executable async/non-Effect catch audit coverage.
+- Updated the current verification gate after Review 72 full verification so
+  the latest gate points at 11 package builds, Effect-first audit over 186
+  files, 51 root test files / 834 tests, checked devtools-panel with 2 tests,
+  devtools-extension with 20 tests, basic starter with 2 tests, React starter
+  with 3 tests, project-console, and leak-scan gates.
+- Added Review 73 and progress entry 310 evidence for runtime-owned
+  late-finalizer cleanup, shared RouterLink preload policy, React runtime-source
+  ownership, Collection Store diagnostics, DB-owned reactive binding helpers,
+  cached Live Query Collection indexes, typed Start fetch/file-route Promise
+  rejection, shared devtools panel boot, and deeper Promise/await scanner
+  coverage.
+- Updated the current verification gate after Review 73 full verification so
+  the latest gate points at 11 package builds, Effect-first audit over 187
+  files, 51 root test files / 843 tests, checked devtools-panel with 2 tests,
+  devtools-extension with 20 tests, basic starter with 2 tests, React starter
+  with 3 tests, project-console, and leak-scan gates.
+- Added Review 74 and progress entry 311 evidence for Core Resource read
+  decisions, Collection Hydration Plan reuse, React DB/Solid DB live-query
+  selection sharing, Request Runtime finalization events, Start streamed HTML
+  response helper usage in starters, Devtools app-graph detachment locality, and
+  Panel Contract overflow identity.
+- Updated the current verification gate after Review 74 full verification. The
+  latest gate still points at 11 package builds, Effect-first audit over 187
+  files, 51 root test files / 843 tests, checked devtools-panel with 2 tests,
+  devtools-extension with 20 tests, basic starter with 2 tests, React starter
+  with 3 tests, project-console, and leak-scan gates.
+- Added Review 75 and progress entry 312 evidence for Browser History Adapter
+  locality, runtime-bound UI scope creation, Start Transport Endpoint Envelope
+  request-id alignment, public API inventory auditing, and LSP-facing Runtime
+  Spine / Erased Runtime Runner / Resource Store / host seam vocabulary.
+- Updated the current verification gate after Review 75 full verification. That
+  gate pointed at 11 package builds, public API inventory audit,
+  Effect-first audit over 188 files, 51 root test files / 847 tests, checked
+  devtools-panel with 2 tests, devtools-extension with 20 tests, basic starter
+  with 2 tests, React starter with 3 tests, project-console, and leak-scan
+  gates.
+- Added Review 76 and progress entry 313 evidence for the Runtime Collection
+  Store Module extraction, and updated current-facing verification snapshots to
+  the 189-file Effect-first audit gate.
+- Added Review 77 and progress entry 314 evidence for the Collection Write
+  Commit Module extraction.
+- Updated current-facing verification snapshots after Review 77 full
+  verification so the then-current gate pointed at the 190-file Effect-first
+  audit.
+- Added Review 78 and progress entry 315 evidence for the Live Query Collection
+  Materialization Module extraction.
+- Updated current-facing verification snapshots after Review 78 full
+  verification so the then-current gate pointed at the 191-file Effect-first
+  audit.
+- Added Review 79 and progress entry 316 evidence for the Collection Query
+  Source Adapter extraction.
+- Updated current-facing verification snapshots after Review 79 full
+  verification so the then-current gate pointed at the 193-file Effect-first
+  audit.
+- Added Review 80 and progress entry 318 evidence for the Request Runtime
+  Lifecycle Module extraction.
+- Updated current-facing verification snapshots after Review 80 full
+  verification so the then-current gate pointed at the 194-file Effect-first
+  audit.
+- Added Review 81 and progress entry 319 evidence for the Resource UI Binding
+  Controller extraction.
+- Added Review 82 and progress entry 321 evidence for the Start Host Runtime
+  Runner extraction. Public host adapter docs now point at the internal runner
+  for the final Promise/fork host seams while keeping adapter APIs unchanged.
+- Updated current-facing verification snapshots after Review 82 full
+  verification so the latest gate points at the 196-file Effect-first audit and
+  52 root test files / 855 tests.
+- Updated DB host examples so Promise-shaped remote and SQLite clients are
+  wrapped with `Effect.tryPromise(...)` at the Adapter seam.
+- Clarified that `virtual:effect-ui/routes` exposes runtime helpers while the
+  precise route id/params/search/href type maps live in the generated
+  `src/routeTree.gen.ts` module.
 - Left older checkpoint counts in place only where they explicitly describe
   historical evidence from that checkpoint; current verification counts are
   recorded in the verification gate and progress ledger.

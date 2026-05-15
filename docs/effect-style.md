@@ -10,8 +10,8 @@ edge.
 
 ## Rules
 
-- Public async APIs expose `Effect`; Promise interop belongs only at explicit host/runtime boundaries.
-- Framework callbacks should return `Effect` or a pure value, not `Promise`. Use `Effect.tryPromise` at the edge that talks to a Promise API.
+- Public async APIs expose Effect v4 values; Promise interop belongs only at explicit compatibility host/runtime boundaries.
+- Framework callbacks should return `Effect` or a pure value, not `Promise`. Use `Effect.tryPromise` at the edge that talks to a Promise-shaped host API.
 - `async` framework callbacks are a type error for resources, actions, route preloads, Start renderers, server implementations, DB collections, capabilities, and form validators.
 - Domain failures use tagged errors so callers can recover with `Effect.catchTag`.
 - Server request data is provided through Effect services, not globals.
@@ -20,9 +20,9 @@ edge.
 - Route preload should return Effect values, usually `Resource.prefetchEffect(...)`, so stale navigations can be interrupted.
 - Retry, cancellation, scheduling, and cleanup should delegate to Effect primitives such as `Schedule`, fiber interruption, and scopes.
 - Resource lifetime work, including GC, should use `Effect.sleep` and fibers rather than host timers.
-- Promise interop is allowed only at UI/runtime boundaries such as Suspense, Web Streams, executable CLIs, and host adapters.
+- Promise interop is allowed only at UI/runtime boundaries such as Suspense, Web Streams, executable CLIs, and compatibility host adapters.
 - `defineApp({ server })` is the server-side dependency provider for SSR/request work. Prefer an Effect `Layer` there.
-- Start request work uses a fresh Request Runtime with the app services and a request-local `ResourceStore`; do not share resource cache state across SSR requests.
+- Start request work uses a fresh Request Runtime with the app services, a request-local `ResourceStore`, and a request-local `Server.localClient(...)`; do not share resource cache state or remote browser RPC clients across SSR requests.
 - Start streamed responses keep the Request Runtime open until the response body closes or is cancelled.
 - Start action requests should run Action Definitions through the Request Runtime; do not create separate mutation handlers that bypass Capability services, schemas, retries, or invalidation.
 - Run application work through `EffectUiRuntime`; use raw `Effect.runPromise` only in tests or in the runtime implementation itself.
@@ -158,12 +158,17 @@ When debugging, ask the runtime for the plan rather than guessing which cache
 entries will move:
 
 ```ts
-const plan = Action.planInvalidation(RenameUser, user, input);
+const plan = yield* Action.planInvalidationEffect(RenameUser, user, input);
 
 for (const entry of plan.entries) {
   console.log(entry.ref.key, entry.causes);
 }
 ```
+
+Use the Effect form for normal debugging and tooling so synchronous
+`invalidates` callback failures stay in the typed `EffectInputCallbackError`
+channel. The synchronous `Action.planInvalidation(...)` helper is for
+already-total callbacks and quick inspection.
 
 SSR hydration must populate both layers:
 
@@ -277,7 +282,9 @@ Plain form posts still receive normal HTTP redirects for no-JS flows.
 
 Forms stay schema-backed and UI-runtime agnostic. `setField` is typed from the
 schema, validation is an `Effect`, and domain validation errors can be tagged
-values stored on fields.
+values stored on fields. Initial/reset/exposed values share the same snapshot
+policy as dirty tracking, so structurally equal object/array fields are not
+marked dirty just because callers passed a new object.
 
 ```ts
 const ProjectId = Schema.String.pipe(Schema.brand("ProjectId"));
@@ -308,6 +315,11 @@ form.setField("name", "Atlas Revenue");
 
 const input = yield* form.validateEffect();
 ```
+
+Start progressive forms reuse the same schema-backed action request codec as JSON
+action clients. If a default form input cannot be encoded, the synchronous form
+facade raises `StartActionFormEncodeError`; Effect-first code can use the
+encoding Effect directly.
 
 ```ts
 interface ProjectApi {

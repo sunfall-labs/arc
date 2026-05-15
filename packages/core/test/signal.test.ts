@@ -1,6 +1,6 @@
 import { Deferred, Effect, Fiber, Stream } from "effect";
 import { describe, expect, it } from "vitest";
-import { read, runWithScope, Signal, UiScope, UiScopeMissing } from "../src/index.js";
+import { EffectInputCallbackError, read, runWithScope, Signal, UiScope, UiScopeMissing, watch } from "../src/index.js";
 
 describe("Signal", () => {
   it("tracks derived dependencies", () => {
@@ -29,7 +29,7 @@ describe("Signal", () => {
     unsubscribe();
 
     expect(read(repeated)).toBe(4);
-    expect(computes).toBe(2);
+    expect(computes).toBe(4);
     expect(values).toEqual([4]);
   });
 
@@ -66,7 +66,124 @@ describe("Signal", () => {
     expect(read(selected)).toBe("right");
     right.set("fresh");
     expect(read(selected)).toBe("fresh");
-    expect(computes).toBe(3);
+    expect(computes).toBe(5);
+  });
+
+  it("rolls back derived subscriptions when evaluation throws", () => {
+    const left = Signal.make(0);
+    const right = Signal.make(0);
+    const shouldThrow = Signal.make(false);
+    const cause = new Error("derive failed");
+    let computes = 0;
+    const selected = Signal.derive(() => {
+      computes++;
+      const value = read(left);
+      if (read(shouldThrow)) {
+        read(right);
+        throw cause;
+      }
+      return value;
+    });
+    const unsubscribe = selected.subscribe(() => undefined);
+
+    expect(read(selected)).toBe(0);
+    shouldThrow.set(true);
+    const computesAfterFailure = computes;
+
+    expect(() => read(selected)).toThrow(EffectInputCallbackError);
+    right.set(1);
+    expect(computes).toBe(computesAfterFailure);
+
+    shouldThrow.set(false);
+    expect(read(selected)).toBe(0);
+    unsubscribe();
+  });
+
+  it("keeps unrelated subscribers running when a derived evaluator throws", () => {
+    const count = Signal.make(0);
+    const cause = new Error("derive failed");
+    const derived = Signal.derive(() => {
+      const value = read(count);
+      if (value > 0) {
+        throw cause;
+      }
+      return value;
+    });
+    const derivedUnsubscribe = derived.subscribe(() => undefined);
+    let unrelatedRuns = 0;
+    const unrelatedUnsubscribe = count.subscribe(() => {
+      unrelatedRuns++;
+    });
+
+    expect(read(derived)).toBe(0);
+    expect(() => count.set(1)).not.toThrow();
+    expect(unrelatedRuns).toBe(1);
+    expect(() => read(derived)).toThrow(EffectInputCallbackError);
+
+    derivedUnsubscribe();
+    unrelatedUnsubscribe();
+  });
+
+  it("rolls back watch subscriptions and keeps subscribers running when evaluation throws", async () => {
+    const scope = new UiScope();
+    const left = Signal.make(0);
+    const right = Signal.make(0);
+    const shouldThrow = Signal.make(false);
+    const cause = new Error("watch failed");
+    let evaluates = 0;
+
+    runWithScope(scope, () => {
+      watch(
+        () => {
+          evaluates++;
+          const value = read(left);
+          if (read(shouldThrow)) {
+            read(right);
+            throw cause;
+          }
+          return value;
+        },
+        () => undefined
+      );
+    });
+
+    let unrelatedRuns = 0;
+    const unrelatedUnsubscribe = shouldThrow.subscribe(() => {
+      unrelatedRuns++;
+    });
+
+    expect(() => shouldThrow.set(true)).not.toThrow();
+    expect(unrelatedRuns).toBe(1);
+    const evaluatesAfterFailure = evaluates;
+
+    right.set(1);
+    expect(evaluates).toBe(evaluatesAfterFailure);
+
+    shouldThrow.set(false);
+    expect(evaluates).toBe(evaluatesAfterFailure + 1);
+
+    unrelatedUnsubscribe();
+    await Effect.runPromise(scope.disposeEffect());
+  });
+
+  it("stops tracking derived dependencies after the last subscriber unsubscribes", () => {
+    const count = Signal.make(1);
+    let computes = 0;
+    const doubled = Signal.derive(() => {
+      computes++;
+      return read(count) * 2;
+    });
+    const unsubscribe = doubled.subscribe(() => undefined);
+
+    expect(read(doubled)).toBe(2);
+    unsubscribe();
+    const computesAfterUnsubscribe = computes;
+
+    count.set(2);
+
+    expect(computes).toBe(computesAfterUnsubscribe);
+    expect(read(doubled)).toBe(4);
+    expect(computes).toBe(computesAfterUnsubscribe + 1);
   });
 
   it("notifies subscribers only when values change", () => {
@@ -87,10 +204,16 @@ describe("Signal", () => {
   it("supports untracked reads", () => {
     const count = Signal.make(1);
     const doubled = Signal.derive(() => Signal.peek(count) * 2);
+    const values: number[] = [];
+    const unsubscribe = doubled.subscribe(() => {
+      values.push(read(doubled));
+    });
 
     expect(read(doubled)).toBe(2);
     count.set(2);
     expect(read(doubled)).toBe(2);
+    expect(values).toEqual([]);
+    unsubscribe();
   });
 
   it("exposes current and future values as an Effect stream", () => {

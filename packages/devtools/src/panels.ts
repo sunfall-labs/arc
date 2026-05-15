@@ -2,6 +2,7 @@ import {
   devtoolsActionNodeId,
   devtoolsCollectionNodeId,
   devtoolsMissingSchemaPanelItemId,
+  devtoolsProgramPanelItemId,
   devtoolsRequestPanelItemId,
   devtoolsResourceNodeId,
   devtoolsRoutePanelItemId,
@@ -11,6 +12,8 @@ import {
   devtoolsUnknownRoutePreloadResourcesPanelItemId
 } from "./graph-ids.js";
 import type {
+  DevtoolsPanel,
+  DevtoolsPanelId,
   DevtoolsPanelItem,
   DevtoolsPanelMetric,
   DevtoolsPanelSeverity,
@@ -21,6 +24,8 @@ import type {
   DevtoolsSummaryInput,
   DevtoolsSummaryRequestTrace
 } from "./index.js";
+import { devtoolsPanelIds } from "./panel-contract.js";
+import { routeModulePreloadCollections } from "./summary-app-graph.js";
 
 export interface DevtoolsPanelsRuntime {
   readonly describeSummary: (input: DevtoolsSummaryInput) => DevtoolsSummary;
@@ -100,6 +105,37 @@ const requestTraceDetail = (trace: DevtoolsSummaryRequestTrace): string => {
     : `${status} ${failureOwners.join(", ")}`;
 };
 
+const programEventSeverity = (tag: string): DevtoolsPanelSeverity =>
+  tag.endsWith("Failed") ? "error" : tag === "Disposed" ? "info" : "ok";
+
+const isSerializableRecord = (
+  value: DevtoolsSerializableValue
+): value is { readonly [key: string]: DevtoolsSerializableValue } =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const programEventMetricValue = (
+  value: DevtoolsSerializableValue | undefined
+): string | number | undefined =>
+  typeof value === "string" || typeof value === "number" ? value : undefined;
+
+const programEventMetrics = (
+  event: DevtoolsSummary["runtime"]["events"][number]
+): ReadonlyArray<DevtoolsPanelMetric> => {
+  if (!isSerializableRecord(event.data)) {
+    return [panelMetric("sequence", event.sequence)];
+  }
+
+  const commandCount = programEventMetricValue(event.data.commandCount);
+  const commandId = programEventMetricValue(event.data.commandId);
+  const subscriptionCount = programEventMetricValue(event.data.count);
+  return [
+    panelMetric("sequence", programEventMetricValue(event.data.sequence) ?? event.sequence),
+    ...(commandCount === undefined ? [] : [panelMetric("commands", commandCount)]),
+    ...(commandId === undefined ? [] : [panelMetric("command", commandId)]),
+    ...(subscriptionCount === undefined ? [] : [panelMetric("subscriptions", subscriptionCount)])
+  ];
+};
+
 const diagnosticsSeverity = (summary: DevtoolsSummary): DevtoolsPanelSeverity => {
   if (summary.overview.missingSchemaCount > 0) {
     return "error";
@@ -126,11 +162,143 @@ export const describeDevtoolsPanelsWithRuntime = (
     : Number((requestDurations.reduce((total, duration) => total + duration, 0) / requestDurations.length).toFixed(2));
   const failedRequestCount = summary.requests.traces.filter((trace) => trace.status === "failure").length;
   const cancelledRequestCount = summary.requests.traces.filter((trace) => trace.status === "cancelled").length;
+  const collectionRuntimeEvents = new Map<string, {
+    count: number;
+    latest: string;
+    severity: DevtoolsPanelSeverity;
+  }>();
+  for (const event of summary.runtime.events) {
+    if (event.target?.kind !== "Collection") {
+      continue;
+    }
+    const data = event.data as { readonly collection?: unknown };
+    const name = typeof data.collection === "string"
+      ? data.collection
+      : event.target.id.replace(/^collection:/, "");
+    const severity: DevtoolsPanelSeverity =
+      event.label.includes("Failure") || event.label.includes("RolledBack")
+        ? "error"
+        : "ok";
+    const existing = collectionRuntimeEvents.get(name);
+    collectionRuntimeEvents.set(name, {
+      count: (existing?.count ?? 0) + 1,
+      latest: event.label,
+      severity: existing === undefined ? severity : maxSeverity([existing.severity, severity])
+    });
+  }
+  const graphCollectionNames = new Set(
+    graphAvailable ? summary.graph.collections.definitions.map((collection) => collection.name) : []
+  );
+  const collectionItems = [
+    ...(graphAvailable
+      ? summary.graph.collections.definitions.map((collection) => {
+          const runtimeEvents = collectionRuntimeEvents.get(collection.name);
+          return panelItem({
+            id: devtoolsCollectionNodeId(collection.name),
+            label: collection.name,
+            severity: runtimeEvents?.severity ?? "ok",
+            ...(runtimeEvents === undefined
+              ? {}
+              : {
+                  detail: runtimeEvents.latest,
+                  metrics: [
+                    panelMetric("events", runtimeEvents.count)
+                  ]
+                })
+          });
+        })
+      : []),
+    ...Array.from(collectionRuntimeEvents.entries())
+      .filter(([name]) => !graphCollectionNames.has(name))
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([name, runtimeEvents]) =>
+        panelItem({
+          id: devtoolsCollectionNodeId(name),
+          label: name,
+          detail: runtimeEvents.latest,
+          severity: runtimeEvents.severity,
+          metrics: [
+            panelMetric("events", runtimeEvents.count)
+          ]
+        })
+      )
+  ];
+  const programRuntimeEvents = new Map<string, {
+    count: number;
+    failures: number;
+    latest: string;
+    messages: number;
+    severity: DevtoolsPanelSeverity;
+    tags: Set<string>;
+  }>();
+  for (const event of summary.runtime.events) {
+    if (event.target?.kind !== "Program") {
+      continue;
+    }
+    const name = event.target.id.startsWith("program:")
+      ? event.target.id.slice("program:".length)
+      : event.target.id;
+    const data = event.data as { readonly _tag?: unknown };
+    const tag = typeof data._tag === "string" ? data._tag : "ProgramEvent";
+    const severity = programEventSeverity(tag);
+    const existing = programRuntimeEvents.get(name);
+    const tags = existing?.tags ?? new Set<string>();
+    tags.add(tag);
+    programRuntimeEvents.set(name, {
+      count: (existing?.count ?? 0) + 1,
+      failures: (existing?.failures ?? 0) + (severity === "error" ? 1 : 0),
+      latest: event.label,
+      messages: (existing?.messages ?? 0) + (tag === "Message" ? 1 : 0),
+      severity: existing === undefined ? severity : maxSeverity([existing.severity, severity]),
+      tags
+    });
+  }
+  const programEventItems = summary.runtime.events
+    .filter((event) => event.target?.kind === "Program")
+    .map((event) => {
+      const data = isSerializableRecord(event.data) ? event.data : {};
+      const tag = typeof data._tag === "string" ? data._tag : "ProgramEvent";
+      const programName = event.target?.id.startsWith("program:")
+        ? event.target.id.slice("program:".length)
+        : event.target?.id ?? "Program";
+      return panelItem({
+        id: devtoolsProgramPanelItemId(event.id),
+        label: event.label,
+        detail: `${programName} ${tag}`,
+        severity: programEventSeverity(tag),
+        metrics: programEventMetrics(event),
+        data: event.data
+      });
+    });
+  const programSummaryItems = Array.from(programRuntimeEvents.entries())
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([name, runtimeEvents]) =>
+      panelItem({
+        id: `program-summary:${name}`,
+        label: name,
+        detail: runtimeEvents.latest,
+        severity: runtimeEvents.severity,
+        metrics: [
+          panelMetric("events", runtimeEvents.count),
+          panelMetric("messages", runtimeEvents.messages),
+          panelMetric("failures", runtimeEvents.failures)
+        ],
+        data: runtime.toSerializableValue({
+          tags: Array.from(runtimeEvents.tags).sort()
+        })
+      })
+    );
+  const programItems = [
+    ...programEventItems,
+    ...programSummaryItems
+  ];
+  const programEventCount = Array.from(programRuntimeEvents.values())
+    .reduce((count, entry) => count + entry.count, 0);
+  const programFailureCount = Array.from(programRuntimeEvents.values())
+    .reduce((count, entry) => count + entry.failures, 0);
 
-  return {
-    version: 1,
-    panels: [
-      {
+  const panelsById = {
+    "app-graph": {
         id: "app-graph",
         title: "App Graph",
         summary: graphAvailable
@@ -145,25 +313,26 @@ export const describeDevtoolsPanelsWithRuntime = (
           panelMetric("collections", summary.overview.collectionDefinitionCount)
         ],
         items: graphAvailable
-          ? summary.graph.routes.modules.map((routeModule) =>
-              panelItem({
+          ? summary.graph.routes.modules.map((routeModule) => {
+              const preloadCollections = routeModulePreloadCollections(routeModule);
+              return panelItem({
                 id: devtoolsRoutePanelItemId(routeModule.routeId),
                 label: routeModule.routePath,
                 detail: routeModule.moduleId,
                 severity: routeModule.preloadResources.status === "unknown" ||
-                  routeModule.preloadCollections.status === "unknown"
+                  preloadCollections.status === "unknown"
                   ? "warning"
                   : "ok",
                 metrics: [
                   panelMetric("params", routeModule.pathParamCount),
                   panelMetric("preload resources", routeModule.preloadResources.status),
-                  panelMetric("preload collections", routeModule.preloadCollections.status)
+                  panelMetric("preload collections", preloadCollections.status)
                 ]
-              })
-            )
+              });
+            })
           : []
       },
-      {
+    "routes": {
         id: "routes",
         title: "Routes",
         summary: `${summary.overview.routePlanCount} route plans, ${summary.overview.notFoundRoutePlanCount} not found`,
@@ -189,7 +358,7 @@ export const describeDevtoolsPanelsWithRuntime = (
           })
         )
       },
-      {
+    "resources": {
         id: "resources",
         title: "Resources",
         summary: `${summary.resources.length} indexed resources, ${summary.overview.runtimeResourceCount} runtime resources`,
@@ -218,7 +387,7 @@ export const describeDevtoolsPanelsWithRuntime = (
           })
         )
       },
-      {
+    "actions": {
         id: "actions",
         title: "Actions",
         summary: `${summary.overview.actionCount} graph actions, ${summary.overview.runtimeActionCount} runtime actions`,
@@ -240,29 +409,34 @@ export const describeDevtoolsPanelsWithRuntime = (
           })
         )
       },
-      {
+    "programs": {
+        id: "programs",
+        title: "Programs",
+        summary: `${programRuntimeEvents.size} programs, ${programEventCount} events`,
+        severity: maxSeverity(programItems.map((item) => item.severity), programItems.length === 0 ? "info" : "ok"),
+        metrics: [
+          panelMetric("programs", programRuntimeEvents.size),
+          panelMetric("events", programEventCount),
+          panelMetric("failures", programFailureCount)
+        ],
+        items: programItems
+      },
+    "collections": {
         id: "collections",
         title: "Collections",
-        summary: `${summary.overview.collectionDefinitionCount} graph collections`,
-        severity: summary.overview.collectionDefinitionCount === 0 ? "info" : "ok",
+        summary: `${summary.overview.collectionDefinitionCount} graph collections, ${collectionRuntimeEvents.size} runtime collections`,
+        severity: maxSeverity(collectionItems.map((item) => item.severity), collectionItems.length === 0 ? "info" : "ok"),
         metrics: [
           panelMetric("definitions", summary.overview.collectionDefinitionCount),
+          panelMetric("runtime", collectionRuntimeEvents.size),
           panelMetric(
             "traced",
             summary.requests.traces.reduce((count, trace) => count + trace.collectionCount, 0)
           )
         ],
-        items: graphAvailable
-          ? summary.graph.collections.definitions.map((collection) =>
-              panelItem({
-                id: devtoolsCollectionNodeId(collection.name),
-                label: collection.name,
-                severity: "ok"
-              })
-            )
-          : []
+        items: collectionItems
       },
-      {
+    "requests": {
         id: "requests",
         title: "Requests",
         summary: `${summary.overview.requestTraceCount} traces, ${failedRequestCount} failures, ${cancelledRequestCount} cancelled`,
@@ -313,7 +487,7 @@ export const describeDevtoolsPanelsWithRuntime = (
           })
         )
       },
-      {
+    "diagnostics": {
         id: "diagnostics",
         title: "Diagnostics",
         summary: `${summary.overview.missingSchemaCount} missing schemas, ${summary.overview.unknownActionBehaviorCount} unknown action behaviors`,
@@ -365,7 +539,7 @@ export const describeDevtoolsPanelsWithRuntime = (
             ]
           : []
       },
-      {
+    "causal-graph": {
         id: "causal-graph",
         title: "Causal Graph",
         summary: `${summary.overview.causalNodeCount} nodes, ${summary.overview.causalEdgeCount} edges`,
@@ -384,6 +558,10 @@ export const describeDevtoolsPanelsWithRuntime = (
           })
         )
       }
-    ]
+  } satisfies Record<DevtoolsPanelId, DevtoolsPanel>;
+
+  return {
+    version: 1,
+    panels: devtoolsPanelIds.map((id) => panelsById[id])
   };
 };

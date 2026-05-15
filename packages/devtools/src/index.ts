@@ -1,11 +1,22 @@
-import { type ActionSubmissionState, type ActionState, type ReadableSignal, type ResourceInvalidationPlan, type ResourceStoreEvent, type Route } from "@effect-ui/core";
-import { Data, Effect, type Scope } from "effect";
+import {
+  type ActionInstance,
+  type ActionSubmissionState,
+  type ActionState,
+  type ProgramEvent,
+  type ProgramInstance,
+  type ReadableSignal,
+  type ResourceInvalidationPlan,
+  type ResourceStoreEvent,
+  type Route
+} from "@effect-ui/core";
+import { Data, Effect, Fiber, type Scope } from "effect";
 import {
   mountDevtoolsPanelsEffectWithResolver,
   mountDevtoolsPanelsWithResolver,
   renderDevtoolsPanelsHtmlWithResolver
 } from "./panel-renderer.js";
 import { describeDevtoolsPanelsWithRuntime } from "./panels.js";
+import { resolveDevtoolsPanelsInput } from "./panel-contract.js";
 import {
   copyInvalidationPlan,
   copyRequestTrace,
@@ -13,6 +24,7 @@ import {
   describeRoutePlan,
   toDevtoolsSerializableValue
 } from "./serialization.js";
+import type { DevtoolsSerializationPolicy } from "./serialization.js";
 import {
   describeDevtoolsCausalGraph,
   describeDevtoolsSummary
@@ -20,6 +32,12 @@ import {
 import { makeDevtoolsStoreWithRuntime } from "./store.js";
 
 export * from "./bridge.js";
+export {
+  normalizeAppGraphCollectionDefinitions,
+  normalizeAppGraphUnknownRoutePreloadCollections,
+  normalizeDevtoolsAppGraphDiagnostics,
+  normalizeRouteModulePreloadCollections
+} from "./app-graph-normalizer.js";
 export { devtoolsPanelStyles } from "./panel-renderer.js";
 export {
   DevtoolsUnknownInvalidationTarget,
@@ -27,13 +45,44 @@ export {
   describeRoutePlan,
   toDevtoolsSerializableValue
 } from "./serialization.js";
+export type { DevtoolsSerializationPolicy } from "./serialization.js";
 export {
   describeDevtoolsCausalGraph,
   describeDevtoolsCausalGraphEffect,
   describeDevtoolsSummary,
   describeDevtoolsSummaryEffect
 } from "./summary.js";
+export {
+  devtoolsPanelIds,
+  devtoolsPanelSeverities,
+  isDevtoolsPanel,
+  isDevtoolsPanelId,
+  isDevtoolsPanelItem,
+  isDevtoolsPanelMetric,
+  isDevtoolsPanelOverflowItem,
+  isDevtoolsPanels,
+  isDevtoolsPanelSeverity,
+  isDevtoolsSerializableValue,
+  normalizeDevtoolsPanels,
+  normalizeEffectUiDevtoolsBridgePayload,
+  resolveDevtoolsPanelContract,
+  resolveDevtoolsPanelsInput,
+  resolveEffectUiDevtoolsBridgePayload,
+  DevtoolsPanelContractError
+} from "./panel-contract.js";
+export type {
+  DevtoolsBridgePayloadContractResolution,
+  DevtoolsPanelContractErrorReason,
+  DevtoolsPanelContractResolution
+} from "./panel-contract.js";
 
+/**
+ * JSON-safe value shape used by Devtools DTOs.
+ *
+ * Unknown runtime payloads are serialized through the Devtools Serialization
+ * Policy before they enter this contract, so panel renderers and extension
+ * bridges can treat these values as detached data.
+ */
 export type DevtoolsSerializableValue =
   | null
   | boolean
@@ -42,6 +91,12 @@ export type DevtoolsSerializableValue =
   | readonly DevtoolsSerializableValue[]
   | { readonly [key: string]: DevtoolsSerializableValue };
 
+/**
+ * Stable resource or tag target captured in a serialized invalidation plan.
+ *
+ * `input` is intentionally `unknown` at the public seam; serializers detach it
+ * before Devtools stores or renders the plan.
+ */
 export type DevtoolsInvalidationTarget =
   | {
       readonly _tag: "Ref";
@@ -55,6 +110,7 @@ export type DevtoolsInvalidationTarget =
       readonly name: string;
     };
 
+/** Stable resource or tag cause that explains why an invalidation target exists. */
 export type DevtoolsInvalidationCause =
   | {
       readonly _tag: "Ref";
@@ -67,6 +123,13 @@ export type DevtoolsInvalidationCause =
       readonly name: string;
     };
 
+/**
+ * Serialized invalidation plan shown by summaries, panels, and causal graphs.
+ *
+ * `targets` is the user-facing invalidation set. `entries` preserves the
+ * resource-level cause graph used to derive causal edges. Resource inputs stay
+ * `unknown` at the raw snapshot boundary and are encoded before panel output.
+ */
 export interface DevtoolsInvalidationPlan {
   readonly targets: ReadonlyArray<DevtoolsInvalidationTarget>;
   readonly entries: ReadonlyArray<{
@@ -79,6 +142,12 @@ export interface DevtoolsInvalidationPlan {
   }>;
 }
 
+/**
+ * Serializable route navigation plan used by Devtools route panels.
+ *
+ * `params`, `search`, and resource inputs stay `unknown` because Start/Core own
+ * the domain schemas; Devtools owns detached inspection data.
+ */
 export interface DevtoolsRoutePlan {
   readonly _tag: "Matched" | "NotFound";
   readonly href: string;
@@ -97,25 +166,29 @@ export interface DevtoolsRoutePlan {
   }>;
   readonly hydration: {
     readonly resourceCount: number;
+    readonly resourceKeys?: ReadonlyArray<string>;
   };
 }
 
+/** Resource snapshot fact recorded by the Devtools Store. */
 export interface DevtoolsSnapshotResource {
   readonly key: string;
   readonly state: string;
 }
 
+/** Action state fact recorded by the Devtools Store. */
 export interface DevtoolsSnapshotAction {
   readonly name: string;
   readonly state: string;
   readonly invalidationIndexes?: ReadonlyArray<number>;
 }
 
+/** Options for recording action state and optional invalidation metadata. */
 export type DevtoolsRecordActionStateOptions = {
   readonly input?: unknown;
 } & (
   | {
-      readonly invalidationPlan?: ResourceInvalidationPlan | undefined;
+      readonly invalidationPlan?: ResourceInvalidationPlan<any> | undefined;
       readonly serializedInvalidationPlan?: never;
     }
   | {
@@ -124,14 +197,21 @@ export type DevtoolsRecordActionStateOptions = {
     }
 );
 
-export interface DevtoolsStartActionInstance {
+/** Minimal Start action instance shape that Devtools can track. */
+export interface DevtoolsStartActionInstance<
+  I = unknown,
+  A = unknown,
+  E = unknown,
+  P = DevtoolsInvalidationPlan
+> {
   readonly definition: {
     readonly name: string;
   };
-  readonly state: ReadableSignal<ActionSubmissionState<unknown, unknown, unknown, unknown>>;
+  readonly state: ReadableSignal<ActionSubmissionState<I, A, E, P>>;
   readonly invalidation: ReadableSignal<DevtoolsInvalidationPlan | undefined>;
 }
 
+/** Collection event DTO mirrored from the DB Collection Store for Devtools panels. */
 export type DevtoolsCollectionStoreEvent =
   | { readonly _tag: "CollectionLoaded"; readonly collection: string; readonly count: number; readonly updatedAt: number }
   | { readonly _tag: "CollectionLoadFailure"; readonly collection: string; readonly error: unknown }
@@ -143,10 +223,17 @@ export type DevtoolsCollectionStoreEvent =
   | { readonly _tag: "CollectionMutationDequeued"; readonly collection: string; readonly transaction: string; readonly pending: number }
   | { readonly _tag: "CollectionMutateCommitted"; readonly collection: string; readonly transaction: string; readonly mutations: number }
   | { readonly _tag: "CollectionMutateRolledBack"; readonly collection: string; readonly transaction: string; readonly error: unknown }
+  | { readonly _tag: "CollectionChangeFeedFailure"; readonly collection: string; readonly error: unknown }
   | { readonly _tag: "CollectionWritten"; readonly collection: string; readonly mutations: number };
 
+/** Typed Program timeline event detached into Devtools runtime history. */
+export type DevtoolsProgramEvent = ProgramEvent<unknown, unknown, unknown>;
+
+/** Transport family that produced a request trace. */
 export type DevtoolsRequestTraceTransport = "ssr" | "rpc" | "action" | "unknown";
+/** Final request trace status. */
 export type DevtoolsRequestTraceStatus = "success" | "failure" | "cancelled";
+/** High-level failure category used by request trace panels. */
 export type DevtoolsRequestTraceFailureKind =
   | "domain"
   | "validation"
@@ -154,7 +241,9 @@ export type DevtoolsRequestTraceFailureKind =
   | "transport"
   | "defect"
   | "interruption";
+/** Streaming response lifecycle state. */
 export type DevtoolsRequestTraceStreamState = "open" | "closed" | "cancelled" | "errored";
+/** Request-runtime fiber lifecycle state. */
 export type DevtoolsRequestTraceFiberStatus = "running" | "done" | "interrupted" | "failed";
 
 /** Typed error thrown when callers provide both live and serialized invalidation plans. */
@@ -282,6 +371,12 @@ export interface DevtoolsRequestTrace {
   readonly teardown?: DevtoolsRequestTraceTeardown;
 }
 
+/**
+ * Bounded runtime fact recorded by the Devtools Store.
+ *
+ * `sequence` is store-assigned when absent. Payload-bearing variants are copied
+ * through the serialization policy before summaries or panels observe them.
+ */
 export type DevtoolsRuntimeEvent =
   | {
       readonly _tag: "ResourceStoreEvent";
@@ -294,6 +389,12 @@ export type DevtoolsRuntimeEvent =
       readonly sequence?: number;
       readonly at?: number;
       readonly event: DevtoolsCollectionStoreEvent;
+    }
+  | {
+      readonly _tag: "ProgramEvent";
+      readonly sequence?: number;
+      readonly at?: number;
+      readonly event: DevtoolsProgramEvent;
     }
   | {
       readonly _tag: "ActionState";
@@ -309,12 +410,16 @@ export type DevtoolsRuntimeEvent =
       readonly sequence?: number;
       readonly at?: number;
       readonly action?: string;
+      /** Index of the matching invalidation fact in the snapshot, when known. */
+      readonly invalidationIndex?: number;
       readonly plan: DevtoolsInvalidationPlan;
     }
   | {
       readonly _tag: "RoutePlan";
       readonly sequence?: number;
       readonly at?: number;
+      /** Index of the matching route-plan fact in the snapshot, when known. */
+      readonly routePlanIndex?: number;
       readonly plan: DevtoolsRoutePlan;
     }
   | {
@@ -331,6 +436,13 @@ export type DevtoolsRuntimeEvent =
       readonly payload?: unknown;
     };
 
+/**
+ * Raw detached Devtools facts recorded by framework packages or app code.
+ *
+ * Snapshot fields may include `unknown` inspection data owned by Core, Start,
+ * DB, or the host app. Devtools summaries, panels, causal graphs, and bridge
+ * payloads project those facts into JSON-safe values before rendering.
+ */
 export interface DevtoolsSnapshot {
   readonly appGraph?: DevtoolsStartAppGraphDiagnostics;
   readonly resources: ReadonlyArray<DevtoolsSnapshotResource>;
@@ -341,11 +453,123 @@ export interface DevtoolsSnapshot {
   readonly events?: ReadonlyArray<DevtoolsRuntimeEvent>;
 }
 
+/** Limits applied by the bounded in-memory Devtools Store. */
 export interface DevtoolsStoreOptions {
+  /** Maximum invalidation plans retained in snapshots. Defaults to 50. */
   readonly invalidationLimit?: number;
+  /** Maximum route plans retained in snapshots. Defaults to 50. */
   readonly routePlanLimit?: number;
+  /** Maximum request traces retained in snapshots. Defaults to 50. */
   readonly requestTraceLimit?: number;
+  /** Maximum runtime events retained in snapshots. Defaults to 500. */
   readonly eventLimit?: number;
+  /** Serialization and redaction policy applied before runtime facts enter the store. */
+  readonly serializationPolicy?: DevtoolsSerializationPolicy;
+}
+
+/**
+ * Store returned by `makeDevtoolsStore`.
+ *
+ * Provides synchronous and Effect variants for snapshot reads/writes, app graph
+ * diagnostics, invalidation plans, action state, route plans, resource and
+ * collection events, Program timeline events, request traces, summaries,
+ * panels, and causal graphs.
+ * Values are copied or projected before storage so panel consumers do not
+ * mutate live framework state. Fact-recording methods return the retained
+ * snapshot index after store limits are applied, so later runtime events can
+ * point at the exact retained fact they observed.
+ */
+export interface DevtoolsStore {
+  /** Read the current detached fact snapshot synchronously at host/UI boundaries. */
+  readonly getSnapshot: () => DevtoolsSnapshot;
+  /** Read the current detached fact snapshot inside Effect workflows. */
+  readonly getSnapshotEffect: () => Effect.Effect<DevtoolsSnapshot>;
+  /** Replace all retained facts; inputs are copied and bounded before storage. */
+  readonly setSnapshot: (next: DevtoolsSnapshot) => void;
+  /** Effect variant of `setSnapshot(...)`. */
+  readonly setSnapshotEffect: (next: DevtoolsSnapshot) => Effect.Effect<void>;
+  /** Store the latest static Start app-graph diagnostics used by summaries and panels. */
+  readonly setAppGraphDiagnostics: (appGraph: DevtoolsStartAppGraphDiagnostics) => void;
+  /** Effect variant of `setAppGraphDiagnostics(...)`. */
+  readonly setAppGraphDiagnosticsEffect: (appGraph: DevtoolsStartAppGraphDiagnostics) => Effect.Effect<void>;
+  /** Remove stored app-graph diagnostics without clearing runtime facts. */
+  readonly clearAppGraphDiagnostics: () => void;
+  /** Effect variant of `clearAppGraphDiagnostics(...)`. */
+  readonly clearAppGraphDiagnosticsEffect: () => Effect.Effect<void>;
+  /** Serialize and retain a live Resource invalidation plan, returning its retained index. */
+  readonly recordInvalidation: (plan: ResourceInvalidationPlan) => number;
+  /** Effect variant of `recordInvalidation(...)`. */
+  readonly recordInvalidationEffect: (plan: ResourceInvalidationPlan) => Effect.Effect<number>;
+  /** Retain an already-serialized invalidation plan, returning its retained index. */
+  readonly recordSerializedInvalidation: (plan: DevtoolsInvalidationPlan) => number;
+  /** Effect variant of `recordSerializedInvalidation(...)`. */
+  readonly recordSerializedInvalidationEffect: (plan: DevtoolsInvalidationPlan) => Effect.Effect<number>;
+  readonly recordActionState: (
+    action: string,
+    state: string,
+    actionOptions?: DevtoolsRecordActionStateOptions
+  ) => void;
+  readonly recordActionStateEffect: (
+    action: string,
+    state: string,
+    actionOptions?: DevtoolsRecordActionStateOptions
+  ) => Effect.Effect<void>;
+  readonly recordAction: <I, A, E, R>(action: ActionInstance<I, A, E, R>) => void;
+  readonly recordActionEffect: <I, A, E, R>(action: ActionInstance<I, A, E, R>) => Effect.Effect<void>;
+  readonly trackActionEffect: <I, A, E, R>(
+    action: ActionInstance<I, A, E, R>
+  ) => Effect.Effect<void, never, Scope.Scope>;
+  readonly recordStartAction: <I, A, E, P>(action: DevtoolsStartActionInstance<I, A, E, P>) => void;
+  readonly recordStartActionEffect: <I, A, E, P>(
+    action: DevtoolsStartActionInstance<I, A, E, P>
+  ) => Effect.Effect<void>;
+  readonly trackStartActionEffect: <I, A, E, P>(
+    action: DevtoolsStartActionInstance<I, A, E, P>
+  ) => Effect.Effect<void, never, Scope.Scope>;
+  readonly recordRoutePlan: (plan: Route.NavigationPlan) => number;
+  /** Effect variant of `recordRoutePlan(...)`. */
+  readonly recordRoutePlanEffect: (plan: Route.NavigationPlan) => Effect.Effect<number>;
+  /** Retain an already-serialized route plan, returning its retained index. */
+  readonly recordSerializedRoutePlan: (plan: DevtoolsRoutePlan) => number;
+  /** Effect variant of `recordSerializedRoutePlan(...)`. */
+  readonly recordSerializedRoutePlanEffect: (plan: DevtoolsRoutePlan) => Effect.Effect<number>;
+  /** Record a Core Resource Store event as a runtime event. */
+  readonly recordResourceEvent: (event: ResourceStoreEvent) => void;
+  /** Effect variant of `recordResourceEvent(...)`. */
+  readonly recordResourceEventEffect: (event: ResourceStoreEvent) => Effect.Effect<void>;
+  /** Record a DB Collection Store event as a runtime event. */
+  readonly recordCollectionEvent: (event: DevtoolsCollectionStoreEvent) => void;
+  /** Effect variant of `recordCollectionEvent(...)`. */
+  readonly recordCollectionEventEffect: (event: DevtoolsCollectionStoreEvent) => Effect.Effect<void>;
+  /** Record one Core Program timeline event as a runtime event. */
+  readonly recordProgramEvent: <Model, Message, E>(event: ProgramEvent<Model, Message, E>) => void;
+  /** Effect variant of `recordProgramEvent(...)`. */
+  readonly recordProgramEventEffect: <Model, Message, E>(
+    event: ProgramEvent<Model, Message, E>
+  ) => Effect.Effect<void>;
+  readonly trackProgramEffect: <Model, Message, E>(
+    program: ProgramInstance<Model, Message, E>
+  ) => Effect.Effect<void, never, Scope.Scope>;
+  /** Record a prebuilt runtime event, assigning sequence and serialization bounds. */
+  readonly recordRuntimeEvent: (event: DevtoolsRuntimeEvent) => void;
+  /** Effect variant of `recordRuntimeEvent(...)`. */
+  readonly recordRuntimeEventEffect: (event: DevtoolsRuntimeEvent) => Effect.Effect<void>;
+  /** Record one structural request trace and normalize its fact identity. */
+  readonly recordRequestTrace: (trace: DevtoolsRequestTrace) => void;
+  /** Effect variant of `recordRequestTrace(...)`. */
+  readonly recordRequestTraceEffect: (trace: DevtoolsRequestTrace) => Effect.Effect<void>;
+  /** Project the current snapshot into summarized counts, tables, and runtime rows. */
+  readonly getSummary: () => DevtoolsSummary;
+  /** Effect variant of `getSummary(...)`. */
+  readonly getSummaryEffect: () => Effect.Effect<DevtoolsSummary>;
+  /** Project the current snapshot into renderable panel data. */
+  readonly getPanels: () => DevtoolsPanels;
+  /** Effect variant of `getPanels(...)`. */
+  readonly getPanelsEffect: () => Effect.Effect<DevtoolsPanels>;
+  /** Project the current snapshot into a stable causal graph. */
+  readonly getCausalGraph: () => DevtoolsCausalGraph;
+  /** Effect variant of `getCausalGraph(...)`. */
+  readonly getCausalGraphEffect: () => Effect.Effect<DevtoolsCausalGraph>;
 }
 
 export interface DevtoolsStartAppGraphSchemaCoverage {
@@ -355,6 +579,7 @@ export interface DevtoolsStartAppGraphSchemaCoverage {
   readonly error: number;
 }
 
+/** Server function or action missing at least one wire schema. */
 export interface DevtoolsStartAppGraphMissingSchema {
   readonly kind: "serverFunction" | "action";
   readonly name: string;
@@ -363,23 +588,32 @@ export interface DevtoolsStartAppGraphMissingSchema {
   readonly error: boolean;
 }
 
+/** Whether a graph feature is present, absent, or unknown until runtime. */
 export type DevtoolsStartAppGraphFeaturePresence = "present" | "absent" | "unknown";
+/** Static module boundary kind discovered by Start manifests. */
 export type DevtoolsStartAppGraphModuleKind = "server-only" | "contract" | "shared";
+/** Whether an action behavior was statically described. */
 export type DevtoolsStartAppGraphActionBehaviorPresence = "present" | "absent" | "unknown";
+/** Action concurrency policy projected into Devtools diagnostics. */
 export type DevtoolsStartAppGraphActionConcurrency = "latest" | "parallel" | "exhaust" | "unknown";
+/** Route preload-resource diagnostic status. */
 export type DevtoolsStartAppGraphRoutePreloadResourceStatus = "declared" | "none" | "unknown";
+/** Route preload-collection diagnostic status. */
 export type DevtoolsStartAppGraphRoutePreloadCollectionStatus = "declared" | "none" | "unknown";
 
+/** Resource preload declarations projected from Start route diagnostics. */
 export interface DevtoolsStartAppGraphRoutePreloadResources {
   readonly status: DevtoolsStartAppGraphRoutePreloadResourceStatus;
   readonly families: readonly string[];
 }
 
+/** Collection preload declarations projected from Start route diagnostics. */
 export interface DevtoolsStartAppGraphRoutePreloadCollections {
   readonly status: DevtoolsStartAppGraphRoutePreloadCollectionStatus;
   readonly collections: readonly string[];
 }
 
+/** Route module diagnostics projected from the Start app graph. */
 export interface DevtoolsStartAppGraphRouteModuleDiagnostics {
   readonly routeId: string;
   readonly routePath: string;
@@ -399,6 +633,7 @@ export interface DevtoolsStartAppGraphRouteModuleDiagnostics {
   readonly component: DevtoolsStartAppGraphFeaturePresence;
 }
 
+/** Wire schema completeness diagnostics for one action/server-function contract. */
 export interface DevtoolsStartAppGraphWireDiagnostics {
   readonly inputSchema: boolean;
   readonly outputSchema: boolean;
@@ -407,6 +642,7 @@ export interface DevtoolsStartAppGraphWireDiagnostics {
   readonly missing: readonly ("input" | "output" | "error")[];
 }
 
+/** Server function graph diagnostics projected for Devtools panels. */
 export interface DevtoolsStartAppGraphServerFunctionDiagnostics {
   readonly id: string;
   readonly name: string;
@@ -431,6 +667,7 @@ export interface DevtoolsStartAppGraphServerFunctionDiagnostics {
   readonly wire: DevtoolsStartAppGraphWireDiagnostics;
 }
 
+/** Static action behavior diagnostics projected for Devtools panels. */
 export interface DevtoolsStartAppGraphActionBehavior {
   readonly invalidates: DevtoolsStartAppGraphActionBehaviorPresence;
   readonly optimistic: DevtoolsStartAppGraphActionBehaviorPresence;
@@ -438,6 +675,7 @@ export interface DevtoolsStartAppGraphActionBehavior {
   readonly concurrency: DevtoolsStartAppGraphActionConcurrency;
 }
 
+/** Action graph diagnostics projected for Devtools panels. */
 export interface DevtoolsStartAppGraphActionDiagnostics {
   readonly id: string;
   readonly name: string;
@@ -462,6 +700,7 @@ export interface DevtoolsStartAppGraphActionDiagnostics {
   readonly behavior: DevtoolsStartAppGraphActionBehavior;
 }
 
+/** Resource family diagnostics projected for Devtools panels. */
 export interface DevtoolsStartAppGraphResourceFamilyDiagnostics {
   readonly name: string;
   readonly inputSchema: boolean;
@@ -475,11 +714,13 @@ export interface DevtoolsStartAppGraphResourceFamilyDiagnostics {
   };
 }
 
+/** Resource tag diagnostics projected for Devtools panels. */
 export interface DevtoolsStartAppGraphResourceTagDiagnostics {
   readonly name: string;
   readonly keyed: boolean;
 }
 
+/** Collection definition diagnostics projected for Devtools panels. */
 export interface DevtoolsStartAppGraphCollectionDiagnostics {
   readonly name: string;
   readonly inputSchema: boolean;
@@ -542,6 +783,14 @@ export interface DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry {
   readonly preloadCollections: DevtoolsStartAppGraphRoutePreloadCollections;
 }
 
+/**
+ * Runtime-aware Start app graph diagnostics projected for devtools.
+ *
+ * This summarizes generated route modules, server functions, actions,
+ * resources, collections, endpoint paths, module boundaries, schema coverage,
+ * and policy unknowns. It is a diagnostic data contract, not the executable app
+ * graph itself.
+ */
 export interface DevtoolsStartAppGraphDiagnostics {
   readonly version: 1;
   readonly routeCount: number;
@@ -617,6 +866,7 @@ export interface DevtoolsSummaryRoutePlan {
   readonly search: DevtoolsSerializableValue | null;
   readonly resourceCount: number;
   readonly hydrationResourceCount: number;
+  readonly hydratedResourceKeys: ReadonlyArray<string>;
   readonly resources: ReadonlyArray<DevtoolsSummaryResourceRef>;
 }
 
@@ -625,7 +875,7 @@ export interface DevtoolsSummaryResource {
   readonly family: string | null;
   readonly input: DevtoolsSerializableValue | null;
   readonly state: string | null;
-  readonly sources: ReadonlyArray<"Invalidation" | "RequestTrace" | "RoutePlan" | "Snapshot">;
+  readonly sources: ReadonlyArray<"Invalidation" | "RequestTrace" | "RoutePlan" | "RuntimeEvent" | "Snapshot">;
   readonly routeHrefs: ReadonlyArray<string>;
   readonly invalidationIndexes: ReadonlyArray<number>;
 }
@@ -719,6 +969,12 @@ export interface DevtoolsSummaryRequestTrace {
   readonly routeHref: string | null;
 }
 
+/**
+ * Runtime-event row projected for summaries and panels.
+ *
+ * `target` links the event to a stable Devtools fact id when identity can be
+ * derived; `data` is already JSON-safe and detached from caller-owned objects.
+ */
 export interface DevtoolsSummaryRuntimeEvent {
   readonly index: number;
   readonly id: string;
@@ -733,6 +989,10 @@ export interface DevtoolsSummaryRuntimeEvent {
       }
     | {
         readonly kind: "Collection";
+        readonly id: string;
+      }
+    | {
+        readonly kind: "Program";
         readonly id: string;
       }
     | {
@@ -752,9 +1012,19 @@ export interface DevtoolsSummaryRuntimeEvent {
         readonly id: string;
       }
     | null;
+  /** Summarized invalidation facts carried by runtime-only invalidation events. */
+  readonly invalidationPlan?: DevtoolsSummaryInvalidationPlan;
+  /** Summarized route facts carried by runtime-only route-plan events. */
+  readonly routePlan?: DevtoolsSummaryRoutePlan;
   readonly data: DevtoolsSerializableValue;
 }
 
+/**
+ * Stable node categories in the Devtools causal graph.
+ *
+ * Node ids come from the Devtools Graph Identity Module and are stable across
+ * summaries for the same underlying route, resource, action, event, or module.
+ */
 export type DevtoolsCausalNodeKind =
   | "RequestTrace"
   | "Route"
@@ -762,9 +1032,9 @@ export type DevtoolsCausalNodeKind =
   | "Resource"
   | "ResourceFamily"
   | "Collection"
+  | "Program"
   | "Action"
   | "InvalidationPlan"
-  | "InvalidationTarget"
   | "ResourceTag"
   | "SchemaCoverage"
   | "MissingSchema"
@@ -773,6 +1043,15 @@ export type DevtoolsCausalNodeKind =
   | "Module"
   | "ServerFunction";
 
+/**
+ * Stable relationship categories in the Devtools causal graph.
+ *
+ * `Records` links request traces to observed facts. `Matches` links route
+ * plans to matched routes. `Preloads` and `Hydrates` explain route/resource or
+ * route/collection loading. `Observes` links runtime events to the facts they
+ * report. `Covers` and `MissingSchema` describe schema diagnostics, while
+ * `UsesEndpoint` and `UsesModule` describe app graph structure.
+ */
 export type DevtoolsCausalEdgeKind =
   | "Matches"
   | "Preloads"
@@ -788,28 +1067,42 @@ export type DevtoolsCausalEdgeKind =
   | "UsesModule"
   | "Records";
 
+/** One stable fact node in a Devtools causal graph. */
 export interface DevtoolsCausalNode {
+  /** Stable graph id such as `route:/projects/:id` or `resource:<key>`. */
   readonly id: string;
+  /** Node category used by renderers and agents. */
   readonly kind: DevtoolsCausalNodeKind;
+  /** Human-readable label for graph UIs. */
   readonly label: string;
+  /** JSON-safe detail payload for richer renderers and agents. */
   readonly data: DevtoolsSerializableValue;
 }
 
+/** One directed causal relationship between two graph nodes. */
 export interface DevtoolsCausalEdge {
+  /** Stable edge id derived from kind, source, target, label, and duplicate ordinal. */
   readonly id: string;
+  /** Relationship category. */
   readonly kind: DevtoolsCausalEdgeKind;
+  /** Source node id. */
   readonly source: string;
+  /** Target node id. */
   readonly target: string;
+  /** Human-readable relationship label. */
   readonly label: string;
+  /** JSON-safe detail payload for the relationship. */
   readonly data: DevtoolsSerializableValue;
 }
 
+/** Complete Devtools causal graph projected from summaries and runtime facts. */
 export interface DevtoolsCausalGraph {
   readonly version: 1;
   readonly nodes: ReadonlyArray<DevtoolsCausalNode>;
   readonly edges: ReadonlyArray<DevtoolsCausalEdge>;
 }
 
+/** Summary projection used by Devtools panels and causal graph generation. */
 export interface DevtoolsSummary {
   readonly version: 1;
   readonly overview: {
@@ -929,6 +1222,7 @@ export interface DevtoolsSummary {
   readonly causalGraph: DevtoolsCausalGraph;
 }
 
+/** Input accepted by summary projection helpers. */
 export interface DevtoolsSummaryInput {
   readonly snapshot?: DevtoolsSnapshot;
   readonly appGraph?: DevtoolsStartAppGraphDiagnostics;
@@ -938,16 +1232,24 @@ export interface DevtoolsSummaryInput {
   readonly runtimeEvents?: ReadonlyArray<DevtoolsRuntimeEvent>;
 }
 
+/**
+ * Stable id for a rendered Devtools panel.
+ *
+ * Panel ids are used by the HTML renderer, extension UI, selected-panel state,
+ * and snapshot tests, so custom shells should treat them as durable keys.
+ */
 export type DevtoolsPanelId =
   | "app-graph"
   | "routes"
   | "resources"
   | "actions"
+  | "programs"
   | "collections"
   | "requests"
   | "diagnostics"
   | "causal-graph";
 
+/** Highest diagnostic level represented by a panel, row, or metric group. */
 export type DevtoolsPanelSeverity = "ok" | "info" | "warning" | "error";
 
 export interface DevtoolsPanelMetric {
@@ -990,35 +1292,72 @@ export interface DevtoolsPanel {
   readonly items: ReadonlyArray<DevtoolsPanelItem>;
 }
 
-/** Complete JSON-safe panel model consumed by browser panels and agents. */
+/** JSON-safe panel model consumed by browser panels and agents. Runtime guards normalize it to the complete public panel catalog. */
 export interface DevtoolsPanels {
   readonly version: 1;
   readonly panels: ReadonlyArray<DevtoolsPanel>;
 }
 
+/** Input accepted by panel projection helpers. */
 export interface DevtoolsPanelsInput extends DevtoolsSummaryInput {
   readonly summary?: DevtoolsSummary;
 }
 
+/** Rendering options shared by Devtools HTML and mount helpers. */
 export interface DevtoolsPanelUiOptions {
+  /** Page or widget title. Defaults to the built-in Effect UI Devtools title. */
   readonly title?: string;
+  /** Panel selected on first render or update. Defaults to the first panel. */
   readonly selectedPanelId?: DevtoolsPanelId;
+  /** Maximum diagnostic rows rendered in each panel. */
   readonly maxItemsPerPanel?: number;
+  /** Whether to include the built-in CSS when rendering HTML. */
   readonly includeStyles?: boolean;
 }
 
+/** Input accepted by HTML rendering and mount/update panel helpers. */
 export interface DevtoolsPanelUiInput extends DevtoolsPanelsInput, DevtoolsPanelUiOptions {
   readonly panels?: DevtoolsPanels;
 }
 
+/** Options for mounting a live Devtools panel UI into an existing DOM node. */
 export interface DevtoolsPanelMountOptions extends DevtoolsPanelUiInput {
+  /** DOM element that receives the rendered Devtools panel markup. */
   readonly root: HTMLElement;
 }
 
+/** Handle returned by Devtools panel mount helpers. */
 export interface DevtoolsPanelMount {
+  /** Root DOM element managed by the mount. */
   readonly root: HTMLElement;
+  /** Re-render with merged panel input; omitted fields keep the current mount input after the initial defaults are applied. */
   readonly update: (input?: DevtoolsPanelUiInput) => void;
+  /** Remove rendered markup and release the mount. */
   readonly unmount: () => void;
+}
+
+/** Options for booting a scoped Devtools panel entrypoint. */
+export interface DevtoolsPanelBootOptions extends DevtoolsPanelMountOptions {
+  /**
+   * Additional scoped work to start after the panel is mounted, such as polling
+   * an inspected browser window for live panel payloads.
+   */
+  readonly afterMount?: (mount: DevtoolsPanelMount) => Effect.Effect<void, never, Scope.Scope>;
+  /**
+   * Window whose page lifecycle should interrupt the panel fiber. Pass the host
+   * window from browser or extension entrypoints.
+   */
+  readonly lifecycleWindow?: Pick<Window, "addEventListener">;
+}
+
+/** Running Devtools panel boot fiber plus its Effect-first interrupt hook. */
+export interface DevtoolsPanelBoot {
+  /** Fiber that owns the scoped panel mount and any post-mount work. */
+  readonly fiber: Fiber.Fiber<void, never>;
+  /** Interrupts the boot fiber and releases the panel mount Scope. */
+  readonly interruptEffect: Effect.Effect<void>;
+  /** Host callback facade for page lifecycle handlers. */
+  readonly interrupt: () => void;
 }
 
 const devtoolsPanelsRuntime = {
@@ -1036,10 +1375,10 @@ export const describeDevtoolsPanels = (
 export const describeDevtoolsPanelsEffect = (
   input: DevtoolsPanelsInput = {}
 ): Effect.Effect<DevtoolsPanels> =>
-  Effect.succeed(describeDevtoolsPanels(input));
+  Effect.sync(() => describeDevtoolsPanels(input));
 
 const resolveDevtoolsPanels = (input: DevtoolsPanelUiInput): DevtoolsPanels =>
-  input.panels ?? describeDevtoolsPanels(input);
+  resolveDevtoolsPanelsInput(input, describeDevtoolsPanels);
 
 /** Renders the stable panel contract to deterministic embeddable HTML. */
 export const renderDevtoolsPanelsHtml = (
@@ -1051,7 +1390,7 @@ export const renderDevtoolsPanelsHtml = (
 export const renderDevtoolsPanelsHtmlEffect = (
   input: DevtoolsPanelUiInput = {}
 ): Effect.Effect<string> =>
-  Effect.succeed(renderDevtoolsPanelsHtml(input));
+  Effect.sync(() => renderDevtoolsPanelsHtml(input));
 
 /** Mounts the panel renderer into a host DOM root and returns update/unmount controls. */
 export const mountDevtoolsPanels = (
@@ -1064,6 +1403,56 @@ export const mountDevtoolsPanelsEffect = (
   options: DevtoolsPanelMountOptions
 ): Effect.Effect<DevtoolsPanelMount, never, Scope.Scope> =>
   mountDevtoolsPanelsEffectWithResolver(options, resolveDevtoolsPanels);
+
+/** Interrupts a Devtools panel boot fiber, ignoring repeat cleanup failures. */
+export const interruptDevtoolsPanelBoot = (
+  fiber: Fiber.Fiber<void, never>
+): Effect.Effect<void> =>
+  Fiber.interrupt(fiber).pipe(Effect.catch(() => Effect.void));
+
+const wireDevtoolsPanelLifecycleCleanup = (
+  boot: DevtoolsPanelBoot,
+  lifecycleWindow: Pick<Window, "addEventListener">
+): void => {
+  lifecycleWindow.addEventListener("pagehide", boot.interrupt, { once: true });
+  lifecycleWindow.addEventListener("beforeunload", boot.interrupt, { once: true });
+};
+
+/** Boots a scoped live Devtools panel and optionally wires browser lifecycle cleanup. */
+export const bootDevtoolsPanels = (
+  options: DevtoolsPanelBootOptions
+): DevtoolsPanelBoot => {
+  const {
+    afterMount,
+    lifecycleWindow,
+    ...mountOptions
+  } = options;
+  const fiber = Effect.runFork(
+    Effect.scoped(
+      Effect.gen(function* () {
+        const mount = yield* mountDevtoolsPanelsEffect(mountOptions);
+        if (afterMount) {
+          yield* afterMount(mount);
+        }
+        yield* Effect.never;
+      })
+    )
+  );
+  const interruptEffect = interruptDevtoolsPanelBoot(fiber);
+  const boot: DevtoolsPanelBoot = {
+    fiber,
+    interruptEffect,
+    interrupt: () => {
+      void Effect.runFork(interruptEffect);
+    }
+  };
+
+  if (lifecycleWindow) {
+    wireDevtoolsPanelLifecycleCleanup(boot, lifecycleWindow);
+  }
+
+  return boot;
+};
 
 const devtoolsStoreRuntime = {
   describeInvalidationPlan,
@@ -1079,5 +1468,5 @@ const devtoolsStoreRuntime = {
 };
 
 /** Creates a bounded, detached Devtools Store for snapshots, traces, panels, and causal graphs. */
-export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}) =>
+export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsStore =>
   makeDevtoolsStoreWithRuntime(options, devtoolsStoreRuntime);

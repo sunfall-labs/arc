@@ -1,6 +1,6 @@
 # Effect-First Audit
 
-Last updated: 2026-05-14.
+Last updated: 2026-05-15.
 
 This audit supports the charter rule: push async lifecycle, teardown, tracing,
 retry, streaming, and adapter work down into Effect primitives wherever
@@ -13,13 +13,111 @@ interruption.
 
 | Class | Rule | Examples |
 | --- | --- | --- |
-| Host boundary | Promise is acceptable because the platform API requires it. | Web Stream `pull`/`cancel`, Vite callback launchers, browser callbacks, test assertions over platform `Response` methods. |
-| Host runner | Convert an Effect to a Promise only at the final host/test edge. | `runtime.runPromise(handler(request))`, `Effect.runPromise(Resource.prefetchEffect(ref))`. |
+| Host boundary | Promise is acceptable because the platform API requires it. | Web Stream `pull`/`cancel`, Vite callback launchers, browser callbacks, React/Solid Suspense, test assertions over platform `Response` methods. |
+| Host runner | Convert an Effect to a Promise only at the final host/test edge. | `Effect.runPromise(runtime.provide(handler(request)))`, `Effect.runPromise(Resource.prefetchEffect(ref))`. |
 | Public API | Return Effects for async work; callers choose where to run them. | `Resource.prefetchEffect(...)`, `action.submitEffect(...)`, `createRequestHandler(...)`. |
 | Internal follow-up | Convert to Effect unless there is a concrete host-boundary reason. | Promise state machines, `.then(...)` lifecycle sequencing, unstructured async helpers. |
 
 ## Current Sweep Results
 
+- `scripts/audit-effect-first.mjs`
+  - The executable audit now preserves template interpolation code while
+    sanitizing strings, so non-Effect `.catch(...)` and other banned async
+    patterns inside `${...}` expressions are still visible.
+  - Promise return-type detection now handles multiline signatures, and direct
+    `await` usage is reported as its own seam with explicit script allowances
+    for host runners.
+  - Self-tests cover multiline Promise returns, template interpolation
+    detection, bare await detection, and the existing `Deferred.await` Effect
+    operator exemption.
+- `packages/start/src/start-fetch.ts` and `packages/start/src/file-route.ts`
+  - Custom Start fetchers and file-route preload helpers now reject
+    Promise-shaped erased JavaScript values before they cross deeper runtime
+    seams. File-route preload failures are typed `FileRoutePreloadError` values
+    with guidance to return Effects instead.
+  - Resource selector throws during file-route preload are captured through the
+    typed preload failure path instead of escaping as ambiguous host defects.
+- `packages/start/src/request-runtime-lifecycle.ts`,
+  `packages/start/src/request-runtime-response.ts`,
+  `packages/start/src/start-request-handler.ts`, and `packages/start/src/streaming.ts`
+  - The Request Runtime Lifecycle Module runs selected Start response Effects
+    through failure/interruption teardown, ResponseContext application, request
+    trace emission, runtime disposal, and streamed response finalization before
+    host response values leave the Effect-owned path.
+  - Request Runtime response completion now emits one finalization state shape
+    for both buffered and streamed responses, keeping teardown snapshots,
+    stream facts, and request trace emission inside one Effect-owned lifecycle
+    path.
+  - `createStartStreamedHtmlResponseEffect(...)` lets starters append
+    `StartRenderHydrationPlan` streamed resource chunks before the tail without
+    rebuilding that stream policy in each server entry.
+- `packages/core/src/resource-ui-binding.ts`,
+  `packages/react/src/hooks.ts`, and `packages/solid/src/hooks.ts`
+  - Core now owns adapter-neutral Resource UI binding policy for ref identity,
+    runtime-bound refresh/prefetch Effects, automatic preload fibers, keyed
+    preload failures, observer failure swallowing, stale preload interruption,
+    state matching helpers, and Suspense preload-token dedupe.
+  - React and Solid keep only host reactivity and host Suspense thenable
+    throwing at their adapter seams while sharing the Effect-first Resource
+    preload policy.
+- `packages/db/src/collection-reactive-binding.ts`,
+  `packages/react-db/src/shared.ts`, and `packages/solid-db/src/shared.ts`
+  - React DB and Solid DB share the DB-owned collection/live-query subscription,
+    runtime binding, source comparison, preload controller, and state-error
+    helpers. Adapter code stays focused on host reactivity while async preload
+    work remains Effect-first.
+  - Live-query input/dependency selection now lives in the same DB-owned helper
+    family, so React DB and Solid DB reuse one runtime-bound `Query.live(...)`
+    policy.
+- `packages/db/src/runtime-collection-store.ts`
+  - Runtime Collection Store lookup, initialization, diagnostics, event
+    subscription, and synchronous `runWithCollectionStore(...)` override
+    locality now live in one Effect-first Module. Collection Runtime consumes
+    that store seam while keeping load, mutation, persistence, and change-feed
+    workflows as Effects.
+- `packages/db/src/collection-write-commit.ts`
+  - Direct Collection writes now share one Effect-owned commit sequence:
+    snapshot, apply, persist, restore on persistence failure, and publish
+    `CollectionWritten` only after persistence succeeds. Row ingress and
+    validation stay with Collection Runtime callers.
+- `packages/db/src/live-query-collection-materialization.ts`
+  - Live Query Collection projection state now lives in one Effect-first
+    Module: per-store keyed rows, lookup maps, index buckets, state/version
+    signals, `Ready.updatedAt`, and snapshots. The public read-only collection
+    facade stays in `live-query-collection.ts`.
+- `packages/db/src/query-source-adapter.ts`
+  - Collection Query Source Adapter owns query-readable collection access:
+    rows, row counts, declared index checks, indexed row probes, indexed join
+    key extraction, version/state signals, and preload/refetch Effect
+    selection for normal Collections and Live Query Collections.
+- `packages/core/src/resource-runtime.ts` and `packages/db/src/collection-persistence.ts`
+  - Core Resource sync reads and Effect reads share one read decision before
+    crossing into thrown render-control values or typed Effect failures.
+  - DB collection hydration validation and application share one planned
+    validation/preflight path before any hydration mutation runs.
+- `packages/core/src/scope.ts`, `packages/react/src/runtime.ts`,
+  `packages/solid/src/runtime.ts`, and router adapters
+  - `UiScope` late finalizers use a configured Effect runner, so cleanup
+    registered after disposal still runs through the owning Runtime Spine
+    instead of the ambient/default runtime.
+- `packages/devtools/src/index.ts`
+  - `bootDevtoolsPanels(...)` centralizes panel mount, bridge polling, and
+    scoped cleanup as Effect/Fiber-owned work for both the standalone panel app
+    and browser extension panel shell.
+- `packages/core/src/program.ts`, `packages/solid/src/hooks.ts`, and
+  `packages/react/src/hooks.ts`
+  - Program runtime startup/provision failures now flow through
+    `Program.RuntimeError<E, ER>` and adapter hook error parameters instead of
+    being collapsed into `unknown` or local Promise-style dispatch rejection.
+  - Program dispatch remains an Effect-first state-machine operation; runtime
+    failures are recorded as typed Program failures and surfaced through
+    `dispatchEffect(...)`.
+- `vitest.config.ts` and `examples/react-starter`
+  - The workspace Vitest runner now isolates the React starter behind the React
+    JSX transform and starter `@` alias instead of sending React components
+    through the Solid JSX transform. The root verification gate also includes
+    the React starter package verify, keeping its typecheck/test/build/leak scan
+    in the main Effect-first release gate.
 - `packages/start/src/index.ts`
   - Kept Web Stream `pull` and `cancel` as host-boundary async callbacks.
   - Moved response stream pull, cancel, error, and finalization lifecycle into
@@ -202,6 +300,11 @@ interruption.
 - `packages/start/src/adapters.ts`
   - Node handler Promise entrypoints now use the core runtime helper for handler
     Effects rather than casting the input to raw `Effect.runPromise(...)`.
+- `scripts/audit-effect-first.mjs`
+  - The executable audit now rejects async function syntax and non-Effect
+    `.catch(...)` calls across checked source, examples, scripts, and public
+    type tests. `Effect.catch(...)` remains allowed, with self-tests proving the
+    allowed and rejected cases.
 - `scripts/package-project-console-starter.mjs`
   - Replaced the remaining raw async path-existence adapter with
     `Effect.tryPromise`, `Effect.as`, and typed `ENOENT` handling.
@@ -249,6 +352,9 @@ interruption.
 - Tooling scripts:
   - The project-console starter packaging script keeps filesystem checks inside
     Effect programs; no raw async or Promise method chains remain there.
+  - The Effect-first audit script now matches spaced `Promise <T>` return
+    shapes and unapproved `PromiseLike<T>` return seams, with self-tests for
+    both patterns before scanning workspace files.
 - Source grep follow-up:
   - `rg -n "\\basync\\b|new Promise|Promise\\.resolve|\\.then\\(|\\.finally\\(" packages/*/src scripts -g '*.ts' -g '*.mjs'`
     currently finds no package source or tooling script hits.
@@ -870,18 +976,19 @@ interruption.
 - The latest Promise-method audit across packages, examples, scripts, and type
   tests reports no `Promise.all`, `Promise.race`, `Promise.resolve`,
   `new Promise`, `.then(...)`, or `.finally(...)` hits.
-- `toEffect(...)` now rejects thenables with `EffectInputPromiseRejected`, so
-  Promise-shaped values cannot slip through `EffectInput` as successful pure
-  values when callers use JavaScript, casts, or loose inference.
+- `toEffect(...)` and ActionResult conversion helpers now reject direct
+  Promise-shaped values at the public type surface and still reject erased
+  thenables with `EffectInputPromiseRejected` at runtime.
 - Start app-graph diagnostics policy validation now has an Effect-returning
   exception-preserving seam, and the generated Vite module runs that Effect at
   the sync host boundary.
 - Start file-route discovery now exposes `discoverFileRoutesEffect(...)` and
   keeps the sync discovery helper as a Vite/host facade.
 - Core `Resource.read(...)` no longer throws Suspense Promises. Missing or
-  expired reads throw typed `ResourcePending`; Solid `useResourceSuspense(...)`
-  owns the UI Suspense Promise by running `Resource.prefetchEffect(...)` through
-  the active Solid runtime.
+  expired reads throw typed `ResourcePending`; Solid and React
+  `useResourceSuspense(...)` adapters own the UI Suspense host conversion by
+  running `Resource.prefetchEffect(...)` through the active UI runtime without
+  exposing Promise-shaped public types.
 - Node server error hooks now accept pure values or Effects through
   `EffectInput`; Promise-shaped error hooks are rejected in public type tests.
 - DB collection output schema failures now normalize to
@@ -890,10 +997,30 @@ interruption.
 - Start document hydration now reports malformed streamed chunks and root
   payload scripts as typed hydration errors in the Effect path instead of
   leaking parse throws as defects.
+- Start Host Runtime Runner now owns the final host-required Promise/fork seams
+  for Fetch, Node, and Vite facades. `fetch-adapter.ts`,
+  `node-adapter.ts`, and `vite.ts` delegate runtime launch policy to
+  `packages/start/src/start-host-runtime-runner.ts`; request/response
+  translation remains in the adapters.
 - Devtools request summaries and panels now preserve teardown snapshots and
   per-server-function/action failure owners, so inspection stays on structured
   Effect facts rather than raw event spelunking.
-- Full `pnpm verify` passed after the Start stale action hydration guard,
+- DB change-feed emitters are now bound to the subscribed Collection Store,
+  Query Sync post-commit invalidation is best-effort, Solid scope disposal uses
+  the owning runtime, and Start/Devtools host-boundary metadata checks fail
+  through typed Effect errors instead of escaping as raw callback defects.
+- The latest full `pnpm verify` passed after the Review 82 Start Host Runtime
+  Runner extraction: 11 package builds, workspace typecheck, type tests,
+  public API inventory audit, Effect-first audit over 196
+  package/example/script/type-test files, 52 root test files / 855 tests,
+  devtools-panel verify with 1 panel test file / 2 tests,
+  devtools-extension verify with 1 extension test file / 20 tests, basic starter
+  verify with 1 starter test file / 2 tests, React starter verify with 1
+  starter test file / 3 tests, project-console starter packaging, typecheck,
+  4 project-console test files / 27 tests, build, and leak scans. Review 75
+  added the public API inventory audit to the full gate, and Review 82 kept the
+  Effect-first scanner green over its expanded 196-file scope.
+- An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,
   LSP-facing JSDoc refresh, EffectInput Promise inference/runtime guards, Start

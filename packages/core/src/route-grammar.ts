@@ -65,6 +65,17 @@ export class MissingRouteParam extends Data.TaggedError("MissingRouteParam")<{
   readonly param: string;
 }> {}
 
+export class InvalidRouteParam extends Data.TaggedError("InvalidRouteParam")<{
+  readonly route: string;
+  readonly segment: string;
+  readonly param: string;
+}> {}
+
+export class DuplicateRouteParam extends Data.TaggedError("DuplicateRouteParam")<{
+  readonly route: string;
+  readonly param: string;
+}> {}
+
 const splitPath = (path: string): ReadonlyArray<string> =>
   path.split("/").filter((part) => part.length > 0);
 
@@ -88,20 +99,38 @@ const compareString = (left: string, right: string): number =>
 export const isRouteParamName = (value: string): boolean =>
   /^[A-Za-z_][A-Za-z0-9_]*$/.test(value);
 
-/** Parses a `/:param` route path into normalized grammar segments. */
-export const parseRoutePathSegments = (path: string): readonly RoutePathSegment[] =>
-  splitPath(path).map((part) =>
-    part.startsWith(":")
-      ? {
-          _tag: "Dynamic",
-          name: stripRouteParamName(part.slice(1)),
-          optional: isOptionalRouteParamToken(part.slice(1))
-        }
-      : {
-          _tag: "Static",
-          value: part
-        }
-  );
+/** Parses and validates a `/:param` route path into normalized grammar segments. */
+export const parseRoutePathSegments = (path: string): readonly RoutePathSegment[] => {
+  const params = new Set<string>();
+  return splitPath(path).map((part) => {
+    if (!part.startsWith(":")) {
+      return {
+        _tag: "Static",
+        value: part
+      };
+    }
+
+    const token = part.slice(1);
+    const name = stripRouteParamName(token);
+    if (!isRouteParamName(name)) {
+      throw new InvalidRouteParam({
+        route: path,
+        segment: part,
+        param: name
+      });
+    }
+    if (params.has(name)) {
+      throw new DuplicateRouteParam({ route: path, param: name });
+    }
+    params.add(name);
+
+    return {
+      _tag: "Dynamic",
+      name,
+      optional: isOptionalRouteParamToken(token)
+    };
+  });
+};
 
 /** Builds a canonical route path from parsed route grammar segments. */
 export const routePathFromSegments = (segments: readonly RoutePathSegment[]): string => {
@@ -176,6 +205,79 @@ export const compareRoutePathSegment = (
       return left.optional ? 1 : -1;
     }
     return compareString(left.name, right.name);
+  }
+
+  return 0;
+};
+
+const routePathSpecificity = (
+  segments: readonly RoutePathSegment[]
+): {
+  readonly staticCount: number;
+  readonly requiredDynamicCount: number;
+  readonly optionalDynamicCount: number;
+} => {
+  let staticCount = 0;
+  let requiredDynamicCount = 0;
+  let optionalDynamicCount = 0;
+
+  for (const segment of segments) {
+    if (segment._tag === "Static") {
+      staticCount++;
+    } else if (segment.optional) {
+      optionalDynamicCount++;
+    } else {
+      requiredDynamicCount++;
+    }
+  }
+
+  return {
+    staticCount,
+    requiredDynamicCount,
+    optionalDynamicCount
+  };
+};
+
+/**
+ * Compares route paths by match specificity while preserving caller order for
+ * same-shape routes.
+ */
+export const compareRoutePathSpecificity = (
+  left: readonly RoutePathSegment[],
+  right: readonly RoutePathSegment[]
+): number => {
+  const length = Math.min(left.length, right.length);
+
+  for (let index = 0; index < length; index++) {
+    const leftSegment = left[index];
+    const rightSegment = right[index];
+    if (!leftSegment || !rightSegment) {
+      continue;
+    }
+
+    if (leftSegment._tag !== rightSegment._tag) {
+      return leftSegment._tag === "Static" ? -1 : 1;
+    }
+
+    if (
+      leftSegment._tag === "Dynamic" &&
+      rightSegment._tag === "Dynamic" &&
+      leftSegment.optional !== rightSegment.optional
+    ) {
+      return leftSegment.optional ? 1 : -1;
+    }
+  }
+
+  const leftSpecificity = routePathSpecificity(left);
+  const rightSpecificity = routePathSpecificity(right);
+  if (leftSpecificity.staticCount !== rightSpecificity.staticCount) {
+    return rightSpecificity.staticCount - leftSpecificity.staticCount;
+  }
+  if (leftSpecificity.requiredDynamicCount !== rightSpecificity.requiredDynamicCount) {
+    return rightSpecificity.requiredDynamicCount - leftSpecificity.requiredDynamicCount;
+  }
+  if (leftSpecificity.optionalDynamicCount !== rightSpecificity.optionalDynamicCount) {
+    return leftSpecificity.optionalDynamicCount - rightSpecificity.optionalDynamicCount;
   }
 
   return 0;

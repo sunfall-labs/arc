@@ -1,7 +1,18 @@
-import { provideRequest, Server, ServerClient } from "@effect-ui/core";
+import { ResourceFailure, provideRequest, Server, ServerClient } from "@effect-ui/core";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
-import { getProject, listProjects, makeProjectId, makeProjectReturnTo, renameProject, submitProjectName } from "./domain.js";
+import {
+  InvalidProjectName,
+  ProjectNotFound,
+  formatProjectError,
+  getProject,
+  listProjects,
+  makeProjectId,
+  makeProjectReturnTo,
+  normalizeProjectError,
+  renameProject,
+  submitProjectName
+} from "./domain.js";
 import { Route as ProjectRoute } from "./routes/projects/$id.js";
 import "./domain.server.js";
 
@@ -17,6 +28,33 @@ describe("project console domain", () => {
     expect(match?.params.id).toBe(makeProjectId("atlas"));
     expect(match?.search.tab).toBe("settings");
     expect(() => ProjectRoute.match("/projects/Atlas")).toThrow();
+  });
+
+  it("normalizes ProjectError class instances and plain decoded objects", () => {
+    const notFound = new ProjectNotFound({ id: makeProjectId("atlas") });
+    const invalidName = { _tag: "InvalidProjectName", name: "At" };
+
+    expect(normalizeProjectError(notFound)).toMatchObject({
+      _tag: "ProjectNotFound",
+      id: "atlas"
+    });
+    expect(normalizeProjectError(invalidName)).toMatchObject({
+      _tag: "InvalidProjectName",
+      name: "At"
+    });
+    expect(formatProjectError(new InvalidProjectName({ name: "At" }))).toBe(
+      "Project names need at least three meaningful characters."
+    );
+  });
+
+  it("unwraps ResourceFailure before formatting project errors", () => {
+    const failure = new ResourceFailure({
+      ref: {} as never,
+      error: new ProjectNotFound({ id: makeProjectId("kepler") }),
+      previous: undefined
+    });
+
+    expect(formatProjectError(failure)).toBe('Project "kepler" was not found.');
   });
 
   it("loads projects through server functions", () =>

@@ -7,9 +7,15 @@ import type { ResourceRef } from "./resource.js";
  * `previous` is the stale value, when one exists, so UI adapters can decide
  * whether to render stale content or surface the failure.
  */
-export class ResourceFailure<I = unknown, A = unknown, E = never, R = unknown> extends Data.TaggedError("ResourceFailure")<{
+export class ResourceFailure<
+  I = unknown,
+  A = unknown,
+  E = never,
+  R = unknown,
+  RefError = E
+> extends Data.TaggedError("ResourceFailure")<{
   /** Resource ref that was read synchronously. */
-  readonly ref: ResourceRef<I, A, E, R>;
+  readonly ref: ResourceRef<I, A, RefError, R>;
   /** Typed load failure from the Resource's Effect error channel. */
   readonly error: E;
   /** Last successful value, when stale data exists. */
@@ -30,6 +36,24 @@ export class ResourcePending<I = unknown, A = unknown, E = never, R = unknown> e
   readonly state: "Initial" | "Pending" | "Collected";
   /** Last successful value, when stale data exists. */
   readonly previous: A | undefined;
+  /** Human-readable repair hint suitable for diagnostics and tests. */
+  readonly guidance: string;
+}> {}
+
+/** Error raised when the default Resource key codec cannot encode an input. */
+export class ResourceKeyError extends Data.TaggedError("ResourceKeyError")<{
+  /** Resource or tag operation that tried to build the key. */
+  readonly operation: string;
+  /** Resource family or tag name whose default key failed. */
+  readonly name: string;
+  /** Input path that failed to encode. */
+  readonly path: string;
+  /** Machine-readable failure reason. */
+  readonly reason: "CircularReference" | "UnsupportedObject" | "InvalidDate" | "EncodeFailure";
+  /** Path of the original value for circular references. */
+  readonly referencePath?: string;
+  /** Original thrown value, when available. */
+  readonly cause?: unknown;
   /** Human-readable repair hint suitable for diagnostics and tests. */
   readonly guidance: string;
 }> {}

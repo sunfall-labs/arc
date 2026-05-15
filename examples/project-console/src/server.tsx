@@ -1,18 +1,20 @@
 import { RuntimeProvider } from "@effect-ui/solid";
 import {
-  createHtmlResponseEffect,
+  createStartStreamedHtmlResponseEffect,
   createRequestHandler,
-  htmlChunk,
-  streamHydrationChunk
+  htmlChunk
 } from "@effect-ui/start";
 import { Effect, Stream } from "effect";
 import { createComponent, generateHydrationScript, renderToString } from "solid-js/web";
-import "./domain.server.js";
 import App from "./App.js";
-import { app } from "./app-definition.js";
 import { ProjectSummaries } from "./project-collections.js";
+import { isRoutePathMatch } from "./routeTree.gen.js";
+import { createProjectConsoleApp } from "./app-definition.js";
 import { projectConsoleStartGraphHeader, projectConsoleStartGraphSummary } from "./start-graph.js";
+import { projectConsoleServerRegistry } from "./start-options.js";
 import "./styles.css";
+
+export const serverApp = createProjectConsoleApp(projectConsoleServerRegistry);
 
 const shellOpen = (options: {
   readonly solidHydrationScript: string;
@@ -35,9 +37,9 @@ const shellClose = (hydrationScript: string): string => `</div>
   </body>
 </html>`;
 
-export const handleRequest = createRequestHandler(app, {
+export const handleRequest = createRequestHandler(serverApp, {
   collections: [ProjectSummaries],
-  render: ({ request, match, resources, hydrationScript, runtime }) => {
+  render: ({ request, match, hydrationPlan, runtime }) => {
     return Effect.gen(function* () {
       const url = new URL(request.url);
       const href = `${url.pathname}${url.search}`;
@@ -45,26 +47,23 @@ export const handleRequest = createRequestHandler(app, {
         createComponent(RuntimeProvider, {
           runtime,
           get children() {
-            return createComponent(App, { initialHref: href });
+            return createComponent(App, { initialHref: href, runtime });
           }
         })
       );
-      const title = match?.route.path === "/projects/:id"
-        ? `${(match.params as { readonly id: string }).id} · Effect UI Project Console`
+      const title = isRoutePathMatch("/projects/:id", match)
+        ? `${match.params.id} · Effect UI Project Console`
         : "Effect UI Project Console";
-
-      return yield* createHtmlResponseEffect({
+      return yield* createStartStreamedHtmlResponseEffect({
         shell: htmlChunk(
           shellOpen({
             solidHydrationScript: generateHydrationScript(),
             title
           })
         ),
-        chunks: Stream.make(
-          htmlChunk(body),
-          streamHydrationChunk(resources)
-        ),
-        tail: htmlChunk(shellClose(hydrationScript)),
+        chunks: Stream.make(htmlChunk(body)),
+        hydrationPlan,
+        tail: htmlChunk(shellClose(hydrationPlan.root.script)),
         headers: {
           "x-effect-ui-render": "streaming",
           "x-effect-ui-start-graph": projectConsoleStartGraphHeader,

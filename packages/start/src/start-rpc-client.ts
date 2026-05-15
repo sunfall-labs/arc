@@ -1,17 +1,67 @@
 import {
   Server,
   ServerClient,
-  ServerTransportError
+  type AnyEffectUiRuntime,
+  type EffectUiRuntime
 } from "@effect-ui/core";
 import { Effect, Layer } from "effect";
-import { serverRpcPath } from "./rpc.js";
-import {
-  callStartFetchEffect,
-  getStartTransportHeadersEffect as getRpcHeadersEffect,
-  resolveStartFetchEffect,
-  type ServerRpcClientOptions
-} from "./start-fetch.js";
+import { type ServerRpcClientOptions } from "./start-fetch.js";
+import { executeStartClientTransportEffect } from "./start-client-transport.js";
+import { resolveStartRpcEndpoint } from "./start-transport-endpoints.js";
 import { parseRpcResponse } from "./start-transport-protocol.js";
+
+type ServerRpcTransportRuntime<FetchRequirements> =
+  | EffectUiRuntime<FetchRequirements, never>
+  | AnyEffectUiRuntime<never>;
+
+type ServerRpcRuntimeFreeOptions<FetchError = never> =
+  ServerRpcClientOptions<FetchError, never, never> & {
+    readonly transportRuntime?: undefined;
+  };
+
+type ServerRpcRuntimeBackedOptions<FetchError, FetchRequirements> =
+  ServerRpcClientOptions<FetchError, FetchRequirements, never> & {
+    readonly transportRuntime: ServerRpcTransportRuntime<FetchRequirements>;
+  };
+
+const makeRpcClientFromOptions = <
+  FetchError = never,
+  FetchRequirements = never
+>(
+  options: ServerRpcClientOptions<FetchError, FetchRequirements, never> = {}
+): ServerClient => ({
+  call: <I, A, E, R>(
+    fn: Server.Fn<I, A, E, R>,
+    input: I
+  ): Effect.Effect<A, E | Server.ClientError, R> => {
+    const workflow = Effect.gen(function* () {
+      const encodedInput = yield* Server.encodeInput(fn, input);
+      const request: Server.RpcRequest = {
+        name: fn.name,
+        input: encodedInput
+      };
+      const { body: rpcResponse } = yield* executeStartClientTransportEffect({
+        kind: "rpc",
+        ...(options.fetch === undefined ? {} : { fetch: options.fetch }),
+        ...(options.headers === undefined ? {} : { headers: options.headers }),
+        endpoint: resolveStartRpcEndpoint(options),
+        request,
+        parseResponse: parseRpcResponse
+      });
+
+      switch (rpcResponse._tag) {
+        case "Success":
+          return yield* Server.decodeOutput(fn, rpcResponse.value);
+        case "Failure":
+          return yield* Effect.fail(yield* Server.decodeError(fn, rpcResponse.error));
+      }
+    });
+
+    return (options.transportRuntime
+      ? options.transportRuntime.provide(workflow)
+      : workflow) as unknown as Effect.Effect<A, E | Server.ClientError, R>;
+  }
+});
 
 /**
  * Creates a `ServerClient` that invokes server functions through Start RPC.
@@ -19,88 +69,42 @@ import { parseRpcResponse } from "./start-transport-protocol.js";
  * Calls remain Effects. The HTTP request is performed only when the server
  * function Effect is run.
  */
-export const makeRpcClient = <FetchError = never>(
-  options: ServerRpcClientOptions<FetchError> = {}
-): ServerClient => ({
-  call: (fn, input) =>
-    Effect.gen(function* () {
-      const fetcher = yield* resolveStartFetchEffect(
-        options.fetch,
-        "No fetch implementation is available for server functions."
-      );
-
-      const encodedInput = yield* Server.encodeInput(fn, input);
-      const request: Server.RpcRequest = {
-        name: fn.name,
-        input: encodedInput
-      };
-      const body = yield* Effect.try({
-        try: () => JSON.stringify(request),
-        catch: (cause) =>
-          new ServerTransportError({
-            reason: "InvalidResponse",
-            message: "Could not encode the server function request body.",
-            cause,
-            payload: request
-          })
-      });
-      const headers = yield* getRpcHeadersEffect(options);
-      const response = yield* callStartFetchEffect(
-        fetcher,
-        options.endpoint ?? serverRpcPath,
-        {
-          method: "POST",
-          headers,
-          body
-        },
-        (cause) =>
-          new ServerTransportError({
-            reason: "Network",
-            message: "Server function request failed.",
-            cause
-          })
-      );
-      const rpcResponse = yield* parseRpcResponse(response);
-
-      switch (rpcResponse._tag) {
-        case "Success":
-          if (!response.ok) {
-            return yield* new ServerTransportError({
-              reason: "BadStatus",
-              status: response.status,
-              message: `Server function succeeded with unexpected HTTP status ${response.status}.`,
-              payload: rpcResponse
-            });
-          }
-          return yield* Server.decodeOutput(fn, rpcResponse.value);
-        case "Failure":
-          if (!response.ok) {
-            return yield* new ServerTransportError({
-              reason: "BadStatus",
-              status: response.status,
-              message: `Server function failed with unexpected HTTP status ${response.status}.`,
-              payload: rpcResponse
-            });
-          }
-          return yield* Effect.fail(yield* Server.decodeError(fn, rpcResponse.error));
-        case "ServerError":
-          return yield* Effect.fail(Server.deserializeServerError(rpcResponse.error));
-        case "Defect":
-          return yield* new ServerTransportError({
-            reason: "Defect",
-            status: response.status,
-            message: "Server function failed with a defect.",
-            payload: rpcResponse.defect
-          });
-      }
-    })
-});
+export function makeRpcClient<FetchError = never>(
+  options?: ServerRpcRuntimeFreeOptions<FetchError>
+): ServerClient;
+export function makeRpcClient<
+  FetchError = never,
+  FetchRequirements = never
+>(
+  options: ServerRpcRuntimeBackedOptions<FetchError, FetchRequirements>
+): ServerClient;
+export function makeRpcClient<
+  FetchError = never,
+  FetchRequirements = never
+>(
+  options: ServerRpcClientOptions<FetchError, FetchRequirements, never> = {}
+): ServerClient {
+  return makeRpcClientFromOptions(options);
+}
 
 /** Layer that provides a Start RPC-backed `ServerClient`. */
-export const makeRpcClientLayer = <FetchError = never>(
-  options: ServerRpcClientOptions<FetchError> = {}
-) =>
-  Layer.succeed(ServerClient)(makeRpcClient(options));
+export function makeRpcClientLayer<FetchError = never>(
+  options?: ServerRpcRuntimeFreeOptions<FetchError>
+): Layer.Layer<ServerClient>;
+export function makeRpcClientLayer<
+  FetchError = never,
+  FetchRequirements = never
+>(
+  options: ServerRpcRuntimeBackedOptions<FetchError, FetchRequirements>
+): Layer.Layer<ServerClient>;
+export function makeRpcClientLayer<
+  FetchError = never,
+  FetchRequirements = never
+>(
+  options: ServerRpcClientOptions<FetchError, FetchRequirements, never> = {}
+): Layer.Layer<ServerClient> {
+  return Layer.succeed(ServerClient)(makeRpcClientFromOptions(options));
+}
 
 /** Default browser RPC layer using `globalThis.fetch` and the Start RPC path. */
 export const BrowserRpcLive = makeRpcClientLayer();

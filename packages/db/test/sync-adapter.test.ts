@@ -1,7 +1,8 @@
-import { Resource, Server, toEffect } from "@effect-ui/core";
+import { EffectInputCallbackError, Resource, Server, makeRuntime, toEffect } from "@effect-ui/core";
 import { Collection } from "@effect-ui/db";
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
+import { makeCollectionChangeFeedDispatcherEffect } from "../src/change-feed-dispatcher.js";
 
 interface Project {
   readonly id: string;
@@ -139,12 +140,100 @@ describe("Collection.syncOptions", () => {
           InsertProjects.insertEffect({ id: "atlas", name: "Atlas", archived: false })
         );
 
-        expect(loadError).toBe(loadFailure);
-        expect(insertError).toBe(insertFailure);
+        expect(loadError).toBeInstanceOf(EffectInputCallbackError);
+        expect((loadError as EffectInputCallbackError).cause).toBe(loadFailure);
+        expect(insertError).toBeInstanceOf(EffectInputCallbackError);
+        expect((insertError as EffectInputCallbackError).cause).toBe(insertFailure);
         expect(InsertProjects.pendingMutations()).toEqual([]);
         expect(InsertProjects.rows()).toEqual([]);
       })
     ));
+
+  it("preserves sync adapter receivers for method-style load and refetch callbacks", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        interface MethodSyncAdapter extends Collection.SyncAdapter<Project> {
+          readonly loaded: ReadonlyArray<Project>;
+          readonly refreshed: ReadonlyArray<Project>;
+        }
+
+        const sync: MethodSyncAdapter = {
+          name: "method-style-sync",
+          loaded: [
+            { id: "atlas", name: "Atlas", archived: false }
+          ],
+          refreshed: [
+            { id: "atlas", name: "Atlas Prime", archived: false }
+          ],
+          load(this: MethodSyncAdapter) {
+            return this.loaded;
+          },
+          refetch(this: MethodSyncAdapter) {
+            return this.refreshed;
+          }
+        };
+        const Projects = Collection.define(Collection.syncOptions<Project>({
+          name: "Projects.sync.method-receiver",
+          getKey: (project) => project.id,
+          sync
+        }));
+
+        yield* Projects.preloadEffect();
+        expect(Projects.rows().map((project) => project.name)).toEqual(["Atlas"]);
+
+        yield* Projects.refetchEffect();
+        expect(Projects.rows().map((project) => project.name)).toEqual(["Atlas Prime"]);
+      })
+    ));
+
+  it("keeps first load versus refetch selection local to each runtime", () => {
+    const first = makeRuntime();
+    const second = makeRuntime();
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const load = vi.fn(() =>
+          Effect.succeed<ReadonlyArray<Project>>([
+            { id: "atlas", name: "Atlas", archived: false }
+          ])
+        );
+        const refetch = vi.fn(() =>
+          Effect.succeed<ReadonlyArray<Project>>([
+            { id: "atlas", name: "Atlas Prime", archived: false }
+          ])
+        );
+        const Projects = Collection.define(Collection.syncOptions<Project>({
+          name: "Projects.sync.runtime-local-load",
+          getKey: (project) => project.id,
+          sync: {
+            name: "runtime-local-load",
+            load,
+            refetch
+          }
+        }));
+
+        yield* first.provide(Projects.preloadEffect());
+        yield* second.provide(Projects.preloadEffect());
+
+        expect(load).toHaveBeenCalledTimes(2);
+        expect(refetch).not.toHaveBeenCalled();
+        expect(first.runSync(Effect.sync(() => Projects.rows().map((project) => project.name)))).toEqual(["Atlas"]);
+        expect(second.runSync(Effect.sync(() => Projects.rows().map((project) => project.name)))).toEqual(["Atlas"]);
+
+        yield* first.provide(Projects.refetchEffect());
+
+        expect(load).toHaveBeenCalledTimes(2);
+        expect(refetch).toHaveBeenCalledTimes(1);
+        expect(first.runSync(Effect.sync(() => Projects.rows().map((project) => project.name)))).toEqual(["Atlas Prime"]);
+        expect(second.runSync(Effect.sync(() => Projects.rows().map((project) => project.name)))).toEqual(["Atlas"]);
+      }).pipe(
+        Effect.ensuring(Effect.gen(function* () {
+          yield* first.disposeEffect;
+          yield* second.disposeEffect;
+        }))
+      )
+    );
+  });
 
   it("composes server sync adapters through the generic sync options seam", () => {
     return Effect.runPromise(
@@ -309,6 +398,116 @@ describe("Collection.syncOptions", () => {
     );
   });
 
+  it("preserves query sync receivers for method-style queryFn callbacks", () => {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        interface MethodQueryOptions extends Collection.QuerySyncAdapterOptions<Project> {
+          readonly rows: ReadonlyArray<Project>;
+        }
+
+        const queryKey = ["projects", "method-query-fn"] as const;
+        const options: MethodQueryOptions = {
+          name: "method-query-fn",
+          queryKey,
+          rows: [
+            { id: "atlas", name: "Atlas", archived: false }
+          ],
+          queryFn(this: MethodQueryOptions) {
+            return this.rows;
+          },
+          queryClient: {
+            fetchQuery: ({ queryFn }) => queryFn()
+          }
+        };
+        const Projects = Collection.define(Collection.syncOptions<Project>({
+          name: "Projects.sync.query-method-receiver",
+          getKey: (project) => project.id,
+          sync: Collection.querySyncAdapter(options)
+        }));
+
+        yield* Projects.preloadEffect();
+
+        expect(Projects.rows().map((project) => project.name)).toEqual(["Atlas"]);
+      })
+    );
+  });
+
+  it("uses best-effort query-sync mutation invalidation by default", () => {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const queryKey = ["projects", "invalidate-fails"] as const;
+        const updates: Array<Collection.SyncUpdatePayload<Project, string>> = [];
+        const Projects = Collection.define(Collection.syncOptions<Project, string, string>({
+          name: "Projects.sync.query-invalidate-fails",
+          getKey: (project) => project.id,
+          initialData: [
+            { id: "atlas", name: "Atlas", archived: false }
+          ],
+          sync: Collection.querySyncAdapter({
+            queryKey,
+            queryFn: () => [{ id: "atlas", name: "Atlas", archived: false }],
+            queryClient: {
+              fetchQuery: ({ queryFn }) => queryFn(),
+              invalidateQueries: () => Effect.fail("invalidate failed")
+            },
+            update: (payload) =>
+              Effect.sync(() => {
+                updates.push(payload);
+              })
+          })
+        }));
+
+        yield* Projects.updateEffect("atlas", { archived: true });
+
+        expect(updates).toHaveLength(1);
+        expect(Projects.pendingMutations()).toEqual([]);
+        expect(Projects.get("atlas")).toMatchObject({
+          archived: true,
+          $synced: true
+        });
+      })
+    );
+  });
+
+  it("rolls back query-sync mutations when rollback-on-failure invalidation fails", () => {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const queryKey = ["projects", "rollback-invalidate-fails"] as const;
+        const updates: Array<Collection.SyncUpdatePayload<Project, string>> = [];
+        const Projects = Collection.define(Collection.syncOptions<Project, string, string>({
+          name: "Projects.sync.query-rollback-invalidate-fails",
+          getKey: (project) => project.id,
+          initialData: [
+            { id: "atlas", name: "Atlas", archived: false }
+          ],
+          sync: Collection.querySyncAdapter({
+            queryKey,
+            queryFn: () => [{ id: "atlas", name: "Atlas", archived: false }],
+            mutationInvalidation: "rollback-on-failure",
+            queryClient: {
+              fetchQuery: ({ queryFn }) => queryFn(),
+              invalidateQueries: () => Effect.fail("invalidate failed")
+            },
+            update: (payload) =>
+              Effect.sync(() => {
+                updates.push(payload);
+              })
+          })
+        }));
+
+        const failure = yield* Effect.flip(Projects.updateEffect("atlas", { archived: true }));
+
+        expect(failure).toBe("invalidate failed");
+        expect(updates).toHaveLength(1);
+        expect(Projects.pendingMutations()).toEqual([]);
+        expect(Projects.get("atlas")).toMatchObject({
+          archived: false,
+          $synced: true
+        });
+      })
+    );
+  });
+
   it("subscribes scoped change-feed adapters into collection changes", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -354,4 +553,172 @@ describe("Collection.syncOptions", () => {
       })
     );
   });
+
+  it("binds Effect change-feed emitters to the subscribed Collection store", () => {
+    const first = makeRuntime();
+    const second = makeRuntime();
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const Projects = Collection.define<Project>({
+          name: "Projects.sync.feed-runtime-local",
+          getKey: (project) => project.id,
+          initialData: [
+            { id: "atlas", name: "Atlas", archived: false }
+          ]
+        });
+        let emit!: Collection.ChangeFeedContext<Project>["emit"];
+        const feed: Collection.ChangeFeedAdapter<Project> = {
+          name: "projects-runtime-local-feed",
+          subscribe: (context) => {
+            emit = context.emit;
+          }
+        };
+
+        yield* Effect.scoped(Effect.gen(function* () {
+          yield* first.provide(Collection.subscribeChangesEffect(Projects, feed));
+          yield* second.provide(toEffect(emit([
+            { _tag: "Upsert", value: { id: "orion", name: "Orion", archived: true } }
+          ], { origin: "remote", synced: true })));
+
+          expect(first.runSync(Effect.sync(() => Projects.rows().map((project) => project.id)))).toEqual([
+            "atlas",
+            "orion"
+          ]);
+          expect(second.runSync(Effect.sync(() => Projects.rows().map((project) => project.id)))).toEqual([
+            "atlas"
+          ]);
+        }));
+      }).pipe(
+        Effect.ensuring(Effect.gen(function* () {
+          yield* first.disposeEffect;
+          yield* second.disposeEffect;
+        }))
+      )
+    );
+  });
+
+  it("lets host-callback change-feed adapters emit without running Effects themselves", () => {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const Projects = Collection.define<Project>({
+          name: "Projects.sync.feed-host-callback",
+          getKey: (project) => project.id,
+          initialData: [
+            { id: "atlas", name: "Atlas", archived: false }
+          ]
+        });
+        let emitChanges!: Collection.ChangeFeedContext<Project>["emitChanges"];
+        let unsubscribed = 0;
+        const feed: Collection.ChangeFeedAdapter<Project> = {
+          name: "projects-host-feed",
+          subscribe: (context) => {
+            emitChanges = context.emitChanges;
+            return () =>
+              Effect.sync(() => {
+                unsubscribed++;
+              });
+          }
+        };
+
+        yield* Effect.scoped(Effect.gen(function* () {
+          yield* Collection.subscribeChangesEffect(Projects, feed);
+          emitChanges([
+            { _tag: "Upsert", value: { id: "orion", name: "Orion", archived: true } }
+          ], { origin: "remote", synced: true });
+
+          yield* Effect.sleep("0 millis");
+
+          expect(Projects.rows().map((project) => project.id)).toEqual(["atlas", "orion"]);
+          expect(Projects.get("orion")).toMatchObject({
+            name: "Orion",
+            $origin: "remote",
+            $synced: true
+          });
+        }));
+
+        expect(unsubscribed).toBe(1);
+      })
+    );
+  });
+
+  it("drops host-callback change-feed emissions after dispatcher shutdown", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const dispatcher = yield* makeCollectionChangeFeedDispatcherEffect<Project, string>();
+
+        expect(dispatcher.emitChanges([
+          { _tag: "Upsert", value: { id: "atlas", name: "Atlas", archived: false } }
+        ])).toBe(true);
+
+        const first = yield* dispatcher.takeEffect();
+        expect(first.changes).toMatchObject([
+          { _tag: "Upsert", value: { id: "atlas" } }
+        ]);
+
+        yield* dispatcher.shutdownEffect();
+
+        expect(dispatcher.emitChanges([
+          { _tag: "Upsert", value: { id: "late", name: "Late", archived: true } }
+        ])).toBe(false);
+      })
+    ));
+
+  it("ignores late host-callback change-feed emissions after subscription scope release", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const Projects = Collection.define<Project>({
+          name: "Projects.sync.feed-late-host-callback",
+          getKey: (project) => project.id,
+          initialData: [
+            { id: "atlas", name: "Atlas", archived: false }
+          ]
+        });
+        let emitChanges!: Collection.ChangeFeedContext<Project>["emitChanges"];
+        const feed: Collection.ChangeFeedAdapter<Project> = {
+          name: "projects-late-host-feed",
+          subscribe: (context) => {
+            emitChanges = context.emitChanges;
+          }
+        };
+
+        yield* Effect.scoped(Collection.subscribeChangesEffect(Projects, feed));
+
+        emitChanges([
+          { _tag: "Upsert", value: { id: "late", name: "Late", archived: true } }
+        ]);
+        yield* Effect.sleep("0 millis");
+
+        expect(Projects.rows().map((project) => project.id)).toEqual(["atlas"]);
+      })
+    ));
+
+  it("ignores late direct change-feed emissions after subscription scope release", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const Projects = Collection.define<Project>({
+          name: "Projects.sync.feed-late-direct",
+          getKey: (project) => project.id,
+          initialData: [
+            { id: "atlas", name: "Atlas", archived: false }
+          ]
+        });
+        let emit!: Collection.ChangeFeedContext<Project>["emit"];
+        const feed: Collection.ChangeFeedAdapter<Project> = {
+          name: "projects-late-direct-feed",
+          subscribe: (context) => {
+            emit = context.emit;
+          }
+        };
+
+        yield* Effect.scoped(Collection.subscribeChangesEffect(Projects, feed));
+
+        yield* toEffect(emit([
+          { _tag: "Upsert", value: { id: "late", name: "Late", archived: true } }
+        ]));
+        yield* Effect.sleep("0 millis");
+
+        expect(Projects.rows().map((project) => project.id)).toEqual(["atlas"]);
+      })
+    ));
 });

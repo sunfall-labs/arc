@@ -1,3 +1,4 @@
+import { EffectInputCallbackError } from "@effect-ui/core";
 import { Effect, Data, Schema } from "effect";
 import type {
   CollectionDefinition,
@@ -13,7 +14,15 @@ import type {
   CollectionTransaction
 } from "./collection-contract.js";
 import {
+  applyCollectionBaseRow,
   bumpCollectionState,
+  cloneFrozenCollectionTransaction,
+  cloneCollectionValue,
+  cloneStoredRow,
+  collectionValueChanges,
+  rebaseCollectionBaseRows,
+  restoreStoredRows,
+  syncOptimisticRowsFromPendingMutations,
   type CollectionState,
   type PendingMutationEntry,
   type StoredRow
@@ -22,8 +31,12 @@ import {
 export type CollectionSnapshotCodecOperation =
   | "decode"
   | "encode"
+  | "load"
   | "hydrate"
-  | "snapshot";
+  | "mutation"
+  | "restore"
+  | "snapshot"
+  | "write";
 
 /**
  * Typed failure for invalid collection snapshots or hydration payloads.
@@ -72,55 +85,23 @@ const isObjectValue = (value: unknown): value is object =>
 const hasOwn = (value: Record<string, unknown>, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(value, key);
 
-const cloneValue = <A>(value: A, seen = new WeakMap<object, unknown>()): A => {
-  if (typeof value !== "object" || value === null) {
-    return value;
-  }
+const cloneValue = <A>(value: A): A => cloneCollectionValue(value);
 
-  if (value instanceof Date) {
-    return new Date(value.getTime()) as A;
-  }
-
-  const existing = seen.get(value);
-  if (existing) {
-    return existing as A;
-  }
-
-  if (Array.isArray(value)) {
-    const output: Array<unknown> = [];
-    seen.set(value, output);
-    for (const entry of value) {
-      output.push(cloneValue(entry, seen));
-    }
-    return output as A;
-  }
-
-  const prototype = Object.getPrototypeOf(value);
-  if (prototype !== Object.prototype && prototype !== null) {
-    return value;
-  }
-
-  const output: Record<string, unknown> = {};
-  seen.set(value, output);
-  for (const [key, entry] of Object.entries(value)) {
-    output[key] = cloneValue(entry, seen);
-  }
-  return output as A;
-};
-
-const validateKey = <K extends CollectionKey>(
+export const validateCollectionKey = <K extends CollectionKey>(
   value: unknown,
   operation: CollectionSnapshotCodecOperation,
   path: string
 ): K => {
   assertCodec(
-    typeof value === "string" || typeof value === "number",
+    typeof value === "string" || (typeof value === "number" && Number.isFinite(value)),
     operation,
     path,
-    "Expected a string or number collection key."
+    "Expected a string or finite number collection key."
   );
   return value as K;
 };
+
+const validateKey = validateCollectionKey;
 
 const validateString = (
   value: unknown,
@@ -141,6 +122,20 @@ const validateNumber = (
     operation,
     path,
     "Expected a finite number."
+  );
+  return value;
+};
+
+const validateNonNegativeSafeInteger = (
+  value: unknown,
+  operation: CollectionSnapshotCodecOperation,
+  path: string
+): number => {
+  assertCodec(
+    typeof value === "number" && Number.isSafeInteger(value) && value >= 0,
+    operation,
+    path,
+    "Expected a non-negative safe integer."
   );
   return value;
 };
@@ -295,19 +290,56 @@ export const validateCollectionPendingMutation = <A extends object, K extends Co
   path: string
 ): CollectionPendingMutation<A, K> => {
   const pending = validateRecord(value, operation, path, "a pending collection mutation snapshot");
-  const rollbackRows = validateArray(
+  const transaction = validateCollectionTransaction<A, K>(pending.transaction, operation, `${path}.transaction`);
+  const rollbackValues = validateArray(
     pending.rollbackRows,
     operation,
     `${path}.rollbackRows`,
     "a rollback row array"
   );
+  const rollbackRows = rollbackValues.map((rollback, index) =>
+    validateCollectionRollbackRow<A, K>(rollback, operation, `${path}.rollbackRows[${index}]`)
+  );
+  const mutationKeys = new Set<K>(transaction.mutations.map((mutation) => mutation.key));
+  const rollbackKeys = new Set<K>();
+
+  for (const [rollbackIndex, rollback] of rollbackRows.entries()) {
+    const rollbackPath = `${path}.rollbackRows[${rollbackIndex}]`;
+    assertCodec(
+      !rollbackKeys.has(rollback.key),
+      operation,
+      `${rollbackPath}.key`,
+      `Rollback row key ${String(rollback.key)} appears more than once.`
+    );
+    assertCodec(
+      mutationKeys.has(rollback.key),
+      operation,
+      `${rollbackPath}.key`,
+      `Rollback row key ${String(rollback.key)} is not part of the pending transaction.`
+    );
+    assertCodec(
+      rollback.row === undefined || Object.is(rollback.row.key, rollback.key),
+      operation,
+      `${rollbackPath}.row.key`,
+      "Rollback row key must match its rollback entry key."
+    );
+    rollbackKeys.add(rollback.key);
+  }
+
+  for (const key of mutationKeys) {
+    assertCodec(
+      rollbackKeys.has(key),
+      operation,
+      `${path}.rollbackRows`,
+      `Missing rollback row for pending mutation key ${String(key)}.`
+    );
+  }
+
   return {
-    transaction: validateCollectionTransaction<A, K>(pending.transaction, operation, `${path}.transaction`),
-    rollbackRows: rollbackRows.map((rollback, index) =>
-      validateCollectionRollbackRow<A, K>(rollback, operation, `${path}.rollbackRows[${index}]`)
-    ),
+    transaction,
+    rollbackRows,
     createdAt: validateNumber(pending.createdAt, operation, `${path}.createdAt`),
-    attempts: validateNumber(pending.attempts, operation, `${path}.attempts`)
+    attempts: validateNonNegativeSafeInteger(pending.attempts, operation, `${path}.attempts`)
   };
 };
 
@@ -326,14 +358,39 @@ export const validateCollectionSnapshot = <A extends object, K extends Collectio
         `${path}.pendingMutations`,
         "a pending mutation array"
       );
+  const decodedRows = rows.map((row, index) =>
+    validateCollectionRowSnapshot<A, K>(row, operation, `${path}.rows[${index}]`)
+  );
+  const rowKeys = new Set<CollectionKey>();
+  decodedRows.forEach((row, index) => {
+    assertCodec(
+      !rowKeys.has(row.key),
+      operation,
+      `${path}.rows[${index}].key`,
+      `Duplicate row key '${String(row.key)}' in collection snapshot.`
+    );
+    rowKeys.add(row.key);
+  });
+
+  const decodedPendingMutations = pendingMutations.map((pending, index) =>
+    validateCollectionPendingMutation<A, K>(pending, operation, `${path}.pendingMutations[${index}]`)
+  );
+  const pendingTransactionIds = new Set<string>();
+  decodedPendingMutations.forEach((pending, index) => {
+    const id = pending.transaction.id;
+    assertCodec(
+      !pendingTransactionIds.has(id),
+      operation,
+      `${path}.pendingMutations[${index}].transaction.id`,
+      `Duplicate pending transaction id '${id}' in collection snapshot.`
+    );
+    pendingTransactionIds.add(id);
+  });
+
   return {
     name: validateString(snapshot.name, operation, `${path}.name`),
-    rows: rows.map((row, index) =>
-      validateCollectionRowSnapshot<A, K>(row, operation, `${path}.rows[${index}]`)
-    ),
-    pendingMutations: pendingMutations.map((pending, index) =>
-      validateCollectionPendingMutation<A, K>(pending, operation, `${path}.pendingMutations[${index}]`)
-    ),
+    rows: decodedRows,
+    pendingMutations: decodedPendingMutations,
     updatedAt: validateNumber(snapshot.updatedAt, operation, `${path}.updatedAt`)
   };
 };
@@ -363,6 +420,13 @@ export const validateCollectionSnapshotEffect = <A extends object, K extends Col
     catch: catchSnapshotCodecError(operation, path)
   });
 
+/**
+ * Decodes collection output schema failures into the snapshot codec error seam.
+ *
+ * Public Collection and Query Interfaces should not expose raw schema errors;
+ * callers see `CollectionSnapshotCodecError` with the
+ * path that failed inside the hydrated or loaded snapshot.
+ */
 export const decodeCollectionOutputValuesEffect = <A extends object>(
   schema: unknown,
   values: ReadonlyArray<A>,
@@ -373,15 +437,60 @@ export const decodeCollectionOutputValuesEffect = <A extends object>(
     return Effect.succeed(values);
   }
 
+  const candidateValues = values;
+  const isDecodedCollection = Schema.is(schema as Schema.Schema<ReadonlyArray<A>>);
+  if (isDecodedCollection(candidateValues as unknown)) {
+    return Effect.succeed(values);
+  }
+
+  const isDecodedValue = Schema.is(schema as Schema.Schema<A>);
+  if (candidateValues.every((value) => isDecodedValue(value as unknown))) {
+    return Effect.succeed(values);
+  }
+
   const decodeValues = Schema.decodeUnknownEffect(schema as Schema.Decoder<ReadonlyArray<A>>)(values);
   const decodeRows = Effect.all(
-    values.map((value) => Schema.decodeUnknownEffect(schema as Schema.Decoder<A>)(value))
+    candidateValues.map((value) => Schema.decodeUnknownEffect(schema as Schema.Decoder<A>)(value))
   ).pipe(Effect.map((decoded) => decoded as ReadonlyArray<A>));
 
   return decodeValues.pipe(
     Effect.catch(() => decodeRows),
     Effect.mapError(catchSnapshotCodecError(operation, path))
   );
+};
+
+export const decodeCollectionOutputValuesSync = <A extends object>(
+  schema: unknown,
+  values: ReadonlyArray<A>,
+  operation: CollectionSnapshotCodecOperation,
+  path: string
+): ReadonlyArray<A> => {
+  if (!Schema.isSchema(schema)) {
+    return values;
+  }
+
+  try {
+    const candidateValues = values;
+    const isDecodedCollection = Schema.is(schema as Schema.Schema<ReadonlyArray<A>>);
+    if (isDecodedCollection(candidateValues as unknown)) {
+      return values;
+    }
+
+    const isDecodedValue = Schema.is(schema as Schema.Schema<A>);
+    if (candidateValues.every((value) => isDecodedValue(value as unknown))) {
+      return values;
+    }
+
+    try {
+      return Schema.decodeUnknownSync(schema as Schema.Decoder<ReadonlyArray<A>>)(values);
+    } catch {
+      return candidateValues.map((value) =>
+        Schema.decodeUnknownSync(schema as Schema.Decoder<A>)(value)
+      ) as ReadonlyArray<A>;
+    }
+  } catch (error) {
+    throw catchSnapshotCodecError(operation, path)(error);
+  }
 };
 
 const decodeCollectionDefinitionValuesEffect = <A extends object, K extends CollectionKey, E, R>(
@@ -392,14 +501,60 @@ const decodeCollectionDefinitionValuesEffect = <A extends object, K extends Coll
 ): Effect.Effect<ReadonlyArray<A>, CollectionSnapshotCodecError> =>
   decodeCollectionOutputValuesEffect(definition.options.output, values, operation, path);
 
+const describeCollectionKey = (key: CollectionKey): string =>
+  typeof key === "string" ? JSON.stringify(key) : String(key);
+
+const collectionDefinitionKeyEffect = <A extends object, K extends CollectionKey, E, R>(
+  definition: CollectionDefinition<A, K, E, R>,
+  value: A,
+  operation: CollectionSnapshotCodecOperation,
+  path: string
+): Effect.Effect<K, EffectInputCallbackError> =>
+  Effect.try({
+    try: () => definition.getKey(value),
+    catch: (cause) =>
+      new EffectInputCallbackError({
+        operation: `Collection.${operation}(${definition.name}).getKey`,
+        cause,
+        guidance: `Collection snapshot getKey callbacks must be synchronous, pure, and total. The failing value was at ${path}.`
+      })
+  });
+
+const validateCollectionValueKeyEffect = <A extends object, K extends CollectionKey, E, R>(
+  definition: CollectionDefinition<A, K, E, R>,
+  snapshotKey: K,
+  value: A,
+  operation: CollectionSnapshotCodecOperation,
+  keyPath: string,
+  valuePath: string
+): Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError> =>
+  Effect.gen(function* () {
+    const valueKey = yield* collectionDefinitionKeyEffect(definition, value, operation, valuePath);
+    if (!Object.is(valueKey, snapshotKey)) {
+      return yield* Effect.fail(new CollectionSnapshotCodecError({
+        operation,
+        path: keyPath,
+        reason: `Expected snapshot key ${describeCollectionKey(snapshotKey)} to match decoded value key ${describeCollectionKey(valueKey)}.`
+      }));
+    }
+  });
+
 export const validateCollectionSnapshotDefinitionEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   value: CollectionSnapshot<A, K>,
   operation: CollectionSnapshotCodecOperation = "hydrate",
   path = "$"
-): Effect.Effect<CollectionSnapshot<A, K>, CollectionSnapshotCodecError> =>
+): Effect.Effect<CollectionSnapshot<A, K>, CollectionSnapshotCodecError | EffectInputCallbackError> =>
   Effect.gen(function* () {
     const snapshot = yield* validateCollectionSnapshotEffect<A, K>(value, operation, path);
+    if (snapshot.name !== definition.name) {
+      return yield* Effect.fail(new CollectionSnapshotCodecError({
+        operation,
+        path: `${path}.name`,
+        reason: `Expected collection snapshot for '${definition.name}' but received '${snapshot.name}'.`
+      }));
+    }
+
     const values: Array<A> = [];
 
     for (const row of snapshot.rows) {
@@ -432,50 +587,146 @@ export const validateCollectionSnapshotDefinitionEffect = <A extends object, K e
     const decoded = yield* decodeCollectionDefinitionValuesEffect(definition, values, operation, path);
     let index = 0;
     const nextValue = (): A => decoded[index++] as A;
-    return {
-      ...snapshot,
-      rows: snapshot.rows.map((row) => ({
-        ...row,
-        value: nextValue()
-      })),
-      pendingMutations: snapshot.pendingMutations.map((pending) => ({
+    const rows: Array<CollectionRowSnapshot<A, K>> = [];
+    const pendingMutations: Array<CollectionPendingMutation<A, K>> = [];
+
+    for (const [rowIndex, row] of snapshot.rows.entries()) {
+      const value = nextValue();
+      const rowPath = `${path}.rows[${rowIndex}]`;
+      yield* validateCollectionValueKeyEffect(
+        definition,
+        row.key,
+        value,
+        operation,
+        `${rowPath}.key`,
+        `${rowPath}.value`
+      );
+      rows.push({ ...row, value });
+    }
+
+    for (const [pendingIndex, pending] of snapshot.pendingMutations.entries()) {
+      const pendingPath = `${path}.pendingMutations[${pendingIndex}]`;
+      if (pending.transaction.collection !== definition.name) {
+        return yield* Effect.fail(new CollectionSnapshotCodecError({
+          operation,
+          path: `${pendingPath}.transaction.collection`,
+          reason: `Expected pending mutation for collection '${definition.name}' but received '${pending.transaction.collection}'.`
+        }));
+      }
+
+      const mutations: Array<CollectionMutation<A, K>> = [];
+      for (const [mutationIndex, mutation] of pending.transaction.mutations.entries()) {
+        const mutationPath = `${pendingPath}.transaction.mutations[${mutationIndex}]`;
+        switch (mutation._tag) {
+          case "Insert": {
+            const value = nextValue();
+            yield* validateCollectionValueKeyEffect(
+              definition,
+              mutation.key,
+              value,
+              operation,
+              `${mutationPath}.key`,
+              `${mutationPath}.value`
+            );
+            if (mutation.previous === undefined) {
+              mutations.push({ ...mutation, value });
+            } else {
+              const previous = nextValue();
+              yield* validateCollectionValueKeyEffect(
+                definition,
+                mutation.key,
+                previous,
+                operation,
+                `${mutationPath}.key`,
+                `${mutationPath}.previous`
+              );
+              mutations.push({ ...mutation, value, previous });
+            }
+            break;
+          }
+          case "Update": {
+            const previous = nextValue();
+            const value = nextValue();
+            yield* validateCollectionValueKeyEffect(
+              definition,
+              mutation.key,
+              previous,
+              operation,
+              `${mutationPath}.key`,
+              `${mutationPath}.previous`
+            );
+            yield* validateCollectionValueKeyEffect(
+              definition,
+              mutation.key,
+              value,
+              operation,
+              `${mutationPath}.key`,
+              `${mutationPath}.value`
+            );
+            mutations.push({
+              ...mutation,
+              previous,
+              value,
+              changes: collectionValueChanges(previous, value)
+            });
+            break;
+          }
+          case "Delete": {
+            const previous = nextValue();
+            yield* validateCollectionValueKeyEffect(
+              definition,
+              mutation.key,
+              previous,
+              operation,
+              `${mutationPath}.key`,
+              `${mutationPath}.previous`
+            );
+            mutations.push({ ...mutation, previous });
+            break;
+          }
+        }
+      }
+
+      const rollbackRows: Array<CollectionRollbackRow<A, K>> = [];
+      for (const [rollbackIndex, rollback] of pending.rollbackRows.entries()) {
+        if (!rollback.row) {
+          rollbackRows.push(rollback);
+          continue;
+        }
+
+        const value = nextValue();
+        const rollbackPath = `${pendingPath}.rollbackRows[${rollbackIndex}].row`;
+        yield* validateCollectionValueKeyEffect(
+          definition,
+          rollback.row.key,
+          value,
+          operation,
+          `${rollbackPath}.key`,
+          `${rollbackPath}.value`
+        );
+        rollbackRows.push({
+          ...rollback,
+          row: {
+            ...rollback.row,
+            value
+          }
+        });
+      }
+
+      pendingMutations.push({
         ...pending,
         transaction: {
           ...pending.transaction,
-          mutations: pending.transaction.mutations.map((mutation) => {
-            switch (mutation._tag) {
-              case "Insert": {
-                const value = nextValue();
-                return mutation.previous === undefined
-                  ? { ...mutation, value }
-                  : { ...mutation, value, previous: nextValue() };
-              }
-              case "Update":
-                return {
-                  ...mutation,
-                  previous: nextValue(),
-                  value: nextValue()
-                };
-              case "Delete":
-                return {
-                  ...mutation,
-                  previous: nextValue()
-                };
-            }
-          })
+          mutations
         },
-        rollbackRows: pending.rollbackRows.map((rollback) =>
-          rollback.row
-            ? {
-                ...rollback,
-                row: {
-                  ...rollback.row,
-                  value: nextValue()
-                }
-              }
-            : rollback
-        )
-      }))
+        rollbackRows
+      });
+    }
+
+    return {
+      ...snapshot,
+      rows,
+      pendingMutations
     };
   });
 
@@ -485,10 +736,21 @@ export const validateCollectionHydrationPayload = (
 ): CollectionHydrationPayload => {
   const payload = validateRecord(value, operation, "$", "a collection hydration payload");
   const collections = validateArray(payload.collections, operation, "$.collections", "a collection snapshot array");
+  const decodedCollections = collections.map((snapshot, index) =>
+    validateCollectionSnapshot(snapshot, operation, `$.collections[${index}]`)
+  );
+  const names = new Set<string>();
+  decodedCollections.forEach((snapshot, index) => {
+    assertCodec(
+      !names.has(snapshot.name),
+      operation,
+      `$.collections[${index}].name`,
+      `Duplicate collection '${snapshot.name}' in collection hydration payload.`
+    );
+    names.add(snapshot.name);
+  });
   return {
-    collections: collections.map((snapshot, index) =>
-      validateCollectionSnapshot(snapshot, operation, `$.collections[${index}]`)
-    )
+    collections: decodedCollections
   };
 };
 
@@ -522,29 +784,6 @@ export const storedRowFromSnapshot = <A extends object, K extends CollectionKey>
   };
 };
 
-export const cloneStoredRow = <A extends object, K extends CollectionKey>(
-  row: StoredRow<A, K>
-): StoredRow<A, K> => ({
-  key: row.key,
-  value: cloneValue(row.value),
-  synced: row.synced,
-  origin: row.origin
-});
-
-export const restoreStoredRows = <A extends object, K extends CollectionKey>(
-  state: CollectionState<A, K, any>,
-  snapshots: ReadonlyMap<K, StoredRow<A, K> | undefined>
-): void => {
-  for (const [key, row] of snapshots) {
-    if (row) {
-      state.rows.set(key, cloneStoredRow(row));
-    } else {
-      state.rows.delete(key);
-    }
-  }
-  bumpCollectionState(state);
-};
-
 const rollbackRowSnapshot = <A extends object, K extends CollectionKey>(
   key: K,
   row: StoredRow<A, K> | undefined
@@ -572,13 +811,14 @@ export const pendingEntryFromSnapshot = <A extends object, K extends CollectionK
 ): PendingMutationEntry<A, K> => {
   const pending = validateCollectionPendingMutation<A, K>(snapshot, "hydrate", "$.pendingMutations[]");
   return {
-    transaction: pending.transaction,
+    transaction: cloneFrozenCollectionTransaction(pending.transaction),
     rollbackRows: new Map(pending.rollbackRows.map((rollback) => [
       rollback.key,
       rollback.row ? storedRowFromSnapshot(rollback.row) : undefined
     ])),
     createdAt: pending.createdAt,
-    attempts: pending.attempts
+    attempts: pending.attempts,
+    activeAttempt: undefined
   };
 };
 
@@ -618,24 +858,90 @@ export const collectionSnapshotFromValues = <A extends object, K extends Collect
   updatedAt
 });
 
+export const collectionSnapshotFromValuesEffect = <A extends object, K extends CollectionKey>(
+  name: string,
+  values: ReadonlyArray<A>,
+  getKey: (value: A) => K,
+  updatedAt: number
+): Effect.Effect<CollectionSnapshot<A, K>, EffectInputCallbackError> =>
+  Effect.try({
+    try: () => collectionSnapshotFromValues(name, values, getKey, updatedAt),
+    catch: (cause) =>
+      new EffectInputCallbackError({
+        operation: `Collection.snapshot(${name}).getKey`,
+        cause,
+        guidance: "Collection snapshot key callbacks must be synchronous, pure, and total. Move Effectful work into collection loaders or mutation handlers."
+      })
+  });
+
+export const validateCollectionSnapshotStateHydration = <A extends object, K extends CollectionKey, E>(
+  state: CollectionState<A, K, E>,
+  snapshot: CollectionSnapshot<A, K>,
+  options: CollectionHydrateOptions
+): void => {
+  snapshot.pendingMutations.forEach((pending, index) => {
+    const id = pending.transaction.id;
+    if (options.replace === false && state.pendingMutations.has(id)) {
+      failCodec(
+        "hydrate",
+        `$.pendingMutations[${index}].transaction.id`,
+        `Pending transaction id '${id}' already exists in the target collection state.`
+      );
+    }
+  });
+};
+
+export const validateCollectionSnapshotStateHydrationEffect = <A extends object, K extends CollectionKey, E>(
+  state: CollectionState<A, K, E>,
+  snapshot: CollectionSnapshot<A, K>,
+  options: CollectionHydrateOptions
+): Effect.Effect<void, CollectionSnapshotCodecError> =>
+  Effect.try({
+    try: () => validateCollectionSnapshotStateHydration(state, snapshot, options),
+    catch: catchSnapshotCodecError("hydrate", "$")
+  });
+
 const applyValidatedCollectionSnapshotState = <A extends object, K extends CollectionKey, E>(
   state: CollectionState<A, K, E>,
   snapshot: CollectionSnapshot<A, K>,
   options: CollectionHydrateOptions,
   advanceTransactionIdentity: (id: string) => void
 ): CollectionSnapshot<A, K> => {
+  validateCollectionSnapshotStateHydration(state, snapshot, options);
+
   if (options.replace !== false) {
     state.rows.clear();
     state.pendingMutations.clear();
+    state.optimisticRows.clear();
   }
 
+  const incomingPendingKeys = new Set<K>();
+  for (const pending of snapshot.pendingMutations) {
+    for (const mutation of pending.transaction.mutations) {
+      incomingPendingKeys.add(mutation.key);
+    }
+  }
+
+  const rebaseKeys = new Set<K>();
   for (const row of snapshot.rows) {
-    state.rows.set(row.key, storedRowFromSnapshot(row));
+    if (incomingPendingKeys.has(row.key)) {
+      if (!state.optimisticRows.has(row.key)) {
+        state.rows.set(row.key, cloneStoredRow(storedRowFromSnapshot(row)));
+      }
+      continue;
+    }
+    applyCollectionBaseRow(state, storedRowFromSnapshot(row), rebaseKeys);
   }
 
   for (const pending of snapshot.pendingMutations) {
     advanceTransactionIdentity(pending.transaction.id);
     state.pendingMutations.set(pending.transaction.id, pendingEntryFromSnapshot(pending));
+  }
+
+  if (snapshot.pendingMutations.length > 0) {
+    syncOptimisticRowsFromPendingMutations(state);
+  } else {
+    rebaseCollectionBaseRows(state, rebaseKeys);
   }
 
   state.loadState.set({
@@ -665,15 +971,19 @@ export const hydrateCollectionSnapshotStateEffect = <A extends object, K extends
   options: CollectionHydrateOptions,
   advanceTransactionIdentity: (id: string) => void
 ): Effect.Effect<CollectionSnapshot<A, K>, CollectionSnapshotCodecError> =>
-  Effect.map(
+  Effect.flatMap(
     validateCollectionSnapshotEffect<A, K>(value, "hydrate"),
     (snapshot) =>
-      applyValidatedCollectionSnapshotState(
-        state,
-        snapshot,
-        options,
-        advanceTransactionIdentity
-      )
+      Effect.try({
+        try: () =>
+          applyValidatedCollectionSnapshotState(
+            state,
+            snapshot,
+            options,
+            advanceTransactionIdentity
+          ),
+        catch: catchSnapshotCodecError("hydrate", "$")
+      })
   );
 
 export const encodeCollectionSnapshotEffect = <A extends object, K extends CollectionKey>(

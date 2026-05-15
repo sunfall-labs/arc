@@ -1,8 +1,12 @@
 import { defineFileRoute } from "@effect-ui/start";
-import { Effect } from "effect";
-import { preloadWelcomeEffect } from "../starter.js";
+import { WelcomeResource } from "../starter.js";
 
-export const Route = defineFileRoute("/")({
-  preloadResources: ["Starter.welcome"],
-  preload: () => Effect.asVoid(preloadWelcomeEffect)
+const RouteBuilder = defineFileRoute("/");
+
+export const Route = RouteBuilder({
+  ...RouteBuilder.preload({
+    resources: [
+      RouteBuilder.resource(WelcomeResource, () => "Effect UI")
+    ]
+  })
 });

@@ -117,14 +117,15 @@ Exit bar:
 Goal: make lifecycle behavior boring under stress.
 
 - Audit Promise-shaped internals and push them into Effect programs wherever a
-  host boundary does not require Promise callbacks.
+  host compatibility boundary does not require Promise callbacks.
 - Stress-test resource refresh, stale state, failure, GC, deletion, hydration,
   and invalidation under concurrent reads.
 - Stress-test action concurrency, optimistic rollback, retries, interruption,
   validation results, redirects, and Start transport hydration.
 - Add leak tests for request-local Resource Store and Collection Store state.
 - Add cancellation tests for streamed SSR, Node adapters, and client disconnects.
-- Confirm every host Promise boundary delegates to an Effect-native path.
+- Confirm every host Promise-shaped compatibility boundary delegates to an
+  Effect-native path.
 
 Exit bar:
 

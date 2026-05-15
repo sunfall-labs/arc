@@ -4,6 +4,8 @@
   "references": [
     { "path": "./packages/core" },
     { "path": "./packages/db" },
+    { "path": "./packages/react" },
+    { "path": "./packages/react-db" },
     { "path": "./packages/solid" },
     { "path": "./packages/solid-db" },
     { "path": "./packages/tsrx" },

@@ -1,33 +1,52 @@
 import {
   currentOrDefaultRuntime,
-  defaultRuntime,
+  makeRuntimeUiScope,
   makeRuntime,
-  runFork,
   runWithRuntime,
   runWithScope,
-  UiScope,
+  type AnyEffectUiRuntime,
   type EffectUiRuntime,
-  type RuntimeSource
+  type UiScope
 } from "@effect-ui/core";
-import { Effect } from "effect";
+import { Effect, Layer, ManagedRuntime } from "effect";
 import { createContext, onCleanup, useContext, type JSX } from "solid-js";
 import { createComponent } from "solid-js/web";
 
-export const RuntimeContext = createContext<EffectUiRuntime<unknown, never>>();
+export const RuntimeContext = createContext<AnyEffectUiRuntime<never>>();
 
 /** Props for providing an Effect UI runtime to Solid descendants. */
-export interface RuntimeProviderProps<ER = never> {
-  readonly runtime?: EffectUiRuntime<unknown, ER>;
-  readonly source?: RuntimeSource<unknown, ER>;
+interface RuntimeProviderChildren {
   readonly children?: JSX.Element;
 }
+
+interface RuntimeProviderRuntimeProps<RuntimeServices = never, ER = never> extends RuntimeProviderChildren {
+  /** Existing host-owned runtime. The provider exposes it and does not dispose it. */
+  readonly runtime: EffectUiRuntime<RuntimeServices, ER> | AnyEffectUiRuntime<ER>;
+  readonly source?: never;
+}
+
+interface RuntimeProviderSourceProps<RuntimeServices = never, ER = never> extends RuntimeProviderChildren {
+  readonly runtime?: never;
+  /** Runtime source owned by this Solid provider and disposed with its owner. */
+  readonly source: ManagedRuntime.ManagedRuntime<RuntimeServices, ER> | Layer.Layer<RuntimeServices, ER, never>;
+}
+
+interface RuntimeProviderDefaultProps extends RuntimeProviderChildren {
+  readonly runtime?: undefined;
+  readonly source?: undefined;
+}
+
+export type RuntimeProviderProps<RuntimeServices = never, ER = never> =
+  | RuntimeProviderRuntimeProps<RuntimeServices, ER>
+  | RuntimeProviderSourceProps<RuntimeServices, ER>
+  | RuntimeProviderDefaultProps;
 
 /** Creates an Effect UI runtime for Solid applications. */
 export const createEffectRuntime = makeRuntime;
 
 /** Reads the nearest Solid runtime context, falling back to the current/default runtime. */
-export const useRuntime = (): EffectUiRuntime<unknown, never> =>
-  (useContext(RuntimeContext) ?? currentOrDefaultRuntime()) as EffectUiRuntime<unknown, never>;
+export const useRuntime = <ER = never>(): AnyEffectUiRuntime<ER> =>
+  (useContext(RuntimeContext) ?? currentOrDefaultRuntime()) as AnyEffectUiRuntime<ER>;
 
 /**
  * Provides an Effect UI runtime to Solid children.
@@ -35,27 +54,32 @@ export const useRuntime = (): EffectUiRuntime<unknown, never> =>
  * Pass an existing runtime when the host owns lifecycle. Pass a runtime source
  * to let the provider create and dispose a runtime with the Solid owner.
  */
-export const RuntimeProvider = <ER = never>(props: RuntimeProviderProps<ER>): JSX.Element => {
-  const runtime = props.runtime ?? (props.source ? makeRuntime(props.source) : defaultRuntime);
-  if (!props.runtime && props.source) {
+export const RuntimeProvider = <RuntimeServices = never, ER = never>(
+  props: RuntimeProviderProps<RuntimeServices, ER>
+): JSX.Element => {
+  const source = props.source;
+  const ownsRuntime = props.runtime === undefined;
+  const runtime = props.runtime ?? makeRuntime(source);
+  if (ownsRuntime) {
     onCleanup(() => {
-      void runtime.runFork(runtime.disposeEffect);
+      void Effect.runFork(runtime.disposeEffect.pipe(Effect.catch(() => Effect.void)));
     });
   }
 
   return createComponent(RuntimeContext.Provider, {
-    value: runtime as EffectUiRuntime<unknown, never>,
+    value: runtime as unknown as AnyEffectUiRuntime<never>,
     get children() {
-      return runWithRuntime(runtime, () => props.children);
+      return runWithRuntime(runtime as unknown as AnyEffectUiRuntime<ER>, () => props.children);
     }
   });
 };
 
 /** Creates a `UiScope` bound to the current Solid owner cleanup. */
 export const createComponentScope = <A>(f: (scope: UiScope) => A): A => {
-  const scope = new UiScope();
+  const runtime = useRuntime();
+  const scope = makeRuntimeUiScope(runtime);
   onCleanup(() => {
-    void runFork(scope.disposeEffect().pipe(Effect.catch(() => Effect.void)));
+    void runtime.runFork(scope.disposeEffect().pipe(Effect.catch(() => Effect.void)));
   });
   return runWithScope(scope, () => f(scope));
 };

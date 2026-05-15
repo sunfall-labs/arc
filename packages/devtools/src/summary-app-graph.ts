@@ -9,6 +9,12 @@ import type {
   DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry,
   DevtoolsSummary
 } from "./index.js";
+import {
+  normalizeAppGraphCollectionDefinitions,
+  normalizeAppGraphUnknownRoutePreloadCollections,
+  normalizeDevtoolsAppGraphDiagnostics,
+  normalizeRouteModulePreloadCollections
+} from "./app-graph-normalizer.js";
 
 const valueCounts = <Value extends string>(
   values: Iterable<Value>
@@ -52,23 +58,17 @@ const actionBehaviorSummary = (
 export const appGraphCollectionDefinitions = (
   appGraph: DevtoolsStartAppGraphDiagnostics
 ): readonly DevtoolsStartAppGraphCollectionDiagnostics[] =>
-  (appGraph as { readonly collectionDefinitions?: readonly DevtoolsStartAppGraphCollectionDiagnostics[] })
-    .collectionDefinitions ?? [];
+  normalizeAppGraphCollectionDefinitions(appGraph);
 
 export const appGraphUnknownRoutePreloadCollections = (
   appGraph: DevtoolsStartAppGraphDiagnostics
 ): readonly DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry[] =>
-  (appGraph as { readonly unknownRoutePreloadCollections?: readonly DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry[] })
-    .unknownRoutePreloadCollections ?? [];
+  normalizeAppGraphUnknownRoutePreloadCollections(appGraph);
 
 export const routeModulePreloadCollections = (
   routeModule: DevtoolsStartAppGraphRouteModuleDiagnostics
 ): DevtoolsStartAppGraphRoutePreloadCollections =>
-  (routeModule as { readonly preloadCollections?: DevtoolsStartAppGraphRoutePreloadCollections })
-    .preloadCollections ?? {
-      status: "unknown",
-      collections: []
-    };
+  normalizeRouteModulePreloadCollections(routeModule);
 
 export const graphSummary = (
   appGraph: DevtoolsStartAppGraphDiagnostics | undefined
@@ -79,34 +79,35 @@ export const graphSummary = (
     };
   }
 
-  const collections = appGraphCollectionDefinitions(appGraph);
+  const detached = normalizeDevtoolsAppGraphDiagnostics(appGraph);
+  const collections = appGraphCollectionDefinitions(detached);
 
   return {
     _tag: "Available",
     routes: {
-      count: appGraph.routeCount,
-      paths: [...appGraph.routePaths],
-      modules: appGraph.routeModules.map((routeModule) => ({ ...routeModule })),
-      unknownPreloadResources: appGraph.unknownRoutePreloadResources.map((entry) => ({ ...entry })),
-      unknownPreloadCollections: appGraphUnknownRoutePreloadCollections(appGraph).map((entry) => ({ ...entry }))
+      count: detached.routeCount,
+      paths: [...detached.routePaths],
+      modules: detached.routeModules.map((routeModule) => ({ ...routeModule })),
+      unknownPreloadResources: detached.unknownRoutePreloadResources.map((entry) => ({ ...entry })),
+      unknownPreloadCollections: appGraphUnknownRoutePreloadCollections(detached).map((entry) => ({ ...entry }))
     },
     serverFunctions: {
-      count: appGraph.serverFunctionCount,
-      schemaCoverage: { ...appGraph.schemaCoverage.serverFunctions },
-      modules: appGraph.serverFunctionModules.map((serverFunction) => ({ ...serverFunction }))
+      count: detached.serverFunctionCount,
+      schemaCoverage: { ...detached.schemaCoverage.serverFunctions },
+      modules: detached.serverFunctionModules.map((serverFunction) => ({ ...serverFunction }))
     },
     actions: {
-      count: appGraph.actionCount,
-      schemaCoverage: { ...appGraph.schemaCoverage.actions },
-      modules: appGraph.actionModules.map((action) => ({ ...action })),
-      behavior: actionBehaviorSummary(appGraph.actionModules),
-      unknownBehavior: appGraph.unknownActionBehavior.map((entry) => ({ ...entry }))
+      count: detached.actionCount,
+      schemaCoverage: { ...detached.schemaCoverage.actions },
+      modules: detached.actionModules.map((action) => ({ ...action })),
+      behavior: actionBehaviorSummary(detached.actionModules),
+      unknownBehavior: detached.unknownActionBehavior.map((entry) => ({ ...entry }))
     },
     resources: {
-      familyCount: appGraph.resourceFamilies.length,
-      tagCount: appGraph.resourceTags.length,
-      families: appGraph.resourceFamilies.map((family) => ({ ...family, policy: { ...family.policy } })),
-      tags: appGraph.resourceTags.map((tag) => ({ ...tag }))
+      familyCount: detached.resourceFamilies.length,
+      tagCount: detached.resourceTags.length,
+      families: detached.resourceFamilies.map((family) => ({ ...family, policy: { ...family.policy } })),
+      tags: detached.resourceTags.map((tag) => ({ ...tag }))
     },
     collections: {
       definitionCount: collections.length,
@@ -120,13 +121,13 @@ export const graphSummary = (
       }))
     },
     endpoints: {
-      rpc: appGraph.rpcPath,
-      action: appGraph.actionPath
+      rpc: detached.rpcPath,
+      action: detached.actionPath
     },
     modules: {
-      serverOnly: [...appGraph.serverOnlyModules],
-      browserClient: [...appGraph.browserClientModules]
+      serverOnly: [...detached.serverOnlyModules],
+      browserClient: [...detached.browserClientModules]
     },
-    missingSchemas: appGraph.missingSchemas.map((missingSchema) => ({ ...missingSchema }))
+    missingSchemas: detached.missingSchemas.map((missingSchema) => ({ ...missingSchema }))
   };
 };

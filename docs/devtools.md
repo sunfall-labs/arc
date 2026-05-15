@@ -20,11 +20,27 @@ story.
 - `DevtoolsCausalGraph` turns facts into deterministic nodes and edges for
   request traces, routes, route plans, resources, resource families, DB
   collections, actions, invalidations, schema coverage, missing schemas,
-  runtime events, endpoints, and modules.
+  runtime events, endpoints, and modules. Route preload ResourceFamily nodes
+  prefer app graph definitions when present, so schema, tag, and policy depth
+  is not lost when preload facts arrive before app graph facts.
+- `DevtoolsPanels` is the shared UI-facing contract for app shells, browser
+  extensions, agents, tests, and HTML renderers. Runtime guards and bridge
+  payload normalization live in `@effect-ui/devtools` so hosts do not need to
+  duplicate panel validation logic.
+- `DevtoolsStore` is an explicit public Interface for recording snapshots,
+  app graph diagnostics, route plans, invalidations, runtime events, summaries,
+  Program timeline events, panels, and causal graphs. Store record methods
+  return retained fact indexes when callers need precise runtime-event links.
 
-All values are JSON-safe. Non-JSON inputs such as dates, bigints, functions,
-symbols, undefined values, circular references, and non-finite numbers are
-encoded as tagged data.
+Summaries, panels, causal graphs, and bridge payloads are JSON-safe projections.
+Raw snapshots may still accept detached `unknown` inspection facts from Core,
+Start, or application code; those facts are encoded as tagged data before they
+reach the summary and panel contracts.
+
+Request traces can be recorded either through the request-trace API or as
+runtime `RequestTrace` events. Devtools canonicalizes both paths into the same
+request rows, resource sources, and causal `Records` edges, de-duplicating by
+request id when the same trace is observed twice.
 
 ## Effect API
 
@@ -67,6 +83,27 @@ type is structural, so devtools stays independent of the full-stack package:
 yield* store.trackStartActionEffect(renameStartAction)
 ```
 
+Programs are observed from the public Program instance, not from private queues
+or fibers. The raw Program keeps its typed timeline signal, while devtools copies
+each event through the bounded serialization and redaction policy before
+summaries, panels, bridges, or causal graphs inspect it:
+
+```ts
+yield* store.trackProgramEffect(projectProgram)
+```
+
+The default policy redacts common secret-shaped keys such as passwords, tokens,
+API keys, credentials, cookies, and authorization fields. Hosts can add
+application-specific keys at the store boundary:
+
+```ts
+const store = makeDevtoolsStore({
+  serializationPolicy: {
+    redactKeys: ["tenantSecret", /private/i]
+  }
+})
+```
+
 Start request handlers can emit a structurally compatible request trace without
 making `@effect-ui/start` depend on `@effect-ui/devtools`:
 
@@ -78,7 +115,9 @@ const handler = createRequestHandler(app, {
 
 The plain methods remain for host adapters, but framework internals and tests
 should prefer the Effect methods so observation composes with services, scopes,
-and interruption.
+and interruption. Those plain methods intentionally live on the store object as
+host-boundary facades over the same Effect implementation; only split them out
+if a future host package needs a separate boundary.
 
 Start request handling also emits Effect-native observability alongside the
 plain trace payload. `@effect-ui/start` exports `startRequestCountMetric`,
@@ -100,13 +139,46 @@ The causal graph answers questions like:
 - Which app graph schema coverage bucket reported a missing schema?
 
 Graph IDs are deterministic and stable enough for tests, agent inspection, and
-incremental UI rendering.
+incremental UI rendering. Runtime events link to recorded route-plan and
+invalidation facts by fact index, not by the event's position in the runtime
+event list. Causal edge ids are based on the source/target relationship and
+duplicate ordinal, so adding unrelated facts earlier in the graph does not
+churn stable edge ids.
+When adapters record repeated identical facts, the store-returned retained index
+can be passed back on runtime events so the causal graph observes the intended
+fact rather than the first structural match.
+Fact identity now consumes the shared Devtools Serialization Policy fingerprint,
+so changes to bounded strings, binary values, containers, or error copies flow
+through one Module instead of a parallel serialization-shaped implementation.
+
+Runtime-only route-plan and invalidation events project the same graph facts as
+recorded snapshot facts. A route-plan event can still emit `Matches`,
+`Preloads`, and `Hydrates` edges, and an invalidation event can still emit
+`Targets`, `Invalidates`, and `Causes` edges. When the event matches a recorded
+fact, the recorded fact stays canonical and the event only adds its `Observes`
+edge. The same runtime-only facts feed the resource index used by summaries and
+panels, so resources visible in the graph are visible to the UI-facing panel
+contract as well.
+
+Bounded invalidation history also rebases request-trace action invalidation
+indexes in both snapshot traces and runtime `RequestTrace` events, so request
+summaries and event data do not point at stale invalidation slots after older
+facts are trimmed. Caller-supplied `trace:N` request ids seed the fallback
+trace-id allocator before id-less traces are recorded. Request-embedded route
+plans link to matching recorded route-plan facts when one exists instead of
+using the request trace's array index as a synthetic route-plan identity.
+Route-plan hydration facts carry the concrete hydrated resource keys, so
+`Hydrates` edges attach only to resources that were actually serialized for the
+route instead of every resource the route touched.
 
 When `StartBuildPolicy.diagnostics` is configured, the Start Vite Diagnostics
 Gate runs during Vite builds and fails if resolved route-module diagnostics
 violate the policy, even when the app does not import
-`virtual:effect-ui/app-graph`. The generated virtual module also exports typed
-`diagnosticsPolicyViolations` for devtools and agent consumers. Use
+`virtual:effect-ui/app-graph`. The static `virtual:effect-ui/app-graph` module
+is topology-only; route-module/resource/collection diagnostics live behind the
+explicit `virtual:effect-ui/app-graph/runtime-diagnostics` import, which also
+exports typed `diagnosticsPolicyViolations` for devtools and agent consumers.
+Use
 `loadStartAppGraphDiagnostics(...)` from `@effect-ui/start/vite` when a CI
 script wants to run the same resolved diagnostics gate through Vite and consume
 the resulting `diagnostics` object. The same path is available as
@@ -115,6 +187,35 @@ resolved graph payload. The default CLI output is an agent-readable repair
 report grouped by source owner, with concrete edits for missing wire schemas,
 unknown action behavior metadata, and route preload resource/collection
 declarations.
+For edit planning, use `effect-ui-start impact`; for topology questions rather
+than repair lists, use `effect-ui-start graph`.
+It projects the resolved diagnostics into a typed agent graph with Route,
+Action, ServerFunction, ResourceFamily, ResourceTag, Collection, Endpoint,
+Module, and Finding nodes plus self-review facts for policy cleanliness, wire
+schema completeness, known action behavior, and route preload declarations.
+Queries are positional and stay JSON-safe:
+
+```sh
+effect-ui-start impact route /projects/:id
+effect-ui-start impact action Project.rename --json
+effect-ui-start graph route /projects/:id
+effect-ui-start graph route /projects/:id --verbose
+effect-ui-start graph action Project.rename --json
+```
+
+The same projection is available in code through
+`createStartAgentGraph(...)`, `queryStartAgentGraph(...)`, and
+`formatStartAgentGraph(...)`. `createStartAgentGraphImpact(...)` and
+`formatStartAgentGraphImpact(...)` collapse that map into the high-signal edit
+brief agents usually need: edit target, contracts to preserve, dependencies,
+possible blast radius, warnings, and verification commands. The default graph
+text formatter is a concise agent/human briefing; `--verbose` keeps the raw node
+ids, facts, and edges for debugging, while `--json` remains the machine payload.
+
+App graph diagnostics are copied through a structured App Graph Summary seam.
+Typed arrays such as route modules are preserved even when they exceed generic
+serialization entry limits; bounded serialization applies only to unknown leaf
+payloads.
 
 ## Golden Path
 
@@ -128,6 +229,8 @@ Effect-native event streams:
   resource tags, and DB collection definitions.
 - `Route.planNavigationEffect(...)` exposes the route facts: matched href,
   params, search, preloaded resource refs, and the resource hydration count.
+  Start request traces also carry route-plan hydration resource keys so the
+  graph can link exact `Hydrates` edges for streamed request payloads.
 - `Resource.subscribeEventsEffect()` exposes runtime resource lifecycle facts
   without reading cache internals, including `ResourceInvalidated` events emitted
   before invalidated refs refresh.
@@ -141,6 +244,11 @@ Effect-native event streams:
 - `store.trackStartActionEffect(startAction)` observes Start-shaped action
   instances directly and records serialized invalidation metadata on successful
   states.
+- `store.trackProgramEffect(program)` exposes Program message, command,
+  subscription, failure, and disposal timelines without reading private runtime
+  queues. Anonymous tracked Program instances receive stable per-store fallback
+  identities such as `Program#1` so multiple unnamed Programs do not collapse
+  into one panel or graph target.
 - `store.recordRequestTraceEffect(trace)` exposes the request-level join across
   request context, response context, services, route plans, resources,
   collections, server functions, actions, streams, fibers, and teardown.
@@ -159,8 +267,17 @@ path with deterministic edges such as request trace `UsesEndpoint`, request
 trace `Records` resources/collections/actions/server functions, route plan
 `Matches` route, route plan `Preloads` and `Hydrates` resource, action `Emits`
 invalidation, invalidation `Targets` tags, tag `Causes` resource invalidation,
-and runtime events `Observes` resources, collections, actions, and request
-traces.
+and runtime events `Observes` resources, collections, programs, actions, and
+request traces.
+
+Runtime event ids are unique per sequence/tag pair. When a host supplies a
+duplicate sequence for the same event tag, the Store rebases the later event to
+the next available sequence before summary or graph projection. Invalidation and
+route-plan event links use the shared Devtools Serialization Policy fingerprint,
+so equivalent fact objects still match when object keys arrive in a different
+insertion order. Causal graph edge ids use framed identity parts rather than
+delimiter concatenation, and imported request traces normalize before Store
+limits decide which trace facts remain attached.
 
 ## Panel Model
 
@@ -172,16 +289,25 @@ rendering:
 - Routes
 - Resources
 - Actions
+- Programs
 - Collections
 - Requests
 - Diagnostics
 - Causal Graph
+
+Bridge payloads must contain that complete panel catalog exactly once. The
+shared contract rejects missing or duplicate panels and normalizes otherwise
+valid payloads back to catalog order, so extensions, app shells, tests, and
+renderers do not each define their own panel identity policy.
 
 Each panel carries a stable `id`, title, short summary, severity, metrics, and
 serializable items. Request items include the richer teardown facts from Start:
 duration, runtime disposal, teardown reason, before/after fiber, family, module,
 and tag counts, serialized teardown snapshots, and per-server-function/action
 failure owners.
+Program items include event-level rows for messages, before/after snapshots,
+command lifecycle events, emitted follow-up messages, subscription events,
+failures, and disposal, plus per-program summary rows.
 
 ## Browser Panel Renderer
 
@@ -197,8 +323,10 @@ const html = renderDevtoolsPanelsHtml({
 ```
 
 The renderer is dependency-light and escapes all panel text/data before writing
-HTML. Browser hosts that want lifecycle ownership can mount the same contract
-through Effect:
+HTML. Each rendered item carries `data-effect-ui-devtools-item-id`, and the
+panel contract rejects duplicate item ids within a panel so extension rows,
+tests, and agent tools can rely on stable row identity. Browser hosts that want
+lifecycle ownership can mount the same contract through Effect:
 
 ```ts
 yield* mountDevtoolsPanelsEffect({
@@ -224,7 +352,18 @@ yield* installDevtoolsBridgeEffect(() => ({
 
 The scoped bridge restores any previous `globalThis.__EFFECT_UI_DEVTOOLS__`
 value when the Effect scope closes. The plain `installDevtoolsBridge(...)`
-helper is available for non-Effect host setup.
+helper is available for non-Effect host setup. Extension transports should
+resolve inspected-window values with
+`resolveEffectUiDevtoolsBridgePayload(...)` before rendering so invalid bridge
+payloads can be reported as typed diagnostics instead of collapsing to
+`undefined`. This applies the same panel id, severity, metric, item,
+finite-number, plain-record, bounded string, and JSON-safe data checks used by
+the package tests. Oversized display strings are truncated at the bridge seam,
+oversized item lists are windowed with a deterministic overflow row, and
+oversized item data object keys are rejected so richer renderers do not silently
+rename structured data. Use `normalizeEffectUiDevtoolsBridgePayload(...)` only
+when a host deliberately wants the weaker optional payload facade and does not
+need contract error details.
 
 The checked app-shell integration lives at
 [`examples/devtools-panel`](../examples/devtools-panel). It mounts sample
@@ -241,8 +380,11 @@ from `globalThis.__EFFECT_UI_DEVTOOLS__` through
 `DevtoolsPanels` payload wrapper or a provider function returning that wrapper,
 uses the shared `effectUiDevtoolsBridgeGlobal` key from `@effect-ui/devtools`,
 structurally validates the panel ids, severities, metrics, items, and
-JSON-safe item data before rendering inspected-window data, keeps the sample
-payload as a fallback, and verifies the manifest, panel registration,
+bounded JSON-safe item data before rendering inspected-window data, bounds hung
+inspected-window eval calls with a timeout, uses sample facts only as the
+initial/no-extension-host fallback, renders later missing, invalid, timed-out,
+or throwing inspected-window bridge reads as typed diagnostics without keeping
+stale sample/live facts, and verifies the manifest, panel registration,
 transport, render output, typecheck, and production build.
 
 ## Target Panels
@@ -258,6 +400,9 @@ The devtools product should grow in this order:
 - Action Timeline: idle, pending, success, failure, input, concurrency,
   optimistic work, invalidation plan, Start transport metadata, and hydration
   payload.
+- Program Timeline: messages, before/after model snapshots, command
+  starts/completions/failures, emitted follow-up messages, subscription events,
+  typed failures, and disposal.
 - Collection Inspector: row counts, indexes, live query plans, pending
   mutations, persistence, sync adapter, and rollback facts.
 - Request Trace: request context, response context, server functions, actions,

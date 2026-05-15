@@ -15,11 +15,14 @@ behind Resource families and Actions:
   Capability.
 - `invalidateQueries(...)` becomes `Resource.invalidateEffect(...)` or an
   Action invalidation plan.
-- Mutation callbacks become `Action.define(...)` or `StartAction.define(...)`
-  with retry, concurrency, optimistic work, and invalidation metadata attached
-  to the definition.
-- Route loaders should call `Resource.prefetchEffect(...)` and declare
-  `preloadResources` so diagnostics can prove ownership.
+- Mutation callbacks become `Action.define(...)` definitions with retry,
+  concurrency, optimistic work, and invalidation metadata attached to the
+  definition. Start forms then bind those definitions with `StartAction.use(...)`
+  or `startActionForm(...)`.
+- Core route loaders can call `Resource.prefetchEffect(...)` and declare
+  `preloadResources`; file routes should prefer
+  `defineFileRoute(...).preload(...)` so resource selectors, collection preload
+  metadata, schemas, and preload Effects are derived from one route-local shape.
 
 Keep Promise-returning query functions at the host boundary only. Inside the
 framework slice, prefer Effect loaders so retries, services, scopes, tracing,
@@ -36,8 +39,10 @@ shape but makes app graph facts explicit:
   browser-safe contract imports.
 - Request handling starts at `createRequestHandlerEffect(app)`; Promise
   handlers are host convenience boundaries.
-- SSR routes should emit hydration through `createHtmlResponseEffect(...)` and
-  `streamHydrationChunk(...)`.
+- SSR routes should emit streamed Start hydration through
+  `createStartStreamedHtmlResponseEffect(...)`; lower-level
+  `createHtmlResponseEffect(...)` and `streamHydrationChunk(...)` remain
+  available for custom stream adapters.
 - Build diagnostics should run with declared route preload ownership and schema
   metadata before a route leaves the starter stage.
 

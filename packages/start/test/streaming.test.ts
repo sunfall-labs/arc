@@ -1,25 +1,51 @@
 import { Cause, Deferred, Effect, Exit, Fiber, Stream } from "effect";
 import { describe, expect, it } from "vitest";
 import type { ResourceHydrationPayload } from "@effect-ui/core";
-import type { StartHydrationPayload } from "../src/hydration.js";
+import {
+  StartHydrationPayloadSerializeError,
+  type StartHydrationPayload
+} from "../src/hydration.js";
 import {
   createHtmlResponseEffect,
   createHtmlStreamEffect,
   createStreamHydrationScript,
   htmlChunk,
+  responseWithStreamFinalizer,
   StartStreamError,
   streamHydrationAttribute,
   streamHydrationSequenceAttribute,
-  streamHydrationChunk
+  streamHydrationChunk,
+  type StartResponseStreamFinalizeEvent
 } from "../src/streaming.js";
 
 const textDecoder = new TextDecoder();
+const textEncoder = new TextEncoder();
 
 const decodeChunks = (chunks: ReadonlyArray<Uint8Array>): ReadonlyArray<string> =>
   chunks.map((chunk) => textDecoder.decode(chunk));
 
 const firstFailure = <E>(cause: Cause.Cause<E>): E | undefined =>
   cause.reasons.find(Cause.isFailReason)?.error;
+
+const cyclicHydrationPayload = (): StartHydrationPayload => {
+  const value: Record<string, unknown> = {};
+  value.self = value;
+  return {
+    resources: [
+      {
+        name: "Streaming.Project.cyclic",
+        key: "Streaming.Project.cyclic:1",
+        input: "1",
+        state: {
+          _tag: "Success",
+          waiting: false,
+          value,
+          updatedAt: 1
+        }
+      }
+    ]
+  };
+};
 
 describe("Start streaming", () => {
   it("emits shell, HTML chunks, hydration chunks, and tail in order", () => {
@@ -186,6 +212,89 @@ describe("Start streaming", () => {
     );
   });
 
+  it("wraps shell hydration serialization failures in StartStreamError", () => {
+    return Effect.runPromise(
+      Effect.exit(
+        Effect.gen(function* () {
+          const stream = yield* createHtmlStreamEffect({
+            shell: streamHydrationChunk(cyclicHydrationPayload())
+          });
+
+          return yield* Stream.runCollect(stream);
+        })
+      ).pipe(
+        Effect.tap((exit) =>
+          Effect.sync(() => {
+            expect(Exit.isFailure(exit)).toBe(true);
+            const error = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
+            expect(error).toBeInstanceOf(StartStreamError);
+            expect(error).toMatchObject({ reason: "Shell" });
+            expect((error as StartStreamError<unknown> | undefined)?.cause).toBeInstanceOf(
+              StartHydrationPayloadSerializeError
+            );
+          })
+        ),
+        Effect.asVoid
+      )
+    );
+  });
+
+  it("wraps streamed chunk hydration serialization failures in StartStreamError", () => {
+    return Effect.runPromise(
+      Effect.exit(
+        Effect.gen(function* () {
+          const stream = yield* createHtmlStreamEffect({
+            shell: "<html>",
+            chunks: Stream.make(streamHydrationChunk(cyclicHydrationPayload()))
+          });
+
+          return yield* Stream.runCollect(stream);
+        })
+      ).pipe(
+        Effect.tap((exit) =>
+          Effect.sync(() => {
+            expect(Exit.isFailure(exit)).toBe(true);
+            const error = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
+            expect(error).toBeInstanceOf(StartStreamError);
+            expect(error).toMatchObject({ reason: "Chunk" });
+            expect((error as StartStreamError<unknown> | undefined)?.cause).toBeInstanceOf(
+              StartHydrationPayloadSerializeError
+            );
+          })
+        ),
+        Effect.asVoid
+      )
+    );
+  });
+
+  it("wraps tail hydration serialization failures in StartStreamError", () => {
+    return Effect.runPromise(
+      Effect.exit(
+        Effect.gen(function* () {
+          const stream = yield* createHtmlStreamEffect({
+            shell: "<html>",
+            tail: streamHydrationChunk(cyclicHydrationPayload())
+          });
+
+          return yield* Stream.runCollect(stream);
+        })
+      ).pipe(
+        Effect.tap((exit) =>
+          Effect.sync(() => {
+            expect(Exit.isFailure(exit)).toBe(true);
+            const error = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
+            expect(error).toBeInstanceOf(StartStreamError);
+            expect(error).toMatchObject({ reason: "Tail" });
+            expect((error as StartStreamError<unknown> | undefined)?.cause).toBeInstanceOf(
+              StartHydrationPayloadSerializeError
+            );
+          })
+        ),
+        Effect.asVoid
+      )
+    );
+  });
+
   it("lets Effect interruption close a running stream", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -231,6 +340,156 @@ describe("Start streaming", () => {
           expect(text).toBe("<html><body>ready</body></html>");
           expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
           expect(response.headers.get("x-effect-ui")).toBe("streaming");
+        });
+      })
+    );
+  });
+
+  it("finalizes wrapped Web response streams on close, cancel, and error", () => {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const closedEvents: StartResponseStreamFinalizeEvent[] = [];
+        const closed = responseWithStreamFinalizer(
+          new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                controller.enqueue(textEncoder.encode("a"));
+                controller.enqueue(textEncoder.encode("b"));
+                controller.close();
+              }
+            })
+          ),
+          {
+            onFinalize: (event) =>
+              Effect.sync(() => {
+                closedEvents.push(event);
+              })
+          }
+        );
+        const closedText = yield* Effect.tryPromise(() => closed.text());
+
+        const cancelledEvents: StartResponseStreamFinalizeEvent[] = [];
+        const cancelled = responseWithStreamFinalizer(
+          new Response(
+            new ReadableStream<Uint8Array>({
+              start(controller) {
+                controller.enqueue(textEncoder.encode("hello"));
+              }
+            })
+          ),
+          {
+            onFinalize: (event) =>
+              Effect.sync(() => {
+                cancelledEvents.push(event);
+              })
+          }
+        );
+        const reader = cancelled.body!.getReader();
+        const first = yield* Effect.tryPromise(() => reader.read());
+        yield* Effect.tryPromise(() => reader.cancel("client-left"));
+
+        const error = new Error("stream failed");
+        let errorPulls = 0;
+        const erroredEvents: StartResponseStreamFinalizeEvent[] = [];
+        const errored = responseWithStreamFinalizer(
+          new Response(
+            new ReadableStream<Uint8Array>({
+              pull(controller) {
+                if (errorPulls === 0) {
+                  errorPulls += 1;
+                  controller.enqueue(textEncoder.encode("first"));
+                  return;
+                }
+
+                controller.error(error);
+              }
+            })
+          ),
+          {
+            onFinalize: (event) =>
+              Effect.sync(() => {
+                erroredEvents.push(event);
+              })
+          }
+        );
+        const erroredExit = yield* Effect.exit(Effect.tryPromise(() => errored.text()));
+
+        yield* Effect.sync(() => {
+          expect(closedText).toBe("ab");
+          expect(closedEvents).toEqual([
+            {
+              stream: {
+                name: "response",
+                state: "closed",
+                chunkCount: 2
+              },
+              status: "success",
+              teardownReason: "stream-close"
+            }
+          ]);
+          expect(first).toEqual({
+            done: false,
+            value: textEncoder.encode("hello")
+          });
+          expect(cancelledEvents).toEqual([
+            {
+              stream: {
+                name: "response",
+                state: "cancelled",
+                chunkCount: 1
+              },
+              status: "cancelled",
+              teardownReason: "client-left"
+            }
+          ]);
+          expect(Exit.isFailure(erroredExit)).toBe(true);
+          expect(erroredEvents).toEqual([
+            {
+              stream: {
+                name: "response",
+                state: "errored",
+                chunkCount: 1
+              },
+              status: "failure",
+              teardownReason: "stream-error"
+            }
+          ]);
+        });
+      })
+    );
+  });
+
+  it("preserves StartStreamError phases when wrapped Web response streams fail", () => {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const events: StartResponseStreamFinalizeEvent[] = [];
+        const response = yield* createHtmlResponseEffect({
+          shell: "<html>",
+          chunks: Stream.fail("chunk failed")
+        });
+        const wrapped = responseWithStreamFinalizer(response, {
+          onFinalize: (event) =>
+            Effect.sync(() => {
+              events.push(event);
+            })
+        });
+        const exit = yield* Effect.exit(Effect.tryPromise(() => wrapped.text()));
+
+        yield* Effect.sync(() => {
+          expect(Exit.isFailure(exit)).toBe(true);
+          expect(events).toEqual([
+            {
+              stream: {
+                name: "response",
+                state: "errored",
+                chunkCount: 0,
+                failurePhase: "Chunk"
+              },
+              status: "failure",
+              teardownReason: "stream-error",
+              failurePhase: "Chunk"
+            }
+          ]);
         });
       })
     );

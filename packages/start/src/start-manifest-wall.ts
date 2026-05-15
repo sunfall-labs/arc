@@ -47,6 +47,7 @@ import {
   type ServerFunctionManifestError,
   type ServerFunctionManifestSource
 } from "./server-function-manifest.js";
+import type { StartNodeRequestOptions } from "./node-adapter.js";
 
 /** Options for generated file-route definition modules written by the plugin. */
 export interface FileRouteGenerationOptions
@@ -64,13 +65,13 @@ type AnyActionDefinition = ActionDefinition<any, any, any, any>;
  * steps.
  */
 export interface EffectUiStartOptions {
-  /** Server functions exported from the server entry using their function names. */
-  readonly serverFunctions?: ReadonlyArray<ServerFunction<unknown, unknown>>;
+  /** Unsupported for manifest generation: use `serverFunctionSources` with explicit module/export metadata. */
+  readonly serverFunctions?: ReadonlyArray<ServerFunction<any, any, any, any>>;
   /** Prebuilt server-function manifest definitions. */
   readonly serverFunctionManifest?: Iterable<ServerFunctionManifestDefinition>;
   /** Server-function sources with explicit module/export references. */
   readonly serverFunctionSources?: Iterable<ServerFunctionManifestSource>;
-  /** Start actions exported from the server entry using their action names. */
+  /** Unsupported for manifest generation: use `actionSources` with explicit module/export metadata. */
   readonly actions?: ReadonlyArray<AnyActionDefinition>;
   /** Prebuilt action manifest definitions. */
   readonly actionManifest?: Iterable<ActionManifestDefinition>;
@@ -88,6 +89,12 @@ export interface EffectUiStartOptions {
   readonly serverEntry?: string;
   /** Named handler export to load from the server entry. */
   readonly handlerExport?: string;
+  /** RPC endpoint path used by generated server-function client references. */
+  readonly rpcPath?: string;
+  /** Action endpoint path used by generated POST client references. */
+  readonly actionPath?: string;
+  /** Node request origin and forwarded-header policy for the Vite dev SSR middleware. */
+  readonly nodeRequest?: StartNodeRequestOptions;
   /** Build policy to enforce, or true for the default policy. */
   readonly buildPolicy?: StartBuildPolicy | boolean;
 }
@@ -121,7 +128,19 @@ export class FileRouteDiscoveryError extends Data.TaggedError(
 export type StartAppGraphError =
   | ServerFunctionManifestError
   | ActionManifestError
-  | FileRouteManifestError;
+  | FileRouteManifestError
+  | StartManifestDirectReferenceError;
+
+export type StartManifestDirectReferenceKind = "serverFunctions" | "actions";
+
+export class StartManifestDirectReferenceError extends Data.TaggedError(
+  "StartManifestDirectReferenceError"
+)<{
+  readonly kind: StartManifestDirectReferenceKind;
+  readonly count: number;
+  readonly serverEntry: string;
+  readonly guidance: string;
+}> {}
 
 /** Compile-time define values generated from the Start Manifest Wall. */
 export interface StartManifestWallDefineValues {
@@ -143,6 +162,25 @@ export const defaultStartBuildPolicy: StartBuildPolicy = {
   wireSchemas: defaultStartBuildWireSchemaPolicy
 };
 
+const directReferenceGuidance = (
+  kind: StartManifestDirectReferenceKind
+): string =>
+  kind === "serverFunctions"
+    ? "Direct `serverFunctions` arrays only carry wire names, not implementation export names. Use `serverFunctionSources` with explicit `module` and `exportName`, or provide `serverFunctionManifest` entries."
+    : "Direct `actions` arrays only carry wire names, not implementation export names. Use `actionSources` with explicit `module` and `exportName`, or provide `actionManifest` entries.";
+
+const directReferenceError = (
+  kind: StartManifestDirectReferenceKind,
+  count: number,
+  serverEntry: string
+): StartManifestDirectReferenceError =>
+  new StartManifestDirectReferenceError({
+    kind,
+    count,
+    serverEntry,
+    guidance: directReferenceGuidance(kind)
+  });
+
 const normalizeDiscoveredFileRoutePath = (path: string): string =>
   path
     .replace(/\\/g, "/")
@@ -154,6 +192,8 @@ const isRouteFileName = (
   extensions: readonly string[]
 ): boolean =>
   !fileName.endsWith(".d.ts") &&
+  !fileName.endsWith(".d.mts") &&
+  !fileName.endsWith(".d.cts") &&
   extensions.some((extension) => fileName.endsWith(extension));
 
 export const absoluteFileRouteDirectory = (
@@ -219,58 +259,71 @@ export const discoverFileRoutes = (
 ): readonly string[] =>
   Effect.runSync(discoverFileRoutesEffect(options));
 
-const serverFunctionDefinitionsFromOptions = (
+const serverFunctionDefinitionsFromOptionsEffect = (
   options: EffectUiStartOptions,
   serverEntry: string
-): Iterable<ServerFunctionManifestDefinition> => {
+): Effect.Effect<
+  Iterable<ServerFunctionManifestDefinition>,
+  StartManifestDirectReferenceError
+> => {
   if (options.serverFunctionManifest) {
-    return options.serverFunctionManifest;
+    return Effect.succeed(options.serverFunctionManifest);
   }
 
   if (options.serverFunctionSources) {
-    return Array.from(options.serverFunctionSources, (source) =>
-      serverFunctionManifestDefinition(source.fn, source)
+    return Effect.succeed(
+      Array.from(options.serverFunctionSources, (source) =>
+        serverFunctionManifestDefinition(source.fn, source)
+      )
     );
   }
 
-  return Array.from(options.serverFunctions ?? [], (fn) =>
-    serverFunctionManifestDefinition(fn, {
-      module: serverEntry,
-      exportName: fn.name
-    })
-  );
+  const direct = options.serverFunctions ?? [];
+  return direct.length === 0
+    ? Effect.succeed([])
+    : Effect.fail(directReferenceError("serverFunctions", direct.length, serverEntry));
 };
 
-const actionDefinitionsFromOptions = (
+const actionDefinitionsFromOptionsEffect = (
   options: EffectUiStartOptions,
   serverEntry: string
-): Iterable<ActionManifestDefinition> => {
+): Effect.Effect<
+  Iterable<ActionManifestDefinition>,
+  StartManifestDirectReferenceError
+> => {
   if (options.actionManifest) {
-    return options.actionManifest;
+    return Effect.succeed(options.actionManifest);
   }
 
   if (options.actionSources) {
-    return Array.from(options.actionSources, (source) =>
-      actionManifestDefinition(source.action, source)
+    return Effect.succeed(
+      Array.from(options.actionSources, (source) =>
+        actionManifestDefinition(source.action, source)
+      )
     );
   }
 
-  return Array.from(options.actions ?? [], (action) =>
-    actionManifestDefinition(action, {
-      module: serverEntry,
-      exportName: action.name
-    })
-  );
+  const direct = options.actions ?? [];
+  return direct.length === 0
+    ? Effect.succeed([])
+    : Effect.fail(directReferenceError("actions", direct.length, serverEntry));
 };
 
 /** Builds the server-function manifest from plugin options. */
 export const makeStartServerFunctionManifestEffect = (
   options: EffectUiStartOptions = {}
-): Effect.Effect<ServerFunctionManifest, ServerFunctionManifestError> => {
+): Effect.Effect<
+  ServerFunctionManifest,
+  ServerFunctionManifestError | StartManifestDirectReferenceError
+> => {
   const serverEntry = options.serverEntry ?? defaultServerEntry;
-  return makeServerFunctionManifest(
-    serverFunctionDefinitionsFromOptions(options, serverEntry)
-  );
+  return Effect.gen(function* () {
+    const definitions = yield* serverFunctionDefinitionsFromOptionsEffect(options, serverEntry);
+    return yield* makeServerFunctionManifest(
+      definitions,
+      options.rpcPath === undefined ? {} : { rpcPath: options.rpcPath }
+    );
+  });
 };
 
 /** Synchronously serializes the Start server-function manifest. */
@@ -284,9 +337,18 @@ export const serializeStartServerFunctionManifest = (
 /** Builds the Start action manifest from plugin options. */
 export const makeStartActionManifestEffect = (
   options: EffectUiStartOptions = {}
-): Effect.Effect<ActionManifest, ActionManifestError> => {
+): Effect.Effect<
+  ActionManifest,
+  ActionManifestError | StartManifestDirectReferenceError
+> => {
   const serverEntry = options.serverEntry ?? defaultServerEntry;
-  return makeActionManifest(actionDefinitionsFromOptions(options, serverEntry));
+  return Effect.gen(function* () {
+    const definitions = yield* actionDefinitionsFromOptionsEffect(options, serverEntry);
+    return yield* makeActionManifest(
+      definitions,
+      options.actionPath === undefined ? {} : { actionPath: options.actionPath }
+    );
+  });
 };
 
 /** Synchronously serializes the Start action manifest. */

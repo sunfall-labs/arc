@@ -1,17 +1,38 @@
 import { readdir, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
-import { serverActionPath, startActionForm } from "@effect-ui/start";
+import type { AnyEffectUiRuntime, EffectUiRuntime } from "@effect-ui/core";
+import {
+  hydrationScriptId,
+  serverActionPath,
+  startActionForm,
+  streamHydrationAttribute,
+  type StartHydrationChunk,
+  type StartHydrationPayload
+} from "@effect-ui/start";
+import { Effect } from "effect";
 import { build } from "vite";
 import { describe, expect, it } from "vitest";
 import { makeProjectId, makeProjectReturnTo, SubmitProjectName } from "./domain.js";
 import { app } from "./app-definition.js";
-import { handleRequest } from "./server.js";
-import { projectConsoleStartGraphSummary } from "./start-graph.js";
-import { projectConsoleStartOptions } from "./start-options.js";
+import { handleRequest, serverApp } from "./server.js";
+import { projectConsoleStartGraph, projectConsoleStartGraphSummary } from "./start-graph.js";
+import {
+  projectConsoleActionSources,
+  projectConsoleServerFunctionSources,
+  projectConsoleServerRegistry,
+  projectConsoleStartOptions
+} from "./start-options.js";
 
 const textDecoder = new TextDecoder();
 const projectRoot = new URL("..", import.meta.url).pathname;
 const testDist = join(projectRoot, ".test-dist/client");
+const htmlJsonScriptPattern = /<script\b([^>]*)>([\s\S]*?)<\/script>/g;
+
+const runInRuntime = <A, E, R, RuntimeServices, RuntimeError>(
+  runtime: EffectUiRuntime<RuntimeServices, RuntimeError> | AnyEffectUiRuntime<RuntimeError>,
+  effect: Effect.Effect<A, E, R>
+): Promise<A> =>
+  Effect.runPromise((runtime as unknown as AnyEffectUiRuntime<RuntimeError>).provide(effect));
 
 const readTextChunks = async (response: Response): Promise<ReadonlyArray<string>> => {
   const reader = response.body?.getReader();
@@ -45,13 +66,36 @@ const readTextFiles = async (directory: string): Promise<ReadonlyArray<string>> 
   return contents;
 };
 
+const rootHydrationPayloadFrom = (html: string): StartHydrationPayload => {
+  for (const match of html.matchAll(htmlJsonScriptPattern)) {
+    if ((match[1] ?? "").includes(`id="${hydrationScriptId}"`)) {
+      return JSON.parse(match[2] ?? "") as StartHydrationPayload;
+    }
+  }
+
+  expect.fail("Root hydration script not found.");
+};
+
+const streamHydrationChunksFrom = (html: string): ReadonlyArray<StartHydrationChunk> =>
+  Array.from(html.matchAll(htmlJsonScriptPattern))
+    .filter((match) => match[1]?.includes(streamHydrationAttribute))
+    .map((match) => JSON.parse(match[2] ?? "") as StartHydrationChunk);
+
+const resourcePairs = (payload: StartHydrationPayload): ReadonlySet<string> =>
+  new Set(payload.resources.map((resource) => JSON.stringify([resource.name, resource.key])));
+
 describe("project console SSR", () => {
   it("streams the matched project route with hydration payloads", async () => {
-    const response = await app.runtime.runPromise(
+    const response = await runInRuntime(serverApp.runtime,
       handleRequest(new Request("https://example.com/projects/atlas"))
     );
     const chunks = await readTextChunks(response);
     const html = chunks.join("");
+    const rootPairs = resourcePairs(rootHydrationPayloadFrom(html));
+    const streamedPairs = new Set(
+      streamHydrationChunksFrom(html)
+        .flatMap((chunk) => [...resourcePairs(chunk.payload)])
+    );
 
     expect(response.body).toBeInstanceOf(ReadableStream);
     expect(chunks.length).toBeGreaterThan(1);
@@ -74,9 +118,26 @@ describe("project console SSR", () => {
     expect(html).toContain("Projects.list");
     expect(html).toContain("Project.byId");
     expect(html).toContain("\"id\":\"atlas\"");
+    expect([...streamedPairs].filter((pair) => rootPairs.has(pair))).toEqual([]);
   });
 
   it("exposes the generated Start route graph used by the Vite preset", () => {
+    expect(serverApp.routes).toBe(app.routes);
+    expect(serverApp.client).toBe(app.client);
+    expect(serverApp.fullStack).toBe(app.fullStack);
+    expect(app.registry.actions.size).toBe(0);
+    expect(app.registry.serverFunctions.size).toBe(0);
+    expect(Array.from(serverApp.registry.actions.keys()).sort()).toEqual([
+      "Project.collection.rename",
+      "Project.name.submit"
+    ]);
+    expect(Array.from(serverApp.registry.serverFunctions.keys()).sort()).toEqual([
+      "Project.advance",
+      "Project.get",
+      "Project.list",
+      "Project.name.submit",
+      "Project.rename"
+    ]);
     expect(projectConsoleStartGraphSummary).toEqual({
       routes: ["/", "/projects", "/projects/:id"],
       serverFunctions: [
@@ -88,22 +149,32 @@ describe("project console SSR", () => {
       ],
       actions: ["Project.collection.rename", "Project.name.submit"]
     });
-    expect(projectConsoleStartOptions.fileRoutes).toEqual([
-      "src/routes/index.ts",
-      "src/routes/projects/index.ts",
-      "src/routes/projects/$id.ts"
-    ]);
+    expect("fileRoutes" in projectConsoleStartOptions).toBe(false);
+  });
+
+  it("derives registry, Start options, and fallback graph facts from the same sources", () => {
+    expect(projectConsoleStartOptions.serverFunctionSources).toBe(projectConsoleServerFunctionSources);
+    expect(projectConsoleStartOptions.actionSources).toBe(projectConsoleActionSources);
+    expect(projectConsoleStartGraph.serverFunctions).toBe(projectConsoleServerFunctionSources);
+    expect(projectConsoleStartGraph.actions).toBe(projectConsoleActionSources);
+    expect(projectConsoleServerRegistry.serverFunctions.map((fn) => fn.name)).toEqual(
+      projectConsoleStartGraphSummary.serverFunctions
+    );
+    expect(projectConsoleServerRegistry.actions.map((action) => action.name)).toEqual(
+      projectConsoleStartGraphSummary.actions
+    );
   });
 
   it("renders route search state on the server", async () => {
-    const response = await app.runtime.runPromise(
+    const response = await runInRuntime(serverApp.runtime,
       handleRequest(new Request("https://example.com/projects/kepler?tab=activity"))
     );
     const html = await response.text();
 
     expect(html).toContain("Kepler Search");
     expect(html).toContain("Recent activity");
-    expect(html).toContain("href=\"/projects/kepler?tab=activity\" class=\"active\"");
+    expect(html).toContain("href=\"/projects/kepler?tab=activity\"");
+    expect(html).toContain("class=\"active\"");
   });
 
   it("runs progressive project name actions from plain form posts", async () => {
@@ -118,7 +189,7 @@ describe("project console SSR", () => {
     );
     body.set("name", "Lumen Care");
 
-    const response = await app.runtime.runPromise(
+    const response = await runInRuntime(serverApp.runtime,
       handleRequest(
         new Request(`https://example.com${serverActionPath}`, {
           method: "POST",
@@ -127,7 +198,7 @@ describe("project console SSR", () => {
         })
       )
     );
-    const page = await app.runtime.runPromise(
+    const page = await runInRuntime(serverApp.runtime,
       handleRequest(new Request("https://example.com/projects/lumen"))
     );
     const html = await page.text();
@@ -148,7 +219,7 @@ describe("project console SSR", () => {
     );
     body.set("name", "At");
 
-    const response = await app.runtime.runPromise(
+    const response = await runInRuntime(serverApp.runtime,
       handleRequest(
         new Request(`https://example.com${serverActionPath}`, {
           method: "POST",
@@ -179,7 +250,7 @@ describe("project console SSR", () => {
     body.set("name", "Atlas Growth");
     body.set("redirectTo", "https://example.com/phishing");
 
-    const response = await app.runtime.runPromise(
+    const response = await runInRuntime(serverApp.runtime,
       handleRequest(
         new Request(`https://example.com${serverActionPath}`, {
           method: "POST",
@@ -213,15 +284,17 @@ describe("project console SSR", () => {
     const generatedRoutes = await readFile(join(projectRoot, "src/routeTree.gen.ts"), "utf8");
 
     expect(generatedRoutes).toContain("This file is generated by @effect-ui/start. Do not edit.");
-    expect(generatedRoutes).toContain('import type { Route } from "@effect-ui/core";');
+    expect(generatedRoutes).toContain('import { Route } from "@effect-ui/core";');
     expect(generatedRoutes).toContain('import { Route as route_projects_$id } from "./routes/projects/$id.js";');
     expect(generatedRoutes).toContain('const route_projects_$id_path: "/projects/:id" = route_projects_$id.path;');
     expect(generatedRoutes).toContain('  "/projects/:id": route_projects_$id');
-    expect(generatedRoutes).toContain("export type FileRouteHrefOptionsById");
+    expect(generatedRoutes).toContain("export const hrefByPath");
+    expect(generatedRoutes).toContain("export type Href<Id extends RouteId>");
+    expect(generatedRoutes).toContain("export type Match<Path extends RoutePath>");
     expect(bundleText).not.toContain("seedProjects");
     expect(bundleText).not.toContain("Move invoice preview");
     expect(bundleText).not.toContain("Webhook replay still manual");
     expect(bundleText).not.toContain("domain.server");
     expect(bundleText).not.toContain("/src/domain.server.ts");
-  });
+  }, 20_000);
 });

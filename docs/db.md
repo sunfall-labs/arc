@@ -38,6 +38,10 @@ without choosing between correctness, inspectability, and ergonomics.
 - Each Resource Store owns an explicit `Collection.Store`, exposed with
   `Collection.storeEffect()` for diagnostics and event subscriptions without
   exposing private row maps.
+- Collection Stores expose runtime-local diagnostics through
+  `store.diagnostics.snapshot()` and `store.diagnostics.snapshotEffect`, so
+  tests, adapters, and devtools can inspect collection, row, mutation, loading,
+  optimistic, and failure counts without reaching into mutable store internals.
 - Collections support Effect-first loading, direct sync writes, retry policy,
   and optimistic `insert`, `update`, and `delete` mutations.
 - Collections can declare secondary indexes for runtime-local materialized
@@ -46,25 +50,45 @@ without choosing between correctness, inspectability, and ergonomics.
   back if the mutation handler fails.
 - Rows expose metadata: `$key`, `$collection`, `$synced`, and `$origin`.
 - Collections can snapshot, hydrate, persist, and restore runtime-local row
-  state.
+  state. Multi-collection dehydration validates the built payload through the
+  Collection Snapshot Codec before returning it, including definition-owned
+  schema/key validation and canonical pending update changes.
+- Collection hydration validation and application share the same planned
+  definition/store preflight, so `validateHydrationPayloadEffect(...)` proves
+  the path that `hydratePayloadEffect(...)` will apply.
+- Collection Row Ingress canonicalizes live rows before they enter store state:
+  output schema decoding, finite key validation, `getKey` normalization, value
+  cloning, and stored-row creation happen at one seam for initial data, loads,
+  writes, optimistic mutations, and change-feed batches.
 - In-flight optimistic transactions are tracked in a pending mutation queue and
-  included in snapshots.
+  included in snapshots. Flushes join an active mutation attempt instead of
+  replaying an in-flight handler, so restored/background flush work cannot
+  duplicate a transaction already being sent.
+- Collection preload and refetch coordination is store-owned: concurrent
+  preloads share the active load, forced refetches advance the store generation,
+  and stale earlier loads cannot overwrite newer rows or persistence.
 - `Collection.serverOptions(...)` adapts server/RPC-backed loads and mutation
   handlers into the normal Collection Definition Interface.
 - `Collection.syncOptions(...)` adapts generic external row sources into the
   same Collection Definition load/refetch/mutation Interface; server functions
-  are one adapter over that seam.
+  are one adapter over that seam. Method-style adapters keep their receiver, so
+  `this`-dependent clients can expose `load`, `refetch`, and mutation methods
+  without rebinding at every call site.
 - `Collection.querySyncAdapter(...)` adapts TanStack Query-shaped clients into
   the same Collection Sync Adapter seam.
 - `Collection.flushAllPendingMutationsEffect(...)` coordinates mutation flushes
-  across collections and can skip work while offline.
+  across collections and can skip work while offline. Its error channel includes
+  each collection's full runtime error union, including snapshot codec failures.
 - `Collection.backgroundSyncPendingMutationsEffect(...)` lets host adapters
-  decide whether trigger-driven pending mutation flushes should run.
+  decide whether trigger-driven pending mutation flushes should run, while
+  preserving the same collection runtime failures as a direct flush.
 - `Collection.applyChangesEffect(...)` applies external row upsert/delete
   batches through the Collection Store for change-feed adapters.
 - `Collection.subscribeChangesEffect(...)` acquires scoped change-feed
   subscriptions and routes emitted batches through the same Collection Store
-  seam.
+  seam. Change-feed adapters can either return an Effect from `emit(...)` or
+  call the host-callback `emitChanges(...)` helper when the external feed cannot
+  run Effects itself.
 - `Collection.sqliteStorage(...)` adapts a SQLite-shaped namespace/key/value
   driver into collection snapshot persistence without baking in IndexedDB.
 - `Collection.sqlitePreparedStatementDatabase(...)` adapts prepare/run/all
@@ -76,6 +100,9 @@ without choosing between correctness, inspectability, and ergonomics.
   changes.
 - `Collection.liveQuery(...)` exposes a `Query.live(...)` graph as a read-only
   collection-shaped derived view.
+- Read-only Live Query Collections reject `Collection.applyChangesEffect(...)`
+  with `ReadonlyCollectionMutation` before mutating rows, publishing write
+  events, or persisting a snapshot.
 - `Query.live(...)` creates live materialized queries over one or more
   collections.
 - Live query filters and joins run through `@tanstack/db-ivm`, TanStack DB's
@@ -97,6 +124,12 @@ const ActiveProjectNames = Query.live((query) =>
     .orderBy(({ project }) => project.name)
 )
 ```
+
+Internally, Query Builder, Query Plan, Live Query State, and Live Query Runtime
+read source collections through the Collection Query Source Adapter. That keeps
+rows, row counts, secondary-index probes, version/state signals, and
+preload/refetch Effects behind one source Interface for normal Collections and
+read-only Live Query Collections.
 
 Use explicit keyed joins when the relationship is known:
 
@@ -142,9 +175,23 @@ const ProjectTasks = Query.live((query) =>
 Multi-value indexes are supported for direct lookup and indexed joins. A row
 whose index selector returns multiple values can join against any matching left
 key, and duplicate values from a single row are de-duplicated inside that row's
-bucket. Live Query Collections expose the same index Interface, but because
-their rows are derived from a D2 graph rather than owned by a Collection Store,
-their lookup currently scans the materialized derived rows.
+bucket. Live Query Collections expose the same index Interface. Their rows are
+derived from a D2 graph rather than owned by a Collection Store, so the runtime
+builds index buckets from the materialized projection and caches them per
+projection revision.
+
+Collection Store diagnostics are intentionally counts, not mutable state:
+
+```ts
+const store = yield* Collection.storeEffect()
+const snapshot = store.diagnostics.snapshot()
+const effectSnapshot = yield* store.diagnostics.snapshotEffect
+
+snapshot.collectionCount
+snapshot.rowCount
+snapshot.pendingMutationCount
+snapshot.failureCount
+```
 
 Query plans can be inspected without reaching into the builder implementation:
 
@@ -191,6 +238,17 @@ output is then projected by Effect UI. Unordered `offset` / `limit` still runs
 after materialization until the framework has explicit insertion-order
 semantics.
 
+Public `Query.Factory<TResult>` annotations default error and requirement
+channels to `never`. If a factory reads collections whose load/refetch work can
+fail or needs services, spell those channels in the annotation instead of
+relying on a broad alias. This keeps `Query.onceEffect(...)`, `Query.live(...)`,
+and Live Query Collection hovers aligned with the actual source collections.
+
+React DB and Solid DB share DB-owned live-query selection helpers for dependency
+equality, dependency snapshots, prebuilt `LiveQuery` reuse, and runtime-bound
+`Query.live(...)` creation. The adapters still own host reactivity; DB owns the
+selection policy.
+
 Derived query results can be exposed as a read-only Collection Definition:
 
 ```ts
@@ -212,6 +270,28 @@ const ActiveProjectCards = Collection.liveQuery({
 The Live Query Collection does not own source rows and rejects local mutations.
 It is useful when a D2/materialized view should be passed to APIs that expect a
 Collection Definition, or used as a source for another live query.
+
+Repeated `state().get()` reads are stable: `Ready.updatedAt` changes only when
+the collection-shaped materialized projection changes, not because a component
+or devtools panel inspected the derived collection. Duplicate source rows with
+the same derived key are projected once through the same keyed materialization
+used by `rows()`, `get(...)`, indexes, snapshots, state, and `version()`.
+That projection now uses the shared row-ingress key policy, so invalid derived
+keys and `getKey` callback throws fail through typed collection snapshot or
+callback errors instead of bypassing normal validation.
+
+Because the rows are derived, `hydrateEffect(...)` and `restoreEffect(...)` fail
+with `CollectionSnapshotCodecError`; hydrate or restore the source collections
+instead and let the live-query collection rebuild its materialized view.
+Persisting a Live Query Collection still uses the shared snapshot persistence
+helper and publishes `CollectionPersisted`, so devtools and sync observers see
+the same persistence event as normal collections without gaining a writable
+Collection Store.
+
+Live Query State is runtime-local. The mutable engine, last-good data, latest
+failure, and source load-state facts are keyed by the active Collection Store,
+so two browser runtimes or SSR requests that use the same `Query.live(...)`
+descriptor do not share derived query state.
 
 ## Effect Policies
 
@@ -251,10 +331,11 @@ const Projects = Collection.define(Collection.serverOptions<Project>({
 }))
 ```
 
-The Adapter accepts Effect callbacks, Start `Server.fn` / `Server.client`
-functions, and promise-returning host calls. It forwards mutation payloads with
-the original collection transaction so sync layers can correlate optimistic
-local work with durable writes later.
+The Adapter accepts Effect callbacks and Start `Server.fn` / `Server.client`
+functions. Host Promise work should be wrapped with `Effect.tryPromise(...)` at
+the host Adapter seam before it enters Collection handlers. The Adapter forwards
+mutation payloads with the original collection transaction so sync layers can
+correlate optimistic local work with durable writes later.
 
 For host integrations that are not server functions, use the generic Collection
 Sync Adapter seam directly:
@@ -265,10 +346,12 @@ const Projects = Collection.define(Collection.syncOptions<Project>({
   getKey: (project) => project.id,
   sync: {
     name: "projects-sync",
-    load: () => remote.listProjects(),
-    refetch: () => remote.listProjects({ force: true }),
+    load: () => Effect.tryPromise(() => remote.listProjects()),
+    refetch: () => Effect.tryPromise(() => remote.listProjects({ force: true })),
     update: ({ updates }) =>
-      remote.updateProjects(updates.map((update) => update.value))
+      Effect.tryPromise(() =>
+        remote.updateProjects(updates.map((update) => update.value))
+      )
   }
 }))
 ```
@@ -323,7 +406,10 @@ const Projects = Collection.define(Collection.syncOptions<Project>({
 
 The Adapter calls `queryClient.fetchQuery({ queryKey, queryFn })` for loads and
 invalidates the same `queryKey` before refetch and after successful mutation
-handlers by default.
+handlers by default. Post-mutation invalidation is `best-effort` unless the
+adapter opts into `mutationInvalidation: "rollback-on-failure"`, which treats
+the invalidation failure as part of the mutation boundary and rolls back the
+optimistic transaction.
 
 Change-feed hosts can apply external row batches without touching private
 Collection Store maps:
@@ -337,6 +423,9 @@ yield* Collection.applyChangesEffect(Projects, [
 
 The batch flows through normal collection writes, so secondary indexes,
 persistence, store events, and live queries observe the update.
+If the target is a read-only Live Query Collection, the Effect fails before any
+row, event, or persistence side effect. External feeds should update the source
+collections and let the live-query collection rematerialize.
 
 Long-lived feeds should use the scoped subscription Adapter. The subscription
 stays active until the surrounding Effect scope closes, and unsubscribe runs as
@@ -345,15 +434,23 @@ a finalizer:
 ```ts
 yield* Collection.subscribeChangesEffect(Projects, {
   name: "projects-feed",
-  subscribe: ({ emit }) => {
+  subscribe: ({ emitChanges }) => {
     const unsubscribe = feed.onChange((changes) => {
-      runtime.runFork(emit(changes, { origin: "remote", synced: true }))
+      emitChanges(changes, { origin: "remote", synced: true })
     })
 
     return unsubscribe
   }
 })
 ```
+
+The Collection Runtime owns the queue and Effect execution behind
+`emitChanges(...)`. If queued application of a batch fails, the active
+Collection Store publishes a `CollectionChangeFeedFailure` event instead of
+making the host feed Adapter own runtime plumbing.
+The queue is scoped: after the subscription Scope releases, captured host
+callbacks drop late `emitChanges(...)` calls deterministically instead of
+enqueuing into an unconsumed dispatcher.
 
 ## Persistence And Hydration
 
@@ -373,6 +470,20 @@ const payload = yield* Collection.dehydrateEffect([Projects, Tasks])
 
 yield* Collection.hydratePayloadEffect([Projects, Tasks], payload)
 ```
+
+Hydration validates every collection snapshot before applying any of them. That
+preflight rejects duplicate pending transaction ids in the payload, merge-mode
+collisions with pending transactions already in the target store, and read-only
+live-query collection snapshots before mutating earlier collections. Any
+collection `getKey(...)` callback failure is reported as
+`EffectInputCallbackError` instead of being collapsed into snapshot codec
+failure. `Collection.validateHydrationPayloadEffect(...)` runs the same
+definition-owned and target-store preflight as hydrate without applying the
+payload. The snapshot codec still owns malformed wire data such as missing row
+fields or invalid pending mutation metadata. Pending update snapshots are
+canonicalized from decoded `previous` and `value` rows, so optimistic replay uses
+the same output-shaped changes after hydration or persistence restore that it
+would use for a live mutation.
 
 The persistence API takes a tiny string storage adapter. This keeps the core
 portable across browser storage, test memory storage, and durable SQL-backed
@@ -413,13 +524,25 @@ to `@effect-ui/db`:
 
 ```ts
 const sqliteDriver = Collection.sqliteStatementDriver({
-  execute: (sql, params) => db.execute(sql, params),
-  select: (sql, params) => db.select(sql, params)
+  execute: (sql, params) => Effect.tryPromise(() => db.execute(sql, params)),
+  select: (sql, params) => Effect.tryPromise(() => db.select(sql, params))
 })
 ```
 
 The generated table stores `namespace`, `key`, `schema_version`, `value`, and
 `updated_at`, with a primary key over `namespace` and `key`.
+
+SQLite table-name validation and statement-driver callback failures are
+reported through the storage Effect error channel. Constructing the storage
+Adapter stays pure; invalid table names fail at `getItem`, `setItem`, or
+`removeItem` with typed persistence errors rather than throwing during setup.
+Method-style SQLite clock callbacks keep their receiver when persistence rows
+need an `updated_at` value.
+
+The statement, prepared-statement, and in-memory helpers intentionally live
+together as one dependency-free SQLite persistence helper family. The in-memory
+adapter is a reference implementation of the SQL generated by the statement
+driver, and public access stays through the `Collection.sqlite*` helpers.
 
 Prepared-statement clients can be adapted before they enter the statement
 driver Interface:
@@ -503,6 +626,9 @@ success, touched rows are marked `$synced: true` and the transaction is removed
 from the queue. If a handler fails, the saved rollback rows are restored, the
 transaction is removed from the queue, rollback events are published, and the
 Effect fails with the handler error.
+Mutation handlers receive cloned/frozen transaction facts, not the store-owned
+pending queue records, so adapters cannot mutate rollback rows or persisted
+mutation facts by changing handler context objects.
 
 Use a Collection Flush Policy when the app needs to coordinate multiple
 collections or skip flushing while offline:
@@ -576,20 +702,28 @@ const ProjectRoute = route("/projects/:id", {
 
 Explicit `collections` are still supported as a hydration registry and override.
 They are always dehydrated, even when a route preload does not touch them.
+Live query preload and refetch validate the query plan before source collection
+loads run. Invalid aliases, indexes, or unsupported plan shapes fail with
+`QueryEvaluationError`, and Solid DB automatic preload records that failure
+without causing source side effects.
 Matched routes can also declare concrete Collection Definitions with
-`preloadCollections`; Start resolves those declarations from the DB registry,
-preloads any that the route did not already touch, and includes them in the
-request-runtime hydration payload:
+`preloadCollections`; concrete definitions need no lookup. String declarations
+must resolve through the request/app-local `collections`, `collectionRegistry`,
+or `resolveCollection` inputs. If a string declaration cannot be resolved, Start
+fails request preload with `StartPreloadError` instead of falling back to the
+process-global DB registry. Resolved route declarations are preloaded when the
+route did not already touch them and are included in the request-runtime
+hydration payload:
 
 ```ts
 export const handleRequest = createRequestHandler(app, {
   collections: [Projects, Tasks],
-  render: ({ collectionPreload, hydrationScript }) => {
+  render: ({ collectionPreload, legacyHydrationScript }) => {
     collectionPreload.routeTouchedCollections
     collectionPreload.routeDeclaredCollections
     collectionPreload.registeredCollections
     collectionPreload.dehydratedCollections
-    return `<html><body><div id="root"></div>${hydrationScript}</body></html>`
+    return `<html><body><div id="root"></div>${legacyHydrationScript}</body></html>`
   }
 })
 ```
@@ -622,4 +756,5 @@ inside SSR work so the request runtime is honored.
 
 - Concrete host packages that wrap `Collection.sqliteStatementDriver(...)` for
   OPFS/browser, Node, React Native, and Durable Objects.
-- Sync adapters for Electric, PowerSync, and TanStack Query-shaped collections.
+- Sync adapters for Electric and PowerSync once real host integrations need
+  them.

@@ -83,7 +83,7 @@ const isPromiseLike = (value: unknown): value is PromiseLike<unknown> => {
  * implementation Effect-first.
  */
 export const toEffect = <A, E = never, R = never>(
-  value: EffectInput<A, E, R>
+  value: EffectInput<A, E, R> & (A extends PromiseLike<unknown> ? never : unknown)
 ): Effect.Effect<A, E, R> => {
   if (isEffectLike(value)) {
     return value;
@@ -97,6 +97,11 @@ export const toEffect = <A, E = never, R = never>(
 
   return Effect.succeed(value as A);
 };
+
+const normalizeEffectInput = <A, E, R>(
+  value: EffectInput<A, E, R>
+): Effect.Effect<A, E, R> =>
+  toEffect(value as never) as Effect.Effect<A, E, R>;
 
 /**
  * Invokes an EffectInput-returning callback inside Effect and normalizes the
@@ -122,5 +127,5 @@ export const invokeEffectInput = <
           guidance: "EffectInput callbacks must return values or Effects. Synchronous callback throws are reported in the Effect error channel."
         })
     }),
-    toEffect
+    normalizeEffectInput
   );

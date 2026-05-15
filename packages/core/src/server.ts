@@ -4,11 +4,49 @@ import {
   coreDefinitionRegistryDiagnostics,
   getServerFunctionDefinition,
   registerServerFunctionDefinition,
-  serverFunctionDefinitionRegistry
+  serverFunctionDefinitionRegistry,
+  type CoreDefinitionRegistry
 } from "./definition-registry.js";
-import type { EffectInput } from "./effect-like.js";
+import type {
+  EffectInput,
+  EffectInputError,
+  EffectInputRequirements,
+  EnsureEffectInputValue
+} from "./effect-like.js";
 import { EffectInputCallbackError, invokeEffectInput } from "./effect-like.js";
-import { applyResponseContext, makeResponseContext, provideRequest, provideResponse } from "./request-context.js";
+import { applyResponseContextEffect, makeResponseContext, provideRequest, provideResponse } from "./request-context.js";
+import {
+  decodeServerFunctionError,
+  decodeServerFunctionInput,
+  decodeServerFunctionOutput,
+  decodeServerRpcRequest,
+  decodeServerRpcResponse,
+  decodeServerWire,
+  deserializeServerError as deserializeServerWireError,
+  encodeServerFunctionError,
+  encodeServerFunctionInput,
+  encodeServerFunctionOutput,
+  encodeServerWire,
+  serializeServerDefect,
+  serializeServerError as serializeServerWireError,
+  ServerFunctionNotFound,
+  ServerRpcProtocolError,
+  ServerTransportError,
+  serverWireManifest,
+  type ServerRpcRequest,
+  type ServerRpcResponse
+} from "./server-wire-codec.js";
+
+export {
+  ServerFunctionNotFound,
+  ServerRpcProtocolError,
+  ServerTransportError
+} from "./server-wire-codec.js";
+
+export type {
+  ServerRpcRequest,
+  ServerRpcResponse
+} from "./server-wire-codec.js";
 
 export const ServerFunctionTypeId: unique symbol = Symbol.for(
   "@effect-ui/core/ServerFunction"
@@ -85,42 +123,23 @@ export interface ServerFunction<I, A, E = never, R = never> {
   (input: I): Effect.Effect<A, E | EffectInputCallbackError | ServerClientError, R>;
 }
 
+/** Options for local ServerClient dispatch. */
+export interface LocalServerClientOptions {
+  /**
+   * Optional registry snapshot to dispatch against.
+   *
+   * When supplied, local dispatch is isolated to the snapshot instead of reading
+   * the process-wide Server registry.
+   */
+  readonly registry?: CoreDefinitionRegistry<any, AnyServerFunction>;
+}
+
 /** HTTP route handler used by server adapters. */
 export interface ServerRoute<E = never, R = never> {
   readonly method: string;
   readonly path: string;
   readonly handler: (request: Request) => Effect.Effect<Response, E | ServerRouteHandlerError, R>;
 }
-
-/** Wire request shape for server function RPC transports. */
-export interface ServerRpcRequest {
-  readonly name: string;
-  readonly input: unknown;
-}
-
-/** Wire response shape for server function RPC transports. */
-export type ServerRpcResponse =
-  | { readonly _tag: "Success"; readonly value: unknown }
-  | { readonly _tag: "Failure"; readonly error: unknown }
-  | { readonly _tag: "ServerError"; readonly error: unknown }
-  | { readonly _tag: "Defect"; readonly defect: unknown };
-
-export class ServerFunctionNotFound extends Data.TaggedError("ServerFunctionNotFound")<{
-  readonly functionName: string;
-}> {}
-
-export class ServerRpcProtocolError extends Data.TaggedError("ServerRpcProtocolError")<{
-  readonly message: string;
-  readonly payload?: unknown;
-}> {}
-
-export class ServerTransportError extends Data.TaggedError("ServerTransportError")<{
-  readonly reason: "Network" | "BadStatus" | "InvalidResponse" | "Defect" | "Interrupted";
-  readonly message: string;
-  readonly status?: number;
-  readonly cause?: unknown;
-  readonly payload?: unknown;
-}> {}
 
 export class ServerRouteHandlerError extends Data.TaggedError("ServerRouteHandlerError")<{
   readonly method: string;
@@ -164,12 +183,16 @@ type ServerContractOutput<Contract> =
   Contract extends ServerFunctionContract<infer _I, infer A, infer _E> ? A : never;
 type ServerContractError<Contract> =
   Contract extends ServerFunctionContract<infer _I, infer _A, infer E> ? E : never;
+type CheckedServerContractHandlerOutput<Out, A, E> =
+  EnsureEffectInputValue<Out, A> extends never ? never
+    : EffectInputError<Out> extends E | EffectInputCallbackError ? Out : never;
 type ServerFunctionDefinitionInput<I, A, E, R> =
   Omit<ServerFunctionDefinition<I, A, E, R>, "handler"> & {
     readonly handler: (input: I) => EffectInput<A, E, R>;
   };
 
 type AnyServerFunction = ServerFunction<any, any, any, any>;
+type AnyServerFunctionContract = ServerFunctionContract<any, any, any>;
 type AnyServerFunctionMock = ServerFunctionMock<any, any, any, any>;
 
 const mockFor = <I, A, E, R>(
@@ -190,13 +213,52 @@ const serverRouteHandlerError = (
         cause
       });
 
-export const isServerFunction = (value: unknown): value is ServerFunction<unknown, unknown> =>
+const mapServerRouteBoundaryError = <E>(
+  route: Pick<ServerRoute, "method" | "path">,
+  error: E | ServerRouteHandlerError | EffectInputCallbackError
+): E | ServerRouteHandlerError =>
+  error instanceof ServerRouteHandlerError || error instanceof EffectInputCallbackError
+    ? serverRouteHandlerError(route, error)
+    : error;
+
+const isServerClientError = (error: unknown): error is ServerClientError =>
+  error instanceof EffectInputCallbackError ||
+  Schema.isSchemaError(error) ||
+  error instanceof ServerFunctionNotFound ||
+  error instanceof ServerRpcProtocolError ||
+  error instanceof ServerTransportError;
+
+const roundTripServerFunctionError = <I, A, E, R>(
+  fn: ServerFunction<I, A, E, R>,
+  error: E | ServerClientError
+): Effect.Effect<E | ServerClientError, Schema.SchemaError> =>
+  isServerClientError(error)
+    ? Effect.succeed(error)
+    : Effect.flatMap(
+        encodeServerFunctionError(fn, error as E),
+        (encoded) => decodeServerFunctionError(fn, encoded)
+      );
+
+const catchServerFunctionError = <I, A, E, R, Value, Error, Requirements>(
+  fn: ServerFunction<I, A, E, R>,
+  effect: Effect.Effect<Value, Error, Requirements>
+): Effect.Effect<Value, Error | E | ServerClientError, Requirements> =>
+  effect.pipe(
+    Effect.catch((error: Error) =>
+      Effect.flatMap(
+        roundTripServerFunctionError(fn, error as E | ServerClientError),
+        (decoded) => Effect.fail(decoded)
+      )
+    )
+  );
+
+export const isServerFunction = (value: unknown): value is AnyServerFunction =>
   typeof value === "function" &&
   (value as { [ServerFunctionTypeId]?: unknown })[ServerFunctionTypeId] === ServerFunctionTypeId;
 
 export const isServerFunctionContract = (
   value: unknown
-): value is ServerFunctionContract<unknown, unknown> =>
+): value is AnyServerFunctionContract =>
   typeof value === "object" &&
   value !== null &&
   (value as { [ServerFunctionContractTypeId]?: unknown })[ServerFunctionContractTypeId] ===
@@ -218,9 +280,9 @@ const defineServerFunction = <I, A, E = never, R = never>(
     });
   const invoke = (input: unknown): Effect.Effect<unknown, E | EffectInputCallbackError | ServerClientError, R> =>
     Effect.gen(function* () {
-      const decoded = yield* decodeWire<I>(definition.input, input);
+      const decoded = yield* decodeServerWire<I>(definition.input, input);
       const value = yield* local(decoded);
-      return yield* encodeWire(definition.output, value);
+      return yield* encodeServerWire(definition.output, value);
     });
   const callable = ((input: I) =>
     effect(input)) as ServerFunction<I, A, E, R>;
@@ -290,54 +352,54 @@ export namespace Server {
    * implementation needs services, retries, or typed failure.
    */
   export const implement = <
-    Contract extends ServerFunctionContract<unknown, unknown, unknown>,
-    R = never
+    Contract extends AnyServerFunctionContract,
+    Out
   >(
     contract: Contract,
     handler: (
       input: FromContract<ServerContractInput<Contract>>
-    ) => EffectInput<
+    ) => CheckedServerContractHandlerOutput<
+      Out,
       FromContract<ServerContractOutput<Contract>>,
-      ServerContractError<Contract>,
-      R
+      ServerContractError<Contract>
     >
   ): ServerFunction<
     ServerContractInput<Contract>,
     ServerContractOutput<Contract>,
     ServerContractError<Contract>,
-    R
+    EffectInputRequirements<Out>
   > =>
     defineServerFunction(contract.name, {
       input: contract.input,
       output: contract.output,
       error: contract.error,
       handler: handler as (
-        input: ServerContractInput<Contract>
-      ) => EffectInput<
-        ServerContractOutput<Contract>,
-        ServerContractError<Contract>,
-        R
-      >
+      input: ServerContractInput<Contract>
+    ) => EffectInput<
+      ServerContractOutput<Contract>,
+      ServerContractError<Contract>,
+      EffectInputRequirements<Out>
+    >
     });
 
   /** Creates a mock handler for a contract, suitable for Server.mockClient or mockLayer. */
   export const mock = <
-    Contract extends ServerFunctionContract<unknown, unknown, unknown>,
-    R = never
+    Contract extends AnyServerFunctionContract,
+    Out
   >(
     contract: Contract,
     handler: (
       input: FromContract<ServerContractInput<Contract>>
-    ) => EffectInput<
+    ) => CheckedServerContractHandlerOutput<
+      Out,
       FromContract<ServerContractOutput<Contract>>,
-      ServerContractError<Contract>,
-      R
+      ServerContractError<Contract>
     >
   ): ServerFunctionMock<
     ServerContractInput<Contract>,
     ServerContractOutput<Contract>,
     ServerContractError<Contract>,
-    R
+    EffectInputRequirements<Out>
   > => ({
     [ServerFunctionMockTypeId]: ServerFunctionMockTypeId,
     name: contract.name,
@@ -349,7 +411,7 @@ export namespace Server {
     ) => EffectInput<
       ServerContractOutput<Contract>,
       ServerContractError<Contract>,
-      R
+      EffectInputRequirements<Out>
     >
   });
 
@@ -372,20 +434,25 @@ export namespace Server {
             return yield* Effect.fail(new ServerFunctionNotFound({ functionName: fn.name }));
           }
 
-          const encodedInput = yield* encodeWire(fn.input, input);
-          const decodedInput = yield* decodeWire<I>(mock.input, encodedInput);
-          const value = yield* invokeEffectInput(`Server.mock(${fn.name}).handler`, mock.handler, decodedInput);
-          const encodedOutput = yield* encodeWire(mock.output, value);
-          return yield* decodeWire<A>(fn.output, encodedOutput);
+          const encodedInput = yield* encodeServerWire(fn.input, input);
+          const decodedInput = yield* decodeServerWire<I>(mock.input, encodedInput);
+          const value = yield* catchServerFunctionError(
+            fn,
+            invokeEffectInput(`Server.mock(${fn.name}).handler`, mock.handler, decodedInput)
+          );
+          const encodedOutput = yield* encodeServerWire(mock.output, value);
+          return yield* decodeServerWire<A>(fn.output, encodedOutput);
         })
     };
   };
 
+  /** Builds a `ServerClient` Layer backed by local test mocks. */
   export const mockLayer = (
     ...mocks: readonly AnyServerFunctionMock[]
   ): Layer.Layer<ServerClient> =>
     Layer.succeed(ServerClient)(mockClient(...mocks));
 
+  /** Provides local test mocks to one Effect that calls server functions. */
   export const provideMocks = <A, E, R>(
     effect: Effect.Effect<A, E, R>,
     ...mocks: readonly AnyServerFunctionMock[]
@@ -459,11 +526,11 @@ export namespace Server {
   };
 
   /** Registered server functions keyed by function name. */
-  export const functions = (): ReadonlyMap<string, ServerFunction<unknown, unknown, unknown, unknown>> =>
-    serverFunctionDefinitionRegistry<ServerFunction<unknown, unknown, unknown, unknown>>();
+  export const functions = (): ReadonlyMap<string, AnyServerFunction> =>
+    serverFunctionDefinitionRegistry<AnyServerFunction>();
 
   /** Alias for `Server.functions()`, useful for registry-oriented adapters. */
-  export const definitions = (): ReadonlyMap<string, ServerFunction<unknown, unknown, unknown, unknown>> =>
+  export const definitions = (): ReadonlyMap<string, AnyServerFunction> =>
     functions();
 
   /** Looks up a registered server function by function name. */
@@ -496,14 +563,14 @@ export namespace Server {
     method,
     path,
     handler: (request) =>
-      invokeEffectInput(`Server.route(${method} ${path}).handler`, handler, request).pipe(
-        Effect.mapError((error) =>
-          error instanceof EffectInputCallbackError
-            ? new ServerRouteHandlerError({ method, path, cause: error.cause })
-            : error
-        )
-      )
-  });
+	      invokeEffectInput(`Server.route(${method} ${path}).handler`, handler, request).pipe(
+	        Effect.mapError((error) =>
+	          error instanceof EffectInputCallbackError
+	            ? new ServerRouteHandlerError({ method, path, cause: error })
+	            : error
+	        )
+	      )
+	  });
 
   /**
    * Handles one ServerRoute as an Effect and applies request/response context.
@@ -523,165 +590,114 @@ export namespace Server {
         Effect.flatMap((response) =>
           provideRequest(request)(provideResponse(responseContext)(response))
         ),
-        Effect.map((response) => applyResponseContext(responseContext, response))
+        Effect.mapError((error) => mapServerRouteBoundaryError(route, error)),
+        Effect.flatMap((response) =>
+          applyResponseContextEffect(responseContext, response).pipe(
+            Effect.mapError((error) => serverRouteHandlerError(route, error))
+          )
+        )
       );
     });
 
+  /** Alias for `Server.handleRouteEffect(...)`. */
   export const handleRoute = <E, R>(
     route: ServerRoute<E, R>,
     request: Request
   ): Effect.Effect<Response, E | ServerRouteHandlerError, R> =>
     handleRouteEffect(route, request);
 
-  export const manifest = (functions: Iterable<ServerFunction<unknown, unknown>>): Array<{
+  /** Builds a schema-presence manifest from registered server functions. */
+  export const manifest = (functions: Iterable<AnyServerFunction>): Array<{
     readonly name: string;
     readonly inputSchema: boolean;
     readonly outputSchema: boolean;
     readonly errorSchema: boolean;
-  }> =>
-    Array.from(functions, (fn) => ({
-      name: fn.name,
-      inputSchema: Schema.isSchema(fn.input),
-      outputSchema: Schema.isSchema(fn.output),
-      errorSchema: Schema.isSchema(fn.error)
-    }));
+  }> => serverWireManifest(functions);
 
+  /** Encodes a function input through the function's input schema when present. */
   export const encodeInput = <I, A, E, R>(
     fn: ServerFunction<I, A, E, R>,
     input: I
   ): Effect.Effect<unknown, Schema.SchemaError> =>
-    encodeWire(fn.input, input);
+    encodeServerFunctionInput(fn, input);
 
+  /** Decodes an unknown wire input through the function's input schema when present. */
   export const decodeInput = <I, A, E, R>(
     fn: ServerFunction<I, A, E, R>,
     input: unknown
   ): Effect.Effect<I, Schema.SchemaError> =>
-    decodeWire<I>(fn.input, input);
+    decodeServerFunctionInput(fn, input);
 
+  /** Encodes a function output through the function's output schema when present. */
   export const encodeOutput = <I, A, E, R>(
     fn: ServerFunction<I, A, E, R>,
     output: A
   ): Effect.Effect<unknown, Schema.SchemaError> =>
-    encodeWire(fn.output, output);
+    encodeServerFunctionOutput(fn, output);
 
+  /** Decodes an unknown wire output through the function's output schema when present. */
   export const decodeOutput = <I, A, E, R>(
     fn: ServerFunction<I, A, E, R>,
     output: unknown
   ): Effect.Effect<A, Schema.SchemaError> =>
-    decodeWire<A>(fn.output, output);
+    decodeServerFunctionOutput(fn, output);
 
+  /** Encodes a function failure through the function's error schema when present. */
   export const encodeError = <I, A, E, R>(
     fn: ServerFunction<I, A, E, R>,
     error: E
   ): Effect.Effect<unknown, Schema.SchemaError> =>
-    encodeWire(fn.error, error);
+    encodeServerFunctionError(fn, error);
 
+  /** Decodes an unknown wire failure through the function's error schema when present. */
   export const decodeError = <I, A, E, R>(
     fn: ServerFunction<I, A, E, R>,
     error: unknown
   ): Effect.Effect<E, Schema.SchemaError> =>
-    decodeWire<E>(fn.error, error);
+    decodeServerFunctionError(fn, error);
 
+  /** Decodes the generic server-function RPC request envelope. */
   export const decodeRpcRequest = (input: unknown): Effect.Effect<ServerRpcRequest, Schema.SchemaError> =>
-    decodeWire<ServerRpcRequest>(ServerRpcRequestSchema, input);
+    decodeServerRpcRequest(input);
 
+  /** Decodes the generic server-function RPC response envelope. */
   export const decodeRpcResponse = (input: unknown): Effect.Effect<ServerRpcResponse, Schema.SchemaError> =>
-    decodeWire<ServerRpcResponse>(ServerRpcResponseSchema, input);
+    decodeServerRpcResponse(input);
 
-  export const localClient = (): ServerClient => ({
+  /**
+   * Creates a ServerClient that invokes registered local handlers.
+   *
+   * Useful for SSR tests and host adapters that want RPC-like schema round trips
+   * without crossing an HTTP transport.
+   */
+  export const localClient = (options: LocalServerClientOptions = {}): ServerClient => ({
     call: <I, A, E, R>(
       fn: ServerFunction<I, A, E, R>,
       input: I
     ): Effect.Effect<A, E | EffectInputCallbackError | ServerClientError, R> =>
       Effect.gen(function* () {
-        const target = Server.get<I, A, E, R>(fn.name);
+        const target = options.registry === undefined
+          ? Server.get<I, A, E, R>(fn.name)
+          : options.registry.serverFunctions.get(fn.name) as ServerFunction<I, A, E, R> | undefined;
         if (!target?.hasHandler) {
           return yield* Effect.fail(new ServerFunctionNotFound({ functionName: fn.name }));
         }
 
         const encodedInput = yield* Server.encodeInput(fn, input);
-        const encodedOutput = yield* target.invoke(encodedInput);
+        const encodedOutput = yield* catchServerFunctionError(
+          fn,
+          target.invoke(encodedInput)
+        );
         return yield* Server.decodeOutput(fn, encodedOutput);
       })
   });
 
-  export const serializeDefect = (defect: unknown): unknown => {
-    if (defect instanceof Error) {
-      return {
-        _tag: defect.name,
-        message: defect.message,
-        stack: defect.stack
-      };
-    }
-    return defect;
-  };
+  /** Serializes thrown defects into JSON-safe diagnostic data when possible. */
+  export const serializeDefect = serializeServerDefect;
 
-  export const serializeServerError = (error: ServerFunctionNotFound | ServerRpcProtocolError): unknown => {
-    switch (error._tag) {
-      case "ServerFunctionNotFound":
-        return {
-          _tag: error._tag,
-          functionName: error.functionName
-        };
-      case "ServerRpcProtocolError":
-        return {
-          _tag: error._tag,
-          message: error.message,
-          payload: error.payload
-        };
-    }
-  };
+  /** Serializes known server RPC errors for transport responses. */
+  export const serializeServerError = serializeServerWireError;
 
-  export const deserializeServerError = (error: unknown): ServerFunctionNotFound | ServerRpcProtocolError => {
-    if (isRecord(error) && error._tag === "ServerFunctionNotFound" && typeof error.functionName === "string") {
-      return new ServerFunctionNotFound({ functionName: error.functionName });
-    }
-    if (isRecord(error) && error._tag === "ServerRpcProtocolError" && typeof error.message === "string") {
-      return new ServerRpcProtocolError({
-        message: error.message,
-        payload: error.payload
-      });
-    }
-    return new ServerRpcProtocolError({
-      message: "The server returned an unknown RPC protocol error.",
-      payload: error
-    });
-  };
+  /** Decodes known server RPC errors, falling back to a protocol error. */
+  export const deserializeServerError = deserializeServerWireError;
 }
-
-const ServerRpcRequestSchema = Schema.Struct({
-  name: Schema.String,
-  input: Schema.Unknown
-});
-
-const ServerRpcResponseSchema = Schema.TaggedUnion({
-  Success: {
-    value: Schema.Unknown
-  },
-  Failure: {
-    error: Schema.Unknown
-  },
-  ServerError: {
-    error: Schema.Unknown
-  },
-  Defect: {
-    defect: Schema.Unknown
-  }
-});
-
-const isRecord = (value: unknown): value is Record<string, unknown> =>
-  typeof value === "object" && value !== null;
-
-const decodeWire = <A = unknown>(schema: unknown, input: unknown): Effect.Effect<A, Schema.SchemaError> => {
-  if (!Schema.isSchema(schema)) {
-    return Effect.succeed(input as A);
-  }
-  return Schema.decodeUnknownEffect(schema as Schema.Decoder<A>)(input);
-};
-
-const encodeWire = (schema: unknown, input: unknown): Effect.Effect<unknown, Schema.SchemaError> => {
-  if (!Schema.isSchema(schema)) {
-    return Effect.succeed(input);
-  }
-  return Schema.encodeUnknownEffect(schema as Schema.Encoder<unknown>)(input);
-};

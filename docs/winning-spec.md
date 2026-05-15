@@ -118,8 +118,8 @@ devtools snapshots, diagnostics reports, and testable failure paths.
     avoided.
 14. As an app developer, I want every async public API to expose an Effect form,
     so that retries, interruption, services, and scopes remain composable.
-15. As an app developer, I want Promise APIs only at host and UI boundaries, so
-    that framework internals keep Effect semantics.
+15. As an app developer, I want Promise-shaped entrypoints only as host and UI
+    compatibility adapters, so that framework internals keep Effect semantics.
 16. As an app developer, I want deployment adapters for common hosts, so that I
     can ship without rewriting framework integration code.
 17. As a tester, I want capabilities and server mocks to replace app behavior, so
@@ -301,8 +301,9 @@ framework author in the room.
 ## Success Metrics
 
 - The full verification command passes from a clean checkout.
-- Every public async API has an Effect form.
-- Every host/UI Promise API is documented as an adapter.
+- Every public async API is Effect v4.
+- Every host/UI Promise-shaped entrypoint is documented as a compatibility
+  adapter.
 - Every generated manifest is deterministic.
 - Unsafe client/server imports fail before production.
 - Route, server function, resource, action, capability, and form misuse have

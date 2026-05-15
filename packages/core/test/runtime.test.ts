@@ -18,13 +18,13 @@ describe("Effect UI runtime", () => {
   it("runs effects with services from a runtime layer", () => {
     const runtime = makeRuntime(NumbersLive);
 
-    return runtime.runPromise(
+    return Effect.runPromise(runtime.provide(
       Numbers.use((numbers) => numbers.get("atlas")).pipe(
         Effect.tap((value) => Effect.sync(() => expect(value).toBe(5))),
         Effect.asVoid,
         Effect.ensuring(runtime.disposeEffect)
       )
-    );
+    ));
   });
 
   it("uses the current runtime for server function Effect boundaries", () => {
@@ -33,13 +33,13 @@ describe("Effect UI runtime", () => {
       handler: (id) => Numbers.use((numbers) => numbers.get(id))
     });
 
-    return runtime.runPromise(
+    return Effect.runPromise(runtime.provide(
       getNumber("kepler").pipe(
         Effect.tap((value) => Effect.sync(() => expect(value).toBe(6))),
         Effect.asVoid,
         Effect.ensuring(runtime.disposeEffect)
       )
-    );
+    ));
   });
 
   it("routes server function effects through ServerClient when one is provided", () => {
@@ -52,7 +52,7 @@ describe("Effect UI runtime", () => {
       })
     );
 
-    return runtime.runPromise(
+    return Effect.runPromise(runtime.provide(
       Effect.gen(function* () {
         const effectValue = yield* getNumber.effect("atlas");
         const effectValueFromCallable = yield* getNumber("kepler");
@@ -62,7 +62,7 @@ describe("Effect UI runtime", () => {
           expect(effectValueFromCallable).toBe("remote:kepler");
         });
       }).pipe(Effect.ensuring(runtime.disposeEffect))
-    );
+    ));
   });
 
   it("dispatches shared server function stubs to local registered handlers", () => {
@@ -73,13 +73,13 @@ describe("Effect UI runtime", () => {
       Layer.succeed(ServerClient)(Server.localClient())
     );
 
-    return runtime.runPromise(
+    return Effect.runPromise(runtime.provide(
       getNumber.effect("atlas").pipe(
         Effect.tap((value) => Effect.sync(() => expect(value).toBe(5))),
         Effect.asVoid,
         Effect.ensuring(runtime.disposeEffect)
       )
-    );
+    ));
   });
 
   it("uses the current runtime for resource Effect boundaries", () => {
@@ -90,7 +90,7 @@ describe("Effect UI runtime", () => {
     });
     const ref = NumberById("lumen");
 
-    return runtime.runPromise(
+    return Effect.runPromise(runtime.provide(
       Resource.prefetchEffect(ref).pipe(
         Effect.tap((value) =>
           Effect.sync(() => {
@@ -101,7 +101,7 @@ describe("Effect UI runtime", () => {
         Effect.asVoid,
         Effect.ensuring(runtime.disposeEffect)
       )
-    );
+    ));
   });
 
   it("uses an explicit runtime for action event boundaries", () => {
@@ -120,4 +120,34 @@ describe("Effect UI runtime", () => {
       )
     );
   });
+
+  it("disposes managed services when Resource Store disposal fails", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        let layerFinalized = false;
+        const runtime = makeRuntime(
+          Layer.effectDiscard(
+            Effect.addFinalizer(() =>
+              Effect.sync(() => {
+                layerFinalized = true;
+              })
+            )
+          )
+        );
+        runtime.resourceStore.moduleRegistry.register(Symbol("failing-module"), {
+          disposeEffect: Effect.fail("store dispose failed")
+        });
+
+        yield* runtime.provide(Effect.void);
+        const exit = yield* Effect.exit(runtime.disposeEffect);
+
+        yield* Effect.sync(() => {
+          expect(exit._tag).toBe("Failure");
+          if (exit._tag === "Failure") {
+            expect(exit.cause.reasons.find((reason) => reason._tag === "Fail")?.error).toBe("store dispose failed");
+          }
+          expect(layerFinalized).toBe(true);
+        });
+      })
+    ));
 });

@@ -1,0 +1,50 @@
+import { Effect } from "effect";
+import {
+  normalizeStartRequestHandlerError,
+  type StartRequestHandlerError
+} from "./start-request-handler-error.js";
+
+export declare const StartRequestHandlerRequirementsTypeId: unique symbol;
+
+export interface StartRequestHandlerRequirementsMarker<Requirements> {
+  readonly [StartRequestHandlerRequirementsTypeId]: Requirements;
+}
+
+export type StartRequestHandlerInput<E = never, R = never> = (
+  request: Request
+) => Effect.Effect<Response, E, R>;
+
+export type StartRequestHandlerRequirements<Handler> =
+  Handler extends StartRequestHandlerRequirementsMarker<infer R>
+    ? R
+    : Handler extends StartRequestHandlerInput<any, infer R> ? R : never;
+
+export const startRequestHandlerError = (
+  request: Request,
+  cause: unknown
+): StartRequestHandlerError =>
+  normalizeStartRequestHandlerError(request, cause);
+
+export function invokeStartRequestHandlerEffect<Handler extends StartRequestHandlerInput<any, any>>(
+  handler: Handler,
+  request: Request
+): Effect.Effect<Response, StartRequestHandlerError, StartRequestHandlerRequirements<Handler>>;
+export function invokeStartRequestHandlerEffect<HandlerError, R>(
+  handler: StartRequestHandlerInput<HandlerError, R>,
+  request: Request
+): Effect.Effect<Response, StartRequestHandlerError, R>;
+export function invokeStartRequestHandlerEffect(
+  handler: StartRequestHandlerInput<any, any>,
+  request: Request
+): Effect.Effect<Response, StartRequestHandlerError, any> {
+  return Effect.flatMap(
+    Effect.try({
+      try: () => handler(request),
+      catch: (cause) => startRequestHandlerError(request, cause)
+    }),
+    (effect) =>
+      effect.pipe(
+        Effect.mapError((cause) => startRequestHandlerError(request, cause))
+      )
+  );
+}

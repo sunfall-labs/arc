@@ -1,52 +1,66 @@
 import {
   Route,
-  applyResponseContext,
+  invokeEffectInput,
   makeResponseContext,
   runWithRuntime,
-  toEffect,
   type AppDefinition,
+  type AppDefinitionRegistry,
+  type AppDefinitionRegistryRequirements,
+  type ActionDefinitionRequirements,
   type EffectInput,
   type EffectUiRuntime,
   type ResourceStore as ResourceStoreState
 } from "@effect-ui/core";
-import { Data, Effect, Exit } from "effect";
+import { Effect, Scope } from "effect";
 import {
-  createHydrationScript,
-  type PreloadRequestOptions,
-  type StartCollectionHydrationOptions,
-  type StartHydrationPayload
+  type StartCollectionHydrationOptions
 } from "./hydration.js";
 import {
-  completeRequestRuntimeWithResponse,
   makeRequestRuntime,
   provideRequestRuntime,
-  type RequestRuntimeFinalizeState,
-  type RequestRuntimeStreamFinalizeState
+  type RequestRuntimeRemainingRequirements
 } from "./request-runtime.js";
 import {
-  buildStartRequestTrace,
-  emitStartRequestTraceEffect,
-  requestRuntimeDisposeTraceEffect,
   startRequestTraceFactsEffect,
-  startRequestTraceTeardown,
-  withStartRequestObservability,
   type StartRequestTraceHandler
 } from "./request-trace.js";
+import { runRequestRuntimeLifecycleEffect } from "./request-runtime-lifecycle.js";
 import { recordStartRequestTracePreload } from "./request-trace-recorder.js";
+import {
+  createStartRenderHydrationPlanEffect,
+  type StartRenderHydrationPlan
+} from "./render-hydration-plan.js";
 import {
   isServerActionRequest,
   isServerRpcRequest,
   type StartActionDefinition
 } from "./start-transport-protocol.js";
+import type {
+  StartActionEndpointManifest,
+  StartServerFunctionEndpointManifest,
+  StartTransportEndpointOverrides,
+  StartTransportEndpointManifestSource
+} from "./start-transport-endpoints.js";
+import {
+  resolveStartTransportEndpoints
+} from "./start-transport-endpoints.js";
 import {
   createServerActionResponseEffectWithRuntime,
   createServerRpcResponseEffectWithRuntime
 } from "./start-request-endpoints.js";
+import type {
+  StartRequestHandlerInput,
+  StartRequestHandlerRequirementsMarker
+} from "./start-host-adapter.js";
 import {
   preloadRequestEffectWithRuntime,
   type StartCollectionPreload,
   type StartPreloadResult
 } from "./start-request-preload.js";
+import {
+  normalizeStartRequestHandlerError,
+  StartRequestHandlerError
+} from "./start-request-handler-error.js";
 
 export {
   createServerActionResponseEffect,
@@ -61,26 +75,36 @@ export type {
   StartCollectionPreload,
   StartPreloadResult
 } from "./start-request-preload.js";
+export { StartRequestHandlerError } from "./start-request-handler-error.js";
 
 /**
  * Per-request context passed to a Start SSR render function.
  *
  * The runtime and resource store are request-scoped. Start disposes them when
- * the response completes, including streamed responses. Include
- * `hydrationScript` in HTML to transfer preloaded resource and collection
- * state to the browser.
+ * the response completes, including streamed responses. Non-streaming
+ * renderers can include `legacyHydrationScript` in HTML to transfer the full
+ * preloaded resource and collection state to the browser. Streaming renderers
+ * should use `hydrationPlan` or `hydrationRootScript` so route resources are
+ * emitted only through streamed hydration chunks.
  */
 export interface StartRenderContext<
-  Routes extends readonly Route.Definition<string, unknown, unknown>[] = readonly Route.Definition<string, unknown, unknown>[],
+  Routes extends readonly Route.Definition<string, unknown, unknown, any>[] = readonly Route.Definition<string, unknown, unknown, any>[],
   Client = unknown,
   ServerServices = never,
-  ServerError = never
+  ServerError = never,
+  Registry extends AppDefinitionRegistry = AppDefinitionRegistry
 > extends StartPreloadResult<Routes> {
   readonly request: Request;
-  readonly app: AppDefinition<Routes, Client, ServerServices, ServerError>;
+  readonly app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>;
   readonly runtime: EffectUiRuntime<ServerServices, ServerError>;
   readonly resourceStore: ResourceStoreState;
+  /** Full hydration payload script for non-streaming renderers. */
+  readonly legacyHydrationScript: string;
+  /** @deprecated Use `legacyHydrationScript` for full non-streaming payloads or `hydrationRootScript` for streamed renderers. */
   readonly hydrationScript: string;
+  /** Root-only hydration script derived from `hydrationPlan` for streamed renderers. */
+  readonly hydrationRootScript: string;
+  readonly hydrationPlan: StartRenderHydrationPlan;
 }
 
 /**
@@ -91,48 +115,52 @@ export interface StartRenderContext<
  * platform adapters decide where any Promise boundary lives.
  */
 export interface CreateRequestHandlerOptions<
-  Routes extends readonly Route.Definition<string, unknown, unknown>[],
+  Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
   Client = unknown,
   ServerServices = never,
-  ServerError = never
+  ServerError = never,
+  Actions extends StartActionDefinition = StartActionDefinition,
+  Registry extends AppDefinitionRegistry = AppDefinitionRegistry
 > extends StartCollectionHydrationOptions {
+  /** Transport endpoint paths used to route RPC/action requests. */
+  readonly endpoints?: StartTransportEndpointOverrides;
+  /** RPC endpoint path used by this request handler. */
+  readonly rpcPath?: string;
+  /** Action endpoint path used by this request handler. */
+  readonly actionPath?: string;
+  /** Server-function manifest whose RPC path should be used by this request handler. */
+  readonly serverFunctionManifest?: StartServerFunctionEndpointManifest;
+  /** Action manifest whose action path should be used by this request handler. */
+  readonly actionManifest?: StartActionEndpointManifest;
+  /** App graph whose transport paths should be used by this request handler. */
+  readonly appGraph?: StartTransportEndpointManifestSource;
   /** Render the preloaded request context to HTML or a custom Response. */
-  readonly render?: (context: StartRenderContext<Routes, Client, ServerServices, ServerError>) => EffectInput<string | Response>;
+  readonly render?: (context: StartRenderContext<Routes, Client, ServerServices, ServerError, Registry>) => EffectInput<string | Response>;
   /** Actions served by the action transport. Defaults to globally registered actions. */
-  readonly actions?: Iterable<StartActionDefinition>;
+  readonly actions?: Iterable<Actions>;
   /** Receives best-effort request diagnostics after runtime teardown. */
   readonly onRequestTrace?: StartRequestTraceHandler;
 }
 
-/** Error raised when a Start request handler fails before producing a response. */
-export class StartRequestHandlerError extends Data.TaggedError("StartRequestHandlerError")<{
-  readonly operation: "handle-request";
-  readonly request: {
-    readonly method: string;
-    readonly url: string;
-  };
-  readonly cause: unknown;
-}> {}
-
-const requestHandlerError = (
-  request: Request,
-  cause: unknown
-): StartRequestHandlerError =>
-  cause instanceof StartRequestHandlerError
-    ? cause
-    : new StartRequestHandlerError({
-        operation: "handle-request",
-        request: {
-          method: request.method,
-          url: request.url
-        },
-        cause
-      });
+type StartRequestRequirements<
+  Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
+  ServerServices,
+  Registry extends AppDefinitionRegistry,
+  Actions extends StartActionDefinition
+> = RequestRuntimeRemainingRequirements<
+  | Route.PreloadRequirements<Routes[number]>
+  | AppDefinitionRegistryRequirements<Registry>
+  | ActionDefinitionRequirements<Actions>,
+  ServerServices
+>;
 
 /** Effect-returning request handler used by the Start SSR/RPC/action pipeline. */
-export type StartRequestHandlerEffect = (request: Request) => Effect.Effect<Response, StartRequestHandlerError, unknown>;
+export type StartRequestHandlerEffect<Requirements = never> =
+  StartRequestHandlerInput<StartRequestHandlerError, Scope.Scope | Requirements> &
+  StartRequestHandlerRequirementsMarker<Scope.Scope | Requirements>;
 /** Public handler type consumed by platform adapters and server entries. */
-export type StartRequestHandler = StartRequestHandlerEffect;
+export type StartRequestHandler<Requirements = never> =
+  StartRequestHandlerInput<StartRequestHandlerError, Scope.Scope | Requirements>;
 
 /**
  * Builds the main Start request handler for SSR, RPC, and actions.
@@ -144,27 +172,37 @@ export type StartRequestHandler = StartRequestHandlerEffect;
  * @example
  * ```ts
  * const handleRequest = createRequestHandlerEffect(app, {
- *   render: ({ hydrationScript }) => `<div id="app"></div>${hydrationScript}`
+ *   render: ({ hydrationRootScript }) => `<div id="app"></div>${hydrationRootScript}`
  * });
  * ```
  */
 export const createRequestHandlerEffect =
   <
-    const Routes extends readonly Route.Definition<string, unknown, unknown>[],
+    const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
     Client,
     ServerServices,
-    ServerError
+    ServerError,
+    Registry extends AppDefinitionRegistry,
+    Actions extends StartActionDefinition = never
   >(
-    app: AppDefinition<Routes, Client, ServerServices, ServerError>,
-    options: CreateRequestHandlerOptions<Routes, Client, ServerServices, ServerError> = {}
-  ): StartRequestHandlerEffect =>
-  (request: Request): Effect.Effect<Response, StartRequestHandlerError, unknown> =>
+    app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>,
+    options: CreateRequestHandlerOptions<Routes, Client, ServerServices, ServerError, Actions, Registry> = {}
+  ): StartRequestHandlerEffect<StartRequestRequirements<Routes, ServerServices, Registry, Actions>> => {
+    const endpoints = resolveStartTransportEndpoints(options);
+    const requestOptions = {
+      ...options,
+      endpoints
+    };
+
+    return ((
+    request: Request
+  ): Effect.Effect<Response, StartRequestHandlerError, Scope.Scope | StartRequestRequirements<Routes, ServerServices, Registry, Actions>> =>
     Effect.gen(function* () {
       const requestRuntime = makeRequestRuntime(app);
       const responseContext = makeResponseContext();
-      const traceFacts = yield* startRequestTraceFactsEffect(request);
+      const traceFacts = yield* startRequestTraceFactsEffect(request, requestOptions);
       const responseEffect = Effect.gen(function* () {
-        if (isServerRpcRequest(request)) {
+        if (isServerRpcRequest(request, requestOptions)) {
           return yield* createServerRpcResponseEffectWithRuntime(
             app,
             request,
@@ -174,7 +212,7 @@ export const createRequestHandlerEffect =
           );
         }
 
-        if (isServerActionRequest(request)) {
+        if (isServerActionRequest(request, requestOptions)) {
           return yield* createServerActionResponseEffectWithRuntime(
             app,
             request,
@@ -189,7 +227,7 @@ export const createRequestHandlerEffect =
           app,
           request,
           requestRuntime,
-          options,
+          requestOptions,
           responseContext
         );
         recordStartRequestTracePreload(
@@ -198,7 +236,11 @@ export const createRequestHandlerEffect =
           preloaded.routePlan,
           preloaded.collectionPreload
         );
-        const context: StartRenderContext<Routes, Client, ServerServices, ServerError> = {
+        const hydrationPlan = yield* createStartRenderHydrationPlanEffect({
+          resources: preloaded.resources,
+          collections: preloaded.collections
+        });
+        const context = {
           app,
           request,
           match: preloaded.match,
@@ -209,18 +251,27 @@ export const createRequestHandlerEffect =
           routePlan: preloaded.routePlan,
           runtime: requestRuntime,
           resourceStore: requestRuntime.resourceStore,
-          hydrationScript: createHydrationScript(preloaded.hydration)
-        };
+          hydrationRootScript: hydrationPlan.root.script,
+          hydrationPlan,
+          get legacyHydrationScript() {
+            return hydrationPlan.legacy.script;
+          },
+          get hydrationScript() {
+            return hydrationPlan.legacy.script;
+          }
+        } satisfies StartRenderContext<Routes, Client, ServerServices, ServerError, Registry>;
 
         if (options.render) {
-          const renderEffect = Effect.suspend(() =>
-            toEffect(runWithRuntime(requestRuntime, () => options.render!(context)))
+          const renderEffect = invokeEffectInput(
+            "Start.render",
+            () => runWithRuntime(requestRuntime, () => options.render!(context))
           );
           const rendered = yield* provideRequestRuntime(
             requestRuntime,
             request,
             renderEffect,
-            responseContext
+            responseContext,
+            app.registry
           );
           return rendered instanceof Response
             ? rendered
@@ -249,86 +300,35 @@ export const createRequestHandlerEffect =
         );
       });
 
-      return yield* withStartRequestObservability(
-        request,
-        traceFacts,
-        Effect.gen(function* () {
-          const responseExit = yield* Effect.exit(responseEffect);
-
-          if (Exit.isFailure(responseExit)) {
-            const teardown = yield* requestRuntimeDisposeTraceEffect(requestRuntime);
-            if (options.onRequestTrace !== undefined) {
-              yield* emitStartRequestTraceEffect(
-                options.onRequestTrace,
-                buildStartRequestTrace(request, traceFacts, "failure", {
-                  teardown: startRequestTraceTeardown(traceFacts, {
-                    runtimeDisposed: true,
-                    reason: "request-failure",
-                    ...teardown
-                  })
-                })
-              );
-            }
-            return yield* Effect.failCause(responseExit.cause);
-          }
-
-          const response = applyResponseContext(responseContext, responseExit.value);
-          const traceFinalizeOptions = options.onRequestTrace === undefined
-            ? {}
-            : {
-                onFinalize: (state: RequestRuntimeFinalizeState) =>
-                  emitStartRequestTraceEffect(
-                    options.onRequestTrace,
-                    buildStartRequestTrace(request, traceFacts, state.status, {
-                      response,
-                      teardown: startRequestTraceTeardown(traceFacts, {
-                        runtimeDisposed: true,
-                        reason: state.teardownReason,
-                        beforeDispose: state.beforeDispose,
-                        afterDispose: state.afterDispose,
-                        completedAt: state.completedAt
-                      }),
-                      ...(state.stream === undefined ? {} : { stream: state.stream })
-                    })
-                  ),
-                onStreamFinalize: (state: RequestRuntimeStreamFinalizeState) =>
-                  emitStartRequestTraceEffect(
-                    options.onRequestTrace,
-                    buildStartRequestTrace(request, traceFacts, state.status, {
-                      response,
-                      teardown: startRequestTraceTeardown(traceFacts, {
-                        runtimeDisposed: true,
-                        reason: state.teardownReason,
-                        beforeDispose: state.beforeDispose,
-                        afterDispose: state.afterDispose,
-                        completedAt: state.completedAt
-                      }),
-                      stream: state.stream
-                    })
-                  )
-              };
-          return yield* completeRequestRuntimeWithResponse(
-            requestRuntime,
-            response,
-            traceFinalizeOptions
-          );
-        })
+      return yield* runRequestRuntimeLifecycleEffect(
+        {
+          request,
+          runtime: requestRuntime,
+          responseContext,
+          traceFacts,
+          responseEffect,
+          ...(options.onRequestTrace === undefined ? {} : { onRequestTrace: options.onRequestTrace })
+        }
       );
     }).pipe(
-      Effect.mapError((cause) => requestHandlerError(request, cause))
-    );
+      Effect.mapError((cause) => normalizeStartRequestHandlerError(request, cause))
+    ) as Effect.Effect<Response, StartRequestHandlerError, Scope.Scope | StartRequestRequirements<Routes, ServerServices, Registry, Actions>>
+  ) as StartRequestHandlerEffect<StartRequestRequirements<Routes, ServerServices, Registry, Actions>>;
+  };
 
 /** Primary Start request handler factory for server entry modules. */
 export const createRequestHandler =
   <
-    const Routes extends readonly Route.Definition<string, unknown, unknown>[],
+    const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
     Client,
     ServerServices,
-    ServerError
+    ServerError,
+    Registry extends AppDefinitionRegistry,
+    Actions extends StartActionDefinition = never
   >(
-    app: AppDefinition<Routes, Client, ServerServices, ServerError>,
-    options: CreateRequestHandlerOptions<Routes, Client, ServerServices, ServerError> = {}
-  ): StartRequestHandler =>
+    app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>,
+    options: CreateRequestHandlerOptions<Routes, Client, ServerServices, ServerError, Actions, Registry> = {}
+  ): StartRequestHandlerEffect<StartRequestRequirements<Routes, ServerServices, Registry, Actions>> =>
     createRequestHandlerEffect(app, options);
 
 /** Alias for `createRequestHandler` for server entry modules. */

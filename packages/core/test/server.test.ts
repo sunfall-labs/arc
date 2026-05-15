@@ -1,6 +1,6 @@
 import { Effect, Exit, Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import { EffectInputCallbackError, Server, ServerClient, ServerFunctionNotFound } from "../src/index.js";
+import { EffectInputCallbackError, makeCoreDefinitionRegistry, Server, ServerClient, ServerFunctionNotFound } from "../src/index.js";
 
 describe("Server contracts", () => {
   const User = Schema.Struct({
@@ -127,4 +127,92 @@ describe("Server contracts", () => {
         Effect.asVoid
       )
     ));
+
+  it("validates mock failures against the contract error schema", () => {
+    const FailingUser = Server.contract<void, string, { readonly code: string }>("Test.User.mockFailure", {
+      output: Schema.String,
+      error: Schema.Struct({ code: Schema.String })
+    });
+    const failingUser = Server.client(FailingUser);
+
+    return Effect.runPromise(
+      Effect.exit(
+        Server.provideMocks(
+          failingUser.effect(undefined),
+          Server.mock(FailingUser, () =>
+            Effect.fail({ code: 500 } as unknown as { readonly code: string })
+          )
+        )
+      ).pipe(
+        Effect.tap((exit) =>
+          Effect.sync(() => {
+            expect(Exit.isFailure(exit)).toBe(true);
+            if (Exit.isFailure(exit)) {
+              const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
+              expect(Schema.isSchemaError(failure?.error)).toBe(true);
+            }
+          })
+        ),
+        Effect.asVoid
+      )
+    );
+  });
+
+  it("validates local client failures against the contract error schema", () => {
+    const FailingUser = Server.contract<void, string, { readonly code: string }>("Test.User.localFailure", {
+      output: Schema.String,
+      error: Schema.Struct({ code: Schema.String })
+    });
+    const failingUser = Server.client(FailingUser);
+    Server.implement(FailingUser, () =>
+      Effect.fail({ code: 500 } as unknown as { readonly code: string })
+    );
+
+    return Effect.runPromise(
+      Effect.exit(
+        Effect.provideService(failingUser.effect(undefined), ServerClient, Server.localClient())
+      ).pipe(
+        Effect.tap((exit) =>
+          Effect.sync(() => {
+            expect(Exit.isFailure(exit)).toBe(true);
+            if (Exit.isFailure(exit)) {
+              const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
+              expect(Schema.isSchemaError(failure?.error)).toBe(true);
+            }
+          })
+        ),
+        Effect.asVoid
+      )
+    );
+  });
+
+  it("dispatches local clients through explicit registry snapshots", () => {
+    const EchoContract = Server.contract<string, string>("Test.Server.localClient.registry", {
+      input: Schema.String,
+      output: Schema.String
+    });
+    const snapshotImplementation = Server.implement(EchoContract, (input) =>
+      Effect.succeed(`snapshot:${input}`)
+    );
+    Server.implement(EchoContract, (input) =>
+      Effect.succeed(`global:${input}`)
+    );
+    const echo = Server.client(EchoContract);
+    const registry = makeCoreDefinitionRegistry({
+      serverFunctions: [snapshotImplementation]
+    });
+
+    return Effect.runPromise(
+      Effect.provideService(
+        echo.effect("atlas"),
+        ServerClient,
+        Server.localClient({ registry })
+      ).pipe(
+        Effect.tap((value) =>
+          Effect.sync(() => expect(value).toBe("snapshot:atlas"))
+        ),
+        Effect.asVoid
+      )
+    );
+  });
 });

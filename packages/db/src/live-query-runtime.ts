@@ -15,21 +15,30 @@ import {
   type RootStreamBuilder
 } from "@tanstack/db-ivm";
 import { Effect } from "effect";
-import type { AnyCollection } from "./collection-contract.js";
+import type { AnyCollection, CollectionKey } from "./collection-contract.js";
 import {
   UnsupportedLiveQuery,
   compareRows,
   compareValue,
   evaluateQueryOperation,
   joinKey,
+  querySourceAdapters,
+  toQueryEvaluationError,
+  validateQueryPlan,
   type AnyCollectionRow,
   type AnyQueryAggregateRecord,
   type AnyQueryContext,
   type AnyQueryGrouping,
+  type QueryEvaluationError,
   type QueryJoin,
   type QueryOrder,
+  type QueryPlanBuilder,
   type QueryProjectOptions
 } from "./query-plan.js";
+import {
+  makeQuerySourceAdapter,
+  type QueryCollectionSourceAdapter
+} from "./query-source-adapter.js";
 
 export interface LiveQueryRuntimeBuilder<TContext extends AnyQueryContext, TResult> {
   readonly sources: ReadonlyArray<readonly [string, AnyCollection]>;
@@ -65,6 +74,12 @@ const compareIvmContexts = <TContext extends AnyQueryContext>(
 
 const contextKeySymbol: unique symbol = Symbol.for("@effect-ui/db/QueryContextKey") as typeof contextKeySymbol;
 const crossJoinKey = "__effect_ui_db_all__";
+
+const collectionRowIdentity = (key: CollectionKey): string =>
+  stableStringify([typeof key, key]);
+
+const sourceContextIdentity = (alias: string, key: CollectionKey): string =>
+  stableStringify([alias, typeof key, key]);
 
 type IvmRuntimeOperator = IOperator<unknown>;
 
@@ -131,7 +146,7 @@ type IvmContext = Record<string, unknown> & {
 
 interface IvmSource {
   readonly alias: string;
-  readonly collection: AnyCollection;
+  readonly source: QueryCollectionSourceAdapter;
   readonly input: RootStreamBuilder<KeyValue<string, IvmContext>>;
   readonly previous: Map<string, { readonly row: AnyCollectionRow; readonly hash: string }>;
 }
@@ -149,7 +164,7 @@ class IvmLiveQueryRuntime<TContext extends AnyQueryContext, TResult> implements 
   constructor(readonly builder: LiveQueryRuntimeBuilder<TContext, TResult>) {
     this.#sources = builder.sources.map(([alias, collection]) => ({
       alias,
-      collection,
+      source: makeQuerySourceAdapter(collection),
       input: this.#graph.newInput<KeyValue<string, IvmContext>>(),
       previous: new Map()
     }));
@@ -163,7 +178,7 @@ class IvmLiveQueryRuntime<TContext extends AnyQueryContext, TResult> implements 
 
   evaluate(): ReadonlyArray<TResult> {
     for (const source of this.#sources) {
-      source.collection.version().get();
+      source.source.version().get();
       this.#syncSource(source);
     }
 
@@ -328,8 +343,8 @@ class IvmLiveQueryRuntime<TContext extends AnyQueryContext, TResult> implements 
     const current = new Map<string, { readonly row: AnyCollectionRow; readonly hash: string }>();
     const deltas: Array<[KeyValue<string, IvmContext>, number]> = [];
 
-    for (const row of source.collection.rows()) {
-      const key = String(row.$key);
+    for (const row of source.source.rows()) {
+      const key = collectionRowIdentity(row.$key);
       const hash = stableStringify(row);
       const previous = source.previous.get(key);
       current.set(key, { row, hash });
@@ -369,7 +384,7 @@ const sourceContext = (
   crossJoinKey,
   {
     [alias]: row,
-    [contextKeySymbol]: `${alias}:${String(row.$key)}`
+    [contextKeySymbol]: sourceContextIdentity(alias, row.$key)
   }
 ];
 
@@ -379,21 +394,35 @@ const mergeContexts = (left: IvmContext | null, right: IvmContext | null): IvmCo
   return {
     ...(left ?? {}),
     ...(right ?? {}),
-    [contextKeySymbol]: `${leftKey}|${rightKey}`
+    [contextKeySymbol]: stableStringify([leftKey, rightKey])
   };
 };
 
 export const makeLiveQueryRuntime = <TContext extends AnyQueryContext, TResult>(
   builder: LiveQueryRuntimeBuilder<TContext, TResult>
-): LiveQueryRuntime<TResult> =>
-  new IvmLiveQueryRuntime(builder);
+): LiveQueryRuntime<TResult> => {
+  validateQueryPlan(builder);
+  return new IvmLiveQueryRuntime(builder);
+};
 
 export const preloadLiveQuerySourcesEffect = <E, R>(
-  sources: ReadonlyArray<AnyCollection>,
+  sources: ReadonlyArray<QueryCollectionSourceAdapter>,
   force: boolean
 ): Effect.Effect<void, E, R> =>
   Effect.gen(function* () {
     for (const source of sources) {
-      yield* (force ? source.refetchEffect() : source.preloadEffect());
+      yield* source.preloadEffect(force);
     }
+  });
+
+export const preloadLiveQueryEffect = <TContext extends AnyQueryContext, E, R>(
+  builder: QueryPlanBuilder<TContext>,
+  force: boolean
+): Effect.Effect<void, E | QueryEvaluationError, R> =>
+  Effect.gen(function* () {
+    yield* Effect.try({
+      try: () => validateQueryPlan(builder),
+      catch: (cause) => toQueryEvaluationError("evaluate", cause)
+    });
+    yield* preloadLiveQuerySourcesEffect<E, R>(querySourceAdapters(builder), force);
   });

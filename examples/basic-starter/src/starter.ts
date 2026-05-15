@@ -8,11 +8,11 @@ export const StarterWelcome = Schema.Struct({
 
 export type StarterWelcome = typeof StarterWelcome.Type;
 
-export const WelcomeResource = Resource.family<string, StarterWelcome>({
+export const WelcomeResource = Resource.family({
   name: "Starter.welcome",
   input: Schema.String,
   output: StarterWelcome,
-  load: (name: string) =>
+  load: (name) =>
     Effect.succeed({
       message: `Hello, ${name}.`,
       updatedAt: 1

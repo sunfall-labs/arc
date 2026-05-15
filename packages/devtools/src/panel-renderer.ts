@@ -10,24 +10,9 @@ import type {
   DevtoolsPanels,
   DevtoolsSerializableValue
 } from "./index.js";
+import { isDevtoolsPanelId, isDevtoolsPanelOverflowItem } from "./panel-contract.js";
 
 export type DevtoolsPanelsResolver = (input: DevtoolsPanelUiInput) => DevtoolsPanels;
-
-const devtoolsPanelIds: ReadonlyArray<DevtoolsPanelId> = [
-  "app-graph",
-  "routes",
-  "resources",
-  "actions",
-  "collections",
-  "requests",
-  "diagnostics",
-  "causal-graph"
-];
-
-const devtoolsPanelIdSet: ReadonlySet<string> = new Set(devtoolsPanelIds);
-
-const isDevtoolsPanelId = (value: string | undefined): value is DevtoolsPanelId =>
-  value !== undefined && devtoolsPanelIdSet.has(value);
 
 const defaultDevtoolsPanelTitle = "Effect UI Devtools";
 const defaultDevtoolsMaxPanelItems = 8;
@@ -219,7 +204,7 @@ const dataHtml = (data: DevtoolsSerializableValue | undefined): string =>
     : `<details class="effect-ui-devtools__data"><summary>Data</summary><pre>${escapeHtml(JSON.stringify(data, null, 2) ?? "null")}</pre></details>`;
 
 const itemHtml = (item: DevtoolsPanelItem): string => `
-<article class="effect-ui-devtools__item" data-severity="${escapeHtml(item.severity)}">
+<article class="effect-ui-devtools__item" data-effect-ui-devtools-item-id="${escapeHtml(item.id)}" data-severity="${escapeHtml(item.severity)}">
   <div class="effect-ui-devtools__item-header">
     <div>
       <div class="effect-ui-devtools__item-label">${escapeHtml(item.label)}</div>
@@ -232,10 +217,34 @@ const itemHtml = (item: DevtoolsPanelItem): string => `
 </article>`;
 
 const limitPanelItems = (
+  panelId: DevtoolsPanelId,
   items: ReadonlyArray<DevtoolsPanelItem>,
   maxItems: number
-): ReadonlyArray<DevtoolsPanelItem> =>
-  maxItems < 0 ? items : items.slice(0, maxItems);
+): ReadonlyArray<DevtoolsPanelItem> => {
+  if (maxItems < 0 || items.length <= maxItems) {
+    return items;
+  }
+  if (maxItems === 0) {
+    return [];
+  }
+
+  let overflow: DevtoolsPanelItem | undefined;
+  for (let index = items.length - 1; index >= 0; index--) {
+    const item = items[index]!;
+    if (isDevtoolsPanelOverflowItem(panelId, item)) {
+      overflow = item;
+      break;
+    }
+  }
+  if (overflow === undefined) {
+    return items.slice(0, maxItems);
+  }
+
+  const limited = items.slice(0, maxItems);
+  return limited.some((item) => item.id === overflow.id)
+    ? limited
+    : [...items.slice(0, maxItems - 1), overflow];
+};
 
 const panelHtml = (
   panel: DevtoolsPanel,
@@ -243,7 +252,7 @@ const panelHtml = (
   maxItems: number
 ): string => {
   const visible = panel.id === selectedPanelId;
-  const items = limitPanelItems(panel.items, maxItems);
+  const items = limitPanelItems(panel.id, panel.items, maxItems);
   const remainingCount = panel.items.length - items.length;
 
   return `

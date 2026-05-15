@@ -93,12 +93,12 @@ export const collectionDefinitionDiagnostics = (
     persistence: {
       enabled: persistence !== undefined,
       ...(persistence?.key === undefined ? {} : { key: persistence.key }),
-      hydrate: persistence?.hydrate !== undefined,
-      restoreOnPreload: persistence?.restoreOnPreload === true,
+      hydrate: persistence !== undefined && persistence.hydrate !== false,
+      restoreOnPreload: persistence !== undefined && persistence.restoreOnPreload !== false,
       loadAfterRestore: persistence?.loadAfterRestore === true,
-      persistOnLoad: persistence?.persistOnLoad === true,
-      persistOnMutation: persistence?.persistOnMutation === true,
-      persistOnWrite: persistence?.persistOnWrite === true
+      persistOnLoad: persistence !== undefined && persistence.persistOnLoad !== false,
+      persistOnMutation: persistence !== undefined && persistence.persistOnMutation !== false,
+      persistOnWrite: persistence !== undefined && persistence.persistOnWrite !== false
     }
   };
 };
@@ -114,7 +114,8 @@ export const makeCollectionDefinitionRegistry = (
   let nextSequence = 1;
 
   return {
-    register: (name, definition) => {
+    register: (_name, definition) => {
+      const name = definition.name;
       const existing = entries.get(name);
 
       if (existing?.definition === definition) {
@@ -173,7 +174,7 @@ export const makeCollectionDefinitionRegistry = (
         retained: existing.definition
       };
     },
-    definitions: () => definitions,
+    definitions: () => new Map(definitions),
     diagnostics: () => ({
       collections: Array.from(definitions.values(), collectionDefinitionDiagnostics)
         .sort((left, right) => left.name.localeCompare(right.name)),

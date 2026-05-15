@@ -1,5 +1,7 @@
 import type {
   ActionInstance,
+  ProgramEvent,
+  ProgramInstance,
   ResourceInvalidationPlan,
   ResourceStoreEvent,
   Route
@@ -14,16 +16,23 @@ import type {
   DevtoolsRequestTrace,
   DevtoolsRoutePlan,
   DevtoolsRuntimeEvent,
+  DevtoolsSerializationPolicy,
   DevtoolsSnapshot,
   DevtoolsStartActionInstance,
   DevtoolsStartAppGraphDiagnostics,
+  DevtoolsStore,
   DevtoolsStoreOptions,
   DevtoolsSummary
 } from "./index.js";
 import {
   ensureRequestTraceId,
+  normalizeRequestTraceFacts,
+  rebaseRequestTraceInvalidations,
   rebaseRuntimeEventInvalidations,
-  rebaseSnapshotActionInvalidations
+  rebaseRuntimeEventRoutePlans,
+  rebaseSnapshotActionInvalidations,
+  requestTraceSequence,
+  stableFactFingerprint
 } from "./fact-identity.js";
 import {
   copyAppGraphDiagnostics,
@@ -33,9 +42,15 @@ import {
 } from "./serialization.js";
 
 export interface DevtoolsStoreRuntime {
-  readonly describeInvalidationPlan: (plan: ResourceInvalidationPlan) => DevtoolsInvalidationPlan;
-  readonly copyInvalidationPlan: (plan: DevtoolsInvalidationPlan) => DevtoolsInvalidationPlan;
-  readonly copyRequestTrace: (trace: DevtoolsRequestTrace) => DevtoolsRequestTrace;
+  readonly describeInvalidationPlan: (plan: ResourceInvalidationPlan<any>) => DevtoolsInvalidationPlan;
+  readonly copyInvalidationPlan: (
+    plan: DevtoolsInvalidationPlan,
+    policy?: DevtoolsSerializationPolicy
+  ) => DevtoolsInvalidationPlan;
+  readonly copyRequestTrace: (
+    trace: DevtoolsRequestTrace,
+    policy?: DevtoolsSerializationPolicy
+  ) => DevtoolsRequestTrace;
   readonly describeRoutePlan: (plan: Route.NavigationPlan) => DevtoolsRoutePlan;
   readonly throwActionInvalidationPlanConflict: (guidance: string) => never;
   readonly describeSummary: (input: { readonly snapshot: DevtoolsSnapshot }) => DevtoolsSummary;
@@ -49,16 +64,49 @@ const actionStateTag = (state: { readonly _tag: string }): string =>
 const actionStateInput = <I>(state: { readonly _tag: string }): I | undefined =>
   "input" in state ? (state as { readonly input: I }).input : undefined;
 
+type AnyActionInstance = ActionInstance<any, any, any, any>;
+type AnyStartActionInstance = DevtoolsStartActionInstance<any, any, any, any>;
+
+const matchingFactIndex = <Fact>(
+  facts: ReadonlyArray<Fact>,
+  fact: Fact
+): number | undefined => {
+  const fingerprint = stableFactFingerprint(fact);
+  if (fingerprint === undefined) {
+    return undefined;
+  }
+
+  const index = facts.findIndex((candidate) => stableFactFingerprint(candidate) === fingerprint);
+  return index >= 0 ? index : undefined;
+};
+
+const normalizeHistoryLimit = (
+  value: number | undefined,
+  fallback: number
+): number =>
+  value === undefined || !Number.isFinite(value) || value <= 0
+    ? fallback
+    : Math.min(Math.floor(value), Number.MAX_SAFE_INTEGER);
+
+const boundedHistory = <A>(
+  entries: ReadonlyArray<A>,
+  limit: number
+): ReadonlyArray<A> =>
+  entries.length <= limit ? entries : entries.slice(entries.length - limit);
+
 export const makeDevtoolsStoreWithRuntime = (
   options: DevtoolsStoreOptions = {},
   runtime: DevtoolsStoreRuntime
-) => {
-  const invalidationLimit = options.invalidationLimit ?? 50;
-  const routePlanLimit = options.routePlanLimit ?? 50;
-  const requestTraceLimit = options.requestTraceLimit ?? 50;
-  const eventLimit = options.eventLimit ?? 500;
+): DevtoolsStore => {
+  const invalidationLimit = normalizeHistoryLimit(options.invalidationLimit, 50);
+  const routePlanLimit = normalizeHistoryLimit(options.routePlanLimit, 50);
+  const requestTraceLimit = normalizeHistoryLimit(options.requestTraceLimit, 50);
+  const eventLimit = normalizeHistoryLimit(options.eventLimit, 500);
+  const serializationPolicy = options.serializationPolicy;
   let nextEventSequence = 0;
   let nextRequestTraceSequence = 0;
+  let nextProgramIdentity = 0;
+  const programIdentities = new WeakMap<object, string>();
   let snapshot: DevtoolsSnapshot = {
     resources: [],
     actions: [],
@@ -69,7 +117,64 @@ export const makeDevtoolsStoreWithRuntime = (
   const boundedEvents = (
     events: ReadonlyArray<DevtoolsRuntimeEvent>
   ): ReadonlyArray<DevtoolsRuntimeEvent> =>
-    events.slice(-eventLimit);
+    boundedHistory(events, eventLimit);
+
+  const normalizeImportedSnapshot = (
+    next: DevtoolsSnapshot
+  ): {
+    readonly snapshot: DevtoolsSnapshot;
+    readonly nextRequestTraceSequence: number;
+  } => {
+    const invalidationDropped = Math.max(0, next.invalidations.length - invalidationLimit);
+    const routePlanDropped = Math.max(0, next.routePlans.length - routePlanLimit);
+    const normalizedRequestFacts = normalizeRequestTraceFacts(next.requestTraces ?? [], next.events ?? []);
+    const normalizedInput: DevtoolsSnapshot = {
+      ...next,
+      ...(next.requestTraces === undefined ? {} : { requestTraces: normalizedRequestFacts.requestTraces }),
+      ...(next.events === undefined ? {} : { events: normalizedRequestFacts.events })
+    };
+    const boundedInput: DevtoolsSnapshot = {
+      ...normalizedInput,
+      invalidations: boundedHistory(normalizedInput.invalidations, invalidationLimit),
+      routePlans: boundedHistory(normalizedInput.routePlans, routePlanLimit),
+      ...(normalizedInput.requestTraces === undefined
+        ? {}
+        : { requestTraces: boundedHistory(normalizedInput.requestTraces, requestTraceLimit) }),
+      ...(normalizedInput.events === undefined ? {} : { events: boundedEvents(normalizedInput.events) })
+    };
+    const importedSnapshot = copyDevtoolsSnapshot(boundedInput, serializationPolicy);
+    const boundedRequestTraces = importedSnapshot.requestTraces;
+    const actions = invalidationDropped === 0
+      ? importedSnapshot.actions
+      : rebaseSnapshotActionInvalidations(importedSnapshot.actions, invalidationDropped);
+    const requestTracesAfterInvalidation = invalidationDropped === 0
+      ? boundedRequestTraces
+      : rebaseRequestTraceInvalidations(boundedRequestTraces, invalidationDropped);
+    const eventsAfterInvalidation = invalidationDropped === 0
+      ? importedSnapshot.events
+      : rebaseRuntimeEventInvalidations(importedSnapshot.events, invalidationDropped);
+
+    const eventsAfterRoutePlans = routePlanDropped === 0
+      ? eventsAfterInvalidation
+      : rebaseRuntimeEventRoutePlans(eventsAfterInvalidation, routePlanDropped);
+    const normalizedEvents = normalizeRuntimeEventSequences(eventsAfterRoutePlans);
+    const events = normalizedEvents === undefined
+      ? undefined
+      : boundedEvents(normalizedEvents);
+
+    return {
+      snapshot: {
+        ...(importedSnapshot.appGraph === undefined ? {} : { appGraph: importedSnapshot.appGraph }),
+        resources: importedSnapshot.resources,
+        actions,
+        invalidations: importedSnapshot.invalidations,
+        routePlans: importedSnapshot.routePlans,
+        ...(requestTracesAfterInvalidation === undefined ? {} : { requestTraces: requestTracesAfterInvalidation }),
+        ...(events === undefined ? {} : { events })
+      },
+      nextRequestTraceSequence: normalizedRequestFacts.nextRequestTraceSequence
+    };
+  };
 
   const nextRuntimeEventSequence = (
     events: ReadonlyArray<DevtoolsRuntimeEvent> | undefined
@@ -79,85 +184,41 @@ export const makeDevtoolsStoreWithRuntime = (
       0
     ) ?? 0;
 
-  const requestTraceSequence = (id: string | undefined): number | undefined => {
-    if (id === undefined || !id.startsWith("trace:")) {
+  const normalizeRuntimeEventSequences = (
+    events: ReadonlyArray<DevtoolsRuntimeEvent> | undefined
+  ): ReadonlyArray<DevtoolsRuntimeEvent> | undefined => {
+    if (events === undefined) {
       return undefined;
     }
 
-    const sequence = Number(id.slice("trace:".length));
-    return Number.isInteger(sequence) && sequence >= 0 ? sequence : undefined;
-  };
-
-  const requestTraceFingerprint = (trace: DevtoolsRequestTrace): string =>
-    JSON.stringify([
-      trace.request.method,
-      trace.request.url,
-      trace.request.path,
-      trace.request.transport
-    ]);
-
-  const normalizeImportedRequestTraceFacts = (
-    copied: DevtoolsSnapshot
-  ): DevtoolsSnapshot => {
-    let sequence = 0;
-    const importedIdsByFingerprint = new Map<string, Array<string>>();
-    const seedSequence = (trace: DevtoolsRequestTrace): void => {
-      const traceSequence = requestTraceSequence(trace.request.id);
-      if (traceSequence !== undefined) {
-        sequence = Math.max(sequence, traceSequence + 1);
+    const seen = new Set<string>();
+    let nextSequence = 0;
+    return events.map((event, index) => {
+      let sequence = event.sequence ?? index;
+      const key = (candidate: number) => `${event._tag}\u0000${candidate}`;
+      if (seen.has(key(sequence))) {
+        while (seen.has(key(nextSequence))) {
+          nextSequence++;
+        }
+        sequence = nextSequence;
       }
-    };
-
-    for (const trace of copied.requestTraces ?? []) {
-      seedSequence(trace);
-    }
-    for (const event of copied.events ?? []) {
-      if (event._tag === "RequestTrace") {
-        seedSequence(event.trace);
-      }
-    }
-
-    const allocateId = (): string => `trace:${sequence++}`;
-    const normalizeTrace = (trace: DevtoolsRequestTrace): DevtoolsRequestTrace => {
-      if (trace.request.id !== undefined) {
-        return trace;
-      }
-
-      return ensureRequestTraceId(trace, allocateId());
-    };
-    const requestTraces = copied.requestTraces?.map((trace) => {
-      const normalized = normalizeTrace(trace);
-      const fingerprint = requestTraceFingerprint(trace);
-      const ids = importedIdsByFingerprint.get(fingerprint) ?? [];
-      ids.push(normalized.request.id!);
-      importedIdsByFingerprint.set(fingerprint, ids);
-      return normalized;
+      seen.add(key(sequence));
+      nextSequence = Math.max(nextSequence, sequence + 1);
+      return event.sequence === sequence ? event : { ...event, sequence };
     });
-    const events = copied.events?.map((event) => {
-      if (event._tag !== "RequestTrace" || event.trace.request.id !== undefined) {
-        return event;
-      }
-
-      const fingerprint = requestTraceFingerprint(event.trace);
-      const importedIds = importedIdsByFingerprint.get(fingerprint);
-      const importedId = importedIds?.shift();
-      return {
-        ...event,
-        trace: ensureRequestTraceId(event.trace, importedId ?? allocateId())
-      };
-    });
-
-    nextRequestTraceSequence = sequence;
-    return {
-      ...copied,
-      ...(requestTraces === undefined ? {} : { requestTraces }),
-      ...(events === undefined ? {} : { events })
-    };
   };
 
   const withSequence = (event: DevtoolsRuntimeEvent): DevtoolsRuntimeEvent => {
-    if (event.sequence !== undefined) {
-      nextEventSequence = Math.max(nextEventSequence, event.sequence + 1);
+    const existing = snapshot.events ?? [];
+    const requested = event.sequence;
+    if (
+      requested !== undefined &&
+      !existing.some((candidate, index) =>
+        candidate._tag === event._tag &&
+        (candidate.sequence ?? index) === requested
+      )
+    ) {
+      nextEventSequence = Math.max(nextEventSequence, requested + 1);
       return event;
     }
 
@@ -169,26 +230,64 @@ export const makeDevtoolsStoreWithRuntime = (
     };
   };
 
+  const withFactIndexes = (event: DevtoolsRuntimeEvent): DevtoolsRuntimeEvent => {
+    switch (event._tag) {
+      case "Invalidation": {
+        if (event.invalidationIndex !== undefined) {
+          return event;
+        }
+
+        const invalidationIndex = matchingFactIndex(snapshot.invalidations, event.plan);
+        return invalidationIndex === undefined
+          ? event
+          : {
+              ...event,
+              invalidationIndex
+            };
+      }
+      case "RoutePlan": {
+        if (event.routePlanIndex !== undefined) {
+          return event;
+        }
+
+        const routePlanIndex = matchingFactIndex(snapshot.routePlans, event.plan);
+        return routePlanIndex === undefined
+          ? event
+          : {
+              ...event,
+              routePlanIndex
+            };
+      }
+      default:
+        return event;
+    }
+  };
+
   const recordRuntimeEvent = (event: DevtoolsRuntimeEvent): void => {
     snapshot = {
       ...snapshot,
       events: boundedEvents([
         ...(snapshot.events ?? []),
-        copyDevtoolsRuntimeEvent(withSequence(event))
+        copyDevtoolsRuntimeEvent(withSequence(withFactIndexes(event)), serializationPolicy)
       ])
     };
   };
 
-  const recordInvalidationPlan = (plan: ResourceInvalidationPlan): number =>
+  const recordInvalidationPlan = (plan: ResourceInvalidationPlan<any>): number =>
     recordSerializedInvalidationPlan(runtime.describeInvalidationPlan(plan));
 
   const recordSerializedInvalidationPlan = (plan: DevtoolsInvalidationPlan): number => {
+    const existing = matchingFactIndex(snapshot.invalidations, plan);
+    if (existing !== undefined) {
+      return existing;
+    }
+
     const nextInvalidations = [
       ...snapshot.invalidations,
-      runtime.copyInvalidationPlan(plan)
+        runtime.copyInvalidationPlan(plan, serializationPolicy)
     ];
     const dropped = Math.max(0, nextInvalidations.length - invalidationLimit);
-    const invalidations = nextInvalidations.slice(-invalidationLimit);
+    const invalidations = boundedHistory(nextInvalidations, invalidationLimit);
     if (dropped === 0) {
       snapshot = {
         ...snapshot,
@@ -198,13 +297,33 @@ export const makeDevtoolsStoreWithRuntime = (
     }
 
     const rebasedEvents = rebaseRuntimeEventInvalidations(snapshot.events, dropped);
+    const rebasedRequestTraces = rebaseRequestTraceInvalidations(snapshot.requestTraces, dropped);
     snapshot = {
       ...snapshot,
       invalidations,
       actions: rebaseSnapshotActionInvalidations(snapshot.actions, dropped),
+      ...(rebasedRequestTraces === undefined ? {} : { requestTraces: rebasedRequestTraces }),
       ...(rebasedEvents === undefined ? {} : { events: rebasedEvents })
     };
     return invalidations.length - 1;
+  };
+
+  const recordSerializedRoutePlan = (plan: DevtoolsRoutePlan): number => {
+    const nextRoutePlans = [
+      ...snapshot.routePlans,
+      copyDevtoolsRoutePlan(plan, serializationPolicy)
+    ];
+    const dropped = Math.max(0, nextRoutePlans.length - routePlanLimit);
+    const routePlans = boundedHistory(nextRoutePlans, routePlanLimit);
+    const rebasedEvents = dropped === 0
+      ? snapshot.events
+      : rebaseRuntimeEventRoutePlans(snapshot.events, dropped);
+    snapshot = {
+      ...snapshot,
+      routePlans,
+      ...(rebasedEvents === undefined ? {} : { events: rebasedEvents })
+    };
+    return routePlans.length - 1;
   };
 
   const recordActionInvalidations = (
@@ -231,16 +350,24 @@ export const makeDevtoolsStoreWithRuntime = (
   };
 
   const recordRequestTrace = (trace: DevtoolsRequestTrace): void => {
-    const copied = ensureRequestTraceId(
-      runtime.copyRequestTrace(trace),
-      `trace:${nextRequestTraceSequence++}`
-    );
+    const copiedInput = runtime.copyRequestTrace(trace, serializationPolicy);
+    const existingSequence = requestTraceSequence(copiedInput.request.id);
+    if (existingSequence !== undefined) {
+      nextRequestTraceSequence = Math.max(nextRequestTraceSequence, existingSequence + 1);
+    }
+
+    const fallbackId = `trace:${nextRequestTraceSequence}`;
+    const copied = ensureRequestTraceId(copiedInput, fallbackId);
+    if (copiedInput.request.id === undefined) {
+      nextRequestTraceSequence += 1;
+    }
+
     snapshot = {
       ...snapshot,
-      requestTraces: [
+      requestTraces: boundedHistory([
         ...(snapshot.requestTraces ?? []),
         copied
-      ].slice(-requestTraceLimit)
+      ], requestTraceLimit)
     };
     recordRuntimeEvent({
       _tag: "RequestTrace",
@@ -274,8 +401,8 @@ export const makeDevtoolsStoreWithRuntime = (
     });
   };
 
-  const recordAction = (
-    action: ActionInstance<unknown, unknown, unknown, unknown>
+  const recordAction = <I, A, E, R>(
+    action: ActionInstance<I, A, E, R>
   ): void => {
     const state = action.state.get();
     const input = actionStateInput(state);
@@ -290,8 +417,8 @@ export const makeDevtoolsStoreWithRuntime = (
     );
   };
 
-  const recordStartAction = (
-    action: DevtoolsStartActionInstance
+  const recordStartAction = <I, A, E, P>(
+    action: DevtoolsStartActionInstance<I, A, E, P>
   ): void => {
     const state = action.state.get();
     const input = actionStateInput(state);
@@ -306,10 +433,36 @@ export const makeDevtoolsStoreWithRuntime = (
     );
   };
 
-  const getSnapshotEffect = () => Effect.sync(() => copyDevtoolsSnapshot(snapshot));
+  const recordProgramEvent = <Model, Message, E>(
+    event: ProgramEvent<Model, Message, E>
+  ): void => {
+    recordRuntimeEvent({
+      _tag: "ProgramEvent",
+      event
+    });
+  };
+  const trackedProgramName = (program: ProgramInstance<any, any, any>): string => {
+    const existing = programIdentities.get(program as object);
+    if (existing !== undefined) {
+      return existing;
+    }
+
+    const name = `Program#${++nextProgramIdentity}`;
+    programIdentities.set(program as object, name);
+    return name;
+  };
+  const withTrackedProgramName = <Model, Message, E>(
+    event: ProgramEvent<Model, Message, E>,
+    name: string
+  ): ProgramEvent<Model, Message, E> =>
+    event.program === undefined ? { ...event, program: name } : event;
+
+  const getSnapshotEffect = () => Effect.sync(() => copyDevtoolsSnapshot(snapshot, serializationPolicy));
   const setSnapshotEffect = (next: DevtoolsSnapshot) =>
     Effect.sync(() => {
-      snapshot = normalizeImportedRequestTraceFacts(copyDevtoolsSnapshot(next));
+      const imported = normalizeImportedSnapshot(next);
+      snapshot = imported.snapshot;
+      nextRequestTraceSequence = imported.nextRequestTraceSequence;
       nextEventSequence = nextRuntimeEventSequence(snapshot.events);
     });
   const setAppGraphDiagnosticsEffect = (appGraph: DevtoolsStartAppGraphDiagnostics) =>
@@ -325,13 +478,9 @@ export const makeDevtoolsStoreWithRuntime = (
       snapshot = next;
     });
   const recordInvalidationEffect = (plan: ResourceInvalidationPlan) =>
-    Effect.sync(() => {
-      recordInvalidationPlan(plan);
-    });
+    Effect.sync(() => recordInvalidationPlan(plan));
   const recordSerializedInvalidationEffect = (plan: DevtoolsInvalidationPlan) =>
-    Effect.sync(() => {
-      recordSerializedInvalidationPlan(plan);
-    });
+    Effect.sync(() => recordSerializedInvalidationPlan(plan));
   const recordActionStateEffect = (
     action: string,
     state: string,
@@ -340,11 +489,11 @@ export const makeDevtoolsStoreWithRuntime = (
     Effect.sync(() => {
       recordActionState(action, state, actionOptions);
     });
-  const recordActionEffect = (action: ActionInstance<unknown, unknown, unknown, unknown>) =>
+  const recordActionEffect = <I, A, E, R>(action: ActionInstance<I, A, E, R>) =>
     Effect.sync(() => {
       recordAction(action);
     });
-  const trackActionEffect = (action: ActionInstance<unknown, unknown, unknown, unknown>) =>
+  const trackActionEffect = <I, A, E, R>(action: ActionInstance<I, A, E, R>) =>
     Effect.acquireRelease(
       Effect.sync(() => {
         recordAction(action);
@@ -352,28 +501,27 @@ export const makeDevtoolsStoreWithRuntime = (
       }),
       (unsubscribe) => Effect.sync(unsubscribe)
     ).pipe(Effect.asVoid);
-  const recordStartActionEffect = (action: DevtoolsStartActionInstance) =>
+  const recordStartActionEffect = <I, A, E, P>(action: DevtoolsStartActionInstance<I, A, E, P>) =>
     Effect.sync(() => {
       recordStartAction(action);
     });
-  const trackStartActionEffect = (action: DevtoolsStartActionInstance) =>
-    Effect.acquireRelease(
-      Effect.sync(() => {
-        recordStartAction(action);
-        return action.state.subscribe(() => recordStartAction(action));
-      }),
-      (unsubscribe) => Effect.sync(unsubscribe)
-    ).pipe(Effect.asVoid);
+	  const trackStartActionEffect = <I, A, E, P>(action: DevtoolsStartActionInstance<I, A, E, P>) =>
+	    Effect.acquireRelease(
+	      Effect.sync(() => {
+	        recordStartAction(action);
+	        const unsubscribeState = action.state.subscribe(() => recordStartAction(action));
+	        const unsubscribeInvalidation = action.invalidation.subscribe(() => recordStartAction(action));
+	        return () => {
+	          unsubscribeState();
+	          unsubscribeInvalidation();
+	        };
+	      }),
+	      (unsubscribe) => Effect.sync(unsubscribe)
+	    ).pipe(Effect.asVoid);
   const recordRoutePlanEffect = (plan: Route.NavigationPlan) =>
-    Effect.sync(() => {
-      snapshot = {
-        ...snapshot,
-        routePlans: [
-          ...snapshot.routePlans,
-          copyDevtoolsRoutePlan(runtime.describeRoutePlan(plan))
-        ].slice(-routePlanLimit)
-      };
-    });
+    Effect.sync(() => recordSerializedRoutePlan(runtime.describeRoutePlan(plan)));
+  const recordSerializedRoutePlanEffect = (plan: DevtoolsRoutePlan) =>
+    Effect.sync(() => recordSerializedRoutePlan(plan));
   const recordResourceEventEffect = (event: ResourceStoreEvent) =>
     Effect.sync(() => {
       recordRuntimeEvent({
@@ -388,6 +536,32 @@ export const makeDevtoolsStoreWithRuntime = (
         event
       });
     });
+  const recordProgramEventEffect = <Model, Message, E>(
+    event: ProgramEvent<Model, Message, E>
+  ) =>
+    Effect.sync(() => {
+      recordProgramEvent(event);
+    });
+  const trackProgramEffect = <Model, Message, E>(
+    program: ProgramInstance<Model, Message, E>
+  ) =>
+    Effect.acquireRelease(
+      Effect.sync(() => {
+        const name = trackedProgramName(program);
+        let observedSequence = 0;
+        const recordNewEvents = () => {
+          for (const event of program.timeline.get()) {
+            if (event.sequence > observedSequence) {
+              observedSequence = event.sequence;
+              recordProgramEvent(withTrackedProgramName(event, name));
+            }
+          }
+        };
+        recordNewEvents();
+        return program.timeline.subscribe(recordNewEvents);
+      }),
+      (unsubscribe) => Effect.sync(unsubscribe)
+    ).pipe(Effect.asVoid);
   const recordRuntimeEventEffect = (event: DevtoolsRuntimeEvent) =>
     Effect.sync(() => {
       recordRuntimeEvent(event);
@@ -396,11 +570,14 @@ export const makeDevtoolsStoreWithRuntime = (
     Effect.sync(() => {
       recordRequestTrace(trace);
     });
-  const getSummaryEffect = () => Effect.sync(() => runtime.describeSummary({ snapshot }));
-  const getPanelsEffect = () => Effect.sync(() => runtime.describePanels({ snapshot }));
-  const getCausalGraphEffect = () => Effect.sync(() => runtime.describeCausalGraph({ snapshot }));
+  const summaryInput = (): { readonly snapshot: DevtoolsSnapshot } => ({
+    snapshot: copyDevtoolsSnapshot(snapshot, serializationPolicy)
+  });
+  const getSummaryEffect = () => Effect.sync(() => runtime.describeSummary(summaryInput()));
+  const getPanelsEffect = () => Effect.sync(() => runtime.describePanels(summaryInput()));
+  const getCausalGraphEffect = () => Effect.sync(() => runtime.describeCausalGraph(summaryInput()));
 
-  return {
+  const store = {
     getSnapshot: () => Effect.runSync(getSnapshotEffect()),
     getSnapshotEffect,
     setSnapshot: (next: DevtoolsSnapshot) => {
@@ -416,11 +593,11 @@ export const makeDevtoolsStoreWithRuntime = (
     },
     clearAppGraphDiagnosticsEffect,
     recordInvalidation: (plan: ResourceInvalidationPlan) => {
-      Effect.runSync(recordInvalidationEffect(plan));
+      return Effect.runSync(recordInvalidationEffect(plan));
     },
     recordInvalidationEffect,
     recordSerializedInvalidation: (plan: DevtoolsInvalidationPlan) => {
-      Effect.runSync(recordSerializedInvalidationEffect(plan));
+      return Effect.runSync(recordSerializedInvalidationEffect(plan));
     },
     recordSerializedInvalidationEffect,
     recordActionState: (
@@ -431,20 +608,24 @@ export const makeDevtoolsStoreWithRuntime = (
       Effect.runSync(recordActionStateEffect(action, state, actionOptions));
     },
     recordActionStateEffect,
-    recordAction: (action: ActionInstance<unknown, unknown, unknown, unknown>) => {
+    recordAction: (action: AnyActionInstance) => {
       Effect.runSync(recordActionEffect(action));
     },
     recordActionEffect,
     trackActionEffect,
-    recordStartAction: (action: DevtoolsStartActionInstance) => {
+    recordStartAction: (action: AnyStartActionInstance) => {
       Effect.runSync(recordStartActionEffect(action));
     },
     recordStartActionEffect,
     trackStartActionEffect,
     recordRoutePlan: (plan: Route.NavigationPlan) => {
-      Effect.runSync(recordRoutePlanEffect(plan));
+      return Effect.runSync(recordRoutePlanEffect(plan));
     },
     recordRoutePlanEffect,
+    recordSerializedRoutePlan: (plan: DevtoolsRoutePlan) => {
+      return Effect.runSync(recordSerializedRoutePlanEffect(plan));
+    },
+    recordSerializedRoutePlanEffect,
     recordResourceEvent: (event: ResourceStoreEvent) => {
       Effect.runSync(recordResourceEventEffect(event));
     },
@@ -453,6 +634,11 @@ export const makeDevtoolsStoreWithRuntime = (
       Effect.runSync(recordCollectionEventEffect(event));
     },
     recordCollectionEventEffect,
+    recordProgramEvent: (event) => {
+      Effect.runSync(recordProgramEventEffect(event));
+    },
+    recordProgramEventEffect,
+    trackProgramEffect,
     recordRuntimeEvent: (event: DevtoolsRuntimeEvent) => {
       Effect.runSync(recordRuntimeEventEffect(event));
     },
@@ -467,5 +653,7 @@ export const makeDevtoolsStoreWithRuntime = (
     getPanelsEffect,
     getCausalGraph: () => Effect.runSync(getCausalGraphEffect()),
     getCausalGraphEffect
-  };
+  } satisfies DevtoolsStore;
+
+  return store;
 };

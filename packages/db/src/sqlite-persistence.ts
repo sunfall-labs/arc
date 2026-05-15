@@ -1,10 +1,13 @@
+import { EffectInputCallbackError, invokeEffectInput } from "@effect-ui/core";
 import type { EffectInput } from "@effect-ui/core";
-import { toEffect } from "@effect-ui/core";
 import { Data, Effect } from "effect";
 import type { CollectionPersistenceStorage } from "./collection-contract.js";
 
+/** Default SQLite table used by collection persistence helpers. */
 export const SQLITE_PERSISTENCE_DEFAULT_TABLE = "effect_ui_collection_persistence";
+/** Default namespace prefix for persisted collection snapshot rows. */
 export const SQLITE_PERSISTENCE_DEFAULT_NAMESPACE = "effect-ui:collections";
+/** Default schema version written to collection persistence rows. */
 export const SQLITE_PERSISTENCE_DEFAULT_SCHEMA_VERSION = 1;
 
 /**
@@ -155,8 +158,11 @@ export class SQLitePersistenceUnsupportedStatement extends Data.TaggedError(
   readonly guidance: string;
 }> {}
 
-const runInput = <A, E, R>(input: EffectInput<A, E, R>): Effect.Effect<A, E, R> =>
-  toEffect(input);
+const runCallback = <A, E, R>(
+  operation: string,
+  callback: () => EffectInput<A, E, R>
+): Effect.Effect<A, E | EffectInputCallbackError, R> =>
+  invokeEffectInput(`SQLitePersistence.${operation}`, callback);
 
 const quoteIdentifier = (identifier: string): string => {
   if (identifier.length === 0 || identifier.includes("\0")) {
@@ -303,31 +309,31 @@ export const makeSQLitePreparedStatementDatabase = <
 >(
   database: SQLitePreparedStatementDatabase<Row, E, R>,
   options: SQLitePreparedStatementDatabaseOptions = {}
-): SQLiteStatementDatabase<E, R> => {
+): SQLiteStatementDatabase<E | EffectInputCallbackError, R> => {
   const cache = options.cache === true
     ? new Map<string, SQLitePreparedStatement<Row, E, R>>()
     : undefined;
 
-  const prepare = (sql: string): Effect.Effect<SQLitePreparedStatement<Row, E, R>, E, R> =>
+  const prepare = (sql: string): Effect.Effect<SQLitePreparedStatement<Row, E, R>, E | EffectInputCallbackError, R> =>
     Effect.gen(function* () {
       const cached = cache?.get(sql);
       if (cached) {
         return cached;
       }
 
-      const statement = yield* runInput(database.prepare(sql));
+      const statement = yield* runCallback("prepare", () => database.prepare(sql));
       cache?.set(sql, statement);
       return statement;
     });
 
   return {
-    execute: (sql, params): Effect.Effect<void, E, R> =>
+    execute: (sql, params): Effect.Effect<void, E | EffectInputCallbackError, R> =>
       Effect.flatMap(prepare(sql), (statement) =>
-        Effect.asVoid(runInput(statement.run(...statementParamList(params))))
+        Effect.asVoid(runCallback("run", () => statement.run(...statementParamList(params))))
       ),
-    select: (sql, params): Effect.Effect<ReadonlyArray<SQLiteStatementRow>, E, R> =>
+    select: (sql, params): Effect.Effect<ReadonlyArray<SQLiteStatementRow>, E | EffectInputCallbackError, R> =>
       Effect.flatMap(prepare(sql), (statement) =>
-        runInput(statement.all(...statementParamList(params)))
+        runCallback("all", () => statement.all(...statementParamList(params)))
       )
   };
 };
@@ -340,12 +346,12 @@ export const makeSQLitePreparedStatementDatabase = <
  */
 export const makeSQLiteStatementPersistenceDriver = <E = never, R = never>(
   database: SQLiteStatementDatabase<E, R>
-): SQLitePersistenceDriver<E, R> => ({
+): SQLitePersistenceDriver<E | EffectInputCallbackError, R> => ({
   table: (name) => {
     const table = quoteIdentifier(name);
     return {
       ensure: () =>
-        database.execute(
+        runCallback("execute", () => database.execute(
           `CREATE TABLE IF NOT EXISTS ${table} (` +
             "\"namespace\" TEXT NOT NULL, " +
             "\"key\" TEXT NOT NULL, " +
@@ -354,10 +360,10 @@ export const makeSQLiteStatementPersistenceDriver = <E = never, R = never>(
             "\"updated_at\" INTEGER NOT NULL, " +
             "PRIMARY KEY (\"namespace\", \"key\")" +
           ")"
-        ),
+        )),
       get: (key) =>
         Effect.gen(function* () {
-          const rows = yield* runInput(database.select(
+          const rows = yield* runCallback("select", () => database.select(
             `SELECT "namespace", "key", "schema_version", "value", "updated_at" FROM ${table} ` +
               "WHERE \"namespace\" = ? AND \"key\" = ? LIMIT 1",
             [key.namespace, key.key]
@@ -376,7 +382,7 @@ export const makeSQLiteStatementPersistenceDriver = <E = never, R = never>(
           } satisfies SQLitePersistenceRow;
         }),
       upsert: (row) =>
-        database.execute(
+        runCallback("execute", () => database.execute(
           `INSERT INTO ${table} ("namespace", "key", "schema_version", "value", "updated_at") ` +
             "VALUES (?, ?, ?, ?, ?) " +
             "ON CONFLICT(\"namespace\", \"key\") DO UPDATE SET " +
@@ -384,12 +390,12 @@ export const makeSQLiteStatementPersistenceDriver = <E = never, R = never>(
             "\"value\" = excluded.\"value\", " +
             "\"updated_at\" = excluded.\"updated_at\"",
           [row.namespace, row.key, row.schemaVersion, row.value, row.updatedAt]
-        ),
+        )),
       delete: (key) =>
-        database.execute(
+        runCallback("execute", () => database.execute(
           `DELETE FROM ${table} WHERE "namespace" = ? AND "key" = ?`,
           [key.namespace, key.key]
-        )
+        ))
     };
   }
 });
@@ -409,76 +415,120 @@ export const makeSQLiteStatementPersistenceDriver = <E = never, R = never>(
 export const makeSQLitePersistenceStorage = <E = never, R = never>(
   driver: SQLitePersistenceDriver<E, R>,
   options: SQLitePersistenceOptions = {}
-): CollectionPersistenceStorage<E, R> => {
+): CollectionPersistenceStorage<E | EffectInputCallbackError | SQLitePersistenceInvalidTableName, R> => {
   const namespace = options.namespace ?? SQLITE_PERSISTENCE_DEFAULT_NAMESPACE;
   const tableName = options.tableName ?? SQLITE_PERSISTENCE_DEFAULT_TABLE;
   const schemaVersion = options.schemaVersion ?? SQLITE_PERSISTENCE_DEFAULT_SCHEMA_VERSION;
-  const now = options.now ?? Date.now;
-  const table = driver.table(tableName);
-  const ensure = table.ensure;
-  const deleteRow = table.delete;
+  const now = (): number =>
+    options.now === undefined ? Date.now() : options.now();
 
-  const ensureTable = (): Effect.Effect<void, E, R> =>
-    ensure ? runInput(ensure()) : Effect.void;
+  const tableEffect = (): Effect.Effect<
+    SQLitePersistenceTable<E, R>,
+    EffectInputCallbackError | SQLitePersistenceInvalidTableName
+  > =>
+    Effect.try({
+      try: () => driver.table(tableName),
+      catch: (cause) =>
+        cause instanceof SQLitePersistenceInvalidTableName
+          ? cause
+          : new EffectInputCallbackError({
+              operation: "SQLitePersistence.table",
+              cause,
+              guidance: "SQLite persistence drivers must synchronously return a table adapter. Effectful work belongs in table ensure/get/upsert/delete callbacks."
+            })
+    });
+
+  const runStorageCallback = <A>(
+    operation: string,
+    callback: () => EffectInput<A, E, R>
+  ): Effect.Effect<A, E | EffectInputCallbackError, R> =>
+    runCallback(operation, callback);
+
+  const ensureTable = (
+    table: SQLitePersistenceTable<E, R>
+  ): Effect.Effect<void, E | EffectInputCallbackError, R> =>
+    table.ensure ? runStorageCallback("ensure", () => table.ensure!()) : Effect.void;
 
   const rowKey = (key: string): SQLitePersistenceKey => ({ namespace, key });
 
   const storage = {
     getItem: (key: string) =>
       Effect.gen(function* () {
-        yield* ensureTable();
-        const row = yield* runInput(table.get(rowKey(key)));
+        const table = yield* tableEffect();
+        yield* ensureTable(table);
+        const row = yield* runStorageCallback("get", () => table.get(rowKey(key)));
         return row?.schemaVersion === schemaVersion ? row.value : null;
       }),
     setItem: (key: string, value: string) =>
       Effect.gen(function* () {
-        yield* ensureTable();
-        yield* runInput(table.upsert({
+        const table = yield* tableEffect();
+        yield* ensureTable(table);
+        const updatedAt = yield* runStorageCallback("now", now);
+        yield* runStorageCallback("upsert", () => table.upsert({
           ...rowKey(key),
           schemaVersion,
           value,
-          updatedAt: now()
+          updatedAt
         }));
       })
-  } satisfies Omit<CollectionPersistenceStorage<E, R>, "removeItem">;
+  } satisfies Omit<
+    CollectionPersistenceStorage<E | EffectInputCallbackError | SQLitePersistenceInvalidTableName, R>,
+    "removeItem"
+  >;
 
-  return deleteRow
-    ? {
-        ...storage,
-        removeItem: (key: string) =>
-          Effect.gen(function* () {
-            yield* ensureTable();
-            yield* runInput(deleteRow(rowKey(key)));
-          })
-      }
-    : storage;
+  return {
+    ...storage,
+    removeItem: (key: string) =>
+      Effect.gen(function* () {
+        const table = yield* tableEffect();
+        if (!table.delete) {
+          return;
+        }
+        yield* ensureTable(table);
+        yield* runStorageCallback("delete", () => table.delete!(rowKey(key)));
+      })
+  };
 };
 
 /**
  * SQLite persistence namespace for collection snapshot storage helpers.
  */
 export namespace SQLitePersistence {
+  /** Namespaced row key for one persisted collection snapshot. */
   export type Key = SQLitePersistenceKey;
+  /** Persisted SQLite row shape used by the collection persistence driver. */
   export type Row = SQLitePersistenceRow;
+  /** Effect-aware table Adapter for persistence rows. */
   export type Table<E = never, R = never> = SQLitePersistenceTable<E, R>;
+  /** Adapter that resolves named persistence tables. */
   export type Driver<E = never, R = never> = SQLitePersistenceDriver<E, R>;
+  /** SQL statement recorded by the in-memory statement database. */
   export type MemoryStatement = SQLiteMemoryStatement;
+  /** In-memory statement database for tests and demos. */
   export type MemoryStatementDatabase = SQLiteMemoryStatementDatabase;
+  /** Prepared statement shape for SQLite clients with `run` and `all`. */
   export type PreparedStatement<
     Row extends SQLiteStatementRow = SQLiteStatementRow,
     E = never,
     R = never
   > = SQLitePreparedStatement<Row, E, R>;
+  /** SQLite client shape for adapters that expose `prepare`. */
   export type PreparedStatementDatabase<
     Row extends SQLiteStatementRow = SQLiteStatementRow,
     E = never,
     R = never
   > = SQLitePreparedStatementDatabase<Row, E, R>;
+  /** Options for prepared-statement database adaptation. */
   export type PreparedStatementDatabaseOptions = SQLitePreparedStatementDatabaseOptions;
+  /** SQLite statement parameter value supported by generated SQL. */
   export type StatementValue = SQLiteStatementValue;
+  /** Positional SQLite statement parameter list. */
   export type StatementParams = SQLiteStatementParams;
+  /** Row shape returned by generated SELECT statements. */
   export type StatementRow = SQLiteStatementRow;
+  /** Minimal SQL statement database used by the persistence driver. */
   export type StatementDatabase<E = never, R = never> = SQLiteStatementDatabase<E, R>;
+  /** Options for collection persistence stored in SQLite. */
   export type Options = SQLitePersistenceOptions;
 
   /** Create `CollectionPersistenceStorage` backed by SQLite. */

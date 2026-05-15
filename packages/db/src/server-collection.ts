@@ -103,15 +103,17 @@ const isServerCollectionFunction = <I, A, E, R>(
   isServerFunction(operation);
 
 const runOperation = <I, A, E, R>(
-  operation: ServerCollectionOperation<I, A, E, R>,
+  operation: () => ServerCollectionOperation<I, A, E, R>,
+  callback: () => ServerCollectionResult<A, E, R>,
   input: I
 ): Effect.Effect<A, E | EffectInputCallbackError | ServerClientError, R> =>
   Effect.suspend(() => {
-    if (isServerCollectionFunction(operation)) {
-      return operation.effect(input);
+    const current = operation();
+    if (isServerCollectionFunction(current)) {
+      return invokeEffectInput("Collection.server.operation", () => current.effect(input));
     }
 
-    return invokeEffectInput("Collection.server.operation", operation, input);
+    return invokeEffectInput("Collection.server.operation", callback);
   });
 
 const serverCollectionName = <
@@ -149,27 +151,27 @@ export const serverCollectionSyncAdapter = <
   ...(options.load === undefined
     ? {}
     : {
-        load: () => runOperation(options.load!, undefined)
+        load: () => runOperation(() => options.load!, () => options.load!(undefined), undefined)
       }),
   ...(options.refetch === undefined
     ? {}
     : {
-        refetch: () => runOperation(options.refetch!, undefined)
+        refetch: () => runOperation(() => options.refetch!, () => options.refetch!(undefined), undefined)
       }),
   ...(options.insert === undefined
     ? {}
     : {
-        insert: (payload) => runOperation(options.insert!, payload)
+        insert: (payload) => runOperation(() => options.insert!, () => options.insert!(payload), payload)
       }),
   ...(options.update === undefined
     ? {}
     : {
-        update: (payload) => runOperation(options.update!, payload)
+        update: (payload) => runOperation(() => options.update!, () => options.update!(payload), payload)
       }),
   ...(options.delete === undefined
     ? {}
     : {
-        delete: (payload) => runOperation(options.delete!, payload)
+        delete: (payload) => runOperation(() => options.delete!, () => options.delete!(payload), payload)
       })
 });
 

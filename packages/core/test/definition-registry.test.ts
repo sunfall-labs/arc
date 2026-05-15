@@ -87,6 +87,30 @@ describe("Core definition registry", () => {
     expect(Server.definitions().get(globalServer.name)).toBe(globalServer);
   });
 
+  it("normalizes explicit registry Map inputs by definition name", () => {
+    const LocalAction = Action.define({
+      name: registryName("map-local-action"),
+      run: () => Effect.succeed("local")
+    });
+    const localServer = Server.fn(registryName("map-local-server"), {
+      handler: () => Effect.succeed("local")
+    });
+
+    const app = defineApp({
+      routes: [] as const,
+      client: {},
+      registry: {
+        actions: new Map([["wrong-action-key", LocalAction]]),
+        serverFunctions: new Map([["wrong-server-key", localServer]])
+      }
+    });
+
+    expect(app.registry.actions.get(LocalAction.name)).toBe(LocalAction);
+    expect(app.registry.actions.has("wrong-action-key")).toBe(false);
+    expect(app.registry.serverFunctions.get(localServer.name)).toBe(localServer);
+    expect(app.registry.serverFunctions.has("wrong-server-key")).toBe(false);
+  });
+
   it("replaces duplicate global definitions and records diagnostics", () => {
     const actionName = registryName("duplicate-action");
     const FirstAction = Action.define({
@@ -121,6 +145,52 @@ describe("Core definition registry", () => {
           name: serverName,
           policy: "replace"
         })
+      ])
+    );
+  });
+
+  it("clears duplicate diagnostics with unsafe registry resets", () => {
+    const actionName = registryName("reset-duplicate-action");
+    Action.define({
+      name: actionName,
+      run: () => Effect.succeed("first")
+    });
+    Action.define({
+      name: actionName,
+      run: () => Effect.succeed("second")
+    });
+    expect(Action.registryDiagnostics().duplicates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "action", name: actionName })
+      ])
+    );
+
+    Action.clearRegistryUnsafe();
+
+    expect(Action.registryDiagnostics().duplicates).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "action", name: actionName })
+      ])
+    );
+
+    const serverName = registryName("reset-duplicate-server");
+    Server.fn(serverName, {
+      handler: () => Effect.succeed("first")
+    });
+    Server.fn(serverName, {
+      handler: () => Effect.succeed("second")
+    });
+    expect(Server.registryDiagnostics().duplicates).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "serverFunction", name: serverName })
+      ])
+    );
+
+    Server.clearRegistryUnsafe();
+
+    expect(Server.registryDiagnostics().duplicates).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "serverFunction", name: serverName })
       ])
     );
   });

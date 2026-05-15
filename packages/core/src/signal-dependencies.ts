@@ -42,20 +42,24 @@ export interface SignalDependencyTracker {
 
 export const makeSignalDependencyTracker = <A>(
   evaluate: () => A,
-  onValue: (value: A) => void
+  onValue: (value: A) => void,
+  onFailure?: (cause: unknown) => void
 ): SignalDependencyTracker => {
-  const cleanups = new Set<() => void>();
-  const sources = new Set<Subscribable>();
+  let dependencies = new Map<Subscribable, () => void>();
   let disposed = false;
   let running = false;
   let queued = false;
 
-  const clearDependencies = (): void => {
-    for (const cleanup of cleanups) {
+  const clearDependencyMap = (target: Map<Subscribable, () => void>): void => {
+    for (const cleanup of target.values()) {
       cleanup();
     }
-    cleanups.clear();
-    sources.clear();
+    target.clear();
+  };
+
+  const clearDependencies = (): void => {
+    clearDependencyMap(dependencies);
+    dependencies = new Map();
   };
 
   const run = (): void => {
@@ -69,20 +73,47 @@ export const makeSignalDependencyTracker = <A>(
     }
 
     running = true;
-    clearDependencies();
+    const nextDependencies = new Map<Subscribable, () => void>();
 
+    let value: A;
     try {
-      const value = withSignalDependencyObserver({
+      value = withSignalDependencyObserver({
         depend: (source) => {
-          if (sources.has(source)) {
+          if (nextDependencies.has(source)) {
             return;
           }
 
-          sources.add(source);
-          cleanups.add(source.subscribe(run));
+          const existing = dependencies.get(source);
+          nextDependencies.set(source, existing ?? source.subscribe(run));
         }
       }, evaluate);
+    } catch (cause) {
+      try {
+        for (const [source, cleanup] of nextDependencies) {
+          if (!dependencies.has(source)) {
+            cleanup();
+          }
+        }
+        nextDependencies.clear();
+        onFailure?.(cause);
+      } finally {
+        running = false;
+        if (queued) {
+          queued = false;
+          run();
+        }
+      }
+      return;
+    }
 
+    for (const [source, cleanup] of dependencies) {
+      if (!nextDependencies.has(source)) {
+        cleanup();
+      }
+    }
+    dependencies = nextDependencies;
+
+    try {
       onValue(value);
     } finally {
       running = false;

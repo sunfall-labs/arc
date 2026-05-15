@@ -3,22 +3,25 @@ import {
   ActionResult,
   type CoreDefinitionRegistry,
   isResourceRef,
-  isResourceTag,
-  Resource,
-  ResourceTagTypeId,
-  Server,
+	  isResourceTag,
+	  Resource,
+	  ResourceTagIdentityTypeId,
+	  ResourceTagTypeId,
+	  Server,
   ServerFunctionNotFound,
   ServerRpcProtocolError,
   ServerTransportError,
   type ActionDefinition,
+  type AnyEffectUiRuntime,
   type EffectUiRuntime,
   type FormFieldErrors,
   type ResourceInvalidation,
   type ResourceInvalidationCause,
-  type ResourceInvalidationPlan,
-  type ServerFunction
-} from "@effect-ui/core";
-import { Cause, Effect, Exit, Schema } from "effect";
+	  type ResourceInvalidationPlan,
+  type ResourceSnapshotCodecError,
+	  type ServerFunction
+	} from "@effect-ui/core";
+import { Cause, Data, Effect, Exit, Schema } from "effect";
 import {
   createStartHydrationPayload,
   hydrateStartPayloadEffect,
@@ -27,12 +30,23 @@ import {
 } from "./hydration.js";
 import {
   hasContentType,
-  serverActionPath,
-  serverRpcPath,
+  negotiateAcceptedMediaType,
+  startHtmlMediaType,
   startJsonMediaType,
+  validateStartActionResponseEffect,
   validateStartRpcResponseEffect,
   type StartTransportRequestError
 } from "./rpc.js";
+import {
+  isStartActionEndpointRequest,
+  isStartRpcEndpointRequest,
+  resolveStartActionEndpoint,
+  type StartActionEndpointManifest,
+  type StartActionEndpointSource,
+  type StartTransportEndpointOverrides,
+  type StartTransportEndpointManifestSource,
+  type StartTransportEndpointSource
+} from "./start-transport-endpoints.js";
 import type { StartRequestTraceFailureKind } from "./request-trace.js";
 import type { ServerRpcClientOptions } from "./start-fetch.js";
 
@@ -42,9 +56,21 @@ import type { ServerRpcClientOptions } from "./start-fetch.js";
  * Extends RPC options with optional collection hydration settings. Supplying a
  * runtime runs action response hydration in that runtime.
  */
-export interface StartActionClientOptions<FetchError = never, RuntimeError = never>
-  extends ServerRpcClientOptions<FetchError>, StartCollectionHydrationOptions {
-  readonly runtime?: EffectUiRuntime<unknown, RuntimeError>;
+export interface StartActionClientOptions<
+  FetchError = never,
+  FetchRequirements = never,
+  RuntimeError = never
+> extends ServerRpcClientOptions<FetchError, FetchRequirements, RuntimeError>,
+    Pick<
+      StartActionEndpointSource,
+      "actionPath" | "actionManifest" | "appGraph" | "endpoints"
+    >,
+    StartCollectionHydrationOptions {
+  /**
+   * Runtime used for action response hydration and, when `transportRuntime` is
+   * omitted, for fetch Effects that require services.
+   */
+  readonly runtime?: EffectUiRuntime<FetchRequirements, RuntimeError> | AnyEffectUiRuntime<RuntimeError>;
 }
 
 /** JSON payload accepted by the Start action transport. */
@@ -53,6 +79,12 @@ export interface StartActionRequest {
   readonly input: unknown;
 }
 
+/**
+ * Serializable invalidation target emitted by a Start action response.
+ *
+ * Ref targets include the concrete resource input for client-side hydration and
+ * invalidation. Tag targets represent broad invalidation groups.
+ */
 export type StartActionInvalidationTarget =
   | {
       readonly _tag: "Ref";
@@ -66,6 +98,12 @@ export type StartActionInvalidationTarget =
       readonly name: string;
     };
 
+/**
+ * Serializable reason a resource ref was included in an action invalidation plan.
+ *
+ * Causes omit the original input so action responses can explain fan-out
+ * without duplicating potentially large resource inputs.
+ */
 export type StartActionInvalidationCause =
   | {
       readonly _tag: "Ref";
@@ -167,12 +205,15 @@ type StartActionOutputFailure<A, E> =
     ? E | Failure
     : E;
 
+/** Extracts the input value type from a core `ActionDefinition`. */
 export type ActionDefinitionInputValue<D> =
   D extends ActionDefinition<infer I, infer _A, infer _E, infer _R> ? I : never;
 
+/** Extracts the output value type from a core `ActionDefinition`. */
 export type ActionDefinitionOutputValue<D> =
   D extends ActionDefinition<infer _I, infer A, infer _E, infer _R> ? A : never;
 
+/** Extracts the error value type from a core `ActionDefinition`. */
 export type ActionDefinitionErrorValue<D> =
   D extends ActionDefinition<infer _I, infer _A, infer E, infer _R> ? E : never;
 
@@ -186,7 +227,9 @@ export type StartActionResultFor<A, E = never> =
   >;
 
 export interface StartActionFormField {
+  /** Hidden form field name. */
   readonly name: string;
+  /** Serialized hidden form field value. */
   readonly value: string;
 }
 
@@ -203,7 +246,17 @@ export interface StartActionForm {
 }
 
 export interface StartActionFormOptions<I> {
+  /** Form action URL. Defaults to the Start action endpoint. */
   readonly action?: string;
+  /** Action endpoint path. Defaults to the shared Start action path. */
+  readonly actionPath?: string;
+  /** Endpoint pair resolved from the Start transport endpoint policy. */
+  readonly endpoints?: StartTransportEndpointOverrides;
+  /** Action manifest whose `actionPath` should be used when no explicit action is supplied. */
+  readonly actionManifest?: StartActionEndpointManifest;
+  /** App graph whose action manifest should supply the action path. */
+  readonly appGraph?: StartTransportEndpointManifestSource;
+  /** Partial input serialized into the hidden input field. */
   readonly input?: Partial<I>;
 }
 
@@ -212,14 +265,35 @@ export type StartActionDefinition =
   | ActionDefinition<any, any, never, any>
   | ActionDefinition<any, any, any, any>;
 
+/** Hidden form field that carries the action name for progressive POST forms. */
 export const startActionNameField = "__effect_ui_action";
+/** Hidden form field that carries the JSON-serialized action input. */
 export const startActionInputField = "__effect_ui_input";
 
-export const isServerRpcRequest = (request: Request): boolean =>
-  new URL(request.url).pathname === serverRpcPath;
+/** Error raised by the synchronous progressive form encoding facade. */
+export class StartActionFormEncodeError extends Data.TaggedError(
+  "StartActionFormEncodeError"
+)<{
+  readonly actionName: string;
+  readonly operation: "schema-encode" | "json-stringify";
+  readonly input: unknown;
+  readonly cause: unknown;
+  readonly guidance: string;
+}> {}
 
-export const isServerActionRequest = (request: Request): boolean =>
-  new URL(request.url).pathname === serverActionPath;
+/** True when a request targets the Start server-function RPC endpoint. */
+export const isServerRpcRequest = (
+  request: Request,
+  endpoints?: StartTransportEndpointSource
+): boolean =>
+  isStartRpcEndpointRequest(request, endpoints);
+
+/** True when a request targets the Start action endpoint. */
+export const isServerActionRequest = (
+  request: Request,
+  endpoints?: StartTransportEndpointSource
+): boolean =>
+  isStartActionEndpointRequest(request, endpoints);
 
 /** Creates the hidden POST fields needed to submit a Start action from HTML. */
 export const startActionForm = <I, A, E, R>(
@@ -227,7 +301,7 @@ export const startActionForm = <I, A, E, R>(
   options: StartActionFormOptions<I> = {}
 ): StartActionForm => ({
   method: "post",
-  action: options.action ?? serverActionPath,
+  action: String(resolveStartActionEndpoint(options)),
   hiddenFields: [
     {
       name: startActionNameField,
@@ -238,27 +312,40 @@ export const startActionForm = <I, A, E, R>(
       : [
           {
             name: startActionInputField,
-            value: JSON.stringify(options.input)
+            value: encodeStartActionFormInput(definition, options.input)
           }
         ])
   ]
 });
 
-const rpcJson = (body: Server.RpcResponse, status = 200): Response =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: {
+type StartTransportJsonBody = Server.RpcResponse | StartActionResponseBody;
+
+const startTransportDefectBody = (cause: unknown): Extract<Server.RpcResponse, { readonly _tag: "Defect" }> => ({
+  _tag: "Defect",
+  defect: Server.serializeDefect(cause)
+});
+
+const startTransportJson = (body: StartTransportJsonBody, status = 200): Response =>
+  {
+    const headers = {
       "content-type": startJsonMediaType
+    };
+
+    try {
+      return new Response(JSON.stringify(body), { status, headers });
+    } catch (cause) {
+      return new Response(JSON.stringify(startTransportDefectBody(cause)), {
+        status: 500,
+        headers
+      });
     }
-  });
+  };
+
+const rpcJson = (body: Server.RpcResponse, status = 200): Response =>
+  startTransportJson(body, status);
 
 const actionJson = (body: StartActionResponseBody, status = 200): Response =>
-  new Response(JSON.stringify(body), {
-    status,
-    headers: {
-      "content-type": startJsonMediaType
-    }
-  });
+  startTransportJson(body, status);
 
 export const readJsonEffect = (request: Request): Effect.Effect<unknown, ServerRpcProtocolError> =>
   Effect.tryPromise({
@@ -272,6 +359,12 @@ export const readJsonEffect = (request: Request): Effect.Effect<unknown, ServerR
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
+
+const hasOwn = (
+  value: Record<string, unknown>,
+  key: string
+): boolean =>
+  Object.prototype.hasOwnProperty.call(value, key);
 
 export const decodeWithSchema = <A>(
   schema: unknown,
@@ -289,33 +382,154 @@ export const encodeWithSchema = (
     ? Schema.encodeUnknownEffect(schema as Schema.Encoder<unknown>)(input)
     : Effect.succeed(input);
 
-const protocolErrorBody = (error: ServerRpcProtocolError): StartActionResponseBody => ({
+const structSchemaFields = (
+  schema: unknown
+): Record<string, unknown> | undefined => {
+  const fields = isRecord(schema) ? schema.fields : undefined;
+  return isRecord(fields) ? fields : undefined;
+};
+
+const encodePartialWithSchema = (
+  schema: unknown,
+  input: unknown
+): Effect.Effect<unknown, Schema.SchemaError> => {
+  const fields = structSchemaFields(schema);
+  if (!Schema.isSchema(schema) || fields === undefined || !isRecord(input)) {
+    return encodeWithSchema(schema, input);
+  }
+
+  const presentFields: Record<string, Schema.Schema<unknown>> = {};
+  for (const key of Object.keys(input)) {
+    const field = fields[key];
+    if (Schema.isSchema(field)) {
+      presentFields[key] = field as Schema.Schema<unknown>;
+    }
+  }
+
+  return Schema.encodeUnknownEffect(Schema.Struct(presentFields))(input) as Effect.Effect<unknown, Schema.SchemaError>;
+};
+
+/** Encodes a Start action input through the action's declared wire schema. */
+export const encodeStartActionInputEffect = (
+  action: StartActionDefinition,
+  input: unknown
+): Effect.Effect<unknown, Schema.SchemaError> =>
+  encodeWithSchema(action.input, input);
+
+/** Encodes a partial Start action input through the present fields of a struct input schema. */
+export const encodeStartActionPartialInputEffect = (
+  action: StartActionDefinition,
+  input: unknown
+): Effect.Effect<unknown, Schema.SchemaError> =>
+  encodePartialWithSchema(action.input, input);
+
+/** Builds the shared Start action JSON request body before transport stringification. */
+export const encodeStartActionRequestEffect = (
+  action: StartActionDefinition,
+  input: unknown
+): Effect.Effect<StartActionRequest, Schema.SchemaError> =>
+  Effect.map(encodeStartActionInputEffect(action, input), (encodedInput) => ({
+    name: action.name,
+    input: encodedInput
+  }));
+
+const startActionFormEncodeError = (
+  action: StartActionDefinition,
+  operation: StartActionFormEncodeError["operation"],
+  input: unknown,
+  cause: unknown
+): StartActionFormEncodeError =>
+  new StartActionFormEncodeError({
+    actionName: action.name,
+    operation,
+    input,
+    cause,
+    guidance: "Start action form defaults must encode through the action input schema and be JSON-serializable."
+  });
+
+/** Encodes progressive form default input through the same action request codec used by JSON submits. */
+export const encodeStartActionFormInputEffect = (
+  action: StartActionDefinition,
+  input: unknown
+): Effect.Effect<string, StartActionFormEncodeError> =>
+  Effect.gen(function* () {
+    const encodedInput = yield* encodeStartActionPartialInputEffect(action, input).pipe(
+      Effect.mapError((cause) => startActionFormEncodeError(action, "schema-encode", input, cause))
+    );
+
+    return yield* Effect.try({
+      try: () => {
+        const json = JSON.stringify(encodedInput);
+        if (json === undefined) {
+          throw {
+            _tag: "StartActionFormJsonUndefined",
+            message: "JSON.stringify returned undefined for a provided Start action form input."
+          };
+        }
+        return json;
+      },
+      catch: (cause) => startActionFormEncodeError(action, "json-stringify", encodedInput, cause)
+    });
+  });
+
+const encodeStartActionFormInput = (
+  action: StartActionDefinition,
+  input: unknown
+): string => {
+  const exit = Effect.runSyncExit(encodeStartActionFormInputEffect(action, input));
+  if (Exit.isSuccess(exit)) {
+    return exit.value;
+  }
+
+  const failure = exit.cause.reasons.find(Cause.isFailReason)?.error;
+  if (failure !== undefined) {
+    throw failure;
+  }
+
+  throw startActionFormEncodeError(action, "schema-encode", input, Cause.squash(exit.cause));
+};
+
+const serverErrorBody = (
+  error: ServerRpcProtocolError | ServerFunctionNotFound
+): Extract<Server.RpcResponse, { readonly _tag: "ServerError" }> => ({
   _tag: "ServerError",
   error: Server.serializeServerError(error)
 });
 
+const defectBody = (
+  defect: unknown
+): Extract<Server.RpcResponse, { readonly _tag: "Defect" }> => ({
+  _tag: "Defect",
+  defect: Server.serializeDefect(defect)
+});
+
+const startTransportRuntimeFailureResponse = <Body extends Extract<StartTransportJsonBody, { readonly _tag: "Defect" }>>(
+  json: (body: Body, status?: number) => Response,
+  error: unknown
+): Response => json(defectBody(error) as Body, 500);
+
+const startTransportProtocolFailureResponse = <Body extends Extract<StartTransportJsonBody, { readonly _tag: "ServerError" }>>(
+  json: (body: Body, status?: number) => Response,
+  error: ServerRpcProtocolError,
+  status = 400
+): Response => json(serverErrorBody(error) as Body, status);
+
+const startTransportFunctionNotFoundResponse = <Body extends Extract<StartTransportJsonBody, { readonly _tag: "ServerError" }>>(
+  json: (body: Body, status?: number) => Response,
+  functionName: string
+): Response =>
+  json(serverErrorBody(new ServerFunctionNotFound({ functionName })) as Body, 404);
+
 export const rpcRuntimeFailureResponse = (error: unknown): Response =>
-  rpcJson(
-    {
-      _tag: "Defect",
-      defect: Server.serializeDefect(error)
-    },
-    500
-  );
+  startTransportRuntimeFailureResponse(rpcJson, error);
 
 export const actionRuntimeFailureResponse = (error: unknown): Response =>
-  actionJson(
-    {
-      _tag: "Defect",
-      defect: Server.serializeDefect(error)
-    },
-    500
-  );
+  startTransportRuntimeFailureResponse(actionJson, error);
 
 export const actionProtocolFailureResponse = (
   error: ServerRpcProtocolError,
   status = 400
-): Response => actionJson(protocolErrorBody(error), status);
+): Response => startTransportProtocolFailureResponse(actionJson, error, status);
 
 const withTransportRequestErrorHeaders = (
   response: Response,
@@ -336,13 +550,7 @@ export const actionTransportRequestFailureResponse = (
   );
 
 export const actionFunctionNotFoundResponse = (actionName: string): Response =>
-  actionJson(
-    {
-      _tag: "ServerError",
-      error: Server.serializeServerError(new ServerFunctionNotFound({ functionName: actionName }))
-    },
-    404
-  );
+  startTransportFunctionNotFoundResponse(actionJson, actionName);
 
 const readActionJsonEffect = (request: Request): Effect.Effect<StartActionRequest, ServerRpcProtocolError> =>
   Effect.gen(function* () {
@@ -442,13 +650,41 @@ export const readStartActionRequestEffect = (
     ? readActionJsonEffect(request)
     : readActionFormEffect(request);
 
+export class StartActionDuplicateName extends Data.TaggedError("StartActionDuplicateName")<{
+  readonly actionName: string;
+  readonly first: number;
+  readonly duplicate: number;
+  readonly message: string;
+}> {}
+
 export const makeActionMap = (
   actions?: Iterable<StartActionDefinition>,
   registry?: CoreDefinitionRegistry<StartActionDefinition, ServerFunction<any, any, any, any>>
-): ReadonlyMap<string, StartActionDefinition> =>
-  actions === undefined
-    ? registry?.actions ?? Action.definitions()
-    : new Map(Array.from(actions, (action) => [action.name, action]));
+): ReadonlyMap<string, StartActionDefinition> => {
+  if (actions === undefined) {
+    return registry?.actions ?? Action.definitions();
+  }
+
+  const actionMap = new Map<string, StartActionDefinition>();
+  const firstIndexes = new Map<string, number>();
+  let index = 0;
+  for (const action of actions) {
+    const first = firstIndexes.get(action.name);
+    if (first !== undefined) {
+      throw new StartActionDuplicateName({
+        actionName: action.name,
+        first,
+        duplicate: index,
+        message: `Duplicate Start action name: ${action.name}`
+      });
+    }
+    actionMap.set(action.name, action);
+    firstIndexes.set(action.name, index);
+    index++;
+  }
+
+  return actionMap;
+};
 
 const firstFail = <E>(cause: Cause.Cause<E>): E | undefined => {
   const reason = cause.reasons.find(Cause.isFailReason);
@@ -526,13 +762,7 @@ export const actionFailureKindEffect = <ActionError>(
 };
 
 export const protocolFailureResponse = (error: ServerRpcProtocolError, status = 400): Response =>
-  rpcJson(
-    {
-      _tag: "ServerError",
-      error: Server.serializeServerError(error)
-    },
-    status
-  );
+  startTransportProtocolFailureResponse(rpcJson, error, status);
 
 export const rpcTransportRequestFailureResponse = (
   error: StartTransportRequestError
@@ -543,13 +773,7 @@ export const rpcTransportRequestFailureResponse = (
   );
 
 export const functionNotFoundResponse = (functionName: string): Response =>
-  rpcJson(
-    {
-      _tag: "ServerError",
-      error: Server.serializeServerError(new ServerFunctionNotFound({ functionName }))
-    },
-    404
-  );
+  startTransportFunctionNotFoundResponse(rpcJson, functionName);
 
 export const exitToRpcResponse = <FnError>(
   fn: ServerFunction<unknown, unknown, FnError, unknown>,
@@ -623,7 +847,7 @@ export const exitToRpcResponse = <FnError>(
 };
 
 const describeStartActionInvalidationTarget = (
-  target: ResourceInvalidationPlan["targets"][number]
+  target: ResourceInvalidationPlan<any>["targets"][number]
 ): StartActionInvalidationTarget | undefined => {
   if (isResourceRef(target)) {
     return {
@@ -662,7 +886,7 @@ const describeStartActionInvalidationCause = (
 
 /** Converts a runtime invalidation plan into the serializable action payload. */
 export const describeStartActionInvalidationPlan = (
-  plan: ResourceInvalidationPlan
+  plan: ResourceInvalidationPlan<any>
 ): StartActionInvalidationPlan => ({
   targets: plan.targets.flatMap((target) => {
     const described = describeStartActionInvalidationTarget(target);
@@ -679,8 +903,8 @@ export const describeStartActionInvalidationPlan = (
 });
 
 export const actionResponseMetaEffect = (
-  plan: ResourceInvalidationPlan | undefined
-): Effect.Effect<StartActionResponseMeta> =>
+  plan: ResourceInvalidationPlan<any> | undefined
+): Effect.Effect<StartActionResponseMeta, ResourceSnapshotCodecError> =>
   plan === undefined
     ? Effect.succeed({})
     : Effect.gen(function* () {
@@ -696,7 +920,10 @@ export const actionResponseMetaEffect = (
       });
 
 export const actionResponseMode = (request: Request): "json" | "redirect" =>
-  hasContentType(request.headers, [startJsonMediaType]) ? "json" : "redirect";
+  hasContentType(request.headers, [startJsonMediaType]) ||
+    negotiateAcceptedMediaType(request.headers, [startHtmlMediaType, startJsonMediaType]) === startJsonMediaType
+    ? "json"
+    : "redirect";
 
 const encodeActionResultEffect = (
   action: StartActionDefinition,
@@ -940,22 +1167,175 @@ export const parseRpcResponse = (
     return yield* Server.decodeRpcResponse(payload);
   });
 
-const isStartActionResponseBody = (value: unknown): value is StartActionResponseBody =>
+const isStringRecord = (value: unknown): value is Record<string, string> =>
   isRecord(value) &&
-  (
-    value._tag === "Success" ||
-    value._tag === "ValidationFailure" ||
-    value._tag === "Redirect" ||
-    value._tag === "Failure" ||
-    value._tag === "ServerError" ||
-    value._tag === "Defect"
-  );
+  Object.values(value).every((entry) => typeof entry === "string");
+
+const isStartActionResponseBody = (value: unknown): value is StartActionResponseBody => {
+  if (!isRecord(value) || !isStartActionResponseMeta(value)) {
+    return false;
+  }
+
+  switch (value._tag) {
+    case "Success":
+      return hasOwn(value, "value");
+    case "ValidationFailure":
+      return hasOwn(value, "fieldErrors") &&
+        Array.isArray(value.formErrors);
+    case "Redirect":
+      return typeof value.location === "string" &&
+        Number.isInteger(value.status) &&
+        (value.headers === undefined || isStringRecord(value.headers)) &&
+        (value.replace === undefined || typeof value.replace === "boolean");
+    case "Failure":
+    case "ServerError":
+      return hasOwn(value, "error");
+    case "Defect":
+      return hasOwn(value, "defect");
+    default:
+      return false;
+  }
+};
+
+const isStartActionInvalidationTarget = (value: unknown): value is StartActionInvalidationTarget => {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  if (value._tag === "Ref") {
+    return typeof value.key === "string" &&
+      typeof value.family === "string" &&
+      hasOwn(value, "input");
+  }
+
+  return value._tag === "Tag" &&
+    typeof value.key === "string" &&
+    typeof value.name === "string";
+};
+
+const isStartActionInvalidationCause = (value: unknown): value is StartActionInvalidationCause => {
+  if (!isRecord(value)) {
+    return false;
+  }
+
+  if (value._tag === "Ref") {
+    return typeof value.key === "string" &&
+      typeof value.family === "string";
+  }
+
+  return value._tag === "Tag" &&
+    typeof value.key === "string" &&
+    typeof value.name === "string";
+};
+
+const isStartActionInvalidationPlan = (value: unknown): value is StartActionInvalidationPlan => {
+  if (!isRecord(value) || !Array.isArray(value.targets) || !Array.isArray(value.entries)) {
+    return false;
+  }
+
+  return value.targets.every(isStartActionInvalidationTarget) &&
+    value.entries.every((entry) =>
+      isRecord(entry) &&
+      isRecord(entry.ref) &&
+      typeof entry.ref.key === "string" &&
+      typeof entry.ref.family === "string" &&
+      hasOwn(entry.ref, "input") &&
+      Array.isArray(entry.causes) &&
+      entry.causes.every(isStartActionInvalidationCause)
+    );
+};
+
+const isStartHydrationPayload = (value: unknown): value is StartHydrationPayload =>
+  isRecord(value) &&
+  Array.isArray(value.resources) &&
+  (value.collections === undefined || Array.isArray(value.collections));
+
+const isStartActionResponseMeta = (value: Record<string, unknown>): boolean =>
+  (value.invalidation === undefined || isStartActionInvalidationPlan(value.invalidation)) &&
+  (value.hydration === undefined || isStartHydrationPayload(value.hydration));
+
+/**
+ * Validates HTTP status against decoded Start RPC/action transport bodies.
+ *
+ * RPC `Success` and `Failure` bodies must arrive on an ok status. Action
+ * `Success`, `Failure`, and JSON `Redirect` bodies must also arrive on ok
+ * statuses, while `ValidationFailure` must use HTTP 422. Server errors and
+ * defects are already semantic failures, so their HTTP status is preserved for
+ * caller diagnostics instead of being rewritten as `BadStatus`.
+ */
+export function validateStartResponseStatusEffect(
+  kind: "rpc",
+  response: Response,
+  body: Server.RpcResponse
+): Effect.Effect<void, ServerTransportError>;
+export function validateStartResponseStatusEffect(
+  kind: "action",
+  response: Response,
+  body: StartActionResponseBody
+): Effect.Effect<void, ServerTransportError>;
+export function validateStartResponseStatusEffect(
+  kind: "rpc" | "action",
+  response: Response,
+  body: Server.RpcResponse | StartActionResponseBody
+): Effect.Effect<void, ServerTransportError> {
+  if (kind === "rpc") {
+    switch (body._tag) {
+      case "Success":
+        return response.ok
+          ? Effect.void
+          : Effect.fail(new ServerTransportError({
+              reason: "BadStatus",
+              status: response.status,
+              message: `Server function succeeded with unexpected HTTP status ${response.status}.`,
+              payload: body
+            }));
+      case "Failure":
+        return response.ok
+          ? Effect.void
+          : Effect.fail(new ServerTransportError({
+              reason: "BadStatus",
+              status: response.status,
+              message: `Server function failed with unexpected HTTP status ${response.status}.`,
+              payload: body
+            }));
+      case "ServerError":
+      case "Defect":
+        return Effect.void;
+    }
+  }
+
+  switch (body._tag) {
+    case "Success":
+    case "Failure":
+    case "Redirect":
+      return response.ok
+        ? Effect.void
+        : Effect.fail(new ServerTransportError({
+            reason: "BadStatus",
+            status: response.status,
+            message: `Start action ${body._tag} response used unexpected HTTP status ${response.status}.`,
+            payload: body
+          }));
+    case "ValidationFailure":
+      return response.status === 422
+        ? Effect.void
+        : Effect.fail(new ServerTransportError({
+            reason: "BadStatus",
+            status: response.status,
+            message: `Start action validation response used unexpected HTTP status ${response.status}.`,
+            payload: body
+          }));
+    case "ServerError":
+    case "Defect":
+      return Effect.void;
+  }
+}
 
 export const parseStartActionResponse = (
   response: Response
 ): Effect.Effect<StartActionResponseBody, ServerTransportError> =>
   Effect.gen(function* () {
-    yield* validateStartRpcResponseEffect(response);
+    yield* validateStartActionResponseEffect(response);
     const text = yield* Effect.tryPromise({
       try: () => response.text(),
       catch: (cause) =>
@@ -1093,35 +1473,173 @@ export const decodeStartActionResponseEffect = <D extends StartActionDefinition>
     >
   );
 
-const dieOnActionHydrationFailure = <E, R>(
-  effect: Effect.Effect<void, E, R>
-): Effect.Effect<void, never, R> =>
-  effect.pipe(Effect.catch((error: E) => Effect.die(error)));
-
-export const hydrateActionResponseEffect = <FetchError = never, RuntimeError = never>(
+const startActionInvalidationTransportError = (
   body: StartActionResponseBody,
-  options: StartActionClientOptions<FetchError, RuntimeError>
-): Effect.Effect<void, never, unknown> => {
-  const invalidationTargets = "invalidation" in body && body.invalidation
-    ? body.invalidation.targets.flatMap((target): ReadonlyArray<ResourceInvalidation> =>
-        target._tag === "Tag"
-          ? [{
-              [ResourceTagTypeId]: ResourceTagTypeId,
-              name: target.name,
-              key: target.key
-            }]
-          : []
-      )
-    : [];
-  const hydrationKeys = new Set(
-    "hydration" in body && body.hydration
-      ? body.hydration.resources.map((resource) => resource.key)
-      : []
-  );
-  const effect = Effect.gen(function* () {
-    if ("hydration" in body && body.hydration !== undefined) {
-      yield* hydrateStartPayloadEffect(body.hydration, options);
+  target: unknown,
+  message: string
+): ServerTransportError =>
+  new ServerTransportError({
+    reason: "InvalidResponse",
+    message,
+    payload: {
+      body,
+      target
     }
+  });
+
+const resourceTagIdentityFromStartTarget = (
+  target: Extract<StartActionInvalidationTarget, { readonly _tag: "Tag" }>
+) =>
+  target.key === target.name
+    ? {
+        _tag: "Unkeyed" as const,
+        name: target.name
+      }
+    : target.key.startsWith(`${target.name}:`)
+      ? {
+          _tag: "Keyed" as const,
+          name: target.name,
+          key: target.key.slice(target.name.length + 1)
+        }
+      : undefined;
+
+const malformedStartActionTagTransportError = (
+  body: StartActionResponseBody,
+  target: StartActionInvalidationTarget | StartActionInvalidationCause
+): ServerTransportError =>
+  startActionInvalidationTransportError(
+    body,
+    target,
+    "Start action invalidation metadata did not match the Resource tag key."
+  );
+
+const startActionInvalidationTargetEffect = (
+  body: StartActionResponseBody,
+  target: StartActionInvalidationTarget
+): Effect.Effect<ResourceInvalidation<any>, ServerTransportError> => {
+  if (target._tag === "Tag") {
+    const identity = resourceTagIdentityFromStartTarget(target);
+    if (identity === undefined) {
+      return Effect.fail(malformedStartActionTagTransportError(body, target));
+    }
+    return Effect.succeed({
+      [ResourceTagTypeId]: ResourceTagTypeId,
+      [ResourceTagIdentityTypeId]: identity,
+      name: target.name,
+      key: target.key
+    });
+  }
+
+  return Effect.flatMap(Resource.definitionEffect(target.family), (family) => {
+    if (!family) {
+      return Effect.fail(
+        startActionInvalidationTransportError(
+          body,
+          target,
+          "Start action invalidation metadata referenced an unknown Resource family."
+        )
+      );
+    }
+
+    const ref = family.ref(target.input);
+    return ref.key === target.key
+      ? Effect.succeed(ref)
+      : Effect.fail(
+          startActionInvalidationTransportError(
+            body,
+            target,
+            "Start action invalidation metadata did not match the Resource input."
+          )
+        );
+  });
+};
+
+const startActionInvalidationCauseEffect = (
+  body: StartActionResponseBody,
+  cause: StartActionInvalidationCause
+): Effect.Effect<void, ServerTransportError> => {
+  if (cause._tag === "Tag") {
+    return resourceTagIdentityFromStartTarget(cause) === undefined
+      ? Effect.fail(malformedStartActionTagTransportError(body, cause))
+      : Effect.void;
+  }
+
+  return Effect.flatMap(Resource.definitionEffect(cause.family), (family) =>
+    family
+      ? Effect.void
+      : Effect.fail(
+          startActionInvalidationTransportError(
+            body,
+            cause,
+            "Start action invalidation metadata referenced an unknown Resource family."
+          )
+        )
+  );
+};
+
+const validateStartActionInvalidationPlanEffect = (
+  body: StartActionResponseBody,
+  plan: StartActionInvalidationPlan | undefined
+): Effect.Effect<ReadonlyArray<ResourceInvalidation<any>>, ServerTransportError> =>
+  plan === undefined
+    ? Effect.succeed([])
+    : Effect.gen(function* () {
+        const targets = yield* Effect.forEach(
+          plan.targets,
+          (target) => startActionInvalidationTargetEffect(body, target)
+        );
+        yield* Effect.forEach(
+          plan.entries,
+          (entry) =>
+            Effect.gen(function* () {
+              yield* startActionInvalidationTargetEffect(body, {
+                _tag: "Ref",
+                key: entry.ref.key,
+                family: entry.ref.family,
+                input: entry.ref.input
+              });
+              yield* Effect.forEach(
+                entry.causes,
+                (cause) => startActionInvalidationCauseEffect(body, cause),
+                { discard: true }
+              );
+            }),
+          { discard: true }
+        );
+        return targets;
+      });
+
+const startActionHydrationTransportError = (
+  body: StartActionResponseBody,
+  cause: unknown
+): ServerTransportError =>
+  new ServerTransportError({
+    reason: "InvalidResponse",
+    message: "Start action response metadata could not be applied.",
+    cause,
+    payload: body
+  });
+
+export const hydrateActionResponseEffect = <FetchError = never, FetchRequirements = never, RuntimeError = never>(
+  body: StartActionResponseBody,
+  options: StartActionClientOptions<FetchError, FetchRequirements, RuntimeError>
+): Effect.Effect<void, ServerTransportError | RuntimeError> => {
+  const effect = Effect.gen(function* () {
+    const invalidationTargets = "invalidation" in body
+      ? yield* validateStartActionInvalidationPlanEffect(body, body.invalidation)
+      : [];
+
+    if ("hydration" in body && body.hydration !== undefined) {
+      yield* hydrateStartPayloadEffect(body.hydration, options).pipe(
+        Effect.mapError((error) => startActionHydrationTransportError(body, error))
+      );
+    }
+
+    const hydrationKeys = new Set(
+      "hydration" in body && body.hydration
+        ? body.hydration.resources.map((resource) => resource.key)
+        : []
+    );
 
     if (invalidationTargets.length > 0) {
       const plan = yield* Resource.planInvalidationEffect(invalidationTargets);
@@ -1132,7 +1650,7 @@ export const hydrateActionResponseEffect = <FetchError = never, RuntimeError = n
     }
   });
 
-  return options.runtime
-    ? dieOnActionHydrationFailure(options.runtime.provide(effect))
-    : dieOnActionHydrationFailure(effect);
+  return (options.runtime
+    ? options.runtime.provide(effect)
+    : effect) as Effect.Effect<void, ServerTransportError | RuntimeError>;
 };

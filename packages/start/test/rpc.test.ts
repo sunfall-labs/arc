@@ -22,6 +22,14 @@ import {
   startTransportRequestHeaders,
   type StartFetch
 } from "../src/index.js";
+import {
+  encodeStartClientTransportRequestBodyEffect,
+  executeStartClientTransportEffect
+} from "../src/start-client-transport.js";
+import {
+  parseRpcResponse,
+  parseStartActionResponse
+} from "../src/start-transport-protocol.js";
 
 const traceparent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
 
@@ -178,6 +186,34 @@ describe("Start RPC transport", () => {
     );
   });
 
+  it("labels invalid action response content-types as action transport failures", () => {
+    return Effect.runPromise(
+      Effect.exit(
+        parseStartActionResponse(
+          new Response("not json", {
+            status: 200,
+            headers: { "content-type": "text/plain" }
+          })
+        )
+      ).pipe(
+        Effect.tap((exit) =>
+          Effect.sync(() => {
+            const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
+
+            expect(failure).toBeInstanceOf(ServerTransportError);
+            expect(failure).toMatchObject({
+              _tag: "ServerTransportError",
+              reason: "InvalidResponse",
+              status: 200,
+              message: "Start action response content-type was not application/json."
+            });
+          })
+        ),
+        Effect.asVoid
+      )
+    );
+  });
+
   it("rejects malformed JSON action payloads as typed protocol failures", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
@@ -246,6 +282,174 @@ describe("Start RPC transport", () => {
       )
     );
   });
+
+  it("normalizes RPC client header and fetch setup throws as transport errors", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const Echo = Server.contract<string, string>("Start.transport.setup-throw", {
+          input: Schema.String,
+          output: Schema.String
+        });
+        const echo = Server.client(Echo);
+        const headerCause = new Error("headers failed");
+        const fetchCause = new Error("fetcher failed");
+        const headerRuntime = Layer.succeed(ServerClient)(
+          makeRpcClient({
+            headers: () => {
+              throw headerCause;
+            }
+          })
+        );
+        const fetchRuntime = Layer.succeed(ServerClient)(
+          makeRpcClient({
+            fetch: () => {
+              throw fetchCause;
+            }
+          })
+        );
+
+        const headerExit = yield* Effect.exit(Effect.provide(echo.effect("hello"), headerRuntime));
+        const fetchExit = yield* Effect.exit(Effect.provide(echo.effect("hello"), fetchRuntime));
+
+        yield* Effect.sync(() => {
+          const headerFailure = Exit.isFailure(headerExit) ? firstFailure(headerExit.cause) : undefined;
+          const fetchFailure = Exit.isFailure(fetchExit) ? firstFailure(fetchExit.cause) : undefined;
+
+          expect(headerFailure).toBeInstanceOf(ServerTransportError);
+          expect(headerFailure).toMatchObject({
+            reason: "Network",
+            message: "Could not construct Start transport headers.",
+            cause: headerCause
+          });
+          expect(fetchFailure).toBeInstanceOf(ServerTransportError);
+          expect(fetchFailure).toMatchObject({
+            reason: "Network",
+            message: "Server function request failed.",
+            cause: fetchCause
+          });
+        });
+      })
+    ));
+
+  it("rejects Promise-shaped custom Start fetchers as transport errors", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const Echo = Server.contract<string, string>("Start.transport.promise-fetcher", {
+          input: Schema.String,
+          output: Schema.String
+        });
+        const echo = Server.client(Echo);
+        const fetchRuntime = Layer.succeed(ServerClient)(
+          makeRpcClient({
+            fetch: (() =>
+              Promise.resolve(
+                new Response(JSON.stringify({ _tag: "Success", value: "ok" }), {
+                  headers: { "content-type": startJsonMediaType }
+                })
+              )) as unknown as StartFetch
+          })
+        );
+
+        const exit = yield* Effect.exit(Effect.provide(echo.effect("hello"), fetchRuntime));
+
+        yield* Effect.sync(() => {
+          const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
+
+          expect(failure).toBeInstanceOf(ServerTransportError);
+          expect(failure).toMatchObject({
+            reason: "Network",
+            message: "Server function request failed."
+          });
+          expect(failure).toHaveProperty("cause");
+          expect(String((failure as ServerTransportError).cause)).toContain("Start fetch hooks must return an Effect");
+        });
+      })
+    ));
+
+  it("shares client transport request serialization and defect response mapping", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const circular: Record<string, unknown> = {};
+        circular.self = circular;
+        const encodeExit = yield* Effect.exit(
+          encodeStartClientTransportRequestBodyEffect("rpc", circular)
+        );
+        const rpcDefectExit = yield* Effect.exit(
+          executeStartClientTransportEffect({
+            kind: "rpc",
+            endpoint: "https://example.com/__effect-ui/rpc",
+            request: {
+              name: "Start.transport.defect",
+              input: {}
+            },
+            fetch: () =>
+              Effect.succeed(
+                new Response(
+                  JSON.stringify({
+                    _tag: "Defect",
+                    defect: { message: "rpc exploded" }
+                  }),
+                  {
+                    status: 500,
+                    headers: { "content-type": startJsonMediaType }
+                  }
+                )
+              ),
+            parseResponse: parseRpcResponse
+          })
+        );
+        const actionDefectExit = yield* Effect.exit(
+          executeStartClientTransportEffect({
+            kind: "action",
+            endpoint: "https://example.com/__effect-ui/action",
+            request: {
+              name: "Start.action.defect",
+              input: {}
+            },
+            fetch: () =>
+              Effect.succeed(
+                new Response(
+                  JSON.stringify({
+                    _tag: "Defect",
+                    defect: { message: "action exploded" }
+                  }),
+                  {
+                    status: 500,
+                    headers: { "content-type": startJsonMediaType }
+                  }
+                )
+              ),
+            parseResponse: parseStartActionResponse
+          })
+        );
+
+        yield* Effect.sync(() => {
+          const encodeFailure = Exit.isFailure(encodeExit) ? firstFailure(encodeExit.cause) : undefined;
+          const rpcFailure = Exit.isFailure(rpcDefectExit) ? firstFailure(rpcDefectExit.cause) : undefined;
+          const actionFailure = Exit.isFailure(actionDefectExit) ? firstFailure(actionDefectExit.cause) : undefined;
+
+          expect(encodeFailure).toBeInstanceOf(ServerTransportError);
+          expect(encodeFailure).toMatchObject({
+            reason: "InvalidResponse",
+            message: "Could not encode the server function request body."
+          });
+          expect(rpcFailure).toBeInstanceOf(ServerTransportError);
+          expect(rpcFailure).toMatchObject({
+            reason: "Defect",
+            status: 500,
+            message: "Server function failed with a defect.",
+            payload: { message: "rpc exploded" }
+          });
+          expect(actionFailure).toBeInstanceOf(ServerTransportError);
+          expect(actionFailure).toMatchObject({
+            reason: "Defect",
+            status: 500,
+            message: "Start action failed with a defect.",
+            payload: { message: "action exploded" }
+          });
+        });
+      })
+    ));
 
   it("rejects non-JSON RPC responses before decoding protocol payloads", () => {
     const Echo = Server.contract<string, string>("Start.transport.non-json", {

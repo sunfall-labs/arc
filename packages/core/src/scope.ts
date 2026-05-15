@@ -1,12 +1,21 @@
 import { Data, Effect, Exit, Fiber, Scope } from "effect";
 import type { EffectInput } from "./effect-like.js";
-import { toEffect } from "./effect-like.js";
-import { runFork } from "./runtime.js";
+import { invokeEffectInput } from "./effect-like.js";
+import { runFork, type AnyEffectUiRuntime } from "./runtime.js";
 
 /** Options controlling how forked scoped Effects are started. */
 export interface ForkScopedOptions {
   readonly startImmediately?: boolean;
   readonly uninterruptible?: boolean | "inherit";
+}
+
+/** Options controlling how a `UiScope` runs cleanup registered after disposal. */
+export interface UiScopeOptions {
+  /**
+   * Runs a finalizer that is registered after the scope has already been
+   * disposed. Framework adapters should bind this to the owning Runtime Spine.
+   */
+  readonly runLateFinalizer?: (effect: Effect.Effect<void>) => void;
 }
 
 export class UiScopeMissing extends Data.TaggedError("UiScopeMissing")<{
@@ -20,26 +29,35 @@ export class UiScopeDisposed extends Data.TaggedError("UiScopeDisposed")<{
 /**
  * Closeable UI lifetime for Effects and finalizers.
  *
- * Use one UiScope per mounted UI boundary. Forked fibers and registered finalizers
+ * Use one UiScope per mounted UI lifetime. Forked fibers and registered finalizers
  * are tied to the scope and are interrupted or run when the scope is disposed.
  */
 export class UiScope {
   readonly effectScope: Scope.Closeable = Effect.runSync(Scope.make("sequential"));
+  private readonly finalizers: Array<() => EffectInput<void>> = [];
+  private readonly runLateFinalizer: (effect: Effect.Effect<void>) => void;
   private disposed = false;
+
+  constructor(options: UiScopeOptions = {}) {
+    this.runLateFinalizer =
+      options.runLateFinalizer ??
+      ((effect) => {
+        void runFork(effect);
+      });
+  }
 
   /** Registers a finalizer to run when the scope is disposed. */
   addFinalizer(finalizer: () => EffectInput<void>): void {
     if (this.disposed) {
-      void runFork(toEffect(finalizer()).pipe(Effect.catch(() => Effect.void)));
+      this.runLateFinalizer(
+        invokeEffectInput("UiScope.finalizer", finalizer).pipe(
+          Effect.catch(() => Effect.void)
+        )
+      );
       return;
     }
 
-    Effect.runSync(
-      Scope.addFinalizer(
-        this.effectScope,
-        toEffect(finalizer()).pipe(Effect.catch(() => Effect.void))
-      )
-    );
+    this.finalizers.push(finalizer);
   }
 
   /** Forks an Effect into this scope so it is interrupted on disposal. */
@@ -72,10 +90,33 @@ export class UiScope {
       }
 
       scope.disposed = true;
-      yield* Scope.close(scope.effectScope, Exit.void);
+      const finalizers = scope.finalizers.splice(0).reverse();
+      const closeExit = yield* Effect.exit(Scope.close(scope.effectScope, Exit.void));
+      for (const finalizer of finalizers) {
+        yield* invokeEffectInput("UiScope.finalizer", finalizer).pipe(
+          Effect.catch(() => Effect.void)
+        );
+      }
+      if (Exit.isFailure(closeExit)) {
+        return yield* Effect.failCause(closeExit.cause);
+      }
     });
   }
 }
+
+/**
+ * Creates a UI lifetime whose late finalizers run on the owning Runtime Spine.
+ *
+ * Framework adapters should use this when a component, route frame, or preload
+ * scope is tied to a runtime so cleanup registered after disposal still sees
+ * the same services and runtime error channel.
+ */
+export const makeRuntimeUiScope = <ER>(runtime: AnyEffectUiRuntime<ER>): UiScope =>
+  new UiScope({
+    runLateFinalizer: (effect) => {
+      void runtime.runFork(effect);
+    }
+  });
 
 let currentScope: UiScope | undefined;
 
@@ -91,6 +132,13 @@ export const runWithScope = <A>(scope: UiScope, f: () => A): A => {
   }
 };
 
+/**
+ * Runs synchronous construction while a new `UiScope` is the ambient UI scope.
+ *
+ * The returned scope is caller-owned. This helper does not dispose it
+ * automatically; framework adapters should close the scope from their host
+ * cleanup hook, and short-lived Effect workflows should prefer `Effect.scoped`.
+ */
 export const scoped = <A>(f: (scope: UiScope) => A): A => {
   const scope = new UiScope();
   return runWithScope(scope, () => f(scope));

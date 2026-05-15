@@ -29,6 +29,7 @@ export interface Capability<Identifier, Shape> {
       f: (service: Shape) => A extends PromiseLike<unknown> ? never : A
     ): Effect.Effect<A, EffectInputCallbackError, Identifier>;
   };
+  /** Synchronously reads the provided service and returns the callback value. */
   readonly useSync: <A>(f: (service: Shape) => A) => Effect.Effect<A, never, Identifier>;
   readonly provide: <A, E, R>(
     effect: Effect.Effect<A, E, R>,
@@ -103,6 +104,7 @@ export namespace Capability {
   ): Layer.Layer<Identifier> =>
     capability.layer(service);
 
+  /** Builds a test Layer for a capability implementation. */
   export const mock = <Identifier, Shape>(
     capability: Capability<Identifier, Shape>,
     service: Shape

@@ -7,11 +7,13 @@ import {
   filePathToRouteManifestEntry,
   FileRouteManifestDuplicateModuleRole,
   FileRouteManifestParseError,
+  FileRouteManifestRouteModuleMismatch,
   generateFileRouteManifest,
   generateFileRouteManifestArtifact,
   generateValidatedFileRouteManifestArtifactEffect,
   serializeFileRouteManifest
 } from "../src/index.js";
+import { FileRouteManifestDuplicateRouteId } from "../src/file-routes.js";
 
 describe("file route manifest generation", () => {
   const options = { routeDirectory: "src/routes" };
@@ -260,6 +262,32 @@ describe("file route manifest generation", () => {
     );
   });
 
+  it("rejects duplicate generated route id slug collisions", () => {
+    return Effect.runPromise(
+      Effect.exit(
+        generateValidatedFileRouteManifestArtifactEffect(
+          [
+            "src/routes/projects/foo-bar.tsx",
+            "src/routes/projects/foo_bar.tsx"
+          ],
+          options
+        )
+      ).pipe(
+        Effect.tap((duplicate) =>
+          Effect.sync(() => {
+            const failure = firstFailure(duplicate);
+            expect(failure).toBeInstanceOf(FileRouteManifestDuplicateRouteId);
+            expect(failure).toMatchObject({
+              _tag: "FileRouteManifestDuplicateRouteId",
+              routeId: "route_projects_foo_bar"
+            });
+          })
+        ),
+        Effect.asVoid
+      )
+    );
+  });
+
   it("round-trips a branded route manifest artifact", () => {
     const manifest = generateFileRouteManifestArtifact(
       [
@@ -285,6 +313,59 @@ describe("file route manifest generation", () => {
         ),
         Effect.asVoid
       )
+    );
+  });
+
+  it("rejects serialized manifests whose route entries and modules disagree", () => {
+    const manifest = generateFileRouteManifestArtifact(
+      ["src/routes/projects/_layout.tsx", "src/routes/projects/$id.tsx"],
+      options
+    );
+    const missingRouteModule = JSON.parse(serializeFileRouteManifest(manifest)) as {
+      modules: Array<{ kind?: string }>;
+    };
+    const orphanRouteModule = JSON.parse(serializeFileRouteManifest(manifest)) as {
+      modules: Array<{ kind?: string; moduleId: string }>;
+    };
+    const duplicateRouteModule = JSON.parse(serializeFileRouteManifest(manifest)) as {
+      modules: Array<{ kind?: string }>;
+    };
+
+    missingRouteModule.modules = missingRouteModule.modules.filter((module) => module.kind !== "Route");
+    orphanRouteModule.modules.find((module) => module.kind === "Route")!.moduleId =
+      "src/routes/projects/orphan.tsx";
+    duplicateRouteModule.modules.push(
+      duplicateRouteModule.modules.find((module) => module.kind === "Route")!
+    );
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const missing = yield* Effect.exit(
+          deserializeFileRouteManifest(JSON.stringify(missingRouteModule))
+        );
+        const orphan = yield* Effect.exit(
+          deserializeFileRouteManifest(JSON.stringify(orphanRouteModule))
+        );
+        const duplicate = yield* Effect.exit(
+          deserializeFileRouteManifest(JSON.stringify(duplicateRouteModule))
+        );
+
+        yield* Effect.sync(() => {
+          expect(firstFailure(missing)).toMatchObject({
+            _tag: "FileRouteManifestRouteModuleMismatch",
+            reason: "MissingRouteModule"
+          });
+          expect(firstFailure(missing)).toBeInstanceOf(FileRouteManifestRouteModuleMismatch);
+          expect(firstFailure(orphan)).toMatchObject({
+            _tag: "FileRouteManifestRouteModuleMismatch",
+            reason: "OrphanRouteModule"
+          });
+          expect(firstFailure(duplicate)).toMatchObject({
+            _tag: "FileRouteManifestRouteModuleMismatch",
+            reason: "DuplicateRouteModule"
+          });
+        });
+      })
     );
   });
 

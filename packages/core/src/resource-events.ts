@@ -1,4 +1,4 @@
-import { Effect, PubSub } from "effect";
+import { Effect } from "effect";
 import type { ResourceInvalidationCause } from "./resource.js";
 import type { ResourceStore, ResourceStoreEvent, ResourceStoreInvalidationCause } from "./resource-store.js";
 
@@ -6,7 +6,7 @@ export const publishResourceStoreEvent = (
   store: ResourceStore,
   event: ResourceStoreEvent
 ): Effect.Effect<void> =>
-  PubSub.publish(store.events, event).pipe(Effect.asVoid);
+  store.eventBus.publishEffect(event);
 
 export const describeResourceStoreInvalidationCause = (
   cause: ResourceInvalidationCause

@@ -29,7 +29,7 @@ hydrateFromDocument(document, undefined, {
 
 const Root = () => (
   <RuntimeProvider runtime={runtime}>
-    <App />
+    <App runtime={runtime} />
   </RuntimeProvider>
 );
 

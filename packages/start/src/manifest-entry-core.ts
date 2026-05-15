@@ -1,4 +1,12 @@
 import { Effect } from "effect";
+import {
+  normalizeStartEndpointPath,
+  startEndpointPathGuidance,
+  startEndpointPathInvalidReason,
+  validateStartEndpointPathEffect,
+  type StartEndpointPathErrorInput,
+  type StartEndpointPathInvalidReason
+} from "./start-transport-endpoints.js";
 
 export type StartManifestModuleKind = "server-only" | "contract" | "shared";
 
@@ -18,6 +26,9 @@ export interface StartManifestValidatedDefinition {
   readonly module: string;
   readonly exportName: string;
 }
+
+export type StartManifestEndpointPathInvalidReason = StartEndpointPathInvalidReason;
+export type StartManifestEndpointPathErrorInput = StartEndpointPathErrorInput;
 
 /**
  * Minimal definition shape shared by action and server-function manifest
@@ -186,21 +197,45 @@ export const compareManifestEntries = <Entry extends StartManifestEntryLike>(
 };
 
 export const isNonEmptyString = (value: unknown): value is string =>
-  typeof value === "string" && value.length > 0;
+  typeof value === "string" && value.trim().length > 0;
 
 export const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
 
+export const startManifestEndpointPathGuidance =
+  startEndpointPathGuidance;
+
+export const startManifestEndpointPathInvalidReason = (
+  value: unknown
+): StartManifestEndpointPathInvalidReason | undefined =>
+  startEndpointPathInvalidReason(value);
+
+export const normalizeManifestEndpointPath = (value: unknown): string | undefined => {
+  return normalizeStartEndpointPath(value);
+};
+
+export const validateManifestEndpointPathEffect = <Error>(
+  value: unknown,
+  options: {
+    readonly field: string;
+    readonly invalidPath: (input: StartManifestEndpointPathErrorInput) => Error;
+  }
+): Effect.Effect<string, Error> =>
+  validateStartEndpointPathEffect(value, options);
+
 export const normalizeManifestModuleId = (id: string): string =>
-  (id.split(/[?#]/, 1)[0] ?? id)
+  (id.trim().split(/[?#]/, 1)[0] ?? id.trim())
     .replace(/\\/g, "/")
     .replace(/\/+/g, "/");
 
+const startManifestServerOnlyModulePattern = /\.(server)\.(?:[cm]?[jt]sx?|tsrx)$/;
+const startManifestContractModulePattern = /\.(contract)\.(?:[cm]?[jt]sx?|tsrx)$/;
+
 export const isStartManifestServerOnlyModule = (id: string): boolean =>
-  /\.(server)\.[cm]?[jt]sx?$/.test(normalizeManifestModuleId(id));
+  startManifestServerOnlyModulePattern.test(normalizeManifestModuleId(id));
 
 export const isStartManifestContractModule = (id: string): boolean =>
-  /\.(contract)\.[cm]?[jt]sx?$/.test(normalizeManifestModuleId(id));
+  startManifestContractModulePattern.test(normalizeManifestModuleId(id));
 
 export const classifyStartManifestModule = (id: string): StartManifestModuleKind => {
   if (isStartManifestServerOnlyModule(id)) {
@@ -245,7 +280,8 @@ export const validateManifestDefinition = <Definition extends StartManifestDefin
     readonly entry: Definition;
   }) => Error
 ): Effect.Effect<StartManifestValidatedDefinition, Error> => {
-  if (!isNonEmptyString(definition.name)) {
+  const name = definition.name.trim();
+  if (!isNonEmptyString(name)) {
     return Effect.fail(
       invalidEntry({
         index,
@@ -266,7 +302,7 @@ export const validateManifestDefinition = <Definition extends StartManifestDefin
     );
   }
 
-  const exportName = definition.exportName ?? "default";
+  const exportName = (definition.exportName ?? "default").trim();
   if (!isNonEmptyString(exportName)) {
     return Effect.fail(
       invalidEntry({
@@ -278,7 +314,7 @@ export const validateManifestDefinition = <Definition extends StartManifestDefin
   }
 
   return Effect.succeed({
-    name: definition.name,
+    name,
     module,
     exportName
   });
@@ -390,6 +426,27 @@ export const assembleCallableManifestEntry = <
     }
 
     const clientModule = normalizeManifestModuleId(definition.clientModule);
+    if (!isNonEmptyString(clientModule)) {
+      return yield* Effect.fail(
+        options.invalidEntry({
+          index: options.index,
+          reason: "MissingModule",
+          entry: definition
+        })
+      );
+    }
+
+    const clientExportName = (definition.clientExportName ?? validated.exportName).trim();
+    if (!isNonEmptyString(clientExportName)) {
+      return yield* Effect.fail(
+        options.invalidEntry({
+          index: options.index,
+          reason: "MissingExportName",
+          entry: definition
+        })
+      );
+    }
+
     const moduleKind = classifyStartManifestModule(clientModule);
     if (moduleKind === "server-only") {
       return yield* Effect.fail(
@@ -411,7 +468,7 @@ export const assembleCallableManifestEntry = <
         name: validated.name,
         transportPath: options.transportPath,
         module: clientModule,
-        exportName: definition.clientExportName ?? validated.exportName,
+        exportName: clientExportName,
         moduleKind
       }),
       wire
@@ -443,12 +500,15 @@ export const decodeSerializedCallableManifestEntry = <Id, Error>(
   const server = value.server;
   const wire = value.wire;
   const client = value.client;
+  const name = typeof value.name === "string" ? value.name.trim() : undefined;
+  const serverModule = typeof server.module === "string" ? normalizeManifestModuleId(server.module) : undefined;
+  const serverExportName = typeof server.exportName === "string" ? server.exportName.trim() : undefined;
   if (
-    !isNonEmptyString(value.name) ||
+    !isNonEmptyString(name) ||
     !isNonEmptyString(value.id) ||
-    value.id !== options.stableId(value.name) ||
-    !isNonEmptyString(server.module) ||
-    !isNonEmptyString(server.exportName) ||
+    value.id !== options.stableId(name) ||
+    !isNonEmptyString(serverModule) ||
+    !isNonEmptyString(serverExportName) ||
     typeof wire.inputSchema !== "boolean" ||
     typeof wire.outputSchema !== "boolean" ||
     typeof wire.errorSchema !== "boolean"
@@ -460,11 +520,13 @@ export const decodeSerializedCallableManifestEntry = <Id, Error>(
     );
   }
 
+  const clientName = typeof client.name === "string" ? client.name.trim() : undefined;
+  const clientTransportPath = normalizeManifestEndpointPath(client[options.transportPathField]);
   if (
     !isNonEmptyString(client.id) ||
     client.id !== value.id ||
-    client.name !== value.name ||
-    client[options.transportPathField] !== options.transportPath
+    clientName !== name ||
+    clientTransportPath !== options.transportPath
   ) {
     return Effect.fail(
       options.parseError(
@@ -473,11 +535,31 @@ export const decodeSerializedCallableManifestEntry = <Id, Error>(
     );
   }
 
+  const serverModuleKind = classifyStartManifestModule(serverModule);
+  if (server.moduleKind !== serverModuleKind) {
+    return Effect.fail(
+      options.parseError(
+        `${options.messageEntryLabel} ${index} has an invalid server module kind.`
+      )
+    );
+  }
+
+  const clientModule = client._tag === "Import" && typeof client.module === "string"
+    ? normalizeManifestModuleId(client.module)
+    : undefined;
+  const clientExportName = client._tag === "Import" && typeof client.exportName === "string"
+    ? client.exportName.trim()
+    : undefined;
+  const clientModuleKind = clientModule === undefined
+    ? undefined
+    : classifyStartManifestModule(clientModule);
   if (
     client._tag !== options.transportClientTag &&
     (client._tag !== "Import" ||
-      !isNonEmptyString(client.module) ||
-      !isNonEmptyString(client.exportName))
+      !isNonEmptyString(clientModule) ||
+      !isNonEmptyString(clientExportName) ||
+      client.moduleKind !== clientModuleKind ||
+      client.moduleKind === "server-only")
   ) {
     return Effect.fail(
       options.parseError(
@@ -486,18 +568,11 @@ export const decodeSerializedCallableManifestEntry = <Id, Error>(
     );
   }
 
-  const clientModule = client._tag === "Import" && isNonEmptyString(client.module)
-    ? client.module
-    : undefined;
-  const clientExportName = client._tag === "Import" && isNonEmptyString(client.exportName)
-    ? client.exportName
-    : undefined;
-
   return Effect.succeed({
-    id: options.stableId(value.name),
-    name: value.name,
-    module: server.module,
-    exportName: server.exportName,
+    id: options.stableId(name),
+    name,
+    module: serverModule,
+    exportName: serverExportName,
     inputSchema: wire.inputSchema,
     outputSchema: wire.outputSchema,
     errorSchema: wire.errorSchema,
@@ -518,26 +593,31 @@ export const decodeSerializedCallableManifest = <Definition, Error>(
     readonly definitions: readonly Definition[];
   },
   Error
-> => {
-  const path = isRecord(value) ? value[options.pathField] : undefined;
-  if (
-    !isRecord(value) ||
-    value.version !== 1 ||
-    !isNonEmptyString(path) ||
-    !Array.isArray(value.entries)
-  ) {
-    return Effect.fail(
-      options.parseError(`Expected a version 1 ${options.manifestName} manifest.`)
-    );
-  }
+> =>
+  Effect.gen(function* () {
+    if (
+      !isRecord(value) ||
+      value.version !== 1 ||
+      !Array.isArray(value.entries)
+    ) {
+      return yield* Effect.fail(
+        options.parseError(`Expected a version 1 ${options.manifestName} manifest.`)
+      );
+    }
 
-  return Effect.map(
-    Effect.forEach(value.entries, (entry, index) =>
+    const path = yield* validateManifestEndpointPathEffect(value[options.pathField], {
+      field: options.pathField,
+      invalidPath: (input) =>
+        options.parseError(
+          `${options.manifestName} manifest has invalid ${input.field}: ${input.guidance}`
+        )
+    });
+    const definitions = yield* Effect.forEach(value.entries, (entry, index) =>
       options.decodeEntry(entry, index, path)
-    ),
-    (definitions) => ({
+    );
+
+    return {
       path,
       definitions
-    })
-  );
-};
+    };
+  });

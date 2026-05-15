@@ -1,7 +1,7 @@
 import { Action, ActionResult, makeRuntime, read, Resource, runWithRuntime } from "@effect-ui/core";
 import { Deferred, Effect, Fiber } from "effect";
 import { describe, expect, it } from "vitest";
-import { type Project } from "./domain.contract.js";
+import { type Project, type ProjectRemoteError } from "./domain.contract.js";
 import {
   makeProjectId,
   makeProjectReturnTo,
@@ -179,6 +179,42 @@ describe("project console contract mocks", () => {
         expect(Resource.read(ref).name).toBe("Mocked Progressive");
         expect(read(action.invalidationPlan)?.entries.map((entry) => entry.ref.key)).toContain(ref.key);
       })
+    );
+  });
+
+  it("normalizes plain ProjectError objects from collection rename failures", () => {
+    const id = makeProjectId("mocked");
+    const ProjectApiPlainError = ProjectApi.mock({
+      list: () => Effect.succeed([mockProject({ id })]),
+      get: (projectId) => Effect.succeed(mockProject({ id: projectId })),
+      rename: () => Effect.fail({ _tag: "InvalidProjectName", name: "At" } as ProjectRemoteError),
+      submitName: ({ id: projectId, name }) =>
+        Effect.succeed(ActionResult.success(mockProject({ id: projectId, name }))),
+      advance: ({ id: projectId }) => Effect.succeed(mockProject({ id: projectId, progress: 51 }))
+    });
+    const runtime = makeRuntime(ProjectApiPlainError);
+    const action = Action.use(RenameProjectFromCollection, { runtime });
+
+    return Effect.runPromise(
+      runtime.provide(
+        action.submitEffect({
+          id,
+          name: "Atlas Rename",
+          redirectTo: makeProjectReturnTo("/projects/mocked?tab=activity")
+        })
+      ).pipe(
+        Effect.tap((result) =>
+          Effect.sync(() => {
+            expect(result).toMatchObject({
+              _tag: "ValidationFailure",
+              fieldErrors: {
+                name: ["Use at least three meaningful characters."]
+              }
+            });
+          })
+        ),
+        Effect.ensuring(runtime.disposeEffect)
+      )
     );
   });
 

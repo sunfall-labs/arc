@@ -1,15 +1,14 @@
 import { Action, ActionResult, Server } from "@effect-ui/core";
-import { Collection, CollectionRowNotFound, CollectionSnapshotCodecError } from "@effect-ui/db";
+import { Collection, CollectionRowKeyChanged, CollectionRowNotFound, CollectionSnapshotCodecError } from "@effect-ui/db";
 import { Effect, Schedule, Schema } from "effect";
 import {
-  InvalidProjectName,
   ProjectApi,
   ProjectNameSubmissionResultSchema,
   ProjectNotFound,
   ProjectSummarySchema,
   SubmitProjectNameInput,
+  normalizeProjectError,
   projectResourceInvalidations,
-  type ProjectError,
   type ProjectId,
   type ProjectNameSubmissionResult,
   type ProjectRemoteError,
@@ -48,30 +47,31 @@ type ProjectNameSubmissionInput = typeof SubmitProjectNameInput.Type;
 
 const validationMessage = "Use at least three meaningful characters.";
 
-const hasTag = (value: unknown, tag: string): boolean =>
-  typeof value === "object" &&
-  value !== null &&
-  (value as { readonly _tag?: unknown })._tag === tag;
-
-const isProjectError = (error: unknown): error is ProjectError =>
-  error instanceof ProjectNotFound ||
-  error instanceof InvalidProjectName ||
-  hasTag(error, "ProjectNotFound") ||
-  hasTag(error, "InvalidProjectName");
-
 const toProjectNameResultError = (
   input: ProjectNameSubmissionInput,
-  error: ProjectRemoteError | CollectionRowNotFound | CollectionSnapshotCodecError
+  error: ProjectRemoteError | CollectionRowKeyChanged | CollectionRowNotFound | CollectionSnapshotCodecError
 ): Effect.Effect<ProjectNameSubmissionResult, Server.ClientError | CollectionSnapshotCodecError> => {
+  const projectError = normalizeProjectError(error);
+
   if (error instanceof CollectionRowNotFound) {
     return ActionResult.failureEffect(new ProjectNotFound({ id: input.id }));
+  }
+
+  if (error instanceof CollectionRowKeyChanged) {
+    return ActionResult.validationEffect<ProjectNameSubmissionInput, string>({
+      fieldErrors: {
+        name: ["Project identity cannot be changed from this form."]
+      },
+      formErrors: [],
+      cause: error
+    });
   }
 
   if (error instanceof CollectionSnapshotCodecError) {
     return Effect.fail(error);
   }
 
-  if (error instanceof InvalidProjectName || hasTag(error, "InvalidProjectName")) {
+  if (projectError?._tag === "InvalidProjectName") {
     return ActionResult.validationEffect<ProjectNameSubmissionInput, string>({
       fieldErrors: {
         name: [validationMessage]
@@ -81,19 +81,14 @@ const toProjectNameResultError = (
     });
   }
 
-  if (isProjectError(error)) {
-    return ActionResult.failureEffect(error);
+  if (projectError !== undefined) {
+    return ActionResult.failureEffect(projectError);
   }
 
   return Effect.fail(error as Server.ClientError);
 };
 
-export const RenameProjectFromCollection = Action.define<
-  ProjectNameSubmissionInput,
-  ProjectNameSubmissionResult,
-  Server.ClientError | CollectionSnapshotCodecError,
-  ProjectApi
->({
+export const RenameProjectFromCollection = Action.define({
   name: "Project.collection.rename",
   input: SubmitProjectNameInput,
   output: ProjectNameSubmissionResultSchema,
@@ -131,7 +126,7 @@ export const RenameProjectFromCollection = Action.define<
         invalidates: projectResourceInvalidations(input.id)
       });
     }).pipe(
-      Effect.catch((error: ProjectRemoteError | CollectionRowNotFound | CollectionSnapshotCodecError) =>
+      Effect.catch((error: ProjectRemoteError | CollectionRowKeyChanged | CollectionRowNotFound | CollectionSnapshotCodecError) =>
         toProjectNameResultError(input, error)
       )
     );

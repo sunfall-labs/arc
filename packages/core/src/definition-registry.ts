@@ -20,8 +20,8 @@ export interface CoreDefinitionRegistry<
 /**
  * Definitions accepted by `defineApp(...)` or `makeCoreDefinitionRegistry(...)`.
  *
- * Iterables are keyed by each definition's `name`; maps are copied using their
- * existing keys.
+ * Iterables and maps are keyed by each definition's `name`; map keys are
+ * treated only as caller-owned labels and are not trusted as registry identity.
  */
 export interface CoreDefinitionRegistryInput<
   ActionDefinition extends NamedCoreDefinition = NamedCoreDefinition,
@@ -33,15 +33,19 @@ export interface CoreDefinitionRegistryInput<
     | ReadonlyMap<string, ServerFunctionDefinition>;
 }
 
+/** Duplicate-name policy for process-wide Action and Server definition registries. */
 export type CoreDefinitionRegistryDuplicatePolicy = "keep-first" | "replace";
 
+/** Options for creating a mutable Core Definition Registry Adapter. */
 export interface CoreDefinitionRegistryAdapterOptions {
   /** Duplicate-name handling. Defaults to `replace` to preserve Action/Server redefine semantics. */
   readonly duplicates?: CoreDefinitionRegistryDuplicatePolicy;
 }
 
+/** Kind of definition stored in the Core Definition Registry. */
 export type CoreDefinitionRegistryKind = "action" | "serverFunction";
 
+/** Result of registering one named Action or Server function definition. */
 export interface CoreDefinitionRegistration<Definition extends NamedCoreDefinition = NamedCoreDefinition> {
   readonly kind: CoreDefinitionRegistryKind;
   readonly name: string;
@@ -51,6 +55,7 @@ export interface CoreDefinitionRegistration<Definition extends NamedCoreDefiniti
   readonly retained: Definition;
 }
 
+/** Diagnostic entry recorded when duplicate named definitions are encountered. */
 export interface CoreDefinitionDuplicateDiagnostics {
   readonly kind: CoreDefinitionRegistryKind;
   readonly name: string;
@@ -59,12 +64,19 @@ export interface CoreDefinitionDuplicateDiagnostics {
   readonly discarded: number;
 }
 
+/** Snapshot of registered Core definitions and duplicate-name diagnostics. */
 export interface CoreDefinitionRegistryDiagnostics {
   readonly actions: readonly string[];
   readonly serverFunctions: readonly string[];
   readonly duplicates: readonly CoreDefinitionDuplicateDiagnostics[];
 }
 
+/**
+ * Mutable registry Adapter for named core definitions.
+ *
+ * Build tools, tests, and `defineApp(...)` use this seam to capture Actions and
+ * Server functions without reading module-global state directly.
+ */
 export interface CoreDefinitionRegistryAdapter<
   ActionDefinition extends NamedCoreDefinition = NamedCoreDefinition,
   ServerFunctionDefinition extends NamedCoreDefinition = NamedCoreDefinition
@@ -97,9 +109,9 @@ const definitionMap = <Definition extends NamedCoreDefinition>(
   }
 
   if (isDefinitionMap(definitions)) {
-    for (const [name, definition] of definitions) {
-      if (!map.has(name)) {
-        map.set(name, definition);
+    for (const [, definition] of definitions) {
+      if (!map.has(definition.name)) {
+        map.set(definition.name, definition);
       }
     }
     return map;
@@ -200,6 +212,7 @@ const makeRegistration = <Definition extends NamedCoreDefinition>(
   };
 };
 
+/** Creates a mutable Core Definition Registry Adapter with duplicate tracking. */
 export const makeCoreDefinitionRegistryAdapter = <
   ActionDefinition extends NamedCoreDefinition = NamedCoreDefinition,
   ServerFunctionDefinition extends NamedCoreDefinition = NamedCoreDefinition
@@ -254,14 +267,25 @@ export const makeCoreDefinitionRegistryAdapter = <
     clearActionsUnsafe: () => {
       actions.clear();
       actionEntries.clear();
+      for (let index = duplicates.length - 1; index >= 0; index--) {
+        if (duplicates[index]?.kind === "action") {
+          duplicates.splice(index, 1);
+        }
+      }
     },
     clearServerFunctionsUnsafe: () => {
       serverFunctions.clear();
       serverFunctionEntries.clear();
+      for (let index = duplicates.length - 1; index >= 0; index--) {
+        if (duplicates[index]?.kind === "serverFunction") {
+          duplicates.splice(index, 1);
+        }
+      }
     }
   };
 };
 
+/** Process-wide Core Definition Registry used by Action and Server factories. */
 export const defaultCoreDefinitionRegistry = makeCoreDefinitionRegistryAdapter();
 
 /** Captures the current process-wide action and server function registries. */
@@ -330,5 +354,6 @@ export const clearServerFunctionDefinitionRegistryUnsafe = (): void => {
   defaultCoreDefinitionRegistry.clearServerFunctionsUnsafe();
 };
 
+/** Returns process-wide Action/Server definition diagnostics. */
 export const coreDefinitionRegistryDiagnostics = (): CoreDefinitionRegistryDiagnostics =>
   defaultCoreDefinitionRegistry.diagnostics();

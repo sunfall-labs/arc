@@ -1,8 +1,9 @@
-import { toEffect, type EffectInput } from "@effect-ui/core";
+import { invokeEffectInput, toEffect, type EffectInput, type EffectInputCallbackError } from "@effect-ui/core";
 import { Effect } from "effect";
 import type {
   AnyCollection,
   CollectionError,
+  CollectionRuntimeError,
   CollectionRequirements,
   CollectionTransaction
 } from "./collection-contract.js";
@@ -63,7 +64,7 @@ export type FlushCollectionPendingMutationsResult =
 export type FlushCollectionsPendingMutationsError<
   Collections extends Iterable<AnyCollection>,
   SkipError = never
-> = CollectionError<IterableCollection<Collections>> | SkipError;
+> = CollectionRuntimeError<CollectionError<IterableCollection<Collections>>> | SkipError | EffectInputCallbackError;
 
 export type FlushCollectionsPendingMutationsRequirements<
   Collections extends Iterable<AnyCollection>,
@@ -151,7 +152,7 @@ export type CollectionBackgroundSyncError<
   Collections extends Iterable<AnyCollection>,
   AdapterError = never,
   SkipError = never
-> = FlushCollectionsPendingMutationsError<Collections, SkipError> | AdapterError;
+> = FlushCollectionsPendingMutationsError<Collections, SkipError> | AdapterError | EffectInputCallbackError;
 
 export type CollectionBackgroundSyncRequirements<
   Collections extends Iterable<AnyCollection>,
@@ -162,13 +163,14 @@ export type CollectionBackgroundSyncRequirements<
 const shouldSkipCollection = <SkipError, SkipRequirements>(
   skip: FlushCollectionPendingMutationsSkip<SkipError, SkipRequirements> | undefined,
   context: FlushCollectionPendingMutationsContext
-): Effect.Effect<boolean, SkipError, SkipRequirements> => {
+): Effect.Effect<boolean, SkipError | EffectInputCallbackError, SkipRequirements> => {
   if (!skip) {
     return Effect.succeed(false);
   }
 
-  const value = typeof skip === "function" ? skip(context) : skip;
-  return toEffect(value);
+  return typeof skip === "function"
+    ? invokeEffectInput("Collection.flush.skip", skip, context)
+    : toEffect(skip);
 };
 
 const backgroundSyncPending = (
@@ -271,11 +273,11 @@ export const backgroundSyncCollectionsPendingMutationsEffect = <
 
     if (options.adapter) {
       const shouldFlush = yield* (
-        toEffect(options.adapter.shouldFlush({
+        invokeEffectInput("Collection.backgroundSync.shouldFlush", options.adapter.shouldFlush, {
           trigger,
           collections: collectionArray.map((collection) => collection.name),
           pending
-        }))
+        })
       );
 
       if (!shouldFlush) {

@@ -10,6 +10,7 @@ import {
 } from "./collection-snapshot-codec.js";
 import {
   bumpCollectionState,
+  cloneFrozenCollectionTransaction,
   type CollectionState,
   type PendingMutationEntry,
   type StoredRow
@@ -21,11 +22,12 @@ export const createCollectionTransaction = <A extends object, K extends Collecti
   state: CollectionState<A, K, any>,
   collection: string,
   mutations: ReadonlyArray<CollectionMutation<A, K>>
-): CollectionTransaction<A, K> => ({
-  id: `ctx_${++state.nextTransactionId}`,
-  collection,
-  mutations
-});
+): CollectionTransaction<A, K> =>
+  cloneFrozenCollectionTransaction({
+    id: `ctx_${++state.nextTransactionId}`,
+    collection,
+    mutations
+  });
 
 export const advanceCollectionTransactionIdentity = (
   state: CollectionState<any, any, any>,
@@ -60,10 +62,11 @@ export const enqueuePendingMutation = <A extends object, K extends CollectionKey
   }
 
   const entry: PendingMutationEntry<A, K> = {
-    transaction: mutation,
+    transaction: cloneFrozenCollectionTransaction(mutation),
     rollbackRows: new Map(rollbackRows),
     createdAt,
-    attempts: 0
+    attempts: 0,
+    activeAttempt: undefined
   };
   state.pendingMutations.set(mutation.id, entry);
   bumpCollectionState(state);

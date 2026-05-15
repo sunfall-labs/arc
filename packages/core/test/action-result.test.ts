@@ -171,6 +171,70 @@ describe("ActionResult", () => {
     );
   });
 
+  it("snapshots and freezes invalidations carried by ActionResult values", () => {
+    const First = Resource.family({
+      name: "ActionResult.freeze-first",
+      load: () => Effect.succeed(1)
+    });
+    const Second = Resource.family({
+      name: "ActionResult.freeze-second",
+      load: () => Effect.succeed(2)
+    });
+    const firstRef = First(undefined);
+    const secondRef = Second(undefined);
+    const invalidates = [firstRef];
+
+    const result = ActionResult.success(1, { invalidates });
+    invalidates.push(secondRef);
+    const carried = ActionResult.invalidations(result);
+
+    expect(carried).toEqual([firstRef]);
+    expect(Object.isFrozen(carried)).toBe(true);
+    expect(() => (carried as Resource.Invalidation[]).push(secondRef)).toThrow(TypeError);
+
+    const extended = ActionResult.withInvalidation(result, [secondRef]);
+    expect(ActionResult.invalidations(extended)).toEqual([firstRef, secondRef]);
+    expect(Object.isFrozen(ActionResult.invalidations(extended))).toBe(true);
+  });
+
+  it("snapshots and freezes redirect headers", () => {
+    const headers = {
+      "x-action": "created"
+    };
+
+    const result = ActionResult.redirect("/projects/atlas", { headers });
+    headers["x-action"] = "mutated";
+    headers["x-extra"] = "ignored";
+
+    expect(result.headers).toEqual({ "x-action": "created" });
+    expect(Object.isFrozen(result.headers)).toBe(true);
+  });
+
+  it("snapshots and freezes validation error containers", () => {
+    const fieldError = { code: "too-short" };
+    const formError = { code: "invalid-form" };
+    const fieldErrors = {
+      name: [fieldError]
+    };
+    const formErrors = [formError];
+
+    const result = ActionResult.validation<{ readonly name: string }, { code: string }>({
+      fieldErrors,
+      formErrors
+    });
+    fieldErrors.name.push({ code: "mutated-field" });
+    fieldErrors.name = [{ code: "replaced-field" }];
+    formErrors.push({ code: "mutated-form" });
+
+    expect(result.fieldErrors).toEqual({ name: [fieldError] });
+    expect(result.formErrors).toEqual([formError]);
+    expect(Object.isFrozen(result.fieldErrors)).toBe(true);
+    expect(Object.isFrozen(result.fieldErrors.name)).toBe(true);
+    expect(Object.isFrozen(result.formErrors)).toBe(true);
+    expect(Object.isFrozen(fieldError)).toBe(false);
+    expect(Object.isFrozen(formError)).toBe(false);
+  });
+
   it("merges ActionResult invalidations with definition invalidations", () => {
     let left = 0;
     let right = 0;

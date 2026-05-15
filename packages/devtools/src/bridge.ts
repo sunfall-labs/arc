@@ -1,6 +1,12 @@
 import { Effect, type Scope } from "effect";
 import type { DevtoolsPanelId, DevtoolsPanels } from "./index.js";
 
+/**
+ * Global property name used by app-side Devtools bridge installers.
+ *
+ * Browser extensions and embedded shells can read this value from the inspected
+ * window to obtain the latest panel payload without coupling to app internals.
+ */
 export const effectUiDevtoolsBridgeGlobal = "__EFFECT_UI_DEVTOOLS__" as const;
 
 /** Payload exposed by an inspected app to a browser-extension or app-side Devtools shell. */
@@ -10,6 +16,12 @@ export interface DevtoolsBridgePayload {
   readonly title?: string;
 }
 
+/**
+ * Bridge payload provider installed on the inspected window.
+ *
+ * Use a plain payload for static snapshots, or a callback when the extension
+ * should pull fresh panel data each time it inspects the bridge.
+ */
 export type DevtoolsBridgeProvider =
   | DevtoolsBridgePayload
   | (() => DevtoolsBridgePayload);

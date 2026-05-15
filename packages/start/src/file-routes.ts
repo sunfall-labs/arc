@@ -14,52 +14,83 @@ import {
   isFileRoutePathlessSegment
 } from "./file-route-segments.js";
 
+/** Branded id derived from a source file path in the routes directory. */
 export const FileRouteSourceId = Schema.String.pipe(Schema.brand("FileRouteSourceId"));
 export type FileRouteSourceId = typeof FileRouteSourceId.Type;
 
+/** Branded route id generated from decoded file-route path segments. */
 export const FileRouteId = Schema.String.pipe(Schema.brand("FileRouteId"));
 export type FileRouteId = typeof FileRouteId.Type;
 
+/** Brands a normalized source id. */
 export const makeFileRouteSourceId = (id: string): FileRouteSourceId =>
   Schema.decodeUnknownSync(FileRouteSourceId)(id);
 
+/** Brands a generated route id. */
 export const makeFileRouteId = (id: string): FileRouteId =>
   Schema.decodeUnknownSync(FileRouteId)(id);
 
+/** Decoded route path segment used by file-route manifests. */
 export type FileRouteSegment = RoutePathSegment;
+/** Decoded path parameter used by file-route manifests. */
 export type FileRouteParam = RoutePathParam;
 
+/** File-route module roles discovered from file names such as route/layout/error/metadata. */
 export type FileRouteModuleKind = "Route" | "Layout" | "ErrorBoundary" | "Metadata";
 
+/** One module discovered from the file-route tree. */
 export interface FileRouteManifestModule {
+  /** Source-file identity relative to the route directory. */
   readonly id: FileRouteSourceId;
+  /** Role this module plays for its route path. */
   readonly kind: FileRouteModuleKind;
+  /** Generated route identity shared by all modules for the same route path. */
   readonly routeId: FileRouteId;
+  /** Importable module id used by generated virtual modules. */
   readonly moduleId: string;
+  /** Normalized file path on disk. */
   readonly filePath: string;
+  /** Runtime route path, e.g. `/projects/:id`. */
   readonly routePath: string;
+  /** Decoded route path segments. */
   readonly segments: readonly FileRouteSegment[];
+  /** Path parameters present in `routePath`. */
   readonly params: readonly FileRouteParam[];
+  /** Export name expected from this module role. */
   readonly exportName: string;
 }
 
+/** Route entry used by generated route definitions and app graph diagnostics. */
 export interface FileRouteManifestEntry {
+  /** Source-file identity for the route module. */
   readonly id: FileRouteSourceId;
+  /** Generated route identity. */
   readonly routeId: FileRouteId;
+  /** Importable module id for the route module. */
   readonly moduleId: string;
+  /** Normalized file path on disk. */
   readonly filePath: string;
+  /** Runtime route path, e.g. `/projects/:id`. */
   readonly routePath: string;
+  /** Decoded route path segments. */
   readonly segments: readonly FileRouteSegment[];
+  /** Path parameters present in `routePath`. */
   readonly params: readonly FileRouteParam[];
 }
 
+/** Complete file-route manifest emitted by discovery and virtual modules. */
 export interface FileRouteManifest {
+  /** Manifest schema version. */
   readonly version: 1;
+  /** Route entries that produce runtime route definitions. */
   readonly entries: readonly FileRouteManifestEntry[];
+  /** All route-related modules, including layout/error/metadata modules. */
   readonly modules: readonly FileRouteManifestModule[];
+  /** Optional route directory used to make file paths relative. */
   readonly routeDirectory?: string;
 }
 
+/** Per-route metadata projected from a complete file-route manifest. */
 export interface FileRouteRouteMetadata {
   readonly routeId: FileRouteId;
   readonly routePath: string;
@@ -71,8 +102,11 @@ export interface FileRouteRouteMetadata {
   readonly metadataModules: readonly FileRouteManifestModule[];
 }
 
+/** Options for turning file paths into route manifest entries. */
 export interface FileRouteManifestOptions {
+  /** Directory prefix stripped from discovered files before route decoding. */
   readonly routeDirectory?: string;
+  /** File extensions treated as route modules. Defaults to common TS/JS extensions. */
   readonly extensions?: readonly string[];
 }
 
@@ -80,6 +114,14 @@ export class FileRouteManifestDuplicateRoutePath extends Data.TaggedError(
   "FileRouteManifestDuplicateRoutePath"
 )<{
   readonly routePath: string;
+  readonly first: FileRouteManifestEntry;
+  readonly second: FileRouteManifestEntry;
+}> {}
+
+export class FileRouteManifestDuplicateRouteId extends Data.TaggedError(
+  "FileRouteManifestDuplicateRouteId"
+)<{
+  readonly routeId: FileRouteId;
   readonly first: FileRouteManifestEntry;
   readonly second: FileRouteManifestEntry;
 }> {}
@@ -101,6 +143,18 @@ export class FileRouteManifestDuplicateModuleRole extends Data.TaggedError(
   readonly second: FileRouteManifestModule;
 }> {}
 
+export class FileRouteManifestRouteModuleMismatch extends Data.TaggedError(
+  "FileRouteManifestRouteModuleMismatch"
+)<{
+  readonly reason: "MissingRouteModule" | "DuplicateRouteModule" | "OrphanRouteModule";
+  readonly routePath: string;
+  readonly moduleId: string;
+  readonly entry?: FileRouteManifestEntry;
+  readonly module?: FileRouteManifestModule;
+  readonly first?: FileRouteManifestModule;
+  readonly second?: FileRouteManifestModule;
+}> {}
+
 export class FileRouteManifestParseError extends Data.TaggedError(
   "FileRouteManifestParseError"
 )<{
@@ -110,7 +164,9 @@ export class FileRouteManifestParseError extends Data.TaggedError(
 
 export type FileRouteManifestError =
   | FileRouteManifestDuplicateRoutePath
+  | FileRouteManifestDuplicateRouteId
   | FileRouteManifestDuplicateModuleRole
+  | FileRouteManifestRouteModuleMismatch
   | FileRouteManifestInvalidSegment;
 
 export const defaultFileRouteExtensions = [
@@ -325,6 +381,7 @@ const manifestEntryToRouteModule = (
   exportName: exportNameForModuleKind("Route")
 });
 
+/** Converts one file path to a route/layout/error/metadata module when it matches route conventions. */
 export const filePathToFileRouteModule = (
   filePath: string,
   options: FileRouteManifestOptions = {}
@@ -366,6 +423,7 @@ export const filePathToFileRouteModule = (
   };
 };
 
+/** Effect variant of `filePathToFileRouteModule` that reports invalid route segments. */
 export const filePathToFileRouteModuleEffect = (
   filePath: string,
   options: FileRouteManifestOptions = {}
@@ -407,18 +465,21 @@ export const filePathToFileRouteModuleEffect = (
     };
   });
 
+/** Converts one file path to a route entry, ignoring non-route companion modules. */
 export const filePathToRouteManifestEntry = (
   filePath: string,
   options: FileRouteManifestOptions = {}
 ): FileRouteManifestEntry | undefined =>
   fileRouteModuleToManifestEntry(filePathToFileRouteModule(filePath, options));
 
+/** Effect variant of `filePathToRouteManifestEntry` that reports invalid route segments. */
 export const filePathToRouteManifestEntryEffect = (
   filePath: string,
   options: FileRouteManifestOptions = {}
 ): Effect.Effect<FileRouteManifestEntry | undefined, FileRouteManifestInvalidSegment> =>
   Effect.map(filePathToFileRouteModuleEffect(filePath, options), fileRouteModuleToManifestEntry);
 
+/** Generates sorted route entries from discovered file paths without duplicate validation. */
 export const generateFileRouteManifest = (
   filePaths: Iterable<string>,
   options: FileRouteManifestOptions = {}
@@ -427,6 +488,7 @@ export const generateFileRouteManifest = (
     .filter((entry): entry is FileRouteManifestEntry => entry !== undefined)
     .sort(compareManifestEntries);
 
+/** Generates sorted route, layout, error-boundary, and metadata modules from discovered file paths. */
 export const generateFileRouteModules = (
   filePaths: Iterable<string>,
   options: FileRouteManifestOptions = {}
@@ -435,14 +497,17 @@ export const generateFileRouteModules = (
     .filter((module): module is FileRouteManifestModule => module !== undefined)
     .sort(compareManifestModules);
 
+/** Validates duplicate route paths and route/module consistency. */
 export const validateFileRouteManifestEffect = (
   entries: Iterable<FileRouteManifestEntry>,
-  modules: Iterable<FileRouteManifestModule> = []
+  modules?: Iterable<FileRouteManifestModule>
 ): Effect.Effect<readonly FileRouteManifestEntry[], FileRouteManifestError> =>
   Effect.gen(function* () {
     const byRoutePath = new Map<string, FileRouteManifestEntry>();
+    const byRouteId = new Map<string, FileRouteManifestEntry>();
     const result = Array.from(entries).sort(compareManifestEntries);
-    const moduleResult = Array.from(modules);
+    const moduleResult = Array.from(modules ?? []);
+    const validateRouteModules = modules !== undefined;
     const byModuleRole = new Map<string, FileRouteManifestModule>();
 
     for (const entry of result) {
@@ -457,6 +522,18 @@ export const validateFileRouteManifestEffect = (
         );
       }
       byRoutePath.set(entry.routePath, entry);
+
+      const existingRouteId = byRouteId.get(entry.routeId);
+      if (existingRouteId) {
+        return yield* Effect.fail(
+          new FileRouteManifestDuplicateRouteId({
+            routeId: entry.routeId,
+            first: existingRouteId,
+            second: entry
+          })
+        );
+      }
+      byRouteId.set(entry.routeId, entry);
     }
 
     for (const module of moduleResult) {
@@ -479,9 +556,65 @@ export const validateFileRouteManifestEffect = (
       byModuleRole.set(key, module);
     }
 
+    if (validateRouteModules) {
+      const routeModulesByEntry = new Map<string, FileRouteManifestModule[]>();
+      const entryKeys = new Set<string>();
+      const routeModuleKey = (routePath: string, moduleId: string) => `${routePath}\u0000${moduleId}`;
+      for (const entry of result) {
+        entryKeys.add(routeModuleKey(entry.routePath, entry.moduleId));
+      }
+      for (const module of moduleResult) {
+        if (module.kind !== "Route") {
+          continue;
+        }
+
+        const key = routeModuleKey(module.routePath, module.moduleId);
+        if (!entryKeys.has(key)) {
+          return yield* Effect.fail(
+            new FileRouteManifestRouteModuleMismatch({
+              reason: "OrphanRouteModule",
+              routePath: module.routePath,
+              moduleId: module.moduleId,
+              module
+            })
+          );
+        }
+        routeModulesByEntry.set(key, [...(routeModulesByEntry.get(key) ?? []), module]);
+      }
+      for (const entry of result) {
+        const key = routeModuleKey(entry.routePath, entry.moduleId);
+        const matching = routeModulesByEntry.get(key) ?? [];
+        if (matching.length === 0) {
+          return yield* Effect.fail(
+            new FileRouteManifestRouteModuleMismatch({
+              reason: "MissingRouteModule",
+              routePath: entry.routePath,
+              moduleId: entry.moduleId,
+              entry
+            })
+          );
+        }
+        if (matching.length > 1) {
+          const first = matching[0]!;
+          const second = matching[1]!;
+          return yield* Effect.fail(
+            new FileRouteManifestRouteModuleMismatch({
+              reason: "DuplicateRouteModule",
+              routePath: entry.routePath,
+              moduleId: entry.moduleId,
+              entry,
+              first,
+              second
+            })
+          );
+        }
+      }
+    }
+
     return result;
   });
 
+/** Creates a normalized manifest from route entries and optional explicit modules. */
 export const createFileRouteManifest = (
   entries: Iterable<FileRouteManifestEntry>,
   options: FileRouteManifestOptions = {},
@@ -504,6 +637,7 @@ export const createFileRouteManifest = (
   };
 };
 
+/** Serializes a file-route manifest for virtual-module handoff. */
 export const serializeFileRouteManifest = (manifest: FileRouteManifest): string =>
   JSON.stringify(manifest);
 
@@ -632,10 +766,11 @@ const decodeSerializedManifest = (
     }
 
     const entries = yield* Effect.forEach(value.entries, decodeSerializedEntry);
-    const modules = value.modules === undefined
-      ? []
-      : yield* Effect.forEach(value.modules, decodeSerializedModule);
-    const validated = yield* validateFileRouteManifestEffect(entries, modules);
+    const hasSerializedModules = value.modules !== undefined;
+    const modules = hasSerializedModules
+      ? yield* Effect.forEach(value.modules as ReadonlyArray<unknown>, decodeSerializedModule)
+      : [];
+    const validated = yield* validateFileRouteManifestEffect(entries, hasSerializedModules ? modules : undefined);
 
     return createFileRouteManifest(validated, {
       ...(value.routeDirectory === undefined
@@ -644,6 +779,7 @@ const decodeSerializedManifest = (
     }, modules);
   });
 
+/** Parses and validates a serialized file-route manifest. */
 export const deserializeFileRouteManifest = (
   serialized: string
 ): Effect.Effect<FileRouteManifest, FileRouteManifestParseError | FileRouteManifestError> =>
@@ -656,6 +792,7 @@ export const deserializeFileRouteManifest = (
       })
   }).pipe(Effect.flatMap(decodeSerializedManifest));
 
+/** Generates the full manifest artifact used by Start virtual modules. */
 export const generateFileRouteManifestArtifact = (
   filePaths: Iterable<string>,
   options: FileRouteManifestOptions = {}
@@ -691,12 +828,14 @@ const generateValidatedFileRouteManifestPartsEffect = (
     };
   });
 
+/** Generates validated route entries and reports manifest errors in the Effect channel. */
 export const generateValidatedFileRouteManifestEffect = (
   filePaths: Iterable<string>,
   options: FileRouteManifestOptions = {}
 ): Effect.Effect<readonly FileRouteManifestEntry[], FileRouteManifestError> =>
   Effect.map(generateValidatedFileRouteManifestPartsEffect(filePaths, options), (parts) => parts.entries);
 
+/** Generates a validated full manifest artifact with route and companion modules. */
 export const generateValidatedFileRouteManifestArtifactEffect = (
   filePaths: Iterable<string>,
   options: FileRouteManifestOptions = {}
@@ -713,6 +852,7 @@ const compareByDepthThenPath = (
   return depth === 0 ? compareString(left.filePath, right.filePath) : depth;
 };
 
+/** Projects a manifest into per-route metadata including parent/layout/error relationships. */
 export const describeFileRouteManifest = (
   manifest: FileRouteManifest
 ): readonly FileRouteRouteMetadata[] => {

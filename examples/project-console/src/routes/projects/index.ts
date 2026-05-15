@@ -1,16 +1,14 @@
 import { defineFileRoute } from "@effect-ui/start";
-import { Effect } from "effect";
-import { preloadProjectsEffect, ProjectsRef } from "../../domain.js";
+import { ProjectList } from "../../domain.js";
 import { ProjectSummaries } from "../../project-collections.js";
 
-export const Route = defineFileRoute("/projects")({
-  preloadResources: [ProjectsRef],
-  preloadCollections: [ProjectSummaries],
-  preload: () =>
-    Effect.asVoid(
-      Effect.all([
-        preloadProjectsEffect,
-        ProjectSummaries.preloadEffect()
-      ])
-    )
+const RouteBuilder = defineFileRoute("/projects");
+
+export const Route = RouteBuilder({
+  ...RouteBuilder.preload({
+    resources: [
+      RouteBuilder.resource(ProjectList, () => "all" as const)
+    ],
+    collections: [ProjectSummaries]
+  })
 });

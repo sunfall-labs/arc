@@ -3,12 +3,15 @@ import {
   devtoolsActionNodeId as actionNodeId,
   devtoolsCollectionNodeId as collectionNodeId,
   devtoolsInvalidationNodeId as invalidationNodeId,
+  devtoolsProgramNodeId as programNodeId,
   devtoolsRequestTraceNodeId as requestTraceNodeId,
   devtoolsResourceNodeId as resourceNodeId,
   devtoolsRoutePlanNodeId as routePlanNodeId,
   devtoolsRuntimeEventSummaryId as runtimeEventSummaryId,
   devtoolsRuntimeTargetLabel as runtimeTargetLabel
 } from "./graph-ids.js";
+import { normalizeRequestTraceFacts, stableFactFingerprint } from "./fact-identity.js";
+import { normalizeDevtoolsAppGraphDiagnostics } from "./app-graph-normalizer.js";
 import { toDevtoolsSerializableValue } from "./serialization.js";
 import type {
   DevtoolsCollectionStoreEvent,
@@ -20,6 +23,8 @@ import type {
   DevtoolsRuntimeEvent,
   DevtoolsSerializableValue,
   DevtoolsSnapshot,
+  DevtoolsStartAppGraphDiagnostics,
+  DevtoolsSummaryInput,
   DevtoolsSummaryInvalidationCause,
   DevtoolsSummaryInvalidationPlan,
   DevtoolsSummaryInvalidationTarget,
@@ -39,6 +44,17 @@ export const emptySnapshot = (): DevtoolsSnapshot => ({
   invalidations: [],
   routePlans: []
 });
+
+export interface NormalizedDevtoolsSummaryInput {
+  readonly snapshot: DevtoolsSnapshot;
+  readonly appGraph: DevtoolsStartAppGraphDiagnostics | undefined;
+  readonly invalidations: ReadonlyArray<DevtoolsSummaryInvalidationPlan>;
+  readonly routePlans: ReadonlyArray<DevtoolsSummaryRoutePlan>;
+  readonly requestTraces: ReadonlyArray<DevtoolsRequestTrace>;
+  readonly requestTraceSummaries: ReadonlyArray<DevtoolsSummaryRequestTrace>;
+  readonly runtimeEvents: ReadonlyArray<DevtoolsSummaryRuntimeEvent>;
+  readonly resources: ReadonlyArray<DevtoolsSummaryResource>;
+}
 
 const stateCounts = (
   entries: Iterable<{ readonly state: string }>
@@ -88,20 +104,32 @@ export const summarizeInvalidationPlan = (
   }))
 });
 
+const hydratedResourceKeys = (plan: DevtoolsRoutePlan): ReadonlyArray<string> => {
+  if (plan.hydration.resourceKeys !== undefined) {
+    return [...plan.hydration.resourceKeys];
+  }
+
+  return [];
+};
+
 export const summarizeRoutePlan = (
   plan: DevtoolsRoutePlan,
   index: number
-): DevtoolsSummaryRoutePlan => ({
-  index,
-  _tag: plan._tag,
-  href: plan.href,
-  path: plan.match?.path ?? null,
-  params: plan.match ? toDevtoolsSerializableValue(plan.match.params) : null,
-  search: plan.match ? toDevtoolsSerializableValue(plan.match.search) : null,
-  resourceCount: plan.resources.length,
-  hydrationResourceCount: plan.hydration.resourceCount,
-  resources: plan.resources.map(summarizeResourceRef)
-});
+): DevtoolsSummaryRoutePlan => {
+  const hydratedKeys = hydratedResourceKeys(plan);
+  return {
+    index,
+    _tag: plan._tag,
+    href: plan.href,
+    path: plan.match?.path ?? null,
+    params: plan.match ? toDevtoolsSerializableValue(plan.match.params) : null,
+    search: plan.match ? toDevtoolsSerializableValue(plan.match.search) : null,
+    resourceCount: plan.resources.length,
+    hydrationResourceCount: plan.hydration.resourceCount,
+    hydratedResourceKeys: hydratedKeys,
+    resources: plan.resources.map(summarizeResourceRef)
+  };
+};
 
 const summarizeTeardownSnapshot = (
   snapshot: DevtoolsRequestTraceTeardownSnapshot | undefined
@@ -177,9 +205,52 @@ const collectionEventTarget = (event: DevtoolsCollectionStoreEvent): { readonly 
   label: event.collection
 });
 
+interface RuntimeEventFactIndexes {
+  readonly invalidations: ReadonlyMap<string, number>;
+  readonly invalidationCount: number;
+  readonly routePlans: ReadonlyMap<string, number>;
+  readonly routePlanCount: number;
+}
+
+const emptyRuntimeEventFactIndexes = (): RuntimeEventFactIndexes => ({
+  invalidations: new Map(),
+  invalidationCount: 0,
+  routePlans: new Map(),
+  routePlanCount: 0
+});
+
+const firstFactIndexes = <Fact>(
+  facts: ReadonlyArray<Fact>
+): ReadonlyMap<string, number> => {
+  const indexes = new Map<string, number>();
+  facts.forEach((fact, index) => {
+    const fingerprint = stableFactFingerprint(fact);
+    if (fingerprint !== undefined && !indexes.has(fingerprint)) {
+      indexes.set(fingerprint, index);
+    }
+  });
+  return indexes;
+};
+
+const matchingFactIndex = <Fact>(
+  indexes: ReadonlyMap<string, number>,
+  fact: Fact
+): number | undefined => {
+  const fingerprint = stableFactFingerprint(fact);
+  return fingerprint === undefined ? undefined : indexes.get(fingerprint);
+};
+
+const programEventName = (
+  event: DevtoolsRuntimeEvent & { readonly _tag: "ProgramEvent" }
+): string =>
+  typeof event.event.program === "string" && event.event.program.length > 0
+    ? event.event.program
+    : "Program";
+
 export const summarizeRuntimeEvent = (
   event: DevtoolsRuntimeEvent,
-  index: number
+  index: number,
+  factIndexes: RuntimeEventFactIndexes = emptyRuntimeEventFactIndexes()
 ): DevtoolsSummaryRuntimeEvent => {
   const sequence = event.sequence ?? index;
   const at = event.at ?? null;
@@ -217,6 +288,22 @@ export const summarizeRuntimeEvent = (
         data: toDevtoolsSerializableValue(event.event)
       };
     }
+    case "ProgramEvent": {
+      const program = programEventName(event);
+      return {
+        index,
+        id: runtimeEventSummaryId(sequence, "ProgramEvent"),
+        _tag: event._tag,
+        sequence,
+        at,
+        label: `${program} ${event.event._tag}`,
+        target: {
+          kind: "Program",
+          id: programNodeId(program)
+        },
+        data: toDevtoolsSerializableValue(event.event)
+      };
+    }
     case "ActionState":
       return {
         index,
@@ -237,6 +324,10 @@ export const summarizeRuntimeEvent = (
         })
       };
     case "Invalidation":
+      const invalidationIndex =
+        event.invalidationIndex ?? matchingFactIndex(factIndexes.invalidations, event.plan);
+      const invalidationTargetIndex = invalidationIndex ?? factIndexes.invalidationCount + index;
+      const invalidationPlan = summarizeInvalidationPlan(event.plan, invalidationTargetIndex);
       return {
         index,
         id: runtimeEventSummaryId(sequence, "Invalidation"),
@@ -246,14 +337,20 @@ export const summarizeRuntimeEvent = (
         label: event.action === undefined ? "Invalidation" : `${event.action} invalidation`,
         target: {
           kind: "InvalidationPlan",
-          id: invalidationNodeId(index)
+          id: invalidationNodeId(invalidationTargetIndex)
         },
+        invalidationPlan,
         data: toDevtoolsSerializableValue({
           action: event.action ?? null,
+          invalidationIndex: invalidationIndex ?? null,
           plan: event.plan
         })
       };
     case "RoutePlan":
+      const routePlanIndex =
+        event.routePlanIndex ?? matchingFactIndex(factIndexes.routePlans, event.plan);
+      const routePlanTargetIndex = routePlanIndex ?? factIndexes.routePlanCount + index;
+      const routePlan = summarizeRoutePlan(event.plan, routePlanTargetIndex);
       return {
         index,
         id: runtimeEventSummaryId(sequence, "RoutePlan"),
@@ -263,8 +360,9 @@ export const summarizeRuntimeEvent = (
         label: event.plan.href,
         target: {
           kind: "RoutePlan",
-          id: routePlanNodeId(index, event.plan.href)
+          id: routePlanNodeId(routePlanTargetIndex, event.plan.href)
         },
+        routePlan,
         data: toDevtoolsSerializableValue(event.plan)
       };
     case "RequestTrace": {
@@ -303,18 +401,22 @@ export const summarizeRuntimeEvent = (
 const sortedStrings = (values: Iterable<string>): readonly string[] =>
   Array.from(new Set(values)).sort();
 
+type ResourceIndexSource = DevtoolsSummaryResource["sources"][number];
+
 export const resourceIndex = (
   snapshot: DevtoolsSnapshot,
   invalidations: ReadonlyArray<DevtoolsSummaryInvalidationPlan>,
   routePlans: ReadonlyArray<DevtoolsSummaryRoutePlan>,
-  requestTraces: ReadonlyArray<DevtoolsRequestTrace>
+  requestTraces: ReadonlyArray<DevtoolsRequestTrace>,
+  runtimeEvents: ReadonlyArray<DevtoolsRuntimeEvent> = [],
+  runtimeEventSummaries: ReadonlyArray<DevtoolsSummaryRuntimeEvent> = []
 ): ReadonlyArray<DevtoolsSummaryResource> => {
   const resources = new Map<string, {
     key: string;
     family: string | null;
     input: DevtoolsSerializableValue | null;
     state: string | null;
-    sources: Set<"Invalidation" | "RequestTrace" | "RoutePlan" | "Snapshot">;
+    sources: Set<ResourceIndexSource>;
     routeHrefs: Set<string>;
     invalidationIndexes: Set<number>;
   }>();
@@ -329,7 +431,7 @@ export const resourceIndex = (
       family: null,
       input: null,
       state: null,
-      sources: new Set<"Invalidation" | "RequestTrace" | "RoutePlan" | "Snapshot">(),
+      sources: new Set<ResourceIndexSource>(),
       routeHrefs: new Set<string>(),
       invalidationIndexes: new Set<number>()
     };
@@ -343,7 +445,7 @@ export const resourceIndex = (
     entry.sources.add("Snapshot");
   }
 
-  for (const plan of routePlans) {
+  const addRoutePlanResources = (plan: DevtoolsSummaryRoutePlan): void => {
     for (const resource of plan.resources) {
       const entry = entryFor(resource.key);
       entry.family = resource.family;
@@ -351,15 +453,42 @@ export const resourceIndex = (
       entry.sources.add("RoutePlan");
       entry.routeHrefs.add(plan.href);
     }
-  }
+  };
 
-  for (const plan of invalidations) {
+  const addInvalidationResources = (plan: DevtoolsSummaryInvalidationPlan): void => {
     for (const entryPlan of plan.entries) {
       const entry = entryFor(entryPlan.ref.key);
       entry.family = entryPlan.ref.family;
       entry.input = entryPlan.ref.input;
       entry.sources.add("Invalidation");
       entry.invalidationIndexes.add(plan.index);
+    }
+  };
+
+  for (const plan of routePlans) {
+    addRoutePlanResources(plan);
+  }
+
+  for (const plan of invalidations) {
+    addInvalidationResources(plan);
+  }
+
+  const recordedFactNodeIds = new Set<string>([
+    ...invalidations.map((plan) => invalidationNodeId(plan.index)),
+    ...routePlans.map((plan) => routePlanNodeId(plan.index, plan.href))
+  ]);
+  for (const event of runtimeEventSummaries) {
+    if (
+      event.routePlan !== undefined &&
+      !recordedFactNodeIds.has(routePlanNodeId(event.routePlan.index, event.routePlan.href))
+    ) {
+      addRoutePlanResources(event.routePlan);
+    }
+    if (
+      event.invalidationPlan !== undefined &&
+      !recordedFactNodeIds.has(invalidationNodeId(event.invalidationPlan.index))
+    ) {
+      addInvalidationResources(event.invalidationPlan);
     }
   }
 
@@ -380,6 +509,35 @@ export const resourceIndex = (
     }
   }
 
+  const stateFromResourceEvent = (event: ResourceStoreEvent): string => {
+    switch (event._tag) {
+      case "ResourcePending":
+        return "Pending";
+      case "ResourceSuccess":
+      case "ResourceHydrated":
+        return "Success";
+      case "ResourceFailure":
+        return "Failure";
+      case "ResourceDeleted":
+        return "Deleted";
+      case "ResourceInvalidated":
+        return "Invalidated";
+      case "ResourceGcScheduled":
+      case "ResourceGcInterrupted":
+        return event._tag;
+    }
+  };
+
+  for (const event of runtimeEvents) {
+    if (event._tag !== "ResourceStoreEvent") {
+      continue;
+    }
+    const entry = entryFor(event.event.key);
+    entry.family = event.event.name;
+    entry.state = stateFromResourceEvent(event.event);
+    entry.sources.add("RuntimeEvent");
+  }
+
   return Array.from(resources.values())
     .sort((left, right) => left.key.localeCompare(right.key))
     .map((resource) => ({
@@ -394,9 +552,61 @@ export const resourceIndex = (
 };
 
 export const summarizeRuntimeEvents = (
-  events: ReadonlyArray<DevtoolsRuntimeEvent>
-): ReadonlyArray<DevtoolsSummaryRuntimeEvent> =>
-  events.map(summarizeRuntimeEvent).sort((left, right) => {
+  events: ReadonlyArray<DevtoolsRuntimeEvent>,
+  invalidations: ReadonlyArray<DevtoolsInvalidationPlan> = [],
+  routePlans: ReadonlyArray<DevtoolsRoutePlan> = []
+): ReadonlyArray<DevtoolsSummaryRuntimeEvent> => {
+  const factIndexes = {
+    invalidations: firstFactIndexes(invalidations),
+    invalidationCount: invalidations.length,
+    routePlans: firstFactIndexes(routePlans),
+    routePlanCount: routePlans.length
+  };
+  return events.map((event, index) =>
+    summarizeRuntimeEvent(event, index, factIndexes)
+  ).sort((left, right) => {
     const bySequence = left.sequence - right.sequence;
     return bySequence === 0 ? left.id.localeCompare(right.id) : bySequence;
   });
+};
+
+/** Normalizes summary input overrides and raw snapshot facts into shared summary facts. */
+export const normalizeDevtoolsSummaryInput = (
+  input: DevtoolsSummaryInput = {}
+): NormalizedDevtoolsSummaryInput => {
+  const snapshot = input.snapshot ?? emptySnapshot();
+  const appGraphInput = input.appGraph ?? snapshot.appGraph;
+  const appGraph = appGraphInput === undefined
+    ? undefined
+    : normalizeDevtoolsAppGraphDiagnostics(appGraphInput);
+  const invalidationPlans = input.invalidations ?? snapshot.invalidations;
+  const routePlanInputs = input.routePlans ?? snapshot.routePlans;
+  const requestTraceInputs = input.requestTraces ?? snapshot.requestTraces ?? [];
+  const runtimeEventInputsRaw = input.runtimeEvents ?? snapshot.events ?? [];
+  const normalizedRequestTraceFacts = normalizeRequestTraceFacts(requestTraceInputs, runtimeEventInputsRaw);
+  const requestTraces = normalizedRequestTraceFacts.requestTraces;
+  const runtimeEventInputs = normalizedRequestTraceFacts.events;
+  const invalidations = invalidationPlans.map(summarizeInvalidationPlan);
+  const routePlans = routePlanInputs.map(summarizeRoutePlan);
+  const requestTraceSummaries = requestTraces.map(summarizeRequestTrace);
+  const runtimeEvents = summarizeRuntimeEvents(runtimeEventInputs, invalidationPlans, routePlanInputs);
+  const resources = resourceIndex(
+    snapshot,
+    invalidations,
+    routePlans,
+    requestTraces,
+    runtimeEventInputs,
+    runtimeEvents
+  );
+
+  return {
+    snapshot,
+    appGraph,
+    invalidations,
+    routePlans,
+    requestTraces,
+    requestTraceSummaries,
+    runtimeEvents,
+    resources
+  };
+};

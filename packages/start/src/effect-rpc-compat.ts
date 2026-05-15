@@ -59,7 +59,7 @@ const schemaOrUnknown = (schema: unknown): Schema.Top =>
  * Schema.Unknown so the descriptor preserves today's permissive wire behavior.
  */
 export const serverFunctionToEffectRpc = (
-  fn: ServerFunction<unknown, unknown, unknown, unknown>
+  fn: ServerFunction<any, any, any, any>
 ): Rpc.AnyWithProps =>
   Rpc.make(fn.name, {
     payload: schemaOrUnknown(fn.input),
@@ -74,7 +74,7 @@ export const serverFunctionToEffectRpc = (
  * Start's fetch-based RPC endpoint.
  */
 export const makeStartEffectRpcGroup = (
-  functions: Iterable<ServerFunction<unknown, unknown, unknown, unknown>>
+  functions: Iterable<ServerFunction<any, any, any, any>>
 ): RpcGroup.RpcGroup<Rpc.AnyWithProps> =>
   RpcGroup.make(...Array.from(functions, serverFunctionToEffectRpc));
 

@@ -1,26 +1,27 @@
 # Effect UI
 
 Effect UI is an experimental full-stack TypeScript framework built around
-Effect, Solid, TSRX, and deterministic app graph diagnostics.
+Effect, Solid, React, TSRX, and deterministic app graph diagnostics.
 
 The project is still pre-release. Packages remain private while the framework
 surface, examples, diagnostics, and release gates are being hardened.
 
 ## What This Repo Proves
 
-- Effect-first Resources, Actions, Forms, Routes, Capabilities, and server
-  contracts.
+- Effect-first Resources, Actions, Programs, Forms, Routes, Capabilities, and
+  server contracts across Solid and React adapters.
 - Request-local runtimes and resource stores for SSR, RPC, Start actions, and
   streamed responses.
 - Local-first Collections with persistence, sync adapter seams, optimistic
   mutation queues, and live query materialization.
-- JSON-safe devtools summaries, causal graphs, request traces, panel data
-  models, a browser-embeddable panel renderer, a checked panel app shell, and a
-  checked browser-extension shell with an inspected-window bridge.
+- JSON-safe devtools summaries, causal graphs, Program timelines, request
+  traces, panel data models, a browser-embeddable panel renderer, a checked
+  panel app shell, and a checked browser-extension shell with an
+  inspected-window bridge.
 - Deterministic Start manifests and build diagnostics with repair guidance.
-- A copyable project console example and a minimal starter with SSR,
-  hydration, route-owned Resource preload, checked rich-starter packaging, and
-  server-only leak scans.
+- Copyable basic, React, and project console starters with SSR, hydration,
+  route-owned Resource preload, checked rich-starter packaging, and server-only
+  leak scans.
 
 ## Start Here
 
@@ -28,7 +29,9 @@ surface, examples, diagnostics, and release gates are being hardened.
 - [Effect style guide](docs/effect-style.md)
 - [Deployment](docs/deployment.md)
 - [Framework perfection charter](docs/framework-perfection-charter.md)
+- [Solid and React adapters](docs/adapter-differences.md)
 - [Basic starter](docs/starter.md)
+- [React starter](examples/react-starter/README.md)
 - [Migration notes](docs/migration-notes.md)
 - [Public API inventory](docs/public-api-inventory.md)
 - [Release notes draft](docs/release-notes.md)
@@ -60,6 +63,7 @@ pnpm benchmark
 pnpm devtools-panel:verify
 pnpm devtools-extension:verify
 pnpm starter:verify
+pnpm react-starter:verify
 pnpm starter:project-console:package
 pnpm example:typecheck
 pnpm example:test
@@ -69,17 +73,22 @@ pnpm example:leak-scan
 
 ## Package Map
 
-- `@effect-ui/core`: runtime spine, Signals, Resources, Actions, Forms,
-  Routes, Capabilities, and server contracts.
+- `@effect-ui/core`: runtime spine, Signals, Programs, Program stories and
+  timelines, Resources, Actions, Forms/FormData decoding, Routes,
+  Capabilities, and server contracts.
 - `@effect-ui/start`: SSR, hydration, transports, manifests, diagnostics, and
   Start action clients.
 - `@effect-ui/start-node`: Node HTTP facade over the tested Start adapters.
 - `@effect-ui/start-fetch`: Fetch-host facade over the tested Start adapters.
 - `@effect-ui/db`: Collections, live queries, persistence, and sync adapter
   seams.
-- `@effect-ui/devtools`: serializable inspection contracts plus a small
-  browser panel renderer for agents, app panels, and extension panels.
-- `@effect-ui/solid`: Solid runtime provider, router, resource hooks, action
+- `@effect-ui/devtools`: serializable inspection contracts, Program timeline
+  panels, and a small browser panel renderer for agents, app panels, and
+  extension panels.
+- `@effect-ui/react`: React runtime provider, router, resource/action/program
+  hooks, streams, and component scopes.
+- `@effect-ui/react-db`: React collection and live query hooks.
+- `@effect-ui/solid`: Solid runtime provider, router, program/resource/action
   hooks, streams, and component scopes.
 - `@effect-ui/solid-db`: Solid collection and live query hooks.
 - `@effect-ui/tsrx`: TSRX/Solid Vite preset for examples and starters.

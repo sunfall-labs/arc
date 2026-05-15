@@ -1,41 +1,49 @@
-import { runWithRuntime, type EffectUiRuntime } from "@effect-ui/core";
-import { Query, type LiveQuery, type LiveQueryState, type QueryEvaluationError, type QueryFactory } from "@effect-ui/db";
+import {
+  collectionReactiveDepsValue,
+  selectCollectionReactiveLiveQuery,
+  type CollectionReactiveLiveQueryInput,
+  type CollectionReactiveLiveQuerySelection,
+  type LiveQuery,
+  type LiveQueryState,
+  type QueryEvaluationError
+} from "@effect-ui/db";
 import { useRuntime } from "@effect-ui/solid";
 import { Effect } from "effect";
-import { createMemo, createSignal, onCleanup, type Accessor } from "solid-js";
-import { liveQueryStateError, subscribeCollection } from "./shared.js";
-
-const bindRuntimeEffect = <A, E, R>(
-  runtime: EffectUiRuntime<unknown, never>,
-  effect: Effect.Effect<A, E, R>
-): Effect.Effect<A, E> =>
-  Effect.scoped(runtime.provide(effect));
+import { createMemo, type Accessor } from "solid-js";
+import { liveQueryStateError, makeSolidDbReactiveBinding, type SolidDbReactiveBinding } from "./shared.js";
 
 /** Options for Solid live-query hooks. */
-export interface UseLiveQueryOptions<E = never> {
+export interface UseLiveQueryOptions<E = never, ER = never> {
+  /** Solid dependencies that should rebuild the query when they change. */
+  readonly deps?: (() => unknown) | undefined;
   /** Preload all query sources on mount. Defaults to true. */
   readonly preload?: boolean;
-  /** Observe failures from the automatic mount-time source preload. */
-  readonly onPreloadFailure?: (error: E) => void;
+  /**
+   * Observe failures from the automatic mount-time source preload.
+   *
+   * If this observer throws, the hook ignores that throw after updating
+   * `preloadFailure`.
+   */
+  readonly onPreloadFailure?: (error: E | QueryEvaluationError | ER) => void;
 }
 
 /**
  * Solid-facing handle for a live query over one or more collections.
  *
- * Data is recomputed when source collections change. Loading/refetch work stays
- * Effect-first through the returned methods.
+ * Data is recomputed when source collections change. Pass `deps` when the query
+ * factory also reads Solid signals that should rebuild the query.
  */
-export interface LiveQueryHandle<T, E = never, R = never> {
+export interface LiveQueryHandle<T, E = never, ER = never> {
   readonly data: Accessor<ReadonlyArray<T>>;
   readonly state: Accessor<LiveQueryState<T, E | QueryEvaluationError>>;
   readonly waiting: Accessor<boolean>;
   readonly error: Accessor<E | QueryEvaluationError | undefined>;
-  readonly preloadFailure: Accessor<E | undefined>;
-  preloadEffect(): Effect.Effect<void, E, R>;
-  refetchEffect(): Effect.Effect<void, E, R>;
+  readonly preloadFailure: Accessor<E | QueryEvaluationError | ER | undefined>;
+  preloadEffect(): Effect.Effect<void, E | QueryEvaluationError | ER>;
+  refetchEffect(): Effect.Effect<void, E | QueryEvaluationError | ER>;
 }
 
-type LiveQueryInput<T, E, R> = QueryFactory<T, E, R> | LiveQuery<T, E, R>;
+type LiveQueryInput<T, E, R> = CollectionReactiveLiveQueryInput<T, E, R>;
 
 /**
  * Subscribes a Solid component to a live query.
@@ -52,60 +60,46 @@ type LiveQueryInput<T, E, R> = QueryFactory<T, E, R> | LiveQuery<T, E, R>;
  * );
  * ```
  */
-export const useLiveQuery = <T, E = never, R = never>(
+export const useLiveQuery = <T, E = never, R = never, ER = never>(
   input: LiveQueryInput<T, E, R>,
-  options: UseLiveQueryOptions<E> = {}
-): LiveQueryHandle<T, E, R> => {
-  const runtime = useRuntime();
-  const [tick, setTick] = createSignal(0);
-  const [preloadFailure, setPreloadFailure] = createSignal<E | undefined>(undefined);
-  const live = runWithRuntime(runtime, () =>
-    typeof input === "function"
-      ? Query.live<T, E, R>(input)
-      : input
-  );
-
-  const cleanups = live.sources.map((source) =>
-    subscribeCollection(runtime, source, () => setTick((value) => value + 1))
-  );
-
-  if (options.preload !== false) {
-    void runtime.runFork(
-      live.preloadEffect().pipe(
-        Effect.tap(() => Effect.sync(() => setPreloadFailure(undefined))),
-        Effect.catch((error) =>
-          Effect.sync(() => {
-            setPreloadFailure(() => error);
-            options.onPreloadFailure?.(error);
-          })
-        )
-      )
+  options: UseLiveQueryOptions<E, ER> = {}
+): LiveQueryHandle<T, E, ER> => {
+  const runtime = useRuntime<ER>();
+  let currentSelection: CollectionReactiveLiveQuerySelection<T, E, R, typeof runtime> | undefined;
+  let binding: SolidDbReactiveBinding<E | QueryEvaluationError, ER> | undefined;
+  const live = (): LiveQuery<T, E, R> => {
+    const previous = currentSelection;
+    currentSelection = selectCollectionReactiveLiveQuery(
+      runtime,
+      input,
+      collectionReactiveDepsValue(options.deps),
+      currentSelection
     );
-  }
-
-  onCleanup(() => {
-    for (const cleanup of cleanups) {
-      cleanup();
+    if (currentSelection !== previous) {
+      binding?.refreshSources();
     }
+    return currentSelection.live;
+  };
+  binding = makeSolidDbReactiveBinding<E | QueryEvaluationError, R, ER>({
+    runtime,
+    sources: () => live().sources,
+    preload: options.preload,
+    preloadEffect: Effect.suspend(() => live().preloadEffect()),
+    onPreloadFailure: options.onPreloadFailure
   });
 
-  const data = () => {
-    tick();
-    return runWithRuntime(runtime, () => live.data.get());
-  };
+  const data = () => binding.read(() => live().data.get());
 
-  const state = (): LiveQueryState<T, E | QueryEvaluationError> => {
-    tick();
-    return runWithRuntime(runtime, () => live.state.get());
-  };
+  const state = (): LiveQueryState<T, E | QueryEvaluationError> =>
+    binding.read(() => live().state.get());
 
   return {
     data,
     state,
     waiting: createMemo(() => state().waiting),
     error: createMemo(() => liveQueryStateError(state())),
-    preloadFailure,
-    preloadEffect: () => bindRuntimeEffect(runtime, live.preloadEffect()),
-    refetchEffect: () => bindRuntimeEffect(runtime, live.refetchEffect())
+    preloadFailure: binding.preloadFailure,
+    preloadEffect: () => binding.bindEffect(Effect.suspend(() => live().preloadEffect())),
+    refetchEffect: () => binding.bindEffect(Effect.suspend(() => live().refetchEffect()))
   };
 };

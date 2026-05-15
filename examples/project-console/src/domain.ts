@@ -1,13 +1,11 @@
 import { Action, ActionResult, Capability, Resource, Server, Signal } from "@effect-ui/core";
-import { startActionForm, type StartActionForm } from "@effect-ui/start";
+import { StartAction, type StartActionForm } from "@effect-ui/start";
 import { Effect, Schedule, Schema, Stream } from "effect";
 import {
   AdvanceProjectInput,
-  InvalidProjectName,
   ProjectSchema,
   ProjectSummarySchema,
   ProjectId as ProjectIdSchema,
-  ProjectNotFound,
   ProjectNameSubmissionResultSchema,
   RenameProjectInput,
   SubmitProjectNameInput,
@@ -60,6 +58,12 @@ export {
   type ProjectRouteParams,
   type ProjectRouteSearch
 } from "./domain.contract.js";
+
+export {
+  formatProjectError,
+  isInvalidProjectName,
+  normalizeProjectError
+} from "./project-error.js";
 
 export interface PresenceEvent {
   readonly activeUsers: number;
@@ -122,7 +126,7 @@ export const projectResourceInvalidations = (id: ProjectIdType): readonly Resour
   ProjectTag({ id })
 ];
 
-export const ProjectList = Resource.family<"all", ProjectSummary[], Server.ClientError, ProjectApi>({
+export const ProjectList = Resource.family({
   name: "Projects.list",
   input: Schema.Literal("all"),
   output: Schema.Array(ProjectSummarySchema),
@@ -135,7 +139,7 @@ export const ProjectList = Resource.family<"all", ProjectSummary[], Server.Clien
   }
 });
 
-export const ProjectById = Resource.family<ProjectIdType, Project, ProjectRemoteError, ProjectApi>({
+export const ProjectById = Resource.family({
   name: "Project.byId",
   input: ProjectIdSchema,
   output: ProjectSchema,
@@ -160,12 +164,7 @@ export const preloadProjectRouteEffect = (params: ProjectRouteParamsType): Effec
     ])
   );
 
-export const RenameProject = Action.define<
-  typeof RenameProjectInput.Type,
-  Project,
-  ProjectRemoteError,
-  ProjectApi
->({
+export const RenameProject = Action.define({
   name: "Project.rename",
   input: RenameProjectInput,
   output: ProjectSchema,
@@ -177,12 +176,7 @@ export const RenameProject = Action.define<
   invalidates: (project) => projectResourceInvalidations(project.id)
 });
 
-export const SubmitProjectName = Action.define<
-  typeof SubmitProjectNameInput.Type,
-  ProjectNameSubmissionResult,
-  Server.ClientError,
-  ProjectApi
->({
+export const SubmitProjectName = Action.define({
   name: "Project.name.submit",
   input: SubmitProjectNameInput,
   output: ProjectNameSubmissionResultSchema,
@@ -198,12 +192,7 @@ export const SubmitProjectName = Action.define<
       : projectResourceInvalidations(input.id)
 });
 
-export const AdvanceProject = Action.define<
-  typeof AdvanceProjectInput.Type,
-  Project,
-  ProjectRemoteError,
-  ProjectApi
->({
+export const AdvanceProject = Action.define({
   name: "Project.advance",
   input: AdvanceProjectInput,
   output: ProjectSchema,
@@ -218,7 +207,7 @@ export const projectNameActionTarget = (input: {
   readonly id: ProjectIdType;
   readonly redirectTo?: ProjectReturnTo;
 }): StartActionForm =>
-  startActionForm(SubmitProjectName, { input });
+  StartAction.form(SubmitProjectName, { input });
 
 export const projectSearch = Signal.make("");
 
@@ -232,51 +221,3 @@ export const makePresenceStream = (): Stream.Stream<PresenceEvent> =>
   Stream.tick("2400 millis").pipe(
     Stream.map((_, tick) => presenceEvent(tick))
   );
-
-export const formatProjectError = (error: unknown): string => {
-  if (error instanceof ProjectNotFound) {
-    return `Project "${error.id}" was not found.`;
-  }
-
-  if (error instanceof InvalidProjectName) {
-    return "Project names need at least three meaningful characters.";
-  }
-
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "_tag" in error &&
-    (error as { readonly _tag?: unknown })._tag === "ProjectNotFound" &&
-    "id" in error
-  ) {
-    return `Project "${String((error as { readonly id?: unknown }).id)}" was not found.`;
-  }
-
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "_tag" in error &&
-    (error as { readonly _tag?: unknown })._tag === "InvalidProjectName"
-  ) {
-    return "Project names need at least three meaningful characters.";
-  }
-
-  if (
-    typeof error === "object" &&
-    error !== null &&
-    "_tag" in error &&
-    (error as { readonly _tag?: unknown })._tag === "ResourceFailure"
-  ) {
-    return formatProjectError((error as { readonly error?: unknown }).error);
-  }
-
-  if (error instanceof Error) {
-    return `${error.name}: ${error.message}`;
-  }
-
-  if (typeof error === "object" && error !== null && "_tag" in error) {
-    return `Unexpected ${String((error as { readonly _tag?: unknown })._tag)} failure.`;
-  }
-
-  return "Something failed while loading this project.";
-};

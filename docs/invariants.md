@@ -41,7 +41,8 @@ documented as outside the current release bar.
 ## Runtime Spine
 
 - Effects cross host seams through `EffectUiRuntime`.
-- Promise APIs are adapters for UI, browser, and host boundaries.
+- Promise-shaped entrypoints are compatibility adapters for UI, browser, and
+  host boundaries only.
 - Framework internals keep Effect forms for async work.
 - Framework callbacks, including resources, actions, routes, server functions,
   collections, capabilities, and forms, reject `Promise` return values at

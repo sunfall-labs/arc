@@ -9,6 +9,1014 @@ The goal is not to claim literal perfection from one pass. The goal is to keep
 review findings concrete, fix the ones that should move now, and leave only
 explicitly scoped future work.
 
+## Current Review Tip
+
+The newest review is Review 82, immediately after Review 81. Some older review
+entries remain below it from prior ledger merges; use this tip rather than file
+order alone when looking for the latest architecture sweep.
+
+## Review 82: Start Host Runtime Runner Module
+
+Status: fixed for this bounded Review 75 follow-up and fully verified in the
+current worktree. Larger Review 75 candidates remain open, so the Thirty-Sweep
+clean counter remains at 0.
+
+- Start: added `packages/start/src/start-host-runtime-runner.ts` as the
+  internal Start Host Runtime Runner. It owns explicit/default runtime
+  selection, Promise-shaped host facade execution, callback-shaped host facade
+  forking, and response Scope lifetime wrapping for the host-required seams.
+- Fetch/Node/Vite: fetch Promise handlers, Node `createServer` callbacks, Vite
+  diagnostics Promise hooks, and Vite dev middleware callbacks now delegate
+  final runtime launch policy to the runner. Fetch and Node adapters keep their
+  serviceful-handler type enforcement and request/response translation local.
+- Audit/API: the Effect-first scanner now names the runner as the approved host
+  seam for `Effect.runPromise(...)` and Promise return types. Public host
+  adapter facades stay unchanged, and `StartForkRuntime` remains re-exported
+  from the Node adapter for callback hosts.
+- Review cleanup: the older Start Host Facade Runtime Runner candidate is now
+  closed. Solid `RuntimeProvider` runtime ownership semantics, Route Render
+  Scope Controller, Query Execution Plan Module, Node Web Exchange Module,
+  Start Client Transport Runtime Module, deeper Effect-first Audit Scanner
+  Module, and package-split public type-test manifest work remain open
+  candidates.
+
+Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm
+--filter @effect-ui/start-fetch typecheck`, `pnpm --filter
+@effect-ui/start-node typecheck`, `pnpm vitest run
+packages/start/test/adapters.test.ts packages/start/test/start.test.ts` (2
+files / 148 tests), `pnpm vitest run packages/start/test/streaming.test.ts` (1
+file / 11 tests), `pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm
+audit:effect-first` over 196 auditable files, and `git diff --check` passed.
+Full `pnpm verify` passed: 11 package builds, workspace typecheck, public type
+tests, public API inventory audit, Effect-first audit over 196 auditable files,
+52 root test files / 855 tests, devtools-panel verify with 2 tests,
+devtools-extension verify with 20 tests, basic starter verify with 2 tests,
+React starter verify with 3 tests, project-console packaging, project-console
+typecheck/tests/build with 4 files / 27 tests, and leak scans.
+
+## Review 81: Resource UI Binding Controller
+
+Status: fixed for this bounded Review 75 follow-up and fully verified in the
+current worktree. Larger Review 75 candidates remain open, so the Thirty-Sweep
+clean counter remains at 0.
+
+- Core: added `packages/core/src/resource-ui-binding.ts` as the
+  adapter-neutral Resource UI Binding Controller. It owns Resource ref identity,
+  runtime-bound refresh/prefetch Effects, automatic preload fibers, keyed
+  preload failures, observer failure swallowing, stale preload interruption,
+  state matching helpers, and Suspense preload-token dedupe.
+- React/Solid: resource hooks now consume the Core controller for shared
+  Resource UI policy while keeping host reactivity and host Suspense thenable
+  throwing local to each adapter. Public `useResource(...)`,
+  `useResourceResult(...)`, `useResourceValue(...)`, `useResourceError(...)`,
+  and `useResourceSuspense(...)` behavior stays unchanged.
+- Tests/API: added `packages/core/test/resource-ui-binding.test.ts` for the
+  controller contract. `resource-ui-binding` is classified as an expert-public
+  Core Module for framework adapters and diagnostics; golden-path apps should
+  keep using framework resource hooks or the `Resource` facade.
+- Review cleanup: the older Resource UI Binding Controller candidate is now
+  closed. Solid `RuntimeProvider` runtime ownership semantics, Route Render
+  Scope Controller, Query Execution Plan Module, Start Host Facade Runtime
+  Runner Module, Node Web Exchange Module, Start Client Transport Runtime
+  Module, deeper Effect-first Audit Scanner Module, and package-split public
+  type-test manifest work remained open at the time of Review 81.
+
+Focused verification: `pnpm --filter @effect-ui/core typecheck`, `pnpm
+--filter @effect-ui/react typecheck`, `pnpm --filter @effect-ui/solid
+typecheck`, `pnpm vitest run packages/core/test/resource-ui-binding.test.ts
+packages/react/test/hooks.test.ts packages/solid/test/hooks.test.ts` (3 files /
+31 tests), `pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm
+audit:effect-first` over 195 auditable files, and `git diff --check` passed.
+Full `pnpm verify` passed: 11 package builds, workspace typecheck, public type
+tests, public API inventory audit, Effect-first audit over 195 auditable files,
+52 root test files / 853 tests, devtools-panel verify with 2 tests,
+devtools-extension verify with 20 tests, basic starter verify with 2 tests,
+React starter verify with 3 tests, project-console starter packaging,
+project-console typecheck/tests/build with 4 files / 27 tests, and leak scans.
+
+## Review 80: Request Runtime Lifecycle Module
+
+Status: fixed for this bounded Review 75 follow-up and fully verified in the
+current worktree. Larger Review 75 candidates remain open, so the Thirty-Sweep
+clean counter remains at 0.
+
+- Start: extracted `packages/start/src/request-runtime-lifecycle.ts` for the
+  Request Runtime completion policy. The Module owns response Effect exit
+  handling, failure/interruption teardown, ResponseContext application, request
+  trace emission, Request Runtime disposal, and streamed response finalization.
+- Start Request Handler: `start-request-handler.ts` now stays focused on
+  transport endpoint selection, SSR preload/render selection, hydration plan
+  creation, and request trace fact mutation before handing the selected
+  response Effect to the lifecycle Module.
+- Review cleanup: the older Start Response Lifetime candidate is no longer a
+  separate open item. Generic response Scope lifetime remains in
+  `response-lifetime.ts`; Request Runtime response completion remains in
+  `request-runtime-response.ts`; Review 80 adds the missing lifecycle wrapper
+  around selected Start handler responses.
+- Docs/API: `CONTEXT.md` now names Request Runtime Lifecycle Module, and the
+  public API inventory records that `createRequestHandler*` facades remain
+  unchanged while lifecycle completion stays internal.
+
+Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm vitest
+run packages/start/test/start.test.ts packages/start/test/adapters.test.ts
+packages/start/test/streaming.test.ts` (3 files / 158 tests), and `pnpm
+audit:effect-first` over 194 auditable files passed. Full `pnpm verify` passed:
+11 package builds, workspace typecheck, public type tests, public API inventory
+audit, Effect-first audit over 194 auditable files, 51 root test files / 850
+tests, devtools-panel verify with 2 tests, devtools-extension verify with 20
+tests, basic starter verify with 2 tests, React starter verify with 3 tests,
+project-console starter packaging, project-console typecheck/tests/build with 4
+files / 27 tests, and leak scans.
+
+## Review 79: Collection Query Source Adapter
+
+Status: fixed for this bounded Review 75 follow-up and fully verified in the
+current worktree. Larger Review 75 candidates remain open, so the Thirty-Sweep
+clean counter remains at 0.
+
+- DB: extracted `packages/db/src/query-source-adapter.ts` for query-readable
+  collection source access. The Adapter owns row reads, row counts, declared
+  index checks, indexed row probes, indexed-join key extraction, version/state
+  signals, and preload/refetch Effect selection.
+- Query locality: `query-builder.ts` no longer imports Collection Runtime only
+  to compute indexed join keys. Query Plan, Live Query State, and Live Query
+  Runtime consume source rows, indexes, state, versions, and preload/refetch
+  through the Adapter Interface instead of each knowing the Collection
+  Definition method set directly.
+- Docs/API: `CONTEXT.md` now names Collection Query Source Adapter, and the
+  public API inventory records that `Query.*` and `Collection.liveQuery(...)`
+  keep the same facades while source adaptation remains internal.
+
+Focused verification: `pnpm --filter @effect-ui/db typecheck`, `pnpm vitest run
+packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
+(2 files / 127 tests), and `pnpm audit:effect-first` over 193 auditable files
+passed. Full `pnpm verify` passed: 11 package builds, workspace typecheck,
+public type tests, public API inventory audit, Effect-first audit over 193
+auditable files, 51 root test files / 850 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, project-console starter packaging,
+project-console typecheck/tests/build with 4 files / 27 tests, and leak scans.
+
+## Review 78: Live Query Collection Materialization Module
+
+Status: fixed for this bounded Review 75 follow-up and fully verified in the
+current worktree. Larger Review 75 candidates remain open, so the Thirty-Sweep
+clean counter remains at 0.
+
+- DB: extracted `packages/db/src/live-query-collection-materialization.ts` for
+  Live Query Collection projection locality. The Module owns per-Runtime
+  Collection Store materialized entries, keyed lookups, revision and
+  `Ready.updatedAt` policy, secondary-index buckets, state/version signals, and
+  snapshot construction.
+- Live Query Collection: `live-query-collection.ts` now stays focused on the
+  read-only Collection Definition adapter: query input normalization,
+  read-only mutation/hydration failures, preload/refetch registration,
+  persistence handoff, snapshot marker installation, and collection registry
+  registration.
+- Docs/API: `CONTEXT.md` names the implemented private Module, and the public
+  API inventory records that `Collection.liveQuery(...)` keeps the same facade
+  while materialization remains internal.
+
+Focused verification: `pnpm --filter @effect-ui/db typecheck`, `pnpm vitest run
+packages/db/test/live-query-collection.test.ts packages/db/test/collection.test.ts
+packages/db/test/sync-adapter.test.ts
+packages/db/test/persisted-options.test.ts` (4 files / 145 tests), and `pnpm
+audit:effect-first` over 191 auditable files passed. Full `pnpm verify` passed:
+11 package builds, workspace typecheck, public type tests, public API inventory
+audit, Effect-first audit over 191 auditable files, 51 root test files / 847
+tests, devtools-panel verify with 2 tests, devtools-extension verify with 20
+tests, basic starter verify with 2 tests, React starter verify with 3 tests,
+project-console starter packaging, project-console typecheck/tests/build with 4
+files / 27 tests, and leak scans.
+
+## Review 77: Collection Write Commit Module
+
+Status: fixed for this bounded Review 75 follow-up and fully verified in the
+current worktree. Larger Review 75 candidates remain open, so the Thirty-Sweep
+clean counter remains at 0.
+
+- DB: extracted `packages/db/src/collection-write-commit.ts` for direct-write
+  atomicity. The Module owns Collection Store snapshot capture, restore on
+  persistence failure, and the successful `CollectionWritten` event after
+  persistence.
+- Collection Runtime: direct write insert/update/delete and change-batch paths
+  now keep validation, row ingress, key checks, and row-change application local,
+  then hand the common commit sequence to Collection Write Commit. Mutation
+  handler execution and pending mutation attempt coordination stay in
+  `collection-runtime.ts` for a later, larger extraction.
+- Docs/API: `CONTEXT.md` now names Collection Write Commit, and the public API
+  inventory documents that the new Module is internal and preserves
+  `Collection.write*Effect(...)` plus `Collection.applyChangesEffect(...)`
+  facade behavior.
+
+Focused verification: `pnpm --filter @effect-ui/db typecheck`, `pnpm vitest run
+packages/db/test/collection.test.ts packages/db/test/persisted-options.test.ts
+packages/db/test/sync-adapter.test.ts
+packages/db/test/live-query-collection.test.ts
+packages/db/test/sqlite-persistence.test.ts` (5 files / 155 tests), `pnpm
+audit:effect-first` over 190 auditable files, and `git diff --check` passed.
+Full `pnpm verify` passed: 11 package builds, workspace typecheck, public type
+tests, public API inventory audit, Effect-first audit over 190 auditable files,
+51 root test files / 847 tests, devtools-panel verify with 2 tests,
+devtools-extension verify with 20 tests, basic starter verify with 2 tests,
+React starter verify with 3 tests, project-console starter packaging,
+project-console typecheck/tests/build with 4 files / 27 tests, and leak scans.
+
+## Review 76: Runtime Collection Store Module Extraction
+
+Status: fixed for this bounded Review 75 follow-up and fully verified in the
+current worktree. The larger Review 75 candidates remain open, so the
+Thirty-Sweep clean counter remains at 0.
+
+- DB: extracted `RuntimeCollectionStore`, Resource Store module-registry
+  lookup, store Effect/sync accessors, synchronous
+  `runWithCollectionStore(...)` override locality, event subscriptions,
+  diagnostics snapshots, and initial-data state materialization into
+  `packages/db/src/runtime-collection-store.ts`. `collection-runtime.ts` now
+  consumes that Module instead of owning store construction directly.
+- Query/live-query locality: `query-builder.ts`, `live-query-state.ts`, and
+  `live-query-collection.ts` import runtime store helpers from the new Module,
+  while `collection-runtime.ts` keeps projection callback normalization,
+  mutation execution, direct writes, persistence handoff, change-feed
+  application, and event publication.
+- Docs/API: `CONTEXT.md` now names the Runtime Collection Store separately from
+  the higher-level Collection Runtime, and the public API inventory clarifies
+  that public access remains `Collection.storeEffect()`,
+  `Collection.currentStore()`, and `Collection.subscribeEventsEffect()` rather
+  than the concrete store class.
+
+Focused verification: `pnpm --filter @effect-ui/db typecheck`, `pnpm --filter
+@effect-ui/react-db typecheck`, `pnpm --filter @effect-ui/solid-db typecheck`,
+`pnpm vitest run packages/db/test/collection.test.ts
+packages/db/test/live-query-collection.test.ts
+packages/db/test/sync-adapter.test.ts` (3 files / 142 tests), `pnpm
+typecheck:types`, `pnpm audit:public-api`, and `pnpm audit:effect-first` over
+189 auditable files passed. Full `pnpm verify` passed: 11 package builds,
+workspace typecheck, public type tests, public API inventory audit,
+Effect-first audit over 189 auditable files, 51 root test files / 847 tests,
+devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
+basic starter verify with 2 tests, React starter verify with 3 tests,
+project-console starter packaging, project-console typecheck/tests/build with 4
+files / 27 tests, and leak scans.
+
+## Review 75: History Adapters, Runtime UI Scopes, Transport Envelopes, And Inventory Gates
+
+Status: fixed for the bounded Review 75 findings and fully verified in the
+current worktree. Review 75 still found larger Module and Adapter work, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Core/React/Solid: Browser history is now a Core Browser History Adapter seam
+  with window and memory implementations. React and Solid routers consume the
+  same `currentHref`, external-history listener, same-href retry, and
+  push/replace commit policy while keeping their host render lifecycle separate.
+  Core also exposes `makeRuntimeUiScope(...)`; the Browser Router Kernel, React
+  component/route scopes, and Solid component/route scopes use it so late
+  finalizers run through the owning Runtime Spine instead of hand-rolling the
+  same runner policy in each Adapter.
+- Start: RPC/action endpoint handling now constructs a Start Transport Endpoint
+  Envelope for request diagnostics. When a request arrives without an incoming
+  request id, response diagnostics and request traces consume the same generated
+  id instead of generating independently.
+- Docs/API/audit: `browser-router` is classified in the public API inventory,
+  and `scripts/audit-public-api-inventory.mjs` now checks package export-map
+  rows plus Core root star-export classification. Public type tests pin the
+  Browser History Adapter, runtime-bound `UiScope` factory, and Start Transport
+  Endpoint Envelope. LSP-facing JSDoc now uses Runtime Spine, Erased Runtime
+  Runner, Resource Store, and host seam vocabulary in the touched public runtime
+  and adapter surfaces.
+- Open Review 75 candidates: Solid `RuntimeProvider` runtime ownership
+  semantics, Route Render Scope Controller, Query Execution Plan Module, Start
+  Host Facade Runtime Runner Module, Node Web Exchange Module, Start Client
+  Transport Runtime Module, deeper Effect-first Audit Scanner Module, and
+  package-split public type-test manifest work.
+
+Verification: focused regressions passed across Core scope/browser router,
+React router, Solid router, Start RPC/request handling, touched package
+typechecks, public type tests, the new public API inventory audit, and the
+Effect-first audit over 188 auditable files. Full `pnpm verify` passed: 11
+package builds, workspace typecheck, public type tests, public API inventory
+audit, Effect-first audit over 188 auditable files, 51 root test files / 847
+tests, devtools-panel verify with 2 tests, devtools-extension verify with 20
+tests, basic starter verify with 2 tests, React starter verify with 3 tests,
+project-console starter packaging, project-console typecheck/tests/build with 4
+files / 27 tests, and leak scans.
+
+## Review 74: Read Decisions, Hydration Plans, Finalization Events, And Panel Locality
+
+Status: fixed for the bounded Review 74 findings and fully verified in the
+current worktree. Review 74 still found larger Module and Adapter work, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Core: `Resource.read(...)` and `Resource.readEffect(...)` now share one
+  Resource Read Decision policy for missing, initial, pending-with-previous,
+  failure, collected reset, stale refresh, and value outcomes. The sync and
+  Effect Interfaces only adapt delivery instead of duplicating the decision
+  tree.
+- DB/React DB/Solid DB: collection hydration validation and application now
+  share a Collection Hydration Plan that resolves definitions and runs
+  definition/store preflight once. React DB and Solid DB share DB-owned live
+  query dependency equality, dependency snapshotting, prebuilt Live Query reuse,
+  and runtime-bound `Query.live(...)` selection policy.
+- Start/starters: Request Runtime response completion now emits one
+  finalization state shape for buffered and streamed responses, so request trace
+  emission has one mapping path. `createStartStreamedHtmlResponseEffect(...)`
+  owns the starter policy of appending `StartRenderHydrationPlan` streamed
+  chunks before the tail, and the basic, React, and project-console starters use
+  that helper.
+- Devtools/docs/API: obsolete app-graph copy helpers were removed from the
+  generic Serialization Policy; app-graph detachment stays in the App Graph
+  Normalizer Module. Panel overflow row identity is now exposed by the Panel
+  Contract Module and consumed by the renderer instead of duplicating the
+  private id prefix. Public type tests pin the new Start streamed response
+  helper and Devtools overflow guard.
+- Open Review 74 candidates: Browser History Adapter Module, Solid
+  RuntimeProvider runtime ownership semantics, Collection Write Commit Module,
+  Query Execution Plan Module, Start Transport Endpoint Envelope Module, Start
+  Host Facade Runtime Runner Module, Public Interface Inventory Audit Module,
+  and Effect-first Audit Scanner Module. These are larger seams or require more
+  careful adapter design than the bounded fixes in this pass.
+
+Verification: focused regressions passed across Core Resource, DB collection
+and live-query, React DB, Solid DB, Devtools, Start request/streaming, basic
+starter, and React starter: 8 package test files / 413 tests plus starter
+verifies. Full `pnpm verify` passed: 11 package builds, workspace typecheck,
+public type tests, Effect-first audit over 187 auditable files, 51 root test
+files / 843 tests, devtools-panel verify with 2 tests, devtools-extension
+verify with 20 tests, basic starter verify with 2 tests, React starter verify
+with 3 tests, project-console starter packaging, project-console
+typecheck/tests/build with 4 files / 27 tests, and leak scans.
+
+## Review 73: Runtime Locality, Shared Adapter Policies, File-Route Seams, And Devtools Boot
+
+Status: fixed for the local Review 73 findings and fully verified in the
+current worktree. Review 73 still found larger design work, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Core/React/Solid: `UiScope` late finalizers now run through the configured
+  owner runtime instead of the ambient/default runner, and framework/router
+  scopes bind that runner to their Runtime Spine. Core owns shared RouterLink
+  plain-click detection, outside-router detection, and hover preload
+  interruption policy for React and Solid. React `RuntimeProvider` recreates
+  provider-owned runtimes when the source identity changes, and React Suspense
+  coverage now proves cleanup and stale-ref preload detachment.
+- DB/React DB/Solid DB: Collection Stores expose runtime-local diagnostics
+  snapshots without publishing private row maps. DB public type tests reject
+  Promise-shaped sync adapter, query-sync, change-feed, persistence, and SQLite
+  adapter callbacks. React DB and Solid DB share collection/live-query reactive
+  binding and preload controller policy from the DB package. Live Query
+  Collection index lookup now caches derived-row buckets per projection
+  revision.
+- Start/Devtools/audit: custom Start fetchers and file-route preload helpers
+  reject Promise-shaped erased JavaScript returns with typed failures and repair
+  guidance. File-route resource selector throws are captured as typed preload
+  failures. The Effect-first audit now catches template interpolation bodies,
+  multiline Promise return types, and direct `await` seams. Devtools runtime
+  events are pinned in public type tests, store concepts have focused JSDoc, and
+  panel/extension boot lifecycle work now flows through the shared
+  `bootDevtoolsPanels(...)` helper.
+- Open design decisions: hydration sync facades still intentionally fall back to
+  the current/default runtime when no explicit runtime is supplied; tightening
+  that would be breaking. Start request handler, preload, RPC, and action
+  lifecycle still need a larger Request Runtime lifecycle Module extraction.
+  React route transition disposal cannot exactly match Solid's owner disposal
+  ordering without a deeper adapter design change because React function
+  components render before cleanup hooks run.
+
+Verification: focused regressions passed across Core browser-router/scope,
+React hooks, DB collection/live-query, React DB, Solid DB, Start RPC and
+file-route preload cases, Devtools package build, devtools panel verify,
+devtools extension verify, package typechecks, public type tests, and
+`pnpm audit:effect-first`. Full `pnpm verify` passed: 11 package builds,
+workspace typecheck, public type tests, Effect-first audit over 187 auditable
+files, 51 root test files / 843 tests, devtools-panel verify with 2 tests,
+devtools-extension verify with 20 tests, basic starter verify with 2 tests,
+React starter verify with 3 tests, project-console starter packaging,
+project-console typecheck/tests/build with 4 files / 27 tests, and leak scans.
+
+## Review 72: Adapter Lifetimes, Mutation Finalization, Start Manifests, And Audit Depth
+
+Status: fixed and fully verified in the current worktree.
+
+- React/Solid adapters: React component and route `UiScope` Modules are keyed
+  to their owning Runtime Spine, so a runtime replacement cannot dispose a
+  scope that the Implementation keeps reusing. React `useProgram(...)` now
+  replaces and disposes Program instances when the Program Definition, Runtime
+  Spine, or owning scope changes. Solid `useAction(...)` now registers owner
+  cleanup that resets active submissions, matching the React Action Adapter
+  lifetime policy.
+- DB/React DB/Solid DB: Collection Mutation Queue active attempts now complete
+  joiners on every exit path, including post-commit or rollback persistence
+  failures. Live Query Collection materialization keeps the last-good
+  projection when later row ingress/keying fails while exposing the failure
+  state. React DB and Solid DB preload failures are generation-keyed, and direct
+  change-feed `emit` now flows through the same dispatcher late-drop policy as
+  host-callback `emitChanges`.
+- Start/starters: Resource Store diagnostics gained a stable snapshot/count
+  Interface so Start request traces no longer import mutable Resource Store
+  internals. Basic and React starters rely on file-route discovery instead of
+  hand-maintained route arrays, while project-console checks its explicit route
+  list against discovery. The Manifest Wall no longer infers implementation
+  `exportName` values from wire names for direct server functions/actions.
+- Devtools/docs/audit: the extension panel polling policy moved into the panel
+  runtime so boot performs one immediate inspected-window read and waits before
+  the first periodic refresh. Devtools app-graph normalizers are documented and
+  pinned as expert-public compatibility helpers. The Effect-first audit now
+  enforces async-function and non-Effect `.catch(...)` policy directly instead
+  of relying on docs grep follow-ups.
+
+Verification: focused regressions passed across React/Solid hooks and React
+router, DB collection/live-query/sync adapter suites, React DB, Solid DB, Core
+Resource Store diagnostics, Start request/manifest flows, basic starter, React
+starter, project-console, devtools extension/panel entrypoints, workspace
+typecheck, public type tests, and `pnpm audit:effect-first`. The integrated
+focused regression run passed 16 files / 361 tests. Full `pnpm verify` passed:
+11 package builds, workspace typecheck, public type tests, Effect-first audit
+over 186 auditable files, 51 root test files / 834 tests, devtools-panel verify
+with 2 panel tests, devtools-extension verify with 20 tests, basic starter verify
+with 2 tests, React starter verify with 3 tests, project-console starter
+packaging, project-console typecheck/tests/build with 4 files / 27 tests, and
+leak scans.
+
+## Review 71: Router Kernel, Static Graphs, Public Stores, And Reactive Lifetimes
+
+Status: fixed and fully verified in the current worktree.
+
+- Core/React/Solid: browser route matching, href/path helpers, navigation,
+  preload lifecycle, failure normalization, and public preload Effects now live
+  in an adapter-neutral browser-router kernel. React and Solid keep only their
+  host subscription/render wiring. React `useAction(...)` now keeps a stable
+  runtime-bound Action instance across rerenders and resets active submissions
+  on unmount. React and Solid Resource handles key automatic preload failures to
+  the currently observed ref, so stale preloads cannot poison a later ref's UI
+  state.
+- Core Resource Store: the public `ResourceStore` Interface exposes only
+  `eventBus`, `moduleRegistry`, `fiberRegistry`, and `diagnostics`. Internal
+  entry/input/cache/tag-index/fiber collections moved behind
+  `MutableResourceStore`, `makeMutableResourceStore(...)`, and
+  `unsafeMutableResourceStore(...)`, preserving adapter Leverage without
+  publishing implementation maps as public API.
+- Start/starters: `virtual:effect-ui/app-graph` is now a pure static DTO module
+  with no route implementation imports or runtime guard side effects. Runtime
+  route-module diagnostics moved to the explicit
+  `virtual:effect-ui/app-graph/runtime-diagnostics` module. Non-streaming
+  renderers use the named `legacyHydrationScript` Interface, while streamed
+  renderers keep using `hydrationRootScript` plus streamed chunks.
+- DB/React DB/Solid DB: React DB and Solid DB stabilize source arrays by
+  collection identity, Solid live-query `deps` follow React-style shallow-array
+  semantics, and query-sync invalidation now names rollback semantics
+  explicitly as `mutationInvalidation: "rollback-on-failure"` instead of
+  overloading "strict" with remote rollback meaning.
+- Devtools/docs/audit: devtools panel contract resolver exports are pinned in
+  public type tests and inventory docs, panel/extension entrypoints prove
+  interruption cleanup, and the Effect-first audit detects spaced
+  `Promise <T>` plus approved/blocked `PromiseLike<T>` return seams.
+
+Verification: focused regressions passed across React/Solid hooks,
+React/Solid/Core routers, Start app graph/file-route/streaming flows, DB query
+sync, React DB and Solid DB live queries, Devtools panel/extension entrypoints,
+public type tests, package typechecks, and `pnpm audit:effect-first` over 186
+auditable files. The focused multi-package regression run passed 14 files / 266
+tests. Full `pnpm verify` passed: 11 package builds, workspace typecheck,
+public type tests, Effect-first audit over 186 auditable files, 51 root test
+files / 816 tests, devtools-panel verify with 2 panel tests,
+devtools-extension verify with 19 tests, basic starter verify with 2 tests,
+React starter verify with 3 tests, project-console starter packaging,
+project-console typecheck/tests/build with 4 files / 27 tests, and leak scans.
+
+## Review 70: Route Render Scope, Hydration Laziness, Reactive Sources, And Audit Depth
+
+Status: fixed and fully verified in the current worktree.
+
+- React/Solid adapters: React `RouterOutlet` now renders pending, failure,
+  not-found, and ready route branches inside the router Runtime Spine and a
+  route-owned `UiScope`, matching the ownership rule already proven in the
+  Solid adapter. Solid and React Resource handles now expose automatic preload
+  failures through `preloadFailure` and optional `onPreloadFailure(...)`
+  callbacks, so mount-time preload failures and Runtime Spine startup/provision
+  failures no longer disappear into fire-and-forget fibers.
+- Start/starters: streamed renderers no longer pay for or fail on unused full
+  legacy hydration serialization. `StartRenderHydrationPlan` exposes the lazy
+  legacy script separately from the eager root-only streamed script, and the
+  basic and React starters consume `hydrationRootScript` plus streamed resource
+  chunks instead of rebuilding root hydration manually.
+- DB/React DB: React live queries now rebuild and resubscribe when React-style
+  dependency arrays change, including dynamic source subscriptions and automatic
+  preload restart. Query sync mutation invalidation has an explicit
+  `mutationInvalidation` policy: default best-effort preserves committed
+  mutations when cache invalidation fails, while rollback-on-failure mode treats
+  invalidation failure as part of the mutation rollback boundary.
+- Devtools/audit: the Effect-first audit now has explicit auditable roots for
+  package sources, example runtime sources, workspace scripts, and public type
+  tests, and prints the scope plus host-boundary allowances. Devtools extension
+  docs point extension authors at
+  `resolveEffectUiDevtoolsBridgePayload(...)` when diagnostics matter, and the
+  checked panel/extension examples smoke-test their real entrypoints.
+
+Verification: focused regressions passed across React hooks/router, Solid
+hooks, Start hydration/starter flows, DB sync adapter, React DB live query,
+Devtools panel/extension entrypoints, public type tests, and React/Solid package
+typechecks. Full `pnpm verify` passed: 11 package builds, workspace typecheck,
+public type tests, Effect-first audit over 185 auditable files, 50 root test
+files / 804 tests, devtools-panel verify with 2 panel tests,
+devtools-extension verify with 19 tests, basic starter verify with 2 tests,
+React starter verify with 2 tests, project-console starter packaging,
+project-console typecheck/tests/build with 4 files / 27 tests, and leak scans.
+
+## Review 69: Adapter Boundaries, Typed Runtime Errors, And Public Seams
+
+Status: fixed and fully verified in the current worktree.
+
+- Core/React/Solid: `Program.RuntimeError<E, ER = never>` now carries both
+  Program-domain failures and Runtime Spine startup/provision failures. Solid
+  and React `useProgram(...)` expose that `ER` channel through
+  `dispatchEffect(...)` instead of erasing runtime errors to the update error
+  slot. The Resource Store now exposes explicit `eventBus`, `moduleRegistry`,
+  `fiberRegistry`, and `diagnostics` seams, leaving raw `entries`, `inputs`, and
+  `caches` as internal state. React route preload now matches against the
+  ordered router route set, so shadowed hrefs preload the same route navigation
+  renders.
+- Start/React starter: streamed renderers now receive `hydrationRootScript`,
+  the root-only script derived from the render hydration plan, while
+  `hydrationScript` remains documented as the full non-streaming payload.
+  Runtime app graph route candidates enrich matching manifest route diagnostics
+  instead of replacing static manifest routes. Vite dev SSR waits for successful
+  HTML transform before finalizing a stream trace as successful, so transform
+  failures remain failure traces. The workspace Vitest config now respects the
+  React starter's React JSX transform and `@` source alias, and the root verify
+  gate includes the React starter package verify.
+- DB: Live Query Collections are explicitly read-only at the Collection
+  Contract seam. `Collection.applyChangesEffect(...)` rejects read-only live
+  query definitions with `ReadonlyCollectionMutation` before mutating rows,
+  publishing write events, or persisting snapshots. Live Query Collection
+  persistence reuses the shared snapshot persistence helper and emits the same
+  `CollectionPersisted` event path as normal collections.
+- Devtools: the browser-extension inspected-window transport has a bounded
+  timeout instead of hanging forever when `chrome.devtools.inspectedWindow.eval`
+  never calls back. Invalid live bridge payloads now render typed diagnostics
+  rather than silently falling back to sample data. App graph legacy
+  normalization now flows through the shared normalizer used by summaries,
+  serialization, panels, and causal graph projection.
+
+Verification: focused regressions passed across React router, Core
+Program/Resource Store, Start app graph/render/streaming, DB live-query
+collections, Devtools panel contracts, devtools-extension transport, public
+type tests, package typechecks, Effect-first audit, React starter package verify,
+and the root test suite with 50 files / 791 tests. Full `pnpm verify` passed:
+11 package builds, workspace typecheck, public type tests, Effect-first audit,
+50 root test files / 791 tests, devtools-panel verify with 1 panel test,
+devtools-extension verify with 18 tests, basic starter verify with 2 tests,
+React starter verify with 2 tests, project-console starter packaging,
+project-console typecheck/tests/build with 4 files / 27 tests, and leak scans.
+
+## Review 68: Preload Resolution, Runtime Coordination, And Graph Depth
+
+Status: fixed and fully verified in the current worktree.
+
+- Core/Solid: `Resource.readEffect(...)` now participates in touched-ref
+  collection, so Effect route preload plans dehydrate refs read from an
+  already-loaded Resource Store. `ActionResult` redirect headers and validation
+  error containers copy/freeze caller-owned metadata at construction. Solid
+  route preloads build the target href and match against the router's ordered
+  route set, so shadowed static routes such as `/projects/settings` agree with
+  navigation instead of a single route definition.
+- Start: request preload and hydration now share a Start Collection Resolution
+  Module. Hydration resolves collection snapshots through direct definitions,
+  explicit resolvers, or explicit registries and fails unresolved payload names
+  as typed `CollectionSnapshotCodecError` values before Resource hydration
+  mutates state. File-route preload helpers can declare collections by stable
+  name while concrete collection definitions still preload directly.
+- DB/Solid DB: mutation flush now joins active attempts instead of replaying an
+  in-flight transaction handler. Collection load/refetch coordination is
+  store-owned, so concurrent preloads join one load and forced refetches cannot
+  be stale-overwritten by slower earlier loads. Live Query Collection
+  materialization now routes derived rows through the shared row-ingress key
+  policy, preserving finite-key validation and typed projection failures.
+- Devtools/React/effect-first: route preload ResourceFamily causal nodes now
+  use full app graph depth before first-write-wins can retain shallow facts.
+  Runtime-only `RequestTrace` events canonicalize into request trace facts so
+  panels, resource sources, and causal Records edges agree with
+  `recordRequestTrace(...)`. Panel rendering preserves overflow rows after item
+  limiting. React Suspense no longer exposes a Promise-shaped public type; its
+  required host conversion is counted by the Effect-first audit like the Solid
+  Suspense Adapter.
+
+Verification: focused regressions passed across Core/Solid, Start, DB/Solid
+DB, Devtools, React, and public type tests. Full `pnpm verify` passed: 10
+package builds, workspace typecheck, public type tests, Effect-first audit, 47
+root test files / 765 tests, devtools-panel verify with 1 panel test,
+devtools-extension verify with 17 tests, basic starter verify with 2 tests,
+project-console starter packaging, project-console typecheck/tests/build with
+4 files / 27 tests, and leak scans.
+
+## Review 67: Snapshot Encoding, Client Transport, Materialization, And Devtools Scale
+
+Status: fixed and fully verified in the current worktree.
+
+- Core/Solid: Resource hydration snapshots now schema-encode Resource inputs and
+  successful values before they cross the snapshot or payload seam. Effect code
+  has `Resource.readEffect(...)` for already-loaded values and
+  `Resource.statusEffect(...)` remains the Effect-first status Interface, while
+  synchronous `Resource.read(...)`/`status(...)` stay render/host Adapter seams.
+  Resource invalidation plans and `ActionResult` invalidation metadata now copy
+  and freeze retained arrays, so later caller mutation cannot rewrite stored
+  facts. The shared stable identity Module now distinguishes Date, URL, Map,
+  Set, binary data, undefined, sparse array holes, marker-shaped objects, and
+  unsupported values through typed errors.
+- Start/project-console: App Graph Diagnostics DTO validation now lives behind
+  one shared Effect-first Interface used by Vite and CLI adapters. Request
+  handler and host Adapter error normalization share one
+  `StartRequestHandlerError` constructor path. RPC and action clients now share
+  a private Start client transport Module for request serialization, fetch
+  invocation, status validation, and transport error mapping, while each client
+  keeps its protocol-specific encode/decode logic.
+- DB/Solid DB: Live Query Collections materialize through one keyed projection
+  used by rows, lookups, indexes, snapshots, state, version, and `updatedAt`, so
+  hidden duplicate-key changes do not bump collection-shaped state when the
+  public output is unchanged. `useCollection(...)` now exposes reactive
+  `pendingMutations` plus runtime-bound insert, update, delete, write, and flush
+  Effects. Change-feed host callbacks use a scoped dispatcher with deterministic
+  late-emission drop behavior after subscription release.
+- Devtools/docs/API: Fact Identity now consumes the shared Devtools
+  Serialization Policy fingerprint path instead of duplicating serialization
+  behavior. Start App Graph Diagnostics are pinned against the Devtools app graph
+  Interface in public type tests. The Panel Contract applies deterministic item
+  windowing with an overflow row, so valid large app graph panels normalize
+  instead of being rejected by bridge payload guards.
+
+Verification: focused regressions passed across Core/Solid, Start, DB/Solid DB,
+Devtools, extension, and public type tests. Full `pnpm verify` passed: 9 package
+builds, workspace typecheck, public type tests, Effect-first audit, 45 root test
+files / 745 tests, devtools-panel verify with 1 panel test, devtools-extension
+verify with 17 tests, basic starter verify with 2 tests, project-console
+starter packaging, project-console typecheck/tests/build with 4 files / 27
+tests, and leak scans.
+
+## Review 66: Resource Keys, Action Codecs, Row Ingress, And App Graph Depth
+
+Status: fixed and fully verified in the current worktree.
+
+- Core/Solid: default Resource family and tag keys now use a typed Resource key
+  codec for JSON-compatible values plus Date, URL, Map, and Set, with
+  `ResourceKeyError` guidance for unsupported or circular inputs. Synchronous
+  `Resource.read(...)` peeks before throwing, so absent reads no longer mutate
+  Resource Store family/input/entry state. Signal dependency evaluation rolls
+  back partial subscriptions on failure, and Solid router membership policy now
+  keeps unregistered links from trapping browser navigation while `navigate(...)`
+  reports `RouterRouteNotRegistered`.
+- Start/project-console: Start action JSON clients and progressive forms share a
+  Start Action Request Codec, with `StartActionFormEncodeError` for sync form
+  facades. Streaming renderers receive a `StartRenderHydrationPlan` containing
+  root payload/script plus streamed resource chunks, so SSR adapters do not
+  duplicate root and stream hydration facts. Runtime endpoint path resolution now
+  validates direct paths through the same endpoint policy, while explicit full
+  URL adapter endpoints remain allowed. Project-console normalizes
+  `ProjectError` values through one schema-backed Module.
+- DB/Solid DB: Collection Row Ingress now canonicalizes rows before live state
+  mutation: schema output decoding, finite key validation, `getKey`
+  normalization, cloning, and stored-row creation happen at one Seam for
+  initial data, loads, writes, optimistic mutations, and change batches.
+  Handler-facing transaction facts are cloned/frozen so adapters cannot mutate
+  pending queue, rollback, persisted, or restored flush facts. Live Query
+  preload/refetch validates query plans before source loads, and Solid DB
+  captures those `QueryEvaluationError` failures.
+- Devtools/docs/API: app graph diagnostics now use a structured copy path that
+  preserves typed arrays instead of inserting generic truncation markers.
+  Devtools store recording returns retained route-plan/invalidation fact indexes,
+  including `recordSerializedRoutePlan(...)`, so runtime events can observe
+  duplicate recorded facts precisely. `DevtoolsStore` is now an explicit public
+  Interface instead of an inferred internal factory return type.
+
+Verification: focused regressions passed across Core/Solid, Start/project-
+console, DB/Solid DB, Devtools, extension, project-console, and public type
+tests. Full `pnpm verify` passed: 9 package builds, workspace typecheck, public
+type tests, Effect-first audit, 45 root test files / 730 tests, devtools-panel
+verify with 1 panel test, devtools-extension verify with 17 tests, basic starter
+verify with 2 tests, project-console starter packaging, project-console
+typecheck/tests/build with 4 files / 27 tests, and leak scans.
+
+## Review 65: Runtime Time, Endpoint Policy, Snapshot Canonicalization, And Bounded Panels
+
+Status: fixed and fully verified in the current worktree.
+
+- Core/Solid: synchronous Resource `status(...)` and `read(...)` now use the
+  active Runtime Spine clock policy, so sync reads agree with `statusEffect(...)`
+  under custom clocks. Solid route disposal runs component cleanup in the same
+  runtime/scope context used for route setup. Form snapshots and dirty equality
+  share one snapshot policy for structural object/array fields and detached
+  Map/Set/custom object values. Route grammar validation rejects invalid and
+  duplicate params instead of silently overwriting matched values.
+- Start/project-console: Start transport endpoint policy now lives in one shared
+  module. Custom `rpcPath` and `actionPath` flow through manifests, request
+  handlers, request traces, Vite dev SSR handling, RPC/action clients, and
+  progressive action forms. Stream finalizers and request traces preserve the
+  typed `StartStreamError` failure phase, and project-console derives runtime
+  registry facts, Start options, and fallback graph facts from one source.
+- DB/Solid DB: Collection snapshot validation canonicalizes pending update
+  `changes` from decoded `previous`/`value`, so hydrated optimistic replay does
+  not reinstall raw schema-input values. `Collection.dehydrateEffect(...)` runs
+  definition-aware snapshot validation before returning payloads, and
+  receiver-bound adapter policy now covers server collections, query-sync
+  clients, and SQLite clock callbacks.
+- Devtools/docs/API: runtime-only route-plan and invalidation summaries now feed
+  the resource index used by panels as well as causal graph edges. The dead
+  `InvalidationTarget` causal node kind is removed from the public union, and
+  bridge payload normalization bounds display and item-data strings at the panel
+  seam.
+
+Verification: focused regressions passed across Core/Solid, Start/project-
+console, DB/Solid DB, Devtools, extension, project-console, and public type
+tests. Full `pnpm verify` passed: 9 package builds, workspace typecheck, public
+type tests, Effect-first audit, 45 root test files / 707 tests, devtools-panel
+verify with 1 panel test, devtools-extension verify with 16 tests, basic starter
+verify with 2 tests, project-console starter packaging, project-console
+typecheck/tests/build with 4 files / 24 tests, and leak scans.
+
+## Review 64: Store-Owned Loads, Manifest Walls, Hydration Preflight, And Runtime Facts
+
+Status: fixed and fully verified in the current worktree.
+
+- Core/Solid: Resource in-flight loads are now owned by the Resource Store while
+  callers join them. Interrupting one joiner no longer cancels the load for
+  navigation or another consumer; Resource deletion, invalidation, and runtime
+  disposal remain the cancellation seams. Resource lifetime checks take an
+  explicit `now`, route matching uses grammar-specific ordering instead of
+  caller order, and Form state snapshots detach caller-owned initial, reset,
+  exposed state, and in-flight validation values.
+- Start/project-console: streamed hydration script serialization now fails
+  through typed `StartStreamError` phases instead of defects; action/RPC
+  endpoint paths normalize at the manifest wall and reject empty paths, full
+  URLs, and CR/LF; and project-console now derives app and server-app
+  definitions from one source while keeping server registry ownership at the
+  server edge.
+- DB/Solid DB: `Collection.dehydrateEffect(...)` validates the built payload
+  through the Collection Snapshot Codec, `validateHydrationPayloadEffect(...)`
+  shares hydrate preflight depth including target-store pending collisions and
+  read-only live-query snapshots, method-style adapter callbacks keep their
+  receiver, and Live Query Collection `Ready.updatedAt` is stable across
+  repeated reads until source/materialized output changes.
+- Devtools/docs/API: runtime-only invalidation and route-plan events now project
+  the same causal graph facts as recorded snapshot facts, while matched
+  recorded facts stay canonical. Panel items reject duplicate ids per panel and
+  render stable item identity attributes for extension rows, tests, and agent
+  tools. Sharp-cast docs no longer claim a stale zero-hit broad grep.
+
+Verification: focused regressions passed across Core/Solid, Start/project-
+console, DB/Solid DB, Devtools, extension, and public type tests. Full `pnpm
+verify` passed: 9 package builds, workspace typecheck, public type tests,
+Effect-first audit, 45 root test files / 690 tests, devtools-panel verify with
+1 panel test, devtools-extension verify with 15 tests, basic starter verify with
+2 tests, project-console starter packaging, project-console
+typecheck/tests/build, and leak scans.
+
+## Review 63: Effect Snapshot Errors, Atomic Hydration, And Request Facts
+
+Status: fixed and fully verified in the current worktree.
+
+- Core/Solid: Resource status reads now remain non-mutating while Resource
+  dehydration failures surface as typed `ResourceSnapshotCodecError` Effect
+  failures through `Resource.dehydrateEffect(...)`, route preload planning, and
+  Start action response metadata. `RouterProvider` requires an explicit runtime
+  for serviceful route preloads, and the project-console host now passes the
+  request/client runtime into the app instead of hardcoding the app runtime.
+- Start: request-embedded route plans include resource keys so Devtools can
+  derive exact hydration edges; pre-response request interruption is reported
+  as a cancelled trace with interruption failure kind; callable manifest
+  builders and serialized manifest decoders reject whitespace-only
+  name/module/export/client-reference fields.
+- DB/Solid DB: multi-collection hydration now preflights target-store pending
+  transaction id collisions and read-only live-query collection snapshots before
+  mutating earlier collections. Definition-owned snapshots receive the explicit
+  Collection Store, and public type tests pin live-query collection service
+  requirements plus Solid DB handle error surfaces.
+- Devtools/docs/API: structural fact identity is bounded for arrays, objects,
+  maps, sets, strings, and bytes; route-plan runtime facts can link
+  `Hydrates` edges from request trace resource keys; public type tests pin
+  route snapshot codec errors and serviceful `RouterProvider` runtime
+  requirements.
+
+Verification: focused regressions passed across DB, Devtools, Start, and
+public type tests: 6 files / 293 tests plus `pnpm typecheck`, project-console
+SSR regressions 2 files / 9 tests, and example typecheck. Full `pnpm verify`
+passed: 9 package builds, workspace typecheck, public type tests, Effect-first
+audit, 45 root test files / 665 tests, devtools-panel verify with 1 panel test,
+devtools-extension verify with 15 tests, basic starter verify with 2 tests,
+project-console starter packaging/typecheck/tests/build, and leak scans.
+
+## Review 62: Request Locality, Snapshot Preflight, And LSP Runtime Types
+
+Status: fixed and fully verified in the current worktree.
+
+- Core/Solid: `ActionResult.withInvalidation(...)` and the Effect-returning
+  result helpers preserve serviceful invalidation requirements; Solid browser
+  router runtime options reject typed runtimes missing route preload services;
+  Resource dehydration now peeks instead of registering absent refs; and
+  duration parsing matches the public numeric duration type.
+- Start: the Request Runtime always installs its request-local
+  `Server.localClient(...)` Adapter, so app-level remote `ServerClient`
+  services cannot leak into SSR route preload/server function dispatch.
+  Callable manifests also reject empty import-client module/export references
+  before serialization can emit invalid client refs.
+- DB: collection hydration validates duplicate pending transaction ids before
+  mutating any collection, `getKey` hydrate failures report
+  `EffectInputCallbackError`, and live-query collection materialization
+  de-duplicates derived keys with normal collection last-write semantics.
+- Devtools/docs/API: causal edge ids use framed graph identity, imported request
+  traces are normalized before request trace limits detach facts, fact identity
+  honors the bounded serialization policy for payload/error seams, and public
+  type/docs inventories pin the newly documented router, DB, and devtools
+  contracts.
+
+Verification: focused regressions passed across Devtools 1 file / 61 tests,
+DB 2 files / 103 tests, Core 2 files / 52 tests, Solid router 1 file / 18
+tests, Start 3 files / 121 tests, and public type tests. Full `pnpm verify`
+passed: 9 package builds, workspace typecheck, public type tests, Effect-first
+audit, 45 root test files / 655 tests, devtools-panel verify with 1 panel test,
+devtools-extension verify with 15 tests, basic starter verify with 2 tests,
+project-console packaging/typecheck/tests/build, and leak scans.
+
+## Review 61: Registry Requirements, Invalidation Types, And Bounded Serialization
+
+Status: fixed and fully verified in the current worktree.
+
+- Core/Solid: action invalidation requirements, including invalidations carried
+  by `ActionResult`, now flow through `ActionDefinition`, `ActionOptions`,
+  `Action.planInvalidation*`, and `Action.use(...)`; optimistic transaction
+  finish is atomic across signals; runtime disposal runs Resource Store and
+  managed-runtime finalizers before reporting failures; `RouterLink` preloads
+  stay inside the router Module; outside-router public preload failures carry a
+  typed `RouterRouteNotRegistered` cause; and action submission reset remains
+  local to the submission controller.
+- Start: app-local registry action/RPC requirements and explicit
+  `options.actions` requirements stay in Start request handler requirements and
+  are subtracted only by the provided server runtime; malformed invalidation tag
+  metadata fails closed with `ServerTransportError`; duplicate file-route
+  `routeId` slugs fail manifest validation; and the basic starter avoids
+  duplicate root/stream hydration.
+- DB: live-query collection snapshot, persist, and dehydrate operations use the
+  runtime-local Collection Store; derived live-query hydrate and restore fail
+  explicitly through `CollectionSnapshotCodecError` instead of silently
+  accepting writes to a read-only view.
+- Devtools/docs/API: detached serialization is bounded and trap-safe, preserves
+  ArrayBuffer/view markers, and avoids stack overflow on hostile or very deep
+  payloads; bridge docs describe diagnostics for later missing/invalid reads;
+  and public type tests pin low-level host adapters, action invalidation
+  requirements, Start registry requirements, and the devtools panel contract.
+
+Verification: focused regressions passed across Core/Solid, Devtools, Start,
+basic starter, and DB: Core/Solid 4 files / 60 tests, Devtools 1 file / 58
+tests, Start/basic starter 5 files / 148 tests, and DB 2 files / 99 tests.
+Full `pnpm verify` passed: 9 package builds, workspace typecheck, public type
+tests, Effect-first audit, 45 root test files / 643 tests, devtools-panel verify
+with 1 panel test, devtools-extension verify with 15 tests, basic starter verify
+with 2 tests, project-console packaging/typecheck/tests/build, and leak scans.
+
+## Review 60: Stream Lifetimes, Store-Local Reactivity, And Identity Depth
+
+Status: fixed and fully verified in the current worktree.
+
+- Start: Fetch and Vite dev SSR response adapters now keep request Scope
+  lifetime attached to streaming `Response.body` close/error/cancel, route
+  declared string collections resolve through explicit request/app-local
+  collection registries instead of process globals, and project-console no
+  longer emits the same resource hydration pair in root and streamed chunks.
+- DB/Solid-DB: `Collection.liveQuery(...)` owns state, versions, and materialized
+  snapshots per `RuntimeCollectionStore`; Solid DB subscribes to collection
+  signals inside the active runtime; persistence restore returns an explicit
+  restored-snapshot fact; and snapshot codecs reject non-finite numeric keys plus
+  negative or fractional pending mutation attempts.
+- Core: Resource tag dependency graph indexing now uses a structured internal
+  tag identity instead of the public display key, while Resource hydration
+  duplicate detection uses a structured `(name, key)` tuple map.
+- Devtools: fact matching now uses full deterministic structural identity
+  instead of display serialization, imported id-less request traces normalize
+  before request trace trimming, and extension live payloads no longer reset
+  selection to `requests` when the bridge omits `selectedPanelId`.
+- Docs/API: sharp-cast ledgers now describe current named cast seams rather than
+  claiming a zero-hit broad grep, and public type tests pin Start diagnostics
+  loader/report subpaths.
+
+Verification: combined focused regressions passed across Core, DB, Solid-DB,
+Devtools, devtools-extension, Start, and project-console: 10 files / 350 tests.
+Focused package/type-test checks passed for Core, DB, Solid-DB, Devtools, Start,
+devtools-extension, project-console, and `pnpm typecheck:types`. Full
+`pnpm verify` passed: 9 package builds, workspace typecheck, public type tests,
+Effect-first audit, 45 root test files / 632 tests, devtools-panel verify,
+devtools-extension verify with 15 tests, basic starter verify with 2 tests,
+project-console packaging/typecheck/tests/build, and leak scans.
+
+## Review 59: Registry-Local Dispatch, Structured Identity, And LSP Drift
+
+Status: fixed and fully verified in the current worktree.
+
+- Start: app-graph diagnostics policy failures now use a tagged Effect error,
+  serialized action/server-function manifests validate `moduleKind` against the
+  actual server/client module paths, file-route manifests enforce route
+  entry/module agreement, action response content-type failures say "Start
+  action", and the project-console server entry now builds an explicit server
+  app registry for SSR route preload and form action dispatch.
+- Core/Solid: Resource hydration rejects duplicate `name`/`key` snapshots before
+  apply, sync `Action.planInvalidation(...)` wraps invalidation callback throws
+  in `EffectInputCallbackError`, `Server.localClient({ registry })` dispatches
+  through the supplied app registry snapshot, default Solid `RuntimeProvider`
+  instances own isolated runtimes, and stale Suspense preloads are interrupted
+  when a ref changes to an already-loaded resource.
+- DB: incremental live-query row/output identity now uses structured stable
+  keys instead of delimiter-concatenated strings, `updateEffect(...)` uses
+  decoded changes for optimistic replay and handlers, `joinIndexed(...)`
+  validates declared indexes through Query Plan validation, and pending mutation
+  attempt increments bump the collection version.
+- Devtools: public `*Effect` describer/render wrappers are lazy, extension
+  transport errors no longer overlay stale sample facts after a live bridge
+  disappears, and direct id-less request traces normalize consistently before
+  summary/causal graph projection.
+- Docs/API: migration notes use `Action.define(...)` plus
+  `StartAction.use(...)`/`startActionForm(...)`, the TSRX public API inventory
+  preserves `@tsrx/vite-plugin-solid` ordering, deployment host facades are
+  pinned in public type tests, and stale finalizer naming was corrected.
+
+Verification: focused package typechecks and regressions passed across Core,
+Solid, DB, Start, Devtools, devtools-extension, and project-console; `pnpm
+typecheck`, `pnpm audit:effect-first`, package-source raw `Error`/`TypeError`
+scan, `git diff --check`, and full `pnpm verify` passed. The full gate covered
+9 package builds, workspace typecheck, public type tests, Effect-first audit, 45
+root test files / 618 tests, devtools-panel verify, devtools-extension verify,
+basic starter verify, project-console starter packaging, project-console
+typecheck/tests/build, and leak scans.
+
+## Review 58: Hydration Walls, Runtime Ownership, Devtools Identity, And LSP Coverage
+
+Status: fixed and fully verified in the current worktree. The detailed finding
+entry for this sweep is also recorded in the ledger body; this tip keeps the
+latest review discoverable despite older merge ordering.
+
+- Start: malformed collection hydration roots now fail closed, `.server.tsrx`
+  and `.contract.tsrx` participate in the Manifest/Vite server-only wall, and
+  Vite dev SSR pass-through uses the Effect middleware Adapter.
+- Core/Solid: action reset interrupts all active submission fibers, Resource
+  delete/forced refresh semantics notify subscribers correctly, and Solid
+  router state consumes Core `Route.matchEffect(...)` so schema decode failures
+  become typed `RouteNavigationError` failures.
+- DB: hydration rejects duplicate collection/row identities, Collection
+  mutation/direct-write paths validate `input`, query window counts are finite
+  safe integers everywhere, and live-query collection versions use monotonic
+  revisions instead of hash identity.
+- Devtools: Ref invalidation targets stay Resource nodes, runtime event fact
+  fallbacks cannot collide with recorded facts, imported duplicate event
+  sequences are normalized, describers detach unknown values, legacy app-graph
+  panels render safely, and item metrics reject malformed non-arrays.
+- Docs/API: `@effect-ui/tsrx` has LSP/type-test coverage, Start root low-level
+  helpers and Core re-exports are classified as expert-public convenience
+  surfaces, DB next slices no longer list completed TanStack Query-shaped sync
+  work, and project-console graph helpers are documented as narrow non-Vite
+  fallbacks.
+
+Verification: package typechecks and focused regressions passed across Core,
+Solid, Start, DB, Devtools, and TSRX; `pnpm typecheck`, `pnpm audit:effect-first`,
+`pnpm test` with 45 root files / 603 tests, full `pnpm verify`, and
+`git diff --check` passed.
+
+## Review 57: Atomic Imports, Runtime Cleanup, and Transport Validation
+
+Status: fixed and fully verified in the current worktree.
+
+- DB Collection Runtime: initial optimistic mutation application now sits inside
+  the same persistence rollback seam as pending enqueue, so a failed mutation
+  persist leaves rows, pending mutations, versions, and events unchanged.
+  Restored pending mutation snapshots now require exact rollback-row key
+  coverage, collection values detach `ArrayBuffer` values, and zero-source query
+  plans fail at the Query Plan validator Interface.
+- Devtools Store and graph facts: imported snapshots are bounded before deep
+  payload detachment, serialization stops traversing once a bounded exact
+  truncation count is known, request-embedded route plans use identity disjoint
+  from standalone plans, and count-only hydration facts no longer emit
+  identity-bearing `Hydrates` edges.
+- Core/Solid runtime cleanup: `Action.reset()` runs the local reset Effect
+  without the captured runtime, `UiScope` owns and awaits its finalizer list when
+  disposed directly, provider-owned Solid runtimes dispose without forking on
+  the runtime being disposed, and RouterOutlet transitions start previous route
+  cleanup before rendering the next branch while keeping newer route renders
+  queued behind in-flight disposal starts.
+- Start transport: action invalidation `entries` are semantically validated
+  through runtime-local Resource family lookup before hydration/invalidation is
+  applied, form actions negotiate response mode from `Accept` quality and
+  preference, and Vite dev SSR middleware error reporting treats `next(error)`
+  as best effort.
+- Docs drift: route virtual-module docs now distinguish runtime virtual helpers
+  from precise generated route type maps, and DB host examples wrap Promise
+  clients with `Effect.tryPromise(...)`.
+
+Focused evidence:
+
+- DB typecheck and `packages/db/test/collection.test.ts` passed: 67 tests.
+- Devtools typecheck and `packages/devtools/test/devtools.test.ts` passed:
+  46 tests.
+- Core, Solid, and Start package typechecks passed.
+- Focused Core/Solid/Start regression run passed: 5 files / 175 tests.
+- Full verification passed: 9 package builds, workspace typecheck, public type
+  tests, Effect-first audit, 45 root test files / 585 tests, devtools panel,
+  devtools extension, basic starter, project-console packaging/build, leak-scan
+  gates, and `git diff --check`.
+
 ## Review 1: Internal Runtime Modules
 
 Status: fixed.
@@ -1289,9 +2297,8 @@ Start host-boundary typed errors.
      `packages/core/src/read.ts`, `packages/core/test/resource.test.ts`,
      `packages/solid/src/hooks.ts`, `packages/solid/test/router.test.ts`.
    - Problem: Core `Resource.read(...)` still owned the Suspense Promise Seam by
-     throwing a `runtime.runPromise(...)` value for missing or GC-expired
-     resources. That made the Core Resource Module depend on a UI/host
-     Adapter shape.
+     throwing a host Promise value for missing or GC-expired resources. That made
+     the Core Resource Module depend on a UI/host Adapter shape.
    - Fix: Core `Resource.read(...)` is now synchronous and Effect-first: missing
      or expired data throws typed `ResourcePending`, failed data throws
      `ResourceFailure`, and explicit preloading stays in
@@ -1470,4 +2477,2972 @@ tests passed: 5 files / 65 tests, and the focused multi-package regression
 suite passed: 7 files / 139 tests. Earlier in the same tranche, the snapshot
 update run passed for Start file-route/app-graph virtual module coverage. The
 source-only Promise-method and non-Effect `.catch(...)` greps were clean. Full
-`pnpm verify` is still the next gate before recording a new green checkpoint.
+`pnpm verify` then passed and is recorded as progress checkpoint 254.
+
+## Review 21: LSP Docs And DB Runtime Error Polish
+
+1. LSP-Facing Concept Docs
+   - Status: fixed.
+   - Files: `packages/core/src/resource-errors.ts`,
+     `packages/solid-db/src/collection.ts`,
+     `packages/start/src/hydration.ts`,
+     `packages/start/src/virtual-modules.d.ts`,
+     `packages/devtools/src/index.ts`.
+   - Problem: the behavior had improved faster than the hover docs. Resource
+     read failures, Solid DB collection handles, Start hydration DOM helpers,
+     virtual app graph exports, and Devtools request-panel DTOs all had public
+     Interfaces where callers still had to infer important error modes or data
+     semantics from Implementation code.
+   - Fix: added field-level and helper-level JSDoc at those public Interfaces,
+     including `ResourcePending`/`ResourceFailure` payload fields,
+     `CollectionRuntimeError`-aware Solid DB accessors, Start hydration chunk
+     attributes/readers/hydrators, virtual diagnostics exports, and Devtools
+     request trace/panel projection fields.
+   - Benefits: the LSP surface now carries the local vocabulary at the actual
+     seam callers cross, giving higher leverage than separate prose docs alone.
+
+2. DB Collection Runtime Error Normalization
+   - Status: fixed.
+   - Files: `packages/db/src/collection-contract.ts`,
+     `packages/db/src/collection-snapshot-codec.ts`,
+     `packages/db/src/collection-persistence.ts`,
+     `packages/db/src/collection-runtime.ts`,
+     `packages/db/src/query-builder.ts`,
+     `packages/db/src/query-plan.ts`,
+     `packages/db/src/sync-adapter.ts`,
+     `packages/db/src/index.ts`,
+     `packages/solid-db/src/collection.ts`,
+     `packages/db/test/collection.test.ts`.
+   - Problem: stale raw `Schema.SchemaError` annotations could leak back into
+     the DB Collection and Query Interfaces even though the runtime behavior
+     normalizes output-schema failures to `CollectionSnapshotCodecError`.
+   - Fix: restored `CollectionRuntimeError<E>` to `E |
+     CollectionSnapshotCodecError`, normalized the snapshot codec Effect error
+     mapping, aligned Solid DB collection state/error accessors with
+     `CollectionRuntimeError<E>`, and updated the regression test to assert the
+     normalized codec error and `reason` text.
+   - Benefits: schema validation knowledge has Locality in the Collection
+     Snapshot Codec Module instead of spreading raw Effect Schema errors across
+     Collection, Query, and Solid Adapter Interfaces.
+
+Workspace evidence for this pass: `pnpm --filter @effect-ui/db build` passed
+with before/after DB/Solid DB source checksums unchanged, `pnpm vitest run
+packages/db/test/collection.test.ts` passed, and full `pnpm verify` passed:
+9 package builds, workspace typecheck, type tests, 45 root test files / 415
+tests, devtools-panel verify with 1 panel test, devtools-extension verify with
+1 extension test file / 6 tests, basic starter verify with 1 starter test,
+project-console starter packaging, project-console typecheck, 4 project-console
+test files / 23 tests, project-console build, and leak scan. The raw DB/Solid
+DB schema-error grep plus source Promise-method grep were clean after the full
+verification run.
+
+## Review 22: Devtools Start Action Observation Surface
+
+1. Devtools Start Action Error Channel
+   - Status: fixed.
+   - Files: `packages/devtools/src/index.ts`,
+     `packages/devtools/src/store.ts`, `type-tests/framework.test-d.ts`.
+   - Problem: the Devtools Store accepted stateful Start Action instances
+     through an observation Interface whose default error channel was too
+     narrow. Real Start Action instances expose `Server.ClientError` in their
+     visible submission state, but the devtools seam could collapse that slot
+     to `never`, making a valid Start Adapter look incompatible with the
+     Devtools Store.
+   - Fix: made `DevtoolsStartActionInstance` generic over input, result, error,
+     and invalidation-plan slots with an observation-safe `unknown` default for
+     errors; the store now preserves those generics internally and uses explicit
+     `any` aliases only at the untyped facade edge.
+   - Benefits: the Devtools Store remains a deep Module for action observation:
+     it can record Core Actions and Start Actions through one small Interface
+     without lying about their error modes or forcing callers to erase useful
+     type information themselves.
+
+Workspace evidence for this pass: `pnpm typecheck` passed after the devtools
+surface fix, full `pnpm verify` passed as above, and the Promise/raw-schema
+post-verify audits were clean.
+
+## Review 23: Effect Callback Errors And Hydration/Fact Identity Locality
+
+1. DB EffectInput Callback Error Seam
+   - Status: fixed.
+   - Files: `packages/db/src/collection-contract.ts`,
+     `packages/db/src/collection-persistence.ts`,
+     `packages/db/src/collection-runtime.ts`,
+     `packages/db/src/index.ts`, `packages/db/src/sync-adapter.ts`,
+     `packages/db/test/collection.test.ts`,
+     `packages/db/test/sync-adapter.test.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: DB loaders, mutation handlers, sync adapters, change-feed
+     subscriptions, and persistence callbacks could synchronously throw before
+     returning an Effect. The old Adapter implementation cast those thrown
+     values into the caller's `E`, so callback defects and declared domain
+     failures crossed the same Interface.
+   - Fix: route callback execution through `invokeEffectInput(...)` and expose
+     `EffectInputCallbackError` in the affected Collection Runtime and
+     persistence error channels. Regression tests assert synchronous loader,
+     storage, sync load, sync insert, and mutation callback throws preserve the
+     original cause inside the typed callback error.
+   - Benefits: DB Adapter failures now have Locality at the EffectInput Seam.
+     Callers can distinguish declared collection failures from host callback
+     defects without catching `unknown`.
+
+2. Devtools Imported Fact Identity
+   - Status: fixed.
+   - Files: `packages/devtools/src/fact-identity.ts`,
+     `packages/devtools/src/store.ts`,
+     `packages/devtools/test/devtools.test.ts`.
+   - Problem: Devtools Store still owned request trace fingerprinting, imported
+     id seeding, and id-less `RequestTrace` event pairing even though those are
+     Fact Identity policy, not bounded store recording behavior.
+   - Fix: moved imported request trace normalization into the Fact Identity
+     Module. The Store now receives a normalized snapshot and next trace
+     sequence from that deeper Interface, then continues to own recording and
+     bounded history.
+   - Benefits: fact id repair has better Locality for Store, Summary, and
+     Causal Graph maintenance, and Store remains a higher-leverage recording
+     Adapter.
+
+3. Start Hydration DOM Adapter
+   - Status: fixed.
+   - Files: `packages/start/src/hydration-dom.ts`,
+     `packages/start/src/hydration.ts`,
+     `packages/start/test/start.test.ts`,
+     `packages/start/test/streaming.test.ts`,
+     `docs/public-api-inventory.md`.
+   - Problem: Start Hydration combined payload construction, HTML-safe JSON
+     encoding, chunk parsing, DOM script discovery, consumed-marker mutation,
+     Resource/Collection hydration, and synchronous host facades in one Module.
+     That made the public Interface harder to scan in LSP hovers and kept DOM
+     Adapter rules adjacent to wire codec rules.
+   - Fix: added a `hydration-dom.ts` Module for script ids, streamed chunk
+     marker attributes, minimal document/element Interfaces, raw script reads,
+     and consumed marking. `hydration.ts` now re-exports those contracts while
+     keeping payload/chunk parsing and Effect-first hydration application.
+   - Benefits: Start Hydration has a clearer transport Seam: DOM selection and
+     mutation are isolated in one Adapter, while hydration codec and runtime
+     application keep their own test surface and docs.
+
+4. DB Build/Verification Guard
+   - Status: environment hazard identified.
+   - Files: `packages/db/src/*`, `/private/tmp/effect-ui-live-repro`.
+   - Problem: while verifying DB error-channel cleanup, raw
+     `Schema.SchemaError` annotations reappeared in DB source. A guarded DB
+     build reproduced no source mutation from `tsgo`, and a subagent found a
+     stale temp worktree plus a separate `codex` process with this repo as cwd.
+   - Fix: re-normalized DB source, kept raw schema-error and Promise-method
+     greps in the verification loop, and temporarily guarded DB source files
+     during broad gates so concurrent stale writers fail loudly.
+   - Benefits: the source of truth stays Effect-first, and the verification
+     Seam now checks for accidental Promise/raw-schema drift rather than
+     trusting package builds alone.
+
+Workspace evidence for this pass: `pnpm --filter @effect-ui/start typecheck`,
+`pnpm --filter @effect-ui/devtools typecheck`, `pnpm typecheck`, `pnpm
+--filter @effect-ui/db build`, `pnpm --filter @effect-ui/starter-basic build`,
+`pnpm vitest run packages/start/test/start.test.ts
+packages/start/test/streaming.test.ts`, `pnpm vitest run
+packages/devtools/test/devtools.test.ts`, and `pnpm vitest run
+packages/db/test/collection.test.ts packages/start/test/adapters.test.ts`
+passed. Full `pnpm verify` passed: 9 package builds, workspace typecheck, type
+tests, 45 root test files / 420 tests, devtools-panel verify with 1 panel test,
+devtools-extension verify with 1 extension test file / 6 tests, basic starter
+verify with 1 starter test, project-console starter packaging,
+project-console typecheck, 4 project-console test files / 23 tests,
+project-console build, and leak scan. The DB/Solid DB raw schema-error grep,
+source Promise-method grep, and immutable flag audit were clean after
+verification.
+
+## Review 30: Transport Requirements, Resource Load Errors, And Detached Panels
+
+1. Start Action Transport Status And Runtime Locality
+   - Status: fixed.
+   - Files: `packages/start/src/start-fetch.ts`,
+     `packages/start/src/start-rpc-client.ts`,
+     `packages/start/src/start-action-client.ts`,
+     `packages/start/src/start-transport-protocol.ts`,
+     `packages/start/test/start.test.ts`, `type-tests/framework.test-d.ts`,
+     `docs/public-api-inventory.md`, `CONTEXT.md`.
+   - Problem: Start action clients trusted response body tags even when the HTTP
+     status contradicted the semantic body. `StartFetch` also typed only the
+     fetch error, so service-backed fetch Effects lost their requirement trail.
+   - Fix: action success/failure/redirect bodies now require a 2xx status,
+     validation bodies require 422, and server/defect bodies remain
+     body-driven. `StartFetch<E, R>` now preserves fetch requirements, with
+     `runtime`/`transportRuntime` options for service-backed transports.
+   - Benefits: clients no longer accept impossible action responses, and LSP
+     hover types show where transport services must be provided.
+
+2. Resource Load Error And Provides Callback Policy
+   - Status: fixed.
+   - Files: `packages/core/src/resource.ts`,
+     `packages/core/src/resource-runtime.ts`,
+     `packages/core/src/resource-lifetime.ts`,
+     `packages/core/src/resource-dependency-graph.ts`,
+     `packages/core/src/resource-errors.ts`, `packages/core/test/resource.test.ts`,
+     `packages/solid/src/hooks.ts`, `type-tests/framework.test-d.ts`,
+     `docs/public-api-inventory.md`, `CONTEXT.md`.
+   - Problem: public Resource state/status and Solid handles still advertised
+     only the user load error `E`, even though synchronous `load` callback
+     throws already became `EffectInputCallbackError`. `provides(...)` callback
+     throws were still outside that policy.
+   - Fix: introduced the documented `Resource.LoadError<E>` surface for
+     Resource state, status, preload, refresh, and Solid resource handles.
+     `provides(...)` now runs through the same callback error seam as `load`.
+   - Benefits: Resource hover docs now match runtime behavior, and tag-index
+     callback failures are typed Effect failures instead of defects.
+
+3. Query And Collection Store Locality
+   - Status: fixed.
+   - Files: `packages/db/src/collection-runtime.ts`,
+     `packages/db/src/query-builder.ts`, `packages/db/src/query-plan.ts`,
+     `packages/db/src/collection-persistence.ts`,
+     `packages/db/test/collection.test.ts`, `type-tests/framework.test-d.ts`.
+   - Problem: `Query.onceEffect(...)` preloaded from the Effect-provided
+     Collection Store but then evaluated through synchronous collection reads
+     that could fall back to the ambient runtime store. Multi-collection
+     dehydration/hydration also had store parameters that were not consistently
+     used by the snapshot helpers.
+   - Fix: one-shot query evaluation now runs under an explicit Collection Store
+     override captured from `collectionStoreEffect`, and collection hydration
+     payload helpers pass the active store all the way to snapshot/hydrate
+     internals while definition-owned snapshot collections keep their own
+     snapshot Interface.
+   - Benefits: two runtimes can safely share Collection Definitions without
+     one-shot query or hydration payload leakage.
+
+4. Flush And SQLite Callback Error Channels
+   - Status: fixed.
+   - Files: `packages/db/src/flush-policy.ts`,
+     `packages/db/src/sqlite-persistence.ts`,
+     `packages/db/src/sync-adapter.ts`,
+     `packages/db/test/flush-policy.test.ts`,
+     `packages/db/test/sqlite-persistence.test.ts`,
+     `type-tests/framework.test-d.ts`, `docs/public-api-inventory.md`.
+   - Problem: flush skip predicates, background sync readiness predicates, and
+     SQLite persistence callbacks could throw synchronously before entering the
+     public Effect error channel. Resource-backed collection sync adapters also
+     hid the widened Resource load error.
+   - Fix: those predicates and SQLite callbacks now run through
+     `EffectInputCallbackError` normalization. Resource-backed collection sync
+     adapters expose `Resource.LoadError<E>` for load/refetch.
+   - Benefits: DB host and persistence adapters have one callback policy, and
+     LSP users see the real error channel before wiring storage or sync.
+
+5. Detached Devtools Panel Payloads
+   - Status: fixed.
+   - Files: `packages/devtools/src/panel-contract.ts`,
+     `packages/devtools/src/serialization.ts`, `packages/devtools/src/index.ts`,
+     `packages/devtools/test/devtools.test.ts`, `type-tests/framework.test-d.ts`,
+     `docs/public-api-inventory.md`, `CONTEXT.md`.
+   - Problem: panel bridge normalization validated inspected-window objects but
+     returned references to those live objects. Later renderer reads could still
+     trip getters, proxies, or mutated arrays. The serialization policy type was
+     also implemented but not exported as public LSP vocabulary.
+   - Fix: panel bridge normalization now returns detached DTOs, array/property
+     reads are trap-safe, host object probes in serialization use guarded
+     fallbacks, and `DevtoolsSerializationPolicy` is exported and type-tested.
+   - Benefits: extension panels can render normalized payloads without touching
+     hostile inspected-window objects, and users can hover the serialization
+     limits that shape runtime values.
+
+6. Generated Route Default Export Docs
+   - Status: fixed.
+   - Files: `packages/start/src/file-route-modules.ts`,
+     `packages/start/test/file-route-modules.test.ts`,
+     `examples/basic-starter/src/routeTree.gen.ts`,
+     `examples/project-console/src/routeTree.gen.ts`.
+   - Problem: the generated route artifact had rich hover docs for maps and
+     helper types, but the default export still appeared as a bare export.
+   - Fix: the generator now emits JSDoc for the default route-tree export, and
+     generated example artifacts plus inline snapshots were updated.
+   - Benefits: the written app-specific route tree is consistently documented
+     across named and default imports.
+
+Focused workspace evidence for this pass: `pnpm --filter
+@effect-ui/core typecheck`, `pnpm --filter @effect-ui/db typecheck`, `pnpm
+--filter @effect-ui/devtools typecheck`, `pnpm --filter @effect-ui/start
+typecheck`, `pnpm --filter @effect-ui/solid typecheck`, `pnpm typecheck:types`,
+`pnpm test packages/start/test/start.test.ts`, `pnpm test
+packages/start/test/file-route-modules.test.ts`, `pnpm test
+packages/db/test/collection.test.ts`, `pnpm test
+packages/db/test/live-query-collection.test.ts`, `pnpm test
+packages/db/test/flush-policy.test.ts packages/db/test/sqlite-persistence.test.ts`,
+`pnpm test packages/devtools/test/devtools.test.ts`, `pnpm test
+examples/devtools-extension/src/extension.test.ts packages/devtools/test/devtools.test.ts`,
+and `pnpm test packages/core/test/resource.test.ts` passed. Full `pnpm verify`
+passed: 9 package builds, workspace typecheck, type tests, 45 root test files /
+454 tests, devtools-panel verify with 1 panel test, devtools-extension verify
+with 1 extension test file / 7 tests, basic starter verify with 1 starter test,
+project-console starter packaging, project-console typecheck, 4 project-console
+test files / 23 tests, project-console build, and leak scan. Post-verify raw
+schema-error, Promise-method, immutable flag, ResourceFamily live-store,
+sync-load closure, runtime Promise docs, and whitespace audits passed.
+
+## Review 37: Start Hydration Transport Effect-First Implementation
+
+Status: fixed.
+
+Findings:
+
+1. Start Hydration Transport Sync/Effect Duplication
+   - Status: fixed.
+   - Files: `packages/start/src/hydration.ts`,
+     `packages/start/test/start.test.ts`, `docs/public-api-inventory.md`,
+     `CONTEXT.md`.
+   - Problem: Start Hydration exposed Effect-first helpers, but private JSON
+     parsing, payload/chunk decoding, and HTML-safe serialization still had
+     parallel throwing and Effect implementations. That left the transport
+     policy split between sync code and Effect code, even though the
+     synchronous APIs are only browser/host-boundary conveniences.
+   - Fix: made payload decoding, streamed chunk decoding, JSON parsing, and
+     HTML-safe encoding flow through Effect-first helpers. The synchronous
+     serialization and read APIs now unwrap those same Effects at the host
+     boundary and throw the original tagged transport failures directly.
+     Runtime-dependent hydration facades still run through the Runtime Spine.
+   - Benefits: root document hydration and streamed hydration chunks now share
+     one transport policy for parse, decode, encode, ordering, and typed
+     failures. LSP-facing docs now describe the sync helpers as facades over
+     Effect-first transport behavior instead of separate implementations.
+
+Focused evidence: `pnpm --filter @effect-ui/start typecheck` passed, and
+`pnpm vitest run packages/start/test/start.test.ts
+packages/start/test/streaming.test.ts` passed with 2 files / 86 tests. Added
+regressions for sync serialization failures preserving
+`StartHydrationPayloadSerializeError`, malformed streamed chunk sync failures
+preserving sequence/value details, and legacy streamed root payloads decoding
+through the sync facade. Full `pnpm verify` passed after this pass: 9 package
+builds, workspace typecheck, type tests, effect-first source audit, 45 root
+test files / 456 tests, devtools-panel verify with 1 panel test,
+devtools-extension verify with 1 extension test file / 7 tests, basic starter
+verify with 1 starter test, project-console starter packaging,
+project-console typecheck, 4 project-console test files / 23 tests,
+project-console build, and leak scan.
+
+## Review 41: Devtools Summary Input Normalization Locality
+
+Status: fixed.
+
+Findings:
+
+1. Devtools Summary Input Normalization Repetition
+   - Status: fixed.
+   - Files: `packages/devtools/src/summary-facts.ts`,
+     `packages/devtools/src/summary.ts`,
+     `packages/devtools/src/causal-graph.ts`,
+     `docs/public-api-inventory.md`, `CONTEXT.md`.
+   - Problem: `describeDevtoolsSummary(...)` and
+     `describeDevtoolsCausalGraph(...)` independently resolved
+     `DevtoolsSummaryInput` overrides against snapshots, defaulted optional
+     arrays, summarized invalidations, route plans, request traces, runtime
+     events, and derived resource indexes. That made the summary and causal
+     graph projections share behavior by copy/paste instead of a named Module.
+   - Fix: added `normalizeDevtoolsSummaryInput(...)` in `summary-facts.ts`.
+     Summary and causal graph helpers now consume the same normalized facts,
+     while `makeDevtoolsCausalGraph(...)` remains unchanged as the lower-level
+     graph builder.
+   - Benefits: input override precedence, summary indexes, request trace
+     summaries, runtime event ordering, and resource index derivation now have
+     one Locality before they feed summaries, panels, and causal graphs.
+
+Focused evidence: `pnpm --filter @effect-ui/devtools typecheck` passed, and
+`pnpm vitest run packages/devtools/test/devtools.test.ts` passed with 1 file /
+26 tests. Full `pnpm verify` passed after this pass: 9 package builds,
+workspace typecheck, type tests, effect-first source audit, 45 root test files
+/ 457 tests, devtools-panel verify with 1 panel test, devtools-extension verify
+with 1 extension test file / 7 tests, basic starter verify with 1 starter
+test, project-console starter packaging, project-console typecheck, 4
+project-console test files / 23 tests, project-console build, and leak scan.
+
+## Review 42: Start/Devtools Invalidation Structural Contract
+
+Status: accepted as intentional.
+
+Findings:
+
+1. Start Action Invalidation DTO And Devtools Invalidation DTO
+   - Status: accepted.
+   - Files: `packages/start/src/start-transport-protocol.ts`,
+     `packages/devtools/src/index.ts`, `type-tests/framework.test-d.ts`,
+     `docs/public-api-inventory.md`, `docs/type-test-coverage-audit.md`,
+     `CONTEXT.md`.
+   - Problem considered: `StartActionInvalidationPlan` and
+     `DevtoolsInvalidationPlan` share the same structural DTO shape, which can
+     look like duplicated ownership.
+   - Decision: keep the DTOs separate and structurally compatible. Start owns
+     action transport metadata, Devtools owns detached inspection metadata, and
+     `serializedInvalidationPlan` is the dependency-free bridge between them.
+     A shared type would either couple Start to Devtools, couple Devtools to
+     Start, or move inspection-shaped transport data into Core.
+   - Benefits: full-stack action causality can flow into devtools while package
+     dependencies stay acyclic and intentional. Type tests now pin assignability
+     in both directions so future DTO growth has an explicit contract check.
+
+Focused evidence: `pnpm typecheck:types` passed after the reverse structural
+assignability assertion was added.
+
+## Review 43: Queued Architecture Candidate Decisions
+
+Status: accepted as intentional.
+
+Findings:
+
+1. Collection Mutation Runtime Module
+   - Status: accepted.
+   - Files: `packages/db/src/collection-runtime.ts`,
+     `packages/db/src/collection-mutation-queue.ts`,
+     `packages/db/test/collection.test.ts`, `docs/public-api-inventory.md`.
+   - Problem considered: optimistic mutation execution and pending flush replay
+     could be extracted from Collection Runtime into a separate Mutation Runtime
+     Module.
+   - Decision: keep execution in Collection Runtime. Mutation execution needs
+     active Collection Store lookup, projection callback normalization, schema
+     validation, rollback rows, retry attempts, persistence, and event
+     publication together. `collection-mutation-queue.ts` remains the narrow
+     queue fact/state helper for transaction ids, attempts, enqueue/dequeue, and
+     snapshot helpers.
+   - Benefits: mutation policy remains runtime/request-local without exporting a
+     wider private helper surface.
+
+2. Collection Direct Write And Change Batch Module
+   - Status: accepted.
+   - Files: `packages/db/src/collection-runtime.ts`,
+     `packages/db/src/sync-adapter.ts`, `packages/db/test/collection.test.ts`,
+     `packages/db/test/sync-adapter.test.ts`,
+     `docs/public-api-inventory.md`.
+   - Problem considered: direct writes and change-feed batch application could
+     move into a separate write Module.
+   - Decision: keep direct writes and batch application in Collection Runtime.
+     They mutate Collection Store rows, secondary indexes, row metadata,
+     persistence state, event publication, and live-query-visible versions in one
+     transaction-shaped locality. Sync adapters own subscription and emit
+     batches; they do not own store mutation policy.
+   - Benefits: adapters stay host-facing, while store mutation behavior remains
+     under the runtime/request-local Collection Runtime policy.
+
+3. SQLite Statement Adapter Locality
+   - Status: accepted.
+   - Files: `packages/db/src/sqlite-persistence.ts`,
+     `packages/db/test/sqlite-persistence.test.ts`, `docs/db.md`,
+     `docs/public-api-inventory.md`.
+   - Problem considered: statement, prepared-statement, and memory SQLite
+     helpers might deserve separate files or package boundaries.
+   - Decision: keep them colocated as one dependency-free SQLite persistence
+     helper family. The memory adapter is the reference implementation for the
+     generated statement-driver SQL, and public access stays through the DB root
+     and `Collection.sqlite*` helpers.
+   - Benefits: storage-adapter docs, tests, and LSP hovers present one coherent
+     composition chain without implying a dependency on any SQLite runtime.
+
+4. Solid Router Location Adapter
+   - Status: accepted.
+   - Files: `packages/solid/src/router.ts`,
+     `packages/solid/test/router.test.ts`, `docs/public-api-inventory.md`.
+   - Problem considered: browser `location`, `history`, and `popstate`
+     adaptation might be mixed too deeply into Solid router state.
+   - Decision: keep browser location/history behavior inside the Solid browser
+     router Adapter. `createBrowserRouter(...)` and `RouterProvider` already own
+     route preload, state updates, and route scope lifecycle at the Solid host
+     boundary; Core remains the route definition, match, and href-building owner.
+   - Benefits: host browser mechanics stay outside Core without creating a thin
+     extra abstraction inside the same Solid adapter package.
+
+5. Devtools Store Sync Facades
+   - Status: accepted.
+   - Files: `packages/devtools/src/store.ts`,
+     `packages/devtools/src/index.ts`, `packages/devtools/test/devtools.test.ts`,
+     `docs/devtools.md`, `docs/public-api-inventory.md`.
+   - Problem considered: Devtools Store exposes sync methods next to Effect-first
+     implementation methods.
+   - Decision: keep the sync methods on the store object as host-boundary
+     facades over the same Effect implementation methods. The store Module owns
+     the runtime and state; a separate facade would duplicate the public surface
+     without reducing coupling.
+   - Benefits: framework internals and tests can keep using Effect methods, while
+     host adapters still get plain sync reads/writes from the same bounded store.
+
+Focused evidence: read-only subagents inspected each candidate and found no
+smaller code extraction that would improve Module, Interface, Seam, Adapter, or
+Locality ownership. Docs were updated so these accepted boundaries are less
+likely to be re-queued.
+
+## Review 44: DB/Solid/Start Typed Surface Follow-Up
+
+Status: fixed.
+
+Findings:
+
+1. Collection Flush Policy Runtime Error Channel
+   - Status: fixed.
+   - Files: `packages/db/src/flush-policy.ts`,
+     `packages/db/src/collection-contract.ts`, `type-tests/framework.test-d.ts`,
+     `docs/public-api-inventory.md`, `docs/db.md`.
+   - Problem: `FlushCollectionsPendingMutationsError` named only collection
+     handler errors, skip errors, and callback errors even though it yields
+     `collection.flushPendingMutationsEffect()`, whose public Interface can also
+     fail with `CollectionSnapshotCodecError`.
+   - Fix: widened the coordination error alias to
+     `CollectionRuntimeError<CollectionError<...>>`, updated stale hover docs so
+     output-schema failures are described as snapshot codec failures, and pinned
+     flush/background-sync error channels in type tests.
+   - Benefits: multi-collection flush and background sync now tell the same error
+     truth as single-collection mutation flushing.
+
+2. Solid DB Owner-Scoped Automatic Preload
+   - Status: fixed.
+   - Files: `packages/solid-db/src/shared.ts`,
+     `packages/solid-db/test/solid-db.test.ts`, `CONTEXT.md`,
+     `docs/public-api-inventory.md`.
+   - Problem: automatic `useCollection(...)` / `useLiveQuery(...)` preloads were
+     forked and then detached from Solid owner cleanup, so a slow preload could
+     outlive its component owner and report a late failure.
+   - Fix: retained the preload fiber and interrupted it during owner cleanup
+     alongside collection source unsubscriptions. Added a regression with a
+     never-completing preload that proves disposal interrupts the fiber and does
+     not call `onPreloadFailure`.
+   - Benefits: Solid DB's Reactive Binding Module now owns both mount-time
+     preload execution and owner cleanup as one lifecycle.
+
+3. Solid Router Outlet And Hook Type Coverage
+   - Status: fixed.
+   - Files: `packages/solid/src/router.ts`, `packages/solid/test/router.test.ts`,
+     `type-tests/framework.test-d.ts`, `docs/public-api-inventory.md`,
+     `docs/type-test-coverage-audit.md`.
+   - Problem: `RouterProviderProps` carried the route tuple, but
+     `RouterOutletProps` widened pending/failure renderer state back to
+     `AnyRoute`, and the public Solid type tests barely pinned the router/hooks
+     surface.
+   - Fix: made `RouterOutletProps` preserve route-specific state while keeping
+     the existing error-first generic form for broad renderers. Type tests now
+     cover typed browser router href/navigation/preload, route-specific outlet
+     matches, Solid resource handles, and Solid action input/output preservation.
+   - Benefits: LSP hover and callback inference now keep route params/search
+     precise through outlet fallback renderers.
+
+4. Generated Route Definitions Typed Generation Failures
+   - Status: fixed.
+   - Files: `packages/start/src/file-route-modules.ts`,
+     `packages/start/src/generated-route-definitions.ts`,
+     `packages/start/src/start-virtual-modules.ts`,
+     `packages/start/src/vite.ts`,
+     `packages/start/test/file-route-modules.test.ts`, `CONTEXT.md`,
+     `docs/public-api-inventory.md`.
+   - Problem: the generated route file writer and virtual route module exposed
+     Effect-first APIs, but invalid route identifiers or route-module export
+     names could still throw before entering the typed Effect error channel.
+   - Fix: named `FileRouteDefinitionsModuleError`, added an error guard, routed
+     generated file planning and virtual route/app-graph module generation
+     through Effect-visible failures, and widened the Vite writer error alias to
+     `FileRouteDefinitionsFileWriteFailure`.
+   - Benefits: generation, virtual-module loading, and filesystem writes now
+     agree that generated route diagnostics are typed Effect failures.
+
+5. Basic Starter Generated Artifact Contract
+   - Status: fixed.
+   - Files: `examples/basic-starter/src/starter.test.ts`.
+   - Problem: the basic starter only tested SSR output, while the richer
+     project-console starter pinned generated route artifact shape.
+   - Fix: added a starter regression for the generated header, `routes`,
+     `routeById`, `routeByPath`, and `FileRouteHrefOptionsById`.
+   - Benefits: both starter paths now exercise the LSP-facing generated route
+     artifact contract.
+
+Focused evidence: package typechecks for DB, Solid, Solid DB, and Start passed;
+`pnpm typecheck:types` passed; focused tests passed for Solid router, Solid DB,
+DB flush/collection behavior, Start file-route modules, and the basic starter;
+`pnpm audit:effect-first` and `git diff --check` passed. Full `pnpm verify`
+passed after this tranche: 9 package builds, workspace typecheck, type tests,
+Effect-first source audit, 45 root test files / 461 tests, devtools-panel verify
+with 1 panel test, devtools-extension verify with 1 extension test file / 7
+tests, basic starter verify with 1 starter test file / 2 tests,
+project-console starter packaging, project-console typecheck, 4 project-console
+test files / 23 tests, project-console build, and leak scans. Post-verify raw
+schema-error, Promise-method, immutable flag, ResourceFamily live-store,
+runtime Promise docs, and whitespace audits passed.
+
+## Review 40: Start Facade Package Depth Decision
+
+Status: accepted as intentional.
+
+Findings:
+
+1. `@effect-ui/start-fetch` And `@effect-ui/start-node` Shallow Packages
+   - Status: accepted.
+   - Files: `packages/start-fetch/src/index.ts`,
+     `packages/start-node/src/index.ts`, `docs/public-api-inventory.md`,
+     `packages/start/test/adapters.test.ts`.
+   - Problem considered: the package roots are shallow re-export facades,
+     which can be a smell when a package claims a Module but only forwards
+     names.
+   - Decision: keep them shallow. Their depth lives in
+     `@effect-ui/start/fetch-adapter` and `@effect-ui/start/node-adapter`; the
+     packages are install/import seams for host-shaped deployments. Deleting
+     them would move Node/fetch package ergonomics back into docs and user
+     imports without reducing implementation complexity.
+   - Evidence: public API inventory explicitly classifies both as thin
+     facades, adapter tests prove the package facades point at the tested
+     implementation, and the fetch facade is pinned to the fetch-only adapter
+     module so it does not pull Node imports into fetch-only bundles.
+
+No code fix was made. Focused verification from the audit agent passed:
+`pnpm vitest run packages/start/test/adapters.test.ts` with 15 tests,
+`pnpm typecheck:types`, and package typechecks for `@effect-ui/start-fetch`
+and `@effect-ui/start-node`.
+
+## Review 39: Start Transport Status Policy Locality
+
+Status: fixed.
+
+Findings:
+
+1. Start Transport Response And Status Policy Duplication
+   - Status: fixed.
+   - Files: `packages/start/src/start-transport-protocol.ts`,
+     `packages/start/src/start-rpc-client.ts`,
+     `packages/start/src/start-action-client.ts`,
+     `docs/public-api-inventory.md`, `CONTEXT.md`.
+   - Problem: the Start transport Module had parallel RPC/action JSON
+     response builders and duplicated runtime failure, protocol failure,
+     transport request failure, and not-found response construction. Client
+     status validation also lived separately in the RPC and action clients, so
+     semantic body tags and expected HTTP statuses could drift.
+   - Fix: added shared JSON, server-error, defect, and not-found response
+     helpers behind the existing exported RPC/action response functions. Added
+     `validateStartResponseStatusEffect(...)` for the shared RPC/action client
+     status policy, then routed `start-rpc-client.ts` and
+     `start-action-client.ts` through it while preserving existing error
+     messages, bodies, and status codes.
+   - Benefits: the Start Transport Protocol now owns status policy and common
+     response construction. RPC/action clients stay thinner and cannot
+     independently reinterpret successful, validation, server-error, or defect
+     transport bodies.
+
+Focused evidence: `pnpm --filter @effect-ui/start typecheck` passed, and
+`pnpm vitest run packages/start/test/rpc.test.ts packages/start/test/start.test.ts`
+passed with 2 files / 88 tests. Full `pnpm verify` passed after this pass: 9
+package builds, workspace typecheck, type tests, effect-first source audit, 45
+root test files / 457 tests, devtools-panel verify with 1 panel test,
+devtools-extension verify with 1 extension test file / 7 tests, basic starter
+verify with 1 starter test, project-console starter packaging,
+project-console typecheck, 4 project-console test files / 23 tests,
+project-console build, and leak scan.
+
+## Review 38: Request Runtime Response Stream Adapter Locality
+
+Status: fixed.
+
+Findings:
+
+1. Request Runtime Owned Web Stream Adapter
+   - Status: fixed.
+   - Files: `packages/start/src/request-runtime.ts`,
+     `packages/start/src/request-runtime-response.ts`,
+     `packages/start/src/streaming.ts`, `packages/start/test/streaming.test.ts`,
+     `scripts/audit-effect-first.mjs`, `docs/public-api-inventory.md`,
+     `CONTEXT.md`.
+   - Problem: `request-runtime.ts` owned both Runtime Spine provisioning and
+     Web response body mechanics: it called `response.body.getReader()`,
+     constructed a new `ReadableStream`, and rebuilt the `Response` to delay
+     request runtime disposal until stream close/cancel/error. That put a host
+     Adapter beside lifecycle code.
+   - Fix: added `responseWithStreamFinalizer(...)` to the Start streaming
+     Module so Web response wrapping, reader pulling, chunk counting, and
+     close/error/cancel mapping live with stream Adapters. Added
+     `request-runtime-response.ts` for the runtime-specific finalizer that
+     guards single disposal, records teardown facts, and invokes request trace
+     callbacks. `request-runtime.ts` now re-exports the stable completion
+     facade while keeping Runtime construction/provisioning local.
+   - Benefits: streaming mechanics, Runtime lifecycle, and request handler
+     orchestration each have clearer Locality while preserving the old public
+     completion API and streamed-response teardown semantics.
+
+Focused evidence: `pnpm --filter @effect-ui/start typecheck`,
+`pnpm audit:effect-first`, and `pnpm vitest run packages/start/test/start.test.ts
+packages/start/test/streaming.test.ts packages/start/test/adapters.test.ts`
+passed with 3 files / 102 tests. Added streaming regressions for wrapped Web
+response close, cancel, and error finalization events. Full `pnpm verify`
+passed after this pass: 9 package builds, workspace typecheck, type tests,
+effect-first source audit, 45 root test files / 457 tests, devtools-panel
+verify with 1 panel test, devtools-extension verify with 1 extension test file
+/ 7 tests, basic starter verify with 1 starter test, project-console starter
+packaging, project-console typecheck, 4 project-console test files / 23 tests,
+project-console build, and leak scan.
+
+## Review 24: Action Optimism And Live Query State Locality
+
+1. Action Optimistic Transaction Module
+   - Status: fixed.
+   - Files: `packages/core/src/action-optimistic.ts`,
+     `packages/core/src/action.ts`, `CONTEXT.md`.
+   - Problem: `Action.use(...)` owned optimistic signal patch stacking,
+     rollback, commit, and cross-submission recomputation inline with action
+     submission orchestration. That made the Action facade a shallower Module:
+     callers only need an optimistic transaction Interface, while maintainers
+     had to read signal patch internals in the same file as concurrency and
+     invalidation logic.
+   - Fix: extracted `action-optimistic.ts` as the Action Optimistic
+     Transaction Module. `Action.use(...)` now wires a small runtime into the
+     workflow, while the new Module owns patch state, touched-signal tracking,
+     commit folding, rollback removal, and recomputation of later optimistic
+     patches. The public Action Interface still exposes only the existing
+     transaction and rollback types.
+   - Benefits: optimistic patch behavior now has Locality at a focused Seam,
+     giving tests and future concurrency changes a deeper Interface without
+     widening the public Action surface.
+
+2. Live Query State Module
+   - Status: fixed.
+   - Files: `packages/db/src/live-query-state.ts`,
+     `packages/db/src/query-builder.ts`,
+     `packages/db/test/live-query-collection.test.ts`, `CONTEXT.md`.
+   - Problem: `Query.live(...)` mixed Query Builder description work with the
+     reactive Adapter that turns Live Query Runtime evaluation into `data`,
+     `state`, source preloads, source refetches, source failures, and last-good
+     data retention. The Interface was small, but the Implementation mixed two
+     concepts with different reasons to change.
+   - Fix: extracted `makeLiveQueryState(...)` into a Live Query State Module.
+     Query Builder still owns immutable query descriptions and one-shot
+     execution; Live Query State now owns the public `LiveQuery` handle around
+     the runtime evaluator. Added regressions proving a later projection
+     failure reports typed query failure while preserving the last successful
+     data, a later source refetch failure preserves current data, and the live
+     query recovers when source data becomes valid again.
+   - Benefits: Live Query Runtime remains about incremental query mechanics,
+     Query Builder remains about query construction, and the state Adapter has
+     one testable Interface for load-state folding and failure retention.
+
+3. Start Endpoint Workflow Candidate
+   - Status: closed as not actionable.
+   - Files inspected: `packages/start/src/start-request-endpoints.ts`.
+   - Problem considered: extracting the endpoint dispatch branches into a
+     separate workflow Module.
+   - Decision: the deletion test failed. The proposed Module would expose a
+     callback-heavy Interface nearly as complex as the Implementation, with
+     only one real Adapter. Keeping the dispatch branches in the Start Request
+     Handler path preserves better Locality than adding a shallow Seam.
+
+Workspace evidence for this pass: `pnpm --filter @effect-ui/core typecheck`
+passed, `pnpm --filter @effect-ui/db typecheck` passed, `pnpm typecheck`
+passed, `pnpm typecheck:types` passed, and the focused regression runs passed:
+`pnpm vitest run packages/core/test/action.test.ts
+packages/db/test/live-query-collection.test.ts` with 2 files / 30 tests and
+`pnpm exec vitest run packages/core/test/action.test.ts
+packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts
+packages/solid-db/test/solid-db.test.ts` with 4 files / 77 tests. Full `pnpm
+verify` passed: 9 package builds, workspace typecheck, type tests, 45 root test
+files / 422 tests, devtools-panel verify with 1 panel test,
+devtools-extension verify with 1 extension test file / 6 tests, basic starter
+verify with 1 starter test, project-console starter packaging,
+project-console typecheck, 4 project-console test files / 23 tests,
+project-console build, and leak scan. DB/Solid DB raw schema-error grep, source
+Promise-method grep, and immutable flag audit passed after verification.
+
+## Review 25: Runtime Locality And Start Dev SSR Module Boundaries
+
+1. Resource Runtime Store Operations
+   - Status: fixed.
+   - Files: `packages/core/src/resource.ts`,
+     `packages/core/src/resource-runtime.ts`,
+     `packages/core/src/resource-lifetime.ts`,
+     `packages/core/test/resource.test.ts`,
+     `docs/public-api-inventory.md`.
+   - Problem: `ResourceFamily` is the stable Resource Definition Module, but it
+     still owned live Resource Store implementation details: per-store input
+     maps, entries, Effect cache construction, hydration writes, invalidation,
+     deletion, and entry enumeration. That made the definition Interface
+     shallower and let internal callers treat a definition as the live runtime
+     owner.
+   - Fix: moved entry/cache/input/hydration/delete operations into Resource
+     Runtime helpers. `ResourceFamily` now owns options and ref construction.
+     Public deletion is exposed as `Resource.deleteEffect(ref)`, and GC receives
+     the Resource Runtime delete operation as a callback rather than calling
+     back into `ref.family`.
+   - Benefits: live Resource Store behavior now has Locality in the Resource
+     Runtime Module. Resource Definition remains a smaller Interface, and tests
+     cover direct deletion plus `ResourceDeleted` publication through the public
+     Effect API.
+
+2. Collection Sync Load Policy
+   - Status: fixed.
+   - Files: `packages/db/src/collection-contract.ts`,
+     `packages/db/src/collection-runtime.ts`,
+     `packages/db/src/sync-adapter.ts`,
+     `packages/db/test/sync-adapter.test.ts`, `CONTEXT.md`,
+     `docs/public-api-inventory.md`.
+   - Problem: `Collection.syncOptions(...)` kept `let loaded = false` in a sync
+     Adapter closure to choose between adapter `load` and `refetch`. That state
+     was Collection Definition-global, so one runtime/request could make a
+     second runtime's first preload call the refetch Adapter.
+   - Fix: added `CollectionOptions.refetch` and moved the `load` versus
+     `refetch` decision into Collection Runtime. First preload uses `load ??
+     refetch`; forced refetch uses `refetch ?? load`. The sync Adapter now maps
+     callbacks independently and owns no runtime state. Added a two-runtime
+     regression proving first preload remains store-local.
+   - Benefits: Collection Sync Adapter stays a translation Interface, while
+     Collection Runtime owns load-state policy with better request/runtime
+     Locality.
+
+3. Start Vite Dev SSR Adapter Module
+   - Status: fixed.
+   - Files: `packages/start/src/start-vite-dev-ssr.ts`,
+     `packages/start/src/vite.ts`, `CONTEXT.md`,
+     `docs/public-api-inventory.md`.
+   - Problem: `vite.ts` mixed Vite plugin assembly, virtual module wiring,
+     diagnostics loading, server-only module blocking, and dev SSR request
+     handling. The dev SSR path already had a meaningful Adapter Interface, but
+     its Implementation lived beside unrelated build-time Vite behavior.
+   - Fix: extracted `start-vite-dev-ssr.ts` for `StartDevServer`,
+     `StartViteDevServer`, handler resolution, SSR request selection,
+     Node-to-web conversion, HTML transform handling, Vite stacktrace repair,
+     and middleware error routing. `vite.ts` keeps the public re-exports and
+     plugin assembly.
+   - Benefits: Vite diagnostics/plugin changes and dev request bugs now land in
+     different Modules. The public `@effect-ui/start/vite` Interface stays
+     stable while the dev SSR Adapter has a deeper Implementation behind it.
+
+Workspace evidence for this pass: `pnpm --filter @effect-ui/core typecheck`
+passed, `pnpm vitest run packages/core/test/resource.test.ts` passed with 1
+file / 34 tests, `pnpm --filter @effect-ui/db typecheck` passed, `pnpm vitest
+run packages/db/test/sync-adapter.test.ts packages/db/test/collection.test.ts`
+passed with 2 files / 50 tests, `pnpm --filter @effect-ui/start typecheck`
+passed, `pnpm exec vitest run packages/start/test/start.test.ts
+packages/start/test/adapters.test.ts` passed with 2 files / 84 tests, and
+`pnpm typecheck` passed. Full `pnpm verify` passed: 9 package builds,
+workspace typecheck, type tests, 45 root test files / 423 tests,
+devtools-panel verify with 1 panel test, devtools-extension verify with 1
+extension test file / 6 tests, basic starter verify with 1 starter test,
+project-console starter packaging, project-console typecheck, 4
+project-console test files / 23 tests, project-console build, and leak scan.
+DB/Solid DB raw schema-error grep, source Promise-method grep, and immutable
+flag audit passed after verification.
+
+## Review 26: Solid DB Binding, Expert-Public Core Surface, And Route Plan Projection
+
+1. Solid DB Reactive Binding Module
+   - Status: fixed.
+   - Files: `packages/solid-db/src/shared.ts`,
+     `packages/solid-db/src/collection.ts`,
+     `packages/solid-db/src/live-query.ts`,
+     `packages/solid-db/test/solid-db.test.ts`, `CONTEXT.md`,
+     `docs/public-api-inventory.md`.
+   - Problem: `useCollection(...)` and `useLiveQuery(...)` duplicated the same
+     Solid Adapter mechanics: runtime capture, collection source subscription,
+     tick invalidation, automatic preload, preload failure capture,
+     runtime-bound returned Effects, and owner cleanup. The public hook
+     Interfaces were small, but their Implementations forced maintainers to
+     reason about one binding policy in two files.
+   - Fix: deepened `shared.ts` into the Solid DB Reactive Binding Module.
+     Hook-specific files now describe collection reads, indexes, live query
+     data, and state while the shared Module owns source subscriptions, cleanup,
+     preload execution, and Effect binding. Added a cleanup regression that
+     proves `useCollection(...)` and `useLiveQuery(...)` unsubscribe their
+     collection state/version sources with the Solid owner.
+   - Benefits: the Solid DB Adapter has better Locality around the Solid
+     reactivity Seam. Hook behavior remains stable, while future preload,
+     cleanup, or runtime-binding changes cross one Interface.
+
+2. Expert-Public Core Surface Drift
+   - Status: fixed.
+   - Files: `type-tests/framework.test-d.ts`,
+     `docs/public-api-inventory.md`, `CONTEXT.md`.
+   - Problem: the `@effect-ui/core` root export already exposed expert Modules
+     such as Action Submission, Definition Registry, Resource Registry,
+     Resource Snapshot Codec, and Route Grammar, but the public inventory and
+     LSP-facing type tests did not pin those Interfaces. That left adapters and
+     generated manifests with a documented surface narrower than the actual
+     package surface.
+   - Fix: classified those Modules as expert public in the inventory and added
+     public type tests for route grammar inference/building, registry duplicate
+     diagnostics, Action Submission state/concurrency, Resource Registry
+     diagnostics, `Resource.deleteEffect(...)`, and Resource Snapshot Codec
+     helpers.
+   - Benefits: the package root surface is explicit. App code still has high
+     Leverage through `Action`, `Resource`, `Route`, `Server`, and `defineApp`,
+     while advanced Adapter/test code has stable, documented seams.
+
+3. Devtools Route Plan Projection Module
+   - Status: fixed.
+   - Files: `packages/devtools/src/route-plan-facts.ts`,
+     `packages/devtools/src/causal-graph.ts`,
+     `packages/devtools/test/devtools.test.ts`, `CONTEXT.md`,
+     `docs/public-api-inventory.md`.
+   - Problem: Devtools route-plan semantics were split across standalone route
+     plans and request-embedded route plans. Standalone plans emitted
+     `Matches`, `Preloads`, and `Hydrates` causal edges, while embedded request
+     plans only emitted route-plan and match facts before request resources
+     were recorded separately. Callers had to know the Adapter path to
+     understand a route plan's causal meaning.
+   - Fix: introduced the internal Devtools Route Plan Projection Module. Both
+     standalone route plans and request trace route plans now project through
+     the same Interface, and the request trace path only adds its
+     source-specific `Records` edge. The request trace regression now asserts
+     embedded route plans emit `Matches`, `Preloads`, and `Hydrates`.
+   - Benefits: route-plan meaning has Locality in one Module, and the Causal
+     Graph becomes a graph assembly Adapter instead of owning two projections
+     for the same domain fact.
+
+Workspace evidence for this pass: `pnpm --filter @effect-ui/solid-db
+typecheck`, `pnpm vitest run packages/solid-db/test/solid-db.test.ts`,
+`pnpm typecheck:types`, `pnpm --filter @effect-ui/devtools typecheck`, and
+`pnpm vitest run packages/devtools/test/devtools.test.ts` passed. Full `pnpm
+verify` passed: 9 package builds, workspace typecheck, type tests, 45 root
+test files / 424 tests, devtools-panel verify with 1 panel test,
+devtools-extension verify with 1 extension test file / 6 tests, basic starter
+verify with 1 starter test, project-console starter packaging,
+project-console typecheck, 4 project-console test files / 23 tests,
+project-console build, and leak scan. DB/Solid DB raw schema-error grep,
+source Promise-method grep, immutable flag audit, ResourceFamily live-store
+grep, sync-load closure grep, and `git diff --check` passed after
+verification.
+
+## Review 58: Hydration Walls, Runtime Ownership, Devtools Identity, And LSP Coverage
+
+Fresh subagents scanned Core/Solid, DB, Start, Devtools, and docs/API seams.
+This pass found actionable work, so the clean-sweep counter remains at zero.
+
+1. Start Hydration And Manifest Walls
+   - Status: fixed.
+   - Files: `packages/start/src/hydration.ts`,
+     `packages/start/src/manifest-entry-core.ts`,
+     `packages/start/src/start-vite-dev-ssr.ts`,
+     `packages/start/src/vite.ts`, `packages/start/test/start.test.ts`,
+     `packages/start/test/server-function-manifest.test.ts`, and
+     `packages/start/test/action-manifest.test.ts`.
+   - Problem: Start hydration accepted malformed collection roots, `.tsrx`
+     contract/server files were not fully covered by the manifest/server-only
+     wall, and Vite dev SSR could call `next()` outside the Effect Adapter.
+   - Fix: validated collection payload shape, centralized `.server.tsrx` and
+     `.contract.tsrx` classification in the Manifest Entry Module, and routed
+     Vite dev SSR pass-through through `callMiddlewareNextBestEffort(...)`.
+   - Benefits: hydration, manifest policy, and dev middleware behavior now
+     share the same typed Interface and Adapter locality.
+
+2. Core Resource/Action Runtime Ownership And Solid Route Matching
+   - Status: fixed.
+   - Files: `packages/core/src/action-submission.ts`,
+     `packages/core/src/resource-runtime.ts`,
+     `packages/core/src/resource-lifetime.ts`, `packages/core/src/route.ts`,
+     `packages/core/test/action.test.ts`, `packages/core/test/resource.test.ts`,
+     `packages/core/test/route-server.test.ts`, `packages/solid/src/router.ts`,
+     `packages/solid/test/hooks.test.ts`, and
+     `packages/solid/test/router.test.ts`.
+   - Problem: action reset only owned the latest submission fiber, deleted
+     Resource refs could leave existing `Resource.result` subscribers stale,
+     forced invalidation could join a stale non-forced load, and Solid router
+     matching still used sync `Route.match(...)` where schema failures could
+     escape the typed navigation-error Seam.
+   - Fix: action submissions now track and interrupt all active fibers,
+     Resource deletion resets the entry before deleting it, forced refresh
+     interrupts stale non-forced work, Core exposes `Route.matchEffect(...)`,
+     and Solid router state reports `RouteNavigationError` failures without a
+     synthetic match.
+   - Benefits: runtime ownership is local to Core Modules, while Solid consumes
+     the typed route-matching Adapter instead of duplicating match error policy.
+
+3. DB Snapshot, Query, And Collection Input Contracts
+   - Status: fixed.
+   - Files: `packages/db/src/collection-runtime.ts`,
+     `packages/db/src/collection-snapshot-codec.ts`,
+     `packages/db/src/live-query-collection.ts`,
+     `packages/db/src/query-builder.ts`, `packages/db/src/query-plan.ts`,
+     `packages/db/test/collection.test.ts`, and
+     `packages/db/test/live-query-collection.test.ts`.
+   - Problem: collection hydration could silently overwrite duplicate
+     identities, local mutation/direct-write paths ignored the `input` schema,
+     query windows accepted non-finite/fractional counts, and live-query
+     collection versions used a hash that could collide.
+   - Fix: hydration rejects duplicate collection names and row keys, mutation
+     paths validate `input` before `output`, diagnostics/once/live query paths
+     share finite safe-integer window validation, and live-query collection
+     versions are monotonic revisions keyed by stable materialized equality.
+   - Benefits: Collection and Query Interfaces now reject bad input at their
+     owning seams instead of relying on downstream incidental behavior.
+
+4. Devtools Fact Identity, Import, And Panel Contract Safety
+   - Status: fixed.
+   - Files: `packages/devtools/src/causal-graph.ts`,
+     `packages/devtools/src/panel-contract.ts`,
+     `packages/devtools/src/panels.ts`,
+     `packages/devtools/src/serialization.ts`,
+     `packages/devtools/src/store.ts`,
+     `packages/devtools/src/summary-facts.ts`, and
+     `packages/devtools/test/devtools.test.ts`.
+   - Problem: Ref invalidation targets could be rendered under the wrong graph
+     node kind, unmatched runtime event fact ids could collide with recorded
+     facts, imported duplicate event sequences were not normalized, public
+     describers returned live unknown values, legacy route modules could throw
+     in panels, and item-level malformed metrics were dropped rather than
+     rejected.
+   - Fix: Ref targets stay Resource nodes, runtime event fallback ids allocate
+     after recorded facts, imported events are sequence-normalized, invalidation
+     and route describers detach unknown params/search/input values, panels use
+     the app-graph preload-collections accessor, and panel items reject
+     non-array metrics.
+   - Benefits: Devtools now keeps graph identity, imported snapshots, and panel
+     DTOs local to their owning Modules and safe at public bridge seams.
+
+5. Docs/API Inventory And TSRX LSP Coverage
+   - Status: fixed.
+   - Files: `packages/tsrx/src/index.ts`, `type-tests/framework.test-d.ts`,
+     `docs/public-api-inventory.md`, `docs/db.md`, `docs/architecture.md`,
+     `examples/project-console/src/start-graph.ts`,
+     `examples/project-console/src/full-stack-golden.test.ts`,
+     `docs/release-notes.md`, `docs/docs-drift-audit.md`,
+     `docs/ultimate-goal-checklist.md`, and `docs/perfection-progress.md`.
+   - Problem: `@effect-ui/tsrx` lacked hover/type-test coverage, Start root
+     low-level transport/Core convenience exports were wider than the
+     inventory described, DB next-slice docs still listed completed
+     TanStack Query-shaped sync work, the project-console graph helper could
+     look like a second topology Interface, and release evidence had stale
+     counts.
+   - Fix: added TSRX JSDoc and public type assertions, classified Start
+     low-level helpers and Core re-exports as expert-public convenience
+     surfaces, removed the completed DB next-slice item, documented the
+     project-console helper as a narrow non-Vite fallback, and refreshed the
+     verification ledgers.
+   - Benefits: LSP/docs now describe the actual public Interface without
+     implying duplicate graph ownership or stale future work.
+
+Focused workspace evidence for this pass: package typechecks for Core, Solid,
+Start, DB, Devtools, and TSRX passed; public type tests passed; focused
+regressions passed for Core action/resource/route-server, Solid hooks/router,
+Start start/server-function/action manifest, DB collection/live-query
+collection, and Devtools. Full `pnpm verify` passed: 9 package builds,
+workspace typecheck, type tests, Effect-first source audit, 45 root test files
+/ 603 tests, devtools-panel verify with 1 panel test, devtools-extension verify
+with 1 extension test file / 14 tests, basic starter verify with 1 starter test
+file / 2 tests, project-console starter packaging, project-console typecheck,
+4 project-console test files / 23 tests, project-console build, and leak scans.
+
+## Review 47: Devtools Extension Transport Error Panel
+
+1. Extension Panel Transport Error Surface
+   - Status: fixed.
+   - Files: `examples/devtools-extension/src/panel-runtime.ts`,
+     `examples/devtools-extension/src/panel.ts`,
+     `examples/devtools-extension/src/extension.test.ts`,
+     `examples/devtools-extension/README.md`, `docs/devtools.md`,
+     `docs/public-api-inventory.md`, `CONTEXT.md`.
+   - Problem: the extension transport already mapped inspected-window eval
+     exceptions to `DevtoolsExtensionTransportError`, but the panel update path
+     caught all transport failures and converted them to `undefined`, leaving
+     users on sample data with no bridge guidance.
+   - Fix: extracted the panel update policy into `panel-runtime.ts`; live
+     payloads still update the mounted panel, no-bridge still keeps the sample
+     fallback, and typed transport failures now render an error item in the
+     diagnostics panel.
+   - Benefits: the checked browser extension teaches the same Effect-first
+     Adapter rule as the library: host failures stay typed and visible at the
+     UI seam instead of disappearing behind fallback data.
+
+Focused workspace evidence for this pass: `pnpm --filter
+@effect-ui/example-devtools-extension verify` passed, including extension
+typecheck, 1 test file / 9 tests, and production build.
+
+## Review 48: Start Preload Requirement And Devtools Fact Identity Follow-Up
+
+1. Start Request Runtime Requirement Surface
+   - Status: fixed.
+   - Files: `packages/start/src/request-runtime.ts`,
+     `packages/start/src/start-request-preload.ts`,
+     `packages/start/src/start-request-handler.ts`,
+     `packages/start/src/start-host-adapter.ts`,
+     `packages/start/src/fetch-adapter.ts`,
+     `packages/start/src/node-adapter.ts`,
+     `type-tests/framework.test-d.ts`, `CONTEXT.md`,
+     `docs/public-api-inventory.md`,
+     `docs/type-test-coverage-audit.md`.
+   - Problem: Core route planning preserved preload service requirements, but
+     Start request preload and request-handler Effects erased them to `unknown`
+     or `Scope.Scope` after the request Runtime boundary. A route preload could
+     depend on a service missing from `app.server` and still look provided in
+     LSP hovers.
+   - Fix: added `RequestRuntimeRemainingRequirements`, threaded it through
+     `preloadRequestEffect(...)`, `preloadRequestEffectWithRuntime(...)`,
+     `createRequestHandlerEffect(...)`, and the Effect-first fetch/node adapter
+     conversions. Effect-first adapters now infer requirements from the handler
+     and reject partial generics that would otherwise default a missing
+     requirement parameter to `unknown`. The callback/Promise host facades remain
+     the explicit erased runtime boundaries.
+   - Benefits: Start now reports the same missing route preload services that
+     Core reports, and adapters preserve that truth until a host explicitly runs
+     the Effect on a runtime.
+
+2. Action Runtime Binding Definition Truth
+   - Status: fixed.
+   - Files: `packages/core/src/action.ts`,
+     `packages/solid/src/hooks.ts`, `type-tests/framework.test-d.ts`.
+   - Problem: runtime-bound `Action.use(definition, { runtime })` correctly
+     discharged services from `submitEffect(...)`, but the exposed
+     `instance.definition` type was narrowed too. That made `definition.run(...)`
+     appear requirement-free even though the action definition itself had not
+     changed. Solid `useAction(...)` also bound to the nearest runtime while its
+     returned type still exposed the original requirements.
+   - Fix: `ActionInstance` now separates the submission requirements from the
+     underlying definition requirements, and Solid `useAction(...)` returns a
+     runtime-bound instance whose `submitEffect(...)` is provided by the Solid
+     runtime while `definition.run(...)` keeps its original type. The hook also
+     exposes an optional `ER` generic for apps whose Solid Runtime Provider has a
+     known startup/acquisition error channel.
+   - Benefits: action hovers now distinguish the definition contract from the
+     runtime-bound instance contract instead of flattening both into one shape.
+
+3. Devtools Request Trace Fact Identity
+   - Status: fixed.
+   - Files: `packages/devtools/src/fact-identity.ts`,
+     `packages/devtools/src/store.ts`,
+     `packages/devtools/test/devtools.test.ts`,
+     `docs/devtools.md`, `CONTEXT.md`.
+   - Problem: recording a caller-supplied request id such as `trace:1` did not
+     advance the fallback trace-id allocator, so the next id-less trace could
+     collide. Bounded invalidation history trimming also rebased snapshot action
+     and runtime-event invalidation indexes but missed request-trace action
+     indexes in both snapshot request traces and runtime `RequestTrace` events.
+     Request-embedded route plans also used the request trace index as their
+     route-plan fact identity, which could point at a synthetic node when the
+     same route plan had already been recorded at another route-plan index.
+   - Fix: `fact-identity.ts` now exposes request-trace sequence parsing and
+     request-trace action invalidation rebasing. The Store seeds the next trace
+     sequence from caller-supplied ids and rebases request-trace action links in
+     snapshots and runtime events whenever invalidation facts are trimmed.
+     Causal graph projection now reuses a matching recorded route-plan summary
+     for request-embedded route plans before falling back to request-local
+     projection.
+   - Benefits: request trace ids remain deterministic without collisions, and
+     request summaries/runtime events keep pointing at the correct invalidation
+     facts after bounded history compaction. Request route-plan edges point at
+     canonical route-plan facts instead of index-shaped accidents.
+
+Focused workspace evidence for this pass: `pnpm --filter @effect-ui/core
+typecheck`, `pnpm --filter @effect-ui/solid typecheck`, `pnpm --filter
+@effect-ui/start typecheck`, `pnpm --filter @effect-ui/devtools typecheck`,
+`pnpm typecheck:types`, `pnpm vitest run packages/devtools/test/devtools.test.ts`,
+`pnpm vitest run packages/start/test/start.test.ts
+packages/start/test/adapters.test.ts`, and `pnpm vitest run
+packages/core/test/action.test.ts packages/core/test/runtime.test.ts
+packages/core/test/route-server.test.ts` passed. Full `pnpm verify` passed:
+9 package builds, workspace typecheck, type tests, Effect-first source audit,
+45 root test files / 470 tests, devtools-panel verify with 1 panel test,
+devtools-extension verify with 1 extension test file / 9 tests, basic starter
+verify with 1 starter test file / 2 tests, project-console starter packaging,
+project-console typecheck, 4 project-console test files / 23 tests,
+project-console build, and leak scans.
+
+## Review 49: Host Facade, Runtime-Bound Handle, And Fact Identity Sweep
+
+1. Start Host Facade Requirement Surface
+   - Status: fixed.
+   - Files: `packages/start/src/start-host-adapter.ts`,
+     `packages/start/src/start-request-handler.ts`,
+     `packages/start/src/fetch-adapter.ts`,
+     `packages/start/src/node-adapter.ts`,
+     `packages/start-fetch/src/index.ts`,
+     `packages/start-node/src/index.ts`,
+     `packages/start/test/adapters.test.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: Effect-first fetch/node adapters preserved handler
+     requirements, but Promise/callback facades could still accept a
+     serviceful handler with no runtime and fall back to the default runtime.
+   - Fix: Start request handlers now carry a phantom requirement marker for
+     adapter inference. The host facades provide per-request `Scope.Scope`
+     themselves, and require a typed runtime when any non-Scope requirements
+     remain.
+   - Benefits: host-shaped adapters remain ergonomic for scope-only handlers
+     while missing app services stay visible at the Adapter Interface.
+
+2. Core Promise Guard And Server Wire Codec Truth
+   - Status: fixed.
+   - Files: `packages/core/src/effect-like.ts`,
+     `packages/core/src/action-result.ts`, `packages/core/src/action.ts`,
+     `packages/core/src/server.ts`, `packages/core/test/server.test.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: callback `EffectInput` seams rejected Promise-shaped returns, but
+     direct helpers such as `toEffect(...)` and `ActionResult.fromEffect(...)`
+     could still infer a Promise as a pure value. Core local/mock server
+     clients also schema-round-tripped input/output without applying the same
+     error schema policy to domain failures.
+   - Fix: direct Promise-shaped `EffectInput` values are rejected in public type
+     tests and still die with `EffectInputPromiseRejected` if an erased value
+     reaches runtime. `Server.mockClient(...)` and `Server.localClient()` now
+     encode/decode domain failures through the Server Wire Codec, while
+     `EffectInputCallbackError`, schema errors, and transport errors remain
+     client errors.
+   - Benefits: the Promise Guard and Server Wire Codec Modules now match their
+     public hover contract across direct helpers, local clients, mocks, and
+     Start transports.
+
+3. Solid And Solid DB Runtime-Bound Handle Truth
+   - Status: fixed.
+   - Files: `packages/solid/src/runtime.ts`,
+     `packages/solid/src/hooks.ts`, `packages/solid-db/src/shared.ts`,
+     `packages/solid-db/src/collection.ts`,
+     `packages/solid-db/src/live-query.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: Solid Resource and Solid DB returned Effects were runtime-bound,
+     but their public handles either kept stale service requirements or hid a
+     fallible Runtime Provider's startup/acquisition error channel. Solid
+     Resource automatic prefetch fibers also lived until runtime disposal
+     instead of Solid owner cleanup.
+   - Fix: `useRuntime<ER>()`, `useResource<..., ER>()`,
+     `useCollection<..., ER>()`, and `useLiveQuery<..., ER>()` now expose
+     runtime-bound Effect error channels explicitly. Solid DB handles no longer
+     expose service requirements already supplied by the Solid runtime, and
+     Solid Resource automatic prefetch fibers are interrupted on owner cleanup
+     or ref change.
+   - Benefits: UI Adapter hovers describe the actual runtime-bound Interface,
+     and Solid-created background work has Solid-local lifetime.
+
+4. DB Query Factory Defaults
+   - Status: fixed.
+   - Files: `packages/db/src/query-builder.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: `QueryFactory<TResult>` defaulted public error and requirement
+     parameters to `any`, so annotated factories could erase collection
+     failures and service requirements.
+   - Fix: public `QueryFactory` and `Query.Factory` defaults now use `never`,
+     and `QueryBuilder` carries a phantom type marker so serviceful builders
+     cannot be assigned to requirement-free factory aliases.
+   - Benefits: query factory annotations now preserve the same concrete
+     error/requirement channels that `Query.onceEffect(...)` and
+     `Query.live(...)` expose.
+
+5. Devtools Runtime Event And Fact Fingerprint Identity
+   - Status: fixed.
+   - Files: `packages/devtools/src/fact-identity.ts`,
+     `packages/devtools/src/store.ts`,
+     `packages/devtools/src/summary-facts.ts`,
+     `packages/devtools/test/devtools.test.ts`.
+   - Problem: duplicate caller-supplied runtime event sequences could collapse
+     graph nodes, and Store/Summary fact matching used raw `JSON.stringify(...)`
+     instead of the Devtools Serialization Policy.
+   - Fix: the Store rebases duplicate sequence/tag pairs to the next runtime
+     event sequence. Fact identity now uses one stable serialized fingerprint
+     based on `toDevtoolsSerializableValue(...)`, shared by Store and Summary
+     projection.
+   - Benefits: runtime event graph ids stay unique, and equivalent invalidation
+     or route-plan facts match even when object key insertion order differs.
+
+Focused workspace evidence for this pass: `pnpm typecheck`,
+`pnpm exec vitest run packages/core/test/server.test.ts`,
+`pnpm exec vitest run packages/solid/test/hooks.test.ts`,
+`pnpm exec vitest run packages/start/test/adapters.test.ts`, and
+`pnpm exec vitest run packages/devtools/test/devtools.test.ts` passed. Full
+`pnpm verify` passed: 9 package builds, workspace typecheck, type tests,
+Effect-first source audit, 45 root test files / 475 tests, devtools-panel
+verify with 1 panel test, devtools-extension verify with 1 extension test file
+/ 9 tests, basic starter verify with 1 starter test file / 2 tests,
+project-console starter packaging, project-console typecheck, 4
+project-console test files / 23 tests, project-console build, and leak scans.
+Post-verify Promise-method, DB/Solid DB raw schema-error, and whitespace audits
+passed.
+
+## Review 50: Scope, Identity, And Lifecycle Follow-Up Sweep
+
+1. Start Dev SSR And Host Adapter Requirement Surface
+   - Status: fixed.
+   - Files: `packages/start/src/start-vite-dev-ssr.ts`,
+     `packages/start/src/fetch-adapter.ts`,
+     `packages/start/src/node-adapter.ts`,
+     `packages/start/test/start.test.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: the Vite dev SSR Adapter erased the request `Scope.Scope`
+     requirement that normal Start request handlers need, while bare fetch/node
+     handler aliases still allowed annotations to hide preserved requirements.
+   - Fix: Vite dev SSR now scopes handler execution, the SSR handler type allows
+     the request Scope but not arbitrary app services, and bare fetch/node handler
+     aliases default to service-free `never` with type pins for serviceful
+     handlers.
+   - Benefits: Start host Adapters now share one request Scope ownership policy,
+     and non-Scope service requirements stay visible at the public Interface.
+
+2. Solid Router Lifecycle And Resource Selector Locality
+   - Status: fixed / documented.
+   - Files: `packages/solid/src/router.ts`,
+     `packages/solid/src/hooks.ts`, `packages/solid/test/router.test.ts`.
+   - Problem: same-href navigation could not retry a failed current-route
+     preload, and `RouterOutlet` rendered the next route before previous Solid
+     cleanup callbacks ran.
+   - Fix: router navigation now carries a revision tick so same-href navigation
+     re-runs preload, and previous Solid roots are disposed before rendering the
+     next ready route. Resource selector hooks now document that each convenience
+     selector owns one subscription and `useResource(...)` is the shared handle
+     for multi-selector reads.
+   - Benefits: route retry, owner cleanup, and selector subscription ownership
+     are explicit at the UI Adapter seam.
+
+3. Core Callback, Hydration, And Derived Signal Ownership
+   - Status: fixed.
+   - Files: `packages/core/src/server.ts`,
+     `packages/core/src/resource-runtime.ts`, `packages/core/src/resource.ts`,
+     `packages/core/src/action-optimistic.ts`, `packages/core/src/action.ts`,
+     `packages/core/src/signal.ts`, `packages/core/test/route-server.test.ts`,
+     `packages/core/test/resource.test.ts`, `packages/core/test/action.test.ts`,
+     `packages/core/test/signal.test.ts`, `packages/start/src/hydration.ts`.
+   - Problem: `Server.route(...)` discarded `EffectInputCallbackError`
+     operation/guidance details; Resource hydration committed success/cache state
+     before `provides` could fail; optimistic signal patch updater throws could
+     escape transaction rebases; and derived signals kept source subscriptions
+     after their last subscriber.
+   - Fix: route handler errors preserve the full callback error as cause.
+     Hydration validates provided tags before committing state/cache and exposes
+     callback failures through Start hydration. Optimistic signal patches run
+     through typed Effect failures during initial apply and commit rebase.
+     Derived signals dispose dependency trackers after the last subscriber, while
+     Live Query State caches evaluations by source version so repeated accessors
+     preserve last failure/data facts.
+   - Benefits: user callback failures keep typed context, partial hydration state
+     is avoided, optimistic transaction rebases are Effect-first, and signal
+     dependency lifetime is no longer permanent by construction.
+
+4. DB Collection Key And Live Query Source Identity
+   - Status: fixed.
+   - Files: `packages/db/src/collection-errors.ts`,
+     `packages/db/src/collection-contract.ts`,
+     `packages/db/src/collection-runtime.ts`,
+     `packages/db/src/live-query-runtime.ts`,
+     `packages/db/src/live-query-state.ts`,
+     `packages/db/src/query-plan.ts`, `packages/db/src/index.ts`,
+     `packages/db/test/collection.test.ts`,
+     `packages/db/test/live-query-collection.test.ts`,
+     `packages/solid-db/test/solid-db.test.ts`,
+     `examples/project-console/src/project-collections.ts`.
+   - Problem: live query row identity collapsed numeric key `1` and string key
+     `"1"`, direct/update mutations could desynchronize a row's map key from its
+     value-derived key, and self-join source lists caused duplicate preload and
+     subscription ownership.
+   - Fix: IVM row/context identity now encodes the primitive key kind, updates
+     reject key-changing patches with `CollectionRowKeyChanged`, source
+     ownership dedupes by Collection Definition, and live query evaluation facts
+     are cached by source version.
+   - Benefits: Collection key identity has one invariant across runtime rows,
+     snapshots, live query contexts, and Solid DB source subscriptions.
+
+5. Devtools Fact, Panel, And Extension Payload Identity
+   - Status: fixed.
+   - Files: `packages/devtools/src/causal-graph.ts`,
+     `packages/devtools/src/store.ts`, `packages/devtools/src/panels.ts`,
+     `packages/devtools/test/devtools.test.ts`,
+     `examples/devtools-extension/src/transport.ts`,
+     `examples/devtools-extension/src/extension.test.ts`.
+   - Problem: causal graph request-route-plan matching still used raw
+     `JSON.stringify(...)`, Start action invalidation-only changes were missed
+     after terminal state updates, ordered panel ids had two owners, and malformed
+     non-null extension bridge payloads collapsed into the same `undefined` as an
+     absent bridge.
+   - Fix: causal graph route-plan matching now uses stable serialized fact
+     fingerprints. Start action tracking subscribes to both state and invalidation
+     signals while deduping repeated invalidation facts. Panel construction is
+     ordered by the public panel id catalog, and invalid inspected-window payloads
+     become `DevtoolsExtensionTransportError`.
+   - Benefits: Devtools identity, panel ordering, and extension diagnostics now
+     share the public serialization/contract Modules instead of local ad hoc
+     comparisons.
+
+Focused workspace evidence for this pass: `pnpm typecheck`, `pnpm exec vitest
+run packages/core/test/action.test.ts packages/core/test/signal.test.ts
+packages/core/test/resource.test.ts packages/core/test/route-server.test.ts
+packages/db/test/collection.test.ts packages/solid/test/router.test.ts
+packages/devtools/test/devtools.test.ts examples/devtools-extension/src/extension.test.ts
+packages/start/test/start.test.ts`, and the live-query/Solid DB regression slice
+passed. Full `pnpm verify` passed: 9 package builds, workspace typecheck, type
+tests, Effect-first source audit, 45 root test files / 487 tests,
+devtools-panel verify with 1 panel test, devtools-extension verify with 1
+extension test file / 10 tests, basic starter verify with 1 starter test file /
+2 tests, project-console starter packaging, project-console typecheck, 4
+project-console test files / 23 tests, project-console build, and leak scans.
+Post-verify Promise-method audit matched only approved host/test/type-guard
+seams, DB/Solid DB raw schema audit matched only Collection Snapshot Codec
+decode normalization, and `git diff --check` passed.
+
+## Review 51: Runtime-Local State, Response Metadata, And Panel Contract Sweep
+
+Status: fixed in the current worktree.
+
+This review used five parallel subagent scans across Core, DB/Solid DB, Start,
+Solid, and Devtools. The sweep still found actionable Module, Interface, Seam,
+Adapter, and Locality work, so it is evidence that we are closer, not evidence
+that the clean-sweep counter can start.
+
+1. Core Resource Invalidation And Registry Identity
+   - Status: fixed.
+   - Files: `packages/core/src/resource.ts`,
+     `packages/core/src/resource-runtime.ts`,
+     `packages/core/src/resource-dependency-graph.ts`,
+     `packages/core/src/definition-registry.ts`,
+     `packages/core/src/scope.ts`,
+     `packages/core/test/definition-registry.test.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: Resource invalidation plan helpers erased service requirements,
+     registry assembly trusted caller-provided `Map` keys over definition
+     identity, unsafe registry clears left stale duplicate diagnostics, and
+     public `scoped(...)` docs did not say the caller owns the scope lifetime.
+   - Fix: invalidation targets/plans now preserve the Resource ref requirement
+     type through planning and execution; registry maps are normalized by
+     `definition.name`; unsafe action/server-function clears also remove
+     duplicate diagnostics for the cleared definition kind; and `scoped(...)`
+     JSDoc now names the caller-owned lifetime policy.
+   - Benefits: LSP hovers now describe the services invalidation really needs,
+     duplicate diagnostics track the actual active registry, and UI Adapter
+     lifecycle docs no longer imply automatic disposal.
+
+2. Solid Router And Runtime Adapter Lifecycle
+   - Status: fixed.
+   - Files: `packages/solid/src/router.ts`,
+     `packages/solid/src/hooks.ts`, `packages/solid/src/runtime.ts`,
+     `packages/solid/test/router.test.ts`,
+     `packages/solid/test/hooks.test.ts`.
+   - Problem: public router preload did not provide `Scope.Scope`; route
+     unmount cleanup order differed between transitions and owner disposal;
+     `useResourceSuspense(...)` returned stale success data even when the latest
+     refresh had failed; provider-owned runtimes disposed themselves through the
+     runtime being disposed; and `createBrowserRouter(...)` hid its Solid owner
+     lifetime requirement.
+   - Fix: public router preload uses scoped route preload execution, route
+     disposal goes through one helper that closes the Solid root before the
+     `UiScope`, stale refresh failures throw `ResourceFailure` with the previous
+     value attached, provider cleanup forks disposal outside the runtime being
+     closed, and browser-router JSDoc names the owner requirement.
+   - Benefits: the Solid Adapter now has one Lifecycle policy across preload,
+     transition, owner cleanup, Suspense failure, and runtime disposal seams.
+
+3. DB Live Query Store Locality, Change Feed Runtime Ownership, And SQLite
+   Storage Errors
+   - Status: fixed.
+   - Files: `packages/db/src/live-query-state.ts`,
+     `packages/db/src/collection-snapshot-codec.ts`,
+     `packages/db/src/live-query-collection.ts`,
+     `packages/db/src/collection-contract.ts`,
+     `packages/db/src/sync-adapter.ts`,
+     `packages/db/src/collection-runtime.ts`,
+     `packages/db/src/sqlite-persistence.ts`,
+     `packages/db/test/live-query-collection.test.ts`,
+     `packages/db/test/sync-adapter.test.ts`,
+     `packages/db/test/sqlite-persistence.test.ts`.
+   - Problem: Live Query State mutable facts were descriptor-local instead of
+     Collection Store-local; change-feed Adapters had to own Effect runtime
+     plumbing to emit batches from host callbacks; SQLite table validation could
+     throw at storage construction; and Live Query Collection snapshot `getKey`
+     failures defected instead of entering the Effect error channel.
+   - Fix: Live Query State now keys engine/evaluation facts by active
+     Collection Store; change-feed contexts expose `emitChanges(...)`, with the
+     Collection Runtime owning a queue, scoped consumer fiber, and
+     `CollectionChangeFeedFailure` event publication; SQLite table resolution
+     runs inside storage Effects; and Live Query Collection snapshots use an
+     Effect-visible snapshot codec path that maps projection throws to
+     `EffectInputCallbackError`.
+   - Benefits: runtime/request Locality stays with the Collection Store, host
+     adapters stay shallow, and persistence/snapshot failures are typed Effects
+     rather than construction throws or defects.
+
+4. Start Action Response Application, Dev SSR Requirement Surface, And
+   Generated Route Match Types
+   - Status: fixed.
+   - Files: `packages/start/src/start-transport-protocol.ts`,
+     `packages/start/src/start-vite-dev-ssr.ts`,
+     `packages/start/src/file-route-modules.ts`,
+     `packages/start/test/start.test.ts`,
+     `packages/start/test/file-route-modules.test.ts`,
+     `examples/project-console/src/routeTree.gen.ts`,
+     `examples/basic-starter/src/routeTree.gen.ts`,
+     `examples/project-console/src/server.tsx`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: Start action response invalidation metadata was serialized but
+     Ref invalidations were not replayed on the client; malformed response
+     metadata could escape typed transport errors; Vite dev SSR helpers exposed
+     broad `unknown` requirements after Scope provisioning; and generated route
+     types were not leveraged at app render match seams.
+   - Fix: action response metadata now has structural guards, typed
+     hydration-application errors, Tag and Ref target replay through registered
+     Resource Definitions, and hydrated-ref filtering; default Vite dev SSR
+     stays requirement-free while expert `StartDevServer<R>` helpers preserve
+     service requirements; generated route modules now include
+     `FileRouteMatch<Path>` and `isRoutePathMatch(...)`, and the project
+     console server uses that guard instead of a route/path cast.
+   - Benefits: client action metadata application is Effect-first and typed,
+     Vite adapter hovers match real service ownership, and generated app
+     artifacts provide route-param narrowing where the app actually renders.
+
+5. Devtools Panel Contract And Extension No-Bridge Fallback
+   - Status: fixed.
+   - Files: `packages/devtools/src/panel-contract.ts`,
+     `packages/devtools/test/devtools.test.ts`,
+     `examples/devtools-extension/src/panel-runtime.ts`,
+     `examples/devtools-extension/src/extension.test.ts`,
+     `docs/devtools.md`.
+   - Problem: bridge payload validation allowed partial panel arrays while docs
+     implied a complete ordered model, and the extension no-bridge fallback only
+     applied before the first live update.
+   - Fix: panel normalization now requires every public panel id exactly once,
+     rejects missing/duplicate panels, and normalizes valid payloads to catalog
+     order. The extension resets to sample panels when a later bridge read
+     returns no payload.
+   - Benefits: Devtools panel identity has one Contract for renderers, app
+     shells, extensions, tests, and agents, and bridge disappearance is visible
+     as a deterministic fallback rather than stale inspected-window state.
+
+Evidence:
+
+- Focused regression suite passed: `pnpm exec vitest run
+  packages/core/test/definition-registry.test.ts packages/solid/test/router.test.ts
+  packages/solid/test/hooks.test.ts packages/db/test/live-query-collection.test.ts
+  packages/db/test/sync-adapter.test.ts packages/db/test/sqlite-persistence.test.ts
+  packages/start/test/start.test.ts packages/devtools/test/devtools.test.ts
+  examples/devtools-extension/src/extension.test.ts
+  packages/start/test/file-route-modules.test.ts` passed: 10 files / 190 tests.
+- `pnpm typecheck` passed.
+- Full `pnpm verify` passed: 9 package builds, workspace typecheck, type tests,
+  Effect-first source audit, 45 root test files / 502 tests, devtools-panel
+  verify with 1 panel test, devtools-extension verify with 1 extension test
+  file / 11 tests, basic starter verify with 1 starter test file / 2 tests,
+  project-console starter packaging, project-console typecheck, 4
+  project-console test files / 23 tests, project-console build, and leak scans.
+- Post-verify Promise audit matched only approved host/test/type-guard seams,
+  DB/Solid DB raw schema audit matched only Collection Snapshot Codec decode
+  normalization, and `git diff --check` passed.
+
+## Review 52: Runtime-Bound Requirements, Hydration Atomicity, And Contract Tightening
+
+Status: fixed in the current worktree.
+
+This review used five parallel subagent scans across Core, Start, DB/Solid DB,
+Solid, and Devtools. The sweep again found actionable Module, Interface, Seam,
+Adapter, and Locality work, so the clean-sweep counter still cannot start.
+
+1. Core Action And Server Contract Requirement Truth
+   - Status: fixed.
+   - Files: `packages/core/src/action.ts`, `packages/core/src/server.ts`,
+     `packages/core/src/runtime.ts`, `packages/core/test/action.test.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: runtime-bound `Action.use(..., { runtime })` submissions erased
+     remaining caller-provided services, broad `Server.implement(...)` and
+     `Server.mock(...)` contracts could infer Promise-shaped pure outputs, and
+     runtime JSDoc still described `runFork(...)` in Promise terms.
+   - Fix: runtime-bound action submissions now provide only services owned by
+     the captured runtime and preserve residual requirements; broad server
+     handlers use the same EffectInput Promise guard as named contracts; and
+     runtime docs describe Effect lifecycle ownership instead of a Promise
+     caller.
+   - Benefits: LSP hovers now show the services still required by a
+     runtime-bound action, and loose server contracts cannot smuggle Promise
+     work through inference.
+
+2. Solid Runtime, Router, And Link Adapter Types
+   - Status: fixed.
+   - Files: `packages/solid/src/runtime.ts`, `packages/solid/src/router.ts`,
+     `packages/solid/src/link.ts`, `packages/start/src/file-route-modules.ts`,
+     `examples/project-console/src/App.tsx`,
+     `examples/project-console/src/routeTree.gen.ts`,
+     `examples/basic-starter/src/routeTree.gen.ts`,
+     `packages/start/test/file-route-modules.test.ts`,
+     `docs/architecture.md`, `type-tests/framework.test-d.ts`.
+   - Problem: `RuntimeProvider.source` accepted existing runtimes even though
+     the provider disposes source-owned runtimes, router rendering installed a
+     Solid context without installing the matching Core ambient runtime, the
+     generated route guard lost narrowing after `Route.withComponent(...)`, and
+     `RouterLink` bridged Solid event and route-argument types too broadly.
+   - Fix: `RuntimeProvider.source` now accepts provider-owned runtime sources
+     while existing runtimes use `runtime`; `RouterProvider` renders children
+     through `runWithRuntime(...)`; generated `isRoutePathMatch(...)` guards
+     compare route paths; Project Console uses the generated guard; and
+     `RouterLink` handles Solid bound-event tuples and generic route href args
+     without pretending object-style event handlers are part of camel-case
+     Solid events.
+   - Benefits: runtime ownership, ambient runtime Locality, generated LSP
+     narrowing, and Solid link hover types now describe the same behavior the
+     Adapter runs.
+
+3. DB Live Query, Hydration, Registry, And Persistence Locality
+   - Status: fixed.
+   - Files: `packages/db/src/live-query-state.ts`,
+     `packages/db/src/collection-persistence.ts`,
+     `packages/db/src/collection-runtime.ts`,
+     `packages/db/src/collection-registry.ts`,
+     `packages/db/src/sqlite-persistence.ts`,
+     `packages/db/src/index.ts`,
+     `packages/db/test/live-query-collection.test.ts`,
+     `packages/db/test/collection-registry.test.ts`,
+     `packages/db/test/sqlite-persistence.test.ts`,
+     `CONTEXT.md`, `docs/db.md`.
+   - Problem: live-query signals could stay subscribed to one Collection Store
+     while reads in another runtime reused the subscribed value, collection
+     hydration validated and mutated in one pass, definition-owned snapshot
+     collections could be hydrated through writable-store code, collection
+     registry keys trusted caller names, persistence diagnostics reported
+     defaults as disabled, and SQLite `now()` ran outside callback policy.
+   - Fix: live-query `data` and `state` now delegate to store-local signal
+     sets bound with `runWithCollectionStore(...)`; hydration validates the
+     full payload before mutating and delegates definition-owned snapshots to
+     their definition Interface; public validation helpers are exposed through
+     `Collection.validateHydrationPayloadEffect(...)`; registries normalize to
+     `definition.name`; persistence diagnostics report default-enabled flags;
+     and SQLite `now()` is routed through the typed callback seam.
+   - Benefits: runtime/request Locality holds even with active subscriptions,
+     hydration is all-or-nothing for malformed payloads, and registry and
+     persistence diagnostics match actual Collection runtime behavior.
+
+4. Start Action Transport, Manifest Wall, And Hydration Atomicity
+   - Status: fixed.
+   - Files: `packages/start/src/start-action-client.ts`,
+     `packages/start/src/start-transport-protocol.ts`,
+     `packages/start/src/start-manifest-wall.ts`,
+     `packages/start/src/hydration.ts`,
+     `packages/start/test/start.test.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: `StartAction.use(...)` erased serviceful fetch requirements when
+     no transport runtime was provided, action response guards accepted
+     tag-only malformed bodies and ref invalidations without `input`, route
+     discovery included `.d.mts`/`.d.cts` declaration files, and malformed
+     collection hydration could leave resources already applied.
+   - Fix: StartAction instances preserve fetch requirements unless a runtime or
+     transport runtime provides them; action response validation now checks
+     tag-specific required fields, redirect/header shapes, and Ref target input
+     fields; declaration variants are ignored by the manifest wall; and Start
+     hydration validates resources and collections before applying either.
+   - Benefits: Start client hovers expose the transport services callers still
+     owe, malformed wire payloads fail in the typed transport channel, and SSR
+     hydration no longer commits partial state after a later collection codec
+     failure.
+
+5. Devtools Panel And Collection Event Contract Truth
+   - Status: fixed.
+   - Files: `packages/devtools/src/index.ts`,
+     `packages/devtools/src/panel-contract.ts`,
+     `packages/devtools/src/serialization.ts`,
+     `packages/devtools/test/devtools.test.ts`,
+     `type-tests/framework.test-d.ts`, `docs/release-notes.md`,
+     `docs/docs-drift-audit.md`.
+   - Problem: Devtools collection-store event types omitted
+     `CollectionChangeFeedFailure`, collection failure serialization did not
+     detach its error payload, direct renderer panel inputs bypassed catalog
+     normalization, `DevtoolsPanelMount.update(...)` docs described defaults
+     instead of merge semantics, and current-facing docs still carried stale
+     verification counts.
+   - Fix: Devtools store events now include change-feed failures, serialization
+     detaches their errors, public panel normalization is exported and applied
+     to direct inputs, mount update JSDoc describes the merged current input,
+     and current docs point at the latest verification gate.
+   - Benefits: Devtools event ingestion, renderer inputs, browser-extension
+     bridge docs, and LSP hover text now agree on the public contract.
+
+Evidence:
+
+- `pnpm typecheck` passed.
+- Focused regressions passed:
+  `pnpm exec vitest run packages/core/test/action.test.ts
+  packages/db/test/live-query-collection.test.ts
+  packages/db/test/collection-registry.test.ts
+  packages/db/test/sqlite-persistence.test.ts packages/start/test/start.test.ts
+  packages/start/test/file-route-modules.test.ts
+  packages/devtools/test/devtools.test.ts` passed: 7 files / 185 tests.
+- Solid-focused regressions passed:
+  `pnpm exec vitest run packages/solid/test/router.test.ts
+  packages/solid-db/test/solid-db.test.ts` passed: 2 files / 16 tests.
+- Core server/action regressions passed:
+  `pnpm exec vitest run packages/core/test/server.test.ts
+  packages/core/test/action.test.ts` passed: 2 files / 34 tests.
+- Full `pnpm verify` passed: 9 package builds, workspace typecheck, type
+  tests, Effect-first source audit, 45 root test files / 511 tests,
+  devtools-panel verify with 1 panel test, devtools-extension verify with 1
+  extension test file / 11 tests, basic starter verify with 1 starter test file
+  / 2 tests, project-console starter packaging, project-console typecheck, 4
+  project-console test files / 23 tests, project-console build, and leak scans.
+- Post-verify Promise-method grep reported no hits, DB/Solid DB raw schema
+  audit matched only Collection Snapshot Codec decode normalization, runtime
+  Promise docs remained host-boundary-only, ResourceFamily live-store checks
+  showed Resource Family still delegates live state to Resource Runtime, and
+  `git diff --check` passed.
+
+## Review 53: Runtime Ownership, Batch Atomicity, And Devtools Event Truth
+
+Status: fixed for the selected worktree items; remaining follow-ups are listed
+explicitly below.
+
+This review used five parallel subagent scans across Solid/Solid DB, Core,
+Start, DB, and Devtools. The sweep again found actionable Module, Interface,
+Seam, Adapter, and Locality work, so the clean-sweep counter still cannot
+start.
+
+1. Solid Runtime Ownership And Router Runtime Locality
+   - Status: fixed.
+   - Files: `packages/solid/src/runtime.ts`,
+     `packages/solid/src/router.ts`, `packages/solid/src/link.ts`,
+     `packages/solid/test/router.test.ts`,
+     `packages/solid-db/src/shared.ts`,
+     `packages/solid-db/src/collection.ts`,
+     `packages/solid-db/src/live-query.ts`,
+     `packages/solid-db/test/solid-db.test.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: `RuntimeProvider` could be given both an existing runtime and a
+     source for a provider-owned runtime, route components could render without
+     the router-owned Core ambient runtime, and `RouterLink` hover preloads used
+     a broad runtime path that did not cancel stale hover work. Solid DB preload
+     observer errors were also under-documented after the state signal changed.
+   - Fix: made `runtime` and `source` mutually exclusive at the public prop
+     type, kept provider-owned source disposal distinct from externally owned
+     runtimes, rendered route components inside the router runtime, ran link
+     hover preloads through that runtime, interrupted stale hover preload
+     fibers, and documented the Solid DB preload observer policy.
+   - Benefits: Solid adapter ownership, router Locality, hover preload
+     lifecycle, and LSP-visible provider docs now describe the same runtime
+     behavior.
+
+2. Core Resource, Server, Action, And Route Contract Tightening
+   - Status: fixed.
+   - Files: `packages/core/src/resource-registry.ts`,
+     `packages/core/src/resource-dependency-graph.ts`,
+     `packages/core/src/resource-runtime.ts`,
+     `packages/core/src/request-context.ts`,
+     `packages/core/src/server.ts`, `packages/core/src/action.ts`,
+     `packages/core/src/action-submission.ts`, `packages/core/src/route.ts`,
+     `packages/core/test/resource-registry.test.ts`,
+     `packages/core/test/resource.test.ts`,
+     `packages/core/test/route-server.test.ts`,
+     `packages/core/test/action.test.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: Resource hydration still had mutation-before-late-failure risk in
+     provided-tag planning, resource diagnostics reported schema capability
+     truth too loosely, request/response host callback throws could escape
+     server route typing, the server contract checker treated request/response
+     context callback failures as domain-error requirements, action reset could
+     hide runtime errors behind the captured runtime path, and route match docs
+     did not state the sync decode throw seam.
+   - Fix: split Resource hydration into validation/planning before mutation,
+     derived provided tags before committing state, used real Schema checks for
+     diagnostics, mapped request/response context host failures into typed
+     server route errors, allowed `EffectInputCallbackError` as the server
+     contract callback seam, made action reset mutate local submission state
+     directly, and documented `Route.match(...)` sync decode behavior with the
+     typed navigation alternative.
+   - Benefits: Resource hydration is all-or-nothing across state and dependency
+     tags, server host Adapter errors stay typed, action reset is local, and
+     route hovers tell callers which Interface owns typed navigation failures.
+
+3. Start Dev SSR Classification And Action Name Contracts
+   - Status: fixed.
+   - Files: `packages/start/src/start-vite-dev-ssr.ts`,
+     `packages/start/src/start-transport-protocol.ts`,
+     `packages/start/src/start-request-endpoints.ts`,
+     `packages/start/src/index.ts`, `packages/start/test/start.test.ts`.
+   - Problem: the Vite dev SSR middleware bypassed all dotted paths, so app
+     routes with dots were misclassified as assets; explicit duplicate Start
+     action names silently used the last definition in a `Map`.
+   - Fix: replaced the blanket dotted-path bypass with known Vite/internal and
+     asset prefixes plus request `Accept` handling, added a typed
+     `StartActionDuplicateName` error, and rejected duplicate explicit action
+     names when building the action map.
+   - Benefits: app route URLs no longer fall out of dev SSR just because they
+     contain a dot, and action-name collisions fail in the Start transport
+     contract instead of becoming order-dependent behavior.
+
+4. DB Collection Ownership, Registry Views, And Batch Application
+   - Status: fixed.
+   - Files: `packages/db/src/collection-state.ts`,
+     `packages/db/src/collection-runtime.ts`,
+     `packages/db/src/collection-registry.ts`,
+     `packages/db/test/collection.test.ts`,
+     `packages/db/test/collection-registry.test.ts`.
+   - Problem: collection rows could retain caller-owned object references
+     across load/write/update paths, registry `definitions()` exposed a live
+     mutable view, and `applyChangesEffect(...)` could partially mutate state or
+     publish write facts before persistence failure finished.
+   - Fix: cloned collection values on ingress and egress, returned detached
+     registry definition maps, planned batch upserts before applying state,
+     applied a single version bump, rolled state/version back on persistence
+     failure, and suppressed write events for failed persisted batches.
+   - Benefits: Collection State owns its rows, registry callers cannot mutate
+     the Definition Registry through a returned view, and batch application now
+     behaves as one Store transition from the public event stream.
+
+5. Devtools Serialization, Runtime Events, And Extension Diagnostics
+   - Status: fixed.
+   - Files: `packages/devtools/src/index.ts`,
+     `packages/devtools/src/serialization.ts`,
+     `packages/devtools/src/summary-facts.ts`,
+     `packages/devtools/src/panels.ts`,
+     `packages/devtools/test/devtools.test.ts`,
+     `examples/devtools-extension/src/panel-runtime.ts`,
+     `examples/devtools-extension/src/extension.test.ts`.
+   - Problem: serialization policy bounds accepted invalid numeric inputs,
+     detached copies could lose Error and binary-buffer detail, runtime
+     resource/collection facts were missing from panel summaries, and extension
+     diagnostics collapsed structured errors to strings.
+   - Fix: normalized serialization bounds to finite nonnegative integers,
+     detached Error metadata and binary views by value, folded
+     `ResourceStoreEvent` runtime facts into resource summaries, included
+     runtime-event-only collections in collection panels, and preserved
+     structured diagnostic error payloads in the extension panel runtime.
+   - Benefits: Devtools snapshots and panels now agree with runtime facts, the
+     extension can inspect richer failure payloads, and serialization policy is
+     deterministic at the public boundary.
+
+Known follow-ups:
+
+- Decide whether Start streamed hydration should guarantee whole-document
+  atomicity or document intentionally progressive semantics for partial streams.
+- Add a DB optimistic mutation transaction stack for overlapping same-row
+  mutations if the current last-writer behavior is not the intended model.
+- Choose the DB query alias validation Interface: build-time throw versus a
+  live-query failure state.
+
+Evidence:
+
+- `pnpm --filter @effect-ui/solid typecheck`, `pnpm --filter
+  @effect-ui/solid-db typecheck`, `pnpm typecheck:types`, and `pnpm vitest run
+  packages/solid/test/router.test.ts packages/solid-db/test/solid-db.test.ts`
+  passed: 2 files / 19 tests.
+- `pnpm --filter @effect-ui/core typecheck`, `pnpm --filter @effect-ui/db
+  typecheck`, `pnpm --filter @effect-ui/devtools typecheck`, focused Core/DB
+  and Devtools regressions, `pnpm --filter @effect-ui/start typecheck`,
+  `pnpm vitest run packages/start/test/start.test.ts`,
+  `pnpm devtools-extension:typecheck`, and `pnpm devtools-extension:test`
+  passed.
+- Full `pnpm typecheck` passed.
+- Full `pnpm test` passed: 45 root test files / 532 tests.
+- Full `pnpm verify` passed: 9 package builds, workspace typecheck, type
+  tests, Effect-first source audit, 45 root test files / 532 tests,
+  devtools-panel verify with 1 panel test, devtools-extension verify with 1
+  extension test file / 12 tests, basic starter verify with 1 starter test file
+  / 2 tests, project-console starter packaging, project-console typecheck, 4
+  project-console test files / 23 tests, project-console build, and leak scans.
+
+## Review 54: Hydration Semantics, Query Plan Validation, And Optimistic Row Rebase
+
+Status: fixed in the current worktree.
+
+This follow-up closed the three explicit Review 53 follow-ups. The sweep still
+found actionable Interface and Locality work, so the clean-sweep counter still
+cannot start.
+
+1. Start Streamed Hydration Progressive Semantics
+   - Status: fixed.
+   - Files: `packages/start/src/hydration.ts`,
+     `packages/start/test/start.test.ts`, `docs/architecture.md`.
+   - Problem: the Start Hydration Transport did not state whether root plus
+     streamed document hydration was a whole-document transaction or a
+     progressive stream. The implementation already applied chunks in sequence,
+     but the Interface left callers to infer rollback behavior.
+   - Fix: documented progressive semantics at the streamed hydration options and
+     Effect helpers, clarified architecture docs, and added a regression proving
+     each payload validates before mutation while an already-applied earlier
+     chunk remains applied if a later chunk fails. Consumed DOM markers are still
+     written only after a full chunk scan succeeds.
+   - Benefits: the Start Hydration Transport now has an honest Interface:
+     atomicity is per payload, streaming remains progressive, and retry behavior
+     is visible to browser Adapter authors.
+
+2. DB Query Plan Alias Validation
+   - Status: fixed.
+   - Files: `packages/db/src/query-plan.ts`,
+     `packages/db/src/query-builder.ts`,
+     `packages/db/src/live-query-runtime.ts`,
+     `packages/db/src/live-query-state.ts`,
+     `packages/db/test/collection.test.ts`.
+   - Problem: duplicate source/join aliases and missing join source aliases
+     were accepted inconsistently. Diagnostics, one-shot execution, and live
+     queries could disagree; live runtime construction could also throw before
+     Live Query State converted failures to query state.
+   - Fix: added shared Query Plan validation for duplicate aliases, missing join
+     sources, mismatched join collections, and no-base-source join plans.
+     `Query.onceEffect(...)` validates before preloading sources and maps plan
+     failures to `QueryEvaluationError`; live query runtime creation is lazy so
+     invalid plans surface as live query `Failure` state instead of accessor
+     throws.
+   - Benefits: Query Builder keeps one plan invariant policy. Diagnostics,
+     one-shot queries, and Live Query State now report the same alias errors
+     through their intended Interfaces.
+
+3. DB Optimistic Same-Row Mutation Rebase
+   - Status: fixed.
+   - Files: `packages/db/src/collection-state.ts`,
+     `packages/db/src/collection-runtime.ts`,
+     `packages/db/src/collection-snapshot-codec.ts`,
+     `packages/db/test/collection.test.ts`.
+   - Problem: optimistic rollback used only the failed transaction's saved row
+     snapshot. When two pending mutations touched the same row, an earlier
+     failure could erase a later optimistic update, and an earlier success could
+     mark a later pending row as synced by key.
+   - Fix: added a row-keyed optimistic stack to Collection State. Collection
+     Runtime appends patches when local mutations apply, rebases visible rows on
+     commit/rollback, updates later pending rollback bases, folds committed
+     patches into the base when possible, and marks a visible row synced only
+     when no pending patch remains for that key. Restored pending mutations keep
+     the existing snapshot fallback path.
+   - Benefits: Collection Runtime now owns overlapping optimistic row locality.
+     Pending transaction behavior is stable regardless of whether an earlier
+     same-row mutation succeeds or fails first.
+
+Evidence:
+
+- `pnpm --filter @effect-ui/start typecheck` passed.
+- `pnpm vitest run packages/start/test/start.test.ts` passed: 1 file / 89 tests.
+- `pnpm --filter @effect-ui/db typecheck` passed.
+- `pnpm vitest run packages/db/test/collection.test.ts` passed: 1 file / 58 tests.
+- Full `pnpm typecheck` passed.
+- Full `pnpm test` passed: 45 root test files / 537 tests.
+- Full `pnpm verify` passed: 9 package builds, workspace typecheck, type
+  tests, Effect-first source audit, 45 root test files / 537 tests,
+  devtools-panel verify with 1 panel test, devtools-extension verify with 1
+  extension test file / 12 tests, basic starter verify with 1 starter test file
+  / 2 tests, project-console starter packaging, project-console typecheck, 4
+  project-console test files / 23 tests, project-console build, and leak scans.
+
+## Review 55: Atomicity, Host Boundaries, And Solid Runtime Locality
+
+Status: fixed in the current worktree.
+
+This fresh subagent sweep still found actionable Module, Interface, Seam,
+Adapter, and Locality work, so the clean-sweep counter still cannot start.
+
+1. DB Optimistic Base And Hydration Merge Policy
+   - Status: fixed.
+   - Files: `packages/db/src/collection-runtime.ts`,
+     `packages/db/src/collection-snapshot-codec.ts`,
+     `packages/db/src/live-query-collection.ts`,
+     `packages/db/test/collection.test.ts`,
+     `packages/db/test/live-query-collection.test.ts`.
+   - Problem: remote loads, direct writes, and change-feed batches updated
+     `state.rows` beside the optimistic row stack. A refetch during a pending
+     local update could leave rollback bases stale, pending deletes could be
+     resurrected, merge hydration could overwrite an existing pending
+     transaction id, and Live Query Collections returned shallow row wrappers.
+   - Fix: added one base-row application path that updates optimistic stack
+     bases and rebases pending patches, rejects duplicate pending transaction
+     ids during `{ replace: false }` hydration, and clones live-query collection
+     egress/snapshot values.
+   - Benefits: Collection Runtime now owns local optimistic visibility and
+     remote base truth in one Module, and collection-like derived views honor
+     the same row-detachment Interface as normal collections.
+
+2. Core Resource And Action Atomicity
+   - Status: fixed.
+   - Files: `packages/core/src/resource-runtime.ts`,
+     `packages/core/src/resource.ts`, `packages/core/src/action.ts`,
+     `packages/core/test/resource.test.ts`, `packages/core/test/action.test.ts`.
+   - Problem: resource refresh applied `Success` before `provides(...)` tag
+     facts were safe, and Action invalidation refreshed resources before an
+     optimistic commit could fail.
+   - Fix: resource loads now compute provided tags before publishing success,
+     while actions commit optimistic transactions before running resource
+     invalidation plans. Core also exposes an Effect lookup for Resource
+     families that prefers the active Resource Store.
+   - Benefits: value state, tag facts, optimistic state, and invalidation side
+     effects now move through their intended atomic seams.
+
+3. Start Transport And Hydration Host Boundaries
+   - Status: fixed.
+   - Files: `packages/start/src/start-transport-protocol.ts`,
+     `packages/start/src/hydration.ts`, `packages/start/src/hydration-dom.ts`,
+     `packages/start/test/start.test.ts`.
+   - Problem: action response ref invalidation looked only in the process-wide
+     Resource registry, JSON response construction could defect on non-JSON-safe
+     values, custom hydration script ids were interpolated as raw HTML
+     attributes, and empty hydration scripts/chunks were treated as missing.
+   - Fix: action response hydration resolves Resource families through the
+     active runtime store, JSON response construction maps stringify failures to
+     Defect responses, hydration ids are attribute-escaped, and present empty
+     DOM scripts now reach the typed parse-error seam.
+   - Benefits: Start Adapters no longer leak process-global lookup or host JSON
+     and DOM edge cases through transport Interfaces.
+
+4. Devtools Serialization And Store Limits
+   - Status: fixed.
+   - Files: `packages/devtools/src/serialization.ts`,
+     `packages/devtools/src/store.ts`,
+     `packages/devtools/test/devtools.test.ts`,
+     `examples/devtools-extension/src/panel-runtime.ts`,
+     `examples/devtools-extension/src/extension.test.ts`.
+   - Problem: hostile array proxies bypassed guarded serialization/copy paths,
+     store history limits inherited `Array.slice` edge cases, and extension
+     diagnostics read unknown error descriptions through an unguarded property
+     access.
+   - Fix: array serialization and detached copies now trap failures as
+     `UninspectableObject`, store limits normalize once before trimming, and
+     extension transport diagnostics guard description reads.
+   - Benefits: Devtools inspection remains best-effort even for hostile values,
+     and bounded histories have an explicit Store Interface.
+
+5. Solid Runtime-Owned Streams, Suspense, And Live Query Dependencies
+   - Status: fixed.
+   - Files: `packages/solid/src/hooks.ts`,
+     `packages/solid/test/hooks.test.ts`,
+     `packages/solid-db/src/shared.ts`,
+     `packages/solid-db/src/live-query.ts`,
+     `packages/solid-db/test/solid-db.test.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: `useStream(...)` only accepted requirement-free streams,
+     Suspense preloads were not owned by the Solid `UiScope`, and `useLiveQuery`
+     looked reactive while only collection versions could trigger recompute.
+   - Fix: `useStream(...)` now runs service-backed streams through the nearest
+     runtime and UI scope, `useResourceSuspense(...)` throws a Promise derived
+     from a scope-owned preload fiber, and `useLiveQuery(...)` accepts explicit
+     Solid `deps` for query rebuilds while resubscribing source collections.
+   - Benefits: Solid Adapters own their runtime-to-UI seams consistently across
+     streams, resource Suspense, and DB live queries.
+
+Evidence:
+
+- Package typechecks passed for `@effect-ui/core`, `@effect-ui/db`,
+  `@effect-ui/start`, `@effect-ui/devtools`, `@effect-ui/solid`, and
+  `@effect-ui/solid-db`.
+- Focused regressions passed: DB collection/live-query collection, Core
+  resource/action, Start, Devtools plus extension, Solid hooks, and Solid DB.
+- Full `pnpm typecheck` passed.
+- Full `pnpm test` passed: 45 root test files / 554 tests.
+- Full `pnpm verify` passed: 9 package builds, workspace typecheck, type
+  tests, Effect-first source audit, 45 root test files / 554 tests,
+  devtools-panel verify with 1 panel test, devtools-extension verify with 1
+  extension test file / 13 tests, basic starter verify with 1 starter test file
+  / 2 tests, project-console starter packaging, project-console typecheck, 4
+  project-console test files / 23 tests, project-console build, and leak scans.
+
+## Review 56: Runtime Ownership, Transport Semantics, And Devtools Import Safety
+
+Status: fixed in the current worktree.
+
+This fresh subagent sweep still found actionable Store, Runtime, Transport,
+Adapter, and Summary seams, so the clean-sweep counter still cannot start.
+
+1. DB Store-Local Optimistic Hydration And Change Feed Application
+   - Status: fixed.
+   - Files: `packages/db/src/collection-state.ts`,
+     `packages/db/src/collection-snapshot-codec.ts`,
+     `packages/db/src/collection-runtime.ts`,
+     `packages/db/src/sync-adapter.ts`,
+     `packages/db/test/collection.test.ts`,
+     `packages/db/test/sync-adapter.test.ts`.
+   - Problem: restored pending mutations did not reconstruct optimistic row
+     overlays, Effect change-feed emitters resolved the Collection Store when
+     run instead of when subscribed, and Query Sync cache invalidation failures
+     could roll back already-committed remote mutations.
+   - Fix: moved optimistic/base-row helpers into Collection State, restored
+     pending overlays during snapshot application, bound Effect change-feed
+     emitters to the subscribed Store, and made post-commit Query Sync
+     invalidation best-effort.
+   - Benefits: local pending state, feed emission, and remote mutation commit
+     truth now stay attached to the right Collection Store and transaction
+     seam.
+
+2. Solid Runtime-Owned Disposal And Dynamic Source Preload
+   - Status: fixed.
+   - Files: `packages/solid/src/runtime.ts`,
+     `packages/solid/src/router.ts`,
+     `packages/solid/test/hooks.test.ts`,
+     `packages/solid/test/router.test.ts`,
+     `packages/solid-db/src/shared.ts`,
+     `packages/solid-db/src/live-query.ts`,
+     `packages/solid-db/test/solid-db.test.ts`.
+   - Problem: `UiScope` disposal and route preload disposal used ambient
+     `runFork`, RouterOutlet fallbacks rendered outside the route runtime/scope,
+     and dynamic Solid DB source changes did not restart auto preload.
+   - Fix: disposals now fork through the owning Solid runtime, every
+     RouterOutlet state branch renders in a route `UiScope`, and dynamic
+     live-query source refresh resubscribes and restarts source preload.
+   - Benefits: UI lifecycle Locality now follows the runtime that created the
+     scope, and Solid DB dependency changes refresh both subscriptions and
+     preloaded source truth.
+
+3. Core Reset, Delete, Finalizer, And Cookie Seams
+   - Status: fixed.
+   - Files: `packages/core/src/action-submission.ts`,
+     `packages/core/src/resource-runtime.ts`,
+     `packages/core/src/resource-store.ts`,
+     `packages/core/src/request-context.ts`,
+     `packages/core/test/action.test.ts`,
+     `packages/core/test/resource.test.ts`,
+     `packages/core/test/resource-store.test.ts`,
+     `packages/core/test/route-server.test.ts`.
+   - Problem: `resetEffect(...)` left active Action fibers alive, resource
+     deletion left remembered inputs behind, one Resource Store finalizer
+     failure could skip later finalizers, and response cookie attributes were
+     interpolated without validation.
+   - Fix: `resetEffect(...)` interrupts the active submission fiber before
+     reset, resource deletion clears remembered inputs, store disposal runs all
+     module finalizers before returning the first failure, and Set-Cookie
+     attributes reject control characters, semicolons, and invalid dates/ages.
+   - Benefits: Core lifecycle cleanup is now atomic where users observe it and
+     best-effort where teardown owns multiple finalizers.
+
+4. Start Action Metadata, Trace, And Accept Semantics
+   - Status: fixed.
+   - Files: `packages/start/src/start-transport-protocol.ts`,
+     `packages/start/src/request-trace.ts`,
+     `packages/start/src/start-vite-dev-ssr.ts`,
+     `packages/start/test/start.test.ts`.
+   - Problem: action response invalidation metadata could silently drop unknown
+     or mismatched Resource refs, request trace cookie decoding could throw
+     while building diagnostics, form actions ignored explicit JSON `Accept`,
+     and Vite dev SSR used a shallow Accept parser that ignored `q=0`.
+   - Fix: semantic invalidation ref failures now return typed
+     `ServerTransportError`s, trace cookie projection decodes best-effort,
+     form action redirects return typed JSON when explicitly requested, and dev
+     SSR delegates HTML Accept parsing to the shared media-type parser.
+   - Benefits: Start transport metadata is fail-closed, diagnostics stay
+     best-effort, and response negotiation matches the client-visible
+     progressive-enhancement contract.
+
+5. Devtools Panel, Route-Plan, Summary, And Import Safety
+   - Status: fixed.
+   - Files: `packages/devtools/src/panel-contract.ts`,
+     `packages/devtools/src/serialization.ts`,
+     `packages/devtools/src/summary-facts.ts`,
+     `packages/devtools/src/route-plan-facts.ts`,
+     `packages/devtools/src/causal-graph.ts`,
+     `packages/devtools/src/summary-app-graph.ts`,
+     `packages/devtools/src/store.ts`,
+     `packages/devtools/test/devtools.test.ts`,
+     `examples/devtools-extension/src/transport.ts`,
+     `examples/devtools-extension/src/extension.test.ts`.
+   - Problem: panel bridge normalization could recurse through cyclic or huge
+     payloads, route-plan hydration collapsed identity to a count, summaries
+     could expose nested app-graph data from the live Store snapshot, and
+     imported snapshots bypassed Store history limits/rebasing.
+   - Fix: panel contract normalization is cycle/depth/entry bounded, extension
+     callbacks catch normalization failures, route-plan hydration carries
+     hydrated resource keys, summaries copy Store snapshots before projection,
+     app-graph summaries detach nested diagnostics, and imported snapshots now
+     copy, stamp, trim, and rebase facts through the same Store limits.
+   - Benefits: Devtools bridge and Store imports are total best-effort
+     Adapters, and causal graph hydration edges now describe the resources that
+     actually hydrated.
+
+Evidence:
+
+- Package typechecks passed for `@effect-ui/core`, `@effect-ui/db`,
+  `@effect-ui/start`, `@effect-ui/devtools`, `@effect-ui/solid`, and
+  `@effect-ui/solid-db`.
+- Focused regressions passed: DB collection/sync adapter, Core
+  action/resource/resource-store/route-server, Solid hooks/router, Solid DB,
+  Start, Devtools, and the devtools extension.
+- `pnpm typecheck` passed.
+- `pnpm audit:effect-first` passed.
+- Full `pnpm test` passed: 45 root test files / 571 tests.
+- Full `pnpm verify` passed: 9 package builds, workspace typecheck, type
+  tests, Effect-first source audit, 45 root test files / 571 tests,
+  devtools-panel verify with 1 panel test, devtools-extension verify with 1
+  extension test file / 14 tests, basic starter verify with 1 starter test file
+  / 2 tests, project-console starter packaging, project-console typecheck, 4
+  project-console test files / 23 tests, project-console build, and leak scans.
+
+## Review 45: Core Type Truth, Devtools Graph Identity, And Dev SSR Origin Policy
+
+1. Core Route Preload Requirement Surface
+   - Status: fixed.
+   - Files: `packages/core/src/route.ts`,
+     `packages/solid/src/router.ts`, `packages/core/src/app.ts`,
+     `packages/start/src/start-request-preload.ts`,
+     `packages/start/src/start-request-handler.ts`,
+     `packages/start/src/start-request-endpoints.ts`,
+     `packages/start/src/request-runtime.ts`,
+     `packages/start/src/virtual-modules.d.ts`,
+     `type-tests/framework.test-d.ts`, `CONTEXT.md`,
+     `docs/public-api-inventory.md`,
+     `docs/type-test-coverage-audit.md`.
+   - Problem: `RouteDefinition` erased service requirements returned by
+     `preload`, so `Route.preloadEffect(...)`,
+     `Route.planPreloadEffect(...)`, and `Route.planNavigationEffect(...)`
+     looked requirement-free even when preload used an Effect service.
+   - Fix: added a fourth route-definition generic for preload requirements,
+     inferred it from the concrete preload callback, and threaded it through the
+     route planning APIs. Broad route collections now use an explicit fourth
+     `any` parameter, while Solid erases only at its runtime Adapter boundary.
+     The same pass made `route(path)` options-free definitions match safely at
+     runtime while preserving inferred path params in type tests.
+   - Benefits: LSP hovers now show when route preload needs services, and host
+     adapters must consciously discharge those services through a Runtime Spine.
+
+2. Core Action Runtime Binding
+   - Status: fixed.
+   - Files: `packages/core/src/action.ts`,
+     `type-tests/framework.test-d.ts`, `CONTEXT.md`,
+     `docs/public-api-inventory.md`,
+     `docs/type-test-coverage-audit.md`.
+   - Problem: `Action.use(definition, { runtime })` ran submissions on the
+     captured runtime but still exposed the original action requirements in
+     `submitEffect(...)`, while casting away the runtime error channel.
+   - Fix: added a runtime-bound overload that removes services supplied by the
+     explicit runtime, includes Resource Store provisioning, and widens the
+     action error channel with the runtime error type.
+   - Benefits: runtime-bound actions now describe the Effect they actually
+     return instead of forcing users and agents to chase implementation casts.
+
+3. Devtools Runtime Fact Targets And Edge Identity
+   - Status: fixed.
+   - Files: `packages/devtools/src/index.ts`,
+     `packages/devtools/src/store.ts`,
+     `packages/devtools/src/fact-identity.ts`,
+     `packages/devtools/src/summary-facts.ts`,
+     `packages/devtools/src/causal-graph.ts`,
+     `packages/devtools/src/graph-ids.ts`,
+     `packages/devtools/test/devtools.test.ts`,
+     `docs/devtools.md`, `CONTEXT.md`,
+     `docs/public-api-inventory.md`.
+   - Problem: runtime `Invalidation` and `RoutePlan` event targets used the
+     runtime-event array index as if it were the recorded fact index, producing
+     phantom graph nodes when event and fact order diverged. Causal edge ids
+     also used a global insertion counter, so unrelated earlier facts churned
+     otherwise-stable edge ids.
+   - Fix: runtime events can carry explicit invalidation/route-plan fact
+     indexes, summary projection falls back by matching recorded facts, bounded
+     history rebases those indexes, and causal edge ids now derive from
+     kind/source/target/label plus duplicate ordinal.
+   - Benefits: Devtools graphs stay stable for tests, panels, and agents, and
+     runtime events observe existing fact nodes instead of synthesizing targets.
+
+4. Start Vite Dev SSR Origin Policy
+   - Status: fixed.
+   - Files: `packages/start/src/start-vite-dev-ssr.ts`,
+     `packages/start/src/start-manifest-wall.ts`,
+     `packages/start/src/vite.ts`,
+     `packages/start/test/start.test.ts`,
+     `CONTEXT.md`, `docs/public-api-inventory.md`.
+   - Problem: the Vite dev SSR middleware converted Node requests without
+     accepting the Node Adapter origin/forwarded-header policy, so dev and
+     production host adapters could disagree about the public request URL.
+   - Fix: added `nodeRequest` options to the dev SSR middleware and
+     `EffectUiStartOptions`, then passed them through to
+     `nodeRequestToWebRequestEffect(...)`.
+   - Benefits: teams can make forwarded-header trust explicit in Vite dev just
+     as they can in the Node adapter.
+
+5. Resource Collector Hover Truth
+   - Status: fixed.
+   - Files: `packages/core/src/resource.ts`.
+   - Problem: `Resource.collectEffect(...)` docs said collection happened
+     through prefetch/read even though synchronous `Resource.read(...)` does not
+     participate in the Effect collector service.
+   - Fix: clarified that the collector records refs touched through
+     prefetch/refresh Effects.
+   - Benefits: LSP docs now describe the actual collector seam instead of
+     implying hidden synchronous read tracking.
+
+Focused workspace evidence for this pass: `pnpm --filter @effect-ui/core
+typecheck`, `pnpm --filter @effect-ui/solid typecheck`, `pnpm --filter
+@effect-ui/start typecheck`, `pnpm typecheck:types`, `pnpm vitest run
+packages/core/test/route-server.test.ts packages/core/test/runtime.test.ts
+packages/core/test/action.test.ts`, `pnpm vitest run
+packages/solid/test/router.test.ts`, `pnpm vitest run
+packages/start/test/start.test.ts packages/start/test/adapters.test.ts`, and
+`pnpm vitest run packages/devtools/test/devtools.test.ts` passed.
+
+## Review 34: Route And Devtools Raw DTO Hover Follow-Up
+
+Status: fixed.
+
+Findings:
+
+1. Route Public Type Hover Depth
+   - Status: fixed.
+   - Files: `packages/core/src/route.ts`.
+   - Problem: Route preload diagnostics, route type aliases, route options,
+     params/search helpers, match plans, and href builders were correct but
+     still sparse in LSP hovers. That left important intent discoverable only
+     by reading implementation and tests.
+   - Fix: added concise JSDoc around preload hints/status/diagnostics, route
+     options, typed params/search helpers, route context, matched routes,
+     navigation plans, and href options.
+   - Benefits: route authors now get the purpose and lifecycle expectations of
+     each public Interface directly from editor hovers.
+
+2. Devtools Raw DTO And App Graph Hover Depth
+   - Status: fixed.
+   - Files: `packages/devtools/src/index.ts`.
+   - Problem: Devtools raw snapshot, action, event, request-trace, and Start
+     app graph DTOs were exposed as useful public inspection shapes but had
+     shallow documentation. The JSON-safe projection docs were stronger than
+     the raw inspection docs.
+   - Fix: documented the raw Devtools DTO families, runtime event/action
+     inputs, request trace snapshots, route plans, schema diagnostics, and
+     Start app graph graph/diagnostic/policy shapes.
+   - Benefits: agents and users inspecting Devtools data can distinguish raw
+     captured runtime facts from projected panel summaries without leaving the
+     type surface.
+
+Full `pnpm verify` passed after this pass: 9 package builds, workspace
+typecheck, type tests, 45 root test files / 454 tests, devtools-panel verify
+with 1 panel test, devtools-extension verify with 1 extension test file / 7
+tests, basic starter verify with 1 starter test, project-console starter
+packaging, project-console typecheck, 4 project-console test files / 23 tests,
+project-console build, and leak scan. Post-verify raw schema-error,
+Promise-method, immutable flag, ResourceFamily live-store, sync-load closure,
+runtime Promise docs, and whitespace audits passed.
+
+## Review 35: LSP Public Surface Hover Completion Follow-Up
+
+Status: fixed.
+
+Findings:
+
+1. Start Streaming And Manifest Hover Depth
+   - Status: fixed.
+   - Files: `packages/start/src/streaming.ts`,
+     `packages/start/src/server-function-manifest.ts`,
+     `packages/start/src/action-manifest.ts`,
+     `packages/start/src/start-transport-protocol.ts`.
+   - Problem: Start's streaming SSR helpers and generated manifest contract
+     types were exported from the public package but still hovered mostly as raw
+     structure. The missing docs obscured shell/chunk/tail ordering, hydration
+     sequencing, manifest module kinds, client-reference strategies, schema
+     presence flags, and progressive action form helpers.
+   - Fix: added concise JSDoc for HTML stream chunks/options/errors/constructors,
+     server-function and action manifest ids/definitions/references/entries,
+     action invalidation wire shapes, action-definition extraction helpers,
+     hidden form fields, and request endpoint guards.
+   - Benefits: Start's SSR and generated-artifact Interface is now explainable
+     from editor hovers instead of forcing users or agents to infer policy from
+     implementation.
+
+2. Devtools Panel And Bridge Hover Depth
+   - Status: fixed.
+   - Files: `packages/devtools/src/index.ts`,
+     `packages/devtools/src/bridge.ts`.
+   - Problem: Devtools Store, serialization, and raw DTO docs had been deepened,
+     but the panel UI/mount surface and inspected-window bridge provider still
+     had thin hovers.
+   - Fix: documented panel ids, severities, rendering options, mount options,
+     mount handles, the bridge global key, and provider callback semantics.
+   - Benefits: embedded panel shells and browser extensions can understand the
+     Devtools bridge and renderer contract directly at the public Interface.
+
+3. Core And DB Expert-Public Hover Depth
+   - Status: fixed.
+   - Files: `packages/core/src/capability.ts`,
+     `packages/core/src/definition-registry.ts`,
+     `packages/core/src/form.ts`, `packages/core/src/resource-registry.ts`,
+     `packages/core/src/resource-snapshot-codec.ts`,
+     `packages/core/src/resource-store.ts`, `packages/core/src/server.ts`,
+     `packages/db/src/sqlite-persistence.ts`.
+   - Problem: Core intentionally exports several expert-public runtime,
+     registry, server serialization, form validation, and snapshot-codec
+     helpers. Several of those symbols still hovered as signatures even though
+     adapters, tests, Devtools, and generated manifests depend on their
+     semantics.
+   - Fix: added JSDoc for Resource Store events/state/modules, Resource snapshot
+     codec operations and helpers, Core/Resource definition registry diagnostics,
+     Form field/error helpers, Server mock/local client and schema encode/decode
+     helpers, Capability test helpers, and SQLite persistence defaults plus
+     namespace aliases.
+   - Benefits: expert-public Modules now expose their intent and error/locality
+     rules at the same seam where advanced users and agents consume them.
+
+Focused evidence before full verification: `pnpm --filter @effect-ui/core
+typecheck`, `pnpm --filter @effect-ui/db typecheck`, `pnpm --filter
+@effect-ui/start typecheck`, `pnpm --filter @effect-ui/devtools typecheck`,
+and `pnpm typecheck:types` passed. Full `pnpm verify` passed after this pass:
+9 package builds, workspace typecheck, type tests, 45 root test files / 454
+tests, devtools-panel verify with 1 panel test, devtools-extension verify with
+1 extension test file / 7 tests, basic starter verify with 1 starter test,
+project-console starter packaging, project-console typecheck, 4 project-console
+test files / 23 tests, project-console build, and leak scan. Post-verify raw
+schema-error, Promise-method, immutable flag, ResourceFamily live-store,
+sync-load closure, runtime Promise docs, and whitespace audits passed.
+
+## Review 36: Effect-First Source Audit And Server Wire Codec
+
+Status: fixed.
+
+Findings:
+
+1. Effect-First Source Audit Guardrail
+   - Status: fixed.
+   - Files: `package.json`, `scripts/audit-effect-first.mjs`,
+     `CONTEXT.md`.
+   - Problem: the project had a standing Effect-first rule and repeated manual
+     Promise greps, but `pnpm verify` did not enforce where Promise host seams
+     are allowed in package source. That made the Interface between library
+     source and host platform Promise APIs a convention rather than a checked
+     Module.
+   - Fix: added `pnpm audit:effect-first`, wired it into `pnpm verify`, and
+     encoded the approved package-source Promise seams explicitly: Solid
+     Suspense, Fetch-native handlers, Vite hooks, CLI launch, Vite dev SSR
+     Promise-shaped host interfaces, and Web Stream callbacks.
+   - Benefits: Promise drift now fails the standard verification gate while
+     still preserving explicit host Adapter seams.
+
+2. Core Server Wire Codec Module
+   - Status: fixed.
+   - Files: `packages/core/src/server.ts`,
+     `packages/core/src/server-wire-codec.ts`,
+     `docs/public-api-inventory.md`, `CONTEXT.md`.
+   - Problem: the Core `Server` Module mixed callable construction, mock/local
+     clients, route handling, schema encode/decode, RPC envelope decoding,
+     manifest schema-presence projection, and defect/server-error
+     serialization. That made the Server facade shallower than it needed to be:
+     local clients, mocks, and Start transports shared policy only by going
+     through a broad public namespace.
+   - Fix: extracted `server-wire-codec.ts` for server-function schema
+     encode/decode, RPC request/response envelope decoding, schema-presence
+     manifest projection, and server defect/error serialization. The public
+     `Server.*` helpers remain stable facade methods over the new Module.
+   - Benefits: wire/schema behavior has Locality in one Core Module, while the
+     Server facade keeps its higher-level contract, client, mock, and route
+     Leverage.
+
+Focused evidence before full verification: `pnpm --filter @effect-ui/core
+typecheck`, `pnpm vitest run packages/core/test/server.test.ts
+packages/core/test/route-server.test.ts packages/start/test/rpc.test.ts`,
+`pnpm typecheck:types`, and `pnpm audit:effect-first` passed. Full `pnpm
+verify` passed after this pass: 9 package builds, workspace typecheck, type
+tests, effect-first source audit, 45 root test files / 454 tests,
+devtools-panel verify with 1 panel test, devtools-extension verify with 1
+extension test file / 7 tests, basic starter verify with 1 starter test,
+project-console starter packaging, project-console typecheck, 4 project-console
+test files / 23 tests, project-console build, and leak scan. Post-verify raw
+schema-error, Promise-method, immutable flag, ResourceFamily live-store,
+sync-load closure, runtime Promise docs, and whitespace audits passed.
+
+## Review 31: Runtime Spine Type Truth And LSP Hover Depth
+
+1. Typed Runtime Spine Versus Host-Erased Runtime Runner
+   - Status: fixed.
+   - Files: `packages/core/src/runtime.ts`,
+     `packages/core/src/action.ts`, `packages/solid/src/runtime.ts`,
+     `packages/solid/src/hooks.ts`, `packages/solid/src/router.ts`,
+     `packages/solid-db/src/shared.ts`, `packages/start/src/hydration.ts`,
+     `packages/start/src/fetch-adapter.ts`,
+     `packages/start/src/request-runtime.ts`,
+     `packages/start/src/request-trace.ts`,
+     `packages/start/src/request-trace-recorder.ts`,
+     `packages/start/src/node-adapter.ts`,
+     `type-tests/framework.test-d.ts`, `docs/public-api-inventory.md`,
+     `CONTEXT.md`.
+   - Problem: `EffectUiRuntime<unknown, ER>` was being used as the Interface
+     for "some runtime" at Solid and Start host seams. After tightening the
+     Runtime Spine, that spelling meant "a runtime that provides every service",
+     which erased the distinction between typed app services and host-boundary
+     runtime plumbing.
+   - Fix: `EffectUiRuntime<R, ER>.provide(...)` now removes only services in
+     `R` plus the Resource Store, and `runFork(...)`/`runSync(...)` only accept
+     Effects whose requirements are satisfied by the runtime. Added the explicit
+     `AnyEffectUiRuntime<ER>` Adapter Interface for ambient Solid contexts,
+     hydration, Node/fetch host facades, and request tracing where the concrete
+     app service set cannot be named.
+   - Benefits: TypeScript and LSP hovers now show whether a Runtime Spine truly
+     provides a service. Missing services remain visible in the Effect
+     requirement channel, while host Adapters still have an honest erased runner
+     for platform boundaries.
+
+2. Start Transport Runtime Requirements
+   - Status: fixed.
+   - Files: `packages/start/src/start-fetch.ts`,
+     `packages/start/src/start-rpc-client.ts`,
+     `packages/start/src/start-action-client.ts`,
+     `packages/start/src/start-transport-protocol.ts`,
+     `type-tests/framework.test-d.ts`, `docs/public-api-inventory.md`,
+     `CONTEXT.md`.
+   - Problem: service-backed `StartFetch<E, R>` requirements were preserved in
+     the low-level fetch type, but RPC clients hid those requirements behind the
+     core `ServerClient` Interface and action submissions did not reflect that a
+     provided runtime discharged transport requirements.
+   - Fix: RPC client and layer creation now require `transportRuntime` when the
+     fetch Effect has requirements. Start action submission has overloads that
+     preserve fetch requirements when no runtime is supplied and return a
+     requirement-free Effect when `runtime` or `transportRuntime` supplies the
+     transport services.
+   - Benefits: transport Adapters remain Effect-first without a hidden
+     requirement leak, and editor hovers now explain whether callers must provide
+     auth/tracing/test services before running a Start action.
+
+3. LSP Documentation For Public Concepts
+   - Status: fixed for the high-leverage hover gaps found in this pass.
+   - Files: `packages/core/src/action-result.ts`,
+     `packages/core/src/action.ts`, `packages/core/src/signal.ts`,
+     `packages/core/src/request-context.ts`,
+     `packages/db/src/collection-contract.ts`,
+     `packages/db/src/query-builder.ts`, `packages/solid/src/hooks.ts`,
+     `packages/solid/src/router.ts`.
+   - Problem: several important public object literals and Interfaces had
+     useful top-level docs but weak member-level hover text. That made the LSP
+     less helpful exactly where users write options objects: actions, action
+     results, signals, request/response context, collections, queries, and Solid
+     bindings.
+   - Fix: added member-level JSDoc for action result variants/helpers, action
+     definition fields, signal dependency/stream/watch APIs, request and
+     response context services, collection option fields, query builder methods
+     and filter helpers, Solid resource handles, and browser router methods.
+   - Benefits: the public Interface now carries more intent in editor hovers,
+     reducing the need to jump into implementation files to understand what an
+     option or helper is for.
+
+Focused workspace evidence for this pass: `pnpm --filter @effect-ui/core
+typecheck`, `pnpm --filter @effect-ui/db typecheck`, `pnpm --filter
+@effect-ui/solid typecheck`, `pnpm --filter @effect-ui/start typecheck`,
+`pnpm --filter @effect-ui/starter-basic typecheck`, `pnpm --filter
+@effect-ui/example-project-console typecheck`, and `pnpm typecheck:types`
+passed during implementation. Full `pnpm verify` passed: 9 package builds,
+workspace typecheck, type tests, 45 root test files / 454 tests,
+devtools-panel verify with 1 panel test, devtools-extension verify with 1
+extension test file / 7 tests, basic starter verify with 1 starter test,
+project-console starter packaging, project-console typecheck, 4
+project-console test files / 23 tests, project-console build, and leak scan.
+Post-verify DB/Solid DB raw schema-error grep, Promise-method grep, immutable
+flag audit, ResourceFamily live-store/sync-load closure grep, runtime Promise
+docs grep, and `git diff --check` passed.
+
+## Review 32: Start And Devtools LSP Surface Follow-Up
+
+1. Start File-Route And App-Graph Hover Docs
+   - Status: fixed.
+   - Files: `packages/start/src/file-routes.ts`,
+     `packages/start/src/app-graph.ts`,
+     `packages/start/src/virtual-modules.d.ts`.
+   - Problem: file-route ids, manifest entries/modules, app graph diagnostics,
+     and virtual-module route type aliases were public but still sparse in LSP
+     hovers. Users could see the types but not the route-vs-layout/module role,
+     static-vs-runtime diagnostic, or broad-virtual-vs-precise-generated
+     distinction without reading implementation files.
+   - Fix: added JSDoc to file-route branded ids, module/entry/manifest fields,
+     manifest generation/validation helpers, app graph diagnostic types, and
+     virtual module exports/type aliases.
+   - Benefits: generated route tooling and virtual modules now explain their
+     artifact boundaries directly in editor hovers.
+
+2. Start RPC Transport Hover Docs
+   - Status: fixed.
+   - Files: `packages/start/src/rpc.ts`.
+   - Problem: public Start transport paths, media types, request/trace headers,
+     diagnostics, and validation helpers were exposed without concise hover
+     text. The status mapping for method, accept, and content-type failures was
+     discoverable only by reading the implementation.
+   - Fix: documented the RPC/action endpoints, protocol and diagnostics
+     headers, media-type constants, request-id helpers, request/response
+     diagnostics helpers, and validation helpers including their 405/406/415
+     error roles.
+   - Benefits: host Adapter authors can understand the Start transport protocol
+     from LSP hover docs without chasing constants across the module.
+
+3. Devtools Serialization Hover Docs
+   - Status: fixed.
+   - Files: `packages/devtools/src/serialization.ts`.
+   - Problem: public serialization and detached-copy helpers did the important
+     bridge-safety work, but hovers did not explain JSON-safe projection versus
+     detached DTO copying.
+   - Fix: added JSDoc for `toDevtoolsSerializableValue(...)`, invalidation,
+     route-plan, request-trace, runtime-event, app-graph, and snapshot copy or
+     projection helpers.
+   - Benefits: Devtools bridge and panel authors can distinguish live Core
+     values from detached, JSON-safe panel DTOs at the Interface.
+
+Focused workspace evidence for this pass: `pnpm --filter @effect-ui/start
+typecheck`, `pnpm --filter @effect-ui/devtools typecheck`, and `pnpm
+typecheck:types` passed during implementation. Full `pnpm verify` passed: 9
+package builds, workspace typecheck, type tests, 45 root test files / 454
+tests, devtools-panel verify with 1 panel test, devtools-extension verify with
+1 extension test file / 7 tests, basic starter verify with 1 starter test,
+project-console starter packaging, project-console typecheck, 4
+project-console test files / 23 tests, project-console build, and leak scan.
+Post-verify DB/Solid DB raw schema-error grep, Promise-method grep, immutable
+flag audit, ResourceFamily live-store/sync-load closure grep, runtime Promise
+docs grep, and `git diff --check` passed.
+
+## Review 33: Collection Event And Devtools Store Hover Follow-Up
+
+1. Collection Store Event Semantics
+   - Status: fixed.
+   - Files: `packages/db/src/collection-contract.ts`.
+   - Problem: `CollectionStoreEvent` is an important public event contract for
+     devtools and tests, but the variants did not explain count, transaction,
+     pending, or error payload meanings.
+   - Fix: documented each event variant with the lifecycle moment and payload
+     semantics.
+   - Benefits: event consumers can understand load, hydration, persistence,
+     mutation queue, commit, rollback, and direct-write events from LSP hovers.
+
+2. Devtools Store Surface
+   - Status: fixed.
+   - Files: `packages/devtools/src/index.ts`.
+   - Problem: `makeDevtoolsStore(...)` returned an inferred anonymous API and
+     store options/summary/panel inputs had sparse hover text.
+   - Fix: exported documented `DevtoolsStore`, documented retention limits,
+     summary/panel input roles, and annotated `makeDevtoolsStore(...)` with the
+     named store type.
+   - Benefits: Devtools users now see the store as a named Interface with
+     documented bounds and projection responsibilities instead of an anonymous
+     structural return type.
+
+Focused workspace evidence for this pass: `pnpm --filter @effect-ui/db
+typecheck`, `pnpm --filter @effect-ui/devtools typecheck`, and `pnpm
+typecheck:types` passed during implementation. Full `pnpm verify` passed: 9
+package builds, workspace typecheck, type tests, 45 root test files / 454
+tests, devtools-panel verify with 1 panel test, devtools-extension verify with
+1 extension test file / 7 tests, basic starter verify with 1 starter test,
+project-console starter packaging, project-console typecheck, 4
+project-console test files / 23 tests, project-console build, and leak scan.
+Post-verify DB/Solid DB raw schema-error grep, Promise-method grep, immutable
+flag audit, ResourceFamily live-store/sync-load closure grep, runtime Promise
+docs grep, and `git diff --check` passed.
+
+## Review 29: Projection Callbacks, Render Callbacks, And LSP Truth
+
+1. Core Form Validation Callback Policy
+   - Status: fixed.
+   - Files: `packages/core/src/form.ts`,
+     `packages/core/src/action-result.ts`,
+     `packages/core/test/form.test.ts`, `type-tests/framework.test-d.ts`,
+     `docs/public-api-inventory.md`, `CONTEXT.md`.
+   - Problem: form validators were EffectInput-shaped but synchronous throws
+     could bypass the same callback normalization used by Action, Resource,
+     Server, Collection, and Start. `ActionResult.validateFormEffect(...)`
+     also still advertised validation errors without the callback-error member.
+   - Fix: routed validators through `invokeEffectInput("Form.validate", ...)`,
+     mapped `EffectInputCallbackError` into `FormValidationError` and form
+     state, and widened ActionResult's form-validation result type to match the
+     actual Form Interface.
+   - Benefits: Form validation now has one typed callback policy, and the
+     progressive-action validation bridge reflects the same error surface that
+     LSP users see on `FormInstance.validateEffect(...)`.
+
+2. Collection Projection Callback Policy
+   - Status: fixed.
+   - Files: `packages/db/src/collection-runtime.ts`,
+     `packages/db/test/collection.test.ts`, `docs/public-api-inventory.md`,
+     `CONTEXT.md`.
+   - Problem: row projection callbacks such as `getKey` and functional
+     `CollectionUpdate` bodies ran directly inside Effect-returning collection
+     operations. Synchronous throws could become defects even though
+     `CollectionRuntimeError` already included `EffectInputCallbackError`.
+   - Fix: added a Collection Runtime projection helper that wraps store
+     initialization, `getKey`, load replacement, direct writes, inserts, and
+     update projections in `EffectInputCallbackError` failures.
+   - Benefits: collection Effect APIs keep row identity and update projection
+     failures in the declared error channel while sync read helpers remain
+     sync and rely on pure, total projections.
+
+3. Start Render And Dev SSR Handler Surface
+   - Status: fixed.
+   - Files: `packages/start/src/start-request-handler.ts`,
+     `packages/start/src/start-vite-dev-ssr.ts`,
+     `packages/start/test/start.test.ts`, `type-tests/framework.test-d.ts`,
+     `docs/public-api-inventory.md`, `CONTEXT.md`.
+   - Problem: custom SSR render callbacks could throw before entering a typed
+     Start error seam, and the Vite dev SSR handler type appeared to allow
+     service-requiring Effects even though the dev middleware does not provide
+     app services.
+   - Fix: render callbacks now run through the EffectInput callback seam while
+     preserving the Request Runtime boundary; sync render throws become
+     `EffectInputCallbackError` causes inside `StartRequestHandlerError`.
+     Type tests now reject service-requiring `StartSsrRequestHandler` Effects.
+   - Benefits: request render failures are Adapter-local typed data, and the
+     dev SSR Interface no longer promises unprovided service requirements.
+
+4. Devtools Panel Contract Trap Safety And Snapshot Docs
+   - Status: fixed.
+   - Files: `packages/devtools/src/panel-contract.ts`,
+     `packages/devtools/src/index.ts`,
+     `packages/devtools/test/devtools.test.ts`, `docs/devtools.md`,
+     `docs/public-api-inventory.md`, `CONTEXT.md`.
+   - Problem: bridge payload guards could still throw on hostile
+     inspected-window values such as proxies or throwing getters, and docs
+     overstated JSON-safety for raw snapshots that intentionally carry detached
+     `unknown` facts.
+   - Fix: panel guards now read properties, prototypes, and enumerable values
+     through trap-safe helpers and normalize invalid bridge payloads to
+     `undefined`. Devtools docs/JSDoc now distinguish raw snapshots from the
+     JSON-safe summary, causal graph, panel, and bridge projections.
+   - Benefits: browser-extension and app-shell Adapters can validate untrusted
+     inspected-window values without leaking defects, and LSP docs describe the
+     actual snapshot boundary.
+
+5. Runtime And Generated Route Public Pins
+   - Status: fixed.
+   - Files: `type-tests/framework.test-d.ts`,
+     `docs/public-api-inventory.md`.
+   - Problem: the public inventory still named removed Promise runner APIs on
+     the Runtime Spine, and type tests did not pin the generated route writer
+     and generated route artifact helper family.
+   - Fix: documented `EffectUiRuntime.provide(...)` plus host-owned
+     `Effect.runPromise(runtime.provide(...))` as the Promise boundary, added a
+     deletion test for the removed runtime Promise runner, and pinned
+     `createGeneratedFileRouteDefinitionsModule(...)`,
+     `FileRouteDefinitionsModuleInvalidIdentifier`,
+     `writeFileRouteDefinitionsFileEffect(...)`, and
+     `FileRouteDefinitionsFileWriteError`.
+   - Benefits: the expert-public LSP surface matches the implementation and
+     keeps generated route IO explicitly Effect-first.
+
+Focused workspace evidence for this pass: `pnpm --filter @effect-ui/core
+typecheck`, `pnpm --filter @effect-ui/db typecheck`, `pnpm --filter
+@effect-ui/start typecheck`, `pnpm typecheck:types`, `pnpm vitest run
+packages/core/test/form.test.ts packages/core/test/action.test.ts`, `pnpm
+vitest run packages/db/test/collection.test.ts`, `pnpm vitest run
+packages/devtools/test/devtools.test.ts examples/devtools-extension/src/extension.test.ts`,
+and `pnpm vitest run packages/start/test/start.test.ts
+packages/start/test/file-route-modules.test.ts` passed. Full `pnpm verify`
+passed: 9 package builds, workspace typecheck, type tests, 45 root test files /
+447 tests, devtools-panel verify with 1 panel test, devtools-extension verify
+with 1 extension test file / 7 tests, basic starter verify with 1 starter test,
+project-console starter packaging, project-console typecheck, 4 project-console
+test files / 23 tests, project-console build, and leak scan. Post-verify raw
+schema-error, Promise-method, immutable flag, ResourceFamily live-store,
+sync-load closure, and whitespace audits passed.
+
+## Review 27: Host Adapter Split, Snapshot Interfaces, And Devtools Contracts
+
+1. Devtools Panel Contract Module
+   - Status: fixed.
+   - Files: `packages/devtools/src/panel-contract.ts`,
+     `packages/devtools/src/panel-renderer.ts`,
+     `packages/devtools/src/index.ts`,
+     `examples/devtools-extension/src/transport.ts`,
+     `examples/devtools-extension/src/extension.test.ts`,
+     `packages/devtools/test/devtools.test.ts`, `docs/devtools.md`,
+     `docs/public-api-inventory.md`, `CONTEXT.md`.
+   - Problem: inspected-window extension transport and panel rendering shared
+     the same panel ids, severities, metric/item shapes, and JSON-safe data
+     rules, but validation lived in the extension example. That made the
+     browser-extension Adapter deeper than the package contract and invited
+     future drift between app-side, extension-side, test, and renderer hosts.
+   - Fix: added the shared Devtools Panel Contract Module with panel guards and
+     `normalizeEffectUiDevtoolsBridgePayload(...)`. The renderer, extension
+     transport, public root export, tests, docs, and type tests now consume the
+     same Interface.
+   - Benefits: panel payload validation has Locality in devtools. Browser
+     extensions remain Adapters, while agents and app shells can rely on the
+     same public contract.
+
+2. Collection Snapshot Interface And Live Query Collection Stability
+   - Status: fixed.
+   - Files: `packages/db/src/collection-persistence.ts`,
+     `packages/db/src/live-query-collection.ts`,
+     `packages/db/test/live-query-collection.test.ts`, `CONTEXT.md`.
+   - Problem: collection dehydration/hydration still reached through
+     store-backed helpers, even when given a read-only Live Query Collection
+     whose Definition already exposed snapshot/hydrate Effects. Live Query
+     Collections also recreated state/version Signals when callers read the
+     accessors, making their Definition Interface less stable than normal
+     collections.
+   - Fix: collection persistence now calls the Collection Definition-owned
+     snapshot/hydrate Interface. Live Query Collections materialize state and
+     version Signals once and return stable references. Regressions cover stable
+     signals and dehydration through the Definition Interface.
+   - Benefits: persistence callers depend on the Collection Snapshot Interface
+     instead of a writable Collection Store detail. Read-only derived
+     collections can satisfy the contract without pretending to own normal row
+     mutation state.
+
+3. Solid Router Runtime-Bound Public Preload
+   - Status: fixed.
+   - Files: `packages/solid/src/router.ts`, `packages/solid/test/router.test.ts`.
+   - Problem: the public `BrowserRouter.preloadEffect(...)` method returned the
+     raw core route preload Effect, so users could obtain an unbound Effect that
+     still required services already installed in the Solid router runtime.
+   - Fix: `preloadEffect(...)` now provides the router Runtime Spine before
+     returning the Effect, and the regression installs a route service through a
+     Layer to prove the public preload method is runtime-bound.
+   - Benefits: the Solid Router Adapter owns its host runtime seam. Callers can
+     stay Effect-first without manually re-providing services that the router
+     already owns.
+
+4. Start Host Adapter Module Split
+   - Status: fixed.
+   - Files: `packages/start/src/start-host-adapter.ts`,
+     `packages/start/src/fetch-adapter.ts`,
+     `packages/start/src/node-adapter.ts`,
+     `packages/start/src/adapters.ts`, `packages/start/package.json`,
+     `packages/start-fetch/src/index.ts`, `packages/start-node/src/index.ts`,
+     `tsconfig.base.json`, `vitest.config.ts`,
+     `packages/start/test/adapters.test.ts`,
+     `docs/public-api-inventory.md`, `CONTEXT.md`.
+   - Problem: the previous `adapters.ts` Module mixed fetch-only and Node-only
+     host behavior. Fetch facade users could traverse a source Module with
+     Node imports, while synchronous root handler throws were not normalized
+     through the same `StartRequestHandlerError` channel as Effect failures.
+   - Fix: extracted a small Start Host Adapter Core for handler invocation and
+     error normalization, then split fetch and Node host adapters into separate
+     exported subpaths. The old `./adapters` path remains a compatibility
+     facade. Tests assert sync throw normalization and that the packaged fetch
+     facade points at the fetch-only module.
+   - Benefits: host-specific imports now match host-specific Modules. The
+     fetch Adapter remains Node-free, the Node Adapter owns Node IO, and the
+     shared error seam has one Implementation.
+
+5. Start Fetch Transport Failure Normalization
+   - Status: fixed.
+   - Files: `packages/start/src/start-fetch.ts`,
+     `packages/start/test/rpc.test.ts`, `packages/start/test/start.test.ts`,
+     `CONTEXT.md`.
+   - Problem: custom transport header callbacks, `Headers` construction, and
+     custom fetch implementations could throw synchronously before the Start
+     RPC/action client entered the normal Effect failure path.
+   - Fix: header resolution and fetch invocation now run through `Effect.try`
+     and map setup/network failures to `ServerTransportError`. RPC and action
+     client regressions prove caller `onError` hooks receive the normalized
+     transport error.
+   - Benefits: the Start Fetch Transport Adapter has a coherent error contract:
+     setup and network failures are transport failures, while protocol/domain
+     results stay in the typed Start Transport Protocol.
+
+6. Generated Route Artifact And Devtools Graph LSP Docs
+   - Status: fixed.
+   - Files: `packages/start/src/virtual-modules.d.ts`,
+     `packages/devtools/src/index.ts`,
+     `type-tests/framework.test-d.ts`,
+     `docs/public-api-inventory.md`, `CONTEXT.md`.
+   - Problem: LSP-facing docs did not clearly distinguish broad Vite virtual
+     route typings from the precise written generated route artifact. Devtools
+     causal graph kind/node/edge exports also lacked hover docs and type-test
+     pins, making an important expert-public inspection Interface easy to miss.
+   - Fix: documented `virtual:effect-ui/routes` as broad by design and
+     `routeTree.gen.ts` as the app-specific typed route surface. Added hover
+     docs for Devtools causal graph kind/node/edge contracts and type tests for
+     generated route helpers, virtual routes, host adapter subpaths, panel
+     guards, bridge normalization, and causal graph kind unions.
+   - Benefits: editors now show the intended Interface boundaries. Agents and
+     adapter authors get the precise route artifact for app-specific work and
+     the devtools graph contract for inspection UIs.
+
+Focused workspace evidence for this pass: `pnpm --filter @effect-ui/devtools
+typecheck`, `pnpm vitest run packages/devtools/test/devtools.test.ts`,
+`pnpm devtools-extension:verify`, `pnpm --filter @effect-ui/db typecheck`,
+`pnpm vitest run packages/db/test/live-query-collection.test.ts
+packages/db/test/collection.test.ts`, `pnpm --filter @effect-ui/solid
+typecheck`, `pnpm vitest run packages/solid/test/router.test.ts`, `pnpm
+--filter @effect-ui/start typecheck`, `pnpm --filter @effect-ui/start-fetch
+typecheck`, `pnpm --filter @effect-ui/start-node typecheck`, `pnpm vitest run
+packages/start/test/adapters.test.ts`, `pnpm vitest run
+packages/start/test/rpc.test.ts packages/start/test/start.test.ts
+packages/start/test/adapters.test.ts`, and `pnpm typecheck:types` passed. Full
+`pnpm verify` passed: 9 package builds, workspace typecheck, type tests, 45
+root test files / 433 tests, devtools-panel verify with 1 panel test,
+devtools-extension verify with 1 extension test file / 6 tests, basic starter
+verify with 1 starter test, project-console starter packaging,
+project-console typecheck, 4 project-console test files / 23 tests,
+project-console build, and leak scan. DB/Solid DB raw schema-error grep,
+source Promise-method grep, immutable flag audit, ResourceFamily live-store
+grep, sync-load closure grep, and `git diff --check` passed after
+verification.
+
+## Review 28: Callback Seams, Generated IO, And Bridge Validation
+
+1. Core UI Lifecycle Callback Seam
+   - Status: fixed.
+   - Files: `packages/core/src/scope.ts`, `packages/core/src/signal.ts`,
+     `packages/core/test/scope.test.ts`, `CONTEXT.md`.
+   - Problem: `UiScope.addFinalizer(...)` invoked pure finalizer callbacks at
+     registration time, and `watch(...)` invoked the watcher callback before it
+     entered the scoped Effect fiber. Effect-returning callbacks usually masked
+     the bug, but pure cleanup and synchronous watcher throws lived outside the
+     lifecycle callback seam.
+   - Fix: routed finalizers and watcher callbacks through
+     `invokeEffectInput(...)`. Pure finalizers are now deferred until
+     `disposeEffect(...)`, and watcher callback throws are captured in the
+     Effect error channel of the scoped fiber instead of escaping signal
+     notification.
+   - Benefits: UI lifecycle Locality is in Core, not in caller discipline.
+     Framework adapters can register plain cleanup and watch callbacks without
+     creating out-of-band throws.
+
+2. Action Callback Policy
+   - Status: fixed.
+   - Files: `packages/core/src/action.ts`,
+     `packages/core/test/action.test.ts`,
+     `type-tests/framework.test-d.ts`, `docs/public-api-inventory.md`,
+     `CONTEXT.md`.
+   - Problem: `Action.run(...)` had `EffectInputCallbackError`
+     normalization, but `optimistic(...)` and `invalidates(...)` callbacks
+     were invoked directly. Synchronous throws could become defects or escape
+     action state even though `ActionInstance.state` already advertised the
+     callback error seam.
+   - Fix: added shared Action callback error construction, wrapped optimistic
+     and invalidation callbacks in typed Effect failures, and exposed
+     `Action.planInvalidationEffect(...)` for Effect-first invalidation
+     planning. Regressions prove sync throws in both callbacks fail
+     `submitEffect(...)` and record action failure state.
+   - Benefits: Action user-defined work now follows one callback policy across
+     run, optimistic patching, and invalidation planning.
+
+3. Live Query Collection Snapshot Persistence
+   - Status: fixed.
+   - Files: `packages/db/src/collection-persistence.ts`,
+     `packages/db/src/live-query-collection.ts`,
+     `packages/db/test/live-query-collection.test.ts`,
+     `docs/public-api-inventory.md`, `CONTEXT.md`.
+   - Problem: Live Query Collection persistence encoded and wrote snapshots
+     locally with `collectionInputEffect(storage.setItem(...))`, duplicating
+     storage callback policy from the Collection Persistence Module and missing
+     `EffectInputCallbackError` normalization for synchronous storage Adapter
+     throws.
+   - Fix: introduced `persistCollectionSnapshotEffect(...)` in the shared
+     persistence Module. Normal collections use it inside the store/event
+     workflow, and Live Query Collections use it directly through their
+     Definition-owned snapshot Interface.
+   - Benefits: snapshot storage behavior has one Module and one Adapter error
+     policy, while read-only Live Query Collections still avoid pretending to
+     own a writable Collection Store.
+
+4. Devtools Panel Contract JSON-Safety
+   - Status: fixed.
+   - Files: `packages/devtools/src/panel-contract.ts`,
+     `packages/devtools/test/devtools.test.ts`,
+     `type-tests/framework.test-d.ts`, `docs/devtools.md`,
+     `docs/public-api-inventory.md`, `CONTEXT.md`.
+   - Problem: bridge payload validation accepted any number and any enumerable
+     object. That allowed `NaN`, infinities, `Date`, `Map`, `Set`, and `Error`
+     values through the inspected-window bridge even though the Devtools
+     Serialization Policy tags those host values before they become JSON-safe
+     panel data.
+   - Fix: tightened `isDevtoolsSerializableValue(...)` to finite numbers,
+     arrays, and plain records, and tightened panel metric numbers the same
+     way. Type tests now pin every exported Panel Contract guard and public
+     id/severity union.
+   - Benefits: panel validation, serialization docs, extension transport, and
+     renderer assumptions now agree at the public Interface.
+
+5. Generated Route Definitions File Writer And LSP Artifact
+   - Status: fixed.
+   - Files: `packages/start/src/file-route-modules.ts`,
+     `packages/start/src/generated-route-definitions.ts`,
+     `packages/start/src/vite.ts`,
+     `packages/start/test/file-route-modules.test.ts`,
+     `examples/project-console/src/routeTree.gen.ts`,
+     `docs/public-api-inventory.md`, `CONTEXT.md`.
+   - Problem: the precise generated route artifact still emitted bare exports
+     without hover docs, and generated route file writes used synchronous Node
+     filesystem calls with raw thrown errors.
+   - Fix: the generator now emits concise JSDoc for the route arrays, lookup
+     maps, metadata, and helper type aliases. The file writer now has
+     `writeFileRouteDefinitionsFileEffect(...)` and
+     `FileRouteDefinitionsFileWriteError`, while the existing sync writer
+     remains the Vite host-hook facade.
+   - Benefits: the app-specific route artifact is self-describing where users
+     and agents hover it, and CI/agent tooling can use a typed Effect seam for
+     generated-file IO diagnostics.
+
+6. Node And Extension Host Sync-Throw Normalization
+   - Status: fixed.
+   - Files: `packages/start/src/node-adapter.ts`,
+     `packages/start/test/adapters.test.ts`,
+     `examples/devtools-extension/src/transport.ts`,
+     `examples/devtools-extension/src/extension.test.ts`, `CONTEXT.md`.
+   - Problem: Node response status/header writes happened inside
+     `Effect.sync(...)`, so setter/header throws became defects instead of
+     `StartNodeAdapterError`. A custom Node runtime whose `runFork(...)` threw
+     synchronously also skipped `onError`. The Devtools extension example could
+     likewise die if `chrome.devtools.inspectedWindow.eval(...)` threw before
+     invoking its callback.
+   - Fix: response status/header writes now use `Effect.try(...)`; the Node
+     callback facade catches synchronous runtime fork throws and reports them
+     through the configured error hook using the default runtime; the extension
+     transport maps synchronous `eval(...)` throws to
+     `DevtoolsExtensionTransportError`.
+   - Benefits: host-boundary failures remain typed and local to their Adapters,
+     and examples continue to teach the Effect-first host Adapter pattern.
+
+Focused workspace evidence for this pass: `pnpm --filter @effect-ui/core
+typecheck`, `pnpm --filter @effect-ui/db typecheck`, `pnpm --filter
+@effect-ui/devtools typecheck`, `pnpm --filter @effect-ui/start typecheck`,
+`pnpm vitest run packages/core/test/scope.test.ts
+packages/core/test/action.test.ts`, `pnpm vitest run
+packages/db/test/live-query-collection.test.ts`, `pnpm vitest run
+packages/devtools/test/devtools.test.ts`, `pnpm vitest run
+packages/start/test/adapters.test.ts`, `pnpm vitest run
+examples/devtools-extension/src/extension.test.ts`, `pnpm vitest run
+packages/start/test/file-route-modules.test.ts`, `pnpm typecheck:types`, and
+`pnpm --filter @effect-ui/example-project-console build` passed. Full `pnpm
+verify` passed: 9 package builds, workspace typecheck, type tests, 45 root
+test files / 442 tests, devtools-panel verify with 1 panel test,
+devtools-extension verify with 1 extension test file / 7 tests, basic starter
+verify with 1 starter test, project-console starter packaging,
+project-console typecheck, 4 project-console test files / 23 tests,
+project-console build, and leak scan. DB/Solid DB raw schema-error grep,
+source Promise-method grep, immutable flag audit, ResourceFamily live-store
+grep, sync-load closure grep, and `git diff --check` passed after
+verification.

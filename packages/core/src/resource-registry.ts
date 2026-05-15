@@ -1,10 +1,11 @@
+import { Schema } from "effect";
 import type {
   AnyResourceFamily,
   ResourceDiagnostics,
   ResourceFamilyDiagnostics,
   ResourceTagDiagnostics
 } from "./resource.js";
-import type { ResourceStore as ResourceStoreState } from "./resource-store.js";
+import type { MutableResourceStore } from "./resource-store.js";
 
 /**
  * Duplicate-name handling for the Resource Definition Registry.
@@ -14,13 +15,16 @@ import type { ResourceStore as ResourceStoreState } from "./resource-store.js";
  */
 export type ResourceDefinitionDuplicatePolicy = "keep-first" | "replace";
 
+/** Kind of Resource definition stored in the Resource Definition Registry. */
 export type ResourceDefinitionRegistryKind = "family" | "tag";
 
+/** Options for creating a Resource Definition Registry Adapter. */
 export interface ResourceDefinitionRegistryOptions {
   /** Duplicate-name handling. Defaults to `replace` to preserve existing Resource semantics. */
   readonly duplicates?: ResourceDefinitionDuplicatePolicy;
 }
 
+/** Result of registering one Resource family or tag definition. */
 export interface ResourceDefinitionRegistration<Definition = AnyResourceFamily | ResourceTagDiagnostics> {
   readonly kind: ResourceDefinitionRegistryKind;
   readonly name: string;
@@ -30,6 +34,7 @@ export interface ResourceDefinitionRegistration<Definition = AnyResourceFamily |
   readonly retained: Definition;
 }
 
+/** Diagnostic entry recorded when duplicate Resource definitions are encountered. */
 export interface ResourceDefinitionDuplicateDiagnostics {
   readonly kind: ResourceDefinitionRegistryKind;
   readonly name: string;
@@ -38,17 +43,20 @@ export interface ResourceDefinitionDuplicateDiagnostics {
   readonly discarded: number;
 }
 
+/** Snapshot of registered Resource families and tag definitions. */
 export interface ResourceDefinitionRegistryDefinitions {
   readonly families: ReadonlyMap<string, AnyResourceFamily>;
   readonly tags: ReadonlyMap<string, ResourceTagDiagnostics>;
 }
 
+/** Resource diagnostics plus duplicate registration facts. */
 export interface ResourceDefinitionRegistryDiagnostics extends ResourceDiagnostics {
   readonly duplicates: readonly ResourceDefinitionDuplicateDiagnostics[];
 }
 
+/** Options for resolving hydration snapshots to active or registered families. */
 export interface ResourceDefinitionHydrationLookupOptions {
-  readonly store?: Pick<ResourceStoreState, "families">;
+  readonly store?: Pick<MutableResourceStore, "families">;
 }
 
 /**
@@ -76,9 +84,9 @@ const resourceFamilyDiagnostics = (
   const policy = family.options.policy;
   return {
     name: family.options.name,
-    inputSchema: family.options.input !== undefined,
-    outputSchema: family.options.output !== undefined,
-    errorSchema: family.options.error !== undefined,
+    inputSchema: Schema.isSchema(family.options.input),
+    outputSchema: Schema.isSchema(family.options.output),
+    errorSchema: Schema.isSchema(family.options.error),
     providesTags: family.options.provides !== undefined,
     policy: {
       ...(policy?.staleFor === undefined ? {} : { staleFor: policy.staleFor }),
@@ -162,6 +170,7 @@ const makeRegistration = <Definition>(
   };
 };
 
+/** Creates a mutable Resource Definition Registry Adapter. */
 export const makeResourceDefinitionRegistry = (
   options: ResourceDefinitionRegistryOptions = {}
 ): ResourceDefinitionRegistryAdapter => {
@@ -220,8 +229,10 @@ export const makeResourceDefinitionRegistry = (
   };
 };
 
+/** Process-wide Resource Definition Registry used by Resource factories. */
 export const defaultResourceDefinitionRegistry = makeResourceDefinitionRegistry();
 
+/** Registers a Resource family in the process-wide registry. */
 export const registerResourceDefinition = (
   name: string,
   definition: AnyResourceFamily
@@ -229,6 +240,7 @@ export const registerResourceDefinition = (
   defaultResourceDefinitionRegistry.registerFamily(name, definition);
 };
 
+/** Registers a Resource tag definition in the process-wide registry. */
 export const registerResourceTagDefinition = (
   name: string,
   definition: ResourceTagDiagnostics
@@ -236,18 +248,22 @@ export const registerResourceTagDefinition = (
   defaultResourceDefinitionRegistry.registerTag(name, definition);
 };
 
+/** Process-wide Resource family definitions keyed by family name. */
 export const resourceDefinitionRegistry = (): ReadonlyMap<string, AnyResourceFamily> =>
   defaultResourceDefinitionRegistry.definitions().families;
 
+/** Process-wide Resource tag definitions keyed by tag name. */
 export const resourceTagDefinitionRegistry = (): ReadonlyMap<string, ResourceTagDiagnostics> =>
   defaultResourceDefinitionRegistry.definitions().tags;
 
+/** Resolves a Resource hydration family, preferring the active Resource Store. */
 export const lookupResourceHydrationFamily = (
   name: string,
-  store: ResourceStoreState
+  store: MutableResourceStore
 ): AnyResourceFamily | undefined =>
   defaultResourceDefinitionRegistry.lookupHydrationFamily(name, { store });
 
+/** Returns process-wide Resource family/tag diagnostics. */
 export const resourceDiagnostics = (): ResourceDiagnostics => {
   const diagnostics = defaultResourceDefinitionRegistry.diagnostics();
   return {
@@ -256,5 +272,6 @@ export const resourceDiagnostics = (): ResourceDiagnostics => {
   };
 };
 
+/** Returns Resource diagnostics including duplicate registration facts. */
 export const resourceRegistryDiagnostics = (): ResourceDefinitionRegistryDiagnostics =>
   defaultResourceDefinitionRegistry.diagnostics();

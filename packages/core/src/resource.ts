@@ -1,36 +1,26 @@
 import {
-  Cache,
-  Duration,
   Effect,
-  Exit,
   Request as EffectRequest,
   RequestResolver,
   Schema,
   type Schedule
 } from "effect";
-import type { EffectInput, EnsureEffectInput } from "./effect-like.js";
-import { EffectInputCallbackError, invokeEffectInput } from "./effect-like.js";
-import {
-  recordResourceProvidedTags,
-  removeResourceRefFromTagIndex
-} from "./resource-dependency-graph.js";
-import { parseDuration, type DurationInput } from "./resource-duration.js";
-import { publishResourceStoreEvent } from "./resource-events.js";
-import { ResourceTagTypeId, ResourceTypeId } from "./resource-identifiers.js";
-import {
-  interruptResourceGc,
-  interruptResourceInFlight,
-  makeResourceEntry,
-  scheduleResourceGc,
-  setResourceSuccess,
-  type ResourceLifetimeEntry as ResourceEntry
-} from "./resource-lifetime.js";
-import { ResourceStore, type ResourceStore as ResourceStoreState, type ResourceStoreEvent } from "./resource-store.js";
-import { runFork } from "./runtime.js";
+import type {
+  EffectInput,
+  EffectInputError,
+  EffectInputRequirements,
+  EffectInputValue,
+  EnsureEffectInput,
+  EnsureEffectInputValue
+} from "./effect-like.js";
+import { EffectInputCallbackError } from "./effect-like.js";
+import type { DurationInput } from "./resource-duration.js";
+import type { ResourceFailure, ResourcePending } from "./resource-errors.js";
+import { ResourceTagIdentityTypeId, ResourceTagTypeId, ResourceTypeId } from "./resource-identifiers.js";
+import type { ResourceStoreEvent } from "./resource-store.js";
 import type { ReadableSignal } from "./signal.js";
-import { stableStringify } from "./stable-stringify.js";
+import { encodeResourceKey } from "./resource-key-codec.js";
 import type { ResourceCollected } from "./resource-collector.js";
-import { MissingResourceInput } from "./resource-errors.js";
 import {
   decodeResourceHydrationPayloadEffect,
   encodeResourceHydrationPayloadEffect,
@@ -47,16 +37,18 @@ import {
 } from "./resource-registry.js";
 import {
   collectResourceEffect,
-  currentResourceStore,
   dehydrateResources,
   dehydrateResourcesEffect,
+  deleteResourceEffect,
   hydrateResources,
   hydrateResourcesEffect,
   invalidateResource,
   invalidateResourceEffect,
+  lookupResourceFamilyEffect,
   planResourceInvalidation,
   planResourceInvalidationEffect,
   prefetchResourceEffect,
+  readResourceEffect,
   readResource,
   refsForResourceTag,
   refreshResourceEffect,
@@ -73,10 +65,10 @@ import {
 export { isResourceRef, isResourceTag } from "./resource-dependency-graph.js";
 export { UnsupportedDuration } from "./resource-duration.js";
 export type { DurationInput } from "./resource-duration.js";
-export { ResourceTagTypeId, ResourceTypeId } from "./resource-identifiers.js";
+export { ResourceTagIdentityTypeId, ResourceTagTypeId, ResourceTypeId } from "./resource-identifiers.js";
 export { ResourceCollector } from "./resource-collector.js";
 export type { ResourceCollected } from "./resource-collector.js";
-export { MissingResourceInput, ResourceFailure, ResourcePending } from "./resource-errors.js";
+export { MissingResourceInput, ResourceFailure, ResourceKeyError, ResourcePending } from "./resource-errors.js";
 
 /** Cache lifecycle policy for a resource family. */
 export interface ResourcePolicy<E = never> {
@@ -157,9 +149,21 @@ export interface ResourceFamilyDiagnostics {
 
 export interface ResourceTag {
   readonly [ResourceTagTypeId]: typeof ResourceTagTypeId;
+  readonly [ResourceTagIdentityTypeId]?: ResourceTagIdentity;
   readonly name: string;
   readonly key: string;
 }
+
+export type ResourceTagIdentity =
+  | {
+      readonly _tag: "Unkeyed";
+      readonly name: string;
+    }
+  | {
+      readonly _tag: "Keyed";
+      readonly name: string;
+      readonly key: string;
+    };
 
 export interface ResourceTagDefinition<Input> {
   readonly [ResourceTagTypeId]: typeof ResourceTagTypeId;
@@ -189,21 +193,21 @@ export interface ResourceRef<I = unknown, A = unknown, E = never, R = never> {
 
 export type AnyResourceFamily = ResourceFamily<any, any, any, any>;
 export type AnyResourceRef<R = any> = ResourceRef<any, any, any, R>;
-export type ResourceInvalidation = AnyResourceRef<any> | ResourceTag;
-export type ResourceInvalidationTarget = ResourceInvalidation | ReadonlyArray<ResourceInvalidation>;
+export type ResourceInvalidation<R = any> = AnyResourceRef<R> | ResourceTag;
+export type ResourceInvalidationTarget<R = any> = ResourceInvalidation<R> | ReadonlyArray<ResourceInvalidation<R>>;
 export type ResourceInvalidationCause =
   | { readonly _tag: "Ref"; readonly ref: AnyResourceRef<any> }
   | { readonly _tag: "Tag"; readonly tag: ResourceTag };
 
 /** One resource ref selected by an invalidation target, with the reasons it matched. */
-export interface ResourceInvalidationPlanEntry {
-  readonly ref: AnyResourceRef<any>;
+export interface ResourceInvalidationPlanEntry<R = any> {
+  readonly ref: AnyResourceRef<R>;
   readonly causes: ReadonlyArray<ResourceInvalidationCause>;
 }
 
-export interface ResourceInvalidationPlan {
-  readonly targets: ReadonlyArray<ResourceInvalidation>;
-  readonly entries: ReadonlyArray<ResourceInvalidationPlanEntry>;
+export interface ResourceInvalidationPlan<R = any> {
+  readonly targets: ReadonlyArray<ResourceInvalidation<R>>;
+  readonly entries: ReadonlyArray<ResourceInvalidationPlanEntry<R>>;
 }
 
 /** Serializable success snapshot used to transfer loaded resources across boundaries. */
@@ -220,7 +224,13 @@ export interface ResourceHydrationPayload {
 
 export type ResourceHydrationInput = ReadonlyArray<ResourceHydrationSnapshot> | ResourceHydrationPayload;
 
+/** Resource load failures plus synchronous Resource callback failures. */
 export type ResourceLoadError<E> = E | EffectInputCallbackError;
+
+/** Effect-first read failures for a Resource ref whose value is unavailable. */
+export type ResourceReadError<I, A, E = never, R = never> =
+  | ResourcePending<I, A, E, R>
+  | ResourceFailure<unknown, A, ResourceLoadError<E>, unknown, E>;
 
 export interface ResourceHydrationOptions {
   /**
@@ -235,8 +245,8 @@ export interface ResourceHydrationOptions {
   readonly keyMismatch?: "fail" | "skip";
 }
 
-interface ResourceStatusBase<I, A, E, R> {
-  readonly ref: ResourceRef<I, A, E, R>;
+interface ResourceStatusBase<I, A, E, R, RefError = E> {
+  readonly ref: ResourceRef<I, A, RefError, R>;
   readonly name: string;
   readonly key: string;
   readonly input: I;
@@ -260,29 +270,29 @@ interface ResourceStatusBase<I, A, E, R> {
   readonly gcInMillis: number | undefined;
 }
 
-export type ResourceStatus<I, A, E = never, R = never> =
-  | (ResourceStatusBase<I, A, E, R> & {
+export type ResourceStatus<I, A, E = never, R = never, RefError = E> =
+  | (ResourceStatusBase<I, A, E, R, RefError> & {
       readonly _tag: "Initial";
       readonly state: Extract<ResourceState<A, E>, { readonly _tag: "Initial" }>;
       readonly value: undefined;
       readonly previous: undefined;
       readonly error: undefined;
     })
-  | (ResourceStatusBase<I, A, E, R> & {
+  | (ResourceStatusBase<I, A, E, R, RefError> & {
       readonly _tag: "Pending";
       readonly state: Extract<ResourceState<A, E>, { readonly _tag: "Pending" }>;
       readonly value: A | undefined;
       readonly previous: A | undefined;
       readonly error: undefined;
     })
-  | (ResourceStatusBase<I, A, E, R> & {
+  | (ResourceStatusBase<I, A, E, R, RefError> & {
       readonly _tag: "Success";
       readonly state: Extract<ResourceState<A, E>, { readonly _tag: "Success" }>;
       readonly value: A;
       readonly previous: undefined;
       readonly error: undefined;
     })
-  | (ResourceStatusBase<I, A, E, R> & {
+  | (ResourceStatusBase<I, A, E, R, RefError> & {
       readonly _tag: "Failure";
       readonly state: Extract<ResourceState<A, E>, { readonly _tag: "Failure" }>;
       readonly value: A | undefined;
@@ -301,81 +311,12 @@ export class ResourceFamily<I, A, E = never, R = never> {
     registerResourceDefinition(options.name, this as AnyResourceFamily);
   }
 
-  #register(store: ResourceStoreState): void {
-    store.families.set(this.options.name, this);
-  }
-
-  #inputs(store: ResourceStoreState): Map<string, I> {
-    this.#register(store);
-    const existing = store.inputs.get(this);
-    if (existing) {
-      return existing as Map<string, I>;
-    }
-
-    const inputs = new Map<string, I>();
-    store.inputs.set(this, inputs as Map<string, unknown>);
-    return inputs;
-  }
-
-  #entries(store: ResourceStoreState): Map<string, ResourceEntry<A, E>> {
-    this.#register(store);
-    const existing = store.entries.get(this);
-    if (existing) {
-      return existing as Map<string, ResourceEntry<A, E>>;
-    }
-
-    const entries = new Map<string, ResourceEntry<A, E>>();
-    store.entries.set(this, entries as Map<string, unknown>);
-    return entries;
-  }
-
-  #cache(store: ResourceStoreState): Cache.Cache<string, A, E, R> {
-    this.#register(store);
-    const existing = store.caches.get(this);
-    if (existing) {
-      return existing as Cache.Cache<string, A, E, R>;
-    }
-
-    const inputs = this.#inputs(store);
-    const cache = Effect.runSync(
-      Cache.makeWith<string, A, E, R, "lookup">(
-        (key) => {
-          if (!inputs.has(key)) {
-            return Effect.die(new MissingResourceInput({ key }));
-          }
-
-          const input = inputs.get(key) as I;
-          const load = invokeEffectInput(
-            `Resource.load(${this.options.name})`,
-            this.options.load,
-            input
-          ) as Effect.Effect<A, E, R>;
-          const retry = this.options.policy?.retry;
-          return retry ? Effect.retry(load, retry) : load;
-        },
-        {
-          capacity: Number.POSITIVE_INFINITY,
-          requireServicesAt: "lookup",
-          timeToLive: (exit: Exit.Exit<A, E>) =>
-            Exit.isFailure(exit)
-              ? 0
-              : this.options.policy?.gcFor === undefined
-                ? Duration.infinity
-                : parseDuration(this.options.policy.gcFor)
-        }
-      )
-    );
-    store.caches.set(this, cache);
-    return cache;
-  }
-
-  #remember(ref: ResourceRef<I, A, E, R>, store: ResourceStoreState): void {
-    this.#inputs(store).set(ref.key, ref.input);
-  }
-
   /** Creates a stable ref for one input. */
   ref(input: I): ResourceRef<I, A, E, R> {
-    const key = `${this.options.name}:${this.options.key?.(input) ?? stableStringify(input)}`;
+    const key = `${this.options.name}:${this.options.key?.(input) ?? encodeResourceKey(input, {
+      operation: "Resource.family.ref",
+      name: this.options.name
+    })}`;
     return {
       [ResourceTypeId]: ResourceTypeId,
       family: this,
@@ -383,94 +324,15 @@ export class ResourceFamily<I, A, E = never, R = never> {
       key
     };
   }
-
-  /** Returns the store entry for a ref, creating it when needed. */
-  entry(ref: ResourceRef<I, A, E, R>, store: ResourceStoreState = currentResourceStore()): ResourceEntry<A, E> {
-    this.#remember(ref, store);
-    const entries = this.#entries(store);
-    const existing = entries.get(ref.key);
-    if (existing) {
-      return existing;
-    }
-
-    const entry = makeResourceEntry<A, E>() as ResourceEntry<A, E>;
-    entries.set(ref.key, entry);
-    return entry;
-  }
-
-  /** Reads through the Effect Cache without updating ResourceState directly. */
-  get(ref: ResourceRef<I, A, E, R>, store: ResourceStoreState): Effect.Effect<A, E, R> {
-    this.#remember(ref, store);
-    return Cache.get(this.#cache(store), ref.key);
-  }
-
-  /** Refreshes the cached value for a ref through the Effect Cache. */
-  refresh(ref: ResourceRef<I, A, E, R>, store: ResourceStoreState): Effect.Effect<A, E, R> {
-    this.#remember(ref, store);
-    return Cache.refresh(this.#cache(store), ref.key);
-  }
-
-  invalidate(ref: ResourceRef<I, A, E, R>, store: ResourceStoreState): Effect.Effect<void> {
-    this.#remember(ref, store);
-    return Cache.invalidate(this.#cache(store), ref.key);
-  }
-
-  hydrate(
-    ref: ResourceRef<I, A, E, R>,
-    state: Extract<ResourceState<A, E>, { readonly _tag: "Success" }>,
-    store: ResourceStoreState
-  ): Effect.Effect<void> {
-    const self = this;
-    return Effect.gen(function* () {
-      self.#remember(ref, store);
-      const entry = self.entry(ref, store);
-      yield* interruptResourceGc(entry, store);
-      yield* interruptResourceInFlight(entry, store);
-      setResourceSuccess(entry, state.value, state.updatedAt);
-      yield* Cache.set(self.#cache(store), ref.key, state.value);
-      recordResourceProvidedTags(ref, state.value, store);
-      yield* scheduleResourceGc(ref, entry, store);
-      yield* publishResourceStoreEvent(store, {
-        _tag: "ResourceHydrated",
-        name: self.options.name,
-        key: ref.key,
-        updatedAt: state.updatedAt
-      });
-    });
-  }
-
-  entries(store: ResourceStoreState = currentResourceStore()): Iterable<ResourceEntry<A, E>> {
-    return this.#entries(store).values();
-  }
-
-  deleteEffect(ref: ResourceRef<I, A, E, R>, store: ResourceStoreState = currentResourceStore()): Effect.Effect<void> {
-    const self = this;
-    return Effect.gen(function* () {
-      const entries = self.#entries(store);
-      const entry = entries.get(ref.key);
-      if (entry) {
-        yield* interruptResourceGc(entry, store);
-        yield* interruptResourceInFlight(entry, store);
-      }
-
-      entries.delete(ref.key);
-      removeResourceRefFromTagIndex(ref, store);
-      yield* self.invalidate(ref, store);
-      yield* publishResourceStoreEvent(store, {
-        _tag: "ResourceDeleted",
-        name: self.options.name,
-        key: ref.key
-      });
-    });
-  }
-
-  delete(ref: ResourceRef<I, A, E, R>, store: ResourceStoreState = currentResourceStore()): void {
-    void runFork(Effect.provideService(this.deleteEffect(ref, store), ResourceStore, store));
-  }
 }
 
-const makeResourceTag = (name: string, key: string): ResourceTag => ({
+const makeResourceTag = (
+  name: string,
+  key: string,
+  identity: ResourceTagIdentity
+): ResourceTag => ({
   [ResourceTagTypeId]: ResourceTagTypeId,
+  [ResourceTagIdentityTypeId]: identity,
   name,
   key
 });
@@ -481,20 +343,42 @@ type CheckedResourceLoad<I, Definition> = Definition extends {
   ? { readonly load: (input: I) => EnsureEffectInput<Out> }
   : never;
 
+type ResourceRefFactory<I, A, E = never, R = never> =
+  ((input: I) => ResourceRef<I, A, E, R>) & { readonly family: ResourceFamily<I, A, E, R> };
+
+type RejectPromiseEffectInput<Out> = EnsureEffectInput<Out> extends never ? never : unknown;
+
+type ResourceFamilyCommonOptions<I, A, E, R> =
+  Omit<ResourceFamilyOptions<I, A, E, R>, "input" | "output" | "load">;
+
+const makeResourceFamily = <I, A, E, R>(
+  options: ResourceFamilyOptions<I, A, E, R>
+): ResourceRefFactory<I, A, E, R> => {
+  const family = new ResourceFamily(options);
+  const makeRef = ((input: I) => family.ref(input)) as ResourceRefFactory<I, A, E, R>;
+
+  Object.defineProperty(makeRef, "family", {
+    value: family,
+    enumerable: true
+  });
+
+  return makeRef;
+};
+
 /**
  * Resource helpers for cached Effect data, synchronous reads, invalidation, and hydration.
  */
 export namespace Resource {
   export type Ref<I, A, E = never, R = never> = ResourceRef<I, A, E, R>;
-  export type AnyRef<R = never> = AnyResourceRef<R>;
+  export type AnyRef<R = any> = AnyResourceRef<R>;
   export type State<A, E = never> = ResourceState<A, E>;
   export type Tag = ResourceTag;
   export type TagDefinition<Input> = ResourceTagDefinition<Input>;
-  export type Invalidation = ResourceInvalidation;
-  export type InvalidationTarget = ResourceInvalidationTarget;
+  export type Invalidation<R = any> = ResourceInvalidation<R>;
+  export type InvalidationTarget<R = any> = ResourceInvalidationTarget<R>;
   export type InvalidationCause = ResourceInvalidationCause;
-  export type InvalidationPlanEntry = ResourceInvalidationPlanEntry;
-  export type InvalidationPlan = ResourceInvalidationPlan;
+  export type InvalidationPlanEntry<R = any> = ResourceInvalidationPlanEntry<R>;
+  export type InvalidationPlan<R = any> = ResourceInvalidationPlan<R>;
   export type Snapshot<I = unknown, A = unknown, E = never> = ResourceHydrationSnapshot<I, A, E>;
   export type HydrationPayload = ResourceHydrationPayload;
   export type HydrationInput = ResourceHydrationInput;
@@ -502,7 +386,8 @@ export namespace Resource {
   export type SnapshotCodecError = ResourceSnapshotCodecError;
   export type HydrationApplyError = ResourceHydrationApplyError;
   export type LoadError<E> = ResourceLoadError<E>;
-  export type Status<I, A, E = never, R = never> = ResourceStatus<I, A, E, R>;
+  export type ReadError<I, A, E = never, R = never> = ResourceReadError<I, A, E, R>;
+  export type Status<I, A, E = never, R = never, RefError = E> = ResourceStatus<I, A, E, R, RefError>;
   export type StoreEvent = ResourceStoreEvent;
   export type FamilyDiagnostics = ResourceFamilyDiagnostics;
   export type TagDiagnostics = ResourceTagDiagnostics;
@@ -528,7 +413,97 @@ export namespace Resource {
    * const user = yield* Resource.prefetchEffect(ref);
    * ```
    */
-  export const family = <
+  export function family<
+    const Input extends Schema.Top,
+    const Output extends Schema.Top,
+    Out extends EffectInput<Schema.Schema.Type<Output>, any, any>
+  >(
+    options: ResourceFamilyCommonOptions<
+      Schema.Schema.Type<Input>,
+      Schema.Schema.Type<Output>,
+      EffectInputError<Out>,
+      EffectInputRequirements<Out>
+    > & {
+      readonly input: Input;
+      readonly output: Output;
+      readonly load: (input: Schema.Schema.Type<Input>) => Out;
+    } & RejectPromiseEffectInput<Out>
+  ): ResourceRefFactory<
+    Schema.Schema.Type<Input>,
+    Schema.Schema.Type<Output>,
+    EffectInputError<Out>,
+    EffectInputRequirements<Out>
+  >;
+  export function family<
+    const Input extends Schema.Top,
+    Out
+  >(
+    options: Omit<
+      ResourceFamilyOptions<
+        Schema.Schema.Type<Input>,
+        EffectInputValue<Out>,
+        EffectInputError<Out>,
+        EffectInputRequirements<Out>
+      >,
+      "input" | "output" | "load"
+    > & {
+      readonly input: Input;
+      readonly output?: never;
+      readonly load: (input: Schema.Schema.Type<Input>) => Out;
+    } & RejectPromiseEffectInput<Out>
+  ): ResourceRefFactory<
+    Schema.Schema.Type<Input>,
+    EffectInputValue<Out>,
+    EffectInputError<Out>,
+    EffectInputRequirements<Out>
+  >;
+  export function family<
+    I,
+    const Output extends Schema.Top,
+    Out extends EffectInput<Schema.Schema.Type<Output>, any, any>
+  >(
+    options: Omit<
+      ResourceFamilyOptions<
+        I,
+        Schema.Schema.Type<Output>,
+        EffectInputError<Out>,
+        EffectInputRequirements<Out>
+      >,
+      "input" | "output" | "load"
+    > & {
+      readonly input?: never;
+      readonly output: Output;
+      readonly load: (input: I) => Out;
+    } & RejectPromiseEffectInput<Out>
+  ): ResourceRefFactory<
+    I,
+    Schema.Schema.Type<Output>,
+    EffectInputError<Out>,
+    EffectInputRequirements<Out>
+  >;
+  export function family<
+    I,
+    Out
+  >(
+    options: Omit<
+      ResourceFamilyOptions<
+        I,
+        EffectInputValue<Out>,
+        EffectInputError<Out>,
+        EffectInputRequirements<Out>
+      >,
+      "output" | "load"
+    > & {
+      readonly output?: never;
+      readonly load: (input: I) => Out;
+    } & RejectPromiseEffectInput<Out>
+  ): ResourceRefFactory<
+    I,
+    EffectInputValue<Out>,
+    EffectInputError<Out>,
+    EffectInputRequirements<Out>
+  >;
+  export function family<
     I,
     A,
     E = never,
@@ -540,19 +515,12 @@ export namespace Resource {
     }
   >(
     options: Definition & CheckedResourceLoad<I, Definition>
-  ): ((input: I) => ResourceRef<I, A, E, R>) & { readonly family: ResourceFamily<I, A, E, R> } => {
-    const family = new ResourceFamily(options as ResourceFamilyOptions<I, A, E, R>);
-    const makeRef = ((input: I) => family.ref(input)) as ((input: I) => ResourceRef<I, A, E, R>) & {
-      readonly family: ResourceFamily<I, A, E, R>;
-    };
-
-    Object.defineProperty(makeRef, "family", {
-      value: family,
-      enumerable: true
-    });
-
-    return makeRef;
-  };
+  ): ResourceRefFactory<I, A, E, R>;
+  export function family(
+    options: ResourceFamilyOptions<unknown, unknown, unknown, unknown>
+  ): ResourceRefFactory<unknown, unknown, unknown, unknown> {
+    return makeResourceFamily(options);
+  }
 
   /**
    * Defines a resource family backed by an Effect RequestResolver.
@@ -591,8 +559,19 @@ export namespace Resource {
     name: string,
     options: { readonly key?: (input: Input) => string } = {}
   ): ResourceTagDefinition<Input> => {
-    const keyFor = options.key ?? ((input: Input) => stableStringify(input));
-    const make = ((input: Input) => makeResourceTag(name, `${name}:${keyFor(input)}`)) as ResourceTagDefinition<Input>;
+    const keyFor = options.key ?? ((input: Input) =>
+      encodeResourceKey(input, {
+        operation: "Resource.tag",
+        name
+      }));
+    const make = ((input: Input) => {
+      const key = keyFor(input);
+      return makeResourceTag(name, `${name}:${key}`, {
+        _tag: "Keyed",
+        name,
+        key
+      });
+    }) as ResourceTagDefinition<Input>;
 
     Object.defineProperties(make, {
       [ResourceTagTypeId]: {
@@ -633,12 +612,21 @@ export namespace Resource {
       keyed: options !== undefined
     });
     return options === undefined
-      ? makeResourceTag(name, name)
+      ? makeResourceTag(name, name, {
+          _tag: "Unkeyed",
+          name
+        })
       : makeTagDefinition(name, options);
   }
 
   export const definitions = (): ReadonlyMap<string, AnyResourceFamily> =>
     resourceDefinitionRegistry();
+
+  /** Resolves a Resource family by name, preferring the active Resource Store. */
+  export const definitionEffect = (
+    name: string
+  ): Effect.Effect<AnyResourceFamily | undefined> =>
+    lookupResourceFamilyEffect(name);
 
   export const tagDefinitions = (): ReadonlyMap<string, ResourceTagDiagnostics> =>
     resourceTagDefinitionRegistry();
@@ -649,34 +637,39 @@ export namespace Resource {
   /** Registry diagnostics, including duplicate resource family/tag registrations. */
   export const registryDiagnostics = resourceRegistryDiagnostics;
 
-  export const refsForTag = (tag: ResourceTag): ReadonlyArray<AnyResourceRef> =>
+  export const refsForTag = (tag: ResourceTag): ReadonlyArray<AnyResourceRef<any>> =>
     refsForResourceTag(tag);
 
   /** Computes which cached refs would be affected by a ref or tag invalidation. */
-  export const planInvalidation = (target: ResourceInvalidationTarget): ResourceInvalidationPlan =>
+  export const planInvalidation = <R = never>(target: ResourceInvalidationTarget<R>): ResourceInvalidationPlan<R> =>
     planResourceInvalidation(target);
 
   /** Effect version of planInvalidation that uses the ResourceStore in context. */
-  export const planInvalidationEffect = (
-    target: ResourceInvalidationTarget
-  ): Effect.Effect<ResourceInvalidationPlan> =>
+  export const planInvalidationEffect = <R = never>(
+    target: ResourceInvalidationTarget<R>
+  ): Effect.Effect<ResourceInvalidationPlan<R>> =>
     planResourceInvalidationEffect(target);
 
   export const subscribeEventsEffect = subscribeResourceEventsEffect;
 
-  export const result = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): ReadableSignal<ResourceState<A, E>> =>
+  export const result = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): ReadableSignal<ResourceState<A, ResourceLoadError<E>>> =>
     resourceResult(ref);
 
   /**
-   * Returns a rich snapshot of a resource ref without starting a load.
+   * Synchronous render/host-adapter seam for inspecting a resource ref without
+   * starting a load.
    *
-   * Use this for UI state such as loading, refreshing, stale, and cache age.
+   * Effect workflows should prefer statusEffect so the active ResourceStore and
+   * Clock come from Effect context.
    */
-  export const status = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): ResourceStatus<I, A, E, R> =>
+  export const status = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): ResourceStatus<I, A, ResourceLoadError<E>, R, E> =>
     resourceStatus(ref);
 
-  /** Effect version of status that reads time and store from Effect context. */
-  export const statusEffect = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): Effect.Effect<ResourceStatus<I, A, E, R>> =>
+  /**
+   * Effect-first status inspection that reads the ResourceStore and Clock from
+   * Effect context.
+   */
+  export const statusEffect = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): Effect.Effect<ResourceStatus<I, A, ResourceLoadError<E>, R, E>> =>
     resourceStatusEffect(ref);
 
   export const value = <A, E>(state: ResourceState<A, E>): A | undefined => {
@@ -699,44 +692,68 @@ export namespace Resource {
    *
    * Prefer this inside route preloads, actions, and other Effect workflows.
    */
-  export const refreshEffect = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): Effect.Effect<A, E, R> =>
+  export const refreshEffect = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): Effect.Effect<A, ResourceLoadError<E>, R> =>
     refreshResourceEffect(ref);
   /**
    * Ensures a resource ref is loaded as an Effect, reusing fresh cached data.
    *
    * This records the ref for route preload collection and shares in-flight work.
    */
-  export const prefetchEffect = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): Effect.Effect<A, E, R> =>
+  export const prefetchEffect = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): Effect.Effect<A, ResourceLoadError<E>, R> =>
     prefetchResourceEffect(ref);
 
-  /** Runs an Effect and returns the resource refs it touched through prefetch/read. */
+  /**
+   * Deletes a resource ref from the active Resource Store.
+   *
+   * This interrupts GC and in-flight load work for the ref, removes dependency
+   * graph facts, invalidates its Effect cache entry, and publishes
+   * `ResourceDeleted`.
+   */
+  export const deleteEffect = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): Effect.Effect<void> =>
+    deleteResourceEffect(ref);
+
+  /** Runs an Effect and returns the resource refs it touched through prefetch/refresh. */
   export const collectEffect = <A, E, R>(
     effect: Effect.Effect<A, E, R>
   ): Effect.Effect<Collected<A>, E, R> =>
     collectResourceEffect(effect);
 
   /**
-   * Reads a resource value synchronously after Effect preload.
+   * Synchronous render/host-adapter seam for reading a resource value after
+   * Effect preload.
    *
    * If the value is missing or the entry has expired it throws ResourcePending.
    * If loading failed it throws ResourceFailure. Stale values are returned
-   * immediately while refresh runs in the background.
+   * immediately while refresh runs in the background. Effect workflows should
+   * prefer readEffect so failures stay in the Effect error channel and runtime
+   * state comes from Effect context.
    */
   export const read = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): A => {
     return readResource(ref);
   };
 
   /**
+   * Effect-first read for an already-loaded resource value.
+   *
+   * Missing, pending, collected, and failed states are reported as typed Effect
+   * failures instead of thrown render-control values.
+   */
+  export const readEffect = <I, A, E, R>(
+    ref: ResourceRef<I, A, E, R>
+  ): Effect.Effect<A, ResourceReadError<I, A, E, R>, R> =>
+    readResourceEffect(ref);
+
+  /**
    * Invalidates refs or tags and refreshes affected resources as an Effect.
    */
-  export const invalidateEffect = <R = any>(
-    target: ResourceInvalidationTarget
+  export const invalidateEffect = <R = never>(
+    target: ResourceInvalidationTarget<R>
   ): Effect.Effect<void, never, R> =>
     invalidateResourceEffect(target);
 
   /** Runs a previously computed invalidation plan as an Effect. */
-  export const runInvalidationPlanEffect = <R = any>(
-    plan: ResourceInvalidationPlan
+  export const runInvalidationPlanEffect = <R = never>(
+    plan: ResourceInvalidationPlan<R>
   ): Effect.Effect<void, never, R> =>
     runResourceInvalidationPlanEffect(plan);
 
@@ -756,24 +773,24 @@ export namespace Resource {
 
   /** Serializes successful resource refs from the current store for hydration. */
   export const dehydrate = (
-    refs: Iterable<AnyResourceRef>
+    refs: Iterable<AnyResourceRef<any>>
   ): ReadonlyArray<ResourceHydrationSnapshot> =>
     dehydrateResources(refs);
 
   /** Effect version of dehydrate that reads the ResourceStore from context. */
   export const dehydrateEffect = (
-    refs: Iterable<AnyResourceRef>
-  ): Effect.Effect<ReadonlyArray<ResourceHydrationSnapshot>> =>
+    refs: Iterable<AnyResourceRef<any>>
+  ): Effect.Effect<ReadonlyArray<ResourceHydrationSnapshot>, ResourceSnapshotCodecError> =>
     dehydrateResourcesEffect(refs);
 
   /** Wraps dehydrated snapshots in the payload shape used by route plans. */
-  export const hydrationPayload = (refs: Iterable<AnyResourceRef>): ResourceHydrationPayload =>
+  export const hydrationPayload = (refs: Iterable<AnyResourceRef<any>>): ResourceHydrationPayload =>
     resourceHydrationPayload(refs);
 
   /** Effect version of hydrationPayload. */
   export const hydrationPayloadEffect = (
-    refs: Iterable<AnyResourceRef>
-  ): Effect.Effect<ResourceHydrationPayload> =>
+    refs: Iterable<AnyResourceRef<any>>
+  ): Effect.Effect<ResourceHydrationPayload, ResourceSnapshotCodecError> =>
     resourceHydrationPayloadEffect(refs);
 
   /** Encodes a validated hydration payload as JSON. */
@@ -798,7 +815,7 @@ export namespace Resource {
   export const hydrateEffect = (
     input: ResourceHydrationInput,
     options?: ResourceHydrationOptions
-  ): Effect.Effect<void, ResourceSnapshotCodecError | ResourceHydrationApplyError | Schema.SchemaError> =>
+  ): Effect.Effect<void, ResourceSnapshotCodecError | ResourceHydrationApplyError | EffectInputCallbackError> =>
     hydrateResourcesEffect(input, options);
 
   /** Synchronous runtime boundary for hydrateEffect. */

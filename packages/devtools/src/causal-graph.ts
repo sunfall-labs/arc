@@ -13,24 +13,23 @@ import {
   devtoolsResourceNodeId as resourceNodeId,
   devtoolsResourceTagNodeId as tagNodeId,
   devtoolsRouteNodeId as routeNodeId,
-  devtoolsRoutePlanNodeId as routePlanNodeId,
   devtoolsRuntimeEventNodeId as runtimeEventNodeId,
   devtoolsRuntimeTargetLabel as runtimeTargetLabel,
   devtoolsSchemaCoverageNodeId as schemaCoverageNodeId,
   devtoolsServerFunctionNodeId as serverFunctionNodeId
 } from "./graph-ids.js";
+import { stableFactFingerprint } from "./fact-identity.js";
+import { normalizeDevtoolsAppGraphDiagnostics } from "./app-graph-normalizer.js";
 import { toDevtoolsSerializableValue } from "./serialization.js";
 import {
   appGraphCollectionDefinitions,
   routeModulePreloadCollections
 } from "./summary-app-graph.js";
+import { projectDevtoolsRoutePlanFacts } from "./route-plan-facts.js";
 import {
-  emptySnapshot,
-  resourceIndex,
-  summarizeInvalidationPlan,
+  normalizeDevtoolsSummaryInput,
   summarizeRequestTrace,
-  summarizeRoutePlan,
-  summarizeRuntimeEvents
+  summarizeRoutePlan
 } from "./summary-facts.js";
 import type {
   DevtoolsCausalEdge,
@@ -71,12 +70,42 @@ const addNode = (
 const addEdge = (
   edges: Array<DevtoolsCausalEdge>,
   edge: Omit<DevtoolsCausalEdge, "id">,
-  index: number
+  ordinals: Map<string, number>
 ): void => {
+  const ordinalKey = `${edge.kind}\u0000${edge.source}\u0000${edge.target}\u0000${edge.label ?? ""}`;
+  const ordinal = ordinals.get(ordinalKey) ?? 0;
+  ordinals.set(ordinalKey, ordinal + 1);
   edges.push({
-    id: causalEdgeId(index, edge.kind, edge.source, edge.target),
+    id: causalEdgeId(edge.kind, edge.source, edge.target, edge.label, ordinal),
     ...edge
   });
+};
+
+const routePlanSummaryFingerprint = (plan: DevtoolsSummaryRoutePlan): string =>
+  stableFactFingerprint([
+    plan._tag,
+    plan.href,
+    plan.path,
+    plan.params,
+    plan.search,
+    plan.resourceCount,
+    plan.hydrationResourceCount,
+    plan.hydratedResourceKeys,
+    plan.resources
+  ]) ?? "";
+
+const requestRoutePlanSummary = (
+  routePlans: ReadonlyArray<DevtoolsSummaryRoutePlan>,
+  trace: DevtoolsRequestTrace,
+  fallbackIndex: number
+): DevtoolsSummaryRoutePlan | undefined => {
+  if (trace.routePlan === undefined) {
+    return undefined;
+  }
+
+  const fallback = summarizeRoutePlan(trace.routePlan, fallbackIndex);
+  const fingerprint = routePlanSummaryFingerprint(fallback);
+  return routePlans.find((plan) => routePlanSummaryFingerprint(plan) === fingerprint) ?? fallback;
 };
 
 interface DevtoolsCausalGraphInput {
@@ -95,11 +124,91 @@ export const makeDevtoolsCausalGraph = (
 ): DevtoolsCausalGraph => {
   const nodes = new Map<string, DevtoolsCausalNode>();
   const edges: Array<DevtoolsCausalEdge> = [];
-  let edgeIndex = 0;
+  const edgeOrdinals = new Map<string, number>();
+  const appGraph = input.appGraph === undefined
+    ? undefined
+    : normalizeDevtoolsAppGraphDiagnostics(input.appGraph);
 
   const connect = (edge: Omit<DevtoolsCausalEdge, "id">): void => {
-    addEdge(edges, edge, edgeIndex);
-    edgeIndex += 1;
+    addEdge(edges, edge, edgeOrdinals);
+  };
+  const routePlanSink = {
+    addNode: (node: DevtoolsCausalNode) => addNode(nodes, node),
+    connect
+  };
+  const projectInvalidationFacts = (plan: DevtoolsSummaryInvalidationPlan): void => {
+    const planId = invalidationNodeId(plan.index);
+    addNode(nodes, {
+      id: planId,
+      kind: "InvalidationPlan",
+      label: `Invalidation ${plan.index}`,
+      data: {
+        causeCount: plan.causeCount,
+        index: plan.index,
+        matchedResourceCount: plan.matchedResourceCount,
+        targetCount: plan.targetCount
+      }
+    });
+
+    for (const target of plan.targets) {
+      const targetId = targetNodeId(target);
+      addNode(nodes, {
+        id: targetId,
+        kind: target._tag === "Tag" ? "ResourceTag" : "Resource",
+        label: target._tag === "Tag" ? target.name : target.family,
+        data: toDevtoolsSerializableValue(target)
+      });
+      connect({
+        kind: "Targets",
+        source: planId,
+        target: targetId,
+        label: "targets",
+        data: null
+      });
+    }
+
+    for (const entry of plan.entries) {
+      const affectedResourceId = resourceNodeId(entry.ref.key);
+      addNode(nodes, {
+        id: affectedResourceId,
+        kind: "Resource",
+        label: entry.ref.family,
+        data: {
+          family: entry.ref.family,
+          input: entry.ref.input,
+          key: entry.ref.key,
+          state: null
+        }
+      });
+      connect({
+        kind: "Invalidates",
+        source: planId,
+        target: affectedResourceId,
+        label: "invalidates",
+        data: {
+          causeCount: entry.causes.length
+        }
+      });
+
+      for (const cause of entry.causes) {
+        const causeId = targetNodeId(cause);
+        addNode(nodes, {
+          id: causeId,
+          kind: cause._tag === "Tag" ? "ResourceTag" : "Resource",
+          label: cause._tag === "Tag" ? cause.name : cause.family,
+          data: toDevtoolsSerializableValue(cause)
+        });
+        connect({
+          kind: "Causes",
+          source: causeId,
+          target: affectedResourceId,
+          label: "causes",
+          data: {
+            invalidationIndex: plan.index
+          }
+        });
+      }
+    }
   };
   const addModuleNode = (
     kind: "server-only" | "browser-client" | "route" | DevtoolsStartAppGraphModuleKind,
@@ -120,31 +229,34 @@ export const makeDevtoolsCausalGraph = (
     return id;
   };
 
-  if (input.appGraph) {
+  if (appGraph) {
     const collectionDefinitionsByName = new Map(
-      appGraphCollectionDefinitions(input.appGraph).map((collection) => [collection.name, collection] as const)
+      appGraphCollectionDefinitions(appGraph).map((collection) => [collection.name, collection] as const)
+    );
+    const resourceFamiliesByName = new Map(
+      appGraph.resourceFamilies.map((family) => [family.name, family] as const)
     );
 
     addNode(nodes, {
       id: endpointNodeId("rpc"),
       kind: "Endpoint",
-      label: input.appGraph.rpcPath,
+      label: appGraph.rpcPath,
       data: {
-        path: input.appGraph.rpcPath,
+        path: appGraph.rpcPath,
         transport: "rpc"
       }
     });
     addNode(nodes, {
       id: endpointNodeId("action"),
       kind: "Endpoint",
-      label: input.appGraph.actionPath,
+      label: appGraph.actionPath,
       data: {
-        path: input.appGraph.actionPath,
+        path: appGraph.actionPath,
         transport: "action"
       }
     });
 
-    for (const routeModule of input.appGraph.routeModules) {
+    for (const routeModule of appGraph.routeModules) {
       const routeId = routeNodeId(routeModule.routePath);
       addNode(nodes, {
         id: routeId,
@@ -167,15 +279,20 @@ export const makeDevtoolsCausalGraph = (
       });
       for (const family of routeModule.preloadResources.families) {
         const familyId = resourceFamilyNodeId(family);
+        const definition = resourceFamiliesByName.get(family);
         addNode(nodes, {
           id: familyId,
           kind: "ResourceFamily",
           label: family,
-          data: {
-            name: family,
-            source: "RoutePreloadResources",
-            status: routeModule.preloadResources.status
-          }
+          data: toDevtoolsSerializableValue(
+            definition === undefined
+              ? {
+                  name: family,
+                  source: "RoutePreloadResources",
+                  status: routeModule.preloadResources.status
+                }
+              : definition
+          )
         });
         connect({
           kind: "Preloads",
@@ -222,7 +339,7 @@ export const makeDevtoolsCausalGraph = (
       }
     }
 
-    for (const path of input.appGraph.routePaths) {
+    for (const path of appGraph.routePaths) {
       addNode(nodes, {
         id: routeNodeId(path),
         kind: "Route",
@@ -236,7 +353,7 @@ export const makeDevtoolsCausalGraph = (
       id: serverFunctionCoverageId,
       kind: "SchemaCoverage",
       label: "serverFunctions schemas",
-      data: schemaCoverageData(input.appGraph.schemaCoverage.serverFunctions)
+      data: schemaCoverageData(appGraph.schemaCoverage.serverFunctions)
     });
     connect({
       kind: "UsesEndpoint",
@@ -251,7 +368,7 @@ export const makeDevtoolsCausalGraph = (
       id: actionCoverageId,
       kind: "SchemaCoverage",
       label: "actions schemas",
-      data: schemaCoverageData(input.appGraph.schemaCoverage.actions)
+      data: schemaCoverageData(appGraph.schemaCoverage.actions)
     });
     connect({
       kind: "UsesEndpoint",
@@ -261,7 +378,7 @@ export const makeDevtoolsCausalGraph = (
       data: null
     });
 
-    for (const serverFunction of input.appGraph.serverFunctionModules) {
+    for (const serverFunction of appGraph.serverFunctionModules) {
       const serverFunctionId = serverFunctionNodeId(serverFunction.name);
       addNode(nodes, {
         id: serverFunctionId,
@@ -318,7 +435,7 @@ export const makeDevtoolsCausalGraph = (
       }
     }
 
-    for (const action of input.appGraph.actionModules) {
+    for (const action of appGraph.actionModules) {
       const actionId = actionNodeId(action.name);
       addNode(nodes, {
         id: actionId,
@@ -375,7 +492,7 @@ export const makeDevtoolsCausalGraph = (
       }
     }
 
-    for (const family of input.appGraph.resourceFamilies) {
+    for (const family of appGraph.resourceFamilies) {
       addNode(nodes, {
         id: resourceFamilyNodeId(family.name),
         kind: "ResourceFamily",
@@ -384,7 +501,7 @@ export const makeDevtoolsCausalGraph = (
       });
     }
 
-    for (const tag of input.appGraph.resourceTags) {
+    for (const tag of appGraph.resourceTags) {
       addNode(nodes, {
         id: tagNodeId(tag.name),
         kind: "ResourceTag",
@@ -393,7 +510,7 @@ export const makeDevtoolsCausalGraph = (
       });
     }
 
-    for (const collection of appGraphCollectionDefinitions(input.appGraph)) {
+    for (const collection of appGraphCollectionDefinitions(appGraph)) {
       addNode(nodes, {
         id: collectionNodeId(collection.name),
         kind: "Collection",
@@ -405,7 +522,7 @@ export const makeDevtoolsCausalGraph = (
       });
     }
 
-    for (const modulePath of input.appGraph.serverOnlyModules) {
+    for (const modulePath of appGraph.serverOnlyModules) {
       const moduleId = addModuleNode("server-only", modulePath);
       connect({
         kind: "UsesModule",
@@ -416,7 +533,7 @@ export const makeDevtoolsCausalGraph = (
       });
     }
 
-    for (const modulePath of input.appGraph.browserClientModules) {
+    for (const modulePath of appGraph.browserClientModules) {
       const moduleId = addModuleNode("browser-client", modulePath);
       connect({
         kind: "UsesModule",
@@ -427,7 +544,7 @@ export const makeDevtoolsCausalGraph = (
       });
     }
 
-    for (const missingSchema of input.appGraph.missingSchemas) {
+    for (const missingSchema of appGraph.missingSchemas) {
       const missingId = missingSchemaNodeId(missingSchema);
       const ownerId = missingSchema.kind === "action"
         ? actionNodeId(missingSchema.name)
@@ -506,75 +623,7 @@ export const makeDevtoolsCausalGraph = (
   }
 
   for (const plan of input.routePlans) {
-    const routePlanId = routePlanNodeId(plan.index, plan.href);
-    addNode(nodes, {
-      id: routePlanId,
-      kind: "RoutePlan",
-      label: plan.href,
-      data: {
-        href: plan.href,
-        hydrationResourceCount: plan.hydrationResourceCount,
-        params: plan.params,
-        path: plan.path,
-        resourceCount: plan.resourceCount,
-        search: plan.search,
-        tag: plan._tag
-      }
-    });
-
-    if (plan.path !== null) {
-      const routeId = routeNodeId(plan.path);
-      addNode(nodes, {
-        id: routeId,
-        kind: "Route",
-        label: plan.path,
-        data: { path: plan.path }
-      });
-      connect({
-        kind: "Matches",
-        source: routePlanId,
-        target: routeId,
-        label: "matches",
-        data: {
-          href: plan.href
-        }
-      });
-    }
-
-    for (const resource of plan.resources) {
-      const targetId = resourceNodeId(resource.key);
-      addNode(nodes, {
-        id: targetId,
-        kind: "Resource",
-        label: resource.family,
-        data: {
-          family: resource.family,
-          input: resource.input,
-          key: resource.key,
-          state: null
-        }
-      });
-      connect({
-        kind: "Preloads",
-        source: routePlanId,
-        target: targetId,
-        label: "preloads",
-        data: {
-          href: plan.href
-        }
-      });
-      if (plan.hydrationResourceCount > 0) {
-        connect({
-          kind: "Hydrates",
-          source: routePlanId,
-          target: targetId,
-          label: "hydrates",
-          data: {
-            href: plan.href
-          }
-        });
-      }
-    }
+    projectDevtoolsRoutePlanFacts(plan, routePlanSink);
   }
 
   input.requestTraces.forEach((trace, index) => {
@@ -617,49 +666,16 @@ export const makeDevtoolsCausalGraph = (
       });
     }
 
-    if (trace.routePlan) {
-      const plan = summarizeRoutePlan(trace.routePlan, index);
-      const traceRoutePlanId = routePlanNodeId(index, plan.href);
-      addNode(nodes, {
-        id: traceRoutePlanId,
-        kind: "RoutePlan",
-        label: plan.href,
-        data: {
-          href: plan.href,
-          hydrationResourceCount: plan.hydrationResourceCount,
-          params: plan.params,
-          path: plan.path,
-          resourceCount: plan.resourceCount,
-          search: plan.search,
-          tag: plan._tag
-        }
-      });
+    const plan = requestRoutePlanSummary(input.routePlans, trace, input.routePlans.length + index);
+    if (plan) {
+      const { routePlanId } = projectDevtoolsRoutePlanFacts(plan, routePlanSink);
       connect({
         kind: "Records",
         source: traceId,
-        target: traceRoutePlanId,
+        target: routePlanId,
         label: "records",
         data: null
       });
-
-      if (plan.path !== null) {
-        const routeId = routeNodeId(plan.path);
-        addNode(nodes, {
-          id: routeId,
-          kind: "Route",
-          label: plan.path,
-          data: { path: plan.path }
-        });
-        connect({
-          kind: "Matches",
-          source: traceRoutePlanId,
-          target: routeId,
-          label: "matches",
-          data: {
-            href: plan.href
-          }
-        });
-      }
     }
 
     for (const resource of trace.resources) {
@@ -748,78 +764,7 @@ export const makeDevtoolsCausalGraph = (
   });
 
   for (const plan of input.invalidations) {
-    const planId = invalidationNodeId(plan.index);
-    addNode(nodes, {
-      id: planId,
-      kind: "InvalidationPlan",
-      label: `Invalidation ${plan.index}`,
-      data: {
-        causeCount: plan.causeCount,
-        index: plan.index,
-        matchedResourceCount: plan.matchedResourceCount,
-        targetCount: plan.targetCount
-      }
-    });
-
-    for (const target of plan.targets) {
-      const targetId = targetNodeId(target);
-      addNode(nodes, {
-        id: targetId,
-        kind: target._tag === "Tag" ? "ResourceTag" : "InvalidationTarget",
-        label: target._tag === "Tag" ? target.name : target.family,
-        data: toDevtoolsSerializableValue(target)
-      });
-      connect({
-        kind: "Targets",
-        source: planId,
-        target: targetId,
-        label: "targets",
-        data: null
-      });
-    }
-
-    for (const entry of plan.entries) {
-      const affectedResourceId = resourceNodeId(entry.ref.key);
-      addNode(nodes, {
-        id: affectedResourceId,
-        kind: "Resource",
-        label: entry.ref.family,
-        data: {
-          family: entry.ref.family,
-          input: entry.ref.input,
-          key: entry.ref.key,
-          state: null
-        }
-      });
-      connect({
-        kind: "Invalidates",
-        source: planId,
-        target: affectedResourceId,
-        label: "invalidates",
-        data: {
-          causeCount: entry.causes.length
-        }
-      });
-
-      for (const cause of entry.causes) {
-        const causeId = targetNodeId(cause);
-        addNode(nodes, {
-          id: causeId,
-          kind: cause._tag === "Tag" ? "ResourceTag" : "Resource",
-          label: cause._tag === "Tag" ? cause.name : cause.family,
-          data: toDevtoolsSerializableValue(cause)
-        });
-        connect({
-          kind: "Causes",
-          source: causeId,
-          target: affectedResourceId,
-          label: "causes",
-          data: {
-            invalidationIndex: plan.index
-          }
-        });
-      }
-    }
+    projectInvalidationFacts(plan);
   }
 
   for (const event of input.runtimeEvents) {
@@ -837,6 +782,13 @@ export const makeDevtoolsCausalGraph = (
       }
     });
     if (event.target !== null) {
+      if (!nodes.has(event.target.id)) {
+        if (event._tag === "Invalidation" && event.invalidationPlan !== undefined) {
+          projectInvalidationFacts(event.invalidationPlan);
+        } else if (event._tag === "RoutePlan" && event.routePlan !== undefined) {
+          projectDevtoolsRoutePlanFacts(event.routePlan, routePlanSink);
+        }
+      }
       addNode(nodes, {
         id: event.target.id,
         kind: event.target.kind,
@@ -868,31 +820,21 @@ export const makeDevtoolsCausalGraph = (
 export const describeDevtoolsCausalGraph = (
   input: DevtoolsSummaryInput = {}
 ): DevtoolsCausalGraph => {
-  const snapshot = input.snapshot ?? emptySnapshot();
-  const appGraph = input.appGraph ?? snapshot.appGraph;
-  const invalidationPlans = input.invalidations ?? snapshot.invalidations;
-  const routePlans = input.routePlans ?? snapshot.routePlans;
-  const requestTraces = input.requestTraces ?? snapshot.requestTraces ?? [];
-  const runtimeEvents = input.runtimeEvents ?? snapshot.events ?? [];
-  const invalidations = invalidationPlans.map(summarizeInvalidationPlan);
-  const routes = routePlans.map(summarizeRoutePlan);
-  const requests = requestTraces.map(summarizeRequestTrace);
-  const resources = resourceIndex(snapshot, invalidations, routes, requestTraces);
-  const events = summarizeRuntimeEvents(runtimeEvents);
+  const normalized = normalizeDevtoolsSummaryInput(input);
 
   return makeDevtoolsCausalGraph({
-    appGraph,
-    snapshot,
-    invalidations,
-    routePlans: routes,
-    requestTraces,
-    requestTraceSummaries: requests,
-    resources,
-    runtimeEvents: events
+    appGraph: normalized.appGraph,
+    snapshot: normalized.snapshot,
+    invalidations: normalized.invalidations,
+    routePlans: normalized.routePlans,
+    requestTraces: normalized.requestTraces,
+    requestTraceSummaries: normalized.requestTraceSummaries,
+    resources: normalized.resources,
+    runtimeEvents: normalized.runtimeEvents
   });
 };
 
 export const describeDevtoolsCausalGraphEffect = (
   input: DevtoolsSummaryInput = {}
 ): Effect.Effect<DevtoolsCausalGraph> =>
-  Effect.succeed(describeDevtoolsCausalGraph(input));
+  Effect.sync(() => describeDevtoolsCausalGraph(input));

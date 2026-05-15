@@ -6,14 +6,21 @@ yet.
 
 ## Stable For The First External App
 
-- Core runtime primitives: Signals, Resources, Actions, Forms, Routes,
+- Core runtime primitives: Signals, Programs, Resources, Actions, Forms, Routes,
   Capabilities, server contracts, scoped UI work, and request-local runtimes.
-- Public async library APIs return Effects; Promise use is reserved for
-  explicit runtime, Suspense, stream, CLI, Vite, or host-platform boundaries.
+- Public async library APIs return Effect v4 values; Promise-shaped entrypoints
+  are reserved for explicit runtime, Suspense, stream, CLI, Vite, or host
+  compatibility boundaries.
 - LSP-facing JSDoc describes the purpose and composition model for the core,
   DB, Solid, Start, Node, and Fetch concepts.
 - Start request handling: SSR, RPC, Start actions, hydration payloads, streamed
   HTML responses, request traces, and build diagnostics.
+- Start agent graph and impact inspection: `effect-ui-start graph`,
+  `effect-ui-start impact`, `createStartAgentGraph(...)`, and
+  `createStartAgentGraphImpact(...)` expose the resolved app topology as typed,
+  queryable route/action/resource/collection/module/finding facts plus concise
+  edit briefs. Text output is concise by default, with raw graph ids/facts/edges
+  behind `--verbose` and full machine payloads behind `--json`.
 - Node and Fetch host facades: `@effect-ui/start-node` and
   `@effect-ui/start-fetch`.
 - Devtools data contracts: snapshots, summaries, causal graphs, request traces,
@@ -21,8 +28,10 @@ yet.
   the checked browser-extension shell with an inspected-window bridge.
 - Local-first DB surface: Collections, live queries, persistence, sync adapter
   seams, mutation queues, and flush policies.
-- Solid adapters: runtime provider, router, Resource hooks, Action hooks,
-  stream hooks, and collection hooks.
+- Solid adapters: runtime provider, router, Program hooks, Resource hooks,
+  Action hooks, stream hooks, and collection hooks.
+- React adapters: runtime provider, component scopes, Signal/Stream/Program/
+  Resource/Action hooks, Suspense read adapters, and React DB hooks.
 - Starter paths: `examples/basic-starter` for the smallest full-stack shell,
   `examples/project-console` for the golden-path app, and
   `pnpm starter:project-console:package` for a generated rich starter payload.
@@ -55,38 +64,160 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 14, 2026:
+Latest full gate on May 15, 2026:
 
-- 9 package builds;
+- 11 package builds;
 - workspace typecheck and public type tests;
-- 43 root test files / 365 tests;
-- devtools panel verify;
-- devtools extension verify;
-- basic starter verify;
+- public API inventory audit;
+- Effect-first audit over 196 package/example/script/type-test files;
+- 52 root test files / 855 tests;
+- devtools panel verify with 1 panel test file / 2 tests;
+- devtools extension verify with 1 extension test file / 20 tests;
+- basic starter verify with 1 starter test file / 2 tests;
+- React starter verify with 1 starter test file / 3 tests;
 - project console starter packaging;
 - project console typecheck;
-- 4 project console test files / 23 tests;
+- 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
 - `pnpm benchmark` refreshed the SSR, route preload, Resource, live query, and
   RPC transport baselines.
 - The latest `pnpm verify` includes the rich project-console starter packaging
   gate and the devtools extension verify gate.
+- Review 81 extracted the expert-public Core Resource UI Binding Controller:
+  React and Solid resource hooks now share Resource ref identity,
+  runtime-bound refresh/prefetch Effects, automatic preload fibers, keyed
+  preload failures, observer failure swallowing, stale preload interruption,
+  state matching helpers, and Suspense preload-token dedupe while keeping host
+  reactivity and host Suspense thenable throwing adapter-local.
+- Review 82 extracted the internal Start Host Runtime Runner: Fetch Promise
+  facades, Node callback facades, Vite diagnostics Promise hooks, and Vite dev
+  middleware callback launches now share one Effect-to-host runtime policy for
+  explicit/default runtime selection, `Effect.runPromise(...)`, `runFork(...)`,
+  and response Scope lifetime wrapping.
+- Review 80 extracted the internal Request Runtime Lifecycle Module: selected
+  Start response Effects now share one lifecycle path for failure/interruption
+  teardown, ResponseContext application, request trace emission, Request Runtime
+  disposal, and streamed response finalization while `createRequestHandler*`
+  facades stay unchanged.
+- Review 79 extracted the internal Collection Query Source Adapter: Query
+  Builder, Query Plan, Live Query State, and Live Query Runtime now share one
+  source Interface for rows, row counts, declared index checks, indexed row
+  probes, version/state signals, and preload/refetch Effects while `Query.*`
+  and `Collection.liveQuery(...)` stay unchanged.
+- Review 78 extracted the internal Live Query Collection Materialization
+  Module: per-store projection entries, keyed lookups, index buckets,
+  state/version signals, `Ready.updatedAt`, and snapshots now sit behind one
+  private DB Module while `Collection.liveQuery(...)` stays the read-only public
+  facade; the latest `pnpm verify` passed after this split.
+- Review 77 extracted the internal Collection Write Commit Module: direct
+  write insert/update/delete and change-batch paths now share one
+  snapshot/persist/restore/event sequence while public Collection write facades
+  stay unchanged; the latest `pnpm verify` passed after this split.
+- Review 76 extracted the internal Runtime Collection Store Module: store
+  construction, Resource Store module-registry lookup, Effect/sync store
+  accessors, synchronous `runWithCollectionStore(...)` override locality,
+  diagnostics, event subscriptions, and initial-data materialization now sit
+  behind one DB Module while public access remains through the `Collection`
+  facade.
+- Review 75 tightened Browser History Adapter locality, runtime-bound UI scope
+  creation, Start Transport Endpoint Envelope request-id alignment, public API
+  inventory auditing, and LSP-facing Runtime Spine / Erased Runtime Runner /
+  Resource Store / host seam vocabulary; the latest `pnpm verify` passed after
+  those fixes.
+- Review 74 tightened Core Resource read decision locality, DB collection
+  hydration planning, React DB/Solid DB live-query selection policy, Start
+  request-runtime finalization trace mapping, starter streamed HTML response
+  construction, Devtools app-graph detachment locality, and Panel Contract
+  overflow identity.
+- Review 73 tightened `UiScope` late-finalizer runtime ownership, shared Core
+  RouterLink hover/click policy for React and Solid, React provider-owned
+  runtime recreation, Collection Store diagnostics, DB-owned reactive binding
+  helpers for React DB/Solid DB, cached Live Query Collection indexes, Start
+  fetch/file-route Promise-shaped rejection, Devtools panel boot lifecycle
+  sharing, and deeper Promise/await audit scanning; the latest `pnpm verify`
+  passed after those fixes.
+- Review 72 tightened React/Solid adapter lifetimes, Program restart ownership,
+  DB mutation finalization, Live Query Collection last-good projections,
+  generation-keyed DB preload failures, change-feed late-drop policy, Start
+  request trace diagnostics, starter route discovery, direct manifest export-name
+  boundaries, devtools extension polling, app-graph normalizer docs, and
+  executable async/non-Effect catch audit coverage; the latest `pnpm verify`
+  passed after those fixes.
+- Review 71 tightened Core browser-router ownership, React/Solid router
+  delegation, React `useAction(...)` instance lifetime, Resource preload
+  failure identity, public `ResourceStore` seams, static Start app graph
+  imports, explicit runtime diagnostics, query-sync rollback naming, React
+  DB/Solid DB source identity, Devtools entrypoint cleanup, and spaced
+  `Promise <T>`/`PromiseLike<T>` audit coverage.
+- Review 70 tightened React route render runtime/scope ownership, Solid and
+  React Resource preload failure surfaces, lazy Start legacy hydration script
+  serialization, starter streamed hydration usage, React DB dynamic live-query
+  sources, DB query sync invalidation policy, Devtools bridge diagnostics docs,
+  widened Effect-first audit scope, and checked Devtools entrypoint smoke tests;
+  the latest `pnpm verify` passed after those fixes.
+- Review 69 tightened React ordered preload matching, Program runtime error
+  typing, Resource Store public seams, Start streamed hydration root scripts,
+  app graph route preservation, Vite dev SSR trace locality, DB live-query
+  read-only/persistence events, Devtools inspected-window timeout and invalid
+  payload diagnostics, and the checked React starter gate.
+- Review 68 tightened Resource read collection, ActionResult metadata
+  detachment, Solid preload route matching, Start collection-name resolution,
+  DB active mutation/load coordination, live-query materialization ingress,
+  Devtools request/app-graph depth, and React's internal Suspense host seam.
+- Review 67 tightened Resource snapshot encoding/read effects, Start client
+  transport and diagnostics validation, DB live-query materialization and
+  change-feed dispatch, Solid DB mutation handles, and Devtools fact/panel
+  scale contracts.
+- Core `Program` and Solid `useProgram(...)` add the model/message/update loop
+  as an Effect-native public API: commands are Effects, subscriptions are
+  Streams, failures are typed state, and cleanup follows the active UI scope.
+- Program instances now expose a bounded `timeline` signal for message
+  transitions, command starts/completions/failures, subscription
+  starts/emissions/failures, and disposal. Solid and React `useProgram(...)`
+  handles expose the same timeline to UI/devtools code.
+- Devtools now records Program timelines as first-class runtime facts through
+  `recordProgramEvent(...)` and scoped `trackProgramEffect(...)`, with a
+  Programs panel, event-level timeline rows, stable fallback names for unnamed
+  tracked Programs, and causal graph `Program` targets backed by the shared
+  bounded serialization policy.
+- `DevtoolsSerializationPolicy` now includes `redactKeys`, and Devtools applies
+  default redaction for common password, token, API-key, credential, cookie, and
+  authorization-shaped keys before runtime facts reach summaries, panels, or
+  bridges.
+- Solid router hydration now starts matched SSR routes from `Ready` when
+  Solid's hydration context is present, avoiding initial client-only pending
+  fallback markup over already-preloaded server HTML.
+- Core `Program.step(...)` and `Program.story(...)` add deterministic
+  state-machine tests: updates run in Effect, returned commands are inspected
+  explicitly, and tests can resolve command output back into typed messages.
+- Core `Form.decodeFormDataEffect(...)` decodes browser forms through Effect
+  Schema, preserves repeated fields as arrays, and returns typed
+  `Form.ValidationError` failures for invalid field data.
+- Project-console now dogfoods `useProgram(...)` for its rename/advance action
+  panel. Rename submission now carries `FormData` as the host input and decodes
+  it inside a Program command with `Form.decodeFormDataEffect(...)` before
+  calling the Start action.
 - Package description metadata has been added and package-local dry-run packs
   passed for all 9 framework packages.
 - The Start diagnostics CLI now runs its parse/load/render flow through an
   Effect-native runner; the bin entry is the Promise boundary.
 - The Vite dev SSR middleware now keeps request conversion, handler loading,
   response writing, and error forwarding inside an Effect program.
+- Review 59 tightened registry-local SSR dispatch, structured DB live-query
+  identity, Devtools bridge failure semantics, Start manifest/file-route
+  validation, and LSP-facing host facade docs.
 - Resource, DB collection, and Start request/Vite internals are split into
   focused modules behind the same public entrypoints.
 - Start request traces now classify RPC/action failures by layer with a
   `failureKind` fact that devtools summaries can display.
-- The devtools extension now keeps sample data as a fallback and updates from a
-  live inspected-page `__EFFECT_UI_DEVTOOLS__` panel payload when present.
+- The devtools extension uses sample data only as the initial fallback and
+  updates from a live inspected-page `__EFFECT_UI_DEVTOOLS__` panel payload when
+  present; later missing or invalid bridge reads render diagnostics instead of
+  keeping stale facts.
 - Apps can expose that payload through `installDevtoolsBridgeEffect(...)`, which
   scopes `globalThis.__EFFECT_UI_DEVTOOLS__` setup and cleanup inside Effect.
-- The latest devtools extension verify includes 1 extension test file / 6 tests
+- The latest devtools extension verify includes 1 extension test file / 20 tests
   plus the Manifest V3 production build.
 - The latest `pnpm verify` also covers the private `UNLICENSED` workspace
   metadata sweep, the type-test Promise-method cleanup, and the test
@@ -452,16 +583,62 @@ Latest full gate on May 14, 2026:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest `pnpm verify` passed after Core Definition Registry, DB Collection
-  registry locality, Start app graph runtime diagnostics, stale Start action
-  hydration guard, DB direct hydration/post-commit persistence fixes, default
-  generic error cleanup, LSP-facing JSDoc refresh, and EffectInput Promise
-  inference/runtime guards, Start diagnostics/file-route/Solid suspense
-  host-seam cleanup, Start host-boundary typed errors, helper-alias default
-  error cleanup, and Devtools request panel serialization: 9 package builds,
-  workspace typecheck, type tests, 43 root test files / 366 tests, devtools
-  panel verify, devtools extension verify, basic starter verify, project-console
-  starter packaging/typecheck/tests/build, and leak scan.
+- The latest full `pnpm verify` passed after Review 82 extracted the Start Host
+  Runtime Runner while keeping public host adapter behavior unchanged: 11
+  package builds, workspace typecheck, public type tests, public API inventory
+  audit, Effect-first audit over 196 files, 52 root test files / 855 tests,
+  devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
+  basic starter verify with 2 tests, React starter verify with 3 tests,
+  project-console packaging/typecheck/tests/build with 4 files / 27 tests, and
+  leak scans.
+- The previous full `pnpm verify` passed after Review 64 store-owned Resource
+  load ownership, Start stream/manifest walls, DB hydration/dehydrate preflight,
+  Devtools runtime-only causal facts, and panel row identity fixes: 9 package
+  builds, workspace typecheck, public type tests, Effect-first audit, 45 root
+  test files / 690 tests, devtools-panel verify, devtools-extension verify with
+  15 tests, basic starter verify with 2 tests, project-console
+  packaging/typecheck/tests/build, and leak scans.
+- The earlier full `pnpm verify` passed after Review 61 registry requirement
+  preservation, action invalidation typing, DB live-query snapshot locality,
+  Devtools bounded serialization, and LSP docs/type-test fixes: 9 package
+  builds, workspace typecheck, public type tests, Effect-first audit, 45 root
+  test files / 643 tests, devtools-panel verify, devtools-extension verify with
+  15 tests, basic starter verify with 2 tests, project-console
+  packaging/typecheck/tests/build, and leak scans.
+- The earlier full `pnpm verify` passed after Review 60 stream lifetime,
+  runtime-local DB reactivity, Core/Devtools identity, Start preload locality,
+  and diagnostics type-test fixes: 9 package builds, workspace typecheck, public
+  type tests, Effect-first audit, 45 root test files / 632 tests,
+  devtools-panel verify, devtools-extension verify with 15 tests, basic starter
+  verify with 2 tests, project-console packaging/typecheck/tests/build, and leak
+  scans.
+- The earlier full `pnpm verify` passed after Review 59 registry-local dispatch,
+  structured DB live-query identity, Devtools bridge failure semantics, Start
+  manifest/file-route validation, and LSP docs/type-test drift fixes: 9 package
+  builds, workspace typecheck, type tests, Effect-first audit, 45 root test
+  files / 618 tests, devtools panel verify, devtools extension verify with 14
+  tests, basic starter verify, project-console starter
+  packaging/typecheck/tests/build, and leak scan.
+- An earlier `pnpm verify` passed after Review 58 hydration walls, runtime
+  ownership, DB contract validation, Devtools fact identity/import safety, and
+  TSRX/Start public API docs coverage: 9 package builds, workspace typecheck,
+  type tests, Effect-first audit, 45 root test files / 603 tests, devtools
+  panel verify, devtools extension verify with 14 tests, basic starter verify,
+  project-console starter packaging/typecheck/tests/build, and leak scan.
+- The earlier `pnpm verify` passed after Review 57 atomic rollback, bounded
+  devtools import, Start invalidation validation, Accept negotiation, and
+  Core/Solid runtime cleanup: 9 package builds, workspace typecheck, type
+  tests, Effect-first audit, 45 root test files / 585 tests, devtools panel
+  verify, devtools extension verify with 14 tests, basic starter verify,
+  project-console starter packaging/typecheck/tests/build, and leak scan.
+- The earlier `pnpm verify` passed after DB pending optimistic hydration,
+  runtime-bound change-feed emission, Solid owning-runtime disposal, Core
+  reset/delete/finalizer/cookie cleanup, Start invalidation metadata/Accept
+  hardening, and Devtools import/summary/panel contract safety: 9 package
+  builds, workspace typecheck, type tests, 45 root test files / 571 tests,
+  devtools panel verify, devtools extension verify with 14 tests, basic starter
+  verify, project-console starter packaging/typecheck/tests/build, and leak
+  scan.
 - The previous `pnpm verify` passed after the shared Action Submission
   Controller, DB Collection contract/registry extraction, typed
   `CollectionSnapshotCodecError` propagation, Devtools graph/fact/serialization

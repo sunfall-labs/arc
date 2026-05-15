@@ -1,10 +1,11 @@
 import { Effect, PubSub, Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import { Action, makeRuntime, read as readSignal, Resource, route, Route, Signal, type ActionState } from "@effect-ui/core";
+import { Action, makeRuntime, Program, read as readSignal, Resource, route, Route, Signal, type ActionState } from "@effect-ui/core";
 import { Collection } from "@effect-ui/db";
 import {
   DevtoolsActionInvalidationPlanConflict,
   DevtoolsUnknownInvalidationTarget,
+  devtoolsPanelIds,
   devtoolsPanelStyles,
   makeDevtoolsStore,
   describeDevtoolsCausalGraph,
@@ -18,14 +19,22 @@ import {
   effectUiDevtoolsBridgeGlobal,
   installDevtoolsBridge,
   installDevtoolsBridgeEffect,
+  isDevtoolsPanelId,
+  isDevtoolsPanelItem,
+  isDevtoolsPanels,
+  isDevtoolsSerializableValue,
+  mountDevtoolsPanels,
+  normalizeEffectUiDevtoolsBridgePayload,
   renderDevtoolsPanelsHtml,
   renderDevtoolsPanelsHtmlEffect,
   toDevtoolsSerializableValue,
   type DevtoolsBridgeTarget,
   type DevtoolsInvalidationPlan,
   type DevtoolsRequestTrace,
+  type DevtoolsRoutePlan,
   type DevtoolsStartAppGraphDiagnostics
 } from "../src/index.js";
+import { stableFactFingerprint } from "../src/fact-identity.js";
 
 describe("devtools invalidation plans", () => {
   it("rejects invalidation inputs with typed errors", () => {
@@ -125,6 +134,53 @@ describe("devtools invalidation plans", () => {
     ]);
   });
 
+  it("normalizes unsafe store history limits before trimming", async () => {
+    const RouteUser = route("/history/:id", {});
+    const routePlan = await Effect.runPromise(
+      Route.planNavigationEffect([RouteUser] as const, "/history/1")
+    );
+    const invalidationStore = makeDevtoolsStore({ invalidationLimit: 0 });
+    const routeStore = makeDevtoolsStore({ routePlanLimit: -1 });
+    const traceStore = makeDevtoolsStore({ requestTraceLimit: Number.NaN });
+    const eventStore = makeDevtoolsStore({ eventLimit: Number.POSITIVE_INFINITY });
+
+    for (let index = 0; index < 55; index++) {
+      invalidationStore.recordSerializedInvalidation({
+        targets: [{ _tag: "Tag", key: `Project.${index}`, name: "Project" }],
+        entries: []
+      });
+      routeStore.recordRoutePlan(routePlan);
+      traceStore.recordRequestTrace({
+        request: {
+          id: `req:${index}`,
+          method: "GET",
+          url: `https://example.test/history/${index}`,
+          path: `/history/${index}`,
+          transport: "ssr"
+        },
+        services: [],
+        resources: [],
+        collections: [],
+        serverFunctions: [],
+        actions: [],
+        fibers: [],
+        streams: [],
+        status: "success"
+      });
+    }
+    for (let index = 0; index < 505; index++) {
+      eventStore.recordRuntimeEvent({
+        _tag: "Custom",
+        name: `event:${index}`
+      });
+    }
+
+    expect(invalidationStore.getSnapshot().invalidations).toHaveLength(50);
+    expect(routeStore.getSnapshot().routePlans).toHaveLength(50);
+    expect(traceStore.getSnapshot().requestTraces).toHaveLength(50);
+    expect(eventStore.getSnapshot().events).toHaveLength(500);
+  });
+
   it("records serialized action invalidation plans from full-stack transports", async () => {
     const plan: DevtoolsInvalidationPlan = {
       targets: [
@@ -187,6 +243,86 @@ describe("devtools invalidation plans", () => {
         target: "invalidation:0"
       })
     );
+  });
+
+  it("uses bounded structural invalidation identity for matching and deduplication", () => {
+    const invalidationPlan = (tail: string): DevtoolsInvalidationPlan => ({
+      targets: [
+        {
+          _tag: "Tag",
+          key: "Project.bulk",
+          name: "Project.bulk"
+        }
+      ],
+      entries: Array.from({ length: 50 }, (_, index) => ({
+        ref: {
+          key: index < 49 ? `Project:${index}` : `Project:${tail}`,
+          family: "Project",
+          input: { id: index < 49 ? index : tail }
+        },
+        causes: [
+          {
+            _tag: "Tag",
+            key: "Project.bulk",
+            name: "Project.bulk"
+          }
+        ]
+      }))
+    });
+    const firstPlan = invalidationPlan("first-tail");
+    const secondPlan = invalidationPlan("second-tail");
+    const store = makeDevtoolsStore();
+
+    store.recordActionState("Project.bulk.first", "Success", {
+      serializedInvalidationPlan: firstPlan
+    });
+    store.recordActionState("Project.bulk.second", "Success", {
+      serializedInvalidationPlan: secondPlan
+    });
+    store.recordRuntimeEvent({
+      _tag: "Invalidation",
+      action: "Project.bulk.first",
+      plan: firstPlan
+    });
+    store.recordRuntimeEvent({
+      _tag: "Invalidation",
+      action: "Project.bulk.second",
+      plan: secondPlan
+    });
+
+    const snapshot = store.getSnapshot();
+    expect(snapshot.invalidations).toHaveLength(2);
+    expect(snapshot.invalidations[0]?.entries[49]?.ref.key).toBe("Project:first-tail");
+    expect(snapshot.invalidations[1]?.entries[49]?.ref.key).toBe("Project:second-tail");
+    expect(snapshot.actions).toEqual([
+      {
+        name: "Project.bulk.first",
+        state: "Success",
+        invalidationIndexes: [0]
+      },
+      {
+        name: "Project.bulk.second",
+        state: "Success",
+        invalidationIndexes: [1]
+      }
+    ]);
+    expect(snapshot.events?.filter((event) => event._tag === "Invalidation")).toEqual([
+      expect.objectContaining({
+        _tag: "Invalidation",
+        action: "Project.bulk.first",
+        invalidationIndex: 0
+      }),
+      expect.objectContaining({
+        _tag: "Invalidation",
+        action: "Project.bulk.second",
+        invalidationIndex: 1
+      })
+    ]);
+    expect(
+      store.getCausalGraph().nodes
+        .filter((node) => node.kind === "InvalidationPlan")
+        .map((node) => node.id)
+    ).toEqual(["invalidation:0", "invalidation:1"]);
   });
 
   it("drops stale action invalidation links after bounded history trimming", () => {
@@ -268,6 +404,79 @@ describe("devtools invalidation plans", () => {
     );
   });
 
+  it("rebases request trace action invalidation links after bounded history trimming", () => {
+    const firstPlan: DevtoolsInvalidationPlan = {
+      targets: [{ _tag: "Tag", key: "Project.first", name: "Project.first" }],
+      entries: []
+    };
+    const secondPlan: DevtoolsInvalidationPlan = {
+      targets: [{ _tag: "Tag", key: "Project.second", name: "Project.second" }],
+      entries: []
+    };
+    const thirdPlan: DevtoolsInvalidationPlan = {
+      targets: [{ _tag: "Tag", key: "Project.third", name: "Project.third" }],
+      entries: []
+    };
+    const store = makeDevtoolsStore({ invalidationLimit: 2 });
+
+    store.recordSerializedInvalidation(firstPlan);
+    store.recordSerializedInvalidation(secondPlan);
+    store.recordRequestTrace({
+      request: {
+        id: "req-project-action",
+        method: "POST",
+        url: "https://example.test/__effect-ui/action",
+        path: "/__effect-ui/action",
+        transport: "action"
+      },
+      services: [],
+      resources: [],
+      collections: [],
+      serverFunctions: [],
+      actions: [
+        {
+          name: "Project.rename",
+          state: "Success",
+          invalidationIndexes: [1]
+        }
+      ],
+      fibers: [],
+      streams: [],
+      status: "success"
+    });
+    store.recordSerializedInvalidation(thirdPlan);
+
+    const snapshot = store.getSnapshot();
+    expect(snapshot.invalidations).toEqual([secondPlan, thirdPlan]);
+    expect(snapshot.requestTraces?.[0]?.actions).toEqual([
+      {
+        name: "Project.rename",
+        state: "Success",
+        invalidationIndexes: [0]
+      }
+    ]);
+    expect(snapshot.events?.find((event) => event._tag === "RequestTrace")).toMatchObject({
+      _tag: "RequestTrace",
+      trace: {
+        actions: [
+          {
+            name: "Project.rename",
+            state: "Success",
+            invalidationIndexes: [0]
+          }
+        ]
+      }
+    });
+    expect(store.getSummary().requests.traces[0]?.actions).toEqual([
+      {
+        name: "Project.rename",
+        state: "Success",
+        failureKind: null,
+        invalidationIndexes: [0]
+      }
+    ]);
+  });
+
   it("tracks Start-shaped action instances without depending on the start package", async () => {
     const plan: DevtoolsInvalidationPlan = {
       targets: [
@@ -337,6 +546,61 @@ describe("devtools invalidation plans", () => {
     expect(store.getSnapshot().events?.map((event) => event._tag)).toEqual([
       "ActionState",
       "ActionState",
+      "ActionState",
+      "ActionState"
+    ]);
+  });
+
+  it("tracks Start-shaped action invalidation changes after terminal state updates", async () => {
+    const plan: DevtoolsInvalidationPlan = {
+      targets: [
+        {
+          _tag: "Ref",
+          key: "Project.byId:atlas",
+          family: "Project.byId",
+          input: { id: "atlas" }
+        }
+      ],
+      entries: []
+    };
+    const state = Signal.make<ActionState<{ readonly id: string }, unknown, unknown>>({ _tag: "Idle" });
+    const invalidation = Signal.make<DevtoolsInvalidationPlan | undefined>(undefined);
+    const store = makeDevtoolsStore();
+
+    await Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          yield* store.trackStartActionEffect({
+            definition: {
+              name: "Project.rename.after-terminal"
+            },
+            state,
+            invalidation
+          });
+
+          state.set({
+            _tag: "Success",
+            input: { id: "atlas" },
+            value: {
+              _tag: "Success"
+            }
+          });
+          invalidation.set(plan);
+        })
+      )
+    );
+
+    expect(store.getSnapshot().actions).toEqual([
+      {
+        name: "Project.rename.after-terminal",
+        state: "Success",
+        invalidationIndexes: [0]
+      }
+    ]);
+    expect(store.getSnapshot().invalidations).toEqual([plan]);
+    expect(store.getSnapshot().events?.map((event) => event._tag)).toEqual([
+      "ActionState",
+      "ActionState",
       "ActionState"
     ]);
   });
@@ -387,6 +651,183 @@ describe("devtools invalidation plans", () => {
     ]);
   });
 
+  it("records Program timeline events as serializable runtime panel facts", () => {
+    const before: { readonly count: number; readonly password: string; self?: unknown } = {
+      count: 0,
+      password: "open-sesame"
+    };
+    before.self = before;
+    const store = makeDevtoolsStore({
+      serializationPolicy: {
+        redactKeys: ["tenantPrivate"]
+      }
+    });
+
+    store.recordProgramEvent({
+      _tag: "Message",
+      sequence: 1,
+      program: "Counter.program-devtools",
+      message: { _tag: "Increment", accessToken: "secret-token" },
+      before,
+      after: { count: 1, nested: { apiKey: "secret-api-key", tenantPrivate: "tenant-secret" } },
+      commandCount: 0
+    });
+    store.recordProgramEvent({
+      _tag: "UpdateFailed",
+      sequence: 2,
+      program: "Counter.program-devtools",
+      failure: {
+        _tag: "ProgramFailure",
+        phase: "Update",
+        message: { _tag: "Fail" },
+        error: new Error("boom")
+      }
+    });
+
+    const summary = store.getSummary();
+    const firstEventData = summary.runtime.events[0]?.data as {
+      readonly after?: { readonly nested?: { readonly apiKey?: unknown; readonly tenantPrivate?: unknown } };
+      readonly before?: { readonly password?: unknown; readonly self?: unknown };
+      readonly message?: { readonly accessToken?: unknown };
+    };
+    expect(summary.runtime.events.map((event) => event._tag)).toEqual([
+      "ProgramEvent",
+      "ProgramEvent"
+    ]);
+    expect(summary.runtime.events[0]).toMatchObject({
+      label: "Counter.program-devtools Message",
+      target: {
+        kind: "Program",
+        id: "program:Counter.program-devtools"
+      }
+    });
+    expect(firstEventData.before?.self).toEqual({ _tag: "Circular" });
+    expect(firstEventData.before?.password).toEqual({ _tag: "Redacted" });
+    expect(firstEventData.message?.accessToken).toEqual({ _tag: "Redacted" });
+    expect(firstEventData.after?.nested?.apiKey).toEqual({ _tag: "Redacted" });
+    expect(firstEventData.after?.nested?.tenantPrivate).toEqual({ _tag: "Redacted" });
+    expect(JSON.stringify(summary)).not.toContain("open-sesame");
+    expect(JSON.stringify(summary)).not.toContain("secret-token");
+    expect(JSON.stringify(summary)).not.toContain("secret-api-key");
+    expect(JSON.stringify(summary)).not.toContain("tenant-secret");
+
+    const programsPanel = store.getPanels().panels.find((panel) => panel.id === "programs");
+    expect(programsPanel).toMatchObject({
+      title: "Programs",
+      summary: "1 programs, 2 events",
+      severity: "error"
+    });
+    expect(programsPanel?.items).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: "program-event:runtime-event:0:ProgramEvent",
+        label: "Counter.program-devtools Message",
+        detail: "Counter.program-devtools Message",
+        severity: "ok",
+        data: expect.objectContaining({
+          _tag: "Message",
+          before: expect.objectContaining({
+            password: { _tag: "Redacted" }
+          })
+        })
+      }),
+      expect.objectContaining({
+        id: "program-event:runtime-event:1:ProgramEvent",
+        label: "Counter.program-devtools UpdateFailed",
+        detail: "Counter.program-devtools UpdateFailed",
+        severity: "error"
+      }),
+      expect.objectContaining({
+        id: "program-summary:Counter.program-devtools",
+        label: "Counter.program-devtools",
+        severity: "error"
+      })
+    ]));
+    expect(JSON.stringify(programsPanel)).not.toContain("open-sesame");
+    expect(JSON.stringify(programsPanel)).not.toContain("secret-token");
+    expect(store.getCausalGraph().nodes).toContainEqual(
+      expect.objectContaining({
+        id: "program:Counter.program-devtools",
+        kind: "Program",
+        label: "Counter.program-devtools"
+      })
+    );
+  });
+
+  it("tracks running Program timelines with scoped cleanup", async () => {
+    const store = makeDevtoolsStore();
+    const program = Program.start(
+      Program.define<{ readonly count: number }, { readonly _tag: "Increment" }>({
+        name: "Counter.program-track",
+        initial: { count: 0 },
+        update: (model) => Effect.succeed({ count: model.count + 1 })
+      })
+    );
+
+    try {
+      await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            yield* store.trackProgramEffect(program);
+            yield* program.dispatchEffect({ _tag: "Increment" });
+            yield* Effect.sleep("10 millis");
+          })
+        )
+      );
+
+      const trackedEvents = store.getSnapshot().events?.filter((event) => event._tag === "ProgramEvent") ?? [];
+      expect(readSignal(program.model)).toEqual({ count: 1 });
+      expect(trackedEvents.map((event) => event.event._tag)).toEqual(["Message"]);
+
+      await Effect.runPromise(program.dispatchEffect({ _tag: "Increment" }));
+      await Effect.runPromise(Effect.sleep("10 millis"));
+      expect(store.getSnapshot().events?.filter((event) => event._tag === "ProgramEvent")).toHaveLength(
+        trackedEvents.length
+      );
+    } finally {
+      await Effect.runPromise(program.disposeEffect);
+    }
+  });
+
+  it("tracks anonymous Program timelines with bounded high-water identity", async () => {
+    const store = makeDevtoolsStore();
+    const first = Program.start(
+      Program.define<{ readonly count: number }, { readonly _tag: "Increment" }>({
+        initial: { count: 0 },
+        update: (model) => Effect.succeed({ count: model.count + 1 })
+      })
+    );
+    const second = Program.start(
+      Program.define<{ readonly count: number }, { readonly _tag: "Increment" }>({
+        initial: { count: 0 },
+        update: (model) => Effect.succeed({ count: model.count + 1 })
+      })
+    );
+
+    try {
+      await Effect.runPromise(
+        Effect.scoped(
+          Effect.gen(function* () {
+            yield* store.trackProgramEffect(first);
+            yield* store.trackProgramEffect(second);
+            yield* first.dispatchEffect({ _tag: "Increment" });
+            yield* second.dispatchEffect({ _tag: "Increment" });
+            yield* Effect.sleep("10 millis");
+          })
+        )
+      );
+
+      expect(store.getSummary().runtime.events.map((event) => event.target)).toEqual([
+        { kind: "Program", id: "program:Program#1" },
+        { kind: "Program", id: "program:Program#2" }
+      ]);
+    } finally {
+      await Effect.runPromise(Effect.all([
+        first.disposeEffect,
+        second.disposeEffect
+      ], { discard: true }));
+    }
+  });
+
   it("serializes route plans into plain data", async () => {
     const User = Resource.family({
       name: "User.route-devtools",
@@ -416,7 +857,8 @@ describe("devtools invalidation plans", () => {
         }
       ],
       hydration: {
-        resourceCount: 1
+        resourceCount: 1,
+        resourceKeys: [User("1").key]
       }
     });
   });
@@ -559,16 +1001,7 @@ describe("devtools invalidation plans", () => {
     ]);
     expect(JSON.parse(JSON.stringify(summary))).toEqual(summary);
     const panels = describeDevtoolsPanels({ summary });
-    expect(panels.panels.map((panel) => panel.id)).toEqual([
-      "app-graph",
-      "routes",
-      "resources",
-      "actions",
-      "collections",
-      "requests",
-      "diagnostics",
-      "causal-graph"
-    ]);
+    expect(panels.panels.map((panel) => panel.id)).toEqual(devtoolsPanelIds);
     expect(panels.version).toBe(1);
     expect(panels.panels.find((panel) => panel.id === "app-graph")).toMatchObject({
       title: "App Graph",
@@ -652,6 +1085,7 @@ describe("devtools invalidation plans", () => {
     expect(html).toContain("Ops &lt;Devtools&gt;");
     expect(html).toContain("data-selected-panel=\"requests\"");
     expect(html).toContain("data-effect-ui-devtools-panel-target=\"requests\"");
+    expect(html).toContain("data-effect-ui-devtools-item-id=\"request:safe\"");
     expect(html).toContain("GET /projects/&lt;atlas&gt;");
     expect(html).toContain("1 more items hidden by the current render limit.");
     expect(html).not.toContain("Ops <Devtools>");
@@ -716,6 +1150,492 @@ describe("devtools invalidation plans", () => {
     ).toMatchObject({
       panels,
       title: "Previous"
+    });
+  });
+
+  it("normalizes inspected-window panel payloads through the shared panel contract", () => {
+    const panels = describeDevtoolsPanels();
+
+    expect(isDevtoolsPanelId("requests")).toBe(true);
+    expect(isDevtoolsPanelId("missing")).toBe(false);
+    expect(isDevtoolsPanelItem({
+      id: "unsafe-metrics",
+      label: "Unsafe metrics",
+      severity: "ok",
+      metrics: {
+        count: 1
+      }
+    })).toBe(false);
+    expect(isDevtoolsPanels(panels)).toBe(true);
+    expect(isDevtoolsPanels({ version: 1, panels: panels.panels.slice(0, 1) })).toBe(false);
+    expect(isDevtoolsPanels({ version: 1, panels: [panels.panels[0]!, panels.panels[0]!] })).toBe(false);
+    expect(normalizeEffectUiDevtoolsBridgePayload({
+      panels: {
+        version: 1,
+        panels: [...panels.panels].reverse()
+      }
+    })?.panels.panels.map((panel) => panel.id)).toEqual(devtoolsPanelIds);
+    expect(normalizeEffectUiDevtoolsBridgePayload({
+      panels,
+      selectedPanelId: "requests",
+      title: "Live"
+    })).toEqual({
+      panels,
+      selectedPanelId: "requests",
+      title: "Live"
+    });
+    expect(normalizeEffectUiDevtoolsBridgePayload({
+      panels,
+      selectedPanelId: "missing"
+    })).toEqual({ panels });
+    const longString = "x".repeat(1_050);
+    const boundedPayload = normalizeEffectUiDevtoolsBridgePayload({
+      panels: {
+        version: 1,
+        panels: panels.panels.map((panel) =>
+          panel.id === "requests"
+            ? {
+                ...panel,
+                title: longString,
+                summary: longString,
+                metrics: [{ label: longString, value: longString, unit: longString }],
+                items: [
+                  {
+                    id: "request:long",
+                    label: longString,
+                    severity: "ok",
+                    detail: longString,
+                    metrics: [{ label: "payload", value: longString, unit: longString }],
+                    data: {
+                      nested: [longString],
+                      value: longString
+                    }
+                  }
+                ]
+              }
+            : panel
+        )
+      },
+      title: longString
+    });
+    const boundedLongString = longString.slice(0, 1_000);
+    const boundedRequestsPanel = boundedPayload?.panels.panels.find((panel) => panel.id === "requests");
+    expect(boundedPayload?.title).toBe(boundedLongString);
+    expect(boundedRequestsPanel).toMatchObject({
+      title: boundedLongString,
+      summary: boundedLongString,
+      metrics: [
+        {
+          label: boundedLongString,
+          value: boundedLongString,
+          unit: boundedLongString
+        }
+      ],
+      items: [
+        expect.objectContaining({
+          label: boundedLongString,
+          detail: boundedLongString,
+          metrics: [
+            {
+              label: "payload",
+              value: boundedLongString,
+              unit: boundedLongString
+            }
+          ],
+          data: {
+            nested: [boundedLongString],
+            value: boundedLongString
+          }
+        })
+      ]
+    });
+    const longDataKey = "k".repeat(1_001);
+    expect(normalizeEffectUiDevtoolsBridgePayload({
+      panels: {
+        version: 1,
+        panels: panels.panels.map((panel) =>
+          panel.id === "requests"
+            ? {
+                ...panel,
+                items: [
+                  {
+                    id: "request:long-key",
+                    label: "Long key",
+                    severity: "ok",
+                    data: { [longDataKey]: "value" }
+                  }
+                ]
+              }
+            : panel
+        )
+      }
+    })).toBeUndefined();
+    const sourcePanels = {
+      version: 1 as const,
+      panels: panels.panels.map((panel) =>
+        panel.id === "requests"
+          ? {
+              id: "requests" as const,
+              title: "Requests",
+              summary: "Detached",
+              severity: "ok" as const,
+              metrics: [{ label: "Duration", value: "1", unit: "ms" }],
+              items: [
+                {
+                  id: "request:1",
+                  label: "Request",
+                  severity: "ok" as const,
+                  detail: "Initial",
+                  metrics: [],
+                  data: { value: "stable" }
+                }
+              ]
+            }
+          : panel
+      )
+    };
+    const duplicateItemPanels = {
+      ...sourcePanels,
+      panels: sourcePanels.panels.map((panel) =>
+        panel.id === "requests"
+          ? { ...panel, items: [panel.items[0]!, { ...panel.items[0]!, label: "Duplicate request" }] }
+          : panel
+      )
+    };
+    expect(isDevtoolsPanels(duplicateItemPanels)).toBe(false);
+    expect(normalizeEffectUiDevtoolsBridgePayload({ panels: duplicateItemPanels })).toBeUndefined();
+    let sourcePanelReads = 0;
+    const lateThrowingPayload = {
+      get panels(): unknown {
+        sourcePanelReads++;
+        if (sourcePanelReads > 1) {
+          throw new Error("late panel getter failed");
+        }
+        return sourcePanels;
+      }
+    };
+    const normalized = normalizeEffectUiDevtoolsBridgePayload(lateThrowingPayload);
+    sourcePanels.panels[0]!.title = "Mutated";
+
+    expect(sourcePanelReads).toBe(1);
+    expect(normalized?.panels.panels.find((panel) => panel.id === "requests")?.title).toBe("Requests");
+    expect(renderDevtoolsPanelsHtml({ panels: normalized!.panels })).toContain("Requests");
+    expect(normalizeEffectUiDevtoolsBridgePayload({
+      panels: {
+        version: 1,
+        panels: [
+          {
+            id: "missing",
+            title: "Bad",
+            summary: "Bad",
+            severity: "ok",
+            metrics: [],
+            items: []
+          }
+        ]
+      }
+    })).toBeUndefined();
+    const throwingPayload = {
+      get panels(): unknown {
+        throw new Error("bridge getter failed");
+      }
+    };
+    const throwingSerializableRecord = new Proxy<Record<string, unknown>>({}, {
+      getPrototypeOf: () => Object.prototype,
+      ownKeys: () => {
+        throw new Error("own keys failed");
+      }
+    });
+    const throwingPanelItem = new Proxy<Record<string, unknown>>({
+      id: "request:1",
+      severity: "ok"
+    }, {
+      get: (target, property, receiver) => {
+        if (property === "label") {
+          throw new Error("item getter failed");
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    });
+    expect(() => normalizeEffectUiDevtoolsBridgePayload(throwingPayload)).not.toThrow();
+    expect(normalizeEffectUiDevtoolsBridgePayload(throwingPayload)).toBeUndefined();
+    expect(() => isDevtoolsSerializableValue(throwingSerializableRecord)).not.toThrow();
+    expect(isDevtoolsSerializableValue(throwingSerializableRecord)).toBe(false);
+    expect(() =>
+      normalizeEffectUiDevtoolsBridgePayload({
+        panels: {
+          version: 1,
+          panels: [
+            {
+              id: "requests",
+              title: "Requests",
+              summary: "Throwing item",
+              severity: "ok",
+              metrics: [],
+              items: [throwingPanelItem]
+            }
+          ]
+        }
+      })
+    ).not.toThrow();
+    expect(normalizeEffectUiDevtoolsBridgePayload({
+      panels: {
+        version: 1,
+        panels: [
+          {
+            id: "requests",
+            title: "Requests",
+            summary: "Throwing item",
+            severity: "ok",
+            metrics: [],
+            items: [throwingPanelItem]
+          }
+        ]
+      }
+    })).toBeUndefined();
+    const cyclicData: Record<string, unknown> = {};
+    cyclicData.self = cyclicData;
+    expect(isDevtoolsSerializableValue(cyclicData)).toBe(false);
+    expect(normalizeEffectUiDevtoolsBridgePayload({
+      panels: {
+        version: 1,
+        panels: panels.panels.map((panel) =>
+          panel.id === "requests"
+            ? {
+                ...panel,
+                items: [
+                  {
+                    id: "request:cycle",
+                    label: "Cycle",
+                    severity: "ok",
+                    data: cyclicData
+                  }
+                ]
+              }
+            : panel
+        )
+      }
+    })).toBeUndefined();
+    expect(normalizeEffectUiDevtoolsBridgePayload({
+      panels: {
+        version: 1,
+        panels: panels.panels.map((panel) =>
+          panel.id === "requests"
+            ? {
+                ...panel,
+                items: [
+                  {
+                    id: "request:huge",
+                    label: "Huge",
+                    severity: "ok",
+                    data: new Array(1_001).fill("value")
+                  }
+                ]
+              }
+            : panel
+        )
+      }
+    })).toBeUndefined();
+    for (const data of [
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      new Date("2026-05-14T00:00:00.000Z"),
+      new Map([["key", "value"]]),
+      new Set(["value"]),
+      new Error("boom")
+    ]) {
+      expect(isDevtoolsSerializableValue(data)).toBe(false);
+      expect(normalizeEffectUiDevtoolsBridgePayload({
+        panels: {
+          version: 1,
+          panels: [
+            {
+              id: "requests",
+              title: "Requests",
+              summary: "Invalid data",
+              severity: "ok",
+              metrics: [],
+              items: [
+                {
+                  id: "request:1",
+                  label: "Request",
+                  severity: "ok",
+                  data
+                }
+              ]
+            }
+          ]
+        }
+      })).toBeUndefined();
+    }
+    expect(normalizeEffectUiDevtoolsBridgePayload({
+      panels: {
+        version: 1,
+        panels: [
+          {
+            id: "requests",
+            title: "Requests",
+            summary: "Invalid metric",
+            severity: "ok",
+            metrics: [{ label: "Duration", value: Number.NaN }],
+            items: []
+          }
+        ]
+      }
+    })).toBeUndefined();
+  });
+
+  it("renders malformed public panel payloads as contract diagnostics", () => {
+    const panels = describeDevtoolsPanels();
+    const duplicatePanels = {
+      version: 1 as const,
+      panels: panels.panels.map((panel, index) =>
+        index === 1 ? { ...panel, id: panels.panels[0]!.id } : panel
+      )
+    };
+    const missingPanels = {
+      version: 1 as const,
+      panels: panels.panels.filter((panel) => panel.id !== "requests")
+    };
+
+    const duplicateHtml = renderDevtoolsPanelsHtml({
+      panels: duplicatePanels,
+      selectedPanelId: "diagnostics",
+      includeStyles: false
+    });
+    const missingHtml = renderDevtoolsPanelsHtml({
+      panels: missingPanels,
+      selectedPanelId: "diagnostics",
+      includeStyles: false
+    });
+    const root = {
+      innerHTML: "",
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      contains: () => true
+    } as unknown as HTMLElement;
+    const mount = mountDevtoolsPanels({
+      root,
+      panels: missingPanels,
+      selectedPanelId: "diagnostics",
+      includeStyles: false
+    });
+
+    expect(duplicateHtml).toContain("Panel contract error");
+    expect(duplicateHtml).toContain("Duplicate panel id");
+    expect(duplicateHtml).not.toContain("GET /projects/atlas");
+    expect(missingHtml).toContain("Panel contract error");
+    expect(missingHtml).toContain("Missing required panel");
+    expect(missingHtml).not.toContain("GET /projects/atlas");
+    expect(root.innerHTML).toContain("Panel contract error");
+    expect(root.innerHTML).toContain("Missing required panel");
+    mount.unmount();
+  });
+
+  it("keeps public devtools Effect wrappers lazy until execution", async () => {
+    const throwingInput = new Proxy({}, {
+      get: (_target, property) => {
+        if (property === "snapshot") {
+          throw new Error("lazy snapshot read");
+        }
+        return undefined;
+      }
+    });
+
+    expect(() => describeDevtoolsSummaryEffect(throwingInput)).not.toThrow();
+    expect(() => describeDevtoolsCausalGraphEffect(throwingInput)).not.toThrow();
+    expect(() => describeDevtoolsPanelsEffect(throwingInput)).not.toThrow();
+    expect(() => renderDevtoolsPanelsHtmlEffect(throwingInput)).not.toThrow();
+
+    await expect(Effect.runPromise(describeDevtoolsSummaryEffect(throwingInput)))
+      .rejects.toThrow("lazy snapshot read");
+    await expect(Effect.runPromise(describeDevtoolsCausalGraphEffect(throwingInput)))
+      .rejects.toThrow("lazy snapshot read");
+    await expect(Effect.runPromise(describeDevtoolsPanelsEffect(throwingInput)))
+      .rejects.toThrow("lazy snapshot read");
+    await expect(Effect.runPromise(renderDevtoolsPanelsHtmlEffect(throwingInput)))
+      .rejects.toThrow("lazy snapshot read");
+  });
+
+  it("renders legacy app graph route modules without preload collection diagnostics", () => {
+    const legacyRouteModule = { ...appGraphDiagnostics.routeModules[0]! };
+    delete (legacyRouteModule as { preloadCollections?: unknown }).preloadCollections;
+    const panels = describeDevtoolsPanels({
+      appGraph: {
+        ...appGraphDiagnostics,
+        routeModules: [
+          legacyRouteModule as DevtoolsStartAppGraphDiagnostics["routeModules"][number]
+        ]
+      }
+    });
+
+    expect(panels.panels.find((panel) => panel.id === "app-graph")?.items[0])
+      .toMatchObject({
+        severity: "warning",
+        metrics: expect.arrayContaining([
+          {
+            label: "preload collections",
+            value: "unknown"
+          }
+        ])
+      });
+  });
+
+  it("normalizes legacy app graph collection diagnostics across store, panels, and causal graph", () => {
+    const legacyRouteModule = { ...appGraphDiagnostics.routeModules[0]! };
+    delete (legacyRouteModule as { preloadCollections?: unknown }).preloadCollections;
+    const legacyAppGraph = {
+      ...appGraphDiagnostics,
+      routeModules: [
+        legacyRouteModule as DevtoolsStartAppGraphDiagnostics["routeModules"][number]
+      ]
+    } as DevtoolsStartAppGraphDiagnostics;
+    delete (legacyAppGraph as { collectionDefinitions?: unknown }).collectionDefinitions;
+    delete (legacyAppGraph as { unknownRoutePreloadCollections?: unknown }).unknownRoutePreloadCollections;
+    const store = makeDevtoolsStore();
+
+    store.setAppGraphDiagnostics(legacyAppGraph);
+
+    const snapshotAppGraph = store.getSnapshot().appGraph;
+    expect(snapshotAppGraph?.collectionDefinitions).toEqual([]);
+    expect(snapshotAppGraph?.unknownRoutePreloadCollections).toEqual([]);
+    expect(snapshotAppGraph?.routeModules[0]?.preloadCollections).toEqual({
+      status: "unknown",
+      collections: []
+    });
+    const summary = store.getSummary();
+    expect(summary.overview.collectionDefinitionCount).toBe(0);
+    expect(summary.overview.unknownRoutePreloadCollectionsCount).toBe(0);
+    expect(summary.graph._tag).toBe("Available");
+    if (summary.graph._tag !== "Available") {
+      expect.fail("Expected normalized app graph summary.");
+    }
+    expect(summary.graph.routes.modules[0]?.preloadCollections).toEqual({
+      status: "unknown",
+      collections: []
+    });
+    const appGraphPanelItem = store
+      .getPanels()
+      .panels.find((panel) => panel.id === "app-graph")
+      ?.items[0];
+    expect(appGraphPanelItem).toMatchObject({
+      severity: "warning",
+      metrics: expect.arrayContaining([
+        {
+          label: "preload collections",
+          value: "unknown"
+        }
+      ])
+    });
+    const routeNode = store.getCausalGraph().nodes.find((node) =>
+      node.kind === "Route" &&
+      node.label === appGraphDiagnostics.routeModules[0]!.routePath
+    );
+    expect(routeNode?.data).toMatchObject({
+      preloadCollections: {
+        status: "unknown",
+        collections: []
+      }
     });
   });
 
@@ -846,9 +1766,33 @@ describe("devtools invalidation plans", () => {
     );
     expect(graph.edges).toContainEqual(
       expect.objectContaining({
+        kind: "Observes",
+        source: "runtime-event:2:Invalidation",
+        target: "invalidation:0"
+      })
+    );
+    expect(graph.edges).toContainEqual(
+      expect.objectContaining({
         kind: "Preloads",
         source: "route:/users/:id",
         target: "resource-family:User.summary-devtools"
+      })
+    );
+    expect(graph.nodes).toContainEqual(
+      expect.objectContaining({
+        id: "resource-family:User.summary-devtools",
+        kind: "ResourceFamily",
+        data: expect.objectContaining({
+          name: "User.summary-devtools",
+          inputSchema: true,
+          outputSchema: true,
+          providesTags: true,
+          policy: {
+            staleFor: "30 seconds",
+            gcFor: "5 minutes",
+            retry: true
+          }
+        })
       })
     );
     expect(JSON.parse(JSON.stringify(graph))).toEqual(graph);
@@ -876,6 +1820,569 @@ describe("devtools invalidation plans", () => {
     ).resolves.toMatchObject({
       version: 1
     });
+  });
+
+  it("links route hydration edges only to hydrated resources", () => {
+    const routePlan: DevtoolsRoutePlan = {
+      _tag: "Matched",
+      href: "/projects/atlas",
+      match: {
+        path: "/projects/:id",
+        href: "/projects/atlas",
+        params: { id: "atlas" },
+        search: {}
+      },
+      resources: [
+        {
+          key: "Project:atlas",
+          family: "Project",
+          input: { id: "atlas" }
+        },
+        {
+          key: "Owner:ada",
+          family: "Owner",
+          input: { id: "ada" }
+        }
+      ],
+      hydration: {
+        resourceCount: 1,
+        resourceKeys: ["Project:atlas"]
+      }
+    };
+    const summary = describeDevtoolsSummary({
+      snapshot: {
+        resources: [],
+        actions: [],
+        invalidations: [],
+        routePlans: [routePlan]
+      }
+    });
+
+    expect(summary.routes.plans[0]?.hydratedResourceKeys).toEqual(["Project:atlas"]);
+    expect(
+      summary.causalGraph.edges
+        .filter((edge) => edge.kind === "Hydrates")
+        .map((edge) => edge.target)
+    ).toEqual(["resource:Project:atlas"]);
+  });
+
+  it("does not infer hydration identity from count-only route-plan facts", () => {
+    const routePlan: DevtoolsRoutePlan = {
+      _tag: "Matched",
+      href: "/projects/atlas",
+      match: {
+        path: "/projects/:id",
+        href: "/projects/atlas",
+        params: { id: "atlas" },
+        search: {}
+      },
+      resources: [
+        {
+          key: "Project:atlas",
+          family: "Project",
+          input: { id: "atlas" }
+        }
+      ],
+      hydration: {
+        resourceCount: 1
+      }
+    };
+    const summary = describeDevtoolsSummary({
+      snapshot: {
+        resources: [],
+        actions: [],
+        invalidations: [],
+        routePlans: [routePlan]
+      }
+    });
+
+    expect(summary.routes.plans[0]?.hydrationResourceCount).toBe(1);
+    expect(summary.routes.plans[0]?.hydratedResourceKeys).toEqual([]);
+    expect(summary.causalGraph.edges.some((edge) => edge.kind === "Hydrates")).toBe(false);
+  });
+
+  it("keeps Ref invalidation targets under the Resource causal node kind", () => {
+    const invalidationPlan: DevtoolsInvalidationPlan = {
+      targets: [
+        {
+          _tag: "Ref",
+          key: "project:atlas",
+          family: "Project",
+          input: {
+            id: "atlas"
+          }
+        }
+      ],
+      entries: []
+    };
+    const graph = describeDevtoolsCausalGraph({
+      snapshot: {
+        resources: [],
+        actions: [],
+        invalidations: [invalidationPlan],
+        routePlans: []
+      }
+    });
+
+    expect(graph.nodes).toContainEqual(
+      expect.objectContaining({
+        id: "resource:project:atlas",
+        kind: "Resource"
+      })
+    );
+    expect(graph.nodes).not.toContainEqual(
+      expect.objectContaining({
+        id: "resource:project:atlas",
+        kind: "InvalidationTarget"
+      })
+    );
+  });
+
+  it("links runtime events to existing invalidation and route-plan facts", async () => {
+    const RuntimeTargetTag = Resource.tag("Runtime.target-devtools");
+    const RuntimeTargetRoute = route("/runtime-targets/:id", {});
+    const routePlan = describeRoutePlan(
+      await Effect.runPromise(
+        Route.planNavigationEffect([RuntimeTargetRoute] as const, "/runtime-targets/1")
+      )
+    );
+    const invalidationPlan = describeInvalidationPlan(
+      Resource.planInvalidation(RuntimeTargetTag)
+    );
+    const summary = describeDevtoolsSummary({
+      snapshot: {
+        resources: [],
+        actions: [],
+        invalidations: [invalidationPlan],
+        routePlans: [routePlan],
+        events: [
+          {
+            _tag: "Custom",
+            sequence: 0,
+            name: "before"
+          },
+          {
+            _tag: "Invalidation",
+            sequence: 1,
+            plan: invalidationPlan
+          },
+          {
+            _tag: "RoutePlan",
+            sequence: 2,
+            plan: routePlan
+          }
+        ]
+      }
+    });
+
+    expect(summary.runtime.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        _tag: "Invalidation",
+        target: {
+          kind: "InvalidationPlan",
+          id: "invalidation:0"
+        }
+      }),
+      expect.objectContaining({
+        _tag: "RoutePlan",
+        target: {
+          kind: "RoutePlan",
+          id: "route-plan:0:/runtime-targets/1"
+        }
+      })
+    ]));
+    expect(summary.causalGraph.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "Observes",
+        source: "runtime-event:1:Invalidation",
+        target: "invalidation:0"
+      }),
+      expect.objectContaining({
+        kind: "Observes",
+        source: "runtime-event:2:RoutePlan",
+        target: "route-plan:0:/runtime-targets/1"
+      })
+    ]));
+    expect(summary.causalGraph.edges.filter((edge) =>
+      edge.kind === "Matches" &&
+      edge.source === "route-plan:0:/runtime-targets/1"
+    )).toHaveLength(1);
+    expect(summary.causalGraph.nodes).not.toContainEqual(
+      expect.objectContaining({ id: "invalidation:1" })
+    );
+    expect(summary.causalGraph.nodes).not.toContainEqual(
+      expect.objectContaining({ id: "route-plan:2:/runtime-targets/1" })
+    );
+  });
+
+  it("allocates unmatched runtime event fact targets after recorded facts", async () => {
+    const FirstTag = Resource.tag("Runtime.recorded-target-devtools");
+    const SecondTag = Resource.tag("Runtime.recorded-other-devtools");
+    const MissingTag = Resource.tag<{ readonly id: string }>("Runtime.unrecorded-target-devtools", {
+      key: ({ id }) => id
+    });
+    const MissingResource = Resource.family({
+      name: "Runtime.unrecorded-resource-devtools",
+      load: (id: string) => Effect.succeed({ id }),
+      provides: (value) => [MissingTag({ id: value.id })]
+    });
+    const FirstRoute = route("/runtime-recorded/:id", {});
+    const SecondRoute = route("/runtime-recorded-other/:id", {});
+    const MissingRoute = route("/runtime-unrecorded/:id", {
+      preload: ({ params }) => Resource.prefetchEffect(MissingResource(params.id))
+    });
+    const recordedRoutePlans = await Effect.runPromise(
+      Effect.all([
+        Route.planNavigationEffect([FirstRoute] as const, "/runtime-recorded/1"),
+        Route.planNavigationEffect([SecondRoute] as const, "/runtime-recorded-other/2")
+      ])
+    );
+    const missingRoutePlan = await Effect.runPromise(
+      Route.planNavigationEffect([MissingRoute] as const, "/runtime-unrecorded/3")
+    );
+    const missingInvalidationPlan = describeInvalidationPlan(
+      Resource.planInvalidation(MissingTag({ id: "3" }))
+    );
+    const missingRouteSummary = describeRoutePlan(missingRoutePlan);
+    const missingResourceKey = MissingResource("3").key;
+    const missingResourceId = `resource:${missingResourceKey}`;
+    const missingTargetId = `resource-tag:${missingInvalidationPlan.targets[0]!.key}`;
+    const recordedInvalidations = [
+      describeInvalidationPlan(Resource.planInvalidation(FirstTag)),
+      describeInvalidationPlan(Resource.planInvalidation(SecondTag))
+    ];
+    const summary = describeDevtoolsSummary({
+      snapshot: {
+        resources: [],
+        actions: [],
+        invalidations: recordedInvalidations,
+        routePlans: recordedRoutePlans.map(describeRoutePlan),
+        events: [
+          {
+            _tag: "Invalidation",
+            sequence: 0,
+            plan: missingInvalidationPlan
+          },
+          {
+            _tag: "RoutePlan",
+            sequence: 1,
+            plan: missingRouteSummary
+          }
+        ]
+      }
+    });
+
+    expect(summary.runtime.events).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        _tag: "Invalidation",
+        target: {
+          kind: "InvalidationPlan",
+          id: "invalidation:2"
+        }
+      }),
+      expect.objectContaining({
+        _tag: "RoutePlan",
+        target: {
+          kind: "RoutePlan",
+          id: "route-plan:3:/runtime-unrecorded/3"
+        }
+      })
+    ]));
+    expect(summary.resources).toEqual([
+      {
+        key: missingResourceKey,
+        family: "Runtime.unrecorded-resource-devtools",
+        input: "3",
+        state: null,
+        sources: ["Invalidation", "RoutePlan"],
+        routeHrefs: ["/runtime-unrecorded/3"],
+        invalidationIndexes: [2]
+      }
+    ]);
+    expect(describeDevtoolsPanels({ summary }).panels.find((panel) => panel.id === "resources")).toMatchObject({
+      items: [
+        expect.objectContaining({
+          id: missingResourceId,
+          label: "Runtime.unrecorded-resource-devtools",
+          detail: "unknown",
+          metrics: [
+            { label: "routes", value: 1 },
+            { label: "invalidations", value: 1 }
+          ]
+        })
+      ]
+    });
+    expect(summary.causalGraph.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "Targets",
+        source: "invalidation:2",
+        target: missingTargetId
+      }),
+      expect.objectContaining({
+        kind: "Invalidates",
+        source: "invalidation:2",
+        target: missingResourceId
+      }),
+      expect.objectContaining({
+        kind: "Causes",
+        source: missingTargetId,
+        target: missingResourceId
+      }),
+      expect.objectContaining({
+        kind: "Matches",
+        source: "route-plan:3:/runtime-unrecorded/3",
+        target: "route:/runtime-unrecorded/:id"
+      }),
+      expect.objectContaining({
+        kind: "Preloads",
+        source: "route-plan:3:/runtime-unrecorded/3",
+        target: missingResourceId
+      }),
+      expect.objectContaining({
+        kind: "Hydrates",
+        source: "route-plan:3:/runtime-unrecorded/3",
+        target: missingResourceId
+      })
+    ]));
+  });
+
+  it("links request-embedded route plans to matching recorded route-plan facts", async () => {
+    const OtherRoute = route("/request-route-other/:id", {});
+    const RequestTargetRoute = route("/request-route-targets/:a/:b", {});
+    const otherPlan = describeRoutePlan(
+      await Effect.runPromise(
+        Route.planNavigationEffect([OtherRoute] as const, "/request-route-other/1")
+      )
+    );
+    const routePlan = describeRoutePlan(
+      await Effect.runPromise(
+        Route.planNavigationEffect([RequestTargetRoute] as const, "/request-route-targets/1/2")
+      )
+    );
+    const requestRoutePlan = routePlan._tag === "Matched"
+      ? {
+          ...routePlan,
+          match: {
+            ...routePlan.match,
+            params: { b: "2", a: "1" }
+          }
+        }
+      : routePlan;
+    const summary = describeDevtoolsSummary({
+      snapshot: {
+        resources: [],
+        actions: [],
+        invalidations: [],
+        routePlans: [otherPlan, routePlan],
+        requestTraces: [
+          {
+            request: {
+              id: "req-route-target",
+              method: "GET",
+              url: "https://example.test/request-route-targets/1/2",
+              path: "/request-route-targets/1/2",
+              transport: "ssr"
+            },
+            response: { status: 200 },
+            services: [],
+            routePlan: requestRoutePlan,
+            resources: [],
+            collections: [],
+            serverFunctions: [],
+            actions: [],
+            fibers: [],
+            streams: [],
+            status: "success"
+          }
+        ]
+      }
+    });
+
+    expect(summary.causalGraph.edges).toContainEqual(
+      expect.objectContaining({
+        kind: "Records",
+        source: "request-trace:req-route-target",
+        target: "route-plan:1:/request-route-targets/1/2"
+      })
+    );
+    expect(summary.causalGraph.nodes).not.toContainEqual(
+      expect.objectContaining({ id: "route-plan:0:/request-route-targets/1/2" })
+    );
+  });
+
+  it("keeps request-embedded route-plan identity disjoint from recorded plans with the same href", () => {
+    const recordedPlan: DevtoolsRoutePlan = {
+      _tag: "Matched",
+      href: "/same-route",
+      match: {
+        path: "/same-route",
+        href: "/same-route",
+        params: {},
+        search: {}
+      },
+      resources: [
+        {
+          key: "Recorded:1",
+          family: "Recorded",
+          input: null
+        }
+      ],
+      hydration: {
+        resourceCount: 0
+      }
+    };
+    const embeddedPlan: DevtoolsRoutePlan = {
+      ...recordedPlan,
+      resources: [
+        {
+          key: "Embedded:1",
+          family: "Embedded",
+          input: null
+        }
+      ]
+    };
+    const summary = describeDevtoolsSummary({
+      snapshot: {
+        resources: [],
+        actions: [],
+        invalidations: [],
+        routePlans: [recordedPlan],
+        requestTraces: [
+          {
+            request: {
+              id: "request-with-colliding-plan",
+              method: "GET",
+              url: "https://example.test/same-route",
+              path: "/same-route",
+              transport: "ssr"
+            },
+            services: [],
+            routePlan: embeddedPlan,
+            resources: [],
+            collections: [],
+            serverFunctions: [],
+            actions: [],
+            fibers: [],
+            streams: [],
+            status: "success"
+          }
+        ]
+      }
+    });
+
+    expect(summary.causalGraph.nodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "route-plan:0:/same-route" }),
+      expect.objectContaining({ id: "route-plan:1:/same-route" })
+    ]));
+    expect(summary.causalGraph.edges).toContainEqual(
+      expect.objectContaining({
+        kind: "Records",
+        source: "request-trace:request-with-colliding-plan",
+        target: "route-plan:1:/same-route"
+      })
+    );
+    expect(summary.causalGraph.edges).toContainEqual(
+      expect.objectContaining({
+        kind: "Preloads",
+        source: "route-plan:1:/same-route",
+        target: "resource:Embedded:1"
+      })
+    );
+  });
+
+  it("keeps causal edge ids stable when unrelated facts are inserted first", () => {
+    const snapshot = {
+      resources: [],
+      actions: [],
+      invalidations: [],
+      routePlans: [],
+      events: [
+        {
+          _tag: "ResourceStoreEvent" as const,
+          sequence: 0,
+          event: {
+            _tag: "ResourceSuccess" as const,
+            name: "Stable.edge-devtools",
+            key: "Stable.edge-devtools:1",
+            updatedAt: 1
+          }
+        }
+      ]
+    };
+    const baseGraph = describeDevtoolsCausalGraph({ snapshot });
+    const graphWithAppFacts = describeDevtoolsCausalGraph({
+      appGraph: appGraphDiagnostics,
+      snapshot
+    });
+    const observedEdge = {
+      kind: "Observes",
+      source: "runtime-event:0:ResourceStoreEvent",
+      target: "resource:Stable.edge-devtools:1"
+    } as const;
+
+    const baseId = baseGraph.edges.find((edge) =>
+      edge.kind === observedEdge.kind &&
+      edge.source === observedEdge.source &&
+      edge.target === observedEdge.target
+    )?.id;
+    const graphWithAppFactsId = graphWithAppFacts.edges.find((edge) =>
+      edge.kind === observedEdge.kind &&
+      edge.source === observedEdge.source &&
+      edge.target === observedEdge.target
+    )?.id;
+
+    expect(baseId).toBeDefined();
+    expect(graphWithAppFactsId).toBe(baseId);
+  });
+
+  it("frames causal edge id parts so source and target delimiters cannot collide", () => {
+    const requestTrace = (
+      id: string,
+      resourceKey: string
+    ): DevtoolsRequestTrace => ({
+      request: {
+        id,
+        method: "GET",
+        url: `https://example.test/${id}`,
+        path: `/${id}`,
+        transport: "ssr"
+      },
+      response: { status: 200 },
+      services: [],
+      resources: [
+        {
+          key: resourceKey,
+          family: "Project",
+          state: "Success"
+        }
+      ],
+      collections: [],
+      serverFunctions: [],
+      actions: [],
+      fibers: [],
+      streams: [],
+      status: "success"
+    });
+    const graph = describeDevtoolsCausalGraph({
+      snapshot: {
+        resources: [],
+        actions: [],
+        invalidations: [],
+        routePlans: [],
+        requestTraces: [
+          requestTrace("a", "b->resource:c"),
+          requestTrace("a->resource:b", "c")
+        ]
+      }
+    });
+    const collidingRecordsEdges = graph.edges.filter((edge) =>
+      edge.kind === "Records" &&
+      edge.source.startsWith("request-trace:") &&
+      edge.target.startsWith("resource:")
+    );
+
+    expect(collidingRecordsEdges).toHaveLength(2);
+    expect(new Set(collidingRecordsEdges.map((edge) => edge.id)).size).toBe(2);
   });
 
   it("normalizes non-JSON values before they reach the summary", () => {
@@ -940,6 +2447,42 @@ describe("devtools invalidation plans", () => {
         _tag: "Accessor"
       }
     });
+    const hostileRecord = new Proxy<Record<string, unknown>>({}, {
+      ownKeys: () => {
+        throw new Error("own keys failed");
+      }
+    });
+    const hostileMap = new Proxy(new Map([["a", 1]]), {
+      get: (target, property, receiver) => {
+        if (property === "size") {
+          throw new Error("map size failed");
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    });
+    const hostileArray = new Proxy(["a"], {
+      get: (target, property, receiver) => {
+        if (property === "0") {
+          throw new Error("array item failed");
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    });
+
+    expect(() => toDevtoolsSerializableValue(hostileRecord)).not.toThrow();
+    expect(toDevtoolsSerializableValue(hostileRecord)).toMatchObject({
+      _tag: "UninspectableObject",
+      message: "own keys failed"
+    });
+    expect(() => toDevtoolsSerializableValue(hostileMap)).not.toThrow();
+    expect(toDevtoolsSerializableValue(hostileMap)).toMatchObject({
+      _tag: "UninspectableObject"
+    });
+    expect(() => toDevtoolsSerializableValue(hostileArray)).not.toThrow();
+    expect(toDevtoolsSerializableValue(hostileArray)).toMatchObject({
+      _tag: "UninspectableObject",
+      message: "array item failed"
+    });
     expect(toDevtoolsSerializableValue(["a", "b", "c"], { maxEntries: 2 })).toEqual([
       "a",
       "b",
@@ -948,10 +2491,293 @@ describe("devtools invalidation plans", () => {
         remaining: 1
       }
     ]);
+    const accessed: Array<string> = [];
+    const boundedArray = new Proxy(["a", "b", "c"], {
+      get: (target, property, receiver) => {
+        accessed.push(String(property));
+        if (property === "1") {
+          throw new Error("serializer crossed the entry bound");
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    });
+    expect(toDevtoolsSerializableValue(boundedArray, { maxEntries: 1 })).toEqual([
+      "a",
+      {
+        _tag: "Truncated",
+        remaining: 2
+      }
+    ]);
+    expect(accessed).not.toContain("1");
     expect(toDevtoolsSerializableValue("abcdef", { maxStringLength: 3 })).toEqual({
       _tag: "TruncatedString",
       length: 6,
       value: "abc"
+    });
+  });
+
+  it("normalizes unsafe serialization policy bounds", () => {
+    const longArray = Array.from({ length: 55 }, (_, index) => index);
+
+    expect(toDevtoolsSerializableValue({ nested: { value: 1 } }, { maxDepth: 1.8 })).toEqual({
+      nested: {
+        _tag: "MaxDepth"
+      }
+    });
+    expect(toDevtoolsSerializableValue(["a", "b", "c"], { maxEntries: 1.8 })).toEqual([
+      "a",
+      {
+        _tag: "Truncated",
+        remaining: 2
+      }
+    ]);
+    expect(toDevtoolsSerializableValue("abcdef", { maxStringLength: 3.8 })).toEqual({
+      _tag: "TruncatedString",
+      length: 6,
+      value: "abc"
+    });
+    expect(toDevtoolsSerializableValue("abcdef", { maxStringLength: -1 })).toBe("abcdef");
+    expect(toDevtoolsSerializableValue(longArray, { maxEntries: Number.POSITIVE_INFINITY })).toEqual([
+      ...Array.from({ length: 50 }, (_, index) => index),
+      {
+        _tag: "Truncated",
+        remaining: 5
+      }
+    ]);
+    expect(toDevtoolsSerializableValue({ nested: { value: 1 } }, { maxDepth: Number.NaN })).toEqual({
+      nested: {
+        value: 1
+      }
+    });
+  });
+
+  it("detaches stored Error and byte-view payloads before serialization", () => {
+    const store = makeDevtoolsStore();
+    const error = new TypeError("before");
+    (error as Error & { extra?: { readonly nested: { value: number } } }).extra = {
+      nested: { value: 1 }
+    };
+    const bytes = new Uint8Array([1, 2, 3]);
+    const buffer = Buffer.from([4, 5, 6]);
+
+    store.recordRuntimeEvent({
+      _tag: "Custom",
+      name: "Devtools.detached-payload",
+      payload: {
+        error,
+        bytes,
+        buffer
+      }
+    });
+
+    error.message = "after";
+    (error as Error & { extra: { nested: { value: number } } }).extra.nested.value = 2;
+    bytes[0] = 9;
+    buffer[0] = 9;
+
+    const event = store.getSnapshot().events?.[0];
+    expect(event?._tag).toBe("Custom");
+    const payload = event?._tag === "Custom"
+      ? event.payload as {
+          readonly error: { readonly name: string; readonly message: string; readonly extra: { readonly nested: { readonly value: number } } };
+          readonly bytes: Uint8Array;
+          readonly buffer: Buffer;
+        }
+      : undefined;
+
+    expect(payload?.error).toMatchObject({
+      name: "TypeError",
+      message: "before",
+      extra: {
+        nested: { value: 1 }
+      }
+    });
+    expect([...payload!.bytes]).toEqual([1, 2, 3]);
+    expect([...payload!.buffer]).toEqual([4, 5, 6]);
+    expect(toDevtoolsSerializableValue(payload?.error)).toMatchObject({
+      name: "TypeError",
+      message: "before",
+      extra: {
+        nested: { value: 1 }
+      }
+    });
+  });
+
+  it("guards hostile array proxies while detaching stored payloads", () => {
+    const store = makeDevtoolsStore();
+    const hostileArray = new Proxy(["a"], {
+      get: (target, property, receiver) => {
+        if (property === "0") {
+          throw new Error("array item failed");
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    });
+
+    expect(() =>
+      store.recordRuntimeEvent({
+        _tag: "Custom",
+        name: "Devtools.hostile-array",
+        payload: hostileArray
+      })
+    ).not.toThrow();
+
+    const event = store.getSnapshot().events?.[0];
+    expect(event).toMatchObject({
+      _tag: "Custom",
+      payload: {
+        _tag: "UninspectableObject"
+      }
+    });
+  });
+
+  it("bounds deeply nested custom runtime payloads while detaching", () => {
+    const store = makeDevtoolsStore();
+    let payload: Record<string, unknown> = { value: "leaf" };
+    for (let index = 0; index < 20_000; index++) {
+      payload = { child: payload };
+    }
+
+    expect(() =>
+      store.recordRuntimeEvent({
+        _tag: "Custom",
+        name: "Devtools.deep-payload",
+        payload
+      })
+    ).not.toThrow();
+
+    const event = store.getSnapshot().events?.[0];
+    expect(event?._tag).toBe("Custom");
+    let cursor = event?._tag === "Custom" ? event.payload : undefined;
+    for (let depth = 0; depth < 8; depth++) {
+      cursor = (cursor as { readonly child?: unknown }).child;
+    }
+    expect(cursor).toEqual({
+      _tag: "MaxDepth"
+    });
+  });
+
+  it("truncates large arrays and maps while detaching stored payloads", () => {
+    const store = makeDevtoolsStore();
+    const accessedArrayIndexes: Array<string> = [];
+    const largeArray = new Proxy(Array.from({ length: 55 }, (_, index) => index), {
+      get: (target, property, receiver) => {
+        accessedArrayIndexes.push(String(property));
+        if (property === "50") {
+          throw new Error("array copy crossed the entry bound");
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    });
+    const largeMap = new Map(Array.from({ length: 55 }, (_, index) => [index, index] as const));
+    const originalEntries = largeMap.entries.bind(largeMap);
+    let pulledMapEntries = 0;
+    Object.defineProperty(largeMap, "entries", {
+      value: (): IterableIterator<[number, number]> => {
+        const iterator = originalEntries();
+        const guardedIterator: IterableIterator<[number, number]> = {
+          next: () => {
+            if (pulledMapEntries >= 50) {
+              throw new Error("map copy crossed the entry bound");
+            }
+            pulledMapEntries += 1;
+            return iterator.next();
+          },
+          [Symbol.iterator]: () => guardedIterator
+        };
+        return guardedIterator;
+      }
+    });
+
+    expect(() =>
+      store.recordRuntimeEvent({
+        _tag: "Custom",
+        name: "Devtools.large-payload",
+        payload: {
+          largeArray,
+          largeMap
+        }
+      })
+    ).not.toThrow();
+
+    const event = store.getSnapshot().events?.[0];
+    const payload = event?._tag === "Custom"
+      ? event.payload as {
+          readonly largeArray: ReadonlyArray<unknown>;
+          readonly largeMap: Map<number, number>;
+        }
+      : undefined;
+
+    expect(payload?.largeArray).toEqual([
+      ...Array.from({ length: 50 }, (_, index) => index),
+      {
+        _tag: "Truncated",
+        remaining: 5
+      }
+    ]);
+    expect(toDevtoolsSerializableValue(payload?.largeArray)).toEqual([
+      ...Array.from({ length: 50 }, (_, index) => index),
+      {
+        _tag: "Truncated",
+        remaining: 5
+      }
+    ]);
+    expect(accessedArrayIndexes).not.toContain("50");
+    expect(payload?.largeMap).toBeInstanceOf(Map);
+    expect([...(payload?.largeMap.entries() ?? [])]).toEqual(
+      Array.from({ length: 50 }, (_, index) => [index, index])
+    );
+    expect(pulledMapEntries).toBe(50);
+    expect(toDevtoolsSerializableValue(payload?.largeMap)).toEqual({
+      _tag: "Map",
+      size: 55,
+      entries: [
+        ...Array.from({ length: 50 }, (_, index) => [index, index]),
+        {
+          _tag: "Truncated",
+          remaining: 5
+        }
+      ]
+    });
+  });
+
+  it("copies ArrayBuffer payloads and serializes inspectable bytes", () => {
+    const store = makeDevtoolsStore();
+    const buffer = new ArrayBuffer(3);
+    const bytes = new Uint8Array(buffer);
+    bytes.set([4, 5, 6]);
+
+    store.recordRuntimeEvent({
+      _tag: "Custom",
+      name: "Devtools.array-buffer",
+      payload: {
+        buffer
+      }
+    });
+    bytes[0] = 9;
+
+    const event = store.getSnapshot().events?.[0];
+    const copiedBuffer = event?._tag === "Custom"
+      ? (event.payload as { readonly buffer: ArrayBuffer }).buffer
+      : undefined;
+
+    expect(copiedBuffer).toBeInstanceOf(ArrayBuffer);
+    expect(copiedBuffer).not.toBe(buffer);
+    expect([...new Uint8Array(copiedBuffer!)]).toEqual([4, 5, 6]);
+    expect(toDevtoolsSerializableValue(copiedBuffer)).toEqual({
+      _tag: "ArrayBuffer",
+      byteLength: 3,
+      bytes: [4, 5, 6]
+    });
+    expect(store.getSummary().runtime.events[0]?.data).toEqual({
+      name: "Devtools.array-buffer",
+      payload: {
+        buffer: {
+          _tag: "ArrayBuffer",
+          byteLength: 3,
+          bytes: [4, 5, 6]
+        }
+      }
     });
   });
 
@@ -978,6 +2804,120 @@ describe("devtools invalidation plans", () => {
     expect(store.getSummary().graph).toEqual({
       _tag: "Unavailable"
     });
+  });
+
+  it("detaches store summaries from nested app graph diagnostics", () => {
+    const store = makeDevtoolsStore();
+
+    store.setAppGraphDiagnostics(appGraphDiagnostics);
+    const summary = store.getSummary();
+    if (summary.graph._tag !== "Available") {
+      throw new Error("expected available app graph summary");
+    }
+
+    (summary.graph.routes.modules[0]!.params[0] as { name: string }).name = "mutated";
+    (summary.graph.routes.modules[0]!.preloadResources.families as unknown as string[])[0] = "Mutated.family";
+
+    const next = store.getSummary();
+    expect(next.graph).toMatchObject({
+      _tag: "Available",
+      routes: {
+        modules: [
+          {
+            params: [
+              {
+                name: "id"
+              }
+            ],
+            preloadResources: {
+              families: ["User.summary-devtools"]
+            }
+          }
+        ]
+      }
+    });
+  });
+
+  it("preserves huge app graph route module arrays through summaries, panels, store copies, and bridge windows", () => {
+    const appGraph = appGraphDiagnosticsWithRoutes(1_001);
+    const summary = describeDevtoolsSummary({ appGraph });
+    const panels = describeDevtoolsPanels({ appGraph });
+    const store = makeDevtoolsStore();
+
+    store.setAppGraphDiagnostics(appGraph);
+
+    expect(summary.overview.routeCount).toBe(1_001);
+    expect(summary.graph).toMatchObject({
+      _tag: "Available",
+      routes: {
+        paths: expect.arrayContaining(["/users/1000/:id"])
+      }
+    });
+    if (summary.graph._tag !== "Available") {
+      expect.fail("expected available app graph summary");
+    }
+    expect(summary.graph.routes.modules).toHaveLength(1_001);
+    expect(summary.graph.routes.modules[1000]).toMatchObject({
+      routeId: "route_users_1000_$id",
+      routePath: "/users/1000/:id"
+    });
+
+    const appGraphPanel = panels.panels.find((panel) => panel.id === "app-graph");
+    expect(appGraphPanel?.items).toHaveLength(1_001);
+    expect(appGraphPanel?.items[1000]).toMatchObject({
+      id: "route:route_users_1000_$id",
+      label: "/users/1000/:id"
+    });
+    expect(isDevtoolsPanels(panels)).toBe(true);
+    const bridgeAppGraphPanel = normalizeEffectUiDevtoolsBridgePayload({ panels })
+      ?.panels.panels.find((panel) => panel.id === "app-graph");
+    expect(bridgeAppGraphPanel?.items).toHaveLength(1_000);
+    expect(bridgeAppGraphPanel?.items[998]).toMatchObject({
+      id: "route:route_users_998_$id",
+      label: "/users/998/:id"
+    });
+    expect(bridgeAppGraphPanel?.items[999]).toMatchObject({
+      id: "__effect-ui-devtools-overflow:app-graph",
+      label: "2 panel items hidden",
+      severity: "info",
+      metrics: [
+        { label: "shown", value: 999 },
+        { label: "hidden", value: 2 },
+        { label: "total", value: 1_001 }
+      ],
+      data: {
+        total: 1_001,
+        shown: 999,
+        hidden: 2
+      }
+    });
+    const defaultRenderedHtml = renderDevtoolsPanelsHtml({
+      panels,
+      selectedPanelId: "app-graph"
+    });
+    expect(defaultRenderedHtml).toContain(
+      "data-effect-ui-devtools-item-id=\"__effect-ui-devtools-overflow:app-graph\""
+    );
+    expect(defaultRenderedHtml).toContain("&quot;total&quot;: 1001");
+    expect(defaultRenderedHtml).toContain("&quot;shown&quot;: 999");
+    expect(defaultRenderedHtml).toContain("&quot;hidden&quot;: 2");
+
+    const snapshotRouteModules = store.getSnapshot().appGraph?.routeModules;
+    expect(snapshotRouteModules).toHaveLength(1_001);
+    expect(snapshotRouteModules?.some((routeModule) =>
+      (routeModule as { readonly _tag?: unknown })._tag === "Truncated"
+    )).toBe(false);
+    expect(store.getSummary().graph).toMatchObject({
+      _tag: "Available",
+      routes: {
+        modules: expect.arrayContaining([
+          expect.objectContaining({
+            routeId: "route_users_1000_$id"
+          })
+        ])
+      }
+    });
+    expect(isDevtoolsPanels(store.getPanels())).toBe(true);
   });
 
   it("summarizes collection events and observes their collection target", () => {
@@ -1034,6 +2974,92 @@ describe("devtools invalidation plans", () => {
     );
   });
 
+  it("projects resource and collection runtime events into their panels", () => {
+    const store = makeDevtoolsStore();
+
+    store.recordResourceEvent({
+      _tag: "ResourceSuccess",
+      name: "Project.runtime-resource",
+      key: "Project.runtime-resource:atlas",
+      updatedAt: 1
+    });
+    store.recordCollectionEvent({
+      _tag: "CollectionLoadFailure",
+      collection: "Project.runtime-collection",
+      error: new Error("offline")
+    });
+
+    const summary = store.getSummary();
+    expect(summary.resources).toEqual([
+      expect.objectContaining({
+        key: "Project.runtime-resource:atlas",
+        family: "Project.runtime-resource",
+        state: "Success",
+        sources: ["RuntimeEvent"]
+      })
+    ]);
+
+    const panels = store.getPanels();
+    expect(panels.panels.find((panel) => panel.id === "resources")).toMatchObject({
+      severity: "ok",
+      items: [
+        expect.objectContaining({
+          id: "resource:Project.runtime-resource:atlas",
+          label: "Project.runtime-resource",
+          detail: "Success"
+        })
+      ]
+    });
+    expect(panels.panels.find((panel) => panel.id === "collections")).toMatchObject({
+      severity: "error",
+      items: [
+        expect.objectContaining({
+          id: "collection:Project.runtime-collection",
+          label: "Project.runtime-collection",
+          detail: "CollectionLoadFailure",
+          severity: "error",
+          metrics: [
+            { label: "events", value: 1 }
+          ]
+        })
+      ]
+    });
+  });
+
+  it("records change-feed collection failures with detached errors", () => {
+    const store = makeDevtoolsStore();
+    const error = { message: "feed failed" };
+
+    store.recordCollectionEvent({
+      _tag: "CollectionChangeFeedFailure",
+      collection: "Projects.collection-feed",
+      error
+    });
+    error.message = "mutated";
+
+    const snapshot = store.getSnapshot();
+    const event = snapshot.events[0];
+
+    expect(event).toMatchObject({
+      _tag: "CollectionStoreEvent",
+      event: {
+        _tag: "CollectionChangeFeedFailure",
+        collection: "Projects.collection-feed",
+        error: {
+          message: "feed failed"
+        }
+      }
+    });
+    expect(store.getSummary().runtime.events[0]).toMatchObject({
+      _tag: "CollectionStoreEvent",
+      label: "CollectionChangeFeedFailure",
+      target: {
+        kind: "Collection",
+        id: "collection:Projects.collection-feed"
+      }
+    });
+  });
+
   it("records structured request traces and links them into the causal graph", async () => {
     const store = makeDevtoolsStore();
     const trace: DevtoolsRequestTrace = {
@@ -1078,7 +3104,8 @@ describe("devtools invalidation plans", () => {
           }
         ],
         hydration: {
-          resourceCount: 1
+          resourceCount: 1,
+          resourceKeys: ["Project.byId:atlas"]
         }
       },
       resources: [
@@ -1338,6 +3365,21 @@ describe("devtools invalidation plans", () => {
       expect.objectContaining({
         kind: "Records",
         source: "request-trace:req-project-atlas",
+        target: "route-plan:0:/projects/atlas?tab=activity"
+      }),
+      expect.objectContaining({
+        kind: "Matches",
+        source: "route-plan:0:/projects/atlas?tab=activity",
+        target: "route:/projects/:id"
+      }),
+      expect.objectContaining({
+        kind: "Preloads",
+        source: "route-plan:0:/projects/atlas?tab=activity",
+        target: "resource:Project.byId:atlas"
+      }),
+      expect.objectContaining({
+        kind: "Records",
+        source: "request-trace:req-project-atlas",
         target: "resource:Project.byId:atlas"
       }),
       expect.objectContaining({
@@ -1361,7 +3403,87 @@ describe("devtools invalidation plans", () => {
         target: "request-trace:req-project-atlas"
       })
     ]));
+    expect(graph.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "Hydrates",
+        source: "route-plan:0:/projects/atlas?tab=activity",
+        target: "resource:Project.byId:atlas"
+      })
+    ]));
     expect(JSON.parse(JSON.stringify(summary))).toEqual(summary);
+  });
+
+  it("projects runtime-only request trace events into request facts and causal records", () => {
+    const store = makeDevtoolsStore();
+    const trace: DevtoolsRequestTrace = {
+      request: {
+        id: "req-runtime-only",
+        method: "GET",
+        url: "https://example.test/projects/runtime-only",
+        path: "/projects/runtime-only",
+        transport: "ssr"
+      },
+      response: { status: 200 },
+      services: [],
+      resources: [
+        {
+          key: "Project.runtime-only:1",
+          family: "Project.runtime-only",
+          input: { id: "1" },
+          state: "Success"
+        }
+      ],
+      collections: [],
+      serverFunctions: [],
+      actions: [],
+      fibers: [],
+      streams: [],
+      status: "success"
+    };
+
+    store.recordRuntimeEvent({
+      _tag: "RequestTrace",
+      trace
+    });
+
+    const summary = store.getSummary();
+    const requestPanel = store.getPanels().panels.find((panel) => panel.id === "requests");
+    const graph = store.getCausalGraph();
+
+    expect(summary.requests.traces).toEqual([
+      expect.objectContaining({
+        id: "req-runtime-only",
+        method: "GET",
+        path: "/projects/runtime-only",
+        resourceCount: 1
+      })
+    ]);
+    expect(requestPanel?.items).toEqual([
+      expect.objectContaining({
+        id: "request:req-runtime-only",
+        label: "GET /projects/runtime-only"
+      })
+    ]);
+    expect(summary.resources).toEqual([
+      expect.objectContaining({
+        key: "Project.runtime-only:1",
+        family: "Project.runtime-only",
+        state: "Success",
+        sources: ["RequestTrace"]
+      })
+    ]);
+    expect(graph.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        kind: "Records",
+        source: "request-trace:req-runtime-only",
+        target: "resource:Project.runtime-only:1"
+      }),
+      expect.objectContaining({
+        kind: "Observes",
+        source: "runtime-event:0:RequestTrace",
+        target: "request-trace:req-runtime-only"
+      })
+    ]));
   });
 
   it("preserves request owner failures in summaries and panels", async () => {
@@ -1543,6 +3665,98 @@ describe("devtools invalidation plans", () => {
     );
   });
 
+  it("normalizes direct id-less request traces before runtime-event graph projection", () => {
+    const trace: DevtoolsRequestTrace = {
+      request: {
+        method: "GET",
+        url: "https://example.test/projects/direct",
+        path: "/projects/direct",
+        transport: "ssr"
+      },
+      response: { status: 200 },
+      services: [],
+      resources: [],
+      collections: [],
+      serverFunctions: [],
+      actions: [],
+      fibers: [],
+      streams: [],
+      status: "success"
+    };
+    const graph = describeDevtoolsCausalGraph({
+      snapshot: {
+        resources: [],
+        actions: [],
+        invalidations: [],
+        routePlans: [],
+        requestTraces: [trace],
+        events: [
+          {
+            _tag: "Custom",
+            sequence: 0,
+            name: "before"
+          },
+          {
+            _tag: "RequestTrace",
+            sequence: 1,
+            trace
+          }
+        ]
+      }
+    });
+
+    expect(graph.nodes.filter((node) => node.kind === "RequestTrace")).toEqual([
+      expect.objectContaining({ id: "request-trace:trace:0" })
+    ]);
+    expect(graph.edges).toContainEqual(
+      expect.objectContaining({
+        kind: "Observes",
+        source: "runtime-event:1:RequestTrace",
+        target: "request-trace:trace:0"
+      })
+    );
+  });
+
+  it("seeds runtime trace id allocation from caller-supplied trace ids", () => {
+    const store = makeDevtoolsStore();
+    const requestTrace = (
+      path: string,
+      id?: string
+    ): DevtoolsRequestTrace => ({
+      request: {
+        ...(id === undefined ? {} : { id }),
+        method: "GET",
+        url: `https://example.test${path}`,
+        path,
+        transport: "ssr"
+      },
+      response: { status: 200 },
+      services: [],
+      resources: [],
+      collections: [],
+      serverFunctions: [],
+      actions: [],
+      fibers: [],
+      streams: [],
+      status: "success"
+    });
+
+    store.recordRequestTrace(requestTrace("/projects/existing", "trace:1"));
+    store.recordRequestTrace(requestTrace("/projects/runtime"));
+
+    const snapshot = store.getSnapshot();
+    expect(snapshot.requestTraces?.map((trace) => trace.request.id)).toEqual([
+      "trace:1",
+      "trace:2"
+    ]);
+    expect(snapshot.events?.map((event) =>
+      event._tag === "RequestTrace" ? event.trace.request.id : null
+    )).toEqual([
+      "trace:1",
+      "trace:2"
+    ]);
+  });
+
   it("normalizes imported id-less request traces before allocating new trace ids", () => {
     const store = makeDevtoolsStore();
     const requestTrace = (
@@ -1628,6 +3842,384 @@ describe("devtools invalidation plans", () => {
     ]));
   });
 
+  it("normalizes id-less request traces before applying import trace limits", () => {
+    const store = makeDevtoolsStore({
+      requestTraceLimit: 1,
+      eventLimit: 2
+    });
+    const requestTrace = (resourceKey: string): DevtoolsRequestTrace => ({
+      request: {
+        method: "GET",
+        url: "https://example.test/projects/atlas",
+        path: "/projects/atlas",
+        transport: "ssr"
+      },
+      response: { status: 200 },
+      services: [],
+      resources: [
+        {
+          key: resourceKey,
+          family: "Project",
+          input: { id: resourceKey },
+          state: "Success"
+        }
+      ],
+      collections: [],
+      serverFunctions: [],
+      actions: [],
+      fibers: [],
+      streams: [],
+      status: "success"
+    });
+    const droppedTrace = requestTrace("Project:dropped");
+    const retainedTrace = requestTrace("Project:retained");
+
+    store.setSnapshot({
+      resources: [],
+      actions: [],
+      invalidations: [],
+      routePlans: [],
+      requestTraces: [droppedTrace, retainedTrace],
+      events: [
+        {
+          _tag: "RequestTrace",
+          sequence: 0,
+          trace: droppedTrace
+        },
+        {
+          _tag: "RequestTrace",
+          sequence: 1,
+          trace: retainedTrace
+        }
+      ]
+    });
+
+    const snapshot = store.getSnapshot();
+    expect(snapshot.requestTraces?.map((trace) => ({
+      id: trace.request.id,
+      resourceKey: trace.resources[0]?.key
+    }))).toEqual([
+      {
+        id: "trace:1",
+        resourceKey: "Project:retained"
+      }
+    ]);
+    expect(snapshot.events?.filter((event) => event._tag === "RequestTrace").map((event) =>
+      event._tag === "RequestTrace"
+        ? {
+            id: event.trace.request.id,
+            resourceKey: event.trace.resources[0]?.key
+          }
+        : undefined
+    )).toEqual([
+      {
+        id: "trace:0",
+        resourceKey: "Project:dropped"
+      },
+      {
+        id: "trace:1",
+        resourceKey: "Project:retained"
+      }
+    ]);
+
+    const graph = store.getCausalGraph();
+    expect(graph.edges).toContainEqual(
+      expect.objectContaining({
+        kind: "Observes",
+        source: "runtime-event:0:RequestTrace",
+        target: "request-trace:trace:0"
+      })
+    );
+    expect(graph.edges).toContainEqual(
+      expect.objectContaining({
+        kind: "Observes",
+        source: "runtime-event:1:RequestTrace",
+        target: "request-trace:trace:1"
+      })
+    );
+    expect(graph.edges).not.toContainEqual(
+      expect.objectContaining({
+        kind: "Observes",
+        source: "runtime-event:0:RequestTrace",
+        target: "request-trace:trace:1"
+      })
+    );
+  });
+
+  it("does not detach request traces dropped by import limits", () => {
+    const store = makeDevtoolsStore({
+      requestTraceLimit: 1
+    });
+    const droppedTrace = {
+      request: {
+        method: "GET",
+        url: "https://example.test/dropped",
+        path: "/dropped",
+        transport: "ssr"
+      },
+      response: { status: 200 },
+      services: [],
+      get resources() {
+        throw new Error("dropped trace should not be detached");
+      },
+      collections: [],
+      serverFunctions: [],
+      actions: [],
+      fibers: [],
+      streams: [],
+      status: "success"
+    } as DevtoolsRequestTrace;
+    const retainedTrace: DevtoolsRequestTrace = {
+      request: {
+        method: "GET",
+        url: "https://example.test/retained",
+        path: "/retained",
+        transport: "ssr"
+      },
+      response: { status: 200 },
+      services: [],
+      resources: [],
+      collections: [],
+      serverFunctions: [],
+      actions: [],
+      fibers: [],
+      streams: [],
+      status: "success"
+    };
+
+    expect(() =>
+      store.setSnapshot({
+        resources: [],
+        actions: [],
+        invalidations: [],
+        routePlans: [],
+        requestTraces: [droppedTrace, retainedTrace]
+      })
+    ).not.toThrow();
+    expect(store.getSnapshot().requestTraces?.map((trace) => trace.request.path)).toEqual([
+      "/retained"
+    ]);
+  });
+
+  it("applies store limits and fact rebasing when importing snapshots", () => {
+    const store = makeDevtoolsStore({
+      invalidationLimit: 1,
+      routePlanLimit: 1,
+      requestTraceLimit: 1,
+      eventLimit: 2
+    });
+    const firstInvalidation: DevtoolsInvalidationPlan = {
+      targets: [{ _tag: "Tag", key: "First", name: "First" }],
+      entries: []
+    };
+    const secondInvalidation: DevtoolsInvalidationPlan = {
+      targets: [{ _tag: "Tag", key: "Second", name: "Second" }],
+      entries: []
+    };
+    const firstRoutePlan: DevtoolsRoutePlan = {
+      _tag: "Matched",
+      href: "/first",
+      match: {
+        path: "/first",
+        href: "/first",
+        params: {},
+        search: {}
+      },
+      resources: [],
+      hydration: { resourceCount: 0 }
+    };
+    const secondRoutePlan: DevtoolsRoutePlan = {
+      ...firstRoutePlan,
+      href: "/second",
+      match: {
+        path: "/second",
+        href: "/second",
+        params: {},
+        search: {}
+      }
+    };
+    const requestTrace = (id: string): DevtoolsRequestTrace => ({
+      request: {
+        id,
+        method: "GET",
+        url: `https://example.test/${id}`,
+        path: `/${id}`,
+        transport: "ssr"
+      },
+      services: [],
+      resources: [],
+      collections: [],
+      serverFunctions: [],
+      actions: [
+        {
+          name: "Project.rename",
+          invalidationIndexes: [0, 1]
+        }
+      ],
+      fibers: [],
+      streams: [],
+      status: "success"
+    });
+
+    store.setSnapshot({
+      resources: [],
+      actions: [
+        {
+          name: "Project.rename",
+          state: "Success",
+          invalidationIndexes: [0, 1]
+        }
+      ],
+      invalidations: [firstInvalidation, secondInvalidation],
+      routePlans: [firstRoutePlan, secondRoutePlan],
+      requestTraces: [requestTrace("trace:0"), requestTrace("trace:1")],
+      events: [
+        {
+          _tag: "Custom",
+          sequence: 0,
+          name: "dropped"
+        },
+        {
+          _tag: "ActionState",
+          sequence: 1,
+          action: "Project.rename",
+          state: "Success",
+          invalidationIndexes: [0, 1]
+        },
+        {
+          _tag: "RoutePlan",
+          sequence: 2,
+          routePlanIndex: 1,
+          plan: secondRoutePlan
+        }
+      ]
+    });
+
+    const snapshot = store.getSnapshot();
+    expect(snapshot.invalidations).toEqual([secondInvalidation]);
+    expect(snapshot.routePlans).toEqual([secondRoutePlan]);
+    expect(snapshot.requestTraces?.map((trace) => trace.request.id)).toEqual(["trace:1"]);
+    expect(snapshot.actions[0]?.invalidationIndexes).toEqual([0]);
+    expect(snapshot.requestTraces?.[0]?.actions[0]?.invalidationIndexes).toEqual([0]);
+    expect(snapshot.events).toEqual([
+      expect.objectContaining({
+        _tag: "ActionState",
+        sequence: 1,
+        invalidationIndexes: [0]
+      }),
+      expect.objectContaining({
+        _tag: "RoutePlan",
+        sequence: 2,
+        routePlanIndex: 0
+      })
+    ]);
+  });
+
+  it("returns retained route plan indexes so runtime events can observe duplicate route facts", () => {
+    const store = makeDevtoolsStore();
+    const plan: DevtoolsRoutePlan = {
+      _tag: "Matched",
+      href: "/duplicate",
+      match: {
+        path: "/duplicate",
+        href: "/duplicate",
+        params: {},
+        search: {}
+      },
+      resources: [],
+      hydration: {
+        resourceCount: 0
+      }
+    };
+    const invalidationIndex = store.recordSerializedInvalidation({
+      targets: [{ _tag: "Tag", key: "Duplicate.Project", name: "Duplicate.Project" }],
+      entries: []
+    });
+    const firstRoutePlanIndex = store.recordSerializedRoutePlan(plan);
+    const secondRoutePlanIndex = store.recordSerializedRoutePlan(plan);
+
+    store.recordRuntimeEvent({
+      _tag: "RoutePlan",
+      routePlanIndex: secondRoutePlanIndex,
+      plan
+    });
+
+    expect(invalidationIndex).toBe(0);
+    expect(firstRoutePlanIndex).toBe(0);
+    expect(secondRoutePlanIndex).toBe(1);
+    expect(store.getSnapshot().events).toEqual([
+      expect.objectContaining({
+        _tag: "RoutePlan",
+        sequence: 0,
+        routePlanIndex: 1
+      })
+    ]);
+
+    const summary = store.getSummary();
+    expect(summary.routes.plans.map((routePlan) => routePlan.index)).toEqual([0, 1]);
+    expect(summary.runtime.events[0]).toMatchObject({
+      _tag: "RoutePlan",
+      target: {
+        kind: "RoutePlan",
+        id: "route-plan:1:/duplicate"
+      },
+      routePlan: {
+        index: 1,
+        href: "/duplicate"
+      }
+    });
+    expect(store.getCausalGraph().edges).toContainEqual(
+      expect.objectContaining({
+        kind: "Observes",
+        source: "runtime-event:0:RoutePlan",
+        target: "route-plan:1:/duplicate"
+      })
+    );
+  });
+
+  it("applies import limits before detaching dropped runtime event payloads", () => {
+    const store = makeDevtoolsStore({ eventLimit: 1 });
+    const droppedPayload: Record<string, unknown> = {};
+    Object.defineProperty(droppedPayload, "explode", {
+      enumerable: true,
+      get() {
+        throw new Error("dropped payload should not be inspected");
+      }
+    });
+
+    expect(() =>
+      store.setSnapshot({
+        resources: [],
+        actions: [],
+        invalidations: [],
+        routePlans: [],
+        events: [
+          {
+            _tag: "Custom",
+            sequence: 0,
+            name: "dropped",
+            payload: droppedPayload
+          },
+          {
+            _tag: "Custom",
+            sequence: 1,
+            name: "kept",
+            payload: { ok: true }
+          }
+        ]
+      })
+    ).not.toThrow();
+
+    expect(store.getSnapshot().events).toEqual([
+      {
+        _tag: "Custom",
+        sequence: 1,
+        name: "kept",
+        payload: { ok: true }
+      }
+    ]);
+  });
+
   it("seeds runtime event sequence ids from imported snapshots", () => {
     const store = makeDevtoolsStore();
 
@@ -1675,6 +4267,206 @@ describe("devtools invalidation plans", () => {
     ]));
   });
 
+  it("rebases duplicate runtime event sequences imported from snapshots", () => {
+    const store = makeDevtoolsStore();
+
+    store.setSnapshot({
+      resources: [],
+      actions: [],
+      invalidations: [],
+      routePlans: [],
+      events: [
+        {
+          _tag: "Custom",
+          sequence: 0,
+          name: "first"
+        },
+        {
+          _tag: "Custom",
+          sequence: 0,
+          name: "second"
+        }
+      ]
+    });
+    store.recordRuntimeEvent({
+      _tag: "Custom",
+      name: "runtime"
+    });
+
+    expect(store.getSnapshot().events).toEqual([
+      {
+        _tag: "Custom",
+        sequence: 0,
+        name: "first"
+      },
+      {
+        _tag: "Custom",
+        sequence: 1,
+        name: "second"
+      },
+      {
+        _tag: "Custom",
+        sequence: 2,
+        name: "runtime"
+      }
+    ]);
+  });
+
+  it("rebases duplicate caller-supplied runtime event sequences", () => {
+    const store = makeDevtoolsStore();
+
+    store.recordRuntimeEvent({
+      _tag: "Custom",
+      sequence: 0,
+      name: "first"
+    });
+    store.recordRuntimeEvent({
+      _tag: "Custom",
+      sequence: 0,
+      name: "second"
+    });
+
+    expect(store.getSnapshot().events).toEqual([
+      {
+        _tag: "Custom",
+        sequence: 0,
+        name: "first"
+      },
+      {
+        _tag: "Custom",
+        sequence: 1,
+        name: "second"
+      }
+    ]);
+    expect(store.getCausalGraph().nodes).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "runtime-event:0:Custom" }),
+      expect.objectContaining({ id: "runtime-event:1:Custom" })
+    ]));
+  });
+
+  it("matches route-plan facts with stable serialized fingerprints", () => {
+    const routePlan: DevtoolsRoutePlan = {
+      _tag: "Matched",
+      href: "/ordered",
+      match: {
+        path: "/ordered",
+        href: "/ordered",
+        params: { a: "1", b: "2" },
+        search: { x: "1", y: "2" }
+      },
+      resources: [],
+      hydration: { resourceCount: 0 }
+    };
+    const reorderedRoutePlan: DevtoolsRoutePlan = {
+      ...routePlan,
+      match: {
+        ...routePlan.match,
+        params: { b: "2", a: "1" },
+        search: { y: "2", x: "1" }
+      }
+    };
+    const store = makeDevtoolsStore();
+
+    store.setSnapshot({
+      resources: [],
+      actions: [],
+      invalidations: [],
+      routePlans: [routePlan]
+    });
+    store.recordRuntimeEvent({
+      _tag: "RoutePlan",
+      plan: reorderedRoutePlan
+    });
+
+    expect(store.getSnapshot().events?.[0]).toMatchObject({
+      _tag: "RoutePlan",
+      routePlanIndex: 0
+    });
+    expect(store.getSummary().runtime.events[0]?.target).toEqual({
+      kind: "RoutePlan",
+      id: "route-plan:0:/ordered"
+    });
+  });
+
+  it("keeps structural route-plan fact identity bounded", () => {
+    const accessedIndexes: Array<string> = [];
+    const resources = new Proxy(Array.from({ length: 55 }, (_, index) => ({
+      key: `Project:${index}`,
+      family: "Project",
+      input: { id: String(index) }
+    })), {
+      get: (target, property, receiver) => {
+        accessedIndexes.push(String(property));
+        if (property === "50") {
+          throw new Error("fact identity crossed the entry bound");
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    }) as DevtoolsRoutePlan["resources"];
+    const routePlan: DevtoolsRoutePlan = {
+      _tag: "Matched",
+      href: "/bounded",
+      match: {
+        path: "/bounded",
+        href: "/bounded",
+        params: {},
+        search: {}
+      },
+      resources,
+      hydration: { resourceCount: 55 }
+    };
+
+    const fingerprint = stableFactFingerprint({
+      _tag: "RoutePlan",
+      plan: routePlan
+    });
+
+    expect(fingerprint).toBeDefined();
+    expect(accessedIndexes).not.toContain("50");
+  });
+
+  it("matches invalidation facts through the bounded serialization policy", () => {
+    const store = makeDevtoolsStore();
+    const accessedIndexes: Array<string> = [];
+    const largeInput = new Proxy(Array.from({ length: 55 }, (_, index) => index), {
+      get: (target, property, receiver) => {
+        accessedIndexes.push(String(property));
+        if (property === "50") {
+          throw new Error("fact identity crossed the entry bound");
+        }
+        return Reflect.get(target, property, receiver);
+      }
+    });
+    const plan: DevtoolsInvalidationPlan = {
+      targets: [
+        {
+          _tag: "Ref",
+          key: "Project:bounded",
+          family: "Project",
+          input: largeInput
+        }
+      ],
+      entries: []
+    };
+
+    store.setSnapshot({
+      resources: [],
+      actions: [],
+      invalidations: [plan],
+      routePlans: []
+    });
+    store.recordRuntimeEvent({
+      _tag: "Invalidation",
+      plan
+    });
+
+    expect(accessedIndexes).not.toContain("50");
+    expect(store.getSnapshot().events?.[0]).toMatchObject({
+      _tag: "Invalidation",
+      invalidationIndex: 0
+    });
+  });
+
   it("detaches caller snapshots at the store seam", () => {
     const store = makeDevtoolsStore();
     const input = { id: "atlas" };
@@ -1714,6 +4506,46 @@ describe("devtools invalidation plans", () => {
       _tag: "Ref",
       input: {
         id: "atlas"
+      }
+    });
+  });
+
+  it("detaches live invalidation and route-plan descriptions at serialization time", async () => {
+    const input = { id: "atlas" };
+    const Project = Resource.family({
+      name: "Devtools.detached-ref",
+      load: (projectInput: typeof input) => Effect.succeed(projectInput)
+    });
+    const routeDefinition = route("/detached-route/:id", {
+      search: Schema.Struct({
+        tab: Schema.String
+      })
+    });
+    const ref = Project(input);
+    const invalidationPlan = describeInvalidationPlan(Resource.planInvalidation(ref));
+    const navigationPlan = await Effect.runPromise(
+      Route.planNavigationEffect([routeDefinition] as const, "/detached-route/atlas?tab=activity")
+    );
+    const routePlan = describeRoutePlan(navigationPlan);
+
+    input.id = "changed";
+    if (navigationPlan.match !== undefined) {
+      (navigationPlan.match.params as { id: string }).id = "changed";
+      (navigationPlan.match.search as { tab: string }).tab = "changed";
+    }
+
+    expect(invalidationPlan.targets[0]).toMatchObject({
+      _tag: "Ref",
+      input: {
+        id: "atlas"
+      }
+    });
+    expect(routePlan.match).toMatchObject({
+      params: {
+        id: "atlas"
+      },
+      search: {
+        tab: "activity"
       }
     });
   });
@@ -2078,7 +4910,7 @@ describe("devtools invalidation plans", () => {
           family: "Golden.Project.byId",
           input: { id: "atlas" },
           state: "Success",
-          sources: ["Invalidation", "RoutePlan", "Snapshot"],
+          sources: ["Invalidation", "RoutePlan", "RuntimeEvent", "Snapshot"],
           routeHrefs: ["/projects/atlas?tab=activity"],
           invalidationIndexes: [0]
         }
@@ -2506,3 +5338,18 @@ const appGraphDiagnostics: DevtoolsStartAppGraphDiagnostics = {
   unknownRoutePreloadResources: [],
   unknownRoutePreloadCollections: []
 };
+
+const appGraphDiagnosticsWithRoutes = (
+  routeCount: number
+): DevtoolsStartAppGraphDiagnostics => ({
+  ...appGraphDiagnostics,
+  routeCount,
+  routePaths: Array.from({ length: routeCount }, (_value, index) => `/users/${index}/:id`),
+  routeModules: Array.from({ length: routeCount }, (_value, index) => ({
+    ...appGraphDiagnostics.routeModules[0]!,
+    routeId: `route_users_${index}_$id`,
+    routePath: `/users/${index}/:id`,
+    moduleId: `src/routes/users/${index}/$id.tsx`,
+    filePath: `src/routes/users/${index}/$id.tsx`
+  }))
+});
