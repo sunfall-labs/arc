@@ -1,11 +1,9 @@
 import {
   createBrowserRouterKernel,
-  makeRuntimeUiScope,
   makeWindowBrowserHistoryAdapter,
   Route,
   currentOrDefaultRuntime,
   runWithRuntime,
-  runWithScope,
   type AnyEffectUiRuntime,
   type BrowserNavigateArgs,
   type BrowserNavigateOptions,
@@ -15,20 +13,19 @@ import {
   type BrowserRouterState,
   type EffectUiRuntime
 } from "@effect-ui/core";
-import { Data, Effect, Fiber } from "effect";
+import { Data, Effect } from "effect";
 import {
   createContext,
   createEffect,
-  createRoot,
   createSignal,
   onCleanup,
   sharedConfig,
   useContext,
   type Accessor,
-  type Component,
   type JSX
 } from "solid-js";
 import { createComponent, isServer } from "solid-js/web";
+import { makeSolidRouteRenderScopeController } from "./route-render-scope.js";
 import { RuntimeContext, useRuntime } from "./runtime.js";
 
 type AnyRoute = Route.Definition<string, unknown, unknown, any>;
@@ -259,76 +256,6 @@ export const useRouter = <
   return router as unknown as BrowserRouter<Routes, ER>;
 };
 
-const defaultPending = (): JSX.Element => undefined;
-
-const defaultFailure = <ER>(
-  state: Extract<BrowserRouterState<readonly AnyRoute[], ER>, { readonly _tag: "Failure" }>
-): JSX.Element => {
-  throw state.cause;
-};
-
-const defaultNotFound = (): JSX.Element => undefined;
-
-const renderInRouteScope = <ER>(
-  runtime: AnyEffectUiRuntime<ER>,
-  render: () => JSX.Element
-): { readonly node: JSX.Element; readonly dispose: Effect.Effect<void, never, never> } => {
-  const routeScope = makeRuntimeUiScope(runtime);
-  let disposeSolid: (() => void) | undefined;
-  const node = createRoot((disposeRoot) => {
-    disposeSolid = disposeRoot;
-    return runWithRuntime(runtime, () =>
-      runWithScope(routeScope, render)
-    );
-  });
-  const dispose = Effect.andThen(
-    Effect.sync(() => {
-      runWithRuntime(runtime, () =>
-        runWithScope(routeScope, () => {
-          disposeSolid?.();
-        })
-      );
-    }),
-    runtime.provide(routeScope.disposeEffect()).pipe(Effect.catchCause(() => Effect.void))
-  ).pipe(Effect.catchCause(() => Effect.void));
-
-  return { node, dispose };
-};
-
-const renderRouteState = <Routes extends readonly AnyRoute[], ER>(
-  state: BrowserRouterState<Routes, ER>,
-  props: TypedRouterOutletProps<Routes, ER>,
-  runtime: AnyEffectUiRuntime<ER>
-): { readonly node: JSX.Element; readonly dispose?: Effect.Effect<void, never, never> } => {
-  switch (state._tag) {
-    case "Pending":
-      return renderInRouteScope(runtime, () => (props.pending ?? defaultPending)(state));
-    case "Failure":
-      return renderInRouteScope(runtime, () => (props.failure ?? defaultFailure)(state));
-    case "NotFound":
-      return renderInRouteScope(runtime, () => (props.notFound ?? defaultNotFound)(state));
-    case "Ready": {
-      const component = state.match.route.options.component as Component<Record<string, unknown>> | undefined;
-      if (!component) {
-        return { node: undefined };
-      }
-
-      return renderInRouteScope(runtime, () =>
-        createComponent(component, {
-          params: state.match.params,
-          search: state.match.search,
-          match: state.match
-        })
-      );
-    }
-  }
-};
-
-const disposeRenderedRoute = (
-  dispose: Effect.Effect<void, never, never> | undefined
-): Effect.Effect<void> =>
-  dispose ?? Effect.void;
-
 /** Renders the matched route component and owns its route `UiScope`. */
 export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
   props: RouterOutletProps<RoutesOrError, ER>
@@ -338,62 +265,20 @@ export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
   const typedProps = props as TypedRouterOutletProps<Routes, Error>;
   const router = useRouter<Routes, Error>();
   const runtime = router.runtime as AnyEffectUiRuntime<Error>;
-  let renderedState = router.state();
-  const initial = renderRouteState(renderedState, typedProps, runtime);
-  const [node, setNode] = createSignal<JSX.Element>(initial.node);
-  let disposeRoute: Effect.Effect<void, never, never> | undefined = initial.dispose;
-  let transitionVersion = 0;
-  let disposalFiber: Fiber.Fiber<void, unknown> | undefined;
+  const [node, setNode] = createSignal<JSX.Element>();
+  const routeRenderScope = makeSolidRouteRenderScopeController({
+    initialState: router.state(),
+    renderers: typedProps,
+    runtime,
+    setNode
+  });
 
   createEffect(() => {
-    const state = router.state();
-    if (state === renderedState) {
-      return;
-    }
-
-    renderedState = state;
-    const transition = ++transitionVersion;
-    const previousDispose = disposeRoute;
-    disposeRoute = undefined;
-    setNode(() => undefined);
-    const previousDisposalFiber = disposalFiber;
-    const currentDisposal = disposeRenderedRoute(previousDispose);
-    disposalFiber = runtime.runFork(
-      Effect.gen(function* () {
-        if (previousDisposalFiber !== undefined) {
-          yield* Fiber.join(previousDisposalFiber);
-        }
-        yield* currentDisposal;
-      }).pipe(Effect.catchCause(() => Effect.void))
-    );
-    const transitionDisposalFiber = disposalFiber;
-    void runtime.runFork(
-      Effect.gen(function* () {
-        yield* Fiber.join(transitionDisposalFiber);
-        if (transition !== transitionVersion) {
-          return;
-        }
-
-        const next = renderRouteState(state, typedProps, runtime);
-        setNode(() => next.node);
-        disposeRoute = next.dispose;
-      })
-    );
+    routeRenderScope.update(router.state());
   });
 
   onCleanup(() => {
-    transitionVersion++;
-    const previousDisposalFiber = disposalFiber;
-    const currentDisposal = disposeRenderedRoute(disposeRoute);
-    disposeRoute = undefined;
-    disposalFiber = runtime.runFork(
-      Effect.gen(function* () {
-        if (previousDisposalFiber !== undefined) {
-          yield* Fiber.join(previousDisposalFiber);
-        }
-        yield* currentDisposal;
-      }).pipe(Effect.catchCause(() => Effect.void))
-    );
+    routeRenderScope.dispose();
   });
 
   return node as unknown as JSX.Element;

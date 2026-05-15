@@ -748,6 +748,11 @@ Release decisions:
   `hrefByPath(...)`, `navigateByPath(...)`, `matchByPath(...)`, and
   `preloadByPathEffect(...)`; route-object helpers remain available for callers
   already holding concrete route definitions.
+- `RouterOutlet` delegates branch rendering, route-owned `UiScope` lifetime,
+  Solid root cleanup, runtime-bound route finalizers, transition disposal
+  ordering, and stale queued-render suppression to the internal Solid Route
+  Render Scope Controller. This keeps the public Solid router surface stable
+  while making route render lifetime policy local.
 - `useAction(...)` binds submissions to the nearest Solid runtime while keeping
   the underlying action definition type intact. Apps with a fallible Solid
   Runtime Provider can pass the hook's `ER` generic to expose the runtime error

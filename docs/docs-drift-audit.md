@@ -32,7 +32,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     live query collection materialization, and Review 79 collection query
     source adapter, Review 80 request runtime lifecycle, Review 81 resource UI
     binding controller, Review 82 start host runtime runner, Review 83 start
-    node web exchange, and Review 84 query execution plan sweeps.
+    node web exchange, Review 84 query execution plan, and Review 85 solid
+    route render scope controller sweeps.
 
 ## Current Sweep Results
 
@@ -278,8 +279,12 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Added Review 84 and progress entry 323 evidence for the Query Execution Plan
   extraction. DB docs now name the internal Module that one-shot query,
   diagnostics, live-query state, and live-query runtime share.
-- Updated current-facing verification snapshots after Review 84 full
-  verification so the latest gate points at the 198-file Effect-first audit and
+- Added Review 85 and progress entry 324 evidence for the Solid Route Render
+  Scope Controller extraction. Solid docs now name the internal Module that
+  `RouterOutlet` uses for route `UiScope`, Solid root cleanup, transition
+  disposal ordering, and stale queued-render suppression.
+- Updated current-facing verification snapshots after Review 85 full
+  verification so the latest gate points at the 199-file Effect-first audit and
   52 root test files / 856 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are
   wrapped with `Effect.tryPromise(...)` at the Adapter seam.

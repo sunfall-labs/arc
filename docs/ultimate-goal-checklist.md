@@ -731,10 +731,10 @@ Last evidence pass: May 15, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 15, 2026 after the Review 84
-    Query Execution Plan extraction: 11 package builds, workspace typecheck,
-    type tests, public API inventory audit, Effect-first audit over
-    198 files, 52 root test files / 856 tests,
+  - Evidence: root `pnpm verify` passed on May 15, 2026 after the Review 85
+    Solid Route Render Scope Controller extraction: 11 package builds,
+    workspace typecheck, type tests, public API inventory audit,
+    Effect-first audit over 199 files, 52 root test files / 856 tests,
     devtools-panel verify with 1 panel test file / 2 tests, devtools-extension
     verify with 1 extension test file / 20 tests, basic starter verify with 1
     starter test file / 2 tests, React starter verify with 1 starter test file

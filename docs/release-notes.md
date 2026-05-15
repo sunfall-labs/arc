@@ -69,7 +69,7 @@ Latest full gate on May 15, 2026:
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 198 package/example/script/type-test files;
+- Effect-first audit over 199 package/example/script/type-test files;
 - 52 root test files / 856 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
@@ -104,6 +104,11 @@ Latest full gate on May 15, 2026:
   one-shot execution, diagnostics, live-query source/preload policy, and final
   projection stages now share one plan policy while Query Builder remains the
   immutable DSL and Live Query Runtime remains focused on IVM graph mechanics.
+- Review 85 extracted the internal Solid Route Render Scope Controller:
+  `RouterOutlet` now delegates route branch rendering, route-owned `UiScope`
+  creation, Solid root cleanup, runtime-bound route finalizers, transition
+  disposal ordering, and stale queued-render suppression while public Solid
+  router APIs stay unchanged.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime
@@ -592,10 +597,10 @@ Latest full gate on May 15, 2026:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 84 extracted the DB Query
-  Execution Plan Module while keeping public Query APIs unchanged: 11 package
-  builds, workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 198 files, 52 root test files / 856 tests,
+- The latest full `pnpm verify` passed after Review 85 extracted the Solid Route
+  Render Scope Controller while keeping public Solid router APIs unchanged: 11
+  package builds, workspace typecheck, public type tests, public API inventory
+  audit, Effect-first audit over 199 files, 52 root test files / 856 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,
   project-console packaging/typecheck/tests/build with 4 files / 27 tests, and
