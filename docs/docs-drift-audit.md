@@ -38,7 +38,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     coverage gate, Review 89 collection value detachment, Review 90 collection
     index materialization, Review 91 start diagnostics CLI runner, Review
     92 start action response application, Review 93 collection change feed
-    runtime, and Review 94 browser router host controller sweeps.
+    runtime, Review 94 browser router host controller, and Review 95 core
+    action execution workflow sweeps.
 
 ## Current Sweep Results
 
@@ -323,8 +324,13 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   Controller facade. Core public API docs now name the controller that owns
   idempotent start/dispose, history listener wiring, programmatic commits, and
   route preload disposal for React and Solid router adapters.
-- Updated current-facing verification snapshots after Review 94 full
-  verification so the latest gate points at the 222-file Effect-first audit and
+- Added Review 95 and progress entry 334 evidence for the Core Action
+  Execution Workflow Module. Core public API docs now name the internal Module
+  that owns live action callback normalization, optimistic commit/rollback,
+  stale interruption, invalidation planning/execution, and visible submission
+  state updates.
+- Updated current-facing verification snapshots after Review 95 full
+  verification so the latest gate points at the 223-file Effect-first audit and
   52 root test files / 857 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are
   wrapped with `Effect.tryPromise(...)` at the Adapter seam.

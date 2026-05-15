@@ -1026,9 +1026,13 @@ interruption.
   programmatic commits, initial navigation, typed route forwarding, and preload
   disposal for React and Solid router adapters without adding Promise host
   seams.
-- The latest full `pnpm verify` passed after the Review 94 Browser Router Host
-  Controller Facade: 11 package builds, workspace typecheck, type tests, public
-  API inventory audit, Effect-first audit over 222
+- The Action Execution Workflow now owns `Action.use(...)` callback
+  normalization, retry, optimistic commit/rollback, stale interruption,
+  invalidation planning/execution, and visible state updates as Effects, while
+  the public facade keeps runtime requirement subtraction local.
+- The latest full `pnpm verify` passed after the Review 95 Core Action
+  Execution Workflow Module: 11 package builds, workspace typecheck, type
+  tests, public API inventory audit, Effect-first audit over 223
   package/example/script/type-test files, 52 root test files / 857 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
@@ -1036,8 +1040,8 @@ interruption.
   starter test file / 3 tests, project-console starter packaging, typecheck,
   4 project-console test files / 27 tests, build, and leak scans. Review 75
   added the public API inventory audit to the full gate, Review 86 kept the
-  scanner green over the expanded public type-test scope, and Review 94 kept
-  the Effect-first scanner green over its expanded 222-file scope.
+  scanner green over the expanded public type-test scope, and Review 95 kept
+  the Effect-first scanner green over its expanded 223-file scope.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

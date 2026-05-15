@@ -139,6 +139,13 @@ Release decisions:
   requirements, and the runtime error channel is added to the action error
   surface. Calling `Action.use(definition)` without an explicit runtime
   preserves the action's original requirements.
+- The internal Action Execution Workflow Module owns callback normalization,
+  retry wrapping, optimistic transaction commit/rollback, stale-submission
+  interruption, invalidation planning/execution, and visible submission state
+  updates for one `Action.use(...)` instance. The public `Action.use(...)`
+  facade keeps runtime binding and requirement subtraction local, so LSP hovers
+  still show the action requirements after any explicit Runtime Spine is
+  applied.
 - `Capability.useEffect(...)` is public with explicit pure-value and
   Effect-returning overloads; Promise-returning callbacks remain rejected so
   host async work is routed through Effect primitives.

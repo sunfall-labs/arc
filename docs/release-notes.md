@@ -69,7 +69,7 @@ Latest full gate on May 15, 2026:
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 222 package/example/script/type-test files;
+- Effect-first audit over 223 package/example/script/type-test files;
 - 52 root test files / 857 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
@@ -150,6 +150,12 @@ Latest full gate on May 15, 2026:
   navigation, external history listener wiring, programmatic commit forwarding,
   typed route navigation helpers, and preload disposal while each framework
   keeps its own reactivity and owner cleanup.
+- Review 95 extracted the internal Core Action Execution Workflow Module:
+  live `Action.use(...)` callback normalization, retry, optimistic
+  commit/rollback, stale-submission interruption, invalidation planning and
+  execution, submission joining, and visible state updates now live behind one
+  workflow while the public facade keeps runtime binding and type-level
+  requirement subtraction.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime

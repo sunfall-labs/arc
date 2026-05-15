@@ -11,9 +11,39 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 94, immediately after Review 93. Some older review
+The newest review is Review 95, immediately after Review 94. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 95: Core Action Execution Workflow Module
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Core: added `packages/core/src/action-execution-workflow.ts` as the internal
+  Action Execution Workflow Module. It owns `Action.use(...)` callback
+  normalization, retry wrapping, optimistic transaction commit/rollback,
+  stale-submission interruption, invalidation planning/execution, direct action
+  run submission joining, and visible submission state updates.
+- Action facade: `packages/core/src/action.ts` now keeps public definition
+  overloads, sync invalidation planning facade, runtime binding, and typed
+  runtime requirement subtraction, while delegating live instance workflow
+  execution to the new Module.
+- Review cleanup: the Core Action Execution Workflow candidate is closed.
+  Fresh sweeps still leave Devtools Public Contract Module and deeper focused
+  public type-test ownership candidates.
+
+Focused verification: `pnpm --filter @effect-ui/core typecheck`, `pnpm vitest
+run packages/core/test/action.test.ts` (1 file / 33 tests), `pnpm
+typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first` over 223
+files, and `git diff --check` passed. Full `pnpm verify` passed: 11 package
+builds, workspace typecheck, public type tests, public API inventory audit,
+Effect-first audit over 223 files, 52 root test files / 857 tests,
+devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
+basic starter verify with 2 tests, React starter verify with 3 tests,
+project-console packaging/typecheck/tests/build with 4 files / 27 tests, and
+leak scans.
 
 ## Review 94: Browser Router Host Controller Facade
 
