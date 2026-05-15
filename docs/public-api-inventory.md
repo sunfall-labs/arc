@@ -495,6 +495,13 @@ Release decisions:
   publication, and live-query-visible versioning together while delegating store
   lookup/lifecycle to the Runtime Collection Store Module. Sync adapters emit
   batches; they do not own store mutation policy.
+- The internal Collection Change Feed Runtime Module owns scoped feed
+  subscription lifecycle, dispatcher consumer fibers, adapter
+  subscribe/unsubscribe normalization, default write-option application,
+  direct `emit(...)` completion, host-callback `emitChanges(...)` queueing, and
+  asynchronous failure publication. It receives store-local row-application and
+  event-publication Effects from Collection Runtime, so subscription lifecycle
+  is separated from mutable row mutation policy without adding a public API.
 - The internal Collection Write Commit Module owns direct-write atomicity:
   snapshot state, apply row changes, persist, restore on persistence failure,
   and publish `CollectionWritten` only after persistence succeeds. The public
@@ -554,9 +561,10 @@ Release decisions:
   before mutating rows, writing persistence, or publishing write events. Their
   persistence path still shares the normal snapshot helper and emits
   `CollectionPersisted` for devtools and sync observers.
-- Change-feed host callbacks are scoped dispatchers. After the subscription
-  scope releases, late `emitChanges(...)` calls are deterministically dropped
-  instead of enqueueing into an unconsumed runtime queue.
+- Change-feed host callbacks run through scoped dispatchers owned by the
+  Collection Change Feed Runtime. After the subscription scope releases, late
+  `emitChanges(...)` calls are deterministically dropped instead of enqueueing
+  into an unconsumed runtime queue.
 - SQLite persistence helpers wrap `prepare`/`run`/`all`, statement database,
   driver, storage, and clock callbacks before execution. Their public storage
   error channel therefore includes `EffectInputCallbackError` even for

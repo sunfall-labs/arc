@@ -447,10 +447,11 @@ yield* Collection.subscribeChangesEffect(Projects, {
 })
 ```
 
-The Collection Runtime owns the queue and Effect execution behind
-`emitChanges(...)`. If queued application of a batch fails, the active
-Collection Store publishes a `CollectionChangeFeedFailure` event instead of
-making the host feed Adapter own runtime plumbing.
+The internal Collection Change Feed Runtime owns the scoped dispatcher and
+Effect execution behind `emit(...)` and `emitChanges(...)`. If queued
+application of a batch fails, the active Collection Store publishes a
+`CollectionChangeFeedFailure` event instead of making the host feed Adapter own
+runtime plumbing.
 The queue is scoped: after the subscription Scope releases, captured host
 callbacks drop late `emitChanges(...)` calls deterministically instead of
 enqueuing into an unconsumed dispatcher.

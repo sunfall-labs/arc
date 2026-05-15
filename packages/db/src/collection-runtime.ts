@@ -5,7 +5,7 @@ import {
   toEffect,
   type EffectInput
 } from "@effect-ui/core";
-import { Cause, Clock, Deferred, Effect, Exit, Option, Scope, type Schedule } from "effect";
+import { Clock, Deferred, Effect, Exit, Option, Scope, type Schedule } from "effect";
 import { CollectionRowKeyChanged, CollectionRowNotFound, ReadonlyCollectionMutation } from "./collection-errors.js";
 import { CollectionTypeId } from "./collection-ids.js";
 import { CollectionPreloadCollector } from "./collection-preload.js";
@@ -35,6 +35,7 @@ import {
   collectionValueChanges
 } from "./collection-value-detachment.js";
 import type { CollectionSnapshotCodecError } from "./collection-snapshot-codec.js";
+import { subscribeCollectionChangeFeedRuntimeEffect } from "./collection-change-feed-runtime.js";
 import {
   ingestCollectionMutationRowsEffect,
   ingestCollectionOutputRowsEffect
@@ -63,11 +64,8 @@ import {
 } from "./collection-persistence.js";
 import type {
   CollectionChangeFeedAdapter,
-  CollectionChangeFeedSubscribeOptions,
-  CollectionChangeFeedSubscription,
-  CollectionChangeFeedUnsubscribe
+  CollectionChangeFeedSubscribeOptions
 } from "./sync-adapter.js";
-import { scopedCollectionChangeFeedDispatcherEffect } from "./change-feed-dispatcher.js";
 import {
   commitCollectionWriteEffect,
   restoreCollectionStateSnapshot,
@@ -333,13 +331,6 @@ export const validateCollectionsHydrationEffect = (
 ): Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError> =>
   validateCollectionsHydrationWithStoreEffect(collections, payload, options, collectionStoreEffect);
 
-const changeFeedUnsubscribe = (
-  subscription: CollectionChangeFeedSubscription
-): CollectionChangeFeedUnsubscribe | undefined =>
-  typeof subscription === "function"
-    ? subscription
-    : subscription?.unsubscribe;
-
 export const subscribeCollectionChangesEffect = <
   A extends object,
   K extends CollectionKey,
@@ -354,55 +345,19 @@ export const subscribeCollectionChangesEffect = <
 ): Effect.Effect<void, CollectionRuntimeError<E> | FeedError, R | FeedRequirements | Scope.Scope> =>
   Effect.gen(function* () {
     const dbStore = yield* collectionStoreEffect;
-    const dispatcher = yield* scopedCollectionChangeFeedDispatcherEffect<A, K>(options.dispatch);
-    const applyEmission = (
-      changes: ReadonlyArray<CollectionChange<A, K>>,
-      writeOptions: CollectionWriteOptions | undefined
-    ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
-      applyCollectionChangesWithStoreEffect(definition, dbStore, changes, writeOptions ?? options.write);
-    const publishEmissionFailure = (
-      error: CollectionRuntimeError<E>
-    ): Effect.Effect<void> =>
-      publishStoreEvent(dbStore, {
-        _tag: "CollectionChangeFeedFailure",
-        collection: definition.name,
-        error
-      });
-
-    yield* dispatcher.takeEffect().pipe(
-      Effect.flatMap((emission) =>
-        Effect.gen(function* () {
-          const exit = yield* Effect.exit(applyEmission(emission.changes, emission.options));
-          if (Exit.isFailure(exit)) {
-            yield* publishEmissionFailure(
-              exit.cause.reasons.find(Cause.isFailReason)?.error as CollectionRuntimeError<E>
-            );
-          }
-          if (emission.completed) {
-            yield* Deferred.done(emission.completed, exit as Exit.Exit<void, unknown>).pipe(Effect.asVoid);
-          }
+    yield* subscribeCollectionChangeFeedRuntimeEffect({
+      collection: definition.name,
+      adapter,
+      options,
+      applyChanges: (changes, writeOptions) =>
+        applyCollectionChangesWithStoreEffect(definition, dbStore, changes, writeOptions),
+      publishFailure: (error) =>
+        publishStoreEvent(dbStore, {
+          _tag: "CollectionChangeFeedFailure",
+          collection: definition.name,
+          error
         })
-      ),
-      Effect.forever,
-      Effect.forkScoped
-    );
-
-    yield* Effect.acquireRelease(
-      collectionInputCallbackEffect<CollectionChangeFeedSubscription, FeedError, FeedRequirements>(() => adapter.subscribe({
-        collection: definition.name,
-        emit: (changes, writeOptions) =>
-          dispatcher.emitEffect(changes, writeOptions) as Effect.Effect<void, CollectionRuntimeError<E>>,
-        emitChanges: (changes, writeOptions) => {
-          dispatcher.emitChanges(changes, writeOptions);
-        }
-      })),
-      (subscription) => {
-        const unsubscribe = changeFeedUnsubscribe(subscription);
-        return unsubscribe
-          ? collectionInputCallbackEffect(() => unsubscribe()).pipe(Effect.catch(() => Effect.void))
-          : Effect.void;
-      }
-    );
+    });
   }).pipe(Effect.asVoid);
 
 const withCollectionRetry = <A, E, R>(

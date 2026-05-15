@@ -69,7 +69,7 @@ Latest full gate on May 15, 2026:
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 221 package/example/script/type-test files;
+- Effect-first audit over 222 package/example/script/type-test files;
 - 52 root test files / 856 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
@@ -138,6 +138,13 @@ Latest full gate on May 15, 2026:
   resolution, hydration payload application, hydrated-ref filtering, and
   malformed metadata transport errors now live behind one Start Module while
   the transport protocol stays focused on wire contracts.
+- Review 93 extracted the internal DB Collection Change Feed Runtime Module:
+  scoped feed subscription lifecycle, dispatcher consumer fibers, adapter
+  subscribe/unsubscribe normalization, direct `emit(...)` completion,
+  host-callback `emitChanges(...)` queueing, late-emission dropping, and
+  asynchronous failure publication now live behind one Effect-first Module
+  while Collection Runtime keeps store-local row mutation and persistence
+  policy.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime

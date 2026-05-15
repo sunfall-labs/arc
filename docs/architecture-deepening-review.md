@@ -11,9 +11,42 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 92, immediately after Review 91. Some older review
+The newest review is Review 93, immediately after Review 92. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 93: Collection Change Feed Runtime Module
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- DB: added `packages/db/src/collection-change-feed-runtime.ts` as the
+  internal Collection Change Feed Runtime Module. It owns scoped feed
+  subscription lifecycle, dispatcher acquisition, consumer-fiber execution,
+  adapter subscribe/unsubscribe normalization, default write-option selection,
+  direct `emit(...)` completion, host-callback `emitChanges(...)` queueing, and
+  asynchronous failure publication.
+- Collection Runtime: `packages/db/src/collection-runtime.ts` now wires the
+  active Runtime Collection Store into the new Module with store-local
+  `applyChanges` and `publishFailure` Effects, while row mutation, persistence,
+  and event publication policy remain in Collection Runtime.
+- Review cleanup: the DB Collection Change Feed Runtime candidate is closed.
+  Fresh sweeps still leave Browser Router Host Adapter Facade, Core Action
+  Execution Workflow, Devtools Public Contract Module, and deeper focused
+  public type-test ownership candidates.
+
+Focused verification: `pnpm --filter @effect-ui/db typecheck`, `pnpm vitest run
+packages/db/test/sync-adapter.test.ts packages/db/test/collection.test.ts
+packages/db/test/live-query-collection.test.ts` (3 files / 144 tests), `pnpm
+typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first` over 222
+files, and `git diff --check` passed. Full `pnpm verify` passed: 11 package
+builds, workspace typecheck, public type tests, public API inventory audit,
+Effect-first audit over 222 files, 52 root test files / 856 tests,
+devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
+basic starter verify with 2 tests, React starter verify with 3 tests,
+project-console packaging/typecheck/tests/build with 4 files / 27 tests, and
+leak scans.
 
 ## Review 92: Start Action Response Application Module
 
