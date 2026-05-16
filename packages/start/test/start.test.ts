@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { build } from "vite";
 import { describe, expect, it } from "vitest";
-import { Action, ActionResult, defaultRuntime, defineApp, EffectInputCallbackError, makeRuntime, read, Resource, RequestContext, ResponseContext, route, Route, RoutePreloadError, runWithRuntime, Server, ServerClient, ServerTransportError, type EffectUiRuntime } from "@effect-ui/core";
+import { Action, ActionResult, defaultRuntime, defineApp, EffectInputCallbackError, makeRuntime, read, Resource, ResourceFamily, ResourceTypeId, RequestContext, ResponseContext, route, Route, RoutePreloadError, runWithRuntime, Server, ServerClient, ServerTransportError, type EffectUiRuntime, type ResourceRef } from "@effect-ui/core";
 import { Collection, CollectionSnapshotCodecError } from "@effect-ui/db";
 import type { DevtoolsRequestTrace } from "@effect-ui/devtools";
 import {
@@ -3574,6 +3574,128 @@ describe("Effect UI Start", () => {
       expect(runWithRuntime(clientRuntime, () => Resource.status(ref).value)).toEqual({
         id: "atlas",
         name: "Renamed Through StartAction"
+      });
+    } finally {
+      await Effect.runPromise(clientRuntime.disposeEffect);
+    }
+  });
+
+  it("does not suppress invalidations for a different hydrated resource family", async () => {
+    const ProjectSchema = Schema.Struct({
+      id: Schema.String,
+      name: Schema.String
+    });
+    class FamilyLocalKeyResource<A> extends ResourceFamily<string, A> {
+      override ref(input: string): ResourceRef<string, A> {
+        return {
+          [ResourceTypeId]: ResourceTypeId,
+          family: this,
+          input,
+          key: input
+        };
+      }
+    }
+
+    let invalidatedProject = {
+      id: "atlas",
+      name: "Invalidation Initial"
+    };
+    const HydratedProject = new FamilyLocalKeyResource<typeof ProjectSchema.Type>({
+      name: "Start.action.Project.identity-hydrated",
+      input: Schema.String,
+      output: ProjectSchema,
+      load: (id: string) => Effect.succeed({ id, name: "Hydrated Initial" })
+    });
+    const InvalidatedProject = new FamilyLocalKeyResource<typeof ProjectSchema.Type>({
+      name: "Start.action.Project.identity-invalidated",
+      input: Schema.String,
+      output: ProjectSchema,
+      load: () => Effect.succeed(invalidatedProject)
+    });
+    const TouchProject = Action.define<
+      { readonly id: string },
+      { readonly ok: boolean }
+    >({
+      name: "Start.action.project.identity-refresh",
+      input: Schema.Struct({ id: Schema.String }),
+      output: Schema.Struct({ ok: Schema.Boolean }),
+      run: () => Effect.succeed({ ok: true })
+    });
+    const clientRuntime = makeRuntime();
+    const hydratedRef = HydratedProject.ref("atlas");
+    const invalidatedRef = InvalidatedProject.ref("atlas");
+    const fetcher: StartFetch = () =>
+      Effect.succeed(
+        new Response(
+          JSON.stringify({
+            _tag: "Success",
+            value: { ok: true },
+            hydration: {
+              resources: [
+                {
+                  name: HydratedProject.options.name,
+                  key: hydratedRef.key,
+                  input: "atlas",
+                  state: {
+                    _tag: "Success",
+                    waiting: false,
+                    value: { id: "atlas", name: "Hydrated By Action" },
+                    updatedAt: 1
+                  }
+                }
+              ]
+            },
+            invalidation: {
+              targets: [
+                {
+                  _tag: "Ref",
+                  key: invalidatedRef.key,
+                  family: InvalidatedProject.options.name,
+                  input: "atlas"
+                }
+              ],
+              entries: []
+            }
+          }),
+          { headers: { "content-type": "application/json" } }
+        )
+      );
+
+    try {
+      await runInRuntime(clientRuntime, Resource.prefetchEffect(hydratedRef));
+      await runInRuntime(clientRuntime, Resource.prefetchEffect(invalidatedRef));
+      invalidatedProject = {
+        id: "atlas",
+        name: "Invalidated By Action"
+      };
+
+      await expect(
+        Effect.runPromise(
+          submitStartActionEffect(
+            TouchProject,
+            { id: "atlas" },
+            {
+              fetch: fetcher,
+              runtime: clientRuntime
+            }
+          )
+        )
+      ).resolves.toMatchObject({
+        _tag: "Success",
+        value: {
+          ok: true
+        }
+      });
+
+      expect(hydratedRef.key).toBe(invalidatedRef.key);
+      expect(HydratedProject.options.name).not.toBe(InvalidatedProject.options.name);
+      expect(runWithRuntime(clientRuntime, () => Resource.status(hydratedRef).value)).toEqual({
+        id: "atlas",
+        name: "Hydrated By Action"
+      });
+      expect(runWithRuntime(clientRuntime, () => Resource.status(invalidatedRef).value)).toEqual({
+        id: "atlas",
+        name: "Invalidated By Action"
       });
     } finally {
       await Effect.runPromise(clientRuntime.disposeEffect);

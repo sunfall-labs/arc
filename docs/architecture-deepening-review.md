@@ -11,10 +11,40 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review and full verification checkpoint is
-Review158, immediately after Review157. Some older review entries remain below
-it from prior ledger merges; use this tip rather than file order alone when
-looking for the latest architecture sweep.
+The newest completed focused review is Review159. The newest full verification
+checkpoint is Review158, immediately before Review159. Some older review
+entries remain below it from prior ledger merges; use this tip rather than file
+order alone when looking for the latest architecture sweep.
+
+## Review 159: Action Response Resource Identity
+
+Review159 fixed the only actionable finding from the post-Review158 sweeps. DB,
+Start/Devtools/script, and public guardrail sweeps reported no other actionable
+findings.
+
+1. Start Action Hydration/Invalidation Identity
+   - Status: fixed.
+   - Files: `packages/start/src/start-action-response-application.ts`,
+     `packages/start/test/start.test.ts`.
+   - Problem: action response application filtered follow-up invalidation work
+     for hydrated resources using only `resource.key`. Resource hydration
+     payload identity is `name + key`; using just the key made the Start client
+     Adapter rely on Core's current globally-prefixed key shape instead of the
+     public hydration contract.
+   - Fix: hydrated resource suppression now compares composite resource
+     identity from snapshot `name/key` against invalidation entry
+     `family.options.name/key`. A regression uses family-local keys for two
+     different resource families to prove hydrating one family no longer
+     suppresses invalidating the other.
+   - Benefits: Start action metadata application now follows the same Resource
+     identity contract as hydration snapshots and stays correct if key encoding
+     changes or an adapter supplies family-local keys.
+
+Focused verification passed: Start package typecheck, Start/app-graph/adapters
+plus Devtools tests 4 files / 268 tests, DB reviewer verification 5 files / 190
+tests, public API audit, Effect-first audit over 273 files, and
+`git diff --check`. Full `pnpm verify` still needs to be rerun for Review159
+before the full checkpoint tip can advance.
 
 ## Review 158: Scoped UI Preloads, Durable Restore Liveness, And Trace Defects
 

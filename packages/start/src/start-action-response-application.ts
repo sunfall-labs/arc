@@ -3,7 +3,9 @@ import {
   ResourceTagIdentityTypeId,
   ResourceTagTypeId,
   ServerTransportError,
-  type ResourceInvalidation
+  type ResourceHydrationSnapshot,
+  type ResourceInvalidation,
+  type ResourceInvalidationPlanEntry
 } from "@effect-ui/core";
 import { Effect } from "effect";
 import { hydrateStartPayloadEffect } from "./hydration.js";
@@ -162,9 +164,25 @@ const startActionHydrationTransportError = (
     payload: body
   });
 
+const startActionResourceIdentity = (
+  name: string,
+  key: string
+): string =>
+  JSON.stringify([name, key]);
+
+const startActionHydrationResourceIdentity = (
+  resource: ResourceHydrationSnapshot
+): string =>
+  startActionResourceIdentity(resource.name, resource.key);
+
+const startActionInvalidationEntryIdentity = (
+  entry: ResourceInvalidationPlanEntry<unknown>
+): string =>
+  startActionResourceIdentity(entry.ref.family.options.name, entry.ref.key);
+
 const startActionResponseInvalidationEffect = (
   body: StartActionResponseBody,
-  hydrationKeys: ReadonlySet<string> = new Set()
+  hydratedResources: ReadonlySet<string> = new Set()
 ): Effect.Effect<void, ServerTransportError, any> =>
   Effect.gen(function* () {
     const invalidationTargets = "invalidation" in body
@@ -175,7 +193,7 @@ const startActionResponseInvalidationEffect = (
       const plan = yield* Resource.planInvalidationEffect(invalidationTargets);
       yield* Resource.runInvalidationPlanEffect({
         targets: plan.targets,
-        entries: plan.entries.filter((entry) => !hydrationKeys.has(entry.ref.key))
+        entries: plan.entries.filter((entry) => !hydratedResources.has(startActionInvalidationEntryIdentity(entry)))
       });
     }
   });
@@ -224,13 +242,13 @@ export const applyStartActionResponseEffect = <
       );
     }
 
-    const hydrationKeys = new Set(
+    const hydratedResources = new Set(
       "hydration" in body && body.hydration
-        ? body.hydration.resources.map((resource) => resource.key)
+        ? body.hydration.resources.map(startActionHydrationResourceIdentity)
         : []
     );
 
-    yield* startActionResponseInvalidationEffect(body, hydrationKeys);
+    yield* startActionResponseInvalidationEffect(body, hydratedResources);
   });
 
   return (options.runtime
