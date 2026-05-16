@@ -179,10 +179,12 @@ Last evidence pass: May 15, 2026.
     vocabulary behind the stable `agent-graph.ts` facade. Start diagnostics
     DTO decoding now validates resource/tag/collection registry facts,
     `start-app-graph-diagnostics-policy.ts` owns route preload diagnostics
-    policy validation for build/runtime adapters, and
+    policy validation for resolved runtime/Vite adapters while static build
+    validation stays on static app graph facts, and
     Start agent graph constructors, diagnostics failures, and Core `Program`
-    namespace aliases/direct contracts have declaration-site JSDoc pinned by
-    the public API audit for LSP hovers.
+    namespace aliases/direct contracts plus app graph DTO/errors/deserializer
+    declarations have declaration-site JSDoc pinned by the public API audit for
+    LSP hovers.
 - [x] Core runtime service erasure is named at the runtime value boundary.
   - Evidence: `packages/core/src/runtime.ts` erases ManagedRuntime services at
     the `ManagedRuntime<any, ER>` value boundary, so runtime helpers no longer
@@ -784,10 +786,10 @@ Last evidence pass: May 15, 2026.
   - Evidence: no new ADR required for the Start Action Response Codec
     extraction.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 15, 2026 after the Review 132
-    Start Diagnostics Policy Module slice: 11 package builds, workspace
+  - Evidence: root `pnpm verify` passed on May 15, 2026 after the Review 133
+    app graph public hover and CLI vocabulary slice: 11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
-    246 files, 53 root test files / 875 tests,
+    246 files, 53 root test files / 877 tests,
     devtools-panel verify with 1 panel test file / 2 tests, devtools-extension
     verify with 1 extension test file / 20 tests, basic starter verify with 1
     starter test file / 2 tests, React starter verify with 1 starter test file

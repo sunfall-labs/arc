@@ -18,6 +18,7 @@ const publicHoverDocs = [
   {
     file: "packages/core/src/program.ts",
     declarations: [
+      "Program",
       "startProgramWithRuntimeError"
     ],
     namespaceDeclarations: {
@@ -102,6 +103,13 @@ const publicHoverDocs = [
       "StartAppGraphDiagnosticsRuntimeCandidates",
       "StartAppGraphWireSchemaPolicy",
       "StartAppGraphActionBehaviorPolicy",
+      "StartAppGraphParseError",
+      "StartAppGraphMissingWireSchemas",
+      "StartAppGraphUnknownActionBehavior",
+      "StartAppGraphDiagnosticsDtoError",
+      "StartAppGraphDiagnosticsDtoInput",
+      "StartAppGraphDiagnosticsDto",
+      "StartAppGraphDeserializeError",
       "decodeStartAppGraphDiagnosticsEffect",
       "decodeStartAppGraphDiagnosticsPolicyViolationsEffect",
       "decodeStartAppGraphDiagnosticsDtoEffect",
@@ -113,7 +121,8 @@ const publicHoverDocs = [
       "describeStartAppGraphRuntimeDiagnostics",
       "describeStartAppGraphEffect",
       "validateStartAppGraphWireSchemasEffect",
-      "validateStartAppGraphActionBehaviorEffect"
+      "validateStartAppGraphActionBehaviorEffect",
+      "deserializeStartAppGraph"
     ]
   },
   {

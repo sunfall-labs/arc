@@ -69,8 +69,8 @@ Latest full gate on May 15, 2026:
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 231 package/example/script/type-test files;
-- 52 root test files / 861 tests;
+- Effect-first audit over 246 package/example/script/type-test files;
+- 53 root test files / 877 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
 - basic starter verify with 1 starter test file / 2 tests;
@@ -172,6 +172,12 @@ Latest full gate on May 15, 2026:
   are asserted through `@effect-ui/start` type tests, diagnostics policy
   opt-outs are covered, and every graph query kind runs through the CLI
   parser/runtime seam for graph and impact commands.
+- Review 134 closed the fresh post-Review133 audit gaps: graph query-kind types
+  derive from the shared catalog, static build policy validation no longer
+  claims resolved runtime diagnostics, Vite/runtime diagnostics opt-outs and DB
+  multi-collection store-explicit hydrate preflight are pinned, app graph
+  DTO/errors/deserializer hovers are audit-pinned, and stale
+  `Effect.runPromise` seam allowances were removed.
 - Review 85 extracted the internal Solid Route Render Scope Controller:
   `RouterOutlet` now delegates route branch rendering, route-owned `UiScope`
   creation, Solid root cleanup, runtime-bound route finalizers, transition

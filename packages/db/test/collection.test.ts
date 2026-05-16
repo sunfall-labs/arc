@@ -2,6 +2,7 @@ import { EffectInputCallbackError, makeResourceStore, makeRuntime, read, Resourc
 import { Collection, CollectionRowKeyChanged, CollectionRowNotFound, CollectionStorageError, Query, QueryBuilder, QueryEvaluationError, UnknownCollectionIndex, UnsupportedLiveQuery, and, eq, gt } from "@effect-ui/db";
 import { Cause, Deferred, Effect, Exit, Fiber, Option, PubSub, Schedule, Schema } from "effect";
 import { describe, expect, it, vi } from "vitest";
+import { markStoreExplicitCollectionSnapshotDefinition } from "../src/collection-definition-snapshot.js";
 import { CollectionSnapshotCodecError } from "../src/collection-snapshot-codec.js";
 
 interface Project {
@@ -1881,6 +1882,85 @@ describe("Collection", () => {
           "existing-project"
         ]);
         expect(runWithRuntime(runtime, () => Tasks.rows().map((taskRow) => taskRow.id))).toEqual([
+          "existing-task"
+        ]);
+      }).pipe(
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
+  it("preflights incomplete store-explicit payload hydration before mutating earlier collections", () => {
+    const runtime = makeRuntime();
+    const Projects = Collection.define<Project>({
+      name: "Projects.snapshot-codec-preflight-store-explicit-projects",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "existing-project", name: "Existing", status: "active", progress: 1 }
+      ]
+    });
+    const Tasks = Collection.define<Task>({
+      name: "Tasks.snapshot-codec-preflight-store-explicit-tasks",
+      getKey: (task) => task.id,
+      initialData: [
+        { id: "existing-task", projectId: "existing-project", title: "Existing", done: false }
+      ]
+    });
+    markStoreExplicitCollectionSnapshotDefinition(Tasks);
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const payload = {
+          collections: [
+            {
+              name: "Projects.snapshot-codec-preflight-store-explicit-projects",
+              rows: [
+                {
+                  key: "atlas",
+                  value: { id: "atlas", name: "Atlas", status: "active", progress: 72 },
+                  synced: true,
+                  origin: "remote" as const
+                }
+              ],
+              pendingMutations: [],
+              updatedAt: 1
+            },
+            {
+              name: "Tasks.snapshot-codec-preflight-store-explicit-tasks",
+              rows: [
+                {
+                  key: "task-1",
+                  value: { id: "task-1", projectId: "atlas", title: "Plan", done: false },
+                  synced: true,
+                  origin: "remote" as const
+                }
+              ],
+              pendingMutations: [],
+              updatedAt: 1
+            }
+          ]
+        };
+        const validationFailure = yield* Effect.flip(
+          runtime.provide(Collection.validateHydrationPayloadEffect([Projects, Tasks], payload))
+        );
+        const hydrateFailure = yield* Effect.flip(
+          runtime.provide(Collection.hydratePayloadEffect([Projects, Tasks], payload))
+        );
+
+        for (const failure of [validationFailure, hydrateFailure]) {
+          expect(failure).toBeInstanceOf(CollectionSnapshotCodecError);
+          expect(failure).toMatchObject({
+            operation: "hydrate",
+            path: "$"
+          });
+          expect((failure as CollectionSnapshotCodecError).reason).toContain("snapshotWithStore");
+          expect((failure as CollectionSnapshotCodecError).reason).toContain("snapshotWithStoreEffect");
+          expect((failure as CollectionSnapshotCodecError).reason).toContain("hydratePreflightEffect");
+        }
+        expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.id))).toEqual([
+          "existing-project"
+        ]);
+        expect(runWithRuntime(runtime, () => Tasks.rows().map((task) => task.id))).toEqual([
           "existing-task"
         ]);
       }).pipe(

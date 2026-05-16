@@ -67,8 +67,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     vocabulary, diagnostics DTO, and LSP docs sweep, and Review 130 db
     store-explicit collection snapshot Interface extraction, and Review 131
     public hover completion, and Review 132 start diagnostics policy Module and
-    regression hooks, and Review 133 app graph public hover and CLI vocabulary
-    seams.
+    regression hooks, Review 133 app graph public hover and CLI vocabulary
+    seams, and Review 134 runtime diagnostics policy and audit drift closure.
 
 ## Current Sweep Results
 
@@ -83,6 +83,10 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   guard succeeds.
 - Updated the release-candidate slice list so it no longer asks for removed
   Promise `.then(...)` internals or already-shipped teardown facts.
+- Updated the current-facing verification snapshots after the Review 133 full
+  `pnpm verify` gate and recorded Review 134's static-vs-runtime diagnostics
+  policy split, app graph hover audit expansion, and Effect-first allowance
+  tightening.
 - Updated the cleanup backlog so the generated artifact determinism audit points
   at the completed audit artifact instead of remaining unchecked.
 - Updated final handoff evidence to point at the latest full `pnpm verify`

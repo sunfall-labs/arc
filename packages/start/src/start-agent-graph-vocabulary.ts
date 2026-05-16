@@ -1,7 +1,6 @@
 import type {
   StartAgentGraphImpactRelationKind,
-  StartAgentGraphNodeKind,
-  StartAgentGraphQueryKind
+  StartAgentGraphNodeKind
 } from "./start-agent-graph-contract.js";
 
 /**
@@ -22,7 +21,10 @@ export const startAgentGraphQueryKinds = [
   "resource-tag",
   "route",
   "server-function"
-] as const satisfies ReadonlyArray<StartAgentGraphQueryKind>;
+] as const;
+
+/** Query filters accepted by Start graph and impact helpers. */
+export type StartAgentGraphQueryKind = typeof startAgentGraphQueryKinds[number];
 
 const startAgentGraphQueryKindSet = new Set<StartAgentGraphQueryKind>(
   startAgentGraphQueryKinds

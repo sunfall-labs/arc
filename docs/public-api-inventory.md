@@ -50,9 +50,10 @@ public API inventory audit verifies the manifest against package
 `exports`/`bin` maps and checks that each focused type-test file imports the
 entrypoint it claims to cover. It also checks that every package root barrel's
 local re-exported modules are named in that package's Source Surface section so
-hover/LSP docs cannot drift from exported source files. The broad
-`type-tests/framework.test-d.ts` file remains as cross-package integration
-coverage.
+hover/LSP docs cannot drift from exported source files, and it enforces JSDoc
+on selected public hover declarations for the Core Program and Start diagnostics
+surfaces. The broad `type-tests/framework.test-d.ts` file remains as
+cross-package integration coverage.
 
 ## Source Surface By Package
 

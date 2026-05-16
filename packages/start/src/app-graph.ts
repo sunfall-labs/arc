@@ -280,6 +280,7 @@ export interface StartAppGraphActionBehaviorPolicy {
   readonly requireConcurrency?: boolean;
 }
 
+/** Error raised when a serialized Start app graph cannot be parsed or validated. */
 export class StartAppGraphParseError extends Data.TaggedError(
   "StartAppGraphParseError"
 )<{
@@ -287,18 +288,21 @@ export class StartAppGraphParseError extends Data.TaggedError(
   readonly cause?: unknown;
 }> {}
 
+/** Error raised when required wire schemas are missing from the static app graph. */
 export class StartAppGraphMissingWireSchemas extends Data.TaggedError(
   "StartAppGraphMissingWireSchemas"
 )<{
   readonly missing: readonly StartAppGraphMissingSchema[];
 }> {}
 
+/** Error raised when required action behavior metadata is unknown. */
 export class StartAppGraphUnknownActionBehavior extends Data.TaggedError(
   "StartAppGraphUnknownActionBehavior"
 )<{
   readonly unknown: readonly StartAppGraphUnknownActionBehaviorEntry[];
 }> {}
 
+/** Error raised when a diagnostics DTO does not match the public wire shape. */
 export class StartAppGraphDiagnosticsDtoError extends Data.TaggedError(
   "StartAppGraphDiagnosticsDtoError"
 )<{
@@ -306,16 +310,19 @@ export class StartAppGraphDiagnosticsDtoError extends Data.TaggedError(
   readonly value: unknown;
 }> {}
 
+/** Unknown payload loaded from a Vite app graph diagnostics module. */
 export interface StartAppGraphDiagnosticsDtoInput {
   readonly diagnostics: unknown;
   readonly diagnosticsPolicyViolations?: unknown;
 }
 
+/** Decoded app graph diagnostics payload plus resolved policy violations. */
 export interface StartAppGraphDiagnosticsDto {
   readonly diagnostics: StartAppGraphDiagnostics;
   readonly diagnosticsPolicyViolations: readonly StartAppGraphDiagnosticsPolicyViolation[];
 }
 
+/** Failure channel for Start app graph deserialization and nested manifest validation. */
 export type StartAppGraphDeserializeError =
   | StartAppGraphParseError
   | FileRouteManifestParseError
@@ -1148,6 +1155,7 @@ const decodeSerializedGraph = (
     });
   });
 
+/** Deserializes and revalidates a Start app graph artifact. */
 export const deserializeStartAppGraph = (
   serialized: string
 ): Effect.Effect<StartAppGraph, StartAppGraphDeserializeError> =>

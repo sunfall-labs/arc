@@ -11,15 +11,56 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 133, immediately after Review 132. Some older review
+The newest review is Review 134, immediately after Review 133. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
 
+## Review 134: Runtime Diagnostics Policy and Audit Drift Closure
+
+Status: fixed for the fresh post-Review133 architecture, Effect/Promise,
+docs/LSP, and test-gap sweeps. Focused verification is green. Full verification
+and a fresh post-fix sweep are still required before the clean-sweep counter can
+start.
+
+- Start graph query vocabulary: `StartAgentGraphQueryKind` is now derived from
+  `startAgentGraphQueryKinds`, removing the second hand-maintained authority
+  between the contract and vocabulary modules.
+- Static vs resolved diagnostics policy: `validateStartBuildPolicyEffect(...)`
+  now validates only static app graph policies. Resolved route-preload
+  diagnostics policy remains enforced by the generated runtime diagnostics
+  virtual module and the Vite diagnostics gate, where route modules and
+  registries are actually loaded.
+- Public hover regression hook: the public API audit now also pins
+  `Program`, Start app graph parse/DTO/deserialization declarations, and the
+  public deserializer hover docs. `docs/public-api-inventory.md` now records
+  the curated hover-doc audit contract explicitly.
+- Effect-first exact seams: `scripts/audit-effect-first.mjs` now removes stale
+  `Effect.runPromise` allowances for Start fetch/Vite files and tightens the
+  request runtime response seam to the single remaining host boundary.
+- Diagnostics and hydrate regression coverage: Start tests now cover disabled
+  runtime diagnostics policy serialization, Vite diagnostics opt-outs, and the
+  disabled build diagnostics gate. DB collection tests now cover
+  multi-collection hydrate preflight for incomplete store-explicit payloads
+  before any earlier collection mutates.
+- Package-boundary assertions: `type-tests/start.test-d.ts` now imports the
+  expanded Start app graph diagnostics policy, route-preload validator,
+  DTO/deserializer, and error surface through `@effect-ui/start`.
+
+Focused verification passed: `pnpm exec vitest run packages/start/test/start.test.ts
+-t "diagnostics policy|build diagnostics gate|runtime diagnostics virtual
+module|typed static build policy"` (1 file / 8 selected tests), `pnpm exec
+vitest run packages/db/test/collection.test.ts -t "store-explicit
+payload|preflights incomplete|multi-collection hydration"` (1 file / 2 selected
+tests), `pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm
+audit:effect-first` over 246 files, and `pnpm --filter @effect-ui/start
+typecheck`.
+
 ## Review 133: App Graph Public Hover and CLI Vocabulary Seams
 
-Status: fixed for the fresh post-Review132 docs/LSP and test-gap sweeps.
-Focused verification is green, but the Thirty-Sweep clean counter remains at 0
-until a fresh sweep after this slice finds no actionable work.
+Status: fixed for the fresh post-Review132 docs/LSP and test-gap sweeps. Full
+verification passed, but fresh post-fix sweeps found the Review 134
+architecture, audit, docs/LSP, and test gaps, so the Thirty-Sweep clean counter
+remains at 0.
 
 - App Graph public hover coverage: `packages/start/src/app-graph.ts` now
   documents the important public diagnostics candidates, policy inputs,
@@ -45,8 +86,13 @@ Focused verification passed: `pnpm audit:public-api`, `pnpm --filter
 @effect-ui/start typecheck`, `pnpm typecheck:types`, `pnpm audit:effect-first`
 over 246 files, and `pnpm exec vitest run packages/start/test/app-graph.test.ts
 packages/start/test/start.test.ts -t "policy|query kind|parser/runtime seam|parses and runs"`
-(2 files / 11 selected tests), and `git diff --check`. Full `pnpm verify` is
-pending after this docs/test slice.
+(2 files / 11 selected tests), and `git diff --check`.
+Full `pnpm verify` passed after the slice: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 246 files, 53 root test files / 877 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, project-console packaging/typecheck/
+tests/build with 4 files / 27 tests, and leak scans.
 
 ## Review 132: Start Diagnostics Policy Module and Regression Hooks
 

@@ -124,12 +124,10 @@ const allowed = [
     seams: new Map([
       ["packages/solid/src/hooks.ts", 1],
       ["packages/react/src/hooks.ts", 1],
-      ["packages/start/src/request-runtime-response.ts", 2],
+      ["packages/start/src/request-runtime-response.ts", 1],
       ["packages/start/src/streaming.ts", 1],
       ["packages/start/src/start-host-runtime-runner.ts", 1],
-      ["packages/start/src/fetch-adapter.ts", 1],
       ["packages/start/src/cli.ts", 1],
-      ["packages/start/src/vite.ts", 1],
       ["scripts/package-project-console-starter.mjs", 1]
     ])
   },

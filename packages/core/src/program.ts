@@ -112,6 +112,7 @@ export const startProgramWithRuntimeError = <Model, Message, E = never, R = neve
   });
 };
 
+/** Public namespace facade for defining, starting, testing, and typing Programs. */
 export namespace Program {
   /** Definition for a headless model/message loop with Effect-owned work. */
   export type Definition<Model, Message, E = never, R = never> = ProgramDefinition<Model, Message, E, R>;

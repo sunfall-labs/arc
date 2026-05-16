@@ -5364,6 +5364,28 @@ describe("Effect UI Start", () => {
     expect(String(loaded)).not.toContain("new Error(`Effect UI app graph diagnostics policy failed");
   });
 
+  it("serializes disabled resolved diagnostics policy through the runtime diagnostics virtual module", () => {
+    const plugin = effectUiStart({
+      buildPolicy: {
+        wireSchemas: false,
+        diagnostics: false
+      },
+      fileRoutes: [
+        "src/routes/projects/$id.tsx"
+      ],
+      fileRouteOptions: {
+        routeDirectory: "src/routes"
+      }
+    });
+    const resolved = plugin.resolveId(appGraphRuntimeDiagnosticsVirtualModuleId);
+    const loaded = resolved === null ? undefined : plugin.load(resolved);
+
+    expect(String(loaded)).toContain("const diagnosticsPolicy = null;");
+    expect(String(loaded)).toContain(
+      "validateStartAppGraphDiagnosticsPolicyExceptionEffect(diagnostics, diagnosticsPolicy)"
+    );
+  });
+
   it("loads resolved app graph diagnostics through Vite for CI scripts", async () => {
     const root = mkdtempSync(join(tmpdir(), "effect-ui-diagnostics-runner-"));
 
@@ -5441,6 +5463,52 @@ describe("Effect UI Start", () => {
           expect.objectContaining({ name: "Runner.Projects" })
         ])
       );
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 20000);
+
+  it("allows resolved app graph diagnostics policy opt-outs through Vite", async () => {
+    const root = mkdtempSync(join(tmpdir(), "effect-ui-diagnostics-runner-opt-out-"));
+
+    try {
+      mkdirSync(join(root, "src/routes"), { recursive: true });
+      writeFileSync(
+        join(root, "src/routes/index.ts"),
+        [
+          "import { route } from \"@effect-ui/core\";",
+          "export const Route = route(\"/\", {",
+          "  preload: () => undefined",
+          "});"
+        ].join("\n")
+      );
+
+      const result = await Effect.runPromise(
+        loadStartAppGraphDiagnosticsEffect({
+          root,
+          configFile: false,
+          start: {
+            fileRoutes: ["src/routes/index.ts"],
+            fileRouteOptions: {
+              routeDirectory: "src/routes"
+            },
+            buildPolicy: {
+              wireSchemas: false,
+              diagnostics: {
+                routePreloadResources: {
+                  requireDeclaredForPreload: false
+                },
+                routePreloadCollections: false
+              }
+            }
+          },
+          vite: startDiagnosticsRunnerViteConfig()
+        })
+      );
+
+      expect(result.diagnosticsPolicyViolations).toEqual([]);
+      expect(result.diagnostics.unknownRoutePreloadResources).toHaveLength(1);
+      expect(result.diagnostics.unknownRoutePreloadCollections).toHaveLength(1);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -5555,6 +5623,58 @@ describe("Effect UI Start", () => {
       expect(buildError).toBeDefined();
       expect(String(buildError)).toContain("preloadResources");
       expect(String(buildError)).toContain("preloadCollections");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 20000);
+
+  it("skips the Vite build diagnostics gate when diagnostics policy is disabled", async () => {
+    const root = mkdtempSync(join(process.cwd(), ".tmp-effect-ui-diagnostics-build-gate-opt-out-"));
+
+    try {
+      mkdirSync(join(root, "src/routes"), { recursive: true });
+      writeFileSync(
+        join(root, "index.html"),
+        [
+          "<!doctype html>",
+          "<html>",
+          "  <body>",
+          "    <script type=\"module\" src=\"/src/main.ts\"></script>",
+          "  </body>",
+          "</html>"
+        ].join("\n")
+      );
+      writeFileSync(join(root, "src/main.ts"), "export const mounted = true;\n");
+      writeFileSync(
+        join(root, "src/routes/index.ts"),
+        [
+          "import { route } from \"@effect-ui/core\";",
+          "export const Route = route(\"/\", {",
+          "  preload: () => undefined",
+          "});"
+        ].join("\n")
+      );
+
+      await expect(
+        build({
+          root,
+          configFile: false,
+          logLevel: "silent",
+          ...startDiagnosticsRunnerViteConfig(),
+          plugins: [
+            effectUiStart({
+              fileRoutes: ["src/routes/index.ts"],
+              fileRouteOptions: {
+                routeDirectory: "src/routes"
+              },
+              buildPolicy: {
+                wireSchemas: false,
+                diagnostics: false
+              }
+            })
+          ]
+        })
+      ).resolves.toBeDefined();
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -6487,7 +6607,7 @@ describe("Effect UI Start", () => {
     expect(stderr.join("\n")).toContain("Owner: StartBuildPolicy.diagnostics");
   });
 
-  it("exposes typed build policy validation over Start app graph diagnostics", async () => {
+  it("exposes typed static build policy validation over Start app graph manifests", async () => {
     const graph = await Effect.runPromise(
       makeStartBuildAppGraphEffect({
         serverFunctionManifest: [

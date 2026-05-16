@@ -30,6 +30,9 @@ interruption.
   - Self-tests cover multiline Promise returns, template interpolation
     detection, bare await detection, and the existing `Deferred.await` Effect
     operator exemption.
+  - The Review 134 pass removed stale `Effect.runPromise` allowances for
+    Start fetch and Vite implementation files and tightened
+    `request-runtime-response.ts` to the single remaining host seam.
 - `packages/start/src/start-fetch.ts` and `packages/start/src/file-route.ts`
   - Custom Start fetchers and file-route preload helpers now reject
     Promise-shaped erased JavaScript values before they cross deeper runtime
@@ -374,6 +377,14 @@ interruption.
 
 ## Verification Evidence
 
+- Review 134 focused verification passed `pnpm audit:effect-first` over 246
+  package/example/script/type-test files after tightening exact
+  `Effect.runPromise` seam allowances.
+- The latest full gate is the Review 133 `pnpm verify` run: 11 package builds,
+  workspace typecheck, public type tests, public API inventory audit,
+  Effect-first audit over 246 files, 53 root test files / 877 tests,
+  devtools-panel/devtools-extension/starter/project-console gates, and leak
+  scans.
 - `pnpm exec vitest run packages/core/test/runtime.test.ts packages/start/test/start.test.ts`
   passed after the first cleanup pass.
 - `pnpm exec vitest run packages/db/test/live-query-collection.test.ts packages/solid-db/test/solid-db.test.ts`

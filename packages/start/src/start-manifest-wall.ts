@@ -4,7 +4,6 @@ import { existsSync, readdirSync } from "node:fs";
 import { isAbsolute, relative as relativePath, resolve as resolvePath } from "node:path";
 import {
   createStartAppGraph,
-  describeStartAppGraph,
   serializeStartAppGraph as serializeStartAppGraphArtifact,
   validateStartAppGraphActionBehaviorEffect,
   validateStartAppGraphWireSchemasEffect,
@@ -35,10 +34,8 @@ import {
   type FileRouteManifestOptions
 } from "./file-routes.js";
 import type { GeneratedFileRouteDefinitionsModuleOptions } from "./file-route-modules.js";
-import {
-  validateStartAppGraphDiagnosticsPolicyEffect,
-  type StartAppGraphDiagnosticsPolicy,
-  type StartAppGraphDiagnosticsPolicyError
+import type {
+  StartAppGraphDiagnosticsPolicy
 } from "./start-app-graph-diagnostics-policy.js";
 import {
   makeServerFunctionManifest,
@@ -105,13 +102,13 @@ export interface EffectUiStartOptions {
 export interface StartBuildPolicy {
   readonly wireSchemas?: StartAppGraphWireSchemaPolicy | false;
   readonly actionBehavior?: StartAppGraphActionBehaviorPolicy | false;
+  /** Resolved runtime diagnostics policy, enforced by the Vite diagnostics gate. */
   readonly diagnostics?: StartAppGraphDiagnosticsPolicy | false;
 }
 
 export type StartBuildPolicyError =
   | StartAppGraphMissingWireSchemasError
-  | StartAppGraphUnknownActionBehaviorError
-  | StartAppGraphDiagnosticsPolicyError;
+  | StartAppGraphUnknownActionBehaviorError;
 
 /** Options for discovering file-route modules from a route directory. */
 export interface FileRouteDiscoveryOptions {
@@ -486,7 +483,7 @@ export const normalizeStartBuildPolicy = (
   return policy === true ? defaultStartBuildPolicy : policy;
 };
 
-/** Applies configured build policies to a resolved Start app graph. */
+/** Applies static build policies to a Start app graph. */
 export const validateStartBuildPolicyEffect = (
   graph: StartAppGraph,
   policy: StartBuildPolicy = defaultStartBuildPolicy
@@ -505,13 +502,6 @@ export const validateStartBuildPolicyEffect = (
       yield* validateStartAppGraphActionBehaviorEffect(graph, actionBehavior);
     }
 
-    const diagnostics = policy.diagnostics;
-    if (diagnostics !== undefined && diagnostics !== false) {
-      yield* validateStartAppGraphDiagnosticsPolicyEffect(
-        describeStartAppGraph(graph),
-        diagnostics
-      );
-    }
   });
 
 /** Builds the app graph and applies any enabled build policy. */

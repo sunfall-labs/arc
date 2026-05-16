@@ -9,6 +9,12 @@ import type {
   StartDiagnosticsReport,
   StartDiagnosticsReportFinding
 } from "./diagnostics-report.js";
+import type {
+  StartAgentGraphQueryKind
+} from "./start-agent-graph-vocabulary.js";
+export type {
+  StartAgentGraphQueryKind
+} from "./start-agent-graph-vocabulary.js";
 
 /** Semantic node families shown in Start diagnostics graphs and impact briefs. */
 export type StartAgentGraphNodeKind =
@@ -113,19 +119,6 @@ export interface StartAgentGraphInput {
   readonly diagnostics: StartAppGraphDiagnostics;
   readonly diagnosticsPolicyViolations?: readonly StartAppGraphDiagnosticsPolicyViolation[];
 }
-
-/** Query filters accepted by Start graph and impact helpers. */
-export type StartAgentGraphQueryKind =
-  | "action"
-  | "collection"
-  | "endpoint"
-  | "finding"
-  | "module"
-  | "node"
-  | "resource"
-  | "resource-tag"
-  | "route"
-  | "server-function";
 
 /** Query used by graph search, CLI subcommands, and impact planning. */
 export interface StartAgentGraphQuery {
