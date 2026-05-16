@@ -7,6 +7,7 @@ import {
   defaultServerEntry,
   makeStartBuildAppGraphEffect,
   makeStartFileRouteManifestEffect,
+  normalizeStartManifestIterableOptions,
   normalizeStartBuildPolicy,
   withDiscoveredFileRoutes,
   type EffectUiStartOptions
@@ -187,17 +188,18 @@ export class StartServerOnlyModuleError extends Data.TaggedError("StartServerOnl
  * ```
  */
 export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStartPlugin => {
-  const serverEntry = options.serverEntry ?? defaultServerEntry;
+  const normalizedOptions = normalizeStartManifestIterableOptions(options);
+  const serverEntry = normalizedOptions.serverEntry ?? defaultServerEntry;
   let viteRoot = process.cwd();
   let viteUserConfig: UserConfig = {};
   let viteCommand: "build" | "serve" | undefined;
   let viteMode: string | undefined;
 
   const currentOptions = (): EffectUiStartOptions =>
-    withDiscoveredFileRoutes({ ...options, serverEntry }, viteRoot);
+    withDiscoveredFileRoutes({ ...normalizedOptions, serverEntry }, viteRoot);
 
   const shouldRunDiagnosticsGate = (): boolean => {
-    const policy = normalizeStartBuildPolicy(options.buildPolicy);
+    const policy = normalizeStartBuildPolicy(normalizedOptions.buildPolicy);
     return viteCommand === "build" &&
       policy?.diagnostics !== undefined &&
       policy.diagnostics !== false;
@@ -216,7 +218,7 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
 
   const writeCurrentFileRouteDefinitions = (): FileRouteDefinitionsFileWriteResult | undefined => {
     const activeOptions = currentOptions();
-    if (!shouldWriteFileRouteDefinitionsFile(viteRoot, activeOptions, options)) {
+    if (!shouldWriteFileRouteDefinitionsFile(viteRoot, activeOptions, normalizedOptions)) {
       return undefined;
     }
 
@@ -284,12 +286,12 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
                 ...(activeOptions.actionPath === undefined
                   ? {}
                   : { actionPath: activeOptions.actionPath }),
-                ...(options.handlerExport === undefined
+                ...(normalizedOptions.handlerExport === undefined
                   ? {}
-                  : { handlerExport: options.handlerExport }),
-                ...(options.nodeRequest === undefined
+                  : { handlerExport: normalizedOptions.handlerExport }),
+                ...(normalizedOptions.nodeRequest === undefined
                   ? {}
-                  : { nodeRequest: options.nodeRequest })
+                  : { nodeRequest: normalizedOptions.nodeRequest })
               }
             )
           );

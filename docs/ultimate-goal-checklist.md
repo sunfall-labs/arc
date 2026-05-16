@@ -803,12 +803,12 @@ Last evidence pass: May 16, 2026.
     typecheck, 4 project-console test files / 27 tests, project-console build,
     and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 150 records focused public API, Effect-first, public
-    type-test, generated starter tarball dry-run, raw throw/Promise fixture,
-    source routeTree drift, and 16-target package dry-run verification after
-    fixing Start Adapter hover docs, AST-based type-test coverage, Promise
-    factory guardrails, and generated starter local-package inclusion. Full
-    verification is recorded in the latest gate above.
+  - Evidence: Review 152 records focused Core/DB/Start/React-DB/Solid-DB
+    typechecks, public type tests, public API audit, Effect-first audit over
+    269 files including generated starter templates, Core router/route/resource
+    tests, DB/React-DB/Solid-DB tests, Start tests, generated starter
+    packaging, 16-target package dry-run gate, and `git diff --check`. Full
+    verification is still recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items
 

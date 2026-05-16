@@ -97,6 +97,7 @@ import {
   loadStartAppGraphDiagnosticsEffect,
   makeStartBuildAppGraphEffect,
   makeStartActionManifestEffect,
+  makeStartFileRouteManifestEffect,
   makeStartServerFunctionManifestEffect,
   resolveStartHandler,
   serializeStartActionManifest,
@@ -177,6 +178,28 @@ const startDiagnosticsRunnerViteConfig = () => ({
     ]
   }
 });
+
+const oneShotIterable = <A>(values: readonly A[]) => {
+  let iteratorCalls = 0;
+  let consumed = false;
+  const iterable: Iterable<A> = {
+    [Symbol.iterator]: function* () {
+      iteratorCalls++;
+      if (consumed) {
+        return;
+      }
+      consumed = true;
+      yield* values;
+    }
+  };
+
+  return {
+    iterable,
+    get iteratorCalls() {
+      return iteratorCalls;
+    }
+  };
+};
 
 describe("Effect UI Start", () => {
   it("defines file routes with the same typed href contract as core routes", () => {
@@ -1728,6 +1751,55 @@ describe("Effect UI Start", () => {
     await expect(response.text()).resolves.toContain("context");
   });
 
+  it("fails invalid response context status through the typed Start request error path", async () => {
+    const traces: DevtoolsRequestTrace[] = [];
+    const Home = route("/", {});
+    const app = defineApp({
+      routes: [Home] as const,
+      client: {}
+    });
+    const handler = createRequestHandler(app, {
+      onRequestTrace: (trace) =>
+        Effect.sync(() => {
+          traces.push(trace);
+        }),
+      render: () =>
+        ResponseContext.use((response) =>
+          Effect.gen(function* () {
+            yield* response.setStatus(99);
+            return "<html><body>invalid status</body></html>";
+          })
+        )
+    });
+
+    const failure = await Effect.runPromise(
+      Effect.flip(handler(new Request("https://example.com/invalid-status")))
+    );
+
+    expect(failure).toMatchObject({
+      _tag: "StartRequestHandlerError",
+      operation: "handle-request",
+      request: {
+        method: "GET",
+        url: "https://example.com/invalid-status"
+      }
+    });
+    expect(failure.cause).toBeInstanceOf(EffectInputCallbackError);
+    expect((failure.cause as EffectInputCallbackError).operation).toBe("ResponseContext.apply");
+    expect(traces).toEqual([
+      expect.objectContaining({
+        status: "failure",
+        teardown: expect.objectContaining({
+          runtimeDisposed: true,
+          reason: "request-failure",
+          afterDispose: expect.objectContaining({
+            fiberCount: 0
+          })
+        })
+      })
+    ]);
+  });
+
   it("runs returned Start render effects with the request runtime as ambient", async () => {
     const Project = Resource.family<string, { readonly id: string; readonly name: string }>({
       name: "Start.render.ambient.project",
@@ -2715,7 +2787,50 @@ describe("Effect UI Start", () => {
     });
   });
 
-  it("rejects duplicate explicit Start action names before dispatch", async () => {
+  it("materializes explicit Start action iterables once when creating the request handler", async () => {
+    const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
+      name: "Start.action.explicit-one-shot",
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+      run: ({ value }) => Effect.succeed({ value: value.toUpperCase() })
+    });
+    const explicitActions = oneShotIterable([Ping]);
+    const app = defineApp({
+      routes: [route("/", {})] as const,
+      client: {}
+    });
+    const handler = createRequestHandler(app, {
+      actions: explicitActions.iterable
+    });
+    const submit = (value: string) =>
+      Effect.runPromise(
+        handler(
+          new Request(`https://example.com${serverActionPath}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              name: Ping.name,
+              input: { value }
+            })
+          })
+        )
+      );
+
+    const first = await submit("first");
+    const second = await submit("second");
+
+    expect(explicitActions.iteratorCalls).toBe(1);
+    await expect(first.json()).resolves.toEqual({
+      _tag: "Success",
+      value: { value: "FIRST" }
+    });
+    await expect(second.json()).resolves.toEqual({
+      _tag: "Success",
+      value: { value: "SECOND" }
+    });
+  });
+
+  it("rejects duplicate explicit Start action names when creating the request handler", () => {
     const First = Action.define<{ readonly value: string }, { readonly value: string }>({
       name: "Start.action.explicit-duplicate",
       input: Schema.Struct({ value: Schema.String }),
@@ -2732,28 +2847,12 @@ describe("Effect UI Start", () => {
       routes: [route("/", {})] as const,
       client: {}
     });
-    const handler = createRequestHandler(app, {
-      actions: [First, Second]
-    });
-    const response = await Effect.runPromise(
-      handler(
-        new Request(`https://example.com${serverActionPath}`, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            name: First.name,
-            input: { value: "x" }
-          })
-        })
-      )
-    );
-    const body = await response.json();
-    const serialized = JSON.stringify(body);
 
-    expect(response.status).toBe(500);
-    expect(body).toMatchObject({ _tag: "Defect" });
-    expect(serialized).toContain(StartActionDuplicateName.name);
-    expect(serialized).toContain("Start.action.explicit-duplicate");
+    expect(() =>
+      createRequestHandler(app, {
+        actions: [First, Second]
+      })
+    ).toThrow(StartActionDuplicateName);
   });
 
   it("uses the app registry snapshot for RPC and action dispatch", () => {
@@ -5318,6 +5417,45 @@ describe("Effect UI Start", () => {
     expect(String(loaded)).toContain("export const entries = manifest.entries;");
   });
 
+  it("accepts iterable file route manifest entries without requiring explicit modules", async () => {
+    const source = await Effect.runPromise(
+      makeStartFileRouteManifestEffect({
+        fileRoutes: [
+          "src/routes/projects/$id.tsx",
+          "src/routes/index.tsx"
+        ],
+        fileRouteOptions: {
+          routeDirectory: "src/routes"
+        }
+      })
+    );
+    const entries = oneShotIterable(source.entries);
+    const manifest = await Effect.runPromise(
+      makeStartFileRouteManifestEffect({
+        fileRouteManifest: entries.iterable,
+        fileRouteOptions: {
+          routeDirectory: "src/routes"
+        }
+      })
+    );
+
+    expect(entries.iteratorCalls).toBe(1);
+    expect(manifest.entries.map((entry) => entry.routePath)).toEqual([
+      "/",
+      "/projects/:id"
+    ]);
+    expect(manifest.modules).toEqual([
+      expect.objectContaining({
+        kind: "Route",
+        moduleId: "src/routes/index.tsx"
+      }),
+      expect.objectContaining({
+        kind: "Route",
+        moduleId: "src/routes/projects/$id.tsx"
+      })
+    ]);
+  });
+
   it("loads typed file route definitions from the Vite preset", async () => {
     const plugin = effectUiStart({
       fileRoutes: [
@@ -5557,6 +5695,54 @@ describe("Effect UI Start", () => {
     expect(String(loaded)).not.toContain("routeModulePresence");
     expect(String(loaded)).toContain("export const routes = graph.routes;");
     expect(String(loaded)).toContain("Start.Project.appGraph.rename");
+  });
+
+  it("normalizes one-shot manifest iterables once for Vite config and virtual module loads", () => {
+    const getProject = Server.fn<string, string>("Start.Project.one-shot-manifest", {
+      handler: (id) => Effect.succeed(id)
+    });
+    const RenameProject = Action.define<string, string>({
+      name: "Start.Project.one-shot-manifest.rename",
+      run: (name) => Effect.succeed(name)
+    });
+    const fileRoutes = oneShotIterable([
+      "src/routes/projects/$id.tsx",
+      "src/routes/index.tsx"
+    ]);
+    const serverFunctionSources = oneShotIterable([
+      {
+        fn: getProject,
+        module: "/src/project/project.server.ts",
+        exportName: "getProject"
+      }
+    ]);
+    const actionSources = oneShotIterable([
+      {
+        action: RenameProject,
+        module: "/src/project/project.actions.ts",
+        exportName: "RenameProject"
+      }
+    ]);
+    const plugin = effectUiStart({
+      serverFunctionSources: serverFunctionSources.iterable,
+      actionSources: actionSources.iterable,
+      fileRoutes: fileRoutes.iterable,
+      fileRouteOptions: {
+        routeDirectory: "src/routes"
+      }
+    });
+    const config = plugin.config();
+    const appGraphId = plugin.resolveId(appGraphVirtualModuleId);
+    const diagnosticsId = plugin.resolveId(appGraphRuntimeDiagnosticsVirtualModuleId);
+    const appGraphModule = appGraphId === null ? undefined : plugin.load(appGraphId);
+    const diagnosticsModule = diagnosticsId === null ? undefined : plugin.load(diagnosticsId);
+
+    expect(fileRoutes.iteratorCalls).toBe(1);
+    expect(serverFunctionSources.iteratorCalls).toBe(1);
+    expect(actionSources.iteratorCalls).toBe(1);
+    expect(String(config.define?.__EFFECT_UI_APP_GRAPH__)).toContain("Start.Project.one-shot-manifest");
+    expect(String(appGraphModule)).toContain("Start.Project.one-shot-manifest.rename");
+    expect(String(diagnosticsModule)).toContain("src/routes/projects/$id.tsx");
   });
 
   it("keeps route implementation imports behind the runtime diagnostics virtual module", () => {

@@ -11,9 +11,90 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 150, immediately after Review 149. Some older review
+The newest completed review is Review 152, immediately after Review 151. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 152: Runtime Seams, Router Modules, And Generated Guardrails
+
+Review152 fixed the fresh Core, DB, Start, docs/LSP, and package/starter
+findings from the post-Review151 sweep.
+
+1. Core Route Preload And Browser Router Locality
+   - Status: fixed.
+   - Files: `packages/core/src/route.ts`,
+     `packages/core/src/browser-router*.ts`, `type-tests/core.test-d.ts`,
+     `scripts/audit-public-api-inventory.mjs`.
+   - Problem: Route preload planning reached through the broad public Resource
+     facade, browser router kept history, link, render, kernel, and host
+     controller Modules in one Implementation, and Core type-test ownership was
+     too diffuse for important public Interfaces.
+   - Fix: route preload planning now calls the Resource Runtime Module seam
+     directly. Browser router keeps `browser-router.ts` as the public facade
+     while focused history, link, render-decision, state, kernel, and host
+     controller Modules own their Implementations. Core type tests now pin
+     ActionResult, app, Form, Program, request/response context, Resource
+     snapshot codec, route grammar, scope, and browser-router decision surfaces.
+
+2. DB Load Generation, Live Query Identity, And SQLite Adapter Depth
+   - Status: fixed.
+   - Files: `packages/db/src/collection-sync-load-policy.ts`,
+     `packages/db/src/live-query-runtime.ts`, `packages/db/src/query-plan.ts`,
+     `packages/db/src/sqlite-persistence.ts`, `packages/db/test/*`,
+     `packages/react-db/test/react-db.test.ts`,
+     `packages/solid-db/test/solid-db.test.ts`.
+   - Problem: superseded preload failures could still fail callers after a
+     newer forced refetch made a collection Ready; live-query source
+     fingerprint failures collapsed into generic evaluation errors; and the
+     in-memory SQLite statement Adapter coerced malformed params.
+   - Fix: superseded load attempts complete successfully when a newer Ready
+     generation owns state, live-query source identity errors preserve
+     `operation: "source"`, and SQLite memory statements validate exact param
+     count, string params, and finite numeric params before row access.
+
+3. Start Request, Manifest, Action, And Trace Interfaces
+   - Status: fixed.
+   - Files: `packages/start/src/request-runtime-lifecycle.ts`,
+     `packages/start/src/start-request-endpoints.ts`,
+     `packages/start/src/start-request-handler.ts`,
+     `packages/start/src/start-transport-protocol.ts`,
+     `packages/start/src/start-manifest-wall.ts`,
+     `packages/start/src/vite.ts`, `packages/start/src/request-trace.ts`,
+     `packages/start/test/start.test.ts`, `type-tests/start.test-d.ts`.
+   - Problem: Start applied response metadata through the synchronous Core
+     helper, one-shot manifest/action Iterables could be consumed more than
+     once, and request-trace records/metrics had shallow hover/type ownership.
+   - Fix: Start response metadata now crosses the typed Effect path, manifest
+     Iterables are normalized once at the Vite/manifest seam, explicit actions
+     are materialized once at handler creation, file-route manifest entry
+     Iterables synthesize modules correctly, and request trace records plus
+     metrics have declaration-site JSDoc and Start-owned type pins.
+
+4. Package And Starter Guardrails
+   - Status: fixed.
+   - Files: `scripts/verify-package-dry-runs.mjs`,
+     `scripts/package-project-console-starter.mjs`,
+     `scripts/audit-effect-first.mjs`,
+     `scripts/audit-public-api-inventory.mjs`,
+     `scripts/starter-template-content.mjs`.
+   - Problem: package dry-run targets repeated workspace membership by hand,
+     starter packaging could copy stale local package dist output when run
+     standalone, generated starter templates escaped Effect-first auditing, and
+     starter leak-scan scripts could drift independently.
+   - Fix: package dry-runs now discover workspace package manifests and require
+     an explicit payload policy for every discovered package. Starter packaging
+     builds each local package before copying, audits generated starter
+     templates as virtual Effect-first files, and verifies starter leak scans
+     are byte-for-byte identical.
+
+Focused verification passed: Core/DB/Start/React-DB/Solid-DB package
+typechecks, public type tests, public API audit, Effect-first audit over 269
+files including generated starter templates, Core router/route/resource tests
+3 files / 100 tests, DB/React-DB/Solid-DB tests 4 files / 150 tests, Start
+tests 2 files / 158 tests, generated starter packaging at 19/24/30 app files
+with 5/4/6 local packages, 16-target package dry-run gate, and `git diff
+--check`. Fresh post-fix sweeps still need to run before the clean-sweep
+counter can start.
 
 ## Review 150: Public Adapter Hovers And Package Payload Gates
 

@@ -168,6 +168,19 @@ export class SQLitePersistenceInvalidRow extends Data.TaggedError(
   readonly guidance: string;
 }> {}
 
+/** Error raised when generated in-memory SQLite statements receive malformed params. */
+export class SQLitePersistenceInvalidStatementParams extends Data.TaggedError(
+  "SQLitePersistenceInvalidStatementParams"
+)<{
+  readonly operation: "insert" | "select" | "delete";
+  readonly field: "params" | "namespace" | "key" | "schema_version" | "value" | "updated_at";
+  readonly value: unknown;
+  readonly expected: "exact-param-count" | "string" | "finite-number";
+  readonly expectedCount?: number;
+  readonly actualCount?: number;
+  readonly guidance: string;
+}> {}
+
 const runCallback = <A, E, R>(
   operation: string,
   callback: () => EffectInput<A, E, R>
@@ -234,11 +247,58 @@ const statementRowString = (
     ? Effect.succeed(value)
     : Effect.fail(invalidStatementRow(field, value, "string"));
 
-const statementParamNumber = (value: unknown): number =>
-  typeof value === "number" ? value : Number(value);
+const invalidStatementParams = (
+  operation: SQLitePersistenceInvalidStatementParams["operation"],
+  field: SQLitePersistenceInvalidStatementParams["field"],
+  value: unknown,
+  expected: SQLitePersistenceInvalidStatementParams["expected"],
+  counts: Pick<SQLitePersistenceInvalidStatementParams, "expectedCount" | "actualCount"> = {}
+): SQLitePersistenceInvalidStatementParams =>
+  new SQLitePersistenceInvalidStatementParams({
+    operation,
+    field,
+    value,
+    expected,
+    ...counts,
+    guidance: "The in-memory SQLite adapter supports generated statements with exact params: string namespace/key/value fields and finite numeric schema_version/updated_at fields."
+  });
 
-const statementParamString = (value: unknown): string =>
-  typeof value === "string" ? value : String(value);
+const statementParams = (
+  operation: SQLitePersistenceInvalidStatementParams["operation"],
+  params: SQLiteStatementParams | undefined,
+  expectedCount: number
+): ReadonlyArray<unknown> => {
+  const values = params === undefined ? [] : Array.isArray(params) ? params : undefined;
+  if (values === undefined || values.length !== expectedCount) {
+    throw invalidStatementParams(operation, "params", params, "exact-param-count", {
+      expectedCount,
+      ...(values === undefined ? {} : { actualCount: values.length })
+    });
+  }
+  return values;
+};
+
+const statementParamNumber = (
+  operation: SQLitePersistenceInvalidStatementParams["operation"],
+  field: Extract<SQLitePersistenceInvalidStatementParams["field"], "schema_version" | "updated_at">,
+  value: unknown
+): number => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  throw invalidStatementParams(operation, field, value, "finite-number");
+};
+
+const statementParamString = (
+  operation: SQLitePersistenceInvalidStatementParams["operation"],
+  field: Extract<SQLitePersistenceInvalidStatementParams["field"], "namespace" | "key" | "value">,
+  value: unknown
+): string => {
+  if (typeof value === "string") {
+    return value;
+  }
+  throw invalidStatementParams(operation, field, value, "string");
+};
 
 const statementParamList = (params?: SQLiteStatementParams): Array<SQLiteStatementValue> =>
   params === undefined ? [] : [...params];
@@ -268,31 +328,35 @@ export const makeSQLiteMemoryStatementDatabase = (): SQLiteMemoryStatementDataba
     statements,
     execute: (sql, params) => {
       statements.push(params === undefined ? { sql } : { sql, params });
-      const table = sqlTableName(sql);
       if (/^\s*CREATE\s+TABLE\s+IF\s+NOT\s+EXISTS\b/i.test(sql)) {
+        void sqlTableName(sql);
         return;
       }
 
       if (/^\s*INSERT\s+INTO\b/i.test(sql)) {
-        const [namespace, key, schemaVersion, value, updatedAt] = params ?? [];
-        rows.set(memoryRowId(table, {
-          namespace: statementParamString(namespace),
-          key: statementParamString(key)
-        }), {
-          namespace: statementParamString(namespace),
-          key: statementParamString(key),
-          schemaVersion: statementParamNumber(schemaVersion),
-          value: statementParamString(value),
-          updatedAt: statementParamNumber(updatedAt)
+        const table = sqlTableName(sql);
+        const insertParams = statementParams("insert", params, 5);
+        const namespace = statementParamString("insert", "namespace", insertParams[0]);
+        const key = statementParamString("insert", "key", insertParams[1]);
+        const schemaVersion = statementParamNumber("insert", "schema_version", insertParams[2]);
+        const value = statementParamString("insert", "value", insertParams[3]);
+        const updatedAt = statementParamNumber("insert", "updated_at", insertParams[4]);
+        rows.set(memoryRowId(table, { namespace, key }), {
+          namespace,
+          key,
+          schemaVersion,
+          value,
+          updatedAt
         });
         return;
       }
 
       if (/^\s*DELETE\s+FROM\b/i.test(sql)) {
-        const [namespace, key] = params ?? [];
+        const table = sqlTableName(sql);
+        const deleteParams = statementParams("delete", params, 2);
         rows.delete(memoryRowId(table, {
-          namespace: statementParamString(namespace),
-          key: statementParamString(key)
+          namespace: statementParamString("delete", "namespace", deleteParams[0]),
+          key: statementParamString("delete", "key", deleteParams[1])
         }));
         return;
       }
@@ -314,8 +378,12 @@ export const makeSQLiteMemoryStatementDatabase = (): SQLiteMemoryStatementDataba
       }
 
       const table = sqlTableName(sql);
-      const [namespace, key] = params ?? [];
-      const current = row(table, statementParamString(namespace), statementParamString(key));
+      const selectParams = statementParams("select", params, 2);
+      const current = row(
+        table,
+        statementParamString("select", "namespace", selectParams[0]),
+        statementParamString("select", "key", selectParams[1])
+      );
       return current
         ? [{
             namespace: current.namespace,

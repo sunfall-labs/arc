@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
+import { generatedStarterEffectFirstTemplates } from "./starter-template-content.mjs";
 
 const root = process.cwd();
 
@@ -105,7 +106,19 @@ const auditableFilesByRoot = auditableRoots.map((auditableRoot) => ({
   files: collectFiles(auditableRoot)
 }));
 
-const sourceFiles = auditableFilesByRoot.flatMap((auditableRoot) => auditableRoot.files);
+const physicalSourceFiles = auditableFilesByRoot
+  .flatMap((auditableRoot) => auditableRoot.files)
+  .map((file) => ({
+    relativeFile: relative(root, file),
+    read: () => readFileSync(file, "utf8")
+  }));
+
+const generatedStarterTemplateFiles = generatedStarterEffectFirstTemplates.map((template) => ({
+  relativeFile: template.file,
+  read: () => template.source
+}));
+
+const sourceFiles = [...physicalSourceFiles, ...generatedStarterTemplateFiles];
 
 const seam = (file, name, anchor) => ({ file, name, anchor });
 
@@ -116,6 +129,9 @@ const printScopeSummary = () => {
       `- ${auditableRoot.name}: ${auditableRoot.files.length} files (${auditableRoot.description})`
     );
   }
+  console.log(
+    `- generated starter templates: ${generatedStarterTemplateFiles.length} virtual files (standalone starter TypeScript templates emitted by scripts/package-project-console-starter.mjs)`
+  );
   console.log(`- total auditable files: ${sourceFiles.length}`);
   console.log("Effect-first anchored allowed occurrences:");
   for (const check of allowed) {
@@ -541,8 +557,8 @@ const inAnchoredRange = (ranges, index) =>
   ranges.some((range) => index >= range.start && index < range.end);
 
 for (const file of sourceFiles) {
-  const relativeFile = relative(root, file);
-  const lines = codeLines(readFileSync(file, "utf8"));
+  const relativeFile = file.relativeFile;
+  const lines = codeLines(file.read());
   const source = lines.join("\n");
 
   for (const check of banned) {

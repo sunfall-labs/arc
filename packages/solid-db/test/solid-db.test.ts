@@ -211,6 +211,55 @@ describe("solid-db", () => {
     );
   });
 
+  it("ignores automatic preload failures from superseded DB generations after refetch", () => {
+    let dispose: (() => void) | undefined;
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const staleStarted = yield* Deferred.make<void>();
+        const staleFailure = "stale-db-preload-failed" as const;
+        const staleRelease = yield* Deferred.make<void, typeof staleFailure>();
+        const observedFailures: Array<unknown> = [];
+        const Projects = Collection.define<Project, string, typeof staleFailure>({
+          name: "SolidDb.preload-superseded-db-generation.projects",
+          getKey: (project) => project.id,
+          load: () =>
+            Effect.gen(function* () {
+              yield* Deferred.succeed(staleStarted, undefined).pipe(Effect.ignore);
+              yield* Deferred.await(staleRelease);
+              return [{ id: "atlas", name: "Atlas Slow", active: true }];
+            }),
+          refetch: () =>
+            Effect.succeed<ReadonlyArray<Project>>([
+              { id: "atlas", name: "Atlas Fresh", active: true }
+            ])
+        });
+
+        const handle = createRoot((rootDispose) => {
+          dispose = rootDispose;
+          return useCollection(Projects, {
+            onPreloadFailure: (error) => observedFailures.push(error)
+          });
+        });
+
+        yield* Effect.sleep("0 millis");
+        yield* Deferred.await(staleStarted);
+        yield* handle.refetchEffect();
+
+        expect(handle.rows().map((project) => project.name)).toEqual(["Atlas Fresh"]);
+
+        yield* Deferred.fail(staleRelease, staleFailure);
+        yield* Effect.sleep("20 millis");
+
+        expect(handle.preloadFailure()).toBeUndefined();
+        expect(observedFailures).toEqual([]);
+        expect(handle.rows().map((project) => project.name)).toEqual(["Atlas Fresh"]);
+      }).pipe(
+        Effect.ensuring(Effect.sync(() => dispose?.()))
+      )
+    );
+  });
+
   it("captures invalid live query automatic preload failures before source side effects", () => {
     let dispose: (() => void) | undefined;
 

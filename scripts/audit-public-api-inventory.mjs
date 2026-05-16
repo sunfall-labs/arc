@@ -91,18 +91,29 @@ const publicHoverDocs = [
     ]
   },
   {
-    file: "packages/core/src/browser-router.ts",
+    file: "packages/core/src/browser-router-history-adapter.ts",
     declarations: [
       "BrowserNavigateOptions",
       "BrowserHistoryWindow",
       "BrowserHistoryAdapter",
       "MemoryBrowserHistoryAdapter",
+      "makeWindowBrowserHistoryAdapter",
+      "makeMemoryBrowserHistoryAdapter"
+    ]
+  },
+  {
+    file: "packages/core/src/browser-router-kernel.ts",
+    declarations: [
       "BrowserRouterKernelOptions",
       "BrowserRouterKernel",
-      "BrowserRouterHostController",
-      "makeWindowBrowserHistoryAdapter",
-      "makeMemoryBrowserHistoryAdapter",
       "createBrowserRouterKernel",
+      "RouterRouteNotRegistered"
+    ]
+  },
+  {
+    file: "packages/core/src/browser-router-host-controller.ts",
+    declarations: [
+      "BrowserRouterHostController",
       "createBrowserRouterHostController"
     ]
   },

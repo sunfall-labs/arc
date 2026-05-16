@@ -123,6 +123,21 @@ const isCurrentLoadAttempt = <E>(
 ): boolean =>
   state.loadGeneration === attempt.generation && state.activeLoad?.generation === attempt.generation;
 
+const SupersededLoadAttemptReadyTypeId: unique symbol = Symbol(
+  "@effect-ui/db/SupersededLoadAttemptReady"
+);
+
+interface SupersededLoadAttemptReady {
+  readonly [SupersededLoadAttemptReadyTypeId]: true;
+}
+
+const supersededLoadAttemptReady: SupersededLoadAttemptReady = {
+  [SupersededLoadAttemptReadyTypeId]: true
+};
+
+const isSupersededLoadAttemptReady = (error: unknown): error is SupersededLoadAttemptReady =>
+  typeof error === "object" && error !== null && SupersededLoadAttemptReadyTypeId in error;
+
 const completeCollectionLoadAttempt = <E>(
   state: CollectionState<any, any, E>,
   attempt: CollectionLoadAttempt,
@@ -182,10 +197,14 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
     }
 
     const attempt = ownership.attempt;
-    const failCurrentLoad = <Cause>(error: Cause): Effect.Effect<never, Cause> =>
+    const failCurrentLoad = <Cause>(
+      error: Cause
+    ): Effect.Effect<never, Cause | SupersededLoadAttemptReady> =>
       isCurrentLoadAttempt(state, attempt)
         ? failCollectionLoadEffect(store, definition, state, error)
-        : Effect.fail(error);
+        : state.loadState.get()._tag === "Ready"
+          ? Effect.fail(supersededLoadAttemptReady)
+          : Effect.fail(error);
 
     const exit = yield* Effect.exit(Effect.gen(function* () {
       const restored = yield* restoreBeforePreloadEffect(definition, state, store).pipe(
@@ -244,7 +263,13 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
         updatedAt
       });
       yield* persistLoadEffect(definition, store);
-    }));
+    }).pipe(
+      Effect.catch((error) =>
+        isSupersededLoadAttemptReady(error)
+          ? Effect.void
+          : Effect.fail(error)
+      )
+    ));
     yield* completeCollectionLoadAttempt(state, attempt, exit);
     return yield* exit;
   });

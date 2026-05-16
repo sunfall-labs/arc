@@ -12,6 +12,9 @@ import {
   hydrateStartHydrationChunks,
   preloadRequestEffect,
   startEffectRpcEndpointDescriptor,
+  startRequestCountMetric,
+  startRequestDurationMetric,
+  startRequestStatusMetric,
   StartAppGraphDiagnosticsDtoError,
   StartAppGraphMissingWireSchemas,
   StartAppGraphParseError,
@@ -44,6 +47,20 @@ import {
   type StartHydrationChunk,
   type StartRenderContext,
   type StartRenderHydrationPlan,
+  type StartRequestTraceAction,
+  type StartRequestTraceCollection,
+  type StartRequestTraceFailureKind,
+  type StartRequestTraceFiber,
+  type StartRequestTraceHeader,
+  type StartRequestTraceRequest,
+  type StartRequestTraceResponse,
+  type StartRequestTraceRoutePlan,
+  type StartRequestTraceServerFunction,
+  type StartRequestTraceStatus,
+  type StartRequestTraceStream,
+  type StartRequestTraceTeardown,
+  type StartRequestTraceTeardownSnapshot,
+  type StartRequestTraceTransport,
   type StartRequestHandler,
   type StartRequestTrace
 } from "@effect-ui/start";
@@ -63,6 +80,9 @@ const startExports: Array<unknown> = [
   hydrateStartHydrationChunks,
   preloadRequestEffect,
   startEffectRpcEndpointDescriptor,
+  startRequestCountMetric,
+  startRequestDurationMetric,
+  startRequestStatusMetric,
   StartAppGraphDiagnosticsDtoError,
   StartAppGraphMissingWireSchemas,
   StartAppGraphParseError,
@@ -97,6 +117,20 @@ type StartTypes =
   | StartFetch
   | StartRenderContext
   | StartRenderHydrationPlan
+  | StartRequestTraceAction
+  | StartRequestTraceCollection
+  | StartRequestTraceFailureKind
+  | StartRequestTraceFiber
+  | StartRequestTraceHeader
+  | StartRequestTraceRequest
+  | StartRequestTraceResponse
+  | StartRequestTraceRoutePlan
+  | StartRequestTraceServerFunction
+  | StartRequestTraceStatus
+  | StartRequestTraceStream
+  | StartRequestTraceTeardown
+  | StartRequestTraceTeardownSnapshot
+  | StartRequestTraceTransport
   | StartRequestHandler
   | StartRequestTrace;
 void startExports;
@@ -137,3 +171,84 @@ const procedureSchemaFlags: ReadonlyArray<boolean> = [
 void sortedHydrationChunks;
 void endpointPath;
 void procedureSchemaFlags;
+
+const traceHeader: StartRequestTraceHeader = { name: "x-effect-ui", value: "ok" };
+const traceTransport: StartRequestTraceTransport = "ssr";
+const traceStatus: StartRequestTraceStatus = "success";
+const traceFailureKind: StartRequestTraceFailureKind = "transport";
+const traceRequest: StartRequestTraceRequest = {
+  id: "request-1",
+  method: "GET",
+  url: "https://effect-ui.test/projects",
+  path: "/projects",
+  transport: traceTransport,
+  headers: [traceHeader]
+};
+const traceResponse: StartRequestTraceResponse = {
+  status: 200,
+  headers: [traceHeader],
+  setCookieCount: 0
+};
+const traceCollection: StartRequestTraceCollection = { name: "projects", state: "Ready" };
+const traceServerFunction: StartRequestTraceServerFunction = {
+  name: "loadProjects",
+  status: traceStatus
+};
+const traceAction: StartRequestTraceAction = {
+  name: "saveProject",
+  state: "Success",
+  failureKind: traceFailureKind,
+  invalidationIndexes: [0]
+};
+const traceFiber: StartRequestTraceFiber = { name: "request-runtime", status: "done" };
+const traceStream: StartRequestTraceStream = {
+  name: "ssr",
+  state: "closed",
+  chunkCount: 1
+};
+const traceTeardownSnapshot: StartRequestTraceTeardownSnapshot = {
+  fiberCount: 0,
+  familyCount: 0,
+  moduleCount: 0,
+  tagCount: 0
+};
+const traceTeardown: StartRequestTraceTeardown = {
+  runtimeDisposed: true,
+  beforeDispose: traceTeardownSnapshot,
+  afterDispose: traceTeardownSnapshot
+};
+const traceRoutePlan: StartRequestTraceRoutePlan = {
+  _tag: "Matched",
+  href: "/projects",
+  match: {
+    path: "/projects",
+    href: "/projects",
+    params: {},
+    search: {}
+  },
+  resources: [],
+  hydration: {
+    resourceCount: 0
+  }
+};
+const requestTrace: StartRequestTrace = {
+  request: traceRequest,
+  response: traceResponse,
+  services: ["RequestContext", "ResponseContext"],
+  routePlan: traceRoutePlan,
+  resources: [],
+  collections: [traceCollection],
+  serverFunctions: [traceServerFunction],
+  actions: [traceAction],
+  fibers: [traceFiber],
+  streams: [traceStream],
+  status: traceStatus,
+  teardown: traceTeardown
+};
+const requestMetrics: ReadonlyArray<unknown> = [
+  startRequestCountMetric,
+  startRequestDurationMetric,
+  startRequestStatusMetric
+];
+void requestTrace;
+void requestMetrics;

@@ -31,6 +31,7 @@ import {
   type FileRouteManifest,
   type FileRouteManifestEntry,
   type FileRouteManifestError,
+  type FileRouteManifestModule,
   type FileRouteManifestOptions
 } from "./file-routes.js";
 import type { GeneratedFileRouteDefinitionsModuleOptions } from "./file-route-modules.js";
@@ -366,6 +367,52 @@ const isFileRouteManifest = (value: unknown): value is FileRouteManifest =>
   (value as { readonly version?: unknown }).version === 1 &&
   Array.isArray((value as { readonly entries?: unknown }).entries);
 
+const materializeIterableOption = <A>(
+  value: Iterable<A> | undefined
+): readonly A[] | undefined =>
+  value === undefined ? undefined : Array.from(value);
+
+const normalizeFileRouteManifestOption = (
+  manifest: EffectUiStartOptions["fileRouteManifest"]
+): EffectUiStartOptions["fileRouteManifest"] => {
+  if (manifest === undefined) {
+    return undefined;
+  }
+
+  if (isFileRouteManifest(manifest)) {
+    const modules = (manifest as { readonly modules?: Iterable<FileRouteManifestModule> }).modules;
+    return {
+      ...manifest,
+      entries: Array.from(manifest.entries),
+      modules: modules === undefined ? [] : Array.from(modules)
+    };
+  }
+
+  return Array.from(manifest);
+};
+
+/** Materializes caller-supplied manifest Iterables once at the Vite/plugin seam. */
+export const normalizeStartManifestIterableOptions = (
+  options: EffectUiStartOptions = {}
+): EffectUiStartOptions => {
+  const serverFunctionManifest = materializeIterableOption(options.serverFunctionManifest);
+  const serverFunctionSources = materializeIterableOption(options.serverFunctionSources);
+  const actionManifest = materializeIterableOption(options.actionManifest);
+  const actionSources = materializeIterableOption(options.actionSources);
+  const fileRoutes = materializeIterableOption(options.fileRoutes);
+  const fileRouteManifest = normalizeFileRouteManifestOption(options.fileRouteManifest);
+
+  return {
+    ...options,
+    ...(serverFunctionManifest === undefined ? {} : { serverFunctionManifest }),
+    ...(serverFunctionSources === undefined ? {} : { serverFunctionSources }),
+    ...(actionManifest === undefined ? {} : { actionManifest }),
+    ...(actionSources === undefined ? {} : { actionSources }),
+    ...(fileRoutes === undefined ? {} : { fileRoutes }),
+    ...(fileRouteManifest === undefined ? {} : { fileRouteManifest })
+  };
+};
+
 const withDefaultFileRouteDirectory = (
   options: EffectUiStartOptions
 ): EffectUiStartOptions => {
@@ -434,10 +481,10 @@ export const makeStartFileRouteManifestEffect = (
     const entries = isFileRouteManifest(manifest) ? manifest.entries : manifest;
     const modules = isFileRouteManifest(manifest) && Array.isArray(manifest.modules)
       ? manifest.modules
-      : [];
+      : undefined;
 
     return Effect.map(validateFileRouteManifestEffect(entries, modules), (entries) =>
-      createFileRouteManifest(entries, fileRouteOptions, modules)
+      createFileRouteManifest(entries, fileRouteOptions, modules ?? [])
     );
   }
 

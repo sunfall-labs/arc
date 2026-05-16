@@ -2,7 +2,8 @@ import {
   Action,
   Server,
   ServerRpcProtocolError,
-  applyResponseContext,
+  applyResponseContextEffect,
+  type EffectInputCallbackError,
   makeResponseContext,
   type ActionDefinition,
   type AppDefinition,
@@ -54,6 +55,7 @@ import {
   rpcRuntimeFailureResponse,
   rpcTransportRequestFailureResponse
 } from "./start-transport-protocol.js";
+import type { StartActionSource } from "./start-transport-protocol.js";
 import {
   readStartActionRequestEffect,
   type StartActionDefinition
@@ -173,7 +175,7 @@ export const createServerRpcResponseEffect = <
   request: Request
 ): Effect.Effect<
   Response,
-  never,
+  EffectInputCallbackError,
   Scope.Scope | RequestRuntimeRemainingRequirements<
     AppDefinitionRegistryServerFunctionRequirements<Registry>,
     ServerServices
@@ -182,14 +184,14 @@ export const createServerRpcResponseEffect = <
   const runtime = makeRequestRuntime(app);
   const responseContext = makeResponseContext();
   return Effect.ensuring(
-    Effect.map(
+    Effect.flatMap(
       createServerRpcResponseEffectWithRuntime(app, request, runtime, responseContext),
-      (response) => applyResponseContext(responseContext, response)
+      (response) => applyResponseContextEffect(responseContext, response)
     ),
     runtime.disposeEffect
   ) as Effect.Effect<
     Response,
-    never,
+    EffectInputCallbackError,
     Scope.Scope | RequestRuntimeRemainingRequirements<
       AppDefinitionRegistryServerFunctionRequirements<Registry>,
       ServerServices
@@ -208,7 +210,7 @@ export const createServerActionResponseEffectWithRuntime = <
   app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>,
   request: Request,
   runtime: EffectUiRuntime<ServerServices, ServerError>,
-  actions?: Iterable<Actions>,
+  actions?: StartActionSource<Actions>,
   responseContext: ResponseContext = makeResponseContext(),
   traceFacts?: StartRequestTraceFacts
 ): Effect.Effect<
@@ -335,7 +337,7 @@ export const createServerActionResponseEffect = <
   actions?: Iterable<Actions>
 ): Effect.Effect<
   Response,
-  never,
+  EffectInputCallbackError,
   Scope.Scope | RequestRuntimeRemainingRequirements<
     AppDefinitionRegistryActionRequirements<Registry> | ActionDefinitionRequirements<Actions>,
     ServerServices
@@ -344,14 +346,14 @@ export const createServerActionResponseEffect = <
   const runtime = makeRequestRuntime(app);
   const responseContext = makeResponseContext();
   return Effect.ensuring(
-    Effect.map(
+    Effect.flatMap(
       createServerActionResponseEffectWithRuntime(app, request, runtime, actions, responseContext),
-      (response) => applyResponseContext(responseContext, response)
+      (response) => applyResponseContextEffect(responseContext, response)
     ),
     runtime.disposeEffect
   ) as Effect.Effect<
     Response,
-    never,
+    EffectInputCallbackError,
     Scope.Scope | RequestRuntimeRemainingRequirements<
       AppDefinitionRegistryActionRequirements<Registry> | ActionDefinitionRequirements<Actions>,
       ServerServices

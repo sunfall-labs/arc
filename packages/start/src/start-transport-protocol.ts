@@ -209,15 +209,24 @@ export class StartActionDuplicateName extends Data.TaggedError("StartActionDupli
   readonly message: string;
 }> {}
 
-export const makeActionMap = (
-  actions?: Iterable<StartActionDefinition>,
-  registry?: CoreDefinitionRegistry<StartActionDefinition, ServerFunction<any, any, any, any>>
-): ReadonlyMap<string, StartActionDefinition> => {
-  if (actions === undefined) {
-    return registry?.actions ?? Action.definitions();
-  }
+export type StartActionMap<Actions extends StartActionDefinition = StartActionDefinition> =
+  ReadonlyMap<string, Actions>;
 
-  const actionMap = new Map<string, StartActionDefinition>();
+export type StartActionSource<Actions extends StartActionDefinition = StartActionDefinition> =
+  | Iterable<Actions>
+  | StartActionMap<Actions>;
+
+const isStartActionMap = <Actions extends StartActionDefinition>(
+  actions: StartActionSource<Actions>
+): actions is StartActionMap<Actions> =>
+  typeof (actions as { readonly get?: unknown }).get === "function" &&
+  typeof (actions as { readonly has?: unknown }).has === "function" &&
+  typeof (actions as { readonly forEach?: unknown }).forEach === "function";
+
+export const materializeStartActionMap = <Actions extends StartActionDefinition>(
+  actions: Iterable<Actions>
+): StartActionMap<Actions> => {
+  const actionMap = new Map<string, Actions>();
   const firstIndexes = new Map<string, number>();
   let index = 0;
   for (const action of actions) {
@@ -236,6 +245,19 @@ export const makeActionMap = (
   }
 
   return actionMap;
+};
+
+export const makeActionMap = <Actions extends StartActionDefinition = StartActionDefinition>(
+  actions?: StartActionSource<Actions>,
+  registry?: CoreDefinitionRegistry<Actions, ServerFunction<any, any, any, any>>
+): StartActionMap<Actions> => {
+  if (actions === undefined) {
+    return (registry?.actions ?? Action.definitions()) as StartActionMap<Actions>;
+  }
+
+  return isStartActionMap(actions)
+    ? actions
+    : materializeStartActionMap(actions);
 };
 
 const firstFail = <E>(cause: Cause.Cause<E>): E | undefined => {

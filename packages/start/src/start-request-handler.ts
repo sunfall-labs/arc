@@ -33,6 +33,7 @@ import {
 import {
   isServerActionRequest,
   isServerRpcRequest,
+  makeActionMap,
   type StartActionDefinition
 } from "./start-transport-protocol.js";
 import type {
@@ -189,6 +190,9 @@ export const createRequestHandlerEffect =
     options: CreateRequestHandlerOptions<Routes, Client, ServerServices, ServerError, Actions, Registry> = {}
   ): StartRequestHandlerEffect<StartRequestRequirements<Routes, ServerServices, Registry, Actions>> => {
     const endpoints = resolveStartTransportEndpoints(options);
+    const explicitActionMap = options.actions === undefined
+      ? undefined
+      : makeActionMap(options.actions);
     const requestOptions = {
       ...options,
       endpoints
@@ -217,7 +221,7 @@ export const createRequestHandlerEffect =
             app,
             request,
             requestRuntime,
-            options.actions,
+            explicitActionMap,
             responseContext,
             traceFacts
           );

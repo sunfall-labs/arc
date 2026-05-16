@@ -22,6 +22,7 @@ export class UnsupportedLiveQuery extends Data.TaggedError("UnsupportedLiveQuery
 }> {}
 
 export type QueryEvaluationOperation =
+  | "source"
   | "filter"
   | "join"
   | "aggregate"
@@ -166,11 +167,22 @@ export const projectCurrentContext = <TContext, TResult>(row: TContext): TResult
   return value as TResult;
 };
 
+const isQueryEvaluationError = (cause: unknown): cause is QueryEvaluationError =>
+  cause instanceof QueryEvaluationError ||
+  (
+    typeof cause === "object" &&
+    cause !== null &&
+    (cause as { readonly _tag?: unknown })._tag === "QueryEvaluationError" &&
+    "operation" in cause &&
+    "cause" in cause &&
+    "message" in cause
+  );
+
 export const toQueryEvaluationError = (
   operation: QueryEvaluationOperation,
   cause: unknown
 ): QueryEvaluationError =>
-  cause instanceof QueryEvaluationError
+  isQueryEvaluationError(cause)
     ? cause
     : new QueryEvaluationError({
       operation,

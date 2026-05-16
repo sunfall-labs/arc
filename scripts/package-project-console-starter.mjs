@@ -5,6 +5,15 @@ import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promi
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Data, Effect } from "effect";
+import {
+  basicStarterReadme,
+  projectConsoleStarterReadme,
+  reactStarterReadme,
+  reactStarterTsConfig,
+  reactStarterViteConfig,
+  solidStarterTsConfig,
+  solidStarterViteConfig,
+} from "./starter-template-content.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = resolve(__dirname, "..");
@@ -98,145 +107,6 @@ const parseJsonEffect = (filePath, text) =>
   });
 
 const stringifyJson = (value) => `${JSON.stringify(value, null, 2)}\n`;
-
-const solidStarterTsConfig = {
-  compilerOptions: {
-    target: "ES2022",
-    module: "NodeNext",
-    moduleResolution: "NodeNext",
-    lib: ["ES2022", "DOM"],
-    strict: true,
-    skipLibCheck: true,
-    verbatimModuleSyntax: true,
-    exactOptionalPropertyTypes: true,
-    noUncheckedIndexedAccess: true,
-    jsx: "preserve",
-    jsxImportSource: "solid-js",
-    noEmit: true,
-    plugins: [{ name: "@tsrx/typescript-plugin" }],
-    types: ["vite/client"],
-  },
-  include: ["src", "vite.config.ts"],
-};
-
-const reactStarterTsConfig = {
-  compilerOptions: {
-    target: "ES2022",
-    module: "NodeNext",
-    moduleResolution: "NodeNext",
-    lib: ["ES2022", "DOM"],
-    strict: true,
-    skipLibCheck: true,
-    verbatimModuleSyntax: true,
-    exactOptionalPropertyTypes: true,
-    noUncheckedIndexedAccess: true,
-    jsx: "react-jsx",
-    noEmit: true,
-    baseUrl: ".",
-    paths: {
-      "@/*": ["./src/*"],
-    },
-    types: ["vite/client"],
-  },
-  include: ["src", "vite.config.ts"],
-};
-
-const solidStarterViteConfig = (startOptionsImport) => `import { effectUiStart } from "@effect-ui/start/vite";
-import { effectUiTsrx } from "@effect-ui/tsrx";
-import { defineConfig } from "vite";
-import { ${startOptionsImport} } from "./src/start-options.js";
-
-export default defineConfig({
-  plugins: [
-    ...effectUiTsrx({ solid: { ssr: true } }),
-    effectUiStart(${startOptionsImport})
-  ]
-});
-`;
-
-const reactStarterViteConfig = `import tailwindcss from "@tailwindcss/vite";
-import { effectUiStart } from "@effect-ui/start/vite";
-import react from "@vitejs/plugin-react";
-import { defineConfig } from "vite";
-import { reactStarterStartOptions } from "./src/start-options.js";
-
-const fromStarter = (path: string): string => new URL(path, import.meta.url).pathname;
-
-export default defineConfig({
-  plugins: [
-    react(),
-    tailwindcss(),
-    effectUiStart(reactStarterStartOptions)
-  ],
-  resolve: {
-    alias: [
-      { find: "@", replacement: fromStarter("src") }
-    ]
-  }
-});
-`;
-
-const basicStarterReadme = `# Effect UI Basic Starter
-
-This is the smallest checked starter path for a full-stack Effect UI app. It
-keeps the same shape as the project console without the local-first DB, actions,
-or diagnostics demo data.
-
-## Commands
-
-\`\`\`sh
-pnpm install
-pnpm dev
-pnpm verify
-\`\`\`
-
-The starter includes:
-
-- Start SSR with an Effect-returning request handler;
-- browser hydration through \`hydrateFromDocument\`;
-- a route-owned Resource preload declared in file route metadata;
-- a production leak scan for server-only module sentinels.
-`;
-
-const reactStarterReadme = `# Effect UI React Starter
-
-React + Vite starter for Effect UI with Tailwind v4, Base UI, and a
-shadcn-compatible project shape.
-
-## Commands
-
-\`\`\`sh
-pnpm install
-pnpm dev
-pnpm verify
-\`\`\`
-
-The starter includes a shadcn CLI-installed \`Badge\`, a Base UI primitive, file
-routes, route-owned Resource preload, SSR, browser hydration, and a production
-leak scan for server-only sentinels.
-`;
-
-const projectConsoleStarterReadme = `# Effect UI Project Console Starter
-
-This is the larger checked starter path for Effect UI. It exercises branded
-routes, file-route generation, Resources, Collections, Start server functions,
-Start actions, no-JS form fallback, SSR, hydration, capability-based mocking,
-and a production server-only leak scan.
-
-## Commands
-
-\`\`\`sh
-pnpm install
-pnpm dev
-pnpm verify
-\`\`\`
-
-Keep \`src/domain.contract.ts\` browser-safe. Put server implementations and
-seed data in \`src/domain.server.ts\`. Keep \`src/start-options.ts\` explicit;
-it is the app graph source for server functions, actions, file routes,
-diagnostics, and generated route output. Keep \`src/routeTree.gen.ts\`
-generated, not hand-edited.
-`;
 
 const starterDefinitions = [
   {
@@ -341,6 +211,42 @@ const pathExists = (filePath) =>
           ),
     ),
   );
+
+const assertStarterLeakScansMatch = (starters) =>
+  Effect.gen(function* () {
+    const leakScanRelativePath = "scripts/leak-scan.mjs";
+    const leakScans = [];
+    for (const starter of starters) {
+      const filePath = resolve(starter.sourceDir, leakScanRelativePath);
+      if (!(yield* pathExists(filePath))) {
+        continue;
+      }
+      const text = yield* fsEffect(
+        `read ${starter.displayName} leak-scan script`,
+        () => readFile(filePath, "utf8"),
+      );
+      leakScans.push({ starter, text });
+    }
+
+    const [baseline, ...candidates] = leakScans;
+    if (baseline === undefined) {
+      return;
+    }
+
+    const divergent = candidates.filter((candidate) => candidate.text !== baseline.text);
+    if (divergent.length > 0) {
+      return yield* Effect.fail(
+        fail(
+          "Starter leak-scan scripts are not byte-for-byte identical.",
+          [
+            `Baseline: ${relative(workspaceRoot, resolve(baseline.starter.sourceDir, leakScanRelativePath))}`,
+            `Diverged: ${divergent.map((candidate) => relative(workspaceRoot, resolve(candidate.starter.sourceDir, leakScanRelativePath))).join(", ")}`,
+            "Keep copyable starter leak-scan behavior consolidated by updating all copies together.",
+          ].join(" "),
+        ),
+      );
+    }
+  });
 
 const collectFiles = (rootDir, options = {}) =>
   Effect.gen(function* () {
@@ -562,7 +468,22 @@ const assertNoStalePackageDistArtifacts = (workspacePackage, sourceDist) =>
     }
   });
 
-const writeLocalWorkspacePackage = (starter, workspacePackages, packageName) =>
+const ensureFreshWorkspacePackage = (builtPackageNames, workspacePackage) =>
+  Effect.gen(function* () {
+    const packageName = workspacePackage.packageJson.name;
+    if (builtPackageNames.has(packageName)) {
+      return;
+    }
+
+    yield* commandEffect(
+      `${packageName} local package build`,
+      "pnpm",
+      ["--filter", packageName, "build"],
+    );
+    builtPackageNames.add(packageName);
+  });
+
+const writeLocalWorkspacePackage = (starter, workspacePackages, builtPackageNames, packageName) =>
   Effect.gen(function* () {
     const workspacePackage = workspacePackages.get(packageName);
     if (workspacePackage === undefined) {
@@ -573,6 +494,8 @@ const writeLocalWorkspacePackage = (starter, workspacePackages, packageName) =>
         ),
       );
     }
+
+    yield* ensureFreshWorkspacePackage(builtPackageNames, workspacePackage);
 
     const sourceDist = resolve(workspacePackage.directory, "dist");
     const distExists = yield* pathExists(sourceDist);
@@ -1014,7 +937,7 @@ const rewriteMonorepoConfig = (starter) =>
     );
   });
 
-const packageStarter = (workspacePackages, starter) =>
+const packageStarter = (workspacePackages, builtPackageNames, starter) =>
   Effect.gen(function* () {
     const sourcePackageJsonPath = resolve(starter.sourceDir, "package.json");
     const sourcePackageJson = yield* readPackageJson(sourcePackageJsonPath);
@@ -1040,7 +963,7 @@ const packageStarter = (workspacePackages, starter) =>
     );
     yield* rewriteMonorepoConfig(starter);
     yield* Effect.forEach(internalPackageNames, (packageName) =>
-      writeLocalWorkspacePackage(starter, workspacePackages, packageName)
+      writeLocalWorkspacePackage(starter, workspacePackages, builtPackageNames, packageName)
     );
 
     const expectedFiles = yield* collectFiles(starter.sourceDir, {
@@ -1076,8 +999,10 @@ const packageStarter = (workspacePackages, starter) =>
 
 const packageStarters = Effect.gen(function* () {
   const workspacePackages = yield* collectWorkspacePackages;
+  yield* assertStarterLeakScansMatch(starterDefinitions);
+  const builtPackageNames = new Set();
   const results = yield* Effect.forEach(starterDefinitions, (starter) =>
-    packageStarter(workspacePackages, starter)
+    packageStarter(workspacePackages, builtPackageNames, starter)
   );
 
   return results;

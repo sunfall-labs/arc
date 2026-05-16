@@ -1,5 +1,6 @@
 import {
-  applyResponseContext,
+  applyResponseContextEffect,
+  type EffectInputCallbackError,
   type EffectUiRuntime,
   type ResponseContext
 } from "@effect-ui/core";
@@ -87,12 +88,16 @@ const requestRuntimeFinalizeOptions = <RuntimeServices, RuntimeError>(
  */
 export const runRequestRuntimeLifecycleEffect = <E, R, RuntimeServices, RuntimeError>(
   options: RequestRuntimeLifecycleOptions<E, R, RuntimeServices, RuntimeError>
-): Effect.Effect<Response, E, R> =>
+): Effect.Effect<Response, E | EffectInputCallbackError, R> =>
   withStartRequestObservability(
     options.request,
     options.traceFacts,
     Effect.gen(function* () {
-      const responseExit = yield* Effect.exit(options.responseEffect);
+      const responseExit = yield* Effect.exit(
+        Effect.flatMap(options.responseEffect, (response) =>
+          applyResponseContextEffect(options.responseContext, response)
+        )
+      );
 
       if (Exit.isFailure(responseExit)) {
         const interrupted = responseExit.cause.reasons.some(Cause.isInterruptReason);
@@ -103,7 +108,7 @@ export const runRequestRuntimeLifecycleEffect = <E, R, RuntimeServices, RuntimeE
         return yield* Effect.failCause(responseExit.cause);
       }
 
-      const response = applyResponseContext(options.responseContext, responseExit.value);
+      const response = responseExit.value;
       return yield* completeRequestRuntimeWithResponse(
         options.runtime,
         response,

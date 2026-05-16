@@ -334,7 +334,7 @@ class IvmLiveQueryRuntime<TContext extends AnyQueryContext, TResult> implements 
 
     for (const row of source.source.rows()) {
       const key = queryCollectionRowIdentity(row.$key);
-      const hash = stableStringify(row);
+      const hash = evaluateQueryOperation("source", () => stableStringify(row));
       const previous = source.previous.get(key);
       current.set(key, { row, hash });
 

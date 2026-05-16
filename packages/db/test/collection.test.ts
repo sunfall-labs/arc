@@ -208,6 +208,69 @@ describe("Collection", () => {
     }
   });
 
+  it("does not fail superseded preload callers after a newer forced refetch is ready", async () => {
+    const runtime = makeRuntime();
+    const preloadStarted = Effect.runSync(Deferred.make<void>());
+    const releasePreload = Effect.runSync(Deferred.make<void, string>());
+    const staleFailure = "stale preload failed" as const;
+    const Projects = Collection.define<Project, string, string>({
+      name: "Projects.preload-refetch-stale-failure",
+      getKey: (project) => project.id,
+      load: () =>
+        Effect.gen(function* () {
+          yield* Deferred.succeed(preloadStarted, undefined).pipe(Effect.ignore);
+          yield* Deferred.await(releasePreload);
+          return [
+            { id: "atlas", name: "Atlas Slow", status: "active", progress: 10 }
+          ];
+        }),
+      refetch: () =>
+        Effect.succeed<ReadonlyArray<Project>>([
+          { id: "atlas", name: "Atlas Fresh", status: "active", progress: 90 }
+        ])
+    });
+    let owner: Fiber.Fiber<unknown, unknown> | undefined;
+    let joiner: Fiber.Fiber<unknown, unknown> | undefined;
+
+    try {
+      owner = runtime.runFork(Projects.preloadEffect());
+      await Effect.runPromise(Deferred.await(preloadStarted));
+      joiner = runtime.runFork(Projects.preloadEffect());
+      await Effect.runPromise(Effect.sleep("10 millis"));
+
+      await Effect.runPromise(runtime.provide(Projects.refetchEffect()));
+
+      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
+        name: "Atlas Fresh",
+        progress: 90,
+        $synced: true
+      });
+
+      Effect.runSync(Deferred.fail(releasePreload, staleFailure));
+      await Effect.runPromise(Fiber.join(owner));
+      await Effect.runPromise(Fiber.join(joiner));
+
+      expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
+        _tag: "Ready",
+        waiting: false
+      });
+      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
+        name: "Atlas Fresh",
+        progress: 90,
+        $synced: true
+      });
+    } finally {
+      Effect.runSync(Deferred.fail(releasePreload, "cleanup").pipe(Effect.ignore));
+      if (owner !== undefined) {
+        await Effect.runPromise(Fiber.await(owner));
+      }
+      if (joiner !== undefined) {
+        await Effect.runPromise(Fiber.await(joiner));
+      }
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
   it("uses Effect schedules for collection load retry policy", async () => {
     let attempts = 0;
     const Projects = Collection.define<Project, string, string>({
@@ -4902,6 +4965,39 @@ describe("Query", () => {
         cause: "index failed"
       });
     }
+  });
+
+  it("reports live-query source fingerprint failures as source evaluation errors", () => {
+    interface ProjectWithCallback {
+      readonly id: string;
+      readonly name: string;
+      readonly callback: () => void;
+    }
+
+    const Projects = Collection.define<ProjectWithCallback>({
+      name: "Projects.live-source-fingerprint-error",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", callback: () => undefined }
+      ]
+    });
+    const live = Query.live((query) =>
+      query
+        .from({ project: Projects })
+        .select(({ project }) => project.name)
+    );
+
+    expect(live.state.get()).toMatchObject({
+      _tag: "Failure",
+      error: {
+        _tag: "QueryEvaluationError",
+        operation: "source",
+        cause: {
+          _tag: "StableStringifyUnsupportedValue",
+          path: "$.callback"
+        }
+      }
+    });
   });
 
   it("rejects indexed joins that name an undeclared collection index before live preload loads sources", async () => {

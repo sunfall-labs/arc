@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   SQLITE_PERSISTENCE_DEFAULT_TABLE,
   SQLitePersistenceInvalidRow,
+  SQLitePersistenceInvalidStatementParams,
   SQLitePersistenceInvalidTableName,
   SQLitePersistenceUnsupportedStatement,
   makeSQLiteMemoryStatementDatabase,
@@ -495,6 +496,98 @@ describe("SQLite persistence storage", () => {
         });
       })
     );
+  });
+
+  it("rejects malformed memory INSERT params before mutating rows", () => {
+    const memory = makeSQLiteMemoryStatementDatabase();
+    const insertSql =
+      "INSERT INTO \"collection-snapshots\" (\"namespace\", \"key\", \"schema_version\", \"value\", \"updated_at\") " +
+      "VALUES (?, ?, ?, ?, ?)";
+
+    try {
+      memory.execute(insertSql, [
+        "workspace:a",
+        "projects-cache",
+        "7" as never,
+        "{\"rows\":[]}",
+        123
+      ]);
+      expect.fail("Expected malformed INSERT params to be rejected");
+    } catch (error) {
+      expect(error).toBeInstanceOf(SQLitePersistenceInvalidStatementParams);
+      expect(error).toMatchObject({
+        _tag: "SQLitePersistenceInvalidStatementParams",
+        operation: "insert",
+        field: "schema_version",
+        expected: "finite-number"
+      });
+    }
+
+    expect(memory.row("collection-snapshots", "workspace:a", "projects-cache")).toBeUndefined();
+  });
+
+  it("rejects malformed memory SELECT params before reading rows", () => {
+    const memory = makeSQLiteMemoryStatementDatabase();
+    const insertSql =
+      "INSERT INTO \"collection-snapshots\" (\"namespace\", \"key\", \"schema_version\", \"value\", \"updated_at\") " +
+      "VALUES (?, ?, ?, ?, ?)";
+    const selectSql =
+      "SELECT \"namespace\", \"key\", \"schema_version\", \"value\", \"updated_at\" FROM \"collection-snapshots\" " +
+      "WHERE \"namespace\" = ? AND \"key\" = ? LIMIT 1";
+    memory.execute(insertSql, ["workspace:a", "123", 7, "{\"rows\":[]}", 123]);
+
+    try {
+      memory.select(selectSql, ["workspace:a"]);
+      expect.fail("Expected wrong SELECT param count to be rejected");
+    } catch (error) {
+      expect(error).toBeInstanceOf(SQLitePersistenceInvalidStatementParams);
+      expect(error).toMatchObject({
+        _tag: "SQLitePersistenceInvalidStatementParams",
+        operation: "select",
+        field: "params",
+        expected: "exact-param-count",
+        expectedCount: 2,
+        actualCount: 1
+      });
+    }
+
+    try {
+      memory.select(selectSql, ["workspace:a", 123 as never]);
+      expect.fail("Expected malformed SELECT key param to be rejected");
+    } catch (error) {
+      expect(error).toBeInstanceOf(SQLitePersistenceInvalidStatementParams);
+      expect(error).toMatchObject({
+        _tag: "SQLitePersistenceInvalidStatementParams",
+        operation: "select",
+        field: "key",
+        expected: "string"
+      });
+    }
+  });
+
+  it("rejects malformed memory DELETE params before mutating rows", () => {
+    const memory = makeSQLiteMemoryStatementDatabase();
+    const insertSql =
+      "INSERT INTO \"collection-snapshots\" (\"namespace\", \"key\", \"schema_version\", \"value\", \"updated_at\") " +
+      "VALUES (?, ?, ?, ?, ?)";
+    const deleteSql =
+      "DELETE FROM \"collection-snapshots\" WHERE \"namespace\" = ? AND \"key\" = ?";
+    memory.execute(insertSql, ["workspace:a", "123", 7, "{\"rows\":[]}", 123]);
+
+    try {
+      memory.execute(deleteSql, ["workspace:a", 123 as never]);
+      expect.fail("Expected malformed DELETE params to be rejected");
+    } catch (error) {
+      expect(error).toBeInstanceOf(SQLitePersistenceInvalidStatementParams);
+      expect(error).toMatchObject({
+        _tag: "SQLitePersistenceInvalidStatementParams",
+        operation: "delete",
+        field: "key",
+        expected: "string"
+      });
+    }
+
+    expect(memory.row("collection-snapshots", "workspace:a", "123")).toBeDefined();
   });
 
   it("reports typed SQLite persistence errors for invalid adapter input", () =>

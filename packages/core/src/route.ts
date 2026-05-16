@@ -2,12 +2,15 @@ import { Data, Effect, Schema } from "effect";
 import type { EffectInput, EffectInputRequirements, EnsureEffectInput } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
 import {
-  Resource,
   isResourceRef,
   type AnyResourceFamily,
   type AnyResourceRef,
   type ResourceHydrationPayload
 } from "./resource.js";
+import {
+  collectResourceEffect,
+  resourceHydrationPayloadEffect
+} from "./resource-runtime.js";
 import type { ResourceSnapshotCodecError } from "./resource-snapshot-codec.js";
 import {
   buildRoutePath,
@@ -613,9 +616,9 @@ export namespace Route {
   export const planPreloadEffect = <R extends Definition<string, unknown, unknown, any>>(
     match: Match<R>
   ): Effect.Effect<PreloadPlan<R>, RoutePreloadPlanError, PreloadRequirements<R>> =>
-    Resource.collectEffect(preloadEffect(match)).pipe(
+    collectResourceEffect(preloadEffect(match)).pipe(
       Effect.flatMap((collected) =>
-        Resource.hydrationPayloadEffect(collected.refs).pipe(
+        resourceHydrationPayloadEffect(collected.refs).pipe(
           Effect.map((resources) => ({
             match,
             refs: collected.refs,

@@ -283,6 +283,55 @@ describe("react-db", () => {
     });
   });
 
+  it("ignores automatic preload failures from superseded DB generations after refetch", async () => {
+    const staleStarted = Effect.runSync(Deferred.make<void>());
+    const staleFailure = "stale-db-preload-failed" as const;
+    const staleRelease = Effect.runSync(Deferred.make<void, typeof staleFailure>());
+    const observedFailures: Array<unknown> = [];
+    let projects: CollectionHandle<Project, string, typeof staleFailure> | undefined;
+    const Projects = Collection.define<Project, string, typeof staleFailure>({
+      name: "ReactDb.preload-superseded-db-generation.projects",
+      getKey: (project) => project.id,
+      load: () =>
+        Effect.gen(function* () {
+          yield* Deferred.succeed(staleStarted, undefined).pipe(Effect.ignore);
+          yield* Deferred.await(staleRelease);
+          return [{ id: "atlas", name: "Atlas Slow", active: true }];
+        }),
+      refetch: () =>
+        Effect.succeed<ReadonlyArray<Project>>([
+          { id: "atlas", name: "Atlas Fresh", active: true }
+        ])
+    });
+
+    await withReactRoot(async (root) => {
+      await act(async () => {
+        root.render(createElement(() => {
+          projects = useCollection(Projects, {
+            onPreloadFailure: (error) => observedFailures.push(error)
+          });
+          return null;
+        }));
+      });
+      await flushReact();
+      await Effect.runPromise(Deferred.await(staleStarted));
+
+      await act(async () => {
+        await Effect.runPromise(projects!.refetchEffect());
+      });
+      await flushReact();
+
+      expect(projects!.rows.map((project) => project.name)).toEqual(["Atlas Fresh"]);
+
+      Effect.runSync(Deferred.fail(staleRelease, staleFailure));
+      await flushReactFor("20 millis");
+
+      expect(projects!.preloadFailure).toBeUndefined();
+      expect(observedFailures).toEqual([]);
+      expect(projects!.rows.map((project) => project.name)).toEqual(["Atlas Fresh"]);
+    });
+  });
+
   it("ignores stale automatic preload failures after the preload effect changes", async () => {
     const staleRelease = Effect.runSync(Deferred.make<void>());
     const staleFailure = "stale-preload-failed" as const;
