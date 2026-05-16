@@ -11,9 +11,38 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 122, immediately after Review 121. Some older review
+The newest review is Review 123, immediately after Review 122. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 123: Start Diagnostics CLI Contract Module
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Start Diagnostics CLI Contract: added
+  `packages/start/src/start-diagnostics-cli-contract.ts` as the shared Module
+  for graph/impact query-kind vocabulary and shell-safe impact verification
+  commands.
+- Effect v4 CLI depth: `packages/start/src/cli.ts` still builds real nested
+  `Command` subcommands from the shared catalog, while `CliError.InvalidValue`
+  expected text and compatibility usage fallback no longer maintain a parallel
+  hand-written command reference.
+- Agent graph locality: `packages/start/src/agent-graph.ts` now delegates
+  impact report verify-command planning to the CLI contract instead of
+  constructing `effect-ui-start` command strings inside graph analysis.
+- Regression coverage: app graph tests pin shell-safe verify command quoting,
+  and Start CLI tests continue to cover Effect CLI help/version, graph/impact
+  subcommands, and invalid usage paths.
+
+Focused verification passed: `pnpm --filter @effect-ui/start typecheck`, `pnpm
+exec vitest run packages/start/test/start.test.ts -t 'diagnostics CLI|Start
+diagnostics CLI|usage result|graph route|impact'` (1 file / 4 tests), `pnpm
+exec vitest run packages/start/test/app-graph.test.ts -t 'agent graph|impact|verify
+commands'` (1 file / 2 tests), `pnpm typecheck:types`, `pnpm audit:public-api`,
+`pnpm audit:effect-first` over 232 files, and `git diff --check`.
+Full `pnpm verify` also passed after the slice.
 
 ## Review 122: Browser Router Link Decision Module
 

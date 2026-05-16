@@ -12,6 +12,7 @@ import {
   type StartDiagnosticsReport,
   type StartDiagnosticsReportFinding
 } from "./diagnostics-report.js";
+import { startDiagnosticsCliVerifyCommandsForQuery } from "./start-diagnostics-cli-contract.js";
 
 export type StartAgentGraphNodeKind =
   | "Action"
@@ -1178,41 +1179,6 @@ const editTargetForNode = (
 ): string | undefined =>
   node.owner ?? (node.kind === "Module" ? node.label : undefined);
 
-const shellSafePattern = /^[A-Za-z0-9_./:@=-]+$/;
-
-const shellArg = (
-  value: string
-): string =>
-  shellSafePattern.test(value)
-    ? value
-    : `'${value.replace(/'/g, "'\\''")}'`;
-
-const rootCommandOption = (
-  root: string | undefined
-): string =>
-  root === undefined ? "" : ` --root ${shellArg(root)}`;
-
-const queryCommandArgs = (
-  query: StartAgentGraphQuery
-): string => {
-  const args = [
-    ...(query.kind === undefined ? [] : [query.kind]),
-    ...(query.text === undefined ? [] : [query.text])
-  ];
-  return args.length === 0 ? "" : ` ${args.map(shellArg).join(" ")}`;
-};
-
-const verifyCommandsForQuery = (
-  query: StartAgentGraphQuery,
-  options: StartAgentGraphImpactOptions
-): readonly string[] => {
-  const root = rootCommandOption(options.root);
-  return [
-    `effect-ui-start diagnostics${root}`,
-    `effect-ui-start graph${queryCommandArgs(query)}${root}`
-  ];
-};
-
 export const createStartAgentGraphImpact = (
   graph: StartAgentGraph,
   query: StartAgentGraphQuery,
@@ -1231,7 +1197,7 @@ export const createStartAgentGraphImpact = (
         dependencies: dependenciesForNode(graph, node),
         mayAffect: mayAffectForNode(graph, node),
         warnings: warningLinesForNode(node),
-        verify: verifyCommandsForQuery(query, options)
+        verify: startDiagnosticsCliVerifyCommandsForQuery(query, options)
       };
     })
   };

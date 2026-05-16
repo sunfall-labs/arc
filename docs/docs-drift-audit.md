@@ -444,9 +444,12 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Added Review 122 evidence for the Browser Router Link Decision cleanup.
   Current docs now record that Core owns RouterLink hover/click intent while
   React and Solid keep DOM event wiring local.
-- Updated current-facing verification snapshots after Review 122 full
-  verification so the latest gate points at the 231-file Effect-first audit and
-  52 root test files / 861 tests.
+- Added Review 123 evidence for the Start Diagnostics CLI Contract cleanup.
+  Current docs now record that the Effect v4 CLI command tree, validation text,
+  and agent verify commands share one query-kind catalog.
+- Updated current-facing verification snapshots after Review 123 full
+  verification so the latest gate points at the 232-file Effect-first audit and
+  52 root test files / 862 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are
   wrapped with `Effect.tryPromise(...)` at the Adapter seam.
 - Clarified that `virtual:effect-ui/routes` exposes runtime helpers while the

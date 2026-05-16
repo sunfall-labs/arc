@@ -443,6 +443,11 @@ Last evidence pass: May 15, 2026.
 - [x] App graph artifacts are consumable by CI, devtools, tests, and agents.
   - Evidence: `loadStartAppGraphDiagnostics(...)`, `effect-ui-start
     diagnostics`, devtools summary tests, and generated virtual modules.
+- [x] Start diagnostics CLI command vocabulary has one Effect v4 source of truth.
+  - Evidence: `packages/start/src/start-diagnostics-cli-contract.ts` feeds
+    graph/impact query-kind subcommands, validation text, and impact verify
+    commands while `packages/start/src/cli.ts` keeps the real Effect v4
+    `Command` tree.
 
 ## Devtools And Observability
 

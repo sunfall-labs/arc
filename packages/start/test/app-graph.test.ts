@@ -31,6 +31,7 @@ import {
   formatStartAgentGraphImpact,
   queryStartAgentGraph
 } from "../src/agent-graph.js";
+import { startDiagnosticsCliVerifyCommandsForQuery } from "../src/start-diagnostics-cli-contract.js";
 import { makeActionManifest } from "../src/action-manifest.js";
 import { FileRouteManifestParseError, generateFileRouteManifestArtifact } from "../src/file-routes.js";
 import { makeServerFunctionManifest } from "../src/server-function-manifest.js";
@@ -857,6 +858,16 @@ describe("Start app graph", () => {
         });
       })
     );
+  });
+
+  it("shares shell-safe Start CLI verify commands with impact reports", () => {
+    expect(startDiagnosticsCliVerifyCommandsForQuery(
+      { kind: "route", text: "/project spaces/:id" },
+      { root: "examples/project console" }
+    )).toEqual([
+      "effect-ui-start diagnostics --root 'examples/project console'",
+      "effect-ui-start graph route '/project spaces/:id' --root 'examples/project console'"
+    ]);
   });
 
   it("rejects malformed graph payloads before tooling consumes them", () => {

@@ -1090,6 +1090,10 @@ interruption.
   `Command` subcommands, with graph `--verbose` inherited through
   `Command.withSharedFlags(...)` and kind query text still validated by Effect
   `Argument` parsers.
+- Start Diagnostics CLI Contract now owns the graph/impact query-kind catalog,
+  `CliError.InvalidValue` expected text, and shell-safe impact verify command
+  planning while `cli.ts` continues to build real Effect v4 `Command`
+  subcommands from that shared contract.
 - Start Vite Diagnostics Loader now owns temporary Vite server acquire/release,
   diagnostics virtual-module loading, graph DTO decoding, and diagnostics gate
   execution in `start-vite-diagnostics-loader.ts`; the Vite facade re-exports
@@ -1122,10 +1126,10 @@ interruption.
 - Devtools Panels and Store no longer expose internal single-adapter runtime
   injection seams. Effect wrappers and store Effect methods stay intact while
   pure projection dependencies live in the owning Modules.
-- The latest full `pnpm verify` passed after the Review 122 Browser Router Link
-  Decision slice: 11 package builds, workspace typecheck, type tests,
-  public API inventory audit, Effect-first audit over 231
-  package/example/script/type-test files, 52 root test files / 861 tests,
+- The latest full `pnpm verify` passed after the Review 123 Start Diagnostics
+  CLI Contract slice: 11 package builds, workspace typecheck, type tests,
+  public API inventory audit, Effect-first audit over 232
+  package/example/script/type-test files, 52 root test files / 862 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
   verify with 1 starter test file / 2 tests, React starter verify with 1
@@ -1134,8 +1138,9 @@ interruption.
   added the public API inventory audit to the full gate, Review 86 kept the
   scanner green over the expanded public type-test scope, Review 113 expanded
   the scanner to 226 files, Review 115 expanded it to 227 files, Review 116
-  expanded it to 228 files, Review 120 expanded it to 230 files, and Review
-  121 expanded it to 231 files while Review 122 kept it green over that scope.
+  expanded it to 228 files, Review 120 expanded it to 230 files, Review 121
+  expanded it to 231 files, and Review 123 expanded it to 232 files while
+  keeping it green over that scope.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

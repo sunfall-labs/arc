@@ -18,6 +18,11 @@ import {
   type StartAgentGraphQuery,
   type StartAgentGraphQueryKind
 } from "./agent-graph.js";
+import {
+  isStartAgentGraphQueryKind,
+  startAgentGraphQueryKinds,
+  startAgentGraphQueryKindsText
+} from "./start-diagnostics-cli-contract.js";
 import type {
   LoadedStartAppGraphDiagnostics,
   LoadStartAppGraphDiagnosticsOptions,
@@ -94,55 +99,22 @@ export class StartDiagnosticsCliUsageError extends Data.TaggedError(
   readonly guidance: string;
 }> {}
 
-/** Help text for the Start diagnostics CLI. */
-export const startDiagnosticsCliUsage = [
-  "Usage: effect-ui-start diagnostics [options]",
-  "       effect-ui-start graph [kind] [query] [options]",
-  "       effect-ui-start impact [kind] [query] [options]",
-  "",
-  "Commands:",
-  "  diagnostics       Print app graph diagnostics and repair findings.",
-  "  graph             Print the agent-readable semantic app graph.",
-  "  impact            Print edit impact for one route/action/resource/module.",
-  "",
-  "Graph and impact query kinds:",
-  "  route, action, server-function, resource, resource-tag, collection, module, endpoint, finding, node",
-  "",
-  "Options:",
-  "  --root <dir>       Vite project root. Defaults to the current directory.",
-  "  --config <file>    Vite config file. Use \"false\" to disable config loading.",
-  "  --mode <mode>      Vite mode to use while loading diagnostics.",
-  "  --json             Print the resolved payload as JSON.",
-  "  --pretty           Pretty-print JSON output.",
-  "  --verbose          Print raw graph ids, facts, and edges for graph output.",
-  "  -h, --help         Show this help message."
-].join("\n");
-
-const graphQueryKinds = [
-  "action",
-  "collection",
-  "endpoint",
-  "finding",
-  "module",
-  "node",
-  "resource",
-  "resource-tag",
-  "route",
-  "server-function"
-] as const satisfies ReadonlyArray<StartAgentGraphQueryKind>;
+/**
+ * Last-resort usage fallback for embedding errors.
+ *
+ * The printable CLI help is generated from the Effect v4 `Command` tree so
+ * flags, subcommands, descriptions, and examples cannot drift from parsing.
+ */
+export const startDiagnosticsCliUsage =
+  "Run `effect-ui-start --help` for usage generated from the Effect CLI command tree.";
 
 const startDiagnosticsCliVersion = "0.0.0-alpha.0";
-
-const graphQueryKindSet = new Set<StartAgentGraphQueryKind>(graphQueryKinds);
-
-const isGraphQueryKind = (value: string): value is StartAgentGraphQueryKind =>
-  graphQueryKindSet.has(value as StartAgentGraphQueryKind);
 
 const invalidGraphQueryKindError = (value: string): CliError.InvalidValue =>
   new CliError.InvalidValue({
     option: "query",
     value,
-    expected: `one of: ${graphQueryKinds.join(", ")}`,
+    expected: `one of: ${startAgentGraphQueryKindsText()}`,
     kind: "argument"
   });
 
@@ -176,7 +148,7 @@ const queryFromPositionalsEffect = (
   if (first === undefined) {
     return Effect.succeed(undefined);
   }
-  if (isGraphQueryKind(first)) {
+  if (isStartAgentGraphQueryKind(first)) {
     return Effect.succeed({
       kind: first,
       ...(second === undefined ? {} : { text: second })
@@ -426,7 +398,7 @@ const makeStartDiagnosticsCliCommand = (
       })
     ),
     Command.withSubcommands(
-      graphQueryKinds.map((kind) =>
+      startAgentGraphQueryKinds.map((kind) =>
         Command.make(
           kind,
           { query: graphKindQueryArgument(kind) },
@@ -472,7 +444,7 @@ const makeStartDiagnosticsCliCommand = (
 
   const impact = impactBase.pipe(
     Command.withSubcommands(
-      graphQueryKinds.map((kind) =>
+      startAgentGraphQueryKinds.map((kind) =>
         Command.make(
           kind,
           { query: impactKindQueryArgument(kind) },
@@ -577,7 +549,7 @@ export const parseStartDiagnosticsCliArgsEffect = (
         return { _tag: "Help" };
       }
 
-      const guidance = stdout.join("\n") || startDiagnosticsCliUsage;
+      const guidance = stdout.join("\n") || stderr.join("\n") || startDiagnosticsCliUsage;
       return yield* Effect.fail(usageErrorFromCliCause(grammarResult.cause, guidance));
     }
 
