@@ -19,6 +19,8 @@ const publicHoverDocs = [
     file: "packages/core/src/program.ts",
     declarations: [
       "Program",
+      "ProgramStartOptions",
+      "startProgram",
       "startProgramWithRuntimeError"
     ],
     namespaceDeclarations: {
@@ -27,6 +29,8 @@ const publicHoverDocs = [
         "Instance",
         "Failure",
         "RuntimeError",
+        "StartOptions",
+        "RuntimeRemainingRequirements",
         "TimelineOptions",
         "Event",
         "EventBase",
@@ -88,6 +92,26 @@ const publicHoverDocs = [
       "ProgramStory",
       "ProgramStoryOptions",
       "ProgramInstance"
+    ]
+  },
+  {
+    file: "packages/core/src/browser-router-link.ts",
+    declarations: [
+      "BrowserRouterClickEvent",
+      "isPlainLeftClick",
+      "opensOutsideRouter",
+      "BrowserRouterLinkIgnoreReason",
+      "BrowserRouterLinkTarget",
+      "BrowserRouterLinkPreloadDecisionOptions",
+      "BrowserRouterLinkPreloadDecision",
+      "browserRouterLinkPreloadDecision",
+      "BrowserRouterLinkClickDecisionOptions",
+      "BrowserRouterLinkClickDecision",
+      "browserRouterLinkClickDecision",
+      "BrowserRouterLinkPreloader",
+      "BrowserRouterLinkPreloaderRuntime",
+      "BrowserRouterLinkPreloaderOptions",
+      "makeBrowserRouterLinkPreloader"
     ]
   },
   {
@@ -202,6 +226,36 @@ const publicHoverDocs = [
     file: "packages/start/src/start-vite-diagnostics-loader.ts",
     declarations: [
       "StartAppGraphDiagnosticsLoadError"
+    ]
+  },
+  {
+    file: "packages/start/src/start-transport-endpoints.ts",
+    declarations: [
+      "StartEndpointPathInvalidReason",
+      "StartEndpointPathErrorInput",
+      "StartEndpointConflictErrorInput",
+      "startEndpointPathGuidance",
+      "startEndpointConflictGuidance",
+      "startEndpointPathInvalidReason",
+      "normalizeStartEndpointPath",
+      "validateStartEndpointPathEffect",
+      "StartTransportEndpointPathError",
+      "StartTransportEndpointConflictError",
+      "StartTransportEndpoints",
+      "StartTransportEndpointOverrides",
+      "StartServerFunctionEndpointManifest",
+      "StartActionEndpointManifest",
+      "StartTransportEndpointManifestSource",
+      "StartTransportEndpointSource",
+      "StartRpcEndpointSource",
+      "StartActionEndpointSource",
+      "defaultStartTransportEndpoints",
+      "resolveStartTransportEndpoints",
+      "resolveStartTransportEndpointsEffect",
+      "resolveStartRpcEndpoint",
+      "resolveStartActionEndpoint",
+      "isStartRpcEndpointRequest",
+      "isStartActionEndpointRequest"
     ]
   },
   {

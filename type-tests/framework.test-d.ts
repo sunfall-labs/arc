@@ -3055,6 +3055,10 @@ const ProjectProgram = Program.define<
 
 // @ts-expect-error serviceful Program.start requires an explicit runtime carrying Program services
 Program.start(ProjectProgram);
+const projectProgramStartOptions: Program.StartOptions<ProjectApi> = { runtime: projectProgramRuntime };
+type ProjectProgramRemainingRuntimeRequirements =
+  Program.RuntimeRemainingRequirements<ProjectApi | RuntimeMissingService, ProjectApi>;
+const missingProgramRuntimeRequirement = null as unknown as ProjectProgramRemainingRuntimeRequirements;
 const projectProgram = Program.start(ProjectProgram, { runtime: projectProgramRuntime });
 read(projectProgram.model).selected?.name.toUpperCase();
 const projectProgramTimeline: ReadonlyArray<
@@ -3126,6 +3130,8 @@ const projectProgramStoryEntry: Effect.Effect<
 > = projectProgramStory.send({ _tag: "Load", id: "atlas" });
 void projectProgramStoryEntry;
 void projectProgramRuntimeErrorDispatch;
+void projectProgramStartOptions;
+void missingProgramRuntimeRequirement;
 const solidProjectProgram: ProgramHandle<
   ProjectProgramModel,
   ProjectProgramMessage,

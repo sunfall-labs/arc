@@ -1,13 +1,17 @@
 const manifestTargetFields = new Set(["main", "module", "types", "typings"]);
 
-const toManifestPath = (value) =>
-  typeof value === "string" && value.startsWith("./")
-    ? value.slice(2)
-    : undefined;
+const manifestTarget = (value, context) => {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+  return value.startsWith("./")
+    ? { ...context, target: value.slice(2) }
+    : { ...context, invalidTarget: value };
+};
 
 const collectStringTargets = (value, context) => {
-  const target = toManifestPath(value);
-  return target === undefined ? [] : [{ ...context, target }];
+  const target = manifestTarget(value, context);
+  return target === undefined ? [] : [target];
 };
 
 const collectExportTargets = (value, context) => {
@@ -61,7 +65,7 @@ export const packageManifestTargets = (packageJson) => {
 
   const seen = new Set();
   return targets.filter((target) => {
-    const key = `${target.field}\0${target.target}`;
+    const key = `${target.field}\0${target.target ?? target.invalidTarget}`;
     if (seen.has(key)) {
       return false;
     }
@@ -78,8 +82,16 @@ export const manifestTargetValidationFailures = ({
 }) => {
   const fileSet = new Set(files);
   return packageManifestTargets(packageJson)
-    .filter((target) => !fileSet.has(target.target))
-    .map((target) =>
-      `${payloadLabel ?? packageName} manifest field ${target.field} points at missing payload file ${target.target}`
-    );
+    .flatMap((target) => {
+      if (target.invalidTarget !== undefined) {
+        return [
+          `${payloadLabel ?? packageName} manifest field ${target.field} points at invalid package-local target ${target.invalidTarget}; use a ./-prefixed file target.`
+        ];
+      }
+      return fileSet.has(target.target)
+        ? []
+        : [
+            `${payloadLabel ?? packageName} manifest field ${target.field} points at missing payload file ${target.target}`
+          ];
+    });
 };

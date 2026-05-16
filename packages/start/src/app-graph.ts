@@ -15,6 +15,7 @@ import type {
 } from "./start-app-graph-diagnostics-policy.js";
 import {
   resolveStartTransportEndpoints,
+  resolveStartTransportEndpointsEffect,
   StartTransportEndpointConflictError,
   type StartTransportEndpointPathError
 } from "./start-transport-endpoints.js";
@@ -677,7 +678,18 @@ export const decodeStartAppGraphDiagnosticsEffect = (
   value: unknown
 ): Effect.Effect<StartAppGraphDiagnostics, StartAppGraphDiagnosticsDtoError> =>
   isStartAppGraphDiagnostics(value)
-    ? Effect.succeed(value)
+    ? resolveStartTransportEndpointsEffect({
+        rpcPath: value.rpcPath,
+        actionPath: value.actionPath
+      }).pipe(
+        Effect.as(value),
+        Effect.mapError((error) =>
+          diagnosticsDtoError(
+            "Start app graph diagnostics endpoint paths are invalid.",
+            error
+          )
+        )
+      )
     : Effect.fail(
         diagnosticsDtoError(
           "Expected a Start app graph diagnostics DTO.",

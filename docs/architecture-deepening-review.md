@@ -11,9 +11,103 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed review is Review 153, immediately after Review 152. Some
+The newest completed review is Review 154, immediately after Review 153. Some
 older review entries remain below it from prior ledger merges; use this tip
 rather than file order alone when looking for the latest architecture sweep.
+
+## Review 154: Interruption Liveness And Guardrail Closure
+
+Review154 fixed fresh DB, Start, script, and LSP/type-surface findings from the
+post-Review153 sweeps. Latest full verification is still the Review153 gate
+until `pnpm verify` is rerun after this focused slice.
+
+1. DB Active Attempt Interruption Liveness
+   - Status: fixed.
+   - Files: `packages/db/src/collection-sync-load-policy.ts`,
+     `packages/db/test/collection.test.ts`.
+   - Problem: active load and mutation attempts could keep ownership after the
+     owner fiber was interrupted, leaving later callers blocked behind a dead
+     in-flight attempt.
+   - Fix: active load and mutation owners now finalize their visible attempt
+     state through `Effect.onExit(...)`, completing the attempt and clearing
+     active ownership on success, failure, or interruption.
+   - Benefits: the Collection load/mutation Modules now have liveness Locality
+     at the active-attempt seam. Interrupted callers do not poison future
+     preloads or mutation flushes.
+
+2. Start Endpoint, Diagnostics, And CLI Seams
+   - Status: fixed.
+   - Files: `packages/start/src/start-request-handler.ts`,
+     `packages/start/src/app-graph.ts`,
+     `packages/start/src/start-diagnostics-cli-contract.ts`,
+     `packages/start/src/start-transport-endpoints.ts`,
+     `packages/start/test/start.test.ts`,
+     `packages/start/test/app-graph.test.ts`, `type-tests/start.test-d.ts`,
+     `docs/public-api-inventory.md`.
+   - Problem: invalid handler endpoint options were resolved before the
+     returned request Effect, diagnostics DTO decoding accepted colliding RPC
+     and action endpoint facts, impact verify commands were shell-safe but not
+     argv-safe for flag-shaped query text, and the public endpoint policy seam
+     was under-documented for LSP users.
+   - Fix: `createRequestHandlerEffect(...)` resolves endpoint policy inside the
+     returned Effect and normalizes failures to `StartRequestHandlerError`.
+     Diagnostics DTO decoding reuses `resolveStartTransportEndpointsEffect(...)`
+     so collision facts fail as DTO errors. Impact verify commands put load
+     options before graph query arguments and insert `--` for flag-shaped
+     queries. Public endpoint path/conflict helpers and errors now carry hover
+     docs and type pins.
+   - Benefits: Start keeps endpoint policy in the typed Effect channel at the
+     runtime and diagnostics seams, while CLI repair commands remain safe when
+     route/action/query names resemble flags.
+
+3. Effect-First And Package Guardrail False Negatives
+   - Status: fixed.
+   - Files: `scripts/audit-effect-first.mjs`,
+     `scripts/package-manifest-targets.mjs`,
+     `scripts/package-project-console-starter.mjs`,
+     `scripts/workspace-package-discovery.mjs`,
+     `docs/effect-first-audit.md`, `docs/package-hygiene-audit.md`.
+   - Problem: the Promise static AST audit missed typed literal element access,
+     package manifest target checks ignored package-local strings without `./`,
+     generated starter artifact checks silently passed when both source and
+     generated files were missing, local package adapter directory names could
+     collide after normalization, and audit docs still described an older full
+     verification gate.
+   - Fix: the Effect-first audit unwraps `as`, `satisfies`, and type assertion
+     expressions before classifying Promise statics and extraction patterns.
+     Manifest validation rejects invalid package-local target strings with
+     repair guidance. Generated artifact verification reports missing declared
+     artifacts even when both sides are absent. Workspace discovery rejects
+     duplicate local adapter directory names. Effect-first and package hygiene
+     docs now point at the Review153 full gate.
+   - Benefits: copyability and Promise guardrails now fail at the source of the
+     policy breach instead of relying on downstream packaging luck or stale
+     docs.
+
+4. Core Program And Link Preloader LSP Pins
+   - Status: fixed.
+   - Files: `scripts/audit-public-api-inventory.mjs`,
+     `type-tests/core.test-d.ts`, `type-tests/framework.test-d.ts`,
+     `docs/public-api-inventory.md`.
+   - Problem: the Review153 Program runtime seam and Core browser-link
+     preloader seam were behaviorally fixed, but their expert-public type and
+     hover coverage lagged behind the new contract.
+   - Fix: public API inventory checks now cover `startProgram(...)`,
+     `Program.StartOptions`, `Program.RuntimeRemainingRequirements`, and the
+     browser-link preloader decision/runtime/options surface. Public type tests
+     pin those Interfaces so future changes preserve LSP discoverability.
+   - Benefits: the typed runtime-preload contracts are visible where users and
+     adapter authors actually cross the Interface, not only in prose review
+     notes.
+
+Focused verification passed: Start and DB package typechecks, public type
+tests, public API audit, Effect-first audit over 272 files, DB collection tests
+1 file / 113 tests, Start request/app-graph tests 2 files / 169 tests, script
+syntax checks, malformed manifest target check, the 16-target package dry-run
+gate, generated starter-suite packaging/verifies for basic/react/project-console
+at 19/24/30 app files with 5/4/6 local packages, and `git diff --check`. Full
+`pnpm verify` still needs to run before Review154 can become the latest full
+green checkpoint.
 
 ## Review 153: Runtime Bounds, Finalization Metrics, And Package Walls
 

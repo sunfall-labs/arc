@@ -12,27 +12,39 @@ export type StartEndpointPathInvalidReason =
   | "FullUrl"
   | "NotOriginForm";
 
+/** Input captured when a Start transport endpoint path is invalid. */
 export interface StartEndpointPathErrorInput {
+  /** Option or manifest field being validated. */
   readonly field: string;
+  /** Raw invalid endpoint path value. */
   readonly value: unknown;
+  /** Machine-readable path validation failure. */
   readonly reason: StartEndpointPathInvalidReason;
+  /** Repair guidance suitable for CLI and build diagnostics. */
   readonly guidance: string;
 }
 
+/** Input captured when RPC and action transports resolve to the same path. */
 export interface StartEndpointConflictErrorInput {
+  /** Resolved server-function RPC path. */
   readonly rpcPath: string;
+  /** Resolved Start action path. */
   readonly actionPath: string;
+  /** Repair guidance suitable for CLI and build diagnostics. */
   readonly guidance: string;
 }
 
+/** Repair guidance for invalid Start transport endpoint paths. */
 export const startEndpointPathGuidance =
   "Use an origin-form endpoint path such as `/__effect-ui/rpc`; full URLs, empty paths, and CR/LF characters are not allowed.";
 
+/** Repair guidance for colliding Start RPC/action endpoint paths. */
 export const startEndpointConflictGuidance =
   "Use distinct origin-form endpoint paths for RPC and action transports, such as `/__effect-ui/rpc` and `/__effect-ui/action`.";
 
 const urlSchemePattern = /^[A-Za-z][A-Za-z0-9+.-]*:/;
 
+/** Classifies why a candidate Start transport endpoint path is invalid. */
 export const startEndpointPathInvalidReason = (
   value: unknown
 ): StartEndpointPathInvalidReason | undefined => {
@@ -56,11 +68,13 @@ export const startEndpointPathInvalidReason = (
   return trimmed.startsWith("/") ? undefined : "NotOriginForm";
 };
 
+/** Normalizes a valid origin-form Start transport endpoint path. */
 export const normalizeStartEndpointPath = (value: unknown): string | undefined => {
   const reason = startEndpointPathInvalidReason(value);
   return reason === undefined && typeof value === "string" ? value.trim() : undefined;
 };
 
+/** Validates an endpoint path through an Effect-native error constructor seam. */
 export const validateStartEndpointPathEffect = <Error>(
   value: unknown,
   options: {
@@ -83,10 +97,12 @@ export const validateStartEndpointPathEffect = <Error>(
   );
 };
 
+/** Error raised when a Start transport endpoint path is not origin-form. */
 export class StartTransportEndpointPathError extends Data.TaggedError(
   "StartTransportEndpointPathError"
 )<StartEndpointPathErrorInput> {}
 
+/** Error raised when RPC and action transports resolve to the same path. */
 export class StartTransportEndpointConflictError extends Data.TaggedError(
   "StartTransportEndpointConflictError"
 )<StartEndpointConflictErrorInput> {}
@@ -215,6 +231,7 @@ export const resolveStartTransportEndpoints = (
       defaultStartTransportEndpoints.actionPath
   });
 
+/** Effect-native endpoint resolver for CLI, diagnostics, and handler seams. */
 export const resolveStartTransportEndpointsEffect = (
   source: StartTransportEndpointSource = {}
 ): Effect.Effect<

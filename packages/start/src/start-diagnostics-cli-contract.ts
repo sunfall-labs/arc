@@ -41,7 +41,13 @@ const queryCommandArgs = (
     ...(query.kind === undefined ? [] : [query.kind]),
     ...(query.text === undefined ? [] : [query.text])
   ];
-  return args.length === 0 ? "" : ` ${args.map(shellArg).join(" ")}`;
+  if (args.length === 0) {
+    return "";
+  }
+  const rendered = args.map(shellArg).join(" ");
+  return args.some((arg) => arg.startsWith("-"))
+    ? ` -- ${rendered}`
+    : ` ${rendered}`;
 };
 
 /**
@@ -58,6 +64,6 @@ export const startDiagnosticsCliVerifyCommandsForQuery = (
   const loadOptions = diagnosticsLoadCommandOptions(options);
   return [
     `effect-ui-start diagnostics${loadOptions}`,
-    `effect-ui-start graph${queryCommandArgs(query)}${loadOptions}`
+    `effect-ui-start graph${loadOptions}${queryCommandArgs(query)}`
   ];
 };

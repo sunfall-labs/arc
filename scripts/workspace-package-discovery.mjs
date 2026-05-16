@@ -177,18 +177,36 @@ export const collectWorkspacePackageManifests = (workspaceRoot) =>
     );
     const names = new Set();
     const duplicateNames = [];
+    const localDirectoryNames = new Map();
+    const duplicateLocalDirectoryNames = [];
     for (const manifest of manifests) {
       const name = manifest.packageJson.name;
       if (names.has(name)) {
         duplicateNames.push(name);
       }
       names.add(name);
+      const previousPackageName = localDirectoryNames.get(manifest.localDirectoryName);
+      if (previousPackageName !== undefined) {
+        duplicateLocalDirectoryNames.push(
+          `${manifest.localDirectoryName} (${previousPackageName}, ${name})`
+        );
+      } else {
+        localDirectoryNames.set(manifest.localDirectoryName, name);
+      }
     }
     if (duplicateNames.length > 0) {
       return yield* Effect.fail(
         fail(
           "Workspace package manifests declare duplicate package names.",
           `Make package names unique before verification: ${duplicateNames.join(", ")}.`,
+        ),
+      );
+    }
+    if (duplicateLocalDirectoryNames.length > 0) {
+      return yield* Effect.fail(
+        fail(
+          "Workspace package manifests map to duplicate local package adapter directories.",
+          `Rename packages or update local package directory mapping before verification: ${duplicateLocalDirectoryNames.join(", ")}.`,
         ),
       );
     }

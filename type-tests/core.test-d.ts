@@ -70,6 +70,9 @@ import {
   type BrowserRouterKernelOptions,
   type BrowserRouterHostController,
   type BrowserRouterLinkClickDecision,
+  type BrowserRouterLinkPreloader,
+  type BrowserRouterLinkPreloaderOptions,
+  type BrowserRouterLinkPreloaderRuntime,
   type BrowserRouterLinkPreloadDecision,
   type ActionSubmissionState,
   type AnyEffectUiRuntime,
@@ -313,6 +316,13 @@ const coreLinkPreloader = makeBrowserRouterLinkPreloader({
   enabled: () => true,
   preloadEffect: () => Effect.void
 });
+const coreLinkPreloaderShape: BrowserRouterLinkPreloader = coreLinkPreloader;
+const coreLinkPreloaderRuntime: BrowserRouterLinkPreloaderRuntime = runtime;
+const coreLinkPreloaderOptions: BrowserRouterLinkPreloaderOptions = {
+  runtime: coreLinkPreloaderRuntime,
+  enabled: () => true,
+  preloadEffect: () => Effect.void
+};
 makeBrowserRouterLinkPreloader({
   runtime,
   enabled: () => true,
@@ -374,6 +384,8 @@ void renderKey;
 void renderDecision;
 void preloadDecision;
 void coreLinkPreloader;
+void coreLinkPreloaderShape;
+void coreLinkPreloaderOptions;
 void clickDecision;
 type _RuntimeShape = RuntimeShape;
 type _AnyRuntimeShape = AnyRuntimeShape;

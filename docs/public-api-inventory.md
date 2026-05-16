@@ -155,7 +155,10 @@ Release decisions:
   `browserRouterLinkClickDecision(...)`, `BrowserRouterLinkPreloadDecision`,
   `BrowserRouterLinkClickDecision`, and `BrowserRouterLinkIgnoreReason` are
   expert-public for React, Solid, tests, and future adapters; app code should
-  normally keep using framework `RouterLink` components.
+  normally keep using framework `RouterLink` components. The
+  `makeBrowserRouterLinkPreloader(...)` seam accepts only requirement-free
+  preload Effects, so framework adapters must provide route services before
+  handing hover work to Core.
 - Browser route render decisions live in Core so framework adapters share the
   same outlet state meaning. `browserRouteRenderDecision(...)`,
   `browserRouteRenderKey(...)`, `BrowserRouteOutletRenderers`,
@@ -319,8 +322,10 @@ The root export includes:
   `validateStartRpcRequestEffect`, `validateStartRpcResponseEffect`,
   `validateStartActionRequestEffect`, `validateStartTransport*Effect`,
   `startTransportDiagnosticsEffect`, `startTransportEndpointEnvelopeEffect`,
-  `withStartTransportDiagnostics`, `resolveStartTransportEndpoints`,
-  `resolveStartRpcEndpoint`,
+  `withStartTransportDiagnostics`, `validateStartEndpointPathEffect`,
+  `resolveStartTransportEndpoints`, `resolveStartTransportEndpointsEffect`,
+  `resolveStartRpcEndpoint`, `StartTransportEndpointPathError`,
+  `StartTransportEndpointConflictError`,
   `resolveStartActionEndpoint`, `isStartRpcEndpointRequest`, and
   `isStartActionEndpointRequest`,
   `createServerRpcResponseEffect`, and `createServerActionResponseEffect`.

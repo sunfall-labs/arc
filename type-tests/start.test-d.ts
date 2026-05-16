@@ -16,10 +16,12 @@ import {
   startRequestDurationMetric,
   startRequestStatusMetric,
   resolveStartTransportEndpointsEffect,
+  validateStartEndpointPathEffect,
   StartAppGraphDiagnosticsDtoError,
   StartAppGraphMissingWireSchemas,
   StartAppGraphParseError,
   StartTransportEndpointConflictError,
+  StartTransportEndpointPathError,
   StartAppGraphUnknownActionBehavior,
   submitStartActionEffect,
   validateStartAppGraphActionBehaviorEffect,
@@ -40,6 +42,7 @@ import {
   type StartAppGraphRoutePreloadCollectionsPolicy,
   type StartAppGraphRoutePreloadResourcesPolicy,
   type StartEndpointConflictErrorInput,
+  type StartEndpointPathErrorInput,
   type StartFetch,
   type StartAppGraphWireSchemaPolicy,
   type HydrateStartPayloadOptions,
@@ -93,10 +96,12 @@ const startExports: Array<unknown> = [
   startRequestDurationMetric,
   startRequestStatusMetric,
   resolveStartTransportEndpointsEffect,
+  validateStartEndpointPathEffect,
   StartAppGraphDiagnosticsDtoError,
   StartAppGraphMissingWireSchemas,
   StartAppGraphParseError,
   StartTransportEndpointConflictError,
+  StartTransportEndpointPathError,
   StartAppGraphUnknownActionBehavior,
   submitStartActionEffect,
   validateStartAppGraphActionBehaviorEffect,
@@ -119,6 +124,7 @@ type StartTypes =
   | StartAppGraphRoutePreloadCollectionsPolicy
   | StartAppGraphRoutePreloadResourcesPolicy
   | StartEndpointConflictErrorInput
+  | StartEndpointPathErrorInput
   | StartAppGraphWireSchemaPolicy
   | HydrateStartPayloadOptions
   | ServerFunctionManifest
@@ -196,8 +202,17 @@ const endpointConflictInput: StartEndpointConflictErrorInput = {
   guidance: "Use distinct endpoint paths."
 };
 const endpointConflict = new StartTransportEndpointConflictError(endpointConflictInput);
+const endpointPathInput: StartEndpointPathErrorInput = {
+  field: "rpcPath",
+  value: "rpc",
+  reason: "NotOriginForm",
+  guidance: "Use an origin-form path."
+};
+const endpointPathError = new StartTransportEndpointPathError(endpointPathInput);
 void endpointConflict;
+void endpointPathError;
 void resolveStartTransportEndpointsEffect;
+void validateStartEndpointPathEffect;
 
 const traceHeader: StartRequestTraceHeader = { name: "x-effect-ui", value: "ok" };
 const traceCookie: StartRequestTraceCookie = { name: "session", value: "[redacted]" };

@@ -677,6 +677,7 @@ const assertGeneratedStarterArtifactsMatchSource = (starter) =>
       const sourceExists = yield* pathExists(sourcePath);
       const generatedExists = yield* pathExists(generatedPath);
       if (!sourceExists && !generatedExists) {
+        changed.push(`${file} (missing declared ${artifact.kind} artifact)`);
         continue;
       }
       if (!sourceExists || !generatedExists) {

@@ -42,6 +42,7 @@ import {
   StartHydrationPayloadParseError,
   StartHydrationPayloadSerializeError,
   StartPreloadError,
+  StartRequestHandlerError,
   StartCollectionDuplicateName,
   StartAction,
   StartActionFormEncodeError,
@@ -80,6 +81,9 @@ import type {
 import {
   startAgentGraphQueryKinds
 } from "../src/start-agent-graph-vocabulary.js";
+import {
+  startDiagnosticsCliVerifyCommandsForQuery
+} from "../src/start-diagnostics-cli-contract.js";
 import {
   actionManifestVirtualModuleId,
   appGraphRuntimeDiagnosticsVirtualModuleId,
@@ -2390,10 +2394,29 @@ describe("Effect UI Start", () => {
     expect(() => resolveStartTransportEndpoints({ rpcPath: "/same", actionPath: "/same" })).toThrow(
       StartTransportEndpointConflictError
     );
-    expect(() => createRequestHandler(app, { rpcPath: "/__effect-ui/rpc\nx" })).toThrow(
+    const invalidPathHandlerExit = await Effect.runPromiseExit(
+      createRequestHandlerEffect(app, { rpcPath: "/__effect-ui/rpc\nx" })(
+        new Request("https://example.com/")
+      )
+    );
+    const collidingHandlerExit = await Effect.runPromiseExit(
+      createRequestHandlerEffect(app, { rpcPath: "/same", actionPath: "/same" })(
+        new Request("https://example.com/")
+      )
+    );
+    const invalidPathHandlerFailure = Exit.isFailure(invalidPathHandlerExit)
+      ? firstFailure(invalidPathHandlerExit.cause)
+      : undefined;
+    const collidingHandlerFailure = Exit.isFailure(collidingHandlerExit)
+      ? firstFailure(collidingHandlerExit.cause)
+      : undefined;
+
+    expect(invalidPathHandlerFailure).toBeInstanceOf(StartRequestHandlerError);
+    expect((invalidPathHandlerFailure as StartRequestHandlerError | undefined)?.cause).toBeInstanceOf(
       StartTransportEndpointPathError
     );
-    expect(() => createRequestHandler(app, { rpcPath: "/same", actionPath: "/same" })).toThrow(
+    expect(collidingHandlerFailure).toBeInstanceOf(StartRequestHandlerError);
+    expect((collidingHandlerFailure as StartRequestHandlerError | undefined)?.cause).toBeInstanceOf(
       StartTransportEndpointConflictError
     );
     expect(() =>
@@ -6911,7 +6934,7 @@ describe("Effect UI Start", () => {
       expect(impactPayload.matches).toBeGreaterThan(0);
       expect(impactPayload.items?.[0]?.verify).toEqual([
         "effect-ui-start diagnostics --root examples/project-console --config vite.config.ts --mode ci",
-        `effect-ui-start graph ${kind} ${startAgentGraphCliQueryTextByKind[kind]} --root examples/project-console --config vite.config.ts --mode ci`
+        `effect-ui-start graph --root examples/project-console --config vite.config.ts --mode ci ${kind} ${startAgentGraphCliQueryTextByKind[kind]}`
       ]);
     }
   });
@@ -7013,7 +7036,17 @@ describe("Effect UI Start", () => {
     ]);
     expect(payload.items?.[0]?.verify).toEqual([
       "effect-ui-start diagnostics --root 'examples/project console' --config 'vite config.ts' --mode 'ci mode'",
-      "effect-ui-start graph route '/project spaces/:id' --root 'examples/project console' --config 'vite config.ts' --mode 'ci mode'"
+      "effect-ui-start graph --root 'examples/project console' --config 'vite config.ts' --mode 'ci mode' route '/project spaces/:id'"
+    ]);
+  });
+
+  it("protects impact verify command queries that look like CLI flags", () => {
+    expect(startDiagnosticsCliVerifyCommandsForQuery(
+      { kind: "route", text: "--root" },
+      { root: "examples/project-console" }
+    )).toEqual([
+      "effect-ui-start diagnostics --root examples/project-console",
+      "effect-ui-start graph --root examples/project-console -- route --root"
     ]);
   });
 
@@ -7097,7 +7130,7 @@ describe("Effect UI Start", () => {
     expect(text).toContain("- preloads: resources Project.byId; collections ProjectRows");
     expect(text).toContain("Depends on");
     expect(text).toContain("- effect-ui-start diagnostics --root examples/project-console");
-    expect(text).toContain("- effect-ui-start graph route /projects/:id --root examples/project-console");
+    expect(text).toContain("- effect-ui-start graph --root examples/project-console route /projects/:id");
     expect(text).not.toContain("route:route_projects_$id");
   });
 

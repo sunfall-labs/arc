@@ -648,11 +648,12 @@ Last evidence pass: May 16, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 153 ran Core Program/router tests 2 files
-    / 25 tests, React/Solid hook/router tests 4 files / 62 tests, DB
-    collection/sync adapter/live-query/SQLite tests 4 files / 172 tests, Start
-    start/RPC/app-graph tests 3 files / 182 tests, generated starter
-    packaging, and the 16-target package dry-run gate. Latest full evidence:
+  - Latest focused evidence: Review 154 ran Start and DB package typechecks,
+    public type tests, public API audit, Effect-first audit over 272 files, DB
+    collection tests 1 file / 113 tests, Start request/app-graph tests 2 files
+    / 169 tests, script syntax checks, malformed manifest target checks,
+    generated starter-suite packaging/verifies, and the 16-target package
+    dry-run gate. Latest full evidence:
     `pnpm verify` ran all root package tests after Review 153: 53 test files /
     929 tests.
 - [x] Type tests pass after compile-time API changes.
@@ -808,12 +809,13 @@ Last evidence pass: May 16, 2026.
     dry-run gate, project-console typecheck, 4 project-console test files / 27
     tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 153 records focused Core/React/Solid/DB/Start
-    typechecks, public type tests, public API audit, Effect-first audit over
-    272 files, script syntax checks, Core/React/Solid/DB/Start focused tests,
-    generated starter packaging, 16-target package dry-run gate, and
-    `git diff --check`. Full verification is recorded in the latest full gate
-    above.
+  - Evidence: Review 154 records focused Start and DB package typechecks,
+    public type tests, public API audit, Effect-first audit over 272 files, DB
+    collection tests, Start request/app-graph endpoint tests, script syntax
+    checks, malformed manifest target checks, generated starter-suite
+    packaging/verifies, 16-target package dry-run gate, and `git diff --check`.
+    Full verification is still recorded in the Review153 full gate above until
+    `pnpm verify` reruns after Review154.
 
 ## Remaining Winning-Bar Items
 

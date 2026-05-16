@@ -292,7 +292,13 @@ const isElementAccessLike = (node) =>
 
 const unwrapExpression = (node) => {
   let current = node;
-  while (ts.isParenthesizedExpression(current) || ts.isNonNullExpression(current)) {
+  while (
+    ts.isParenthesizedExpression(current) ||
+    ts.isNonNullExpression(current) ||
+    ts.isAsExpression(current) ||
+    ts.isSatisfiesExpression(current) ||
+    ts.isTypeAssertionExpression(current)
+  ) {
     current = current.expression;
   }
   return current;
@@ -736,6 +742,8 @@ assertAuditPattern("structural thenable type surface", "type Token<T> = { readon
 assertPromiseStaticBans("Promise\n.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("Promise[\"all\"]([]);", ["Promise.all"]);
 assertPromiseStaticBans("Promise[`all`]([]);", ["Promise.all"]);
+assertPromiseStaticBans("Promise[\"all\" as const]([]);", ["Promise.all"]);
+assertPromiseStaticBans("Promise[\"all\" satisfies string]([]);", ["Promise.all"]);
 assertPromiseStaticBans("Promise?.[\"all\"]?.([]);", ["Promise.all"]);
 assertPromiseStaticBans("Promise?.[`all`]?.([]);", ["Promise.all"]);
 assertPromiseStaticBans("(Promise).all([]);", ["Promise.all"]);
@@ -763,6 +771,8 @@ assertPromiseStaticBans("Promise.all.bind(Promise);", ["Promise.all"]);
 assertPromiseStaticBans("const all = Promise.all; all([]);", ["Promise.all.extraction"]);
 assertPromiseStaticBans("const all = Promise[\"all\"]; all([]);", ["Promise.all.extraction"]);
 assertPromiseStaticBans("const all = Promise[`all`]; all([]);", ["Promise.all.extraction"]);
+assertPromiseStaticBans("const all = Promise[\"all\" as const]; all([]);", ["Promise.all.extraction"]);
+assertPromiseStaticBans("const all = Promise[\"all\" satisfies string]; all([]);", ["Promise.all.extraction"]);
 assertPromiseStaticBans("const { all } = Promise; all([]);", ["Promise.all.extraction"]);
 assertPromiseStaticBans("const { all: promiseAll } = Promise; promiseAll([]);", ["Promise.all.extraction"]);
 assertPromiseStaticBans("const P = Promise; const { all } = P; all([]);", ["Promise.all.extraction"]);

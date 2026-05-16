@@ -362,6 +362,16 @@ describe("Start app graph", () => {
             ]
           })
         );
+        const invalidEndpointExit = yield* Effect.exit(
+          decodeStartAppGraphDiagnosticsDtoEffect({
+            diagnostics: {
+              ...diagnostics,
+              rpcPath: "/same",
+              actionPath: "/same"
+            },
+            diagnosticsPolicyViolations: []
+          })
+        );
         const invalidEnumExits = yield* Effect.all([
           Effect.exit(
             decodeStartAppGraphDiagnosticsDtoEffect({
@@ -450,6 +460,9 @@ describe("Start app graph", () => {
             );
           }
           expect(firstFailure(invalidPolicyExit)).toBeInstanceOf(
+            StartAppGraphDiagnosticsDtoError
+          );
+          expect(firstFailure(invalidEndpointExit)).toBeInstanceOf(
             StartAppGraphDiagnosticsDtoError
           );
           for (const exit of invalidEnumExits) {
@@ -1062,7 +1075,7 @@ describe("Start app graph", () => {
             ]),
             verify: [
               "effect-ui-start diagnostics --root examples/project-console",
-              "effect-ui-start graph route /projects/:id --root examples/project-console"
+              "effect-ui-start graph --root examples/project-console route /projects/:id"
             ]
           });
           expect(text).toContain("Impact: route /projects/:id");
@@ -1215,7 +1228,7 @@ describe("Start app graph", () => {
       { root: "examples/project console" }
     )).toEqual([
       "effect-ui-start diagnostics --root 'examples/project console'",
-      "effect-ui-start graph route '/project spaces/:id' --root 'examples/project console'"
+      "effect-ui-start graph --root 'examples/project console' route '/project spaces/:id'"
     ]);
   });
 

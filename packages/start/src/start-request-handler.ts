@@ -43,7 +43,7 @@ import type {
   StartTransportEndpointManifestSource
 } from "./start-transport-endpoints.js";
 import {
-  resolveStartTransportEndpoints
+  resolveStartTransportEndpointsEffect
 } from "./start-transport-endpoints.js";
 import {
   createServerActionResponseEffectWithRuntime,
@@ -189,19 +189,19 @@ export const createRequestHandlerEffect =
     app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>,
     options: CreateRequestHandlerOptions<Routes, Client, ServerServices, ServerError, Actions, Registry> = {}
   ): StartRequestHandlerEffect<StartRequestRequirements<Routes, ServerServices, Registry, Actions>> => {
-    const endpoints = resolveStartTransportEndpoints(options);
     const explicitActionMap = options.actions === undefined
       ? undefined
       : makeActionMap(options.actions);
-    const requestOptions = {
-      ...options,
-      endpoints
-    };
 
     return ((
     request: Request
   ): Effect.Effect<Response, StartRequestHandlerError, Scope.Scope | StartRequestRequirements<Routes, ServerServices, Registry, Actions>> =>
     Effect.gen(function* () {
+      const endpoints = yield* resolveStartTransportEndpointsEffect(options);
+      const requestOptions = {
+        ...options,
+        endpoints
+      };
       const requestRuntime = makeRequestRuntime(app);
       const responseContext = makeResponseContext();
       const traceFacts = yield* startRequestTraceFactsEffect(request, requestOptions);
