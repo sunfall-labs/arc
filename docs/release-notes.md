@@ -124,6 +124,11 @@ Latest full gate on May 15, 2026:
   and shell-safe impact verify command planning now live in one contract while
   `cli.ts` builds real Effect v4 nested `Command` subcommands from that catalog
   and generated Effect CLI help remains the source of truth.
+- Review 124 extracted the internal Core Program Runtime Timeline Module:
+  Program event retention, sequence assignment, optional program name
+  annotation, disabled timeline behavior, and clearing now live behind one
+  timeline policy while `program.ts` keeps the public Program facade, queue,
+  command fibers, subscriptions, failures, and disposal local.
 - Review 85 extracted the internal Solid Route Render Scope Controller:
   `RouterOutlet` now delegates route branch rendering, route-owned `UiScope`
   creation, Solid root cleanup, runtime-bound route finalizers, transition
@@ -753,11 +758,11 @@ Latest full gate on May 15, 2026:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 123 extracted the internal
-  Start Diagnostics CLI Contract while keeping public package exports stable:
+- The latest full `pnpm verify` passed after Review 124 extracted the internal
+  Core Program Runtime Timeline while keeping public package exports stable:
   11 package builds, workspace typecheck, public type tests, public API
-  inventory audit, Effect-first audit over 232 files, 52 root test
-  files / 862 tests,
+  inventory audit, Effect-first audit over 233 files, 52 root test
+  files / 863 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,
   project-console packaging/typecheck/tests/build with 4 files / 27 tests, and

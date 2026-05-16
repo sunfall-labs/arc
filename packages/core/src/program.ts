@@ -6,6 +6,10 @@ import type {
   EffectInputRequirements
 } from "./effect-like.js";
 import { invokeEffectInput } from "./effect-like.js";
+import {
+  makeProgramRuntimeTimeline,
+  type ProgramRuntimeTimelineEventInput
+} from "./program-runtime-timeline.js";
 import { currentOrDefaultRuntime, type AnyEffectUiRuntime } from "./runtime.js";
 import { getCurrentScope } from "./scope.js";
 import {
@@ -301,21 +305,6 @@ const completeAck = <Message, E>(
     : Deferred.succeed(queued.ack, undefined).pipe(Effect.asVoid);
 };
 
-const defaultProgramTimelineLimit = 200;
-
-const resolveTimelineLimit = (
-  timeline: ProgramDefinition<unknown, unknown, unknown, unknown>["timeline"]
-): number => {
-  if (timeline === false) {
-    return 0;
-  }
-
-  const limit = typeof timeline === "object" ? timeline.limit : undefined;
-  return typeof limit === "number" && Number.isFinite(limit) && limit >= 0
-    ? Math.floor(limit)
-    : defaultProgramTimelineLimit;
-};
-
 /** Defines a reusable Program with centralized model, messages, commands, and subscriptions. */
 export const defineProgram = <Model, Message, E = never, R = never>(
   definition: ProgramDefinition<Model, Message, E, R>
@@ -453,42 +442,24 @@ export const startProgramWithRuntimeError = <Model, Message, E = never, R = neve
   const scope = getCurrentScope();
   const model = Signal.make(definition.initial);
   const failures = Signal.make<ReadonlyArray<ProgramFailure<Message, ProgramRuntimeError<E, ER>>>>([]);
-  const timeline = Signal.make<ReadonlyArray<ProgramEvent<Model, Message, ProgramRuntimeError<E, ER>>>>([]);
   const queue = Effect.runSync(Queue.unbounded<QueuedMessage<Message, ProgramRuntimeError<E, ER>>>());
-  const timelineLimit = resolveTimelineLimit(definition.timeline);
   let disposed = false;
   let processorFiber: Fiber.Fiber<void, unknown> | undefined;
   let subscriptionFiber: Fiber.Fiber<void, unknown> | undefined;
   let unsubscribeModel: (() => void) | undefined;
-  let timelineSequence = 0;
   let commandSequence = 0;
 
   type RuntimeFailure = ProgramRuntimeError<E, ER>;
   type RuntimeProgramEvent = ProgramEvent<Model, Message, RuntimeFailure>;
-  type RuntimeProgramEventInput =
-    RuntimeProgramEvent extends infer Event
-      ? Event extends ProgramEventBase
-        ? Omit<Event, "sequence" | "program">
-        : never
-      : never;
+  type RuntimeProgramEventInput = ProgramRuntimeTimelineEventInput<RuntimeProgramEvent>;
 
-  const recordTimeline = (event: RuntimeProgramEventInput): void => {
-    if (timelineLimit === 0) {
-      return;
-    }
-
-    const next = {
-      sequence: ++timelineSequence,
-      ...(definition.name === undefined ? {} : { program: definition.name }),
-      ...event
-    } as RuntimeProgramEvent;
-
-    timeline.update((current) =>
-      current.length + 1 <= timelineLimit
-        ? [...current, next]
-        : [...current.slice(current.length + 1 - timelineLimit), next]
-    );
-  };
+  const runtimeTimeline = makeProgramRuntimeTimeline<RuntimeProgramEvent>({
+    ...(definition.name === undefined ? {} : { name: definition.name }),
+    ...(definition.timeline === undefined ? {} : { timeline: definition.timeline })
+  });
+  const timeline = runtimeTimeline.timeline;
+  const recordTimeline = (event: RuntimeProgramEventInput): void =>
+    runtimeTimeline.record(event);
 
   const appendFailure = (failure: ProgramFailure<Message, ProgramRuntimeError<E, ER>>): void => {
     failures.update((current) => [...current, failure]);
@@ -706,7 +677,7 @@ export const startProgramWithRuntimeError = <Model, Message, E = never, R = neve
     },
     dispatchEffect: instanceDispatchEffect,
     clearFailures: () => failures.set([]),
-    clearTimeline: () => timeline.set([]),
+    clearTimeline: runtimeTimeline.clear,
     disposeEffect
   };
 

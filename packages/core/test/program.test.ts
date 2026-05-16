@@ -185,6 +185,24 @@ describe("Program", () => {
       })
     ));
 
+  it("omits runtime timeline events when retention is disabled", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const program = Program.start(Program.define<number, "increment">({
+          timeline: false,
+          initial: 0,
+          update: (model) => model + 1
+        }));
+
+        yield* program.dispatchEffect("increment");
+
+        expect(read(program.model)).toBe(1);
+        expect(read(program.timeline)).toEqual([]);
+        yield* program.disposeEffect;
+        expect(read(program.timeline)).toEqual([]);
+      })
+    ));
+
   it("steps story messages and resolves commands explicitly", () =>
     Effect.runPromise(
       Effect.gen(function* () {

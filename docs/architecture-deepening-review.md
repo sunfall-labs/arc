@@ -11,9 +11,37 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 123, immediately after Review 122. Some older review
+The newest review is Review 124, immediately after Review 123. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 124: Core Program Runtime Timeline Module
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Program Runtime Timeline: added
+  `packages/core/src/program-runtime-timeline.ts` as the focused internal
+  Module for Program event retention, sequence assignment, optional program name
+  annotation, disabled timeline behavior, and timeline clearing.
+- Program facade locality: `packages/core/src/program.ts` now keeps public
+  Program constructors, story harness, message queue, command fibers,
+  subscription restart, failure recording, and disposal local while delegating
+  retention bookkeeping to the timeline Module.
+- Regression coverage: Program tests now pin that `timeline: false` suppresses
+  message and disposal events while preserving model updates and disposal
+  behavior.
+
+Focused verification passed: `pnpm --filter @effect-ui/core typecheck`, `pnpm
+exec vitest run packages/core/test/program.test.ts` (1 file / 8 tests), `pnpm
+exec vitest run packages/devtools/test/devtools.test.ts -t 'Program'` (1 file
+/ 3 selected tests), `pnpm exec vitest run packages/react/test/hooks.test.ts -t
+'Program'` (1 file / 1 selected test), `pnpm exec vitest run
+packages/solid/test/hooks.test.ts -t 'Program'` (1 file / 1 selected test),
+`pnpm audit:public-api`, `pnpm typecheck:types`, `pnpm audit:effect-first` over
+233 files, and `git diff --check`.
+Full `pnpm verify` also passed after the slice.
 
 ## Review 123: Start Diagnostics CLI Contract Module
 

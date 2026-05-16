@@ -447,9 +447,12 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Added Review 123 evidence for the Start Diagnostics CLI Contract cleanup.
   Current docs now record that the Effect v4 CLI command tree, validation text,
   and agent verify commands share one query-kind catalog.
-- Updated current-facing verification snapshots after Review 123 full
-  verification so the latest gate points at the 232-file Effect-first audit and
-  52 root test files / 862 tests.
+- Added Review 124 evidence for the Core Program Runtime Timeline cleanup.
+  Current docs now record that Program timeline retention and disabled timeline
+  behavior live in a focused internal Module.
+- Updated current-facing verification snapshots after Review 124 full
+  verification so the latest gate points at the 233-file Effect-first audit and
+  52 root test files / 863 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are
   wrapped with `Effect.tryPromise(...)` at the Adapter seam.
 - Clarified that `virtual:effect-ui/routes` exposes runtime helpers while the

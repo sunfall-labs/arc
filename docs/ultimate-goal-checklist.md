@@ -157,6 +157,10 @@ Last evidence pass: May 15, 2026.
     `packages/react/src/hooks.ts`, and `type-tests/framework.test-d.ts` keep
     Program-domain failures separate from adapter/runtime provision failures
     through `Program.RuntimeError<E, ER>` and hook `ER` parameters.
+- [x] Program timeline retention is an internal runtime policy.
+  - Evidence: `packages/core/src/program-runtime-timeline.ts` owns Program event
+    retention and disabled timeline behavior, with coverage in
+    `packages/core/test/program.test.ts`.
 - [x] Core runtime service erasure is named at the runtime value boundary.
   - Evidence: `packages/core/src/runtime.ts` erases ManagedRuntime services at
     the `ManagedRuntime<any, ER>` value boundary, so runtime helpers no longer

@@ -169,7 +169,10 @@ Release decisions:
   a signal, exposes a bounded `timeline` signal for message, command,
   subscription, failure, and disposal events, and keeps `dispatchEffect(...)`
   composable for tests and workflows. Definitions may set `name` and
-  `timeline.limit` for devtools-friendly retention.
+  `timeline.limit` for devtools-friendly retention. Runtime timeline retention
+  and disabled timeline behavior are implemented by the internal Program
+  Runtime Timeline Module, while the public Program facade keeps queue,
+  command, subscription, failure, and disposal orchestration.
   `Program.RuntimeError<E, ER = never>` separates Program-domain failures from
   Runtime Spine startup/provision failures; Solid and React adapters expose the
   same `ER` parameter on `useProgram(...)`.
