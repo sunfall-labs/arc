@@ -722,6 +722,10 @@ Release decisions:
 - Devtools Store plain methods intentionally remain sync host facades over the
   Effect-first store implementation methods. Do not split them unless a new host
   package needs a distinct seam.
+- Focused Devtools public type coverage lives in `type-tests/devtools.test-d.ts`.
+  Keep pure Devtools Store, panel, bridge, serialization, DTO, and lifecycle
+  assertions there; `type-tests/framework.test-d.ts` should keep only
+  cross-package compatibility checks with Core, DB, or Start.
 
 ### `@effect-ui/react`
 

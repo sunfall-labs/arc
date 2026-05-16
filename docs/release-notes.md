@@ -162,6 +162,10 @@ Latest full gate on May 15, 2026:
   DTOs, panel UI options, and panel boot contracts now live in
   `devtools-contract.ts`, while the Devtools root stays the behavior facade and
   public re-export point.
+- Review 97 moved pure Devtools public type assertions into the focused
+  `type-tests/devtools.test-d.ts` owner. The broad framework type test now keeps
+  only Devtools compatibility checks that cross Core, DB, or Start boundaries,
+  which makes LSP-facing Devtools docs harder to regress by accident.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime

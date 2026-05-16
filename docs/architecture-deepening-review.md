@@ -11,9 +11,39 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 96, immediately after Review 95. Some older review
+The newest review is Review 97, immediately after Review 96. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 97: Devtools Public Type-Test Ownership
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Type tests: expanded `type-tests/devtools.test-d.ts` from a smoke import into
+  the focused owner for pure Devtools public API assertions. It now covers the
+  Devtools Store Interface, snapshot/summary/panel/causal graph Effects,
+  panel contracts, bridge payloads, serialization policy, route/invalidation/
+  request/runtime DTOs, mount/boot lifecycles, and negative union checks.
+- Framework type tests: trimmed pure Devtools-only assertions out of
+  `type-tests/framework.test-d.ts`. The broad integration file now keeps the
+  compatibility assertions that actually cross package boundaries: Start
+  request traces and app graph diagnostics, Start action invalidation plans,
+  DB collection store events, Core Program events, Resource Store runtime
+  events, and Start action tracking.
+- Review cleanup: the deeper focused public type-test ownership candidate is
+  closed. Fresh sweeps should look for new candidates rather than carrying this
+  known Devtools type-test debt forward.
+
+Focused verification: `pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm
+audit:effect-first` over 224 files, and `git diff --check` passed. Full `pnpm
+verify` passed: 11 package builds, workspace typecheck, public type tests,
+public API inventory audit, Effect-first audit over 224 files, 52 root test
+files / 857 tests, devtools-panel verify with 2 tests, devtools-extension
+verify with 20 tests, basic starter verify with 2 tests, React starter verify
+with 3 tests, project-console packaging/typecheck/tests/build with 4 files / 27
+tests, and leak scans.
 
 ## Review 96: Devtools Public Contract Module
 

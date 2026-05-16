@@ -39,7 +39,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     index materialization, Review 91 start diagnostics CLI runner, Review
     92 start action response application, Review 93 collection change feed
     runtime, Review 94 browser router host controller, Review 95 core action
-    execution workflow, and Review 96 devtools public contract sweeps.
+    execution workflow, Review 96 devtools public contract, and Review 97
+    devtools public type-test ownership sweeps.
 
 ## Current Sweep Results
 
@@ -333,7 +334,11 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   Contract Module. Devtools public API docs now name `devtools-contract` as the
   DTO/Interface source behind public snapshots, traces, summaries, causal
   graphs, panels, store contracts, and boot contracts.
-- Updated current-facing verification snapshots after Review 96 full
+- Added Review 97 and progress entry 336 evidence for Devtools public type-test
+  ownership. The public API inventory now records that pure Devtools assertions
+  belong in `type-tests/devtools.test-d.ts` while the framework type test keeps
+  only Core/DB/Start compatibility checks.
+- Updated current-facing verification snapshots after Review 97 full
   verification so the latest gate points at the 224-file Effect-first audit and
   52 root test files / 857 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are
