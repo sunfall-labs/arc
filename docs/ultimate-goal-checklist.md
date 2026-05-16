@@ -655,8 +655,8 @@ Last evidence pass: May 16, 2026.
     Core/React/Solid hook/router tests 5 files / 76 tests, script syntax
     checks, `pnpm example:pack-dry-run` across 16 package targets, and
     `git diff --check`. Latest full evidence:
-    `pnpm verify` ran all root package tests after Review 154: 53 test files /
-    932 tests.
+    `pnpm verify` ran all root package tests after Review 155: 53 test files /
+    941 tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.
@@ -798,11 +798,12 @@ Last evidence pass: May 16, 2026.
   - Evidence: no new ADR required for the Start Action Response Codec
     extraction.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 154
-    DB interruption-liveness, Start endpoint Effect seam, script guardrail, and
-    LSP-pin slice: 11 package builds, workspace typecheck, type tests, public
-    API inventory audit, Effect-first audit over 272 files, 53 root test files
-    / 932 tests, devtools-panel verify with 1 panel test file / 2 tests,
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 155
+    runtime identity, persistence commit, Devtools cleanup/redaction, Start
+    diagnostics, and script guardrail slice: 11 package builds, workspace
+    typecheck, type tests, public API inventory audit, Effect-first audit over
+    272 files, 53 root test files / 941 tests, devtools-panel verify with 1
+    panel test file / 2 tests,
     devtools-extension verify with 1 extension test file / 20 tests, basic
     starter verify with 1 starter test file / 2 tests, React starter verify
     with 1 starter test file / 3 tests, generated starter-suite
@@ -814,8 +815,8 @@ Last evidence pass: May 16, 2026.
     package typechecks, public type tests, public API audit, Effect-first audit
     over 272 files, DB/Devtools/Start/Core/React/Solid focused tests, script
     syntax checks, the 16-target package dry-run metadata/payload gate, and
-    `git diff --check`. Full verification is still recorded in the Review154
-    full gate above until Review155 full verification runs.
+    `git diff --check`. Full verification is recorded in the Review155 full
+    gate above.
 
 ## Remaining Winning-Bar Items
 
