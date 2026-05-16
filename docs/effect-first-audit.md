@@ -538,10 +538,10 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 190 `pnpm verify` run recorded in
+- The current full gate is the Review 191 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
-  over 404 files, 53 root test files / 1033 tests, package-level verifies,
+  over 404 files, 53 root test files / 1035 tests, package-level verifies,
   generated starter packaging, 16-target package dry-run gate, project-console
   checks, and leak scans. Review 185 remains historical focused evidence for
   the starter catalog typed-error seam, and Review 165 remains historical

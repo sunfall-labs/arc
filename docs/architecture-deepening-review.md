@@ -11,14 +11,16 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review and full verification checkpoint is
-Review191, the shared EffectInput Promise-union, Start host invalid-return, DB
-reserved-alias, and public LSP docs gate refresh found by Clean Sweep 2 after
-Review190. Clean Sweep 1 after Review190 remains historical evidence, but Clean
-Sweep 2 found actionable work, so the active Thirty-Sweep clean counter is reset
-to 0/30 until a fresh post-Review191 sweep reports no actionable findings. Some
-older review entries remain below this tip from prior ledger merges; use this
-tip rather than file order alone when looking for the latest architecture sweep.
+The newest completed focused/docs review is Review192, the stale current-gate
+wording cleanup found during the first post-Review191 sweep. The newest full
+verification checkpoint is still Review191, the shared EffectInput
+Promise-union, Start host invalid-return, DB reserved-alias, and public LSP docs
+gate refresh found by Clean Sweep 2 after Review190. Clean Sweep 1 after
+Review190 remains historical evidence, but later sweeps found Review191 and
+Review192 work, so the active Thirty-Sweep clean counter is 0/30 until a fresh
+post-Review192 sweep reports no actionable findings. Some older review entries
+remain below this tip from prior ledger merges; use this tip rather than file
+order alone when looking for the latest architecture sweep.
 
 The fresh post-Review185 subagent sweep reported no actionable Core/React/Solid,
 DB/public API, or Start/devtools/scripts findings after focused verification.
@@ -32,8 +34,32 @@ fresh post-Review190 Core/React/Solid, DB/public API, and
 Start/devtools/examples/docs/scripts sweeps found no actionable Module,
 Interface, Seam, Adapter, Locality, Depth, Leverage, typed error, or docs drift
 work, creating Clean Sweep 1. The next Clean Sweep 2 candidate found Review191
-work, so the counter is no longer active until the post-Review191 sweep is
-clean.
+work. The first post-Review191 sweep found Review192 docs drift, so the counter
+is no longer active until the post-Review192 sweep is clean.
+
+## Review 192: Review191 Current-Gate Docs Drift
+
+Review192 fixed stale current-facing docs wording found during the first
+post-Review191 sweep.
+
+1. Current-Gate Wording
+   - Status: fixed.
+   - Files: `docs/effect-first-audit.md`, `docs/perfection-progress.md`,
+     `docs/release-notes.md`, `docs/ultimate-goal-checklist.md`.
+   - Problem: several older current-status sections still named Review190 as
+     the latest full/focused gate or said the clean counter was now 1/30 after
+     Review190, even though Review191 had reset the active counter to 0/30.
+   - Fix: updated the current-facing wording to name Review191 as the latest
+     full verification gate, preserve Clean Sweep 1 as historical 1/30
+     evidence, and state that the active counter is 0/30 until a fresh
+     post-Review192 sweep is clean.
+   - Benefits: release-candidate docs no longer overstate proximity to the
+     final Thirty-Sweep gate.
+
+Focused evidence for this pass: stale current-gate wording grep now reports no
+current-facing Review190 / active 1/30 claims, `pnpm audit:public-api`,
+`pnpm audit:effect-first`, and `git diff --check` passed. Because this sweep
+found docs drift, the active clean counter remains 0/30.
 
 ## Review 191: EffectInput, Start Host, DB Aliases, And LSP Gates
 
