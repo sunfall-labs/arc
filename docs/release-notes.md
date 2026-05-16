@@ -191,6 +191,9 @@ Latest full gate on May 15, 2026:
 - Review 104 moved `persistedCollectionOptions(...)` into the DB persistence
   module and documented `CollectionPersistedOptions` channel unioning for LSP
   hover, while preserving the public top-level and namespace helper names.
+- Review 105 moved post-parse RPC/action HTTP status validation into the Start
+  Client Transport module, leaving Start Transport Protocol focused on wire
+  body parsing and response DTO validation.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime

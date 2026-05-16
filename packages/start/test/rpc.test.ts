@@ -553,6 +553,30 @@ describe("Start RPC transport", () => {
             parseResponse: parseRpcResponse
           })
         );
+        const rpcSuccessBadStatusExit = yield* Effect.exit(
+          executeStartClientTransportEffect({
+            kind: "rpc",
+            endpoint: "https://example.com/__effect-ui/rpc",
+            request: {
+              name: "Start.transport.status",
+              input: {}
+            },
+            fetch: () =>
+              Effect.succeed(
+                new Response(
+                  JSON.stringify({
+                    _tag: "Success",
+                    value: "ok"
+                  }),
+                  {
+                    status: 500,
+                    headers: { "content-type": startJsonMediaType }
+                  }
+                )
+              ),
+            parseResponse: parseRpcResponse
+          })
+        );
         const actionDefectExit = yield* Effect.exit(
           executeStartClientTransportEffect({
             kind: "action",
@@ -581,6 +605,7 @@ describe("Start RPC transport", () => {
         yield* Effect.sync(() => {
           const encodeFailure = Exit.isFailure(encodeExit) ? firstFailure(encodeExit.cause) : undefined;
           const rpcFailure = Exit.isFailure(rpcDefectExit) ? firstFailure(rpcDefectExit.cause) : undefined;
+          const rpcStatusFailure = Exit.isFailure(rpcSuccessBadStatusExit) ? firstFailure(rpcSuccessBadStatusExit.cause) : undefined;
           const actionFailure = Exit.isFailure(actionDefectExit) ? firstFailure(actionDefectExit.cause) : undefined;
 
           expect(encodeFailure).toBeInstanceOf(ServerTransportError);
@@ -594,6 +619,13 @@ describe("Start RPC transport", () => {
             status: 500,
             message: "Server function failed with a defect.",
             payload: { message: "rpc exploded" }
+          });
+          expect(rpcStatusFailure).toBeInstanceOf(ServerTransportError);
+          expect(rpcStatusFailure).toMatchObject({
+            reason: "BadStatus",
+            status: 500,
+            message: "Server function succeeded with unexpected HTTP status 500.",
+            payload: { _tag: "Success" }
           });
           expect(actionFailure).toBeInstanceOf(ServerTransportError);
           expect(actionFailure).toMatchObject({

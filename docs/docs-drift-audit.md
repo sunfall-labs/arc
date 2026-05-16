@@ -44,8 +44,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     boundary, Review 99 devtools serialization policy contract edge, Review
     100 start default fetch abort signal, Review 101 start transport body
     reader, Review 102 start diagnostics vite server lifetime, and Review 103
-    db sqlite statement contract ownership, and Review 104 db persisted options
-    ownership sweeps.
+    db sqlite statement contract ownership, Review 104 db persisted options
+    ownership, and Review 105 start client transport status policy sweeps.
 
 ## Current Sweep Results
 
@@ -369,7 +369,10 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   ownership cleanup. Current docs now record that persistence option
   normalization lives with `collection-persistence.ts` while public facade names
   stay stable.
-- Updated current-facing verification snapshots after Review 104 full
+- Added Review 105 and progress entry 344 evidence for the Start client
+  transport status policy cleanup. Current docs now record that post-parse
+  RPC/action HTTP status validation belongs to Start Client Transport.
+- Updated current-facing verification snapshots after Review 105 full
   verification so the latest gate points at the 225-file Effect-first audit and
   52 root test files / 859 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are

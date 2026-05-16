@@ -10,7 +10,6 @@ import {
   type StartFetchInput
 } from "./start-fetch.js";
 import {
-  validateStartResponseStatusEffect,
   type StartActionResponseBody
 } from "./start-transport-protocol.js";
 import type { StartTransportKind } from "./rpc.js";
@@ -84,10 +83,61 @@ const validateStartClientTransportStatusEffect = <Body extends StartClientTransp
   kind: StartTransportKind,
   response: Response,
   body: Body
-): Effect.Effect<void, ServerTransportError> =>
-  kind === "rpc"
-    ? validateStartResponseStatusEffect("rpc", response, body as Server.RpcResponse)
-    : validateStartResponseStatusEffect("action", response, body as StartActionResponseBody);
+): Effect.Effect<void, ServerTransportError> => {
+  if (kind === "rpc") {
+    const rpcBody = body as Server.RpcResponse;
+    switch (rpcBody._tag) {
+      case "Success":
+        return response.ok
+          ? Effect.void
+          : Effect.fail(new ServerTransportError({
+              reason: "BadStatus",
+              status: response.status,
+              message: `Server function succeeded with unexpected HTTP status ${response.status}.`,
+              payload: rpcBody
+            }));
+      case "Failure":
+        return response.ok
+          ? Effect.void
+          : Effect.fail(new ServerTransportError({
+              reason: "BadStatus",
+              status: response.status,
+              message: `Server function failed with unexpected HTTP status ${response.status}.`,
+              payload: rpcBody
+            }));
+      case "ServerError":
+      case "Defect":
+        return Effect.void;
+    }
+  }
+
+  const actionBody = body as StartActionResponseBody;
+  switch (actionBody._tag) {
+    case "Success":
+    case "Failure":
+    case "Redirect":
+      return response.ok
+        ? Effect.void
+        : Effect.fail(new ServerTransportError({
+            reason: "BadStatus",
+            status: response.status,
+            message: `Start action ${actionBody._tag} response used unexpected HTTP status ${response.status}.`,
+            payload: actionBody
+          }));
+    case "ValidationFailure":
+      return response.status === 422
+        ? Effect.void
+        : Effect.fail(new ServerTransportError({
+            reason: "BadStatus",
+            status: response.status,
+            message: `Start action validation response used unexpected HTTP status ${response.status}.`,
+            payload: actionBody
+          }));
+    case "ServerError":
+    case "Defect":
+      return Effect.void;
+  }
+};
 
 const decodeStartClientTransportDomainBodyEffect = <Body extends StartClientTransportBody>(
   kind: StartTransportKind,

@@ -11,9 +11,37 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 104, immediately after Review 103. Some older review
+The newest review is Review 105, immediately after Review 104. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 105: Start Client Transport Status Policy
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Start client transport: moved decoded-body HTTP status validation fully into
+  `packages/start/src/start-client-transport.ts`.
+- Protocol locality: removed `validateStartResponseStatusEffect(...)` from
+  `packages/start/src/start-transport-protocol.ts`; the protocol module keeps
+  request/body parsing and wire DTO validation, while the client transport owns
+  post-parse status policy.
+- Regression coverage: `packages/start/test/rpc.test.ts` now pins the RPC
+  branch where a `Success` body with HTTP 500 becomes a `BadStatus`
+  `ServerTransportError`.
+
+Focused verification: `rg -n "validateStartResponseStatusEffect"
+packages/start/src packages/start/test` returned no matches, `pnpm --filter
+@effect-ui/start typecheck`, `pnpm vitest run packages/start/test/rpc.test.ts
+packages/start/test/start.test.ts` (2 files / 143 tests), `pnpm
+audit:effect-first` over 225 files, and `git diff --check` passed. Full `pnpm
+verify` passed: 11 package builds, workspace typecheck, public type tests,
+public API inventory audit, Effect-first audit over 225 files, 52 root test
+files / 859 tests, devtools-panel verify with 2 tests, devtools-extension
+verify with 20 tests, basic starter verify with 2 tests, React starter verify
+with 3 tests, project-console packaging/typecheck/tests/build with 4 files / 27
+tests, and leak scans.
 
 ## Review 104: DB Persisted Options Ownership
 
