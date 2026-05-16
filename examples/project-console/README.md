@@ -32,8 +32,9 @@ pnpm verify
 - Run `pnpm starter:project-console:package` from the repository root to
   generate a standalone starter payload at
   `.test-dist/starters/project-console`. The generated payload rewrites
-  workspace protocol dependencies to the current pre-release package version,
-  removes monorepo Vite aliases, and writes a standalone `tsconfig.json`.
+  workspace protocol dependencies to the versions declared by the workspace
+  package manifests, removes monorepo Vite aliases, writes a standalone
+  `tsconfig.json`, and verifies the generated file manifest.
 - Keep `src/domain.contract.ts` browser-safe. Put server implementations and
   seed data in `src/domain.server.ts`.
 - Keep `src/start-options.ts` explicit. It is the app graph source for server

@@ -205,6 +205,10 @@ Latest full gate on May 16, 2026 after Review 139:
   Solid `RouterProvider` now forward injected Browser History Adapters, and the
   Program Runtime Scheduler makes detached Runtime Spine forks explicit while
   preserving typed Program runtime provision failures for acknowledged work.
+- Review 141 closed fresh Project Console/starter seams: demo project state now
+  lives in a server Runtime Spine-provided Effect `Ref` store, and starter
+  packaging verifies the full generated file manifest while resolving
+  workspace protocol dependencies from package manifests.
 - Review 85 extracted the internal Solid Route Render Scope Controller:
   `RouterOutlet` now delegates route branch rendering, route-owned `UiScope`
   creation, Solid root cleanup, runtime-bound route finalizers, transition

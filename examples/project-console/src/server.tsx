@@ -1,20 +1,29 @@
+import { defineApp } from "@effect-ui/core";
 import { RuntimeProvider } from "@effect-ui/solid";
 import {
   createStartStreamedHtmlResponseEffect,
   createRequestHandler,
   htmlChunk
 } from "@effect-ui/start";
-import { Effect, Stream } from "effect";
+import { Effect, Layer, Stream } from "effect";
 import { createComponent, generateHydrationScript, renderToString } from "solid-js/web";
 import App from "./App.js";
+import { ProjectApiLive } from "./domain.js";
+import { ProjectDemoStoreLive } from "./domain.server.js";
 import { ProjectSummaries } from "./project-collections.js";
 import { isRoutePathMatch } from "./routeTree.gen.js";
-import { createProjectConsoleApp } from "./app-definition.js";
+import { projectConsoleAppBaseOptions } from "./app-definition.js";
 import { projectConsoleStartGraphHeader, projectConsoleStartGraphSummary } from "./start-graph.js";
 import { projectConsoleServerRegistry } from "./start-options.js";
 import "./styles.css";
 
-export const serverApp = createProjectConsoleApp(projectConsoleServerRegistry);
+export const ProjectConsoleServerLive = Layer.mergeAll(ProjectApiLive, ProjectDemoStoreLive);
+
+export const serverApp = defineApp({
+  ...projectConsoleAppBaseOptions,
+  server: ProjectConsoleServerLive,
+  registry: projectConsoleServerRegistry
+});
 
 const shellOpen = (options: {
   readonly solidHydrationScript: string;

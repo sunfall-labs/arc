@@ -1,5 +1,5 @@
 import { ActionResult, RequestContext, Server } from "@effect-ui/core";
-import { Effect, Option } from "effect";
+import { Context, Effect, Layer, Option, Ref } from "effect";
 import {
   AdvanceProjectContract,
   GetProjectContract,
@@ -13,6 +13,7 @@ import {
   type ProjectError,
   type ProjectId,
   type ProjectNameSubmissionResult,
+  type ProjectSummary,
   type SubmitProjectNameInput
 } from "./domain.contract.js";
 
@@ -95,63 +96,162 @@ const seedProjects: ReadonlyArray<Project> = [
   }
 ];
 
-const projects = new Map<ProjectId, Project>(
-  seedProjects.map((project): [ProjectId, Project] => [project.id, project])
+const projectSummary = (
+  project: Project
+): ProjectSummary => {
+  const {
+    goal: _goal,
+    nextMilestone: _nextMilestone,
+    updatedAt: _updatedAt,
+    risks: _risks,
+    ...summary
+  } = project;
+  return summary;
+};
+
+export interface ProjectDemoStore {
+  readonly list: () => Effect.Effect<ProjectSummary[]>;
+  readonly get: (id: ProjectId) => Effect.Effect<Project, ProjectError>;
+  readonly rename: (input: {
+    readonly id: ProjectId;
+    readonly name: string;
+    readonly updatedAt: string;
+  }) => Effect.Effect<Project, ProjectError>;
+  readonly advance: (input: {
+    readonly id: ProjectId;
+    readonly updatedAt: string;
+  }) => Effect.Effect<Project, ProjectError>;
+}
+
+export const ProjectDemoStore = Context.Service<ProjectDemoStore>(
+  "@effect-ui/example-project-console/ProjectDemoStore"
 );
 
-const withLatency = <A, E>(effect: Effect.Effect<A, E>): Effect.Effect<A, E> =>
+export const makeProjectDemoStore = (
+  initialProjects: ReadonlyArray<Project> = seedProjects
+): Effect.Effect<ProjectDemoStore> =>
+  Effect.gen(function* () {
+    const projects = yield* Ref.make(
+      new Map<ProjectId, Project>(
+        initialProjects.map((project): [ProjectId, Project] => [project.id, cloneProject(project)])
+      )
+    );
+
+    const requireProject = (id: ProjectId): Effect.Effect<Project, ProjectError> =>
+      Ref.get(projects).pipe(
+        Effect.flatMap((current) => {
+          const project = current.get(id);
+          return project === undefined
+            ? Effect.fail(new ProjectNotFound({ id }))
+            : Effect.succeed(cloneProject(project));
+        })
+      );
+
+    return {
+      list: () =>
+        Ref.get(projects).pipe(
+          Effect.map((current) =>
+            Array.from(current.values())
+              .map(projectSummary)
+              .sort((left, right) => left.name.localeCompare(right.name))
+          )
+        ),
+      get: requireProject,
+      rename: (input) =>
+        Effect.gen(function* () {
+          const name = input.name.trim();
+          if (name.length < 3) {
+            return yield* new InvalidProjectName({ name: input.name });
+          }
+
+          const result = yield* Ref.modify(projects, (current) => {
+            const project = current.get(input.id);
+            if (project === undefined) {
+              return [Option.none<Project>(), current] as const;
+            }
+
+            const updated = {
+              ...project,
+              name,
+              updatedAt: input.updatedAt
+            };
+            return [
+              Option.some(cloneProject(updated)),
+              new Map(current).set(project.id, cloneProject(updated))
+            ] as const;
+          });
+
+          if (Option.isNone(result)) {
+            return yield* new ProjectNotFound({ id: input.id });
+          }
+
+          return result.value;
+        }),
+      advance: (input) =>
+        Effect.gen(function* () {
+          const result = yield* Ref.modify(projects, (current) => {
+            const project = current.get(input.id);
+            if (project === undefined) {
+              return [Option.none<Project>(), current] as const;
+            }
+
+            const progress = Math.min(100, project.progress + 8);
+            const updated = {
+              ...project,
+              progress,
+              health: progress > 70 ? "green" : project.health,
+              status: progress >= 100 ? "tracking" : project.status,
+              updatedAt: input.updatedAt
+            };
+            return [
+              Option.some(cloneProject(updated)),
+              new Map(current).set(project.id, cloneProject(updated))
+            ] as const;
+          });
+
+          if (Option.isNone(result)) {
+            return yield* new ProjectNotFound({ id: input.id });
+          }
+
+          return result.value;
+        })
+    };
+  });
+
+export const ProjectDemoStoreLive = Layer.effect(ProjectDemoStore)(makeProjectDemoStore());
+
+const withLatency = <A, E, R>(effect: Effect.Effect<A, E, R>): Effect.Effect<A, E, R> =>
   Effect.gen(function* () {
     yield* Effect.sleep("180 millis");
     return yield* effect;
   });
 
-const listProjectsEffect = withLatency(
-  Effect.sync(() =>
-    Array.from(projects.values())
-      .map(({ goal: _goal, nextMilestone: _nextMilestone, updatedAt: _updatedAt, risks: _risks, ...summary }) => summary)
-      .sort((left, right) => left.name.localeCompare(right.name))
-  )
+const listProjectsEffect: Effect.Effect<ProjectSummary[], never, ProjectDemoStore> = withLatency(
+  ProjectDemoStore.use((store) => store.list())
 );
 
-const getProjectEffect = (id: ProjectId): Effect.Effect<Project, ProjectError> =>
+const getProjectEffect = (id: ProjectId): Effect.Effect<Project, ProjectError, ProjectDemoStore> =>
   withLatency(
-    Effect.gen(function* () {
-      const project = projects.get(id);
-      if (!project) {
-        return yield* new ProjectNotFound({ id });
-      }
-
-      return cloneProject(project);
-    })
+    ProjectDemoStore.use((store) => store.get(id))
   );
 
 const renameProjectEffect = (input: {
   readonly id: ProjectId;
   readonly name: string;
-}): Effect.Effect<Project, ProjectError> =>
+}): Effect.Effect<Project, ProjectError, ProjectDemoStore> =>
   withLatency(
     Effect.gen(function* () {
       const name = input.name.trim();
-      if (name.length < 3) {
-        return yield* new InvalidProjectName({ name: input.name });
-      }
-
-      const project = yield* getProjectEffect(input.id);
       const updatedAt = yield* requestNowLabelEffect;
-      const updated = {
-        ...project,
-        name,
-        updatedAt
-      };
-
-      projects.set(project.id, updated);
-      return cloneProject(updated);
+      return yield* ProjectDemoStore.use((store) =>
+        store.rename({ id: input.id, name, updatedAt })
+      );
     })
   );
 
 const submitProjectNameEffect = (
   input: SubmitProjectNameInput
-): Effect.Effect<ProjectNameSubmissionResult> => {
+): Effect.Effect<ProjectNameSubmissionResult, never, ProjectDemoStore> => {
   const name = input.name.trim();
 
   if (name.length < 3) {
@@ -173,22 +273,13 @@ const submitProjectNameEffect = (
   );
 };
 
-const advanceProjectEffect = (id: ProjectId): Effect.Effect<Project, ProjectError> =>
+const advanceProjectEffect = (id: ProjectId): Effect.Effect<Project, ProjectError, ProjectDemoStore> =>
   withLatency(
     Effect.gen(function* () {
-      const project = yield* getProjectEffect(id);
       const updatedAt = yield* requestNowLabelEffect;
-      const progress = Math.min(100, project.progress + 8);
-      const updated = {
-        ...project,
-        progress,
-        health: progress > 70 ? "green" : project.health,
-        status: progress >= 100 ? "tracking" : project.status,
-        updatedAt
-      };
-
-      projects.set(project.id, updated);
-      return cloneProject(updated);
+      return yield* ProjectDemoStore.use((store) =>
+        store.advance({ id, updatedAt })
+      );
     })
   );
 

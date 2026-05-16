@@ -57,5 +57,6 @@ pnpm starter:project-console:package
 
 That command writes `.test-dist/starters/project-console` from
 `examples/project-console`, rewrites workspace protocol dependencies to the
-current pre-release package version, removes monorepo Vite aliases, writes a
-standalone `tsconfig.json`, and verifies the required starter files are present.
+versions declared by the workspace package manifests, removes monorepo Vite
+aliases, writes a standalone `tsconfig.json`, and verifies the generated file
+manifest matches the copyable source manifest.

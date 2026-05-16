@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 
-import { cp, mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Data, Effect } from "effect";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = resolve(__dirname, "..");
+const packagesDir = resolve(workspaceRoot, "packages");
 const sourceDir = resolve(workspaceRoot, "examples/project-console");
 const outputDir = resolve(workspaceRoot, ".test-dist/starters/project-console");
-const publishVersionPlaceholder = "0.0.0-alpha.0";
 
 class ProjectConsoleStarterPackageError extends Data.TaggedError(
   "ProjectConsoleStarterPackageError",
@@ -75,27 +75,16 @@ const starterTsConfig = {
   include: ["src", "vite.config.ts"],
 };
 
-const requiredTemplateFiles = [
-  "README.md",
-  "index.html",
-  "package.json",
-  "tsconfig.json",
-  "vite.config.ts",
-  "src/App.tsx",
-  "src/app-definition.ts",
-  "src/domain.contract.ts",
-  "src/domain.server.ts",
-  "src/domain.ts",
-  "src/main.tsx",
-  "src/project-collections.ts",
-  "src/routeTree.gen.ts",
-  "src/server.tsx",
-  "src/start-options.ts",
-  "src/styles.css",
-  "src/ui.tsrx",
-];
-
 const forbiddenOutputSegments = new Set(["node_modules", "dist", ".test-dist"]);
+
+const toPosixPath = (filePath) => filePath.split(sep).join("/");
+
+const relativeTo = (from, to) => toPosixPath(relative(from, to));
+
+const hasForbiddenOutputSegment = (relativePath) =>
+  relativePath
+    .split("/")
+    .some((segment) => forbiddenOutputSegments.has(segment));
 
 const shouldCopyPath = (from) => {
   const relativeFromSource = relative(sourceDir, from);
@@ -106,9 +95,6 @@ const shouldCopyPath = (from) => {
     .split(sep)
     .every((segment) => !forbiddenOutputSegments.has(segment));
 };
-
-const statFile = (filePath) =>
-  fsEffect(`inspect ${relative(workspaceRoot, filePath)}`, () => stat(filePath));
 
 const isNodeNotFoundError = (cause) =>
   cause &&
@@ -135,35 +121,103 @@ const pathExists = (filePath) =>
     ),
   );
 
-const assertFile = (relativePath) =>
+const collectFiles = (rootDir, options = {}) =>
   Effect.gen(function* () {
-    const filePath = resolve(outputDir, relativePath);
-    const fileStat = yield* statFile(filePath);
-    if (!fileStat.isFile()) {
+    const files = [];
+    const visit = (directory) =>
+      Effect.gen(function* () {
+        const entries = yield* fsEffect(
+          `read ${relative(workspaceRoot, directory)}`,
+          () => readdir(directory, { withFileTypes: true }),
+        );
+        for (const entry of entries) {
+          const fullPath = resolve(directory, entry.name);
+          if (options.filter && !options.filter(fullPath)) {
+            continue;
+          }
+          if (entry.isDirectory()) {
+            yield* visit(fullPath);
+          } else if (entry.isFile()) {
+            files.push(relativeTo(rootDir, fullPath));
+          }
+        }
+      });
+
+    yield* visit(rootDir);
+    return files.sort((left, right) => left.localeCompare(right));
+  });
+
+const collectWorkspacePackageVersions = Effect.gen(function* () {
+  const entries = yield* fsEffect("read workspace package directories", () =>
+    readdir(packagesDir, { withFileTypes: true }),
+  );
+  const versions = new Map();
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+
+    const packageJsonPath = resolve(packagesDir, entry.name, "package.json");
+    const exists = yield* pathExists(packageJsonPath);
+    if (!exists) {
+      continue;
+    }
+
+    const packageJsonText = yield* fsEffect(
+      `read ${relative(workspaceRoot, packageJsonPath)}`,
+      () => readFile(packageJsonPath, "utf8"),
+    );
+    const packageJson = yield* parseJsonEffect(packageJsonPath, packageJsonText);
+    if (typeof packageJson.name !== "string" || typeof packageJson.version !== "string") {
       return yield* Effect.fail(
         fail(
-          `Expected ${relativePath} to be a file in the generated project-console starter.`,
-          "Add the missing starter source file or update requiredTemplateFiles.",
+          `${relative(workspaceRoot, packageJsonPath)} must declare string name and version fields.`,
+          "Keep package manifests publish-ready before packaging the starter.",
+        ),
+      );
+    }
+
+    versions.set(packageJson.name, packageJson.version);
+  }
+
+  return versions;
+});
+
+const assertSameFileManifest = (expected, actual) =>
+  Effect.gen(function* () {
+    const expectedSet = new Set(expected);
+    const actualSet = new Set(actual);
+    const missing = expected.filter((filePath) => !actualSet.has(filePath));
+    const extra = actual.filter((filePath) => !expectedSet.has(filePath));
+
+    if (missing.length > 0 || extra.length > 0) {
+      return yield* Effect.fail(
+        fail(
+          "Generated project-console starter file manifest does not match the copyable source manifest.",
+          [
+            "Keep the copy filter and generated starter payload in sync.",
+            missing.length > 0 ? `Missing: ${missing.join(", ")}` : undefined,
+            extra.length > 0 ? `Extra: ${extra.join(", ")}` : undefined,
+          ].filter(Boolean).join(" "),
         ),
       );
     }
   });
 
-const assertPathMissing = (relativePath) =>
+const assertNoForbiddenOutputSegments = (files) =>
   Effect.gen(function* () {
-    const filePath = resolve(outputDir, relativePath);
-    const exists = yield* pathExists(filePath);
-    if (exists) {
+    const forbidden = files.filter(hasForbiddenOutputSegment);
+    if (forbidden.length > 0) {
       return yield* Effect.fail(
         fail(
-          `Generated project-console starter unexpectedly includes ${relativePath}.`,
-          "Update the copy filter so build outputs and dependency folders stay out of starter payloads.",
+          "Generated project-console starter includes forbidden build/dependency output paths.",
+          `Update the copy filter so these paths stay out of the starter payload: ${forbidden.join(", ")}.`,
         ),
       );
     }
   });
 
-const rewritePackageJson = Effect.gen(function* () {
+const rewritePackageJson = (workspacePackageVersions) => Effect.gen(function* () {
   const packageJsonPath = resolve(outputDir, "package.json");
   const packageJsonText = yield* fsEffect(
     "read generated project-console starter package.json",
@@ -171,19 +225,34 @@ const rewritePackageJson = Effect.gen(function* () {
   );
   const packageJson = yield* parseJsonEffect(packageJsonPath, packageJsonText);
 
-  const replaceWorkspaceVersions = (dependencies) => {
+  const replaceWorkspaceVersions = (dependencies) => Effect.gen(function* () {
     if (dependencies == null) {
       return dependencies;
     }
-    return Object.fromEntries(
-      Object.entries(dependencies).map(([name, version]) => [
-        name,
-        typeof version === "string" && version.startsWith("workspace:")
-          ? publishVersionPlaceholder
-          : version,
-      ]),
+    const entries = yield* Effect.forEach(Object.entries(dependencies), ([name, version]) =>
+      Effect.gen(function* () {
+        if (typeof version !== "string" || !version.startsWith("workspace:")) {
+          return [name, version];
+        }
+
+        const workspaceVersion = workspacePackageVersions.get(name);
+        if (workspaceVersion === undefined) {
+          return yield* Effect.fail(
+            fail(
+              `Generated project-console starter depends on ${name}, but no workspace package manifest declares it.`,
+              "Add the missing package manifest or remove the workspace protocol dependency before packaging.",
+            ),
+          );
+        }
+
+        return [name, workspaceVersion];
+      })
     );
-  };
+    return Object.fromEntries(entries);
+  });
+
+  const dependencies = yield* replaceWorkspaceVersions(packageJson.dependencies);
+  const devDependencies = yield* replaceWorkspaceVersions(packageJson.devDependencies);
 
   const starterPackageJson = {
     ...packageJson,
@@ -194,8 +263,8 @@ const rewritePackageJson = Effect.gen(function* () {
       ...packageJson.scripts,
       dev: "vite",
     },
-    dependencies: replaceWorkspaceVersions(packageJson.dependencies),
-    devDependencies: replaceWorkspaceVersions(packageJson.devDependencies),
+    dependencies,
+    devDependencies,
   };
 
   yield* fsEffect("write generated project-console starter package.json", () =>
@@ -216,12 +285,11 @@ const rewriteMonorepoConfig = Effect.gen(function* () {
 });
 
 const verifyGeneratedStarter = Effect.gen(function* () {
-  for (const filePath of requiredTemplateFiles) {
-    yield* assertFile(filePath);
-  }
+  const expectedFiles = yield* collectFiles(sourceDir, { filter: shouldCopyPath });
+  const generatedFiles = yield* collectFiles(outputDir);
 
-  yield* assertPathMissing("dist");
-  yield* assertPathMissing("node_modules");
+  yield* assertSameFileManifest(expectedFiles, generatedFiles);
+  yield* assertNoForbiddenOutputSegments(generatedFiles);
 
   const packageJsonPath = resolve(outputDir, "package.json");
   const packageJsonText = yield* fsEffect(
@@ -265,9 +333,12 @@ const verifyGeneratedStarter = Effect.gen(function* () {
       ),
     );
   }
+
+  return generatedFiles.length;
 });
 
 const packageProjectConsoleStarter = Effect.gen(function* () {
+  const workspacePackageVersions = yield* collectWorkspacePackageVersions;
   yield* fsEffect("remove the previous generated project-console starter", () =>
     rm(outputDir, { force: true, recursive: true }),
   );
@@ -280,20 +351,20 @@ const packageProjectConsoleStarter = Effect.gen(function* () {
       recursive: true,
     }),
   );
-  yield* rewritePackageJson;
+  yield* rewritePackageJson(workspacePackageVersions);
   yield* rewriteMonorepoConfig;
-  yield* verifyGeneratedStarter;
+  const verifiedFiles = yield* verifyGeneratedStarter;
 
   return {
     outputDir,
-    requiredFiles: requiredTemplateFiles.length,
+    verifiedFiles,
   };
 });
 
-const reportPackagedStarterEffect = ({ outputDir: generatedOutputDir, requiredFiles }) =>
+const reportPackagedStarterEffect = ({ outputDir: generatedOutputDir, verifiedFiles }) =>
   Effect.sync(() => {
     console.log(
-      `Packaged project-console starter at ${relative(workspaceRoot, generatedOutputDir)} (${requiredFiles} required files verified).`,
+      `Packaged project-console starter at ${relative(workspaceRoot, generatedOutputDir)} (${verifiedFiles} files verified).`,
     );
   });
 

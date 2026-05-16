@@ -389,6 +389,9 @@ interruption.
 - Review 140 focused verification passed `pnpm audit:effect-first` over 249
   package/example/script/type-test files after adding the Program Runtime
   Scheduler source file without introducing Promise-shaped coordination.
+- Review 141 focused verification kept `pnpm audit:effect-first` green over 249
+  files after moving Project Console demo state behind an Effect `Ref` service
+  and expanding the starter packaging script's Effect-driven manifest checks.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.

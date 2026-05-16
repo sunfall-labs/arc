@@ -13,8 +13,14 @@ import {
   renameProject,
   submitProjectName
 } from "./domain.js";
+import { ProjectDemoStoreLive } from "./domain.server.js";
 import { Route as ProjectRoute } from "./routes/projects/$id.js";
-import "./domain.server.js";
+
+const withLocalServer = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+  Effect.provideService(effect, ServerClient, Server.localClient());
+
+const provideProjectDemoStore = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+  Effect.provide(effect, ProjectDemoStoreLive);
 
 describe("project console domain", () => {
   it("brands route-safe project ids", () => {
@@ -59,50 +65,46 @@ describe("project console domain", () => {
 
   it("loads projects through server functions", () =>
     Effect.runPromise(
-      Effect.gen(function* () {
-        const projects = yield* Effect.provideService(
-          listProjects.effect("all"),
-          ServerClient,
-          Server.localClient()
-        );
+      provideProjectDemoStore(
+        Effect.gen(function* () {
+          const projects = yield* withLocalServer(listProjects.effect("all"));
 
-        expect(projects.length).toBeGreaterThan(0);
-      })
+          expect(projects.length).toBeGreaterThan(0);
+        })
+      )
     ));
 
   it("renames and reloads a project", () =>
     Effect.runPromise(
-      Effect.gen(function* () {
-        const renamed = yield* Effect.provideService(
-          renameProject.effect({ id: makeProjectId("atlas"), name: "Atlas Revenue" }),
-          ServerClient,
-          Server.localClient()
-        );
-        const loaded = yield* Effect.provideService(
-          getProject.effect({ id: makeProjectId("atlas") }),
-          ServerClient,
-          Server.localClient()
-        );
+      provideProjectDemoStore(
+        Effect.gen(function* () {
+          const renamed = yield* withLocalServer(
+            renameProject.effect({ id: makeProjectId("atlas"), name: "Atlas Revenue" })
+          );
+          const loaded = yield* withLocalServer(
+            getProject.effect({ id: makeProjectId("atlas") })
+          );
 
-        expect(renamed.name).toBe("Atlas Revenue");
-        expect(loaded.name).toBe("Atlas Revenue");
-      })
+          expect(renamed.name).toBe("Atlas Revenue");
+          expect(loaded.name).toBe("Atlas Revenue");
+        })
+      )
     ));
 
   it("uses request-scoped context inside server mutations", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const renamed = yield* provideRequest(
-          new Request("https://example.com/projects/meridian", {
-            headers: {
-              "x-effect-ui-now-label": "request scoped"
-            }
-          })
-        )(
-          Effect.provideService(
-            renameProject.effect({ id: makeProjectId("meridian"), name: "Meridian Insights" }),
-            ServerClient,
-            Server.localClient()
+        const renamed = yield* provideProjectDemoStore(
+          provideRequest(
+            new Request("https://example.com/projects/meridian", {
+              headers: {
+                "x-effect-ui-now-label": "request scoped"
+              }
+            })
+          )(
+            withLocalServer(
+              renameProject.effect({ id: makeProjectId("meridian"), name: "Meridian Insights" })
+            )
           )
         );
 
@@ -112,45 +114,43 @@ describe("project console domain", () => {
 
   it("returns typed validation data for progressive project name submissions", () =>
     Effect.runPromise(
-      Effect.gen(function* () {
-        const result = yield* Effect.provideService(
-          submitProjectName.effect({ id: makeProjectId("atlas"), name: "At" }),
-          ServerClient,
-          Server.localClient()
-        );
+      provideProjectDemoStore(
+        Effect.gen(function* () {
+          const result = yield* withLocalServer(
+            submitProjectName.effect({ id: makeProjectId("atlas"), name: "At" })
+          );
 
-        expect(result._tag).toBe("ValidationFailure");
-        if (result._tag === "ValidationFailure") {
-          expect(result.fieldErrors.name?.[0]).toContain("three meaningful characters");
-        }
-      })
+          expect(result._tag).toBe("ValidationFailure");
+          if (result._tag === "ValidationFailure") {
+            expect(result.fieldErrors.name?.[0]).toContain("three meaningful characters");
+          }
+        })
+      )
     ));
 
   it("returns a typed redirect after a valid progressive project name submission", () =>
     Effect.runPromise(
-      Effect.gen(function* () {
-        const result = yield* Effect.provideService(
-          submitProjectName.effect({
-            id: makeProjectId("kepler"),
-            name: "Kepler Discovery",
-            redirectTo: makeProjectReturnTo("/projects/kepler?tab=activity")
-          }),
-          ServerClient,
-          Server.localClient()
-        );
-        const loaded = yield* Effect.provideService(
-          getProject.effect({ id: makeProjectId("kepler") }),
-          ServerClient,
-          Server.localClient()
-        );
+      provideProjectDemoStore(
+        Effect.gen(function* () {
+          const result = yield* withLocalServer(
+            submitProjectName.effect({
+              id: makeProjectId("kepler"),
+              name: "Kepler Discovery",
+              redirectTo: makeProjectReturnTo("/projects/kepler?tab=activity")
+            })
+          );
+          const loaded = yield* withLocalServer(
+            getProject.effect({ id: makeProjectId("kepler") })
+          );
 
-        expect(result).toMatchObject({
-          _tag: "Redirect",
-          location: "/projects/kepler?tab=activity",
-          status: 303,
-          replace: true
-        });
-        expect(loaded.name).toBe("Kepler Discovery");
-      })
+          expect(result).toMatchObject({
+            _tag: "Redirect",
+            location: "/projects/kepler?tab=activity",
+            status: 303,
+            replace: true
+          });
+          expect(loaded.name).toBe("Kepler Discovery");
+        })
+      )
     ));
 });

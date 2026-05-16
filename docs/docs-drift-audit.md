@@ -73,7 +73,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     Review 136 exact Effect audit and public inventory drift, Review 137
     bidirectional public source surface audit, Review 138 Effect audit wording
     exactness, Review 139 endpoint runner, query seams, and audit anchors, and
-    Review 140 router history projection and Program runtime scheduling.
+    Review 140 router history projection and Program runtime scheduling, and
+    Review 141 Project Console runtime store and starter manifest gate.
 
 ## Current Sweep Results
 

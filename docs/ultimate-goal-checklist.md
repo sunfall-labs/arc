@@ -666,7 +666,8 @@ Last evidence pass: May 16, 2026.
     server-only seed data or server module sentinels.
 - [x] Rich project-console starter packaging passes.
   - Evidence: `pnpm starter:project-console:package` completed inside
-    `pnpm verify` and verified 17 required starter files.
+    `pnpm verify`; the latest focused packaging run verified the full
+    27-file generated starter manifest against the copyable source manifest.
 - [x] Starter packaging script host reporting stays Effect-driven.
   - Evidence: `scripts/package-project-console-starter.mjs` reports success and
     failure inside the Effect pipeline, with top-level await kept as the Node

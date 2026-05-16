@@ -11,15 +11,47 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 140, immediately after Review 139. Some older review
+The newest review is Review 141, immediately after Review 140. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 141: Project Console Runtime Store and Starter Manifest Gate
+
+Status: fixed for the fresh post-Review140 Project Console and starter tooling
+sweep. Focused verification is green. Full verification is still inherited from
+Review 139 until the next single-command gate runs.
+
+- Project Demo Store: project-console seed state now lives behind the
+  server-only `ProjectDemoStore` Effect service, backed by an Effect `Ref` and
+  provided by `ProjectDemoStoreLive`. Server functions depend on this Runtime
+  Spine service instead of a module-global `Map`, while direct local-client tests
+  provide a fresh store layer per Effect program.
+- Server app runtime composition: `server.tsx` now builds the server app with
+  `Layer.mergeAll(ProjectApiLive, ProjectDemoStoreLive)`. `app-definition.ts`
+  remains browser-safe and does not import `domain.server.ts`, preserving the
+  existing client leak-scan boundary for seed data and server implementation
+  modules.
+- Project Console starter manifest gate: `scripts/package-project-console-starter.mjs`
+  now collects the copyable source file manifest and generated starter manifest
+  through Effect, compares them exactly, rejects forbidden build/dependency path
+  segments anywhere in the payload, and reports the verified file count. The
+  package command now verified 27 generated files instead of a shallow
+  hand-maintained 17-file list.
+- Starter dependency version policy: workspace protocol dependencies are now
+  rewritten from the versions declared by `packages/*/package.json` instead of a
+  hard-coded placeholder, and starter docs/README text now names that policy.
+
+Focused verification passed: `pnpm example:typecheck`, `pnpm example:test` (4
+files / 27 tests), `pnpm example:build`, `pnpm example:leak-scan`, `pnpm
+starter:project-console:package` (27 files verified), generated package
+dependency inspection, generated forbidden-token grep, `pnpm typecheck:types`,
+`pnpm audit:public-api`, `pnpm audit:effect-first`, and `git diff --check`.
 
 ## Review 140: Router History Projection and Program Runtime Scheduling
 
 Status: fixed for the fresh post-Review139 Core/React/Solid sweep. Focused
-verification is green. Full verification is still inherited from Review 139
-until the next single-command gate runs.
+verification is green, but fresh post-fix sweeps found the Review 141 Project
+Console runtime store and starter packaging issues.
 
 - Router Provider history projection: React and Solid `RouterProvider` now
   expose the Core `BrowserHistoryAdapter` seam that `createBrowserRouter(...)`
