@@ -151,7 +151,7 @@ const printScopeSummary = () => {
       console.log(`  - ${allowedSeam.file}: ${allowedSeam.name}`);
     }
   }
-  console.log(`- Promise constructor/static AST guard: constructor usage plus ${promiseStaticMembers.length} static members across direct, global, alias, and extraction forms`);
+  console.log(`- Promise constructor/static AST guard: constructor usage plus ${promiseStaticMembers.length} static members across direct, host-global, alias, and extraction forms`);
 };
 
 const allowed = [
@@ -266,7 +266,7 @@ const promiseStaticMembers = [
   "withResolvers"
 ];
 const promiseStaticMemberSet = new Set(promiseStaticMembers);
-const promiseStaticReceiverNames = new Set(["globalThis", "window"]);
+const promiseStaticReceiverNames = new Set(["globalThis", "window", "self"]);
 const promiseStaticForwarderNames = new Set(["call", "apply", "bind"]);
 
 const promiseStaticCallName = (member) => ["Promise", member].join(".");
@@ -796,10 +796,13 @@ assertPromiseStaticBans("(Promise).all([]);", ["Promise.all"]);
 assertPromiseStaticBans("(Promise.all)([]);", ["Promise.all"]);
 assertPromiseStaticBans("globalThis.Promise.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("window.Promise.all([]);", ["Promise.all"]);
+assertPromiseStaticBans("self.Promise.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("globalThis[\"Promise\"][\"all\"]([]);", ["Promise.all"]);
+assertPromiseStaticBans("self[\"Promise\"][\"all\"]([]);", ["Promise.all"]);
 assertPromiseStaticBans("const P = Promise; P.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("const P = globalThis.Promise; P.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("const P = window.Promise; const Q = P; Q.all([]);", ["Promise.all"]);
+assertPromiseStaticBans("const P = self.Promise; const Q = P; Q.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("const P = Promise; function run(P) { P.all([]); } P.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("const Promise = { all() {} }; Promise.all([]);", []);
 assertPromiseStaticBans("Promise.allSettled([]);", ["Promise.allSettled"]);
@@ -824,16 +827,21 @@ assertPromiseStaticBans("const { all: promiseAll } = Promise; promiseAll([]);", 
 assertPromiseStaticBans("const P = Promise; const { all } = P; all([]);", ["Promise.all.extraction"]);
 assertPromiseStaticBans("const race = globalThis.Promise.race; race([]);", ["Promise.race.extraction"]);
 assertPromiseStaticBans("const resolve = window.Promise.resolve; resolve(value);", ["Promise.resolve.extraction"]);
+assertPromiseStaticBans("const resolve = self.Promise.resolve; resolve(value);", ["Promise.resolve.extraction"]);
 assertPromiseStaticBans("const promiseTry = Promise.try; promiseTry(() => value);", ["Promise.try.extraction"]);
 assertPromiseStaticBans("const withResolvers = Promise[`withResolvers`]; withResolvers();", ["Promise.withResolvers.extraction"]);
 assertPromiseStaticBans("new Promise(() => undefined);", ["new Promise"]);
 assertPromiseStaticBans("new globalThis.Promise(() => undefined);", ["new Promise"]);
+assertPromiseStaticBans("new self.Promise(() => undefined);", ["new Promise"]);
 assertPromiseStaticBans("new (Promise)(() => undefined);", ["new Promise"]);
 assertPromiseStaticBans("const P = Promise; new P(() => undefined);", ["new Promise"]);
 assertPromiseStaticBans("const { Promise: P } = globalThis; P.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("const { Promise } = window; new Promise(() => undefined);", ["new Promise"]);
+assertPromiseStaticBans("const { Promise } = self; new Promise(() => undefined);", ["new Promise"]);
 assertPromiseStaticBans("const { Promise: { all } } = globalThis; all([]);", ["Promise.all.extraction"]);
+assertPromiseStaticBans("const { Promise: { resolve } } = self; resolve(value);", ["Promise.resolve.extraction"]);
 assertPromiseStaticBans("const { [\"Promise\"]: P } = globalThis; P.all([]);", ["Promise.all"]);
+assertPromiseStaticBans("const { [\"Promise\"]: P } = self; P.resolve(value);", ["Promise.resolve"]);
 assertPromiseStaticBans("const Promise = class {}; new Promise(() => undefined);", []);
 assertBannedPattern(".then(...)", "client.then<string>(() => undefined);", 1);
 assertBannedPattern(".then(...)", "client[\"then\"](() => undefined);", 1);
