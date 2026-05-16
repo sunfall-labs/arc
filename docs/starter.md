@@ -65,6 +65,9 @@ starter's own `verify` script, rejects generated route artifact content drift,
 removes generated install/build/test artifacts, and rechecks the manifest after
 verification. Each generated app also carries a starter-local `.gitignore` for
 `node_modules`, `dist`, `.test-dist`, build info, and macOS metadata.
+The generated package manifests include `.effect-ui-packages`, and the packager
+dry-runs each generated starter tarball to prove those local file-package
+Adapters are actually included while generated app artifacts stay out.
 
 Verify package payloads for the copyable examples:
 
@@ -72,7 +75,8 @@ Verify package payloads for the copyable examples:
 pnpm example:pack-dry-run
 ```
 
-That gate checks the basic starter, React starter, project console, devtools
-panel, and devtools extension dry-run package payloads for source-only files,
-local `.gitignore` coverage, and absence of generated output or dependency
-artifacts.
+That gate checks all 11 framework packages plus the basic starter, React
+starter, project console, devtools panel, and devtools extension. Framework
+packages must contain only `package.json` and `dist/*`; copyable starter/example
+packages must contain source/config assets, local `.gitignore` coverage, and no
+generated output or dependency artifacts.

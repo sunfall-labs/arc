@@ -65,6 +65,7 @@ pnpm devtools-extension:verify
 pnpm starter:verify
 pnpm react-starter:verify
 pnpm starter:package
+pnpm example:pack-dry-run
 pnpm example:typecheck
 pnpm example:test
 pnpm example:build

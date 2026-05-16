@@ -48,16 +48,18 @@ file, this inventory, and a focused `type-tests/*.test-d.ts` file; package
 bins may omit an import-shaped type test only with an explicit reason. The
 public API inventory audit verifies the manifest against package
 `exports`/`bin` maps and checks that each focused type-test file imports the
-entrypoint it claims to cover, exercises imported bindings outside the import
-declaration, and includes any manifest-listed `typeTestReferences` for virtual
-or side-effect declaration surfaces. It also checks that every package root
+entrypoint it claims to cover, exercises imported bindings as AST identifiers
+outside import declarations, and includes any manifest-listed
+`typeTestReferences` for virtual or side-effect declaration surfaces. It also
+checks that every package root
 barrel's local re-exported modules are named in that package's Source Surface
 section, and that Source Surface local-module lists do not name modules the root
 barrel does not export. Curated namespace-backed source modules must have an
 explicit audit allowance and a root-barrel import. Together these checks keep
 hover/LSP docs from drifting away from exported source files. The audit also
 enforces JSDoc on curated public hover declarations for the Core Program,
-browser-router/router Adapter, and Start diagnostics surfaces. The broad
+browser-router/router Adapter, Start diagnostics surfaces, and every curated
+Start fetch/Node Adapter overload/implementation declaration. The broad
 `type-tests/framework.test-d.ts` file remains as cross-package integration
 coverage.
 

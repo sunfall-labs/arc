@@ -78,7 +78,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     142 runtime locality and verification pin closure, Review 143 stale
     StartAction invalidation and audit guardrails, Review 144 collection
     locality and router type pins, and Review 145 starter copyability/runtime
-    guardrails.
+    guardrails, through Review 150 public adapter hovers and package payload
+    gates.
 
 ## Current Sweep Results
 
@@ -584,6 +585,10 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   branding, lazy runtime store override validation, template-literal Promise
   member guardrails, generated route artifact content-drift checks, and the
   new package dry-run verification gate.
+- Added Review 150 evidence for Start fetch/Node Adapter overload hovers,
+  AST-based public type-test coverage, `Promise.try`/`Promise.withResolvers`
+  guardrails, generated starter tarball dry-runs with local package Adapters,
+  and the expanded 16-target package payload gate.
 - Left older checkpoint counts in place only where they explicitly describe
   historical evidence from that checkpoint; current verification counts are
   recorded in the verification gate and progress ledger.

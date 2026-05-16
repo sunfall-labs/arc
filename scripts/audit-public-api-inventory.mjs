@@ -192,6 +192,22 @@ const publicHoverDocs = [
     declarations: [
       "StartAppGraphDiagnosticsLoadError"
     ]
+  },
+  {
+    file: "packages/start/src/fetch-adapter.ts",
+    allDeclarations: [
+      "toFetchHandlerEffect",
+      "toFetchHandler",
+      "createFetchHandler"
+    ]
+  },
+  {
+    file: "packages/start/src/node-adapter.ts",
+    allDeclarations: [
+      "createNodeHandlerEffect",
+      "createNodeHandler",
+      "createNodeServerHandler"
+    ]
   }
 ];
 
@@ -237,6 +253,16 @@ const findDeclarationNode = (statements, name) => {
   return undefined;
 };
 
+const findDeclarationNodes = (statements, name) => {
+  const declarations = [];
+  for (const statement of statements) {
+    if (declarationName(statement) === name || variableStatementDeclarationNames(statement).includes(name)) {
+      declarations.push(statement);
+    }
+  }
+  return declarations;
+};
+
 const namespaceStatements = (sourceFile, namespaceName) => {
   const namespace = sourceFile.statements.find((statement) =>
     ts.isModuleDeclaration(statement) &&
@@ -274,6 +300,19 @@ const auditPublicHoverDocs = () => {
       } else if (!hasJsDoc(declaration)) {
         failures.push(`${group.file} public hover declaration ${name} is missing JSDoc`);
       }
+    }
+
+    for (const name of group.allDeclarations ?? []) {
+      const declarations = findDeclarationNodes(sourceFile.statements, name);
+      if (declarations.length === 0) {
+        failures.push(`${group.file} is missing public hover declaration ${name}`);
+        continue;
+      }
+      declarations.forEach((declaration, index) => {
+        if (!hasJsDoc(declaration)) {
+          failures.push(`${group.file} public hover declaration ${name}#${index + 1} is missing JSDoc`);
+        }
+      });
     }
 
     for (const [namespaceName, names] of Object.entries(group.namespaceDeclarations ?? {})) {
@@ -316,8 +355,6 @@ const expectedBins = new Map();
 
 const importSpecifierFor = (packageName, exportPath) =>
   exportPath === "." ? packageName : `${packageName}${exportPath.slice(1)}`;
-
-const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const assertRelativeFile = (label, path) => {
   if (typeof path !== "string" || path.length === 0) {
@@ -363,11 +400,22 @@ const importedBindingNames = (declaration) => {
   return names;
 };
 
-const nonImportText = (sourceFile) =>
-  sourceFile.statements
-    .filter((statement) => !ts.isImportDeclaration(statement))
-    .map((statement) => statement.getText(sourceFile))
-    .join("\n");
+const nonImportIdentifierNames = (sourceFile) => {
+  const names = new Set();
+  const visit = (node) => {
+    if (ts.isIdentifier(node)) {
+      names.add(node.text);
+    }
+    ts.forEachChild(node, visit);
+  };
+
+  for (const statement of sourceFile.statements) {
+    if (!ts.isImportDeclaration(statement)) {
+      visit(statement);
+    }
+  }
+  return names;
+};
 
 const assertTypeTestCoverage = (entry, typeTestPath, typeTest) => {
   const sourceFile = ts.createSourceFile(
@@ -388,9 +436,9 @@ const assertTypeTestCoverage = (entry, typeTestPath, typeTest) => {
     failures.push(`${entry.package} export ${entry.export} type test ${entry.typeTest} is side-effect-only and must declare typeTestReferences in the manifest`);
   }
 
-  const body = nonImportText(sourceFile);
+  const usedIdentifiers = nonImportIdentifierNames(sourceFile);
   for (const name of importedNames) {
-    if (!new RegExp(`\\b${escapeRegExp(name)}\\b`).test(body)) {
+    if (!usedIdentifiers.has(name)) {
       failures.push(`${entry.package} export ${entry.export} type test ${entry.typeTest} imports ${name} but does not exercise it outside the import declaration`);
     }
   }

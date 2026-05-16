@@ -11,9 +11,65 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 149, immediately after Review 148. Some older review
+The newest review is Review 150, immediately after Review 149. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 150: Public Adapter Hovers And Package Payload Gates
+
+Status: fixed for the fresh post-Review149 docs/LSP, Effect-first guardrail,
+public API audit, package dry-run, and generated-starter tarball sweeps. Focused
+and full verification are green. Fresh post-fix sweeps still need to run before
+the clean-sweep counter can start.
+
+- Public Start adapter hover depth: fetch and Node adapter overloads and
+  implementation declarations now have declaration-site JSDoc, and the public
+  API inventory audit checks every overload declaration for the curated expert
+  public Adapter functions. LSP users now see what the Effect-first Adapter does
+  instead of landing on an undocumented overload or implementation signature.
+- Public type-test coverage locality: the public API inventory audit now
+  verifies imported type-test bindings by walking identifiers outside import
+  declarations instead of scanning raw text. String literals, comments, and
+  templates can no longer accidentally satisfy the coverage Interface.
+- Package payload wall: `pnpm example:pack-dry-run` now covers all 11 framework
+  packages plus the five copyable packages. Framework packages must ship only
+  `package.json` and `dist/*`, while copyable starter/example packages stay
+  source-only with `.gitignore` coverage and no generated output, lockfiles,
+  dependency directories, build info, or local metadata.
+- Effect-first Promise factory guardrail: the audit now rejects
+  `Promise.try(...)`, `Promise.withResolvers(...)`, and extracted forms through
+  dot, bracket, and template-literal static member access, keeping new Promise
+  factory APIs out of library internals unless they are explicitly adapted at a
+  host seam.
+- Generated starter tarball locality: generated basic, React, and
+  project-console starters now include `.effect-ui-packages` in their package
+  `files` allowlist, and `pnpm starter:package` dry-runs each generated starter
+  tarball to prove local file-package Adapters are present while forbidden app
+  artifacts remain absent.
+- Release-command drift: the README and package-hygiene docs now include the
+  package dry-run gate alongside starter packaging so the release checklist
+  names the same verification wall as root `pnpm verify`.
+
+Focused verification passed: `pnpm starter:package` verified generated starter
+manifests and tarball payloads for basic (19 app files / 5 local packages),
+React (24 app files / 4 local packages), and project-console (30 app files /
+6 local packages); `pnpm audit:public-api`; `pnpm audit:effect-first` over
+259 files; `pnpm typecheck:types`; `git diff --check`; source routeTree
+generated-artifact diff; raw Error/TypeError/subclass grep; direct Promise
+fixture grep; and the 16-target package dry-run gate from `pnpm build &&
+pnpm example:pack-dry-run`.
+
+Full `pnpm verify` passed after Review 150: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 259 files, 53 root test files / 901 tests, devtools-panel verify with
+2 tests, devtools-extension verify with 20 tests, basic starter verify with
+2 tests, React starter verify with 3 tests, generated starter-suite packaging/
+verifies for basic (19 app files / 5 local packages), React (24 app files /
+4 local packages), and project-console (30 app files / 6 local packages),
+16-target package dry-run gate for all framework packages plus the basic
+starter, React starter, project-console example, devtools panel, and devtools
+extension, project-console typecheck, 4 project-console test files / 27 tests,
+project-console build, and leak scan.
 
 ## Review 149: Runtime Store Laziness And Copyability Gates
 

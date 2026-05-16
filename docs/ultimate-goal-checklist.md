@@ -791,23 +791,24 @@ Last evidence pass: May 16, 2026.
   - Evidence: no new ADR required for the Start Action Response Codec
     extraction.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 149
-    Runtime Store laziness and copyability gates slice: 11 package builds,
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 150
+    public Adapter hover and package payload gate slice: 11 package builds,
     workspace typecheck, type tests, public API inventory audit, Effect-first
     audit over 259 files, 53 root test files / 901 tests,
     devtools-panel verify with 1 panel test file / 2 tests, devtools-extension
     verify with 1 extension test file / 20 tests, basic starter verify with 1
     starter test file / 2 tests, React starter verify with 1 starter test file
     / 3 tests, generated starter-suite packaging/verifies for
-    basic/react/project-console, five-package dry-run gate, project-console
+    basic/react/project-console, 16-target package dry-run gate, project-console
     typecheck, 4 project-console test files / 27 tests, project-console build,
     and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 149 records focused Core typecheck, public API,
-    Effect-first, type-test, Resource Store marker opacity/lazy validation,
-    template-literal Promise audit guardrails, generated starter content-drift
-    checks, five-package dry-run gating, and docs drift verification. Full
-    verification is now recorded in the latest gate above.
+  - Evidence: Review 150 records focused public API, Effect-first, public
+    type-test, generated starter tarball dry-run, raw throw/Promise fixture,
+    source routeTree drift, and 16-target package dry-run verification after
+    fixing Start Adapter hover docs, AST-based type-test coverage, Promise
+    factory guardrails, and generated starter local-package inclusion. Full
+    verification is recorded in the latest gate above.
 
 ## Remaining Winning-Bar Items
 

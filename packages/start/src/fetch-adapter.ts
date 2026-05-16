@@ -69,9 +69,17 @@ export type StartFetchHandler<Requirements = never> = StartFetchHandlerEffect<Re
 export function toFetchHandlerEffect<Handler extends StartRequestHandlerInput<any, any>>(
   handler: Handler
 ): StartFetchHandlerEffect<StartRequestHandlerRequirements<Handler>>;
+/**
+ * Adapts any typed Start request handler to an Effect-first Fetch handler while
+ * preserving its remaining service requirements.
+ */
 export function toFetchHandlerEffect<HandlerError, Requirements>(
   handler: StartRequestHandlerInput<HandlerError, Requirements>
 ): StartFetchHandlerEffect<Requirements>;
+/**
+ * Implementation for `toFetchHandlerEffect(...)`; host Promise conversion stays
+ * outside this Effect-first Adapter.
+ */
 export function toFetchHandlerEffect(
   handler: StartRequestHandlerInput<any, any>
 ): StartFetchHandlerEffect<any> {
@@ -82,9 +90,18 @@ export function toFetchHandlerEffect(
 export function toFetchHandler<Handler extends StartRequestHandlerInput<any, any>>(
   handler: Handler
 ): StartFetchHandler<StartRequestHandlerRequirements<Handler>>;
+/**
+ * Alias overload for typed Start request handlers whose service requirements
+ * are already explicit.
+ */
 export function toFetchHandler<HandlerError, Requirements>(
   handler: StartRequestHandlerInput<HandlerError, Requirements>
 ): StartFetchHandler<Requirements>;
+/**
+ * Implementation for the Fetch Effect Adapter alias. It does not run the
+ * handler; callers still decide where to provide and execute the returned
+ * Effect.
+ */
 export function toFetchHandler(
   handler: StartRequestHandlerInput<any, any>
 ): StartFetchHandler<any> {

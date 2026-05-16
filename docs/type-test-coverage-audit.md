@@ -129,6 +129,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
   payload diagnostics, transport timeouts, and shared app graph normalization
   so extension code consumes the same public `DevtoolsPanels` Interface as
   renderers, summaries, serialization, and causal graph projection.
+- The public API inventory audit now verifies type-test binding usage through
+  TypeScript AST identifiers outside import declarations, so comments, string
+  literals, and templates cannot make a public import look covered.
 
 ## Verification Evidence
 

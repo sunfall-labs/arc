@@ -109,10 +109,18 @@ export function createNodeHandlerEffect<Handler extends StartRequestHandlerInput
   handler: Handler,
   options?: StartNodeRequestOptions
 ): StartNodeHandlerEffect<StartRequestHandlerRequirements<Handler>>;
+/**
+ * Creates an Effect-first Node HTTP handler while preserving explicit handler
+ * service requirements for the caller's runtime.
+ */
 export function createNodeHandlerEffect<HandlerError, Requirements>(
   handler: StartRequestHandlerInput<HandlerError, Requirements>,
   options?: StartNodeRequestOptions
 ): StartNodeHandlerEffect<Requirements>;
+/**
+ * Implementation for the Effect-first Node Adapter. It owns Node/Web request
+ * conversion and response writing, but leaves execution to the returned Effect.
+ */
 export function createNodeHandlerEffect(
   handler: StartRequestHandlerInput<any, any>,
   options: StartNodeRequestOptions = {}
@@ -131,10 +139,18 @@ export function createNodeHandler<Handler extends StartRequestHandlerInput<any, 
   handler: Handler,
   options?: StartNodeRequestOptions
 ): StartNodeHandler<StartRequestHandlerRequirements<Handler>>;
+/**
+ * Alias overload for typed Start request handlers whose service requirements
+ * remain visible on the returned Node Effect handler.
+ */
 export function createNodeHandler<HandlerError, Requirements>(
   handler: StartRequestHandlerInput<HandlerError, Requirements>,
   options?: StartNodeRequestOptions
 ): StartNodeHandler<Requirements>;
+/**
+ * Implementation for the Node Effect Adapter alias. It delegates to
+ * `createNodeHandlerEffect(...)` without creating a Promise-shaped host facade.
+ */
 export function createNodeHandler(
   handler: StartRequestHandlerInput<any, any>,
   options: StartNodeRequestOptions = {}

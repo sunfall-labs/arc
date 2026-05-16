@@ -258,12 +258,16 @@ const banned = [
   { pattern: promiseStaticPattern("race"), name: ["Promise", "race"].join(".") },
   { pattern: promiseStaticPattern("resolve"), name: ["Promise", "resolve"].join(".") },
   { pattern: promiseStaticPattern("reject"), name: ["Promise", "reject"].join(".") },
+  { pattern: promiseStaticPattern("try"), name: ["Promise", "try"].join(".") },
+  { pattern: promiseStaticPattern("withResolvers"), name: ["Promise", "withResolvers"].join(".") },
   { pattern: promiseStaticExtractionPattern("all"), name: ["Promise", "all", "extraction"].join(".") },
   { pattern: promiseStaticExtractionPattern("allSettled"), name: ["Promise", "allSettled", "extraction"].join(".") },
   { pattern: promiseStaticExtractionPattern("any"), name: ["Promise", "any", "extraction"].join(".") },
   { pattern: promiseStaticExtractionPattern("race"), name: ["Promise", "race", "extraction"].join(".") },
   { pattern: promiseStaticExtractionPattern("resolve"), name: ["Promise", "resolve", "extraction"].join(".") },
   { pattern: promiseStaticExtractionPattern("reject"), name: ["Promise", "reject", "extraction"].join(".") },
+  { pattern: promiseStaticExtractionPattern("try"), name: ["Promise", "try", "extraction"].join(".") },
+  { pattern: promiseStaticExtractionPattern("withResolvers"), name: ["Promise", "withResolvers", "extraction"].join(".") },
   { pattern: new RegExp("new\\s+" + "Promise\\b", "g"), name: ["new", "Promise"].join(" ") },
   { pattern: memberCallPattern("then"), name: "." + "then(...)" },
   {
@@ -453,6 +457,10 @@ assertBannedPattern("Promise.any", "Promise.any([]);", 1);
 assertBannedPattern("Promise.resolve", "Promise?.resolve(value);", 1);
 assertBannedPattern("Promise.resolve", "Promise.resolve?.(value);", 1);
 assertBannedPattern("Promise.resolve", "(Promise).resolve(value);", 1);
+assertBannedPattern("Promise.try", "Promise.try(() => value);", 1);
+assertBannedPattern("Promise.try", "Promise[`try`](() => value);", 1);
+assertBannedPattern("Promise.withResolvers", "Promise.withResolvers<string>();", 1);
+assertBannedPattern("Promise.withResolvers", "Promise[`withResolvers`]();", 1);
 assertBannedPattern("Promise.all.extraction", "const all = Promise.all; all([]);", 1);
 assertBannedPattern("Promise.all.extraction", "const all = Promise[\"all\"]; all([]);", 1);
 assertBannedPattern("Promise.all.extraction", "const all = Promise[`all`]; all([]);", 1);
@@ -460,6 +468,8 @@ assertBannedPattern("Promise.all.extraction", "const { all } = Promise; all([]);
 assertBannedPattern("Promise.all.extraction", "const { all: promiseAll } = Promise; promiseAll([]);", 1);
 assertBannedPattern("Promise.race.extraction", "const race = Promise.race; race([]);", 1);
 assertBannedPattern("Promise.resolve.extraction", "const resolve = Promise.resolve; resolve(value);", 1);
+assertBannedPattern("Promise.try.extraction", "const promiseTry = Promise.try; promiseTry(() => value);", 1);
+assertBannedPattern("Promise.withResolvers.extraction", "const withResolvers = Promise[`withResolvers`]; withResolvers();", 1);
 assertBannedPattern(".then(...)", "client.then<string>(() => undefined);", 1);
 assertBannedPattern(".then(...)", "client[\"then\"](() => undefined);", 1);
 assertBannedPattern(".then(...)", "client[`then`](() => undefined);", 1);

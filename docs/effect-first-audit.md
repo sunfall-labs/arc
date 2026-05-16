@@ -63,6 +63,10 @@ interruption.
   - The Review 149 pass catches static no-substitution template keys such as
     ``Promise[`all`]`` and ``client[`then`]`` for direct calls and extracted
     Promise statics, closing the remaining valid JavaScript member-access form.
+  - The Review 150 pass catches newer Promise factory statics,
+    `Promise.try(...)` and `Promise.withResolvers(...)`, including extracted
+    dot, bracket, and template-literal forms, so library internals cannot grow
+    Promise-first factory seams by using newer JavaScript APIs.
 - `packages/start/src/start-fetch.ts` and `packages/start/src/file-route.ts`
   - Custom Start fetchers and file-route preload helpers now reject
     Promise-shaped erased JavaScript values before they cross deeper runtime
@@ -444,13 +448,16 @@ interruption.
   files after adding the package dry-run verification script as an anchored host
   runner and adding template-literal member-key self-tests for Promise statics
   and non-Effect member calls.
+- Review 150 focused verification kept `pnpm audit:effect-first` green over 259
+  files after adding `Promise.try` and `Promise.withResolvers` direct/extracted
+  guardrails.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The latest full gate is the Review 149 `pnpm verify` run: 11 package builds,
+- The latest full gate is the Review 150 `pnpm verify` run: 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
   Effect-first audit over 259 files, 53 root test files / 901 tests,
-  devtools-panel/devtools-extension/starter-suite/package-dry-run/
+  devtools-panel/devtools-extension/starter-suite/16-target package-dry-run/
   project-console gates, and leak scans.
 - `pnpm exec vitest run packages/core/test/runtime.test.ts packages/start/test/start.test.ts`
   passed after the first cleanup pass.
@@ -1246,8 +1253,8 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The latest full `pnpm verify` passed after the Review 149 Runtime Store
-  Laziness and Copyability Gates slice: 11 package builds,
+- The latest full `pnpm verify` passed after the Review 150 Public Adapter
+  Hovers and Package Payload Gates slice: 11 package builds,
   workspace typecheck, type tests, public API inventory audit, Effect-first
   audit over 259 package/example/config/script/type-test files, 53 root test
   files / 901 tests,
@@ -1255,7 +1262,7 @@ interruption.
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
   verify with 1 starter test file / 2 tests, React starter verify with 1
   starter test file / 3 tests, generated starter-suite packaging/verifies for
-  basic/react/project-console, five-package dry-run gate, project-console
+  basic/react/project-console, 16-target package dry-run gate, project-console
   typecheck, 4 project-console test files / 27 tests, build, and leak scans.
   Review 75
   added the public API inventory audit to the full gate, Review 86 kept the
@@ -1280,7 +1287,8 @@ interruption.
   Promise choreography, Review 148 kept the 258-file scope green while catching
   Promise static extraction through assignment and destructuring, and Review
   149 expanded it to 259 files with the package dry-run script while catching
-  static template-literal member keys.
+  static template-literal member keys, and Review 150 kept that 259-file scope
+  green while catching `Promise.try` and `Promise.withResolvers`.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

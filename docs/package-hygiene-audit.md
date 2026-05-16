@@ -1,6 +1,6 @@
 # Package Hygiene Audit
 
-Last updated: 2026-05-14.
+Last updated: 2026-05-16.
 
 This audit checks package manifests against package-source imports and public
 exports. It supports the release-engineering charter workstream.
@@ -37,6 +37,13 @@ exports. It supports the release-engineering charter workstream.
   - `@effect-ui/start-node`: `@effect-ui/start`
   - `@effect-ui/tsrx`: `@tsrx/vite-plugin-solid`, `vite-plugin-solid`, with
     `vite` as a peer dependency.
+- Review149 added `pnpm example:pack-dry-run` as the current copyable package
+  payload gate, and Review150 expanded it to all 11 framework packages plus the
+  five copyable starter/example packages. Framework package payloads must be
+  `package.json` plus `dist/*`; copyable payloads must stay source-only and
+  reject generated output, dependency directories, lockfiles, build info, local
+  metadata, and missing `.gitignore` files. Root `pnpm verify` includes this
+  gate.
 
 ## Verification Evidence
 
@@ -79,9 +86,18 @@ exports. It supports the release-engineering charter workstream.
   - `pnpm --filter @effect-ui/solid pack --dry-run`
   - `pnpm --filter @effect-ui/solid-db pack --dry-run`
   - `pnpm --filter @effect-ui/tsrx pack --dry-run`
-- The latest dry-run pack payloads contain only `dist` JavaScript,
+- Historical framework package dry-run pack payloads contained only `dist` JavaScript,
   declaration, source-map files, and package manifests; no `.tsbuildinfo`
   compiler cache files are included.
+- `pnpm build && pnpm example:pack-dry-run` passed after Review150 and verified
+  all 16 package payloads: 11 framework dist packages, 19 basic starter files,
+  24 React starter files, 30 project-console files, 10 devtools panel files,
+  and 15 devtools extension files.
+- The latest full `pnpm verify` passed after Review150 with 11 package builds,
+  workspace typecheck, public type tests, public API inventory audit,
+  Effect-first audit over 259 files, 53 root test files / 901 tests,
+  devtools verifies, generated starter packaging, the 16-target dry-run gate,
+  project-console typecheck/tests/build, and leak scan.
 - `pnpm verify` passed after adding the Node and Fetch adapter facade packages:
   9 package builds, workspace typecheck, type tests, 35 package test files /
   308 tests, example typecheck, 4 example test files / 23 tests, example build,

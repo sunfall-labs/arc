@@ -641,6 +641,65 @@ const assertGeneratedAppContentMatchesSource = (starter) =>
     }
   });
 
+const parsePackDryRunOutput = (starter, stdout) =>
+  Effect.gen(function* () {
+    const parsed = yield* Effect.try({
+      try: () => JSON.parse(stdout.trim()),
+      catch: (cause) =>
+        fail(
+          `Failed to parse generated ${starter.displayName} package dry-run output.`,
+          "Keep pnpm pack --dry-run --json output machine-readable.",
+          cause,
+        ),
+    });
+    const pack = Array.isArray(parsed) ? parsed[0] : parsed;
+    if (typeof pack !== "object" || pack === null || !Array.isArray(pack.files)) {
+      return yield* Effect.fail(
+        fail(
+          `Generated ${starter.displayName} package dry-run output did not include a files array.`,
+          "Keep pnpm pack --dry-run --json output machine-readable.",
+        ),
+      );
+    }
+    return pack;
+  });
+
+const assertGeneratedStarterPackageDryRun = (starter, internalPackageNames) =>
+  Effect.gen(function* () {
+    const { stdout } = yield* commandEffect(
+      `${starter.displayName} package dry-run`,
+      "pnpm",
+      ["--ignore-workspace", "pack", "--dry-run", "--json"],
+      { cwd: starter.outputDir },
+    );
+    const pack = yield* parsePackDryRunOutput(starter, stdout);
+    const files = pack.files.map((file) => file.path);
+    const localPackageManifests = files.filter((file) =>
+      file.startsWith(`${localPackagesDirectoryName}/`) && file.endsWith("/package.json")
+    );
+    const forbidden = files.filter((file) =>
+      !file.startsWith(`${localPackagesDirectoryName}/`) &&
+      hasForbiddenSegment(file, forbiddenGeneratedAppSegments)
+    );
+
+    if (internalPackageNames.length > 0 && localPackageManifests.length === 0) {
+      return yield* Effect.fail(
+        fail(
+          `Generated ${starter.displayName} package dry-run omits local file package adapters.`,
+          `Include ${localPackagesDirectoryName} in the generated starter package files allowlist.`,
+        ),
+      );
+    }
+    if (forbidden.length > 0) {
+      return yield* Effect.fail(
+        fail(
+          `Generated ${starter.displayName} package dry-run includes forbidden app artifacts.`,
+          `Remove these generated app paths from the tarball payload: ${forbidden.join(", ")}.`,
+        ),
+      );
+    }
+  });
+
 const verifyStandaloneConfigs = (starter) =>
   Effect.gen(function* () {
     const viteConfigText = yield* fsEffect(
@@ -735,6 +794,7 @@ const rewriteStarterPackageJson = (starter, workspacePackages, packageJson, inte
       name: starter.packageName,
       version: "0.0.0",
       private: true,
+      files: [...new Set([...(rewrittenPackageJson.files ?? []), localPackagesDirectoryName])],
       scripts: {
         ...rewrittenPackageJson.scripts,
         dev: "vite",
@@ -812,6 +872,7 @@ const packageStarter = (workspacePackages, starter) =>
     yield* assertNoForbiddenGeneratedAppSegments(starter, verifiedGeneratedAppFiles);
     yield* assertGeneratedAppContentMatchesSource(starter);
     yield* assertNoWorkspaceProtocol(starter);
+    yield* assertGeneratedStarterPackageDryRun(starter, internalPackageNames);
 
     return {
       id: starter.id,

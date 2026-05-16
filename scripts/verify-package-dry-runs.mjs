@@ -13,36 +13,69 @@ class PackageDryRunError extends Data.TaggedError("PackageDryRunError") {}
 const fail = (message, repair, cause) =>
   new PackageDryRunError({ message, repair, cause });
 
-const packageTargets = [
+const frameworkPackageTargets = [
+  "@effect-ui/core",
+  "@effect-ui/db",
+  "@effect-ui/devtools",
+  "@effect-ui/react",
+  "@effect-ui/react-db",
+  "@effect-ui/solid",
+  "@effect-ui/solid-db",
+  "@effect-ui/start",
+  "@effect-ui/start-fetch",
+  "@effect-ui/start-node",
+  "@effect-ui/tsrx",
+].map((filter) => ({
+  label: `${filter} package`,
+  filter,
+  payload: "dist-package",
+}));
+
+const copyablePackageTargets = [
   {
     label: "basic starter",
     filter: "@effect-ui/starter-basic",
+    payload: "copyable-source",
     requiresGitignore: true,
   },
   {
     label: "React starter",
     filter: "@effect-ui/starter-react",
+    payload: "copyable-source",
     requiresGitignore: true,
   },
   {
     label: "project-console example",
     filter: "@effect-ui/example-project-console",
+    payload: "copyable-source",
     requiresGitignore: true,
   },
   {
     label: "devtools panel example",
     filter: "@effect-ui/example-devtools-panel",
+    payload: "copyable-source",
     requiresGitignore: true,
   },
   {
     label: "devtools extension example",
     filter: "@effect-ui/example-devtools-extension",
+    payload: "copyable-source",
     requiresGitignore: true,
   },
 ];
 
-const forbiddenSegments = new Set(["dist", ".test-dist", "node_modules"]);
-const forbiddenFileNames = new Set([".DS_Store", "pnpm-lock.yaml"]);
+const packageTargets = [...frameworkPackageTargets, ...copyablePackageTargets];
+
+const forbiddenGeneratedSegments = new Set([".test-dist", "node_modules"]);
+const forbiddenCopyableSegments = new Set(["dist", ...forbiddenGeneratedSegments]);
+const forbiddenFileNames = new Set([
+  ".DS_Store",
+  "bun.lock",
+  "bun.lockb",
+  "package-lock.json",
+  "pnpm-lock.yaml",
+  "yarn.lock",
+]);
 
 const commandEffect = (description, command, args, options = {}) =>
   Effect.callback((resume) => {
@@ -128,8 +161,11 @@ const parsePackOutput = (target, stdout) =>
     return pack;
   });
 
-const hasForbiddenPath = (filePath) => {
+const hasForbiddenPath = (target, filePath) => {
   const segments = filePath.split("/");
+  const forbiddenSegments = target.payload === "dist-package"
+    ? forbiddenGeneratedSegments
+    : forbiddenCopyableSegments;
   return (
     segments.some((segment) => forbiddenSegments.has(segment)) ||
     forbiddenFileNames.has(segments.at(-1) ?? "") ||
@@ -146,7 +182,7 @@ const verifyPackageTarget = (target) =>
     );
     const pack = yield* parsePackOutput(target, stdout);
     const files = pack.files.map((file) => file.path).sort((left, right) => left.localeCompare(right));
-    const forbidden = files.filter(hasForbiddenPath);
+    const forbidden = files.filter((file) => hasForbiddenPath(target, file));
 
     if (target.requiresGitignore && !files.includes(".gitignore")) {
       return yield* Effect.fail(
@@ -163,6 +199,25 @@ const verifyPackageTarget = (target) =>
           `Remove these paths from the package payload: ${forbidden.join(", ")}.`,
         ),
       );
+    }
+    if (target.payload === "dist-package") {
+      const nonDist = files.filter((file) => file !== "package.json" && !file.startsWith("dist/"));
+      if (!files.some((file) => file.startsWith("dist/"))) {
+        return yield* Effect.fail(
+          fail(
+            `${target.label} package dry-run is missing dist output.`,
+            "Run pnpm build before package dry-run verification so publishable packages contain built artifacts.",
+          ),
+        );
+      }
+      if (nonDist.length > 0) {
+        return yield* Effect.fail(
+          fail(
+            `${target.label} package dry-run includes non-dist payload files.`,
+            `Keep framework package payloads limited to package.json and dist artifacts: ${nonDist.join(", ")}.`,
+          ),
+        );
+      }
     }
 
     return {
