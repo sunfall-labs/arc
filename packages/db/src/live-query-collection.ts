@@ -167,7 +167,7 @@ export const makeLiveQueryCollectionDefinition = <
         );
       }),
     restoreEffect: <PE = never, PR = never>() =>
-      Effect.fail(readonlySnapshotCodecFailure("restore")) as Effect.Effect<void, PE | CollectionSnapshotCodecError, PR>,
+      Effect.fail(readonlySnapshotCodecFailure("restore")),
     insertEffect: () => readonlyFail("insert"),
     updateEffect: () => readonlyFail("update"),
     deleteEffect: () => readonlyFail("delete"),

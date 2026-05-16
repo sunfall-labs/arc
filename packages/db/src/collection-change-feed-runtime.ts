@@ -83,7 +83,7 @@ export const subscribeCollectionChangeFeedRuntimeEffect = <
 ): Effect.Effect<void, CollectionRuntimeError<E> | FeedError, R | FeedRequirements | Scope.Scope> =>
   Effect.gen(function* () {
     const options = runtime.options ?? {};
-    const dispatcher = yield* scopedCollectionChangeFeedDispatcherEffect<A, K>(options.dispatch);
+    const dispatcher = yield* scopedCollectionChangeFeedDispatcherEffect<A, K, CollectionRuntimeError<E>>(options.dispatch);
 
     yield* dispatcher.takeEffect().pipe(
       Effect.flatMap((emission) =>
@@ -95,7 +95,7 @@ export const subscribeCollectionChangeFeedRuntimeEffect = <
             yield* runtime.publishFailure(changeFeedFailureError(exit.cause));
           }
           if (emission.completed) {
-            yield* Deferred.done(emission.completed, exit as Exit.Exit<void, unknown>).pipe(Effect.asVoid);
+            yield* Deferred.done(emission.completed, exit).pipe(Effect.asVoid);
           }
         })
       ),
@@ -107,8 +107,7 @@ export const subscribeCollectionChangeFeedRuntimeEffect = <
       collectionChangeFeedInputCallbackEffect<CollectionChangeFeedSubscription, FeedError, FeedRequirements>(() =>
         runtime.adapter.subscribe({
           collection: runtime.collection,
-          emit: (changes, writeOptions) =>
-            dispatcher.emitEffect(changes, writeOptions) as Effect.Effect<void, CollectionRuntimeError<E>>,
+          emit: (changes, writeOptions) => dispatcher.emitEffect(changes, writeOptions),
           emitChanges: (changes, writeOptions) => {
             dispatcher.emitChanges(changes, writeOptions);
           }

@@ -28,6 +28,13 @@ import type {
 const initialDataPath = (definition: AnyCollection): string =>
   `$.collections[${definition.name}].initialData`;
 
+type AnyCollectionState = CollectionState<any, any, any>;
+
+const stateForDefinition = <A extends object, K extends CollectionKey, E>(
+  state: AnyCollectionState
+): CollectionState<A, K, E> =>
+  state as CollectionState<A, K, E>;
+
 const initializeCollectionState = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   state: CollectionState<A, K, E>
@@ -76,7 +83,7 @@ const initializeCollectionState = <A extends object, K extends CollectionKey, E,
  */
 export class RuntimeCollectionStore implements CollectionStore {
   readonly [CollectionStoreTypeId]: typeof CollectionStoreTypeId = CollectionStoreTypeId;
-  readonly #states = new WeakMap<object, CollectionState<any, CollectionKey, any>>();
+  readonly #states = new WeakMap<object, AnyCollectionState>();
   readonly #definitions = new Set<AnyCollection>();
   readonly #events = Effect.runSync(PubSub.sliding<CollectionStoreEvent>(1024));
   readonly disposeEffect = PubSub.shutdown(this.#events);
@@ -96,12 +103,12 @@ export class RuntimeCollectionStore implements CollectionStore {
   ): CollectionState<A, K, E> {
     const existing = this.#states.get(definition);
     if (existing) {
-      return existing as unknown as CollectionState<A, K, E>;
+      return stateForDefinition<A, K, E>(existing);
     }
 
     const state = makeCollectionState<A, K, E>();
     this.#definitions.add(definition);
-    this.#states.set(definition, state as unknown as CollectionState<any, CollectionKey, any>);
+    this.#states.set(definition, state);
     initializeCollectionState(definition, state);
     return state;
   }

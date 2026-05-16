@@ -243,10 +243,10 @@ Last evidence pass: May 16, 2026.
   - Evidence: DB change-feed tests use `toEffect(...)`, Start streaming tests
     use an explicitly typed blocking stream effect, and the broad
     `rg -n 'as Effect\.Effect|as unknown as |as never|as any|@ts-ignore' packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
-    scan now reports documented named seams rather than `as any` or
-    `@ts-ignore` debt. `docs/sharp-cast-audit.md` owns the remaining seam list;
-    focused DB/Start typechecks, public type tests, and touched tests passed.
-    Full `pnpm verify` also passed.
+    scan now reports documented package, example, and type-test seams rather
+    than `as any` or `@ts-ignore` debt. `docs/sharp-cast-audit.md` owns the
+    remaining seam list; focused DB/React-DB/Solid-DB typechecks, public type
+    tests, and touched tests passed. Full `pnpm verify` also passed.
 - [x] Package source avoids raw Promise method lifecycle cleanup.
   - Evidence: action and Start action submitters use `Effect.ensuring` for
     in-flight cleanup; Solid/Solid DB background preloads catch inside Effect;
@@ -651,11 +651,12 @@ Last evidence pass: May 16, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 187 ran audit-doc current-gate grep, broad
-    sharp-cast grep, `pnpm audit:effect-first`, and `git diff --check` after
-    refreshing audit docs and final checklist wording.
+  - Latest focused evidence: Review 188 ran DB/React-DB/Solid-DB typechecks,
+    broad sharp-cast grep review, stale sharp-cast zero-hit wording grep,
+    `pnpm audit:effect-first`, and `git diff --check` after tightening DB
+    sharp-cast seams and refreshing sharp-cast docs.
     Latest full evidence:
-    `pnpm verify` ran after Review 187 with 53 test files / 1033 tests.
+    `pnpm verify` ran after Review 188 with 53 test files / 1033 tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.
@@ -794,12 +795,12 @@ Last evidence pass: May 16, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 187 audit-doc current-gate and
-    checklist refresh. Future architecture sweeps remain tracked in
+  - Evidence: no new ADR required for the Review 188 DB sharp-cast and docs
+    honesty refresh. Future architecture sweeps remain tracked in
     `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 187
-    audit-doc current-gate and checklist refresh:
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 188
+    DB sharp-cast and docs honesty refresh:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
     404 physical/virtual files, 53 root test files / 1033 tests,
@@ -808,8 +809,8 @@ Last evidence pass: May 16, 2026.
     16-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 187 records audit-doc current-gate grep, broad sharp-cast
-    grep, Effect-first audit, and whitespace check.
+  - Evidence: Review 188 records broad sharp-cast grep review, stale
+    sharp-cast zero-hit wording grep, Effect-first audit, and whitespace check.
     Full verification is recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items

@@ -12,18 +12,74 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review187, the audit-doc current-gate refresh found by the broader
-post-Review186 docs drift scan. Some older review entries remain below this tip
-from prior ledger merges; use this tip rather than file order alone when looking
-for the latest architecture sweep.
+Review188, the sharp-cast docs honesty refresh found by the first
+post-Review187 clean-sweep candidate. Some older review entries remain below
+this tip from prior ledger merges; use this tip rather than file order alone
+when looking for the latest architecture sweep.
 
 The fresh post-Review185 subagent sweep reported no actionable Core/React/Solid,
 DB/public API, or Start/devtools/scripts findings after focused verification.
-The docs preparation pass found the Review186 stale ledger sentence, and the
-broader audit-doc scan found the Review187 current-gate drift below. Do not
-start the clean-sweep counter until a fresh full sweep after Review187 finds no
+The docs preparation pass found the Review186 stale ledger sentence, the broader
+audit-doc scan found the Review187 current-gate drift, and the first
+post-Review187 clean-sweep candidate found the Review188 sharp-cast docs drift
+below. Do not start the clean-sweep counter until a fresh full sweep after
+Review188 finds no
 actionable Module, Interface, Seam, Adapter, Locality, Depth, Leverage, typed
 error, or docs drift work.
+
+## Review 188: DB Sharp-Cast And Docs Honesty
+
+Review188 fixed DB sharp-cast seams and sharp-cast docs that still overstated
+the current broad grep state.
+
+1. Sharp-Cast Source-State Wording
+   - Status: fixed.
+   - Files: `docs/release-notes.md`, `docs/perfection-progress.md`,
+     `docs/sharp-cast-audit.md`, `docs/architecture-deepening-review.md`,
+     `docs/ultimate-goal-checklist.md`.
+   - Problem: release notes and current status still said the broad sharp-cast
+     grep had no source hits or only package-source seams. The current grep
+     still reports named Core, React, Solid, Start, Devtools, DB, example, and
+     type-test seams. The true invariant is narrower and stronger: no
+     `as any` or `@ts-ignore`, with remaining broad sharp-cast hits named and
+     documented as Adapter/runtime/test seams.
+   - Fix: updated the release notes, progress ledger, final checklist, and
+     sharp-cast audit to describe historical zero-hit checkpoints as historical
+     and the current broad grep as a named-seam inventory.
+   - Benefits: users and future agents no longer have to reconcile a
+     zero-hit claim against a nonzero grep; the docs tell them which seams are
+     intentional review targets.
+
+2. DB Sharp-Cast Reduction
+   - Status: fixed.
+   - Files: `packages/db/src/change-feed-dispatcher.ts`,
+     `packages/db/src/collection-change-feed-runtime.ts`,
+     `packages/db/src/live-query-collection.ts`,
+     `packages/db/src/runtime-collection-store.ts`,
+     `packages/react-db/test/react-db.test.ts`,
+     `packages/solid-db/test/solid-db.test.ts`.
+   - Problem: the DB/public API sweep found DB source casts that were either
+     removable or not named precisely enough, plus redundant React/Solid DB
+     delayed-cleanup Effect assertions in tests.
+   - Fix: typed change-feed dispatcher completions with the collection runtime
+     error channel, removed the inline Effect assertions from change-feed emit
+     and read-only live-query restore, named the Runtime Collection Store
+     weak-map state boundary, and removed redundant React/Solid DB delayed
+     cleanup Effect assertions.
+   - Benefits: the remaining DB-family broad sharp-cast hits are negative
+     validation fixtures and delayed-cleanup runtime test seams, not hidden
+     package-source Effect assertions.
+
+Focused verification after the patch: DB/React-DB/Solid-DB typechecks, stale
+sharp-cast zero-hit wording grep, current-gate wording grep, broad sharp-cast
+grep review, `pnpm audit:effect-first`, and `git diff --check` passed. Full
+`pnpm verify` passed after Review188 through the Effect-driven runner: 11
+package builds, workspace typecheck, public type tests, public API inventory
+audit, Effect-first audit over 404 physical/virtual files, 53 root test files /
+1033 tests, package-level verifies, generated starter packaging, 16-target
+package dry-run gate, project-console checks, and leak scans. This pass found
+actionable docs/source drift, so the Thirty-Sweep clean counter remains
+unstarted.
 
 ## Review 187: Audit Docs Current-Gate And Checklist Refresh
 

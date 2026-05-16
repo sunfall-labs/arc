@@ -23,7 +23,7 @@ const makeDelayedCleanupRuntime = () => {
     ) =>
       runtime.runFork(
         (delayForks
-          ? Effect.sleep("100 millis").pipe(Effect.andThen(effect as Effect.Effect<unknown, unknown, unknown>))
+          ? Effect.sleep("100 millis").pipe(Effect.andThen(effect))
           : effect) as never,
         options
       )) as typeof runtime.runFork

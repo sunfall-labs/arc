@@ -5,10 +5,10 @@ import type {
   CollectionWriteOptions
 } from "./collection-contract.js";
 
-export interface CollectionChangeFeedDispatch<A extends object, K extends CollectionKey> {
+export interface CollectionChangeFeedDispatch<A extends object, K extends CollectionKey, E> {
   readonly changes: ReadonlyArray<CollectionChange<A, K>>;
   readonly options: CollectionWriteOptions | undefined;
-  readonly completed?: Deferred.Deferred<void, unknown>;
+  readonly completed?: Deferred.Deferred<void, E>;
 }
 
 export type CollectionChangeFeedLateEmitPolicy = "drop";
@@ -17,7 +17,7 @@ export interface CollectionChangeFeedDispatchPolicy {
   readonly lateEmit?: CollectionChangeFeedLateEmitPolicy;
 }
 
-export interface CollectionChangeFeedDispatcher<A extends object, K extends CollectionKey> {
+export interface CollectionChangeFeedDispatcher<A extends object, K extends CollectionKey, E> {
   readonly policy: Required<CollectionChangeFeedDispatchPolicy>;
   emitChanges(
     changes: ReadonlyArray<CollectionChange<A, K>>,
@@ -26,8 +26,8 @@ export interface CollectionChangeFeedDispatcher<A extends object, K extends Coll
   emitEffect(
     changes: ReadonlyArray<CollectionChange<A, K>>,
     options?: CollectionWriteOptions
-  ): Effect.Effect<void, unknown>;
-  takeEffect(): Effect.Effect<CollectionChangeFeedDispatch<A, K>>;
+  ): Effect.Effect<void, E>;
+  takeEffect(): Effect.Effect<CollectionChangeFeedDispatch<A, K, E>>;
   shutdownEffect(): Effect.Effect<void>;
 }
 
@@ -43,17 +43,18 @@ const normalizePolicy = (
 
 export const makeCollectionChangeFeedDispatcherEffect = <
   A extends object,
-  K extends CollectionKey
+  K extends CollectionKey,
+  E = unknown
 >(
   policy?: CollectionChangeFeedDispatchPolicy
-): Effect.Effect<CollectionChangeFeedDispatcher<A, K>> =>
+): Effect.Effect<CollectionChangeFeedDispatcher<A, K, E>> =>
   Effect.gen(function* () {
-    const queue = yield* Queue.unbounded<CollectionChangeFeedDispatch<A, K>>();
+    const queue = yield* Queue.unbounded<CollectionChangeFeedDispatch<A, K, E>>();
     const normalized = normalizePolicy(policy);
     let closed = false;
 
     const emitDispatch = (
-      dispatch: CollectionChangeFeedDispatch<A, K>
+      dispatch: CollectionChangeFeedDispatch<A, K, E>
     ): boolean => {
       if (closed) {
         return false;
@@ -87,7 +88,7 @@ export const makeCollectionChangeFeedDispatcherEffect = <
       emitChanges: (changes, options) => emitDispatch({ changes, options }),
       emitEffect: (changes, options) =>
         Effect.gen(function* () {
-          const completed = yield* Deferred.make<void, unknown>();
+          const completed = yield* Deferred.make<void, E>();
           if (!emitDispatch({ changes, options, completed })) {
             return;
           }
@@ -100,11 +101,12 @@ export const makeCollectionChangeFeedDispatcherEffect = <
 
 export const scopedCollectionChangeFeedDispatcherEffect = <
   A extends object,
-  K extends CollectionKey
+  K extends CollectionKey,
+  E = unknown
 >(
   policy?: CollectionChangeFeedDispatchPolicy
-): Effect.Effect<CollectionChangeFeedDispatcher<A, K>, never, Scope.Scope> =>
+): Effect.Effect<CollectionChangeFeedDispatcher<A, K, E>, never, Scope.Scope> =>
   Effect.acquireRelease(
-    makeCollectionChangeFeedDispatcherEffect<A, K>(policy),
+    makeCollectionChangeFeedDispatcherEffect<A, K, E>(policy),
     (dispatcher) => dispatcher.shutdownEffect()
   );

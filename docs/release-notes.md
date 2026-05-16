@@ -65,7 +65,7 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 187:
+Latest full gate on May 16, 2026 after Review 188:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
@@ -86,6 +86,13 @@ Latest full gate on May 16, 2026 after Review 187:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 188 tightened the sharp-cast source state again: DB change-feed
+  dispatcher completion now carries the collection runtime error channel,
+  read-only live-query restore no longer needs an inline Effect assertion,
+  Runtime Collection Store names its weak-map state boundary, and React/Solid DB
+  delayed-cleanup tests dropped redundant Effect assertions. The sharp-cast docs
+  now name remaining package, example, and type-test seams instead of implying a
+  zero-hit broad grep.
 - Review 187 refreshed Effect-first, package-hygiene, and sharp-cast audit docs
   that still named Review185 as the current full gate after Review186, and
   corrected the final checklist's broad sharp-cast status so it names
@@ -685,9 +692,10 @@ Latest full gate on May 16, 2026 after Review 187:
   needs example-local Effect casts.
 - The latest `pnpm verify` passed after the Start runtime-boundary and example
   UI effect cleanup.
-- The broad sharp-cast grep now reports no source hits after schema,
-  EffectInput, Start preload/adapter, DB query variance, and core runtime
-  service-erasure cleanup.
+- At that historical checkpoint, the broad sharp-cast grep reported no source
+  hits after schema, EffectInput, Start preload/adapter, DB query variance, and
+  core runtime service-erasure cleanup. The current broad grep is tracked as a
+  named-seam inventory in `docs/sharp-cast-audit.md`.
 - The latest `pnpm verify` passed after the broad sharp-cast cleanup.
 - Core runtime service erasure now sits at the `ManagedRuntime<any, ER>` value
   boundary instead of casting provided Effect programs.
@@ -740,9 +748,10 @@ Latest full gate on May 16, 2026 after Review 187:
   aliases.
 - The latest `pnpm verify` passed after the core runtime and signal wildcard
   boundary cleanup.
-- The broad sharp-cast grep is clean across package, example, script, and
-  type-test source after replacing the last two test-only `as Effect.Effect`
-  assertions.
+- At that historical checkpoint, the broad sharp-cast grep was clean across
+  package, example, script, and type-test source after replacing the last two
+  test-only `as Effect.Effect` assertions. Later adapters and tests introduced
+  named seams now tracked in `docs/sharp-cast-audit.md`.
 - The latest `pnpm verify` passed after the test sharp Effect assertion cleanup.
 - Package-source fire-and-forget effects now run as detached fibers rather than
   floating `runPromise(...)` calls; Promise runners remain at Promise-returning
@@ -998,8 +1007,8 @@ Latest full gate on May 16, 2026 after Review 187:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 187 refreshed audit-doc
-  current-gate wording and final checklist sharp-cast status. A fresh
+- The latest full `pnpm verify` passed after Review 188 tightened DB
+  sharp-cast seams and refreshed sharp-cast docs honesty. A fresh
   no-actionable-findings sweep still
   needs to run before any clean-sweep count can start.
   Verification covered 11 package builds, workspace

@@ -39,11 +39,13 @@ zero hits.
   `@ts-expect-error`, and form snapshots use a precise mutable helper instead
   of a broad cast.
 - The current broad sharp-cast grep still reports named Adapter seams in Core
-  runtime/action/effect-input helpers, Solid runtime/router/link JSX bridges,
-  Start request-runtime/preload/handler/transport host boundaries, Devtools
-  detached value serialization, DB collection EffectInput conversion, and
-  project-console test runtime helpers. Treat those as explicit review targets,
-  not as hidden cleanup debt.
+  runtime/action/effect-input helpers, React runtime/router/render-scope
+  bridges, Solid runtime/router/link JSX bridges, Start
+  request-runtime/preload/handler/transport host boundaries, Devtools detached
+  value serialization, DB schema/SQLite negative validation fixtures, React-DB
+  and Solid-DB delayed-cleanup runtime test helpers, project-console runtime
+  helpers, and public type-test assertion fixtures. Treat those as explicit
+  review targets, not as hidden cleanup debt.
 - DB query builder variance no longer appears in the broad `as unknown as`
   sweep: `QueryBuilder` carries predicate and ordering functions across
   context-widening joins through `NextContext extends TContext`, and its
@@ -135,7 +137,7 @@ zero hits.
 
 ## Verification Evidence
 
-The current full verification gate is recorded in the Review 187 ledgers: 11
+The current full verification gate is recorded in the Review 188 ledgers: 11
 package builds, workspace typecheck, type tests, public API inventory audit,
 Effect-first audit over 404 files, 53 root test files / 1033 tests,
 package-level verifies, generated starter-suite packaging/verifies for
