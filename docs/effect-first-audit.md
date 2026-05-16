@@ -1086,11 +1086,15 @@ interruption.
 - Start diagnostics CLI parser compatibility now also runs the Effect v4 command
   tree and interprets `CliError.ShowHelp` instead of hand-sniffing argv for
   command names, help flags, or unknown subcommands.
+- Start diagnostics CLI graph/impact query kinds now live as nested Effect v4
+  `Command` subcommands, with graph `--verbose` inherited through
+  `Command.withSharedFlags(...)` and kind query text still validated by Effect
+  `Argument` parsers.
 - Start Action Request Codec now owns schema-backed JSON/form request encoding
   and decoding in `start-action-request-codec.ts`; Start Transport Protocol
   keeps response/status/failure policy and compatibility re-exports.
-- The latest full `pnpm verify` passed after the Review 113 Start Action
-  Request Codec Module slice: 11 package builds, workspace typecheck, type
+- The latest full `pnpm verify` passed after the Review 114 Start Diagnostics
+  CLI Query Kind Subcommands slice: 11 package builds, workspace typecheck, type
   tests, public API inventory audit, Effect-first audit over 226
   package/example/script/type-test files, 52 root test files / 860 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
@@ -1099,8 +1103,8 @@ interruption.
   starter test file / 3 tests, project-console starter packaging, typecheck,
   4 project-console test files / 27 tests, build, and leak scans. Review 75
   added the public API inventory audit to the full gate, Review 86 kept the
-  scanner green over the expanded public type-test scope, and Review 113 kept
-  the Effect-first scanner green over its expanded 226-file scope.
+  scanner green over the expanded public type-test scope, and Reviews 113-114
+  kept the Effect-first scanner green over its expanded 226-file scope.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

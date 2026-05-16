@@ -372,9 +372,11 @@ Subpath exports:
 - `./virtual` owns virtual module typings only.
 - `effect-ui-start` owns diagnostics and agent graph CLI execution. Its
   bin/host wrapper defines the command tree with Effect v4 `Command`, `Flag`,
-  and `Argument` primitives, while the internal Start Diagnostics CLI Runner
-  Module owns parsed command execution, app graph diagnostics loading, agent
-  graph/impact projection, output formatting, and failure reporting. The
+  and `Argument` primitives, including graph/impact query-kind subcommands and
+  inherited graph `--verbose` shared-flag context, while the internal Start
+  Diagnostics CLI Runner Module owns parsed command execution, app graph
+  diagnostics loading, agent graph/impact projection, output formatting, and
+  failure reporting. The
   diagnostics loader acquires the temporary Vite server with
   `Effect.acquireRelease(...)` inside `Effect.scoped(...)`, so CLI and CI
   diagnostics close the Vite resource on success, typed failure, or

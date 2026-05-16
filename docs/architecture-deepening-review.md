@@ -11,9 +11,43 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 113, immediately after Review 112. Some older review
+The newest review is Review 114, immediately after Review 113. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 114: Start Diagnostics CLI Query Kind Subcommands
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Start CLI grammar: `packages/start/src/cli.ts` now models each graph/impact
+  query kind (`route`, `action`, `resource`, `module`, and the rest) as nested
+  Effect v4 `Command` subcommands under `graph` and `impact`.
+- Shared flags: graph `--verbose` is now an Effect CLI shared flag on the graph
+  command, so `graph --verbose route ...`, `graph route --verbose ...`, and
+  `graph route ... --verbose` all flow through the same command context.
+- Argument policy: kind-specific query text remains an Effect v4
+  `Argument.variadic(...)` plus `Argument.mapEffect(...)` parser, preserving the
+  existing too-many-args and missing-impact-query diagnostics while letting the
+  command tree own help/completion shape for the known kinds.
+- Regression coverage: the Start CLI tests now pin generated nested help for
+  `effect-ui-start graph route --help` as well as the existing parser/runtime
+  behavior for query execution and invalid input.
+
+Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm
+--filter @effect-ui/start build`, `pnpm exec vitest run
+packages/start/test/start.test.ts -t "parses and runs the Start diagnostics CLI
+wrapper|invalid Start diagnostics CLI input|queryable Start agent graph|high-signal
+Start impact brief"` (1 file / 4 selected tests), `pnpm exec vitest run
+packages/start/test/start.test.ts` (1 file / 130 tests), `pnpm
+typecheck:types`, `pnpm audit:effect-first` over 226 files, and `git diff
+--check` passed. Full `pnpm verify` passed: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 226 files, 52 root test files / 860 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, project-console packaging/typecheck/
+tests/build with 4 files / 27 tests, and leak scans.
 
 ## Review 113: Start Action Request Codec Module
 

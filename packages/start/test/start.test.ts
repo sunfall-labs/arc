@@ -5657,6 +5657,20 @@ describe("Effect UI Start", () => {
     expect(helpStdout.join("\n")).toContain("USAGE");
     expect(helpStdout.join("\n")).toContain("effect-ui-start <subcommand> [flags]");
 
+    const graphRouteHelpStdout: string[] = [];
+    const graphRouteHelpStderr: string[] = [];
+    const graphRouteHelpResult = await Effect.runPromise(
+      runStartDiagnosticsCliEffect(["graph", "route", "--help"], {
+        stdout: (text) => graphRouteHelpStdout.push(text),
+        stderr: (text) => graphRouteHelpStderr.push(text),
+        loadDiagnosticsEffect: () => Effect.die("unreachable")
+      })
+    );
+    expect(graphRouteHelpResult.exitCode).toBe(0);
+    expect(graphRouteHelpStderr).toEqual([]);
+    expect(graphRouteHelpStdout.join("\n")).toContain("effect-ui-start graph route [flags] <query...>");
+    expect(graphRouteHelpStdout.join("\n")).toContain("Optional graph query text.");
+
     const versionStdout: string[] = [];
     const versionStderr: string[] = [];
     const versionResult = await Effect.runPromise(
