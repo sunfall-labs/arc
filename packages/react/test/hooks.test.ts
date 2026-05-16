@@ -1,6 +1,6 @@
 import { Action, makeRuntime, Program, Resource, Signal } from "@effect-ui/core";
 import { Window } from "happy-dom";
-import { Context, Deferred, Effect, Fiber, Layer, Scope } from "effect";
+import { Context, Deferred, Effect, Fiber, Layer, Scope, Stream } from "effect";
 import { Suspense, act, createElement, useEffect, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { describe, expect, it } from "vitest";
@@ -425,6 +425,58 @@ describe("react hooks", () => {
           await Effect.runPromise(program!.dispatchEffect("go"));
         });
         expect(program?.model).toEqual({ name: "second" });
+      });
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("does not start React Programs for suspended render work", async () => {
+    const runtime = makeRuntime();
+    let starts = 0;
+    const suspended = {
+      then: () => undefined
+    } satisfies PromiseLike<void>;
+    const SuspendedProgram = Program.define<number, "tick">({
+      initial: 0,
+      update: (model) => Program.next(model + 1),
+      subscriptions: () =>
+        Program.subscription(
+          Stream.fromEffect(
+            Effect.sync(() => {
+              starts++;
+              return "tick" as const;
+            })
+          )
+        )
+    });
+
+    try {
+      await withReactRoot(async (root) => {
+        function Capture() {
+          useProgram(SuspendedProgram);
+          throw suspended;
+        }
+
+        await act(async () => {
+          root.render(
+            createElement(
+              RuntimeProvider,
+              { runtime },
+              createElement(
+                Suspense,
+                { fallback: createElement("span", null, "loading") },
+                createElement(Capture)
+              )
+            )
+          );
+        });
+
+        await act(async () => {
+          await Effect.runPromise(Effect.sleep("20 millis"));
+        });
+
+        expect(starts).toBe(0);
       });
     } finally {
       await Effect.runPromise(runtime.disposeEffect);

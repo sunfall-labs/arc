@@ -16,7 +16,6 @@ import {
   Signal,
   type ActionInstance,
   type ActionResultInvalidationRequirements,
-  type AnyEffectUiRuntime,
   type EffectUiRuntime,
   type ForkScopedOptions,
   type ProgramEvent,
@@ -30,12 +29,14 @@ import {
   type ResourceRef,
   type ResourceState,
   type ResourceStore,
-  type UiScope
+  type UiScope,
+  type WritableSignal
 } from "@effect-ui/core";
 import { Effect, Fiber, Stream } from "effect";
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -125,6 +126,16 @@ export interface ProgramHandle<Model, Message, E = never> {
   clearFailures(): void;
 }
 
+type ReactProgramRuntimeError<E, ER> = Program.RuntimeError<E, ER>;
+
+interface ProgramBinding<Model, Message, RuntimeError> {
+  current: Program.Instance<Model, Message, RuntimeError> | undefined;
+  readonly model: WritableSignal<Model>;
+  readonly failures: WritableSignal<ReadonlyArray<ProgramFailure<Message, RuntimeError>>>;
+  readonly timeline: WritableSignal<ReadonlyArray<ProgramEvent<Model, Message, RuntimeError>>>;
+  instance: Program.Instance<Model, Message, RuntimeError>;
+}
+
 interface ResourceBinding<I, A, E, R, ER> {
   readonly state: ResourceState<A, Resource.LoadError<E>>;
   readonly preloadFailure: Resource.LoadError<E> | ER | undefined;
@@ -185,49 +196,94 @@ export const useRuntimeEffect = <ER = never>(): RuntimeEffectRunner<ER> => {
   );
 };
 
+const makeProgramBinding = <Model, Message, RuntimeError>(
+  initial: Model
+): ProgramBinding<Model, Message, RuntimeError> => {
+  const binding = {
+    current: undefined,
+    model: Signal.make(initial),
+    failures: Signal.make<ReadonlyArray<ProgramFailure<Message, RuntimeError>>>([]),
+    timeline: Signal.make<ReadonlyArray<ProgramEvent<Model, Message, RuntimeError>>>([])
+  } as ProgramBinding<Model, Message, RuntimeError>;
+
+  const disposeCurrentEffect: Effect.Effect<void> = Effect.suspend(() => {
+    const current = binding.current;
+    binding.current = undefined;
+    return current?.disposeEffect ?? Effect.void;
+  });
+
+  binding.instance = {
+    model: binding.model,
+    state: binding.model,
+    failures: binding.failures,
+    timeline: binding.timeline,
+    dispatch: (message) => {
+      binding.current?.dispatch(message);
+    },
+    dispatchEffect: (message) =>
+      Effect.suspend(() => binding.current?.dispatchEffect(message) ?? Effect.void),
+    clearFailures: () => {
+      binding.failures.set([]);
+      binding.current?.clearFailures();
+    },
+    clearTimeline: () => {
+      binding.timeline.set([]);
+      binding.current?.clearTimeline();
+    },
+    disposeEffect: disposeCurrentEffect
+  };
+
+  return binding;
+};
+
 /** Starts an Effect UI Program and exposes its model as React values. */
 export const useProgram = <Model, Message, E = never, R = never, ER = never>(
   definition: Program.Definition<Model, Message, E, R>
 ): ProgramHandle<Model, Message, Program.RuntimeError<E, ER>> => {
   const runtime = useRuntime<ER>();
   const scope = useComponentScope();
-  const instanceRef = useRef<{
-    readonly definition: Program.Definition<Model, Message, E, R>;
-    readonly runtime: AnyEffectUiRuntime<ER>;
-    readonly scope: UiScope;
-    readonly instance: Program.Instance<Model, Message, Program.RuntimeError<E, ER>>;
-  } | undefined>(undefined);
+  type RuntimeError = ReactProgramRuntimeError<E, ER>;
+  const binding = useMemo(
+    () => makeProgramBinding<Model, Message, RuntimeError>(definition.initial),
+    [definition, runtime, scope]
+  );
 
-  if (
-    instanceRef.current === undefined ||
-    instanceRef.current.definition !== definition ||
-    instanceRef.current.runtime !== runtime ||
-    instanceRef.current.scope !== scope
-  ) {
-    instanceRef.current = {
-      definition,
-      runtime,
-      scope,
-      instance: runWithRuntime(runtime, () =>
-        runWithScope(scope, () =>
-          Program.start<Model, Message, E, R, ER>(definition, {
-            runtime: runtime as unknown as EffectUiRuntime<R, ER>
-          })
-        )
+  useLayoutEffect(() => {
+    const started = runWithRuntime(runtime, () =>
+      runWithScope(scope, () =>
+        Program.start<Model, Message, E, R, ER>(definition, {
+          runtime: runtime as unknown as EffectUiRuntime<R, ER>
+        })
       )
-    };
-  }
+    );
+    binding.current = started;
 
-  const instance = instanceRef.current.instance;
-  useEffect(() => {
+    const syncModel = () => binding.model.set(coreRead(started.model));
+    const syncFailures = () => binding.failures.set(coreRead(started.failures));
+    const syncTimeline = () => binding.timeline.set(coreRead(started.timeline));
+    syncModel();
+    syncFailures();
+    syncTimeline();
+
+    const unsubscribeModel = started.model.subscribe(syncModel);
+    const unsubscribeFailures = started.failures.subscribe(syncFailures);
+    const unsubscribeTimeline = started.timeline.subscribe(syncTimeline);
+
     return () => {
-      void runtime.runFork(instance.disposeEffect.pipe(Effect.catch(() => Effect.void)));
+      unsubscribeModel();
+      unsubscribeFailures();
+      unsubscribeTimeline();
+      if (binding.current === started) {
+        binding.current = undefined;
+      }
+      void runtime.runFork(started.disposeEffect.pipe(Effect.catch(() => Effect.void)));
     };
-  }, [runtime, instance]);
+  }, [binding, definition, runtime, scope]);
 
-  const model = useSignal(instance.model);
-  const failures = useSignal(instance.failures);
-  const timeline = useSignal(instance.timeline);
+  const instance = binding.instance;
+  const model = useSignal(binding.model);
+  const failures = useSignal(binding.failures);
+  const timeline = useSignal(binding.timeline);
 
   return {
     instance,
