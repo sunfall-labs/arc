@@ -649,13 +649,13 @@ Last evidence pass: May 16, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 177 ran Core/React/Solid typechecks, public
-    type tests, public API inventory audit, Core scope tests 1 file / 9 tests,
-    React router tests 1 file / 14 tests, Solid router tests 1 file / 31
-    tests, React/Solid hook tests 2 files / 40 tests, Effect-first audit over
-    403 files, and `git diff --check` after adding the Runtime UI Scope Frame.
+  - Latest focused evidence: Review 178 ran Core/React/Solid/React starter
+    typechecks, public type tests, public API inventory audit, Core
+    browser-router tests 1 file / 15 tests, React router tests 1 file / 15
+    tests, Solid router tests 1 file / 31 tests, and React starter tests 1 file
+    / 3 tests after adding the Browser Router Initial Matched State Policy.
     Latest full evidence:
-    `pnpm verify` ran after Review 177 with 53 test files / 1029 tests.
+    `pnpm verify` ran after Review 178 with 53 test files / 1031 tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.
@@ -794,15 +794,15 @@ Last evidence pass: May 16, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 177 Runtime UI Scope Frame
-    cleanup. Future architecture sweeps remain tracked in
+  - Evidence: no new ADR required for the Review 178 Browser Router Initial
+    Matched State cleanup. Future architecture sweeps remain tracked in
     `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 177
-    Runtime UI Scope Frame cleanup:
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 178
+    Browser Router Initial Matched State cleanup:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
-    403 physical/virtual files, 53 root test files / 1029 tests, devtools-panel verify with 1
+    403 physical/virtual files, 53 root test files / 1031 tests, devtools-panel verify with 1
     panel test file / 2 tests,
     devtools-extension verify with 1 extension test file / 20 tests, basic
     starter verify with 1 starter test file / 2 tests, React starter verify
@@ -812,9 +812,9 @@ Last evidence pass: May 16, 2026.
     project-console typecheck, 4 project-console test files / 27 tests,
     project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 177 records Core/React/Solid typechecks, public type
-    tests, public API inventory audit, focused Core/React/Solid tests,
-    Effect-first audit, and diff hygiene.
+  - Evidence: Review 178 records Core/React/Solid/React starter typechecks,
+    public type tests, public API inventory audit, focused Core/React/Solid
+    router tests, and React starter tests.
     Full verification is recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items

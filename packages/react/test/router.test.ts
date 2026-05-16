@@ -1,8 +1,9 @@
 import { makeMemoryBrowserHistoryAdapter, makeRuntime, onDispose, Resource, route, runWithRuntime, type BrowserRouterState } from "@effect-ui/core";
-import { Cause, Effect } from "effect";
+import { Cause, Deferred, Effect } from "effect";
 import { Window } from "happy-dom";
 import { act, Component, createElement, Fragment, useState, type ReactNode } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import { createRoot, hydrateRoot, type Root } from "react-dom/client";
+import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import {
   RouterLink,
@@ -118,6 +119,67 @@ describe("react router", () => {
 
       expect(container.textContent).toBe("Home");
     });
+  });
+
+  it("starts matched routes ready while React hydrates existing DOM", async () => {
+    const cleanupDom = installDom("http://effect-ui.test/hydrating-projects/atlas");
+    const runtime = makeRuntime();
+    const release = await Effect.runPromise(Deferred.make<void>());
+    const Project = route("/hydrating-projects/:id", {
+      preload: () => Deferred.await(release),
+      component: ({ params }) => createElement("h1", {}, `Project ${(params as { id: string }).id}`)
+    });
+    const routes = [Project] as const;
+    const container = document.createElement("div");
+    container.innerHTML = renderToString(createElement("h1", {}, "Project atlas"));
+    document.body.appendChild(container);
+    let root: Root | undefined;
+    const errors: string[] = [];
+    const previousError = console.error;
+    console.error = (...args: ReadonlyArray<unknown>) => {
+      errors.push(args.map(String).join(" "));
+    };
+
+    try {
+      await act(async () => {
+        root = hydrateRoot(
+          container,
+          createElement(
+            RuntimeProvider,
+            { runtime },
+            createElement(RouterProvider, {
+              routes,
+              initialHref: "/hydrating-projects/atlas",
+              runtime,
+              hydrating: true,
+              pending: () => createElement("h1", {}, "Pending")
+            })
+          )
+        );
+        await Effect.runPromise(Effect.sleep(0));
+      });
+
+      expect(container.textContent).toBe("Project atlas");
+      expect(errors.filter((message) =>
+        message.includes("Hydration failed") ||
+        message.includes("did not match")
+      )).toEqual([]);
+
+      await act(async () => {
+        await Effect.runPromise(Deferred.succeed(release, undefined));
+        await Effect.runPromise(Effect.sleep(0));
+      });
+      expect(container.textContent).toBe("Project atlas");
+    } finally {
+      console.error = previousError;
+      if (root) {
+        await act(async () => {
+          root?.unmount();
+        });
+      }
+      await Effect.runPromise(runtime.disposeEffect);
+      cleanupDom();
+    }
   });
 
   it("navigates by href and updates RouterOutlet", async () => {

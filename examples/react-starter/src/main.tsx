@@ -23,7 +23,7 @@ hydrateFromDocument(document, undefined, { runtime });
 
 const Root = () => (
   <RuntimeProvider runtime={runtime}>
-    <App />
+    <App hydrating={root.hasChildNodes()} />
   </RuntimeProvider>
 );
 

@@ -12,10 +12,55 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review177, after the Review176 Public Hover Symbol Coverage cleanup.
+Review178, after the Review177 Runtime UI Scope Frame cleanup.
 Some older review entries remain below
 it from prior ledger merges; use this tip rather than file order alone when
 looking for the latest architecture sweep.
+
+## Review 178: Browser Router Initial Matched State
+
+Review178 fixed the fresh post-Review177 React/Solid hydration policy finding.
+
+1. Browser Router Initial Matched State Policy
+   - Status: fixed.
+   - Files: `packages/core/src/browser-router-kernel.ts`,
+     `packages/core/test/browser-router.test.ts`,
+     `packages/react/src/router.ts`, `packages/react/test/router.test.ts`,
+     `packages/solid/src/router.ts`, `examples/react-starter/src/App.tsx`,
+     `examples/react-starter/src/main.tsx`, `type-tests/core.test-d.ts`,
+     `type-tests/react.test-d.ts`, `type-tests/solid.test-d.ts`,
+     `scripts/public-api-symbol-policy.mjs`, `docs/public-api-inventory.md`,
+     `CONTEXT.md`.
+   - Problem: the Browser Router Host Controller exposed an
+     `initialMatchedState` Seam, but React and Solid still owned divergent
+     initial route-state policy. Solid started existing-DOM hydration ready;
+     React started every browser render pending, which could replace SSR-ready
+     output during `hydrateRoot` while route preload was unresolved.
+   - Fix: added Core `browserRouterInitialMatchedState(...)` plus typed host
+     facts for browser/server and hydration. React and Solid now consume the
+     shared policy. React exposes an explicit `hydrating` option and the React
+     starter passes it from the `hydrateRoot` branch; Solid keeps its existing
+     owner hydration detection while using the same Core helper.
+   - Benefits: initial route hydration policy now has one Core Interface.
+     Framework Adapters keep host detection and reactivity local while Core
+     owns the Ready-vs-Pending decision, giving better Locality and Leverage to
+     tests for future Adapters.
+
+Focused verification passed for Review178: Core, React, Solid, and React
+starter typechecks; public type tests; public API inventory audit; Core browser
+router tests 1 file / 15 tests; React router tests 1 file / 15 tests; Solid
+router tests 1 file / 31 tests; and React starter tests 1 file / 3 tests.
+
+Full `pnpm verify` passed after Review178 through the Effect-driven runner: 11
+package builds, workspace typecheck, public type tests, public API inventory
+audit, Effect-first audit over 403 physical/virtual
+package/example/config/script/type-test/generated/docs files, 53 root test
+files / 1031 tests, devtools-panel verify with 2 tests, devtools-extension
+verify with 20 tests, basic starter verify with 2 tests, React starter verify
+with 3 tests, starter package generation for basic/react/project-console at
+19/24/30 app files with 5/4/6 local packages, 16-target package dry-run gate,
+project-console typecheck, 4 project-console test files / 27 tests,
+project-console build, and leak scans.
 
 ## Review 177: Runtime UI Scope Frame
 

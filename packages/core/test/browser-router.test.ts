@@ -7,6 +7,7 @@ import {
   browserRouteRenderDecision,
   browserRouteRenderIdentity,
   browserRouteRenderKey,
+  browserRouterInitialMatchedState,
   createBrowserRouterHostController,
   createBrowserRouterKernel,
   isPlainLeftClick,
@@ -203,6 +204,30 @@ describe("browser router kernel", () => {
         notFound: () => undefined
       }
     }));
+  });
+
+  it("shares initial matched state policy across framework adapters", () => {
+    const Project = route("/initial-projects/:id");
+    const routes = [Project] as const;
+    const match = Project.match("/initial-projects/atlas");
+    expect(match).toBeDefined();
+
+    expect(browserRouterInitialMatchedState({
+      href: "/initial-projects/atlas",
+      match: match!,
+      host: "server"
+    })).toMatchObject({ _tag: "Ready" });
+    expect(browserRouterInitialMatchedState({
+      href: "/initial-projects/atlas",
+      match: match!,
+      host: "browser",
+      hydrating: true
+    })).toMatchObject({ _tag: "Ready" });
+    expect(browserRouterInitialMatchedState<typeof routes>({
+      href: "/initial-projects/atlas",
+      match: match!,
+      host: "browser"
+    })).toMatchObject({ _tag: "Pending" });
   });
 
   it("shares router link hover preload interruption across framework adapters", () =>

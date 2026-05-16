@@ -18,6 +18,41 @@ export type BrowserNavigateArgs<R extends AnyBrowserRoute> =
     ? [options?: Route.HrefOptions<R>, navigateOptions?: BrowserNavigateOptions]
     : [options: Route.HrefOptions<R>, navigateOptions?: BrowserNavigateOptions];
 
+/** Host environment used to choose the first matched router state. */
+export type BrowserRouterInitialMatchedHost = "browser" | "server";
+
+/** Input for the shared browser-router initial matched state policy. */
+export interface BrowserRouterInitialMatchedStateOptions<
+  Routes extends readonly AnyBrowserRoute[],
+  ER = never
+> {
+  /** Initial URL being matched. */
+  readonly href: string;
+  /** Route match for the initial URL. */
+  readonly match: Route.Match<Routes[number]>;
+  /** Host environment constructing the router. */
+  readonly host: BrowserRouterInitialMatchedHost;
+  /** True while the host is hydrating existing server-rendered DOM. */
+  readonly hydrating?: boolean;
+}
+
+/**
+ * Chooses the first matched browser-router state for framework adapters.
+ *
+ * Server rendering and hydration start `Ready` so the first client render
+ * preserves existing server output. Client-only browser mounts start `Pending`
+ * so route preload can show pending UI before the matched component renders.
+ */
+export const browserRouterInitialMatchedState = <
+  const Routes extends readonly AnyBrowserRoute[],
+  ER = never
+>(
+  options: BrowserRouterInitialMatchedStateOptions<Routes, ER>
+): Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Pending" | "Ready" }> =>
+  options.host === "browser" && options.hydrating !== true
+    ? { _tag: "Pending", href: options.href, match: options.match }
+    : { _tag: "Ready", href: options.href, match: options.match };
+
 /** Cause attached when a router helper receives a route outside its route list. */
 export class RouterRouteNotRegistered extends Data.TaggedError("RouterRouteNotRegistered")<{
   readonly path: string;

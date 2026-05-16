@@ -65,14 +65,14 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 177:
+Latest full gate on May 16, 2026 after Review 178:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
 - Effect-first audit over 403 package/example/config/script/type-test/generated
   template/docs-snippet physical and virtual files;
-- 53 root test files / 1029 tests;
+- 53 root test files / 1031 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
 - basic starter verify with 1 starter test file / 2 tests;
@@ -127,6 +127,10 @@ Latest full gate on May 16, 2026 after Review 177:
 - Review 177 closed the route-owned `UiScope` lifecycle duplication:
   `makeRuntimeUiScopeFrame(...)` now gives React and Solid adapters one Core
   runtime-plus-scope frame for component and route render lifetimes.
+- Review 178 closed the Browser Router Initial Matched State cleanup:
+  React and Solid now consume Core `browserRouterInitialMatchedState(...)` so
+  server rendering and host hydration start matched routes ready, while
+  client-only browser mounts can still start pending.
 - Review 167 closed shared Core route render identity for React/Solid route
   `UiScope` lifetimes, same-ref Resource preload failure cleanup after manual
   prefetch/refresh retry, detached Start agent graph facts, and React/Solid DB
@@ -960,12 +964,12 @@ Latest full gate on May 16, 2026 after Review 177:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 177 closed the Runtime UI
-  Scope Frame cleanup. Fresh no-new-improvement sweeps still
+- The latest full `pnpm verify` passed after Review 178 closed the Browser
+  Router Initial Matched State cleanup. Fresh no-new-improvement sweeps still
   need to start before any clean-sweep count can start.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 403 physical/virtual files, 53 root test files / 1029 tests,
+  Effect-first audit over 403 physical/virtual files, 53 root test files / 1031 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,
   generated starter-suite packaging/verifies for basic/react/project-console,

@@ -45,11 +45,13 @@ interface ReactProject {
 const reactRoutes = [route("/", {})] as const;
 const reactHistory = makeMemoryBrowserHistoryAdapter({ initialHref: "/" });
 const reactBrowserOptions: BrowserRouterOptions<typeof reactRoutes> = {
-  history: reactHistory
+  history: reactHistory,
+  hydrating: true
 };
 const reactProviderProps: RouterProviderProps<typeof reactRoutes> = {
   routes: reactRoutes,
-  history: reactHistory
+  history: reactHistory,
+  hydrating: true
 };
 const reactCountSignal = Signal.make(0);
 const reactSignalValue: number = useSignal(reactCountSignal);

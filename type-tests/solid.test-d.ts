@@ -45,11 +45,13 @@ interface SolidProject {
 const solidRoutes = [route("/", {})] as const;
 const solidHistory = makeMemoryBrowserHistoryAdapter({ initialHref: "/" });
 const solidBrowserOptions: BrowserRouterOptions<typeof solidRoutes> = {
-  history: solidHistory
+  history: solidHistory,
+  hydrating: true
 };
 const solidProviderProps: RouterProviderProps<typeof solidRoutes> = {
   routes: solidRoutes,
-  history: solidHistory
+  history: solidHistory,
+  hydrating: true
 };
 const solidCountSignal = Signal.make(0);
 const solidSignalValue = useSignal(solidCountSignal);

@@ -153,8 +153,9 @@ Release decisions:
   the grammar seam, so match results cannot silently collapse repeated params.
 - `browser-router` is an expert-public Browser Router Kernel and Browser
   History Adapter Module. React and Solid router Adapters use it for shared
-  route matching, preload state, link click/preload policy, current-href reads,
-  external history listeners, and programmatic history commits. The
+  route matching, preload state, initial matched-state policy, link
+  click/preload policy, current-href reads, external history listeners, and
+  programmatic history commits. The
   `BrowserRouterHostController` facade binds the Kernel to a History Adapter
   and owns idempotent start/dispose plus commit forwarding; framework adapters
   keep only reactivity projection and host owner cleanup. App code should
@@ -932,6 +933,10 @@ Release decisions:
 - React router preload matching uses the same ordered route list as navigation,
   so shadowed static/dynamic hrefs preload the route that `RouterProvider`
   renders.
+- `RouterProvider` and `createBrowserRouter(...)` accept `hydrating: true` when
+  React is hydrating existing server-rendered DOM. That fact is passed to the
+  Core Browser Router Initial Matched State Policy so the first matched render
+  stays `Ready` instead of replacing server output with pending UI.
 - `RouterOutlet` renders pending, failure, not-found, and matched route
   branches inside the router Runtime Spine and a route-owned `UiScope`, so Core
   render-seam helpers such as `Resource.status(...)`, `read(...)`,
@@ -1017,7 +1022,9 @@ Release decisions:
 - `createBrowserRouter(...)` and `RouterProvider` intentionally own browser
   `location`, `history`, `popstate`, route preload, and route scope lifecycle as
   one Solid browser Adapter. Core remains responsible for route definitions,
-  href building, and matching.
+  href building, matching, and initial matched-state policy. Solid detects
+  existing-DOM hydration by default and also accepts an explicit `hydrating`
+  option for tests or custom hosts.
 - When callers pass an explicit router runtime, the runtime type must include
   the services required by the route preload definitions. Ambient/default
   runtime fallback remains the host-owned escape hatch for app roots where

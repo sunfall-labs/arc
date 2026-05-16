@@ -1,4 +1,5 @@
 import {
+  browserRouterInitialMatchedState,
   createBrowserRouterHostController,
   Route,
   currentOrDefaultRuntime,
@@ -49,6 +50,8 @@ export interface BrowserRouterOptions<
 > {
   /** Initial URL used for tests or SSR hydration. Defaults to `window.location.href`. */
   readonly initialHref?: string;
+  /** True when the initial browser render hydrates existing server-rendered DOM. */
+  readonly hydrating?: boolean;
   /** Host history Adapter. Defaults to `window.history` when a browser is available. */
   readonly history?: BrowserHistoryAdapter;
   /** Runtime used for route preload Effects and route components. */
@@ -91,6 +94,8 @@ export type RouterProviderProps<
   readonly routes: Routes;
   /** Initial URL used for tests or SSR hydration. */
   readonly initialHref?: string;
+  /** True when the initial browser render hydrates existing server-rendered DOM. */
+  readonly hydrating?: boolean;
   /** Host history Adapter. Defaults to `window.history` when a browser is available. */
   readonly history?: BrowserHistoryAdapter;
   readonly children?: ReactNode;
@@ -139,9 +144,12 @@ export const createBrowserRouter = <
     ...(options.history === undefined ? {} : { history: options.history }),
     ...(options.initialHref === undefined ? {} : { initialHref: options.initialHref }),
     initialMatchedState: (href, match) =>
-      canUseBrowser()
-        ? { _tag: "Pending", href, match }
-        : { _tag: "Ready", href, match }
+      browserRouterInitialMatchedState({
+        href,
+        match,
+        host: canUseBrowser() ? "browser" : "server",
+        ...(options.hydrating === undefined ? {} : { hydrating: options.hydrating })
+      })
   });
 
   return controller;
@@ -199,10 +207,11 @@ export const RouterProvider = <
         {
           runtime: routerRuntime,
           ...(props.history === undefined ? {} : { history: props.history }),
-          ...(props.initialHref === undefined ? {} : { initialHref: props.initialHref })
+          ...(props.initialHref === undefined ? {} : { initialHref: props.initialHref }),
+          ...(props.hydrating === undefined ? {} : { hydrating: props.hydrating })
         }
       ),
-    [props.routes, props.history, props.initialHref, routerRuntime]
+    [props.routes, props.history, props.initialHref, props.hydrating, routerRuntime]
   );
 
   useEffect(() => router.start(), [router]);

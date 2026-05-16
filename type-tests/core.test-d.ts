@@ -17,6 +17,7 @@ import {
   applyResponseContextEffect,
   browserRouteRenderDecision,
   browserRouteRenderKey,
+  browserRouterInitialMatchedState,
   browserRouterLinkClickDecision,
   browserRouterLinkPreloadDecision,
   browserRouterLinkPreloadIdentity,
@@ -68,6 +69,8 @@ import {
   type ActionResultValidationFailure,
   type BrowserHistoryAdapter,
   type BrowserHistoryWindow,
+  type BrowserRouterInitialMatchedHost,
+  type BrowserRouterInitialMatchedStateOptions,
   type BrowserNavigateOptions,
   type BrowserRouteRenderDecision,
   type BrowserRouterKernel,
@@ -107,6 +110,17 @@ const browserRouterKernelOptions: BrowserRouterKernelOptions<typeof coreRoutes, 
   initialHref: "/projects/atlas"
 };
 const browserRouterKernel = createBrowserRouterKernel(coreRoutes, browserRouterKernelOptions);
+const browserRouterInitialHost: BrowserRouterInitialMatchedHost = "browser";
+const browserRouterInitialMatch = coreRoutes[0].match("/projects/atlas");
+if (browserRouterInitialMatch) {
+  const initialMatchedStateOptions: BrowserRouterInitialMatchedStateOptions<typeof coreRoutes> = {
+    href: "/projects/atlas",
+    match: browserRouterInitialMatch,
+    host: browserRouterInitialHost,
+    hydrating: true
+  };
+  browserRouterInitialMatchedState(initialMatchedStateOptions)._tag;
+}
 const memoryHistory = makeMemoryBrowserHistoryAdapter({ initialHref: "/projects" });
 const windowHistory = makeWindowBrowserHistoryAdapter();
 const browserHistory: BrowserHistoryAdapter = memoryHistory;

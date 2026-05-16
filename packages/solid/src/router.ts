@@ -1,4 +1,5 @@
 import {
+  browserRouterInitialMatchedState,
   createBrowserRouterHostController,
   Route,
   currentOrDefaultRuntime,
@@ -60,6 +61,8 @@ export interface BrowserRouterOptions<
 > {
   /** Initial URL used for tests or SSR hydration. Defaults to `window.location.href`. */
   readonly initialHref?: string;
+  /** True when the initial browser render hydrates existing server-rendered DOM. */
+  readonly hydrating?: boolean;
   /** Host history Adapter. Defaults to `window.history` when a browser is available. */
   readonly history?: BrowserHistoryAdapter;
   /** Runtime used for route preload Effects and route component scopes. */
@@ -143,6 +146,8 @@ export type RouterProviderProps<
   readonly routes: Routes;
   /** Initial URL used for tests or SSR hydration. */
   readonly initialHref?: string;
+  /** True when the initial browser render hydrates existing server-rendered DOM. */
+  readonly hydrating?: boolean;
   /** Host history Adapter. Defaults to `window.history` when a browser is available. */
   readonly history?: BrowserHistoryAdapter;
   readonly children?: JSX.Element;
@@ -157,6 +162,7 @@ interface RouterProviderEntry<
   readonly routerRuntime: EffectUiRuntime<Route.PreloadRequirements<Routes[number]>, ER>;
   readonly history?: BrowserHistoryAdapter;
   readonly initialHref?: string;
+  readonly hydrating?: boolean;
 }
 
 /**
@@ -220,9 +226,12 @@ export const createBrowserRouter = <
     ...(options.history === undefined ? {} : { history: options.history }),
     ...(options.initialHref === undefined ? {} : { initialHref: options.initialHref }),
     initialMatchedState: (href, match) =>
-      canUseBrowser() && !isHydratingExistingDom()
-        ? { _tag: "Pending", href, match }
-        : { _tag: "Ready", href, match }
+      browserRouterInitialMatchedState({
+        href,
+        match,
+        host: canUseBrowser() ? "browser" : "server",
+        hydrating: options.hydrating ?? isHydratingExistingDom()
+      })
   });
   const [state, setState] = createSignal<BrowserRouterState<Routes, ER>>(
     controller.state.get()
@@ -345,7 +354,8 @@ export const RouterProvider = <
       runtime,
       routerRuntime: runtime as unknown as EffectUiRuntime<Route.PreloadRequirements<Routes[number]>, ER>,
       ...(props.history === undefined ? {} : { history: props.history }),
-      ...(props.initialHref === undefined ? {} : { initialHref: props.initialHref })
+      ...(props.initialHref === undefined ? {} : { initialHref: props.initialHref }),
+      ...(props.hydrating === undefined ? {} : { hydrating: props.hydrating })
     };
   });
   const [view, setView] = createSignal<JSX.Element>();
@@ -394,7 +404,8 @@ const RouterProviderInstance = <
     {
       runtime: entry.routerRuntime,
       ...(entry.history === undefined ? {} : { history: entry.history }),
-      ...(entry.initialHref === undefined ? {} : { initialHref: entry.initialHref })
+      ...(entry.initialHref === undefined ? {} : { initialHref: entry.initialHref }),
+      ...(entry.hydrating === undefined ? {} : { hydrating: entry.hydrating })
     }
   );
   return createComponent(RuntimeContext.Provider, {

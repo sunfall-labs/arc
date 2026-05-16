@@ -182,6 +182,9 @@ export const publicHoverDocGroups = [
   {
     file: "packages/core/src/browser-router-kernel.ts",
     declarations: [
+      "BrowserRouterInitialMatchedHost",
+      "BrowserRouterInitialMatchedStateOptions",
+      "browserRouterInitialMatchedState",
       "BrowserRouterKernelOptions",
       "BrowserRouterKernel",
       "createBrowserRouterKernel",
