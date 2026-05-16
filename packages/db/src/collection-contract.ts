@@ -207,9 +207,9 @@ export interface CollectionDefinition<A extends object, K extends CollectionKey 
   pendingMutations(): ReadonlyArray<CollectionPendingMutation<A, K>>;
   /** Retry all queued mutation handlers for this collection. */
   flushPendingMutationsEffect(): Effect.Effect<ReadonlyArray<CollectionTransaction<A, K>>, CollectionRuntimeError<E>, R>;
-  /** Capture a serializable snapshot with an Effect-provided timestamp. */
+  /** Capture a durable serializable snapshot with an Effect-provided timestamp. */
   snapshotEffect(): Effect.Effect<CollectionSnapshot<A, K>, CollectionSnapshotCodecError | EffectInputCallbackError>;
-  /** Capture a serializable snapshot using the current runtime store. */
+  /** Synchronous inspection snapshot; durable workflows should use `snapshotEffect`. */
   snapshot(): CollectionSnapshot<A, K>;
   /** Restore rows and pending mutations from a snapshot. */
   hydrateEffect(snapshot: CollectionSnapshot<A, K>, options?: CollectionHydrateOptions): Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError>;

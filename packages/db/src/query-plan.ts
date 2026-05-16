@@ -204,6 +204,12 @@ export const evaluateQueryOperation = <A>(
 export const joinKey = (value: QueryJoinKey): string =>
   value instanceof Date ? `Date:${value.toISOString()}` : stableStringify(value);
 
+export const evaluateQueryJoinKey = (value: QueryJoinKey): string =>
+  evaluateQueryOperation("join", () => joinKey(value));
+
+export const evaluateQueryGroupKey = (value: Record<string, unknown>): string =>
+  evaluateQueryOperation("aggregate", () => stableStringify(value));
+
 /** Validates alias and join invariants before a Query plan reads source rows. */
 export const validateQueryPlan = <TContext extends AnyQueryContext>(
   builder: QueryPlanBuilder<TContext>
@@ -326,13 +332,13 @@ export const buildQueryExecution = <TContext extends AnyQueryContext>(
     const rightRows = source.rowCount();
     for (const context of contexts) {
       const leftValue = evaluateQueryOperation("join", () => join.leftKey(context));
-      const left = joinKey(leftValue);
+      const left = evaluateQueryJoinKey(leftValue);
       const rows = join.rightIndex
         ? evaluateQueryOperation("join", () => source.indexRows(join.rightIndex!, leftValue))
         : source.rows();
       for (const row of rows) {
         const rightKeys = evaluateQueryOperation("join", () => join.rightKeys(row));
-        if (rightKeys.some((rightValue) => left === joinKey(rightValue))) {
+        if (rightKeys.some((rightValue) => left === evaluateQueryJoinKey(rightValue))) {
           joined.push({
             ...context,
             [join.alias]: row
@@ -392,7 +398,7 @@ export const groupContexts = (
     }
 
     const key = evaluateQueryOperation("aggregate", () => grouping.key(context));
-    const keyString = stableStringify(key);
+    const keyString = evaluateQueryGroupKey(key);
     const existing = groups.get(keyString);
     if (existing) {
       existing.values.push(context);

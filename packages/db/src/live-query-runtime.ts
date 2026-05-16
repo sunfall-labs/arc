@@ -18,8 +18,9 @@ import type { AnyCollection } from "./collection-contract.js";
 import {
   UnsupportedLiveQuery,
   compareValue,
+  evaluateQueryGroupKey,
+  evaluateQueryJoinKey,
   evaluateQueryOperation,
-  joinKey,
   type AnyCollectionRow,
   type AnyQueryAggregateRecord,
   type AnyQueryContext,
@@ -74,7 +75,12 @@ const crossJoinKey = "__effect_ui_db_all__";
 type IvmRuntimeOperator = IOperator<unknown>;
 
 const wrapIvmGrouping = (grouping: AnyQueryGrouping): AnyQueryGrouping => ({
-  key: (row) => evaluateQueryOperation("aggregate", () => grouping.key(row)),
+  key: (row) =>
+    evaluateQueryOperation("aggregate", () => {
+      const key = grouping.key(row);
+      evaluateQueryGroupKey(key);
+      return key;
+    }),
   sourceFilters: grouping.sourceFilters.map((filter) =>
     (row) => evaluateQueryOperation("filter", () => filter(row))
   ),
@@ -217,14 +223,17 @@ class IvmLiveQueryRuntime<TContext extends AnyQueryContext, TResult> implements 
 
       const keyedLeft = stream.pipe(
         ivmMap(([_, context]) =>
-          [joinKey(evaluateQueryOperation("join", () => join.leftKey(context))), context] satisfies KeyValue<string, IvmContext>
+          [
+            evaluateQueryJoinKey(evaluateQueryOperation("join", () => join.leftKey(context))),
+            context
+          ] satisfies KeyValue<string, IvmContext>
         )
       );
       const keyedRight = source.input.pipe(
         ivmFlatMap(([_, context]) => {
           const row = context[join.alias] as AnyCollectionRow;
           return evaluateQueryOperation("join", () => join.rightKeys(row)).map((rightKey) =>
-            [joinKey(rightKey), context] satisfies KeyValue<string, IvmContext>
+            [evaluateQueryJoinKey(rightKey), context] satisfies KeyValue<string, IvmContext>
           );
         })
       );

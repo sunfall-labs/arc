@@ -12,6 +12,7 @@ import type {
 import {
   CollectionSnapshotCodecError
 } from "./collection-snapshot-codec.js";
+import { withCollectionDurableCommitPermit } from "./collection-write-commit.js";
 import type {
   CollectionState
 } from "./collection-state.js";
@@ -235,3 +236,56 @@ export const collectionDurableSnapshotSources = (
   visit(definition);
   return sources;
 };
+
+const durableSnapshotSourceOrder = new WeakMap<AnyCollection, number>();
+let nextDurableSnapshotSourceOrder = 0;
+
+const durableSnapshotSourceOrderOf = (definition: AnyCollection): number => {
+  const existing = durableSnapshotSourceOrder.get(definition);
+  if (existing !== undefined) {
+    return existing;
+  }
+
+  const order = nextDurableSnapshotSourceOrder++;
+  durableSnapshotSourceOrder.set(definition, order);
+  return order;
+};
+
+/**
+ * Plans the concrete writable sources whose durable commit permits protect a
+ * snapshot payload.
+ *
+ * Store-explicit definitions such as live-query collections can expand to
+ * transitive source collections. The returned sources are deduped by
+ * definition identity and sorted deterministically so unrelated callers cannot
+ * acquire the same permits in opposite order.
+ */
+export const collectionDurableSnapshotPermitSources = (
+  definitions: Iterable<AnyCollection>
+): ReadonlyArray<AnyCollection> => {
+  const sources = new Set<AnyCollection>();
+  for (const definition of definitions) {
+    for (const source of collectionDurableSnapshotSources(definition)) {
+      sources.add(source);
+    }
+  }
+
+  return Array.from(sources).sort((left, right) => {
+    const byName = left.name.localeCompare(right.name);
+    return byName === 0
+      ? durableSnapshotSourceOrderOf(left) - durableSnapshotSourceOrderOf(right)
+      : byName;
+  });
+};
+
+/** Acquires all durable snapshot permits for a payload using the shared plan. */
+export const withCollectionDurableSnapshotPermits = <A, E, R>(
+  store: CollectionPersistenceStore,
+  definitions: Iterable<AnyCollection>,
+  effect: Effect.Effect<A, E, R>
+): Effect.Effect<A, E, R> =>
+  collectionDurableSnapshotPermitSources(definitions).reduceRight(
+    (current, source) =>
+      withCollectionDurableCommitPermit(store.state(source), current),
+    effect
+  );

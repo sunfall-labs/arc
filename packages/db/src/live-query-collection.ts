@@ -8,6 +8,7 @@ import { ReadonlyCollectionMutation } from "./collection-errors.js";
 import { CollectionSnapshotCodecError } from "./collection-snapshot-codec.js";
 import {
   markStoreExplicitCollectionSnapshotDefinition,
+  withCollectionDurableSnapshotPermits,
   type StoreExplicitCollectionSnapshotImplementation
 } from "./collection-definition-snapshot.js";
 import { persistCollectionSnapshotEffect } from "./collection-persistence.js";
@@ -138,7 +139,11 @@ export const makeLiveQueryCollectionDefinition = <
       Effect.gen(function* () {
         const store = yield* collectionStoreEffect;
         const updatedAt = yield* Clock.currentTimeMillis;
-        return yield* materialization.snapshotWithStoreEffect(store, updatedAt);
+        return yield* withCollectionDurableSnapshotPermits(
+          store,
+          [definition],
+          materialization.snapshotWithStoreEffect(store, updatedAt)
+        );
       }),
     snapshot: () => materialization.snapshot(Date.now()),
     snapshotWithStore: (store, updatedAt) =>
@@ -159,7 +164,11 @@ export const makeLiveQueryCollectionDefinition = <
       Effect.gen(function* () {
         const store = yield* collectionStoreEffect;
         const updatedAt = yield* Clock.currentTimeMillis;
-        const snapshot = yield* materialization.snapshotWithStoreEffect(store, updatedAt);
+        const snapshot = yield* withCollectionDurableSnapshotPermits(
+          store,
+          [definition],
+          materialization.snapshotWithStoreEffect(store, updatedAt)
+        );
         yield* persistCollectionSnapshotEffect(
           definition,
           Effect.succeed(snapshot),

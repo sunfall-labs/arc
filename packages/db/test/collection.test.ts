@@ -6110,6 +6110,100 @@ describe("Query", () => {
     });
   });
 
+  it("normalizes invalid join key encoding as join evaluation errors", async () => {
+    const invalidDate = new Date(Number.NaN);
+    const Projects = Collection.define<Project>({
+      name: "Projects.invalid-join-key",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+      ]
+    });
+    const Tasks = Collection.define<Task>({
+      name: "Tasks.invalid-join-key",
+      getKey: (task) => task.id,
+      initialData: [
+        { id: "t1", projectId: "atlas", title: "Retry workflow", done: false }
+      ]
+    });
+    const factory = (query: Query.Root) =>
+      query
+        .from({ project: Projects })
+        .join("task", Tasks, () => invalidDate, (task) => task.projectId)
+        .select(({ project }) => project.name);
+
+    expect(() => Query.diagnostics(factory)).toThrow(QueryEvaluationError);
+    try {
+      Query.diagnostics(factory);
+      expect.fail("Expected query diagnostics to reject invalid join keys.");
+    } catch (error) {
+      expect(error).toBeInstanceOf(QueryEvaluationError);
+      expect(error).toMatchObject({ operation: "join" });
+    }
+
+    const onceExit = await Effect.runPromiseExit(Query.onceEffect(factory));
+    expect(Exit.isFailure(onceExit)).toBe(true);
+    if (Exit.isFailure(onceExit)) {
+      const error = onceExit.cause.reasons.find(Cause.isFailReason)?.error;
+      expect(error).toBeInstanceOf(QueryEvaluationError);
+      expect(error).toMatchObject({ operation: "join" });
+    }
+
+    const live = Query.live(factory);
+    expect(live.state.get()).toMatchObject({
+      _tag: "Failure",
+      error: {
+        _tag: "QueryEvaluationError",
+        operation: "join"
+      }
+    });
+  });
+
+  it("normalizes invalid group key encoding as aggregate evaluation errors", async () => {
+    const invalidDate = new Date(Number.NaN);
+    const Projects = Collection.define<Project>({
+      name: "Projects.invalid-group-key",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+      ]
+    });
+    const factory = (query: Query.Root) =>
+      query
+        .from({ project: Projects })
+        .groupBy(
+          () => ({ createdAt: invalidDate }),
+          { count: Query.count() }
+        )
+        .select((group) => group.count);
+
+    expect(() => Query.diagnostics(factory)).toThrow(QueryEvaluationError);
+    try {
+      Query.diagnostics(factory);
+      expect.fail("Expected query diagnostics to reject invalid group keys.");
+    } catch (error) {
+      expect(error).toBeInstanceOf(QueryEvaluationError);
+      expect(error).toMatchObject({ operation: "aggregate" });
+    }
+
+    const onceExit = await Effect.runPromiseExit(Query.onceEffect(factory));
+    expect(Exit.isFailure(onceExit)).toBe(true);
+    if (Exit.isFailure(onceExit)) {
+      const error = onceExit.cause.reasons.find(Cause.isFailReason)?.error;
+      expect(error).toBeInstanceOf(QueryEvaluationError);
+      expect(error).toMatchObject({ operation: "aggregate" });
+    }
+
+    const live = Query.live(factory);
+    expect(live.state.get()).toMatchObject({
+      _tag: "Failure",
+      error: {
+        _tag: "QueryEvaluationError",
+        operation: "aggregate"
+      }
+    });
+  });
+
   it("rejects query joins without registered source aliases consistently", async () => {
     const Projects = Collection.define<Project>({
       name: "Projects.missing-query-join-source",

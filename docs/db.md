@@ -465,14 +465,19 @@ enqueuing into an unconsumed dispatcher.
 
 ## Persistence And Hydration
 
-Collections expose synchronous helpers for UI/runtime-bound code and Effect
-forms for SSR, route preload, tests, and server adapters:
+Collections expose synchronous inspection helpers for UI/runtime-bound code and
+Effect forms for durable SSR, route preload, tests, and server adapters:
 
 ```ts
 const snapshot = yield* Projects.snapshotEffect()
 
 yield* Projects.hydrateEffect(snapshot)
 ```
+
+Use `snapshotEffect(...)` and `Collection.dehydrateEffect(...)` for hydration,
+persistence, and server payloads. The synchronous `snapshot()` and
+`Collection.dehydrate(...)` helpers are inspection views of the current runtime
+store; they do not wait behind in-flight durable commit permits.
 
 Multiple collections can travel as one hydration payload:
 

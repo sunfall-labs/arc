@@ -16,8 +16,6 @@ import {
   detachCollectionRow
 } from "./collection-value-detachment.js";
 import { CollectionSnapshotCodecError } from "./collection-snapshot-codec.js";
-import { withCollectionDurableCommitPermit } from "./collection-write-commit.js";
-import { collectionDurableSnapshotSources } from "./collection-definition-snapshot.js";
 import { ingestCollectionOutputRowsSync } from "./collection-row-ingress.js";
 import {
   currentCollectionStore,
@@ -160,22 +158,10 @@ export const makeLiveQueryCollectionMaterialization = <
   options: LiveQueryCollectionMaterializationOptions<A, K, E, R>
 ): LiveQueryCollectionMaterialization<A, K, E> => {
   const storeAdapters = new WeakMap<RuntimeCollectionStore, LiveQueryCollectionStoreMaterialization<A, K, E>>();
-  const sourceCollections = Array.from(new Set(
-    options.live.sources.flatMap((source) => collectionDurableSnapshotSources(source))
-  ));
   const currentRuntimeCollectionStore = (): RuntimeCollectionStore =>
     currentCollectionStore() as RuntimeCollectionStore;
   const withStore = <Out>(store: RuntimeCollectionStore, evaluate: () => Out): Out =>
     runWithCollectionStore(store, evaluate);
-  const withSourceDurableCommitPermits = <Out, E2, R2>(
-    store: RuntimeCollectionStore,
-    effect: Effect.Effect<Out, E2, R2>
-  ): Effect.Effect<Out, E2, R2> =>
-    sourceCollections.reduceRight(
-      (current, source) =>
-        withCollectionDurableCommitPermit(store.state(source), current),
-      effect
-    );
   const storeAdapter = (
     store: RuntimeCollectionStore
   ): LiveQueryCollectionStoreMaterialization<A, K, E> => {
@@ -375,17 +361,14 @@ export const makeLiveQueryCollectionMaterialization = <
     store: RuntimeCollectionStore,
     updatedAt: number
   ) =>
-    withSourceDurableCommitPermits(
-      store,
-      Effect.try({
-        try: () => runWithCollectionStore(store, () => {
-          const adapter = storeAdapter(store);
-          return adapter.snapshot(updatedAt);
-        }),
-        catch: (cause) =>
-          normalizeMaterializationError(options.name, "snapshot", cause)
-      })
-    );
+    Effect.try({
+      try: () => runWithCollectionStore(store, () => {
+        const adapter = storeAdapter(store);
+        return adapter.snapshot(updatedAt);
+      }),
+      catch: (cause) =>
+        normalizeMaterializationError(options.name, "snapshot", cause)
+    });
   const snapshotWithStore = (
     store: RuntimeCollectionStore,
     updatedAt: number

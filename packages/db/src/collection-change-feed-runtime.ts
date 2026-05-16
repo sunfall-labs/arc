@@ -45,7 +45,7 @@ export interface CollectionChangeFeedRuntimeOptions<
     options?: CollectionWriteOptions
   ) => Effect.Effect<void, CollectionRuntimeError<E>, R>;
   /** Publish an asynchronous emission failure without failing the subscription fiber. */
-  readonly publishFailure: (error: CollectionRuntimeError<E>) => Effect.Effect<void>;
+  readonly publishFailure: (error: unknown) => Effect.Effect<void>;
 }
 
 const collectionChangeFeedInputCallbackEffect = <A, E, R>(
@@ -59,6 +59,9 @@ const changeFeedUnsubscribe = (
   typeof subscription === "function"
     ? subscription
     : subscription?.unsubscribe;
+
+const changeFeedFailureError = <E>(cause: Cause.Cause<CollectionRuntimeError<E>>): unknown =>
+  cause.reasons.find(Cause.isFailReason)?.error ?? Cause.squash(cause);
 
 /**
  * Subscribe a change-feed adapter into one Collection Store runtime.
@@ -89,9 +92,7 @@ export const subscribeCollectionChangeFeedRuntimeEffect = <
             runtime.applyChanges(emission.changes, emission.options ?? options.write)
           );
           if (Exit.isFailure(exit)) {
-            yield* runtime.publishFailure(
-              exit.cause.reasons.find(Cause.isFailReason)?.error as CollectionRuntimeError<E>
-            );
+            yield* runtime.publishFailure(changeFeedFailureError(exit.cause));
           }
           if (emission.completed) {
             yield* Deferred.done(emission.completed, exit as Exit.Exit<void, unknown>).pipe(Effect.asVoid);

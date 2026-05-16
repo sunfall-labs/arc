@@ -3,6 +3,7 @@ import { Collection } from "@effect-ui/db";
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import { makeCollectionChangeFeedDispatcherEffect } from "../src/change-feed-dispatcher.js";
+import { subscribeCollectionChangeFeedRuntimeEffect } from "../src/collection-change-feed-runtime.js";
 
 interface Project {
   readonly id: string;
@@ -696,6 +697,39 @@ describe("Collection.syncOptions", () => {
       })
     );
   });
+
+  it("publishes meaningful host-callback change-feed defect failures", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const defect = new Error("change feed apply defect");
+          const failures: unknown[] = [];
+          let emitChanges!: Collection.ChangeFeedContext<Project>["emitChanges"];
+
+          yield* subscribeCollectionChangeFeedRuntimeEffect<Project, string, never, never>({
+            collection: "Projects.sync.feed-host-callback-defect",
+            adapter: {
+              name: "projects-host-feed-defect",
+              subscribe: (context) => {
+                emitChanges = context.emitChanges;
+              }
+            },
+            applyChanges: () => Effect.die(defect),
+            publishFailure: (error) =>
+              Effect.sync(() => {
+                failures.push(error);
+              })
+          });
+
+          emitChanges([
+            { _tag: "Upsert", value: { id: "orion", name: "Orion", archived: true } }
+          ]);
+          yield* Effect.sleep("0 millis");
+
+          expect(failures).toEqual([defect]);
+        })
+      )
+    ));
 
   it("drops host-callback change-feed emissions after dispatcher shutdown", () =>
     Effect.runPromise(

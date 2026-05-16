@@ -695,12 +695,12 @@ export namespace Collection {
     definition: CollectionDefinition<A, K, E, R>
   ): Effect.Effect<ReadonlyArray<CollectionTransaction<A, K>>, CollectionRuntimeError<E>, R> => definition.flushPendingMutationsEffect();
 
-  /** Capture a serializable snapshot with an Effect-provided timestamp. */
+  /** Capture a durable serializable snapshot with an Effect-provided timestamp. */
   export const snapshotEffect = <A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>
   ): Effect.Effect<CollectionSnapshot<A, K>, CollectionSnapshotCodecError | EffectInputCallbackError> => definition.snapshotEffect();
 
-  /** Capture a serializable snapshot using the current runtime store. */
+  /** Synchronous inspection snapshot; durable workflows should use `snapshotEffect`. */
   export const snapshot = <A extends object, K extends CollectionKey, E, R>(
     definition: CollectionDefinition<A, K, E, R>
   ): CollectionSnapshot<A, K> => definition.snapshot();
@@ -724,12 +724,12 @@ export namespace Collection {
     options?: CollectionHydrateOptions
   ): void => definition.hydrate(value, options);
 
-  /** Snapshot several collections synchronously for hydration or persistence. */
+  /** Snapshot several collections synchronously for UI inspection. */
   export const dehydrate = (
     collections: Iterable<AnyCollection>
   ): CollectionHydrationPayload => dehydrateCollections(collections);
 
-  /** Snapshot several collections with an Effect-provided timestamp. */
+  /** Snapshot several collections durably with an Effect-provided timestamp. */
   export const dehydrateEffect = (
     collections: Iterable<AnyCollection>
   ): Effect.Effect<CollectionHydrationPayload, CollectionSnapshotCodecError | EffectInputCallbackError> => dehydrateCollectionsEffect(collections);

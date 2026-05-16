@@ -2,7 +2,10 @@ import { EffectInputCallbackError, makeRuntime, runWithRuntime } from "@effect-u
 import { Collection, CollectionSnapshotCodecError, Query, QueryEvaluationError, ReadonlyCollectionMutation, eq } from "@effect-ui/db";
 import { Deferred, Effect, Exit, Fiber, Option, PubSub } from "effect";
 import { describe, expect, it, vi } from "vitest";
-import { markStoreExplicitCollectionSnapshotDefinition } from "../src/collection-definition-snapshot.js";
+import {
+  collectionDurableSnapshotPermitSources,
+  markStoreExplicitCollectionSnapshotDefinition
+} from "../src/collection-definition-snapshot.js";
 
 interface Project {
   readonly id: string;
@@ -945,6 +948,41 @@ describe("Collection.liveQuery", () => {
         }
       })
     ));
+
+  it("plans live query durable snapshot permit sources once in deterministic order", () => {
+    const Projects = Collection.define<Project>({
+      name: "Projects.live-query-durable-source-plan",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+      ]
+    });
+    const Tasks = Collection.define<{ readonly id: string; readonly projectId: string }>({
+      name: "Tasks.live-query-durable-source-plan",
+      getKey: (task) => task.id,
+      initialData: [
+        { id: "t1", projectId: "atlas" }
+      ]
+    });
+    const ProjectTasks = Collection.liveQuery<{ readonly id: string; readonly taskId: string }>({
+      name: "ProjectTasks.live-query-durable-source-plan",
+      getKey: (row) => row.taskId,
+      query: (query) =>
+        query
+          .from({ task: Tasks })
+          .join("project", Projects, ({ task }) => task.projectId, (project) => project.id)
+          .select(({ project, task }) => ({ id: project.id, taskId: task.id }))
+    });
+
+    expect(collectionDurableSnapshotPermitSources([ProjectTasks]).map((source) => source.name)).toEqual([
+      "Projects.live-query-durable-source-plan",
+      "Tasks.live-query-durable-source-plan"
+    ]);
+    expect(collectionDurableSnapshotPermitSources([Tasks, ProjectTasks, Projects]).map((source) => source.name)).toEqual([
+      "Projects.live-query-durable-source-plan",
+      "Tasks.live-query-durable-source-plan"
+    ]);
+  });
 
   it("rejects incomplete store-explicit snapshot markers instead of using the ambient store", () =>
     Effect.runPromise(
