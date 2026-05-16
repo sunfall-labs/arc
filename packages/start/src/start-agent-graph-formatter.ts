@@ -11,6 +11,7 @@ import {
 import {
   queryStartAgentGraph
 } from "./start-agent-graph-query.js";
+import { startAgentGraphFactText } from "./start-agent-graph-facts.js";
 import type {
   StartAgentGraph,
   StartAgentGraphEdge,
@@ -22,16 +23,33 @@ import type {
   StartAgentGraphSelfReview
 } from "./start-agent-graph-contract.js";
 
-const compactJson = (value: unknown): string =>
-  JSON.stringify(value);
+const formatFactValue = (value: unknown): string =>
+  startAgentGraphFactText(value);
 
 const formatFacts = (
   facts: Readonly<Record<string, unknown>>,
   indent: string
-): readonly string[] =>
-  Object.entries(facts).flatMap(([key, value]) =>
-    value === undefined ? [] : [`${indent}${key}: ${compactJson(value)}`]
-  );
+): readonly string[] => {
+  const lines: string[] = [];
+  try {
+    for (const key in facts) {
+      if (!Object.prototype.hasOwnProperty.call(facts, key)) {
+        continue;
+      }
+      try {
+        const value = facts[key];
+        if (value !== undefined) {
+          lines.push(`${indent}${key}: ${formatFactValue(value)}`);
+        }
+      } catch {
+        lines.push(`${indent}${key}: [Uninspectable]`);
+      }
+    }
+  } catch {
+    lines.push(`${indent}facts: ${formatFactValue(facts)}`);
+  }
+  return lines;
+};
 
 const formatNode = (
   node: StartAgentGraphNode,

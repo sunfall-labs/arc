@@ -29,6 +29,7 @@ import {
 import {
   createStartAgentGraphImpact,
   createStartAgentGraph,
+  formatStartAgentGraph,
   formatStartAgentGraphImpact,
   queryStartAgentGraph,
   queryStartAgentGraphEffect
@@ -1079,6 +1080,69 @@ describe("Start app graph", () => {
     expect(byId.nodes.map((node) => node.id)).toEqual(["action:Project.bigint"]);
     expect(byOwner.nodes.map((node) => node.owner)).toEqual(["src/project/actions.ts"]);
     expect(byLabel.nodes.map((node) => node.label)).toEqual(["Circular Route"]);
+    expect(formatStartAgentGraph(graph, { verbose: true })).toContain("submittedAt: 1");
+    expect(formatStartAgentGraph(graph, { verbose: true })).toContain("[Circular]");
+  });
+
+  it("queries and formats agent graph nodes with hostile fact objects", () => {
+    const hostileFacts: Record<string, unknown> = {
+      safe: "hostile"
+    };
+    Object.defineProperty(hostileFacts, "boom", {
+      enumerable: true,
+      get() {
+        throw new Error("fact boom");
+      }
+    });
+    Object.defineProperty(hostileFacts, Symbol.toStringTag, {
+      get() {
+        throw new Error("tag boom");
+      }
+    });
+
+    const graph: StartAgentGraph = {
+      version: 1,
+      summary: {
+        nodes: 1,
+        edges: 0,
+        routes: 1,
+        serverFunctions: 0,
+        actions: 0,
+        resourceFamilies: 0,
+        resourceTags: 0,
+        collections: 0,
+        findings: 0
+      },
+      selfReview: {
+        status: "pass",
+        policyClean: true,
+        wireComplete: true,
+        actionBehaviorKnown: true,
+        routePreloadsDeclared: true,
+        findingCount: 0
+      },
+      nodes: [
+        {
+          id: "route:route_hostile",
+          kind: "Route",
+          label: "Hostile Route",
+          status: "known",
+          owner: "src/routes/hostile.tsx",
+          facts: hostileFacts
+        }
+      ],
+      edges: [],
+      findings: []
+    };
+
+    const byLabel = queryStartAgentGraph(graph, {
+      text: "Hostile Route"
+    });
+    const verbose = formatStartAgentGraph(graph, { verbose: true });
+
+    expect(byLabel.nodes.map((node) => node.id)).toEqual(["route:route_hostile"]);
+    expect(verbose).toContain("safe: hostile");
+    expect(verbose).toContain("boom: [Uninspectable]");
   });
 
   it("derives a concise edit impact brief from the semantic graph", () => {
