@@ -12,16 +12,47 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review182, the DB Hover Docs and Expert Interface Pins cleanup. Some older
-review entries remain below it from prior ledger merges; use this tip rather
-than file order alone when looking for the latest architecture sweep.
+Review184, the current-status docs drift cleanup found by the fresh
+post-Review182 sweep. Some older review entries remain below this tip from
+prior ledger merges; use this tip rather than file order alone when looking for
+the latest architecture sweep.
 
-The latest subagent sweep closed all findings it raised: the Start,
-verification, and docs pass reported no actionable issue; the Core/React/Solid
-pass raised the two Review181 blockers; and the DB pass raised the public DB
-Interface and LSP hover-doc coverage closed in Review182. Do not start the
-clean-sweep counter until a fresh full sweep finds no actionable Module,
-Interface, Seam, Adapter, Locality, Depth, or Leverage work.
+The fresh post-Review182 subagent sweep reported no actionable Core/React/Solid
+or DB/public API findings after focused verification. The Start/devtools/scripts
+pass found only the Review184 docs wording drift below. Do not start the
+clean-sweep counter until a fresh full sweep after Review184 finds no
+actionable Module, Interface, Seam, Adapter, Locality, Depth, Leverage, or docs
+drift work.
+
+## Review 184: Current Status Docs Drift
+
+Review184 fixed the only actionable finding from the fresh post-Review182
+subagent sweep.
+
+1. Current Status Historical Review Wording
+   - Status: fixed.
+   - Files: `docs/perfection-progress.md`.
+   - Problem: the current-status section correctly named Review182 as the
+     latest focused slice and full gate, but later bullets still called
+     Review166 the "latest" slice and Review165/163 "previous" slices. That
+     reintroduced a current-facing docs drift Seam: readers had to reconcile
+     competing "latest" narratives before trusting the completion ledger.
+   - Fix: demoted those Review166/165/163 and Review167 bullets to historical
+     evidence language, leaving the current Review182/Review184 and clean-sweep
+     state as the only present-tense readiness narrative.
+   - Benefits: readiness docs regain Locality. Future sweeps can trust the
+     Current Status block without mentally subtracting old review wording.
+
+Focused verification after the patch: docs drift grep for stale "latest
+focused Review16" wording, `pnpm audit:effect-first`, and `git diff --check`
+passed. Full `pnpm verify` passed after Review184 through the Effect-driven
+runner: 11 package builds, workspace typecheck, public type tests, public API
+inventory audit, Effect-first audit over 404 physical/virtual files, 53 root
+test files / 1033 tests, package-level verifies, generated starter packaging,
+16-target package dry-run gate, project-console checks, and leak scans. The
+Core/React/Solid and DB/public API subagents reported no actionable findings
+and ran focused typechecks/tests; the Start/devtools/scripts subagent confirmed
+Review173 and Review179 remain closed and package dry-runs pass.
 
 ## Review 182: DB Hover Docs And Expert Interface Pins
 

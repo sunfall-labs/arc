@@ -65,7 +65,7 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 182:
+Latest full gate on May 16, 2026 after Review 184:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
@@ -145,6 +145,9 @@ Latest full gate on May 16, 2026 after Review 182:
   Collection contract types, Query plan diagnostics, flush/background-sync
   results, reactive binding helpers, server collection adapters, and SQLite
   persistence helpers are now covered by LSP docs and focused public API pins.
+- Review 184 closed current-status docs drift found by the fresh post-Review182
+  sweep: older Review166/165/163 and Review167 evidence now reads as historical
+  evidence instead of competing with the current Review182/184 readiness story.
 - Review 167 closed shared Core route render identity for React/Solid route
   `UiScope` lifetimes, same-ref Resource preload failure cleanup after manual
   prefetch/refresh retry, detached Start agent graph facts, and React/Solid DB
@@ -978,9 +981,10 @@ Latest full gate on May 16, 2026 after Review 182:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 182 closed the DB public
-  hover-doc and expert Interface pins. A fresh no-actionable-findings sweep
-  still needs to run before any clean-sweep count can start.
+- The latest full `pnpm verify` passed after Review 184 closed the
+  current-status docs drift found by the fresh post-Review182 sweep. A fresh
+  no-actionable-findings sweep still needs to run before any clean-sweep count
+  can start.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
   Effect-first audit over 404 physical/virtual files, 53 root test files / 1033

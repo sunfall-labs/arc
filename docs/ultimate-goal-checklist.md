@@ -649,14 +649,13 @@ Last evidence pass: May 16, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 182 ran `pnpm audit:public-api`,
-    `pnpm typecheck:types`, `pnpm --filter @effect-ui/db typecheck`, and
-    `pnpm audit:effect-first` after adding DB public hover docs and
-    expert-public Interface pins. Review 181 also ran the focused React/Solid
-    runtime locality regressions with `pnpm exec vitest run
-    packages/react/test/hooks.test.ts packages/solid/test/router.test.ts`.
+  - Latest focused evidence: Review 184 ran the stale current-status wording
+    grep, `pnpm audit:effect-first`, and `git diff --check` after demoting old
+    Review166/165/163 and Review167 bullets to historical evidence. The same
+    post-Review182 sweep reported no actionable Core/React/Solid or DB/public
+    API findings after focused typechecks/tests.
     Latest full evidence:
-    `pnpm verify` ran after Review 182 with 53 test files / 1033 tests.
+    `pnpm verify` ran after Review 184 with 53 test files / 1033 tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.
@@ -795,12 +794,12 @@ Last evidence pass: May 16, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 182 DB public hover-doc and
-    expert Interface pin cleanup. Future architecture sweeps remain tracked in
+  - Evidence: no new ADR required for the Review 184 current-status docs drift
+    cleanup. Future architecture sweeps remain tracked in
     `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 182
-    DB public hover-doc and expert Interface pin cleanup:
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 184
+    current-status docs drift cleanup:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
     404 physical/virtual files, 53 root test files / 1033 tests,
@@ -809,10 +808,10 @@ Last evidence pass: May 16, 2026.
     16-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 182 records the public API audit, DB typecheck, public
-    type tests, Effect-first audit, DB hover-doc policy coverage, and focused
-    DB public Interface pins. Review 181 records the React/Solid runtime
-    locality regressions.
+  - Evidence: Review 184 records the stale wording grep, Effect-first audit,
+    whitespace check, no-actionable Core/React/Solid and DB/public API subagent
+    sweeps, and Start/devtools/scripts confirmation that Review173/179 remain
+    closed.
     Full verification is recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items

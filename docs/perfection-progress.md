@@ -41,36 +41,22 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest focused Review182 slice is green for DB public hover docs and
-  expert-public DB Interface pins. The post-Review180 subagent sweep findings
-  are closed; the clean-sweep counter has not started because a fresh
-  no-actionable-findings sweep still needs to run after Review182.
-- The latest recorded full verification gate is green after Review182:
+- The latest focused Review184 slice is green for current-status docs drift
+  cleanup found by the fresh post-Review182 subagent sweep. Core/React/Solid and
+  DB/public API subagents reported no actionable findings in that sweep; the
+  Start/devtools/scripts subagent found the Review184 docs wording issue now
+  fixed.
+- The latest recorded full verification gate is green after Review184:
   `pnpm verify` completed with 53 root test files / 1033 tests, public API
   inventory audit, Effect-first audit over 404 physical/virtual files,
   package-level verifies, parallel example package verifies and leak scans,
   generated starter packaging, and the 16-target package dry-run gate.
-- The latest focused Review166 slice is green for mounted Resource UI retention
-  through `gcFor`, Solid route render updates keyed by state plus renderer
-  identity, DB no-op writes and single-tick hydration, observable change-feed
-  unsubscribe failures, generated route-output discovery exclusion, Start
-  diagnostics graph coherence, exact generated starter tarball app manifests,
-  structural public type-test references, and host-global Promise alias
-  scanning.
-- The previous focused Review165 slice is green for committed Program dispatch
-  acknowledgements during disposal, React runtime/preload observer stability,
-  payload-atomic DB hydration, failed live-query snapshot rejection, Start CLI
-  EffectInput output writers, default fetch abort-listener cleanup, dev SSR
-  Effect-owned reader cancellation, source-scoped companion identifiers,
-  semantic app-graph DTO validation, public adapter error pins, and
-  expression-position Promise static scanning.
-- The previous focused Review163 slice is green for Solid action accessor
-  adaptation, Resource preload observer EffectInput, DB hydrateable source
-  collection snapshots and query factory diagnostics, Start Vite 8 hot updates
-  and dev SSR body cancellation, exact source-package dry-runs, public API
-  pins, and Effect-first assignment-alias scanning.
-- The latest sweeps still found actionable Module, Interface, Seam, Adapter,
-  and Locality work, so the Thirty-Sweep clean counter has not started.
+- Historical Review166, Review165, and Review163 slices remain green evidence
+  for mounted Resource UI retention, Program dispatch disposal semantics,
+  payload-atomic DB hydration, Start CLI EffectInput writers, dev SSR
+  cancellation, public adapter pins, and Effect-first Promise alias scanning.
+- The latest completed sweep through Review184 still found actionable docs drift
+  work, so the Thirty-Sweep clean counter has not started.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
   example, script, and type-test sources while keeping negative runtime
   validation tests explicit.
@@ -179,19 +165,16 @@ or command result that proves it.
 - Package and example fire-and-forget effects now run as detached fibers rather
   than floating `runPromise(...)` calls; Promise runners remain at
   Promise-returning host/API boundaries.
-- The latest recorded full verification gate is green after Review 167: 53
-  root test files / 1025 tests plus public API inventory audit, Effect-first
-  audit over 274 files, generated starter-suite installs/verifies, the
-  16-target package dry-run gate, and the full example/starter/leak-scan gates.
-- The latest focused Review167 gate is green for shared Core route-render
+- Historical Review167 full verification remained green with 53 root test files
+  / 1025 tests plus public API inventory audit, Effect-first audit over 274
+  files, generated starter-suite installs/verifies, the 16-target package
+  dry-run gate, and the full example/starter/leak-scan gates.
+- Historical Review167 focused evidence covered shared Core route-render
   identity, Resource UI retry cleanup, detached Start agent graph facts, and
-  React/Solid DB adapter pins. Full verification is also green after Review167.
-- The previous focused Review163 gate is green for Core/Solid/DB/Start package
-  typechecks, public type tests, public API audit, Effect-first audit over 274
-  files, the 16-target package dry-run gate, Core/Solid focused tests 2 files /
-  23 tests, DB focused tests 2 files / 7 selected tests, Start focused tests 1
-  file / 8 selected tests, and `git diff --check`. Full verification is also
-  green after Review163.
+  React/Solid DB adapter pins. Historical Review163 focused evidence covered
+  Core/Solid/DB/Start package typechecks, public type tests, public API audit,
+  Effect-first audit over 274 files, the 16-target package dry-run gate,
+  focused Core/Solid/DB/Start tests, and `git diff --check`.
 - The final no-new-improvements clean-sweep gate is still open because the
   latest sweeps still found actionable implementation and docs work. Start the
   clean-sweep counter only after full code/docs/test passes stop finding
@@ -623,6 +606,7 @@ or command result that proves it.
 | 420 | Review 180 DB interface pins | `docs/architecture-deepening-review.md`; `docs/perfection-progress.md`; `docs/public-api-inventory.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md`; `packages/db/src/index.ts`; `type-tests/db.test-d.ts`; `type-tests/public-api.manifest.json` | Classified `createCollection`, `createLiveQuery`, and `createLiveQueryCollection` as compatibility aliases for the namespace-owned `Collection.define(...)`, `Query.live(...)`, and `Collection.liveQuery(...)` APIs. Added deprecation JSDoc and direct type-test/manifest pins so the compatibility surface remains deliberate. | Focused verification was covered by public API and type-test gates. Later full `pnpm verify` after Review182 covered the DB root surface with 53 root test files / 1033 tests. |
 | 421 | Review 181 adapter runtime locality | `docs/architecture-deepening-review.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md`; `packages/react/src/runtime.ts`; `packages/react/test/hooks.test.ts`; `packages/solid/src/router.ts`; `packages/solid/test/router.test.ts` | Fixed the two Core/React/Solid blockers found by the post-Review180 subagent sweep. React `useScoped(...)` now runs construction inside the active Runtime Spine as well as the `UiScope`; Solid `createBrowserRouter(...)` no longer starts browser navigation/preload work during non-browser construction. | Focused verification passed: `pnpm exec vitest run packages/react/test/hooks.test.ts packages/solid/test/router.test.ts`, `pnpm typecheck:types`, React/Solid package typechecks, and `pnpm audit:effect-first`. Full `pnpm verify` passed with 53 root test files / 1033 tests and all package/source/starter gates. |
 | 422 | Review 182 DB hover docs | `docs/architecture-deepening-review.md`; `docs/perfection-progress.md`; `docs/public-api-inventory.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md`; `packages/db/src/collection-contract.ts`; `packages/db/src/flush-policy.ts`; `packages/db/src/query-plan.ts`; `packages/db/src/sqlite-persistence.ts`; `scripts/public-api-symbol-policy.mjs`; `type-tests/db.test-d.ts`; `type-tests/public-api.manifest.json` | Added LSP-facing JSDoc and executable hover-doc policy coverage for DB Collection contract types, Query plan diagnostics, flush/background-sync results, reactive binding helpers, server collection adapters, and SQLite persistence helpers. Expanded focused DB type tests and manifest pins for expert-public reactive/server/flush/SQLite adapter seams. | Focused verification passed: `pnpm audit:public-api`, `pnpm typecheck:types`, `pnpm --filter @effect-ui/db typecheck`, and `pnpm audit:effect-first`. Full `pnpm verify` passed: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 404 files, 53 root test files / 1033 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console typecheck/tests/build, and leak scans. |
+| 423 | Review 184 current-status docs drift | `docs/architecture-deepening-review.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md` | Fixed the only actionable finding from the fresh post-Review182 subagent sweep: stale current-status bullets still called older Review166/165/163 and Review167 evidence "latest" or "previous." Those bullets now read as historical evidence, so Review182/Review184 and the clean-sweep state are the only current readiness narrative. | Focused verification passed: stale Review16 wording grep, `pnpm audit:effect-first`, and `git diff --check`. Full `pnpm verify` passed after Review184: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 404 files, 53 root test files / 1033 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. Core/React/Solid and DB/public API subagents reported no actionable findings and ran focused typechecks/tests; Start/devtools/scripts confirmed Review173/179 remain closed and package dry-runs pass. |
 
 ## Thirty-Sweep Gate
 
