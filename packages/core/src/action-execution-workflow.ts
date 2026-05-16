@@ -19,7 +19,11 @@ import {
   EffectInputCallbackError,
   toEffect
 } from "./effect-like.js";
-import { Resource, type ResourceInvalidation, type ResourceInvalidationPlan } from "./resource.js";
+import type { ResourceInvalidation, ResourceInvalidationPlan } from "./resource.js";
+import {
+  planResourceInvalidationEffect,
+  runResourceInvalidationPlanEffect
+} from "./resource-runtime.js";
 import type { ActionDefinition } from "./action.js";
 
 export const actionCallbackError = (
@@ -173,12 +177,12 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
           yield* submissions.interruptStaleEffect(submission);
 
           const invalidations = yield* invalidationsForEffect(definition, value, input);
-          const plan = yield* Resource.planInvalidationEffect(invalidations);
+          const plan = yield* planResourceInvalidationEffect(invalidations);
           yield* transaction.commit;
           rollback = Effect.void as ActionRollback<R>;
 
           if (invalidations.length > 0) {
-            yield* Resource.runInvalidationPlanEffect(plan);
+            yield* runResourceInvalidationPlanEffect(plan);
           }
 
           yield* submissions.successEffect(

@@ -200,6 +200,9 @@ Latest full gate on May 15, 2026:
 - Review 106 made Core Resource UI Binding consume Resource Runtime functions
   directly instead of routing sibling implementation calls through the public
   `Resource` facade.
+- Review 112 applied the same locality rule to Core Action Execution Workflow:
+  action invalidation planning/execution now calls Resource Runtime directly
+  while the public `Resource` facade remains the app-facing Interface.
 - Review 107 moved shared `effect-ui-start` diagnostics flags onto the root
   Effect v4 `Command.withSharedFlags(...)` grammar, so subcommands inherit
   parent flags instead of repeating them.

@@ -50,7 +50,7 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     CLI shared flags, Review 108 start diagnostics CLI query argument, Review
     109 start diagnostics CLI runtime dispatch, Review 110 start diagnostics
     CLI parser compatibility, and Review 111 query execution ordering parity
-    sweeps.
+    sweeps, plus Review 112 core action workflow resource runtime locality.
 
 ## Current Sweep Results
 
@@ -401,7 +401,10 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   ordering parity cleanup. Current docs now record that Query Execution Plan
   owns stable equal-order tie-break identity for one-shot and live query
   engines.
-- Updated current-facing verification snapshots after Review 111 full
+- Added Review 112 and progress entry 351 evidence for the Core Action Workflow
+  resource runtime locality cleanup. Current docs now record that action
+  invalidation planning/execution consumes Resource Runtime directly.
+- Updated current-facing verification snapshots after Review 112 full
   verification so the latest gate points at the 225-file Effect-first audit and
   52 root test files / 860 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are

@@ -11,9 +11,37 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 111, immediately after Review 110. Some older review
+The newest review is Review 112, immediately after Review 111. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 112: Core Action Workflow Resource Runtime Locality
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Core Action Execution Workflow: `packages/core/src/action-execution-workflow.ts`
+  now imports `planResourceInvalidationEffect(...)` and
+  `runResourceInvalidationPlanEffect(...)` directly from `resource-runtime.ts`.
+- Facade locality: the internal action workflow no longer value-imports the
+  public `Resource` namespace for sibling implementation calls. The public
+  `Resource.planInvalidationEffect(...)` and
+  `Resource.runInvalidationPlanEffect(...)` facade helpers remain the app-facing
+  Interface.
+- Runtime behavior: action invalidation planning/execution still uses the
+  active Resource Store through Effect context, but the internal dependency now
+  points at the Resource Runtime Module where that policy lives.
+
+Focused verification: `pnpm --filter @effect-ui/core typecheck`, `pnpm vitest
+run packages/core/test/action.test.ts packages/core/test/resource.test.ts` (2
+files / 90 tests), `pnpm audit:effect-first` over 225 files, and `git diff
+--check` passed. Full `pnpm verify` passed: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 225 files, 52 root test files / 860 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, project-console packaging/typecheck/
+tests/build with 4 files / 27 tests, and leak scans.
 
 ## Review 111: Query Execution Ordering Parity
 
