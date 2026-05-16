@@ -41,16 +41,15 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest focused Review174 slice is green for the Collection Policy Module
-  and stale Collection State row-replacement cleanup. The clean-sweep counter
-  has not started because fresh post-Review173 sweeps still have actionable
-  Core/React/Solid and public-symbol work.
-- The latest recorded full verification gate is green after Review174:
+- The latest focused Review175 slice is green for the Core Browser Router Link
+  Preload Identity helper consumed by React and Solid. The clean-sweep counter
+  has not started because fresh post-Review173 sweeps still have route
+  `UiScope` lifecycle and public-symbol work.
+- The latest recorded full verification gate is green after Review175:
   `pnpm verify` completed with 53 root test files / 1028 tests, public API
   inventory audit, Effect-first audit over 403 physical/virtual files,
   parallel example package verifies and leak scans, generated starter
-  packaging, and the 16-target package dry-run gate with the Start virtual
-  declaration byte check and 149-file `@effect-ui/db` package rehearsal active.
+  packaging, and the 16-target package dry-run gate.
 - The latest focused Review166 slice is green for mounted Resource UI retention
   through `gcFor`, Solid route render updates keyed by state plus renderer
   identity, DB no-op writes and single-tick hydration, observable change-feed
@@ -616,6 +615,7 @@ or command result that proves it.
 | 412 | Review 172 stale carry-forward docs | `docs/architecture-deepening-review.md`; `docs/release-notes.md` | Updated current-facing Review167 carry-forward language after Reviews168-171 closed the broader candidates or re-reviewed them as already handled. | Focused verification passed: `pnpm audit:effect-first` over 402 files and `git diff --check`. |
 | 413 | Review 173 Start virtual declaration artifact | `CONTEXT.md`; `docs/architecture-deepening-review.md`; `docs/generated-artifact-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md`; `packages/start/src/virtual-modules.d.ts`; `scripts/verify-package-dry-runs.mjs` | Added explicit package dry-run policy for the copied `@effect-ui/start/virtual` declaration Adapter. The gate now requires `dist/virtual.d.ts` to be packed, compares it byte-for-byte against `src/virtual-modules.d.ts`, rejects stale `dist/virtual.d.ts.map`, and self-tests the copied-declaration policy. The virtual declaration source indentation was normalized for LSP readability. | Focused verification passed: `node --check scripts/verify-package-dry-runs.mjs`; `pnpm --filter @effect-ui/start build`; `pnpm example:pack-dry-run`. Full `pnpm verify` passed: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 402 files, 53 root test files / 1028 tests, devtools-panel verify with 2 tests, devtools-extension verify with 20 tests, basic starter verify with 2 tests, React starter verify with 3 tests, project-console verify with 4 files / 27 tests plus build/leak scan, starter package generation, and the 16-target package dry-run gate. |
 | 414 | Review 174 collection policy cleanup | `CONTEXT.md`; `docs/architecture-deepening-review.md`; `docs/db.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md`; `packages/db/src/collection-policy.ts`; `packages/db/src/collection-state.ts`; `packages/db/src/collection-sync-load-policy.ts`; `packages/db/src/collection-mutation-workflow.ts` | Deleted stale `replaceCollectionRows(...)` from Collection State and added a focused Collection Policy Module so load and mutation retry both consume one `policy.retry` implementation Seam. Collection State now avoids carrying obsolete remote-row replacement policy that bypassed the newer row-ingress/load path. | Focused verification passed: DB typecheck, DB build, and DB collection tests 1 file / 139 tests. Full `pnpm verify` passed: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 403 files, 53 root test files / 1028 tests, devtools-panel verify with 2 tests, devtools-extension verify with 20 tests, basic starter verify with 2 tests, React starter verify with 3 tests, project-console verify with 4 files / 27 tests plus build/leak scan, starter package generation, and the 16-target package dry-run gate. |
+| 415 | Review 175 browser router link preload identity | `CONTEXT.md`; `docs/architecture-deepening-review.md`; `docs/perfection-progress.md`; `docs/public-api-inventory.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md`; `packages/core/src/browser-router-link.ts`; `packages/core/test/browser-router.test.ts`; `packages/react/src/link.ts`; `packages/solid/src/link.ts`; `scripts/public-api-symbol-policy.mjs`; `type-tests/core.test-d.ts`; `type-tests/framework.test-d.ts` | Added `browserRouterLinkPreloadIdentity(...)` to Core so React and Solid consume one stable preload-owner key/enablement Interface instead of duplicating key construction and event-free decision recomputation. Public docs, hover-symbol policy, and type tests pin the new expert-public helper. | Focused verification passed: Core/React/Solid typechecks, Core/React/Solid router tests 3 files / 59 tests, public type tests, and public API inventory audit. Full `pnpm verify` passed: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 403 files, 53 root test files / 1028 tests, devtools-panel verify with 2 tests, devtools-extension verify with 20 tests, basic starter verify with 2 tests, React starter verify with 3 tests, project-console verify with 4 files / 27 tests plus build/leak scan, starter package generation, and the 16-target package dry-run gate. |
 
 ## Thirty-Sweep Gate
 

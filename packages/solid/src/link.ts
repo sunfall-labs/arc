@@ -2,6 +2,7 @@ import {
   Route,
   browserRouterLinkClickDecision,
   browserRouterLinkPreloadDecision,
+  browserRouterLinkPreloadIdentity,
   isPlainLeftClick as coreIsPlainLeftClick,
   makeBrowserRouterLinkPreloader
 } from "@effect-ui/core";
@@ -44,9 +45,6 @@ const hrefArgs = <R extends AnyRoute>(
   options: Route.HrefOptions<R> | undefined
 ): Route.HrefArgs<R> =>
   (options === undefined ? [] : [options]) as Route.HrefArgs<R>;
-
-const preloadIdentityValue = (value: unknown): string =>
-  value === undefined ? "" : String(value);
 
 const callAnchorMouseHandler = (
   handler: AnchorMouseHandler | undefined,
@@ -105,23 +103,15 @@ export const RouterLink = <R extends AnyRoute>(
   createRenderEffect(() => {
     const canHandleRoute = router.canHandleRoute(route());
     const preload = local.preload !== false;
-    preloader.bindPreloadIdentity({
-      key: [
-        href(),
+    preloader.bindPreloadIdentity(
+      browserRouterLinkPreloadIdentity({
+        href: href(),
         preload,
         canHandleRoute,
-        preloadIdentityValue(anchorProps.target),
-        preloadIdentityValue(anchorProps.download)
-      ].join("\0"),
-      enabled:
-        browserRouterLinkPreloadDecision({
-          defaultPrevented: false,
-          preload,
-          canHandleRoute,
-          target: anchorProps.target,
-          download: anchorProps.download
-        })._tag === "Preload"
-    });
+        target: anchorProps.target,
+        download: anchorProps.download
+      })
+    );
   });
   createRenderEffect(() => {
     anchorElement?.setAttribute("href", href());

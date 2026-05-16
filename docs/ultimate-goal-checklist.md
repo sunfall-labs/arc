@@ -649,13 +649,13 @@ Last evidence pass: May 16, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 174 ran `pnpm --filter @effect-ui/db
-    typecheck`, `pnpm --filter @effect-ui/db build`, and `pnpm exec vitest run
-    packages/db/test/collection.test.ts` with 139 tests after adding the
-    Collection Policy Module and deleting stale Collection State row
-    replacement code.
+  - Latest focused evidence: Review 175 ran Core/React/Solid typechecks, Core
+    browser-router tests 1 file / 14 tests, React router tests 1 file / 14
+    tests, Solid router tests 1 file / 31 tests, public type tests, and public
+    API inventory audit after adding the Core RouterLink preload identity
+    helper.
     Latest full evidence:
-    `pnpm verify` ran after Review 174 with 53 test files / 1028 tests.
+    `pnpm verify` ran after Review 175 with 53 test files / 1028 tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.
@@ -794,12 +794,12 @@ Last evidence pass: May 16, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 174 Collection Policy cleanup.
-    Future architecture sweeps remain tracked in
+  - Evidence: no new ADR required for the Review 175 RouterLink preload
+    identity cleanup. Future architecture sweeps remain tracked in
     `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 174
-    Collection Policy cleanup:
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 175
+    RouterLink preload identity cleanup:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
     403 physical/virtual files, 53 root test files / 1028 tests, devtools-panel verify with 1
@@ -808,14 +808,13 @@ Last evidence pass: May 16, 2026.
     starter verify with 1 starter test file / 2 tests, React starter verify
     with 1 starter test file / 3 tests, generated starter-suite
     packaging/verifies for basic/react/project-console, 16-target package
-    dry-run gate including the Start virtual declaration byte check and
-    149-file `@effect-ui/db` package rehearsal,
+    dry-run gate,
     project-console typecheck, 4 project-console test files / 27 tests,
     project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 174 records the DB typecheck, DB build, and collection
-    tests focused verification. Full verification is recorded in the latest
-    full gate above.
+  - Evidence: Review 175 records Core/React/Solid typechecks, router tests,
+    public type tests, and public API inventory audit. Full verification is
+    recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items
 

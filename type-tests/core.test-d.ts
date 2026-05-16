@@ -19,6 +19,7 @@ import {
   browserRouteRenderKey,
   browserRouterLinkClickDecision,
   browserRouterLinkPreloadDecision,
+  browserRouterLinkPreloadIdentity,
   buildRoutePath,
   compareRoutePathSegment,
   compareRoutePathSpecificity,
@@ -74,6 +75,7 @@ import {
   type BrowserRouterLinkClickDecision,
   type BrowserRouterLinkPreloader,
   type BrowserRouterLinkPreloadIdentity,
+  type BrowserRouterLinkPreloadIdentityOptions,
   type BrowserRouterLinkPreloaderOptions,
   type BrowserRouterLinkPreloaderRuntime,
   type BrowserRouterLinkPreloadDecision,
@@ -369,6 +371,13 @@ const preloadDecision: BrowserRouterLinkPreloadDecision = browserRouterLinkPrelo
   preload: true,
   canHandleRoute: true
 });
+const preloadIdentityOptions: BrowserRouterLinkPreloadIdentityOptions = {
+  href: "/projects/atlas",
+  preload: true,
+  canHandleRoute: true
+};
+const preloadIdentity: BrowserRouterLinkPreloadIdentity =
+  browserRouterLinkPreloadIdentity(preloadIdentityOptions);
 interface CoreLinkPreloadApi {
   readonly warm: () => void;
 }

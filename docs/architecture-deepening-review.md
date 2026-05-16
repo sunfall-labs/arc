@@ -12,10 +12,52 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review174, after the Review173 Start virtual declaration artifact guardrail.
+Review175, after the Review174 Collection Policy cleanup.
 Some older review entries remain below
 it from prior ledger merges; use this tip rather than file order alone when
 looking for the latest architecture sweep.
+
+## Review 175: Browser Router Link Preload Identity
+
+Review175 fixed the Core/React/Solid RouterLink preload identity finding from
+the fresh post-Review173 architecture sweep.
+
+1. Browser Router Link Preload Identity
+   - Status: fixed.
+   - Files: `packages/core/src/browser-router-link.ts`,
+     `packages/react/src/link.ts`, `packages/solid/src/link.ts`,
+     `packages/core/test/browser-router.test.ts`,
+     `type-tests/core.test-d.ts`, `type-tests/framework.test-d.ts`,
+     `docs/public-api-inventory.md`, `CONTEXT.md`,
+     `scripts/public-api-symbol-policy.mjs`.
+   - Problem: Core already owned `BrowserRouterLinkPreloadIdentity`, but React
+     and Solid still built the identity key and enabled flag themselves. That
+     made the Core Interface shallow: adapters had to know the key fields,
+     string coercion, delimiter, and event-free enabled decision.
+   - Fix: added `browserRouterLinkPreloadIdentity(...)` and
+     `BrowserRouterLinkPreloadIdentityOptions` to the Core Browser Router Link
+     Decision policy. React and Solid now pass href, preload enablement, active
+     router membership, target, and download facts to Core instead of
+     reconstructing the key locally.
+   - Benefits: RouterLink preload identity has better Depth and Locality. The
+     public Core Interface owns the stable key contract, while framework
+     Adapters keep DOM events, host reactivity, and owner cleanup local.
+
+Focused verification passed for Review175: Core, React, and Solid typechecks;
+Core browser-router tests 1 file / 14 tests; React router tests 1 file / 14
+tests; Solid router tests 1 file / 31 tests; public type tests; and public API
+inventory audit.
+
+Full `pnpm verify` passed after Review175 through the Effect-driven runner: 11
+package builds, workspace typecheck, public type tests, public API inventory
+audit, Effect-first audit over 403 physical/virtual
+package/example/config/script/type-test/generated/docs files, 53 root test
+files / 1028 tests, devtools-panel verify with 2 tests, devtools-extension
+verify with 20 tests, basic starter verify with 2 tests, React starter verify
+with 3 tests, starter package generation for basic/react/project-console at
+19/24/30 app files with 5/4/6 local packages, 16-target package dry-run gate,
+project-console typecheck, 4 project-console test files / 27 tests,
+project-console build, and leak scans.
 
 ## Review 174: Collection Policy Cleanup
 

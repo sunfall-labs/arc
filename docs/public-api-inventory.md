@@ -161,9 +161,12 @@ Release decisions:
   `createBrowserRouterHostController(...)`,
   `makeMemoryBrowserHistoryAdapter(...)`,
   `makeWindowBrowserHistoryAdapter(...)`, and the browser-router types directly.
-- Browser router link decisions live in Core so framework adapters share the
-  same hover/click meaning. `browserRouterLinkPreloadDecision(...)`,
-  `browserRouterLinkClickDecision(...)`, `BrowserRouterLinkPreloadDecision`,
+- Browser router link decisions and preload identity live in Core so framework
+  adapters share the same hover/click meaning.
+  `browserRouterLinkPreloadDecision(...)`,
+  `browserRouterLinkPreloadIdentity(...)`,
+  `browserRouterLinkClickDecision(...)`,
+  `BrowserRouterLinkPreloadDecision`, `BrowserRouterLinkPreloadIdentity`,
   `BrowserRouterLinkClickDecision`, and `BrowserRouterLinkIgnoreReason` are
   expert-public for React, Solid, tests, and future adapters; app code should
   normally keep using framework `RouterLink` components. The

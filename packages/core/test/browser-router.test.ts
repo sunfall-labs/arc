@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   browserRouterLinkClickDecision,
   browserRouterLinkPreloadDecision,
+  browserRouterLinkPreloadIdentity,
   browserRouteRenderDecision,
   browserRouteRenderIdentity,
   browserRouteRenderKey,
@@ -75,6 +76,23 @@ describe("browser router kernel", () => {
       preload: true,
       canHandleRoute: false
     })).toEqual({ _tag: "Ignore", reason: "outside-router" });
+    expect(browserRouterLinkPreloadIdentity({
+      href: "/projects/atlas",
+      preload: true,
+      canHandleRoute: true
+    })).toEqual({
+      key: "/projects/atlas\u0000true\u0000true\u0000\u0000",
+      enabled: true
+    });
+    expect(browserRouterLinkPreloadIdentity({
+      href: "/projects/atlas",
+      preload: true,
+      canHandleRoute: true,
+      target: "_blank"
+    })).toEqual({
+      key: "/projects/atlas\u0000true\u0000true\u0000_blank\u0000",
+      enabled: false
+    });
     expect(browserRouterLinkClickDecision({
       event: plainClick,
       href: "/projects/atlas",

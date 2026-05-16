@@ -89,6 +89,8 @@ export const publicHoverDocGroups = [
       "BrowserRouterLinkPreloadDecisionOptions",
       "BrowserRouterLinkPreloadDecision",
       "browserRouterLinkPreloadDecision",
+      "BrowserRouterLinkPreloadIdentityOptions",
+      "browserRouterLinkPreloadIdentity",
       "BrowserRouterLinkClickDecisionOptions",
       "BrowserRouterLinkClickDecision",
       "browserRouterLinkClickDecision",

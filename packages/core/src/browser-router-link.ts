@@ -147,6 +147,40 @@ export interface BrowserRouterLinkPreloadIdentity {
   readonly enabled: boolean;
 }
 
+/** Facts used by Core to identify the current rendered link preload owner. */
+export interface BrowserRouterLinkPreloadIdentityOptions extends BrowserRouterLinkTarget {
+  /** Href already built from the route definition and current href options. */
+  readonly href: string;
+  /** Resolved RouterLink preload setting. Defaults are adapter-owned before this call. */
+  readonly preload: boolean;
+  /** Whether the route belongs to the active router provider. */
+  readonly canHandleRoute: boolean;
+}
+
+const browserRouterLinkPreloadIdentityValue = (value: unknown): string =>
+  value === undefined ? "" : String(value);
+
+/** Builds the stable link preload identity used by framework RouterLink adapters. */
+export const browserRouterLinkPreloadIdentity = (
+  options: BrowserRouterLinkPreloadIdentityOptions
+): BrowserRouterLinkPreloadIdentity => ({
+  key: [
+    options.href,
+    options.preload,
+    options.canHandleRoute,
+    browserRouterLinkPreloadIdentityValue(options.target),
+    browserRouterLinkPreloadIdentityValue(options.download)
+  ].join("\0"),
+  enabled:
+    browserRouterLinkPreloadDecision({
+      defaultPrevented: false,
+      preload: options.preload,
+      canHandleRoute: options.canHandleRoute,
+      target: options.target,
+      download: options.download
+    })._tag === "Preload"
+});
+
 /** Runtime capability required by the framework-neutral link preloader. */
 export interface BrowserRouterLinkPreloaderRuntime<ER = unknown> {
   /** Forks already provided, requirement-free link preload work. */

@@ -18,6 +18,7 @@ import {
   Signal,
   browserRouterLinkClickDecision,
   browserRouterLinkPreloadDecision,
+  browserRouterLinkPreloadIdentity,
   buildRoutePath,
   cloneResourceSnapshotValue,
   defineApp,
@@ -50,6 +51,7 @@ import {
   type BrowserRouterLinkClickDecision,
   type BrowserRouterLinkIgnoreReason,
   type BrowserRouterLinkPreloadDecision,
+  type BrowserRouterLinkPreloadIdentity,
   type EffectUiRuntime,
   type EffectInput,
   type MemoryBrowserHistoryAdapter,
@@ -689,6 +691,13 @@ const projectBrowserRouterPreload: Effect.Effect<void, Route.NavigationError> =
 const coreRouterLinkPreloadDecision: BrowserRouterLinkPreloadDecision =
   browserRouterLinkPreloadDecision({
     defaultPrevented: false,
+    preload: true,
+    canHandleRoute: true,
+    target: "_self"
+  });
+const coreRouterLinkPreloadIdentity: BrowserRouterLinkPreloadIdentity =
+  browserRouterLinkPreloadIdentity({
+    href: "/projects/atlas",
     preload: true,
     canHandleRoute: true,
     target: "_self"
