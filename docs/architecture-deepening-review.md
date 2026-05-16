@@ -11,9 +11,39 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 120, immediately after Review 119. Some older review
+The newest review is Review 121, immediately after Review 120. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 121: DB Collection Mutation Workflow Module
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Collection Mutation Workflow: added
+  `packages/db/src/collection-mutation-workflow.ts` as the focused Effect v4
+  Module for optimistic insert/update/delete and pending mutation flush
+  orchestration.
+- Effect ownership: the new Module owns mutation handler DTO detachment,
+  active-attempt `Deferred` joiners, `Schedule` retry, optimistic
+  commit/rollback, `CollectionMutate*` lifecycle events, mutation persistence,
+  and restored pending replay.
+- Runtime locality: `packages/db/src/collection-runtime.ts` now delegates
+  mutation and flush Effects to the workflow while keeping synchronous row
+  reads, direct writes, change-feed application, hydration, persistence facades,
+  and Collection facade construction local.
+- Dead seam cleanup: the old broad collection input helper exports disappeared;
+  callback Effect conversion now lives inside the owning load and mutation
+  Modules.
+
+Focused verification passed: `pnpm --filter @effect-ui/db typecheck`, `pnpm
+--filter @effect-ui/db build`, selected mutation/flush tests (1 file / 31
+selected tests), DB persisted/sync/flush tests (3 files / 26 tests), full DB
+collection tests (1 file / 102 tests), `pnpm typecheck:types`, `pnpm
+audit:public-api`, `pnpm audit:effect-first` over 231 files, and `git diff
+--check`.
+Full `pnpm verify` also passed after the slice.
 
 ## Review 120: Start Action Response Codec Module
 
@@ -6535,8 +6565,8 @@ verification.
      `packages/db/test/live-query-collection.test.ts`,
      `docs/public-api-inventory.md`, `CONTEXT.md`.
    - Problem: Live Query Collection persistence encoded and wrote snapshots
-     locally with `collectionInputEffect(storage.setItem(...))`, duplicating
-     storage callback policy from the Collection Persistence Module and missing
+     through a local EffectInput conversion, duplicating storage callback policy
+     from the Collection Persistence Module and missing
      `EffectInputCallbackError` normalization for synchronous storage Adapter
      throws.
    - Fix: introduced `persistCollectionSnapshotEffect(...)` in the shared

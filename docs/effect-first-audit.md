@@ -185,8 +185,8 @@ interruption.
     named bridge before entering the collection sync adapter path.
 - `packages/db/src/index.ts`
   - Collection persistence, restore, load, mutation handlers, change-feed
-    subscriptions, live-query persistence, and source preloads now reuse
-    `collectionInputEffect(...)` or direct Effect combinators instead of local
+    subscriptions, live-query persistence, and source preloads now use named
+    Effect helpers or direct Effect combinators instead of local
     requirement-erasure casts.
 - `packages/core/src/effect-like.ts`, `packages/core/src/route.ts`, and
   `packages/core/src/server.ts`
@@ -1105,6 +1105,10 @@ interruption.
   including in-flight `Deferred` ownership/joining, forced-refetch generation
   freshness, restore-before-load, load/refetch selection, retry, row
   replacement, lifecycle events, and load persistence.
+- DB Collection Mutation Workflow now owns optimistic insert/update/delete and
+  pending flush orchestration in `collection-mutation-workflow.ts`, including
+  active mutation `Deferred` joining, `Schedule` retry, handler DTO detachment,
+  commit/rollback, lifecycle events, and mutation persistence.
 - Browser Route Render Decision now lives in Core browser-router, so React and
   Solid route outlets share one adapter-neutral decision for pending, failure,
   not-found, ready component props, empty ready routes, and stable render keys.
@@ -1114,9 +1118,9 @@ interruption.
 - Devtools Panels and Store no longer expose internal single-adapter runtime
   injection seams. Effect wrappers and store Effect methods stay intact while
   pure projection dependencies live in the owning Modules.
-- The latest full `pnpm verify` passed after the Review 120 Start Action
-  Response Codec slice: 11 package builds, workspace typecheck, type tests,
-  public API inventory audit, Effect-first audit over 230
+- The latest full `pnpm verify` passed after the Review 121 DB Collection
+  Mutation Workflow slice: 11 package builds, workspace typecheck, type tests,
+  public API inventory audit, Effect-first audit over 231
   package/example/script/type-test files, 52 root test files / 861 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
@@ -1126,8 +1130,8 @@ interruption.
   added the public API inventory audit to the full gate, Review 86 kept the
   scanner green over the expanded public type-test scope, Review 113 expanded
   the scanner to 226 files, Review 115 expanded it to 227 files, Review 116
-  expanded it to 228 files, and Review 120 expanded it to 230 files while
-  keeping it green over that scope.
+  expanded it to 228 files, Review 120 expanded it to 230 files, and Review
+  121 expanded it to 231 files while keeping it green over that scope.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

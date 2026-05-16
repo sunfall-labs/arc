@@ -106,7 +106,7 @@ zero hits.
   return types, or a named server-collection PromiseLike bridge instead of
   scattering `Effect.Effect<..., R>` assertions through adapter methods.
 - DB collection persistence, load, mutation-handler, change-feed, and live-query
-  source preload paths now share `collectionInputEffect(...)` or direct Effect
+  source preload paths now use named Effect helpers or direct Effect
   combinators.
 - The DB default projector boundary remains because an unprojected query returns
   the current context shape, while `QueryBuilder` also supports selected result

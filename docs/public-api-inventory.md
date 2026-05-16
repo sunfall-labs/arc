@@ -529,18 +529,27 @@ Release decisions:
   locality. It remains internal; public access stays through
   `Collection.storeEffect()`, `Collection.currentStore()`, and
   `Collection.subscribeEventsEffect()`.
-- Collection Runtime intentionally owns mutation execution, pending flush replay,
-  direct writes, change-feed batch application, row metadata, persistence, event
-  publication, and live-query-visible versioning together while delegating store
-  lookup/lifecycle to the Runtime Collection Store Module and load/refetch
-  ordering to the Collection Sync Load Policy Module. Sync adapters emit batches
-  and loader Effects; they do not own store mutation or in-flight load policy.
+- Collection Runtime intentionally owns the public Collection facade, direct
+  writes, change-feed batch application, row metadata, hydration/persistence
+  facades, event publication, and live-query-visible versioning together while
+  delegating store lookup/lifecycle to the Runtime Collection Store Module,
+  load/refetch ordering to the Collection Sync Load Policy Module, and queued
+  optimistic mutation execution to the Collection Mutation Workflow Module. Sync
+  adapters emit batches and loader/mutation Effects; they do not own store
+  mutation or in-flight load policy.
 - The internal Collection Sync Load Policy Module owns `preloadEffect(...)` and
   `refetchEffect(...)` orchestration: in-flight `Deferred` ownership/joining,
   stale generation checks, restore-before-load, load/refetch selection, retry
   scheduling, row replacement, load lifecycle events, and load persistence. It
   is not exported; public access remains the same Collection load/refetch
   Effects.
+- The internal Collection Mutation Workflow Module owns `insertEffect(...)`,
+  `updateEffect(...)`, `deleteEffect(...)`, and `flushPendingMutationsEffect()`
+  orchestration: mutation row ingress, transaction construction, handler DTO
+  detachment, active `Deferred` attempt joining, retry scheduling, optimistic
+  commit/rollback, mutation lifecycle events, mutation persistence, and restored
+  pending replay. It is not exported; public access remains the same Collection
+  mutation and flush Effects.
 - The internal Collection Change Feed Runtime Module owns scoped feed
   subscription lifecycle, dispatcher consumer fibers, adapter
   subscribe/unsubscribe normalization, default write-option application,

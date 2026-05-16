@@ -437,8 +437,12 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   Response Codec extraction. Current docs now record that action response DTOs,
   response metadata, response encoding/parsing, and typed result decoding live
   in `start-action-response-codec.ts`.
-- Updated current-facing verification snapshots after Review 120 full
-  verification so the latest gate points at the 230-file Effect-first audit and
+- Added Review 121 and progress entry 360 evidence for the DB Collection
+  Mutation Workflow extraction. Current docs now record that optimistic
+  insert/update/delete and pending flush orchestration live in
+  `collection-mutation-workflow.ts`.
+- Updated current-facing verification snapshots after Review 121 full
+  verification so the latest gate points at the 231-file Effect-first audit and
   52 root test files / 861 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are
   wrapped with `Effect.tryPromise(...)` at the Adapter seam.

@@ -604,8 +604,9 @@ also refresh from the remote loader. Refetch always forces the loader. The
 internal Collection Sync Load Policy runs this as one Effect v4 workflow, so
 concurrent preloads join the same in-flight `Deferred` and a slower old preload
 cannot overwrite a newer forced refetch. The same policy persists fresh
-snapshots after loads, direct writes, and optimistic mutation queue changes,
-including in-flight pending mutations.
+snapshots after loads, while the internal Collection Mutation Workflow owns
+optimistic transaction persistence, active mutation `Deferred` joiners,
+commit/rollback, and restored pending flush replay.
 
 Pending optimistic transactions can be inspected separately:
 

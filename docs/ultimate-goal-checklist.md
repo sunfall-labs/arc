@@ -346,14 +346,19 @@ Last evidence pass: May 15, 2026.
     entering collection Effects.
 - [x] DB collection internals avoid local Effect requirement erasure outside query
   variance.
-  - Evidence: `packages/db/src/index.ts` uses `collectionInputEffect(...)` for
-    persistence, load, mutation, change-feed, and source-preload paths.
+  - Evidence: DB collection persistence, load, mutation, change-feed, and
+    source-preload paths use named Effect helpers or direct Effect combinators.
 - [x] DB query variance boundaries are named or expressed in helper types.
   - Evidence: `packages/db/src/index.ts` carries joined filter/order functions
     through `NextContext extends TContext`, and the unprojected identity path is
     isolated behind `projectCurrentContext(...)`.
 - [x] Collection retry policy uses Effect `Schedule`.
   - Evidence: collection load and mutation retry tests.
+- [x] Collection mutation workflow owns optimistic commit/rollback and pending
+  replay.
+  - Evidence: `packages/db/src/collection-mutation-workflow.ts` owns
+    insert/update/delete and flush orchestration; collection mutation, pending
+    queue, rollback persistence, and optimistic rebase tests cover it.
 - [x] Optimistic insert/update/delete mutations publish events and preserve
   rollback rows.
   - Evidence: collection optimistic success/failure, pending queue, rollback,
