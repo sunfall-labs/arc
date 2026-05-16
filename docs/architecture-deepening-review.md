@@ -12,9 +12,73 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review171, immediately after Review170. Some older review entries remain below
+Review173, after the Review172 stale-doc cleanup and Review171 public-symbol
+policy closure. Some older review entries remain below
 it from prior ledger merges; use this tip rather than file order alone when
 looking for the latest architecture sweep.
+
+## Review 173: Start Virtual Declaration Artifact Adapter
+
+Review173 fixed a generated-artifact guardrail gap found by the fresh
+post-Review171 Start/scripts/docs sweep.
+
+1. Start Virtual Declaration Artifact Adapter
+   - Status: fixed.
+   - Files: `scripts/verify-package-dry-runs.mjs`,
+     `packages/start/src/virtual-modules.d.ts`,
+     `docs/generated-artifact-audit.md`, `CONTEXT.md`.
+   - Problem: `@effect-ui/start/virtual` is a copied declaration Adapter:
+     `packages/start/src/virtual-modules.d.ts` is copied to
+     `packages/start/dist/virtual.d.ts`. The package dry-run gate verified that
+     the manifest target existed and that dist artifact stems matched source
+     stems, but it did not prove the copied public declaration bytes still
+     matched the source Interface or that stale `dist/virtual.d.ts.map` files
+     were absent.
+   - Fix: added explicit declaration artifact policy to the package dry-run
+     Module. `@effect-ui/start` now declares the source declaration, copied
+     output declaration, and forbidden declaration map. The verifier checks the
+     packed output path, compares source/output bytes through Effect, rejects
+     stale forbidden files, and self-tests the copied-declaration policy. The
+     source virtual declaration indentation was normalized so the public LSP
+     surface is readable before and after the build copy.
+   - Benefits: generated declaration Adapter policy gains Locality. The
+     package rehearsal now catches public virtual declaration drift at the same
+     release Seam that already catches package target and stale dist drift.
+
+Focused verification passed for Review173: `node --check
+scripts/verify-package-dry-runs.mjs`, `pnpm --filter @effect-ui/start build`,
+and `pnpm example:pack-dry-run`.
+
+Full `pnpm verify` passed after Review173 through the Effect-driven runner: 11
+package builds, workspace typecheck, public type tests, public API inventory
+audit, Effect-first audit over 402 physical/virtual
+package/example/config/script/type-test/generated/docs files, 53 root test
+files / 1028 tests, devtools-panel verify with 2 tests, devtools-extension
+verify with 20 tests, basic starter verify with 2 tests, React starter verify
+with 3 tests, starter package generation for basic/react/project-console at
+19/24/30 app files with 5/4/6 local packages, 16-target package dry-run gate
+including the Start virtual declaration byte check, project-console typecheck,
+4 project-console test files / 27 tests, project-console build, and leak scans.
+
+## Review 172: Stale Carry-Forward Docs Cleanup
+
+Review172 fixed current-facing docs that still said broader Review167
+candidates remained carried forward after Reviews168-171 had closed them.
+
+1. Review167 Follow-Up Status
+   - Status: fixed.
+   - Files: `docs/architecture-deepening-review.md`, `docs/release-notes.md`.
+   - Problem: old current-facing language still implied the Review167
+     starter/catalog, public symbol, docs snippet, Start abort, Devtools graph,
+     and Query Execution Plan candidates were open.
+   - Fix: updated the Review167 carry-forward section and release notes to
+     state that Reviews168-171 closed those candidates or, for the compiled
+     Query Execution Plan candidate, re-reviewed it as already handled.
+   - Benefits: the review ledger has better Locality for current status: fresh
+     sweeps do not have to mentally subtract already-closed follow-ups.
+
+Focused verification passed for Review172: `pnpm audit:effect-first` and
+`git diff --check`.
 
 ## Review 171: Public API Symbol Policy Module
 

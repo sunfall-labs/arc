@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { readdir, stat } from "node:fs/promises";
+import { readFile, readdir, stat } from "node:fs/promises";
 import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Data, Effect } from "effect";
@@ -25,7 +25,19 @@ const packagePayloadPolicies = new Map([
   ["@effect-ui/react-db", { payload: "dist-package" }],
   ["@effect-ui/solid", { payload: "dist-package" }],
   ["@effect-ui/solid-db", { payload: "dist-package" }],
-  ["@effect-ui/start", { payload: "dist-package" }],
+  [
+    "@effect-ui/start",
+    {
+      payload: "dist-package",
+      declarationArtifacts: [
+        {
+          source: "src/virtual-modules.d.ts",
+          output: "dist/virtual.d.ts",
+          forbidden: ["dist/virtual.d.ts.map"],
+        },
+      ],
+    },
+  ],
   ["@effect-ui/start-fetch", { payload: "dist-package" }],
   ["@effect-ui/start-node", { payload: "dist-package" }],
   ["@effect-ui/tsrx", { payload: "dist-package" }],
@@ -252,6 +264,88 @@ const distPackageArtifactDriftFailures = (target, files, sourceStems) => {
   return failures;
 };
 
+const declarationArtifactPackFailures = (target, files) => {
+  const failures = [];
+  const fileSet = new Set(files);
+  for (const artifact of target.declarationArtifacts ?? []) {
+    if (!isNonEmptyString(artifact.source) || !isNonEmptyString(artifact.output)) {
+      failures.push(`${target.label} declaration artifact policy must declare non-empty source and output paths.`);
+      continue;
+    }
+    if (!fileSet.has(artifact.output)) {
+      failures.push(`${target.label} package dry-run is missing copied declaration artifact ${artifact.output}.`);
+    }
+    for (const forbidden of artifact.forbidden ?? []) {
+      if (!isNonEmptyString(forbidden)) {
+        failures.push(`${target.label} declaration artifact forbidden paths must be non-empty strings.`);
+      } else if (fileSet.has(forbidden)) {
+        failures.push(`${target.label} package dry-run includes forbidden copied declaration artifact ${forbidden}.`);
+      }
+    }
+  }
+  return failures;
+};
+
+const isNodeNotFoundError = (cause) =>
+  cause &&
+  typeof cause === "object" &&
+  "code" in cause &&
+  cause.code === "ENOENT";
+
+const pathExists = (filePath) =>
+  Effect.tryPromise({
+    try: () => stat(filePath),
+    catch: (cause) => cause,
+  }).pipe(
+    Effect.as(true),
+    Effect.catch((cause) =>
+      isNodeNotFoundError(cause)
+        ? Effect.succeed(false)
+        : Effect.fail(
+            fail(
+              `Failed to check whether ${relative(workspaceRoot, filePath)} exists.`,
+              "Run from the repository root and check filesystem permissions.",
+              cause,
+            ),
+          ),
+    ),
+  );
+
+const declarationArtifactContentFailures = (target) =>
+  Effect.gen(function* () {
+    const failures = [];
+    for (const artifact of target.declarationArtifacts ?? []) {
+      if (!isNonEmptyString(artifact.source) || !isNonEmptyString(artifact.output)) {
+        continue;
+      }
+
+      const sourcePath = join(target.directory, artifact.source);
+      const outputPath = join(target.directory, artifact.output);
+      const source = yield* fsEffect(
+        `read ${relative(workspaceRoot, sourcePath)}`,
+        () => readFile(sourcePath),
+      );
+      const output = yield* fsEffect(
+        `read ${relative(workspaceRoot, outputPath)}`,
+        () => readFile(outputPath),
+      );
+      if (!source.equals(output)) {
+        failures.push(`${target.label} copied declaration artifact ${artifact.output} does not match ${artifact.source}.`);
+      }
+
+      for (const forbidden of artifact.forbidden ?? []) {
+        if (!isNonEmptyString(forbidden)) {
+          continue;
+        }
+        const forbiddenPath = join(target.directory, forbidden);
+        if (yield* pathExists(forbiddenPath)) {
+          failures.push(`${target.label} copied declaration artifact left forbidden file ${forbidden}.`);
+        }
+      }
+    }
+    return failures;
+  });
+
 const failSelfTest = (message) => {
   console.error(message);
   process.exit(1);
@@ -300,6 +394,22 @@ const assertSourcePackageManifestPolicy = (name, target, expectedFiles, actualFi
     if (!failures.some((failure) => failure.includes(expectedFragment))) {
       failSelfTest(
         `${name} source package manifest self-test did not find expected failure fragment ${expectedFragment}: ${failures.join(" ")}`
+      );
+    }
+  }
+};
+
+const assertDeclarationArtifactPolicy = (name, target, files, expectedFragments) => {
+  const failures = declarationArtifactPackFailures(target, files);
+  if (failures.length !== expectedFragments.length) {
+    failSelfTest(
+      `${name} declaration artifact self-test expected ${expectedFragments.length} failures but found ${failures.length}: ${failures.join(" ")}`
+    );
+  }
+  for (const expectedFragment of expectedFragments) {
+    if (!failures.some((failure) => failure.includes(expectedFragment))) {
+      failSelfTest(
+        `${name} declaration artifact self-test did not find expected failure fragment ${expectedFragment}: ${failures.join(" ")}`
       );
     }
   }
@@ -414,6 +524,30 @@ if (!distPackageArtifactDriftFailures(validDistPackageSelfTest, distArtifactDrif
 if (!distPackageArtifactDriftFailures(validDistPackageSelfTest, distArtifactMissingSelfTest, distSourceStemsSelfTest).some((failure) => failure.includes("missing built JS or declaration"))) {
   failSelfTest("dist artifact drift self-test did not catch missing dist artifacts.");
 }
+
+const declarationArtifactSelfTest = {
+  label: "@effect-ui/declaration-self-test",
+  payload: "dist-package",
+  declarationArtifacts: [
+    {
+      source: "src/virtual-modules.d.ts",
+      output: "dist/virtual.d.ts",
+      forbidden: ["dist/virtual.d.ts.map"],
+    },
+  ],
+};
+assertDeclarationArtifactPolicy(
+  "valid declaration artifact",
+  declarationArtifactSelfTest,
+  ["package.json", "dist/virtual.js", "dist/virtual.d.ts"],
+  [],
+);
+assertDeclarationArtifactPolicy(
+  "declaration artifact drift",
+  declarationArtifactSelfTest,
+  ["package.json", "dist/virtual.js", "dist/virtual.d.ts.map"],
+  ["dist/virtual.d.ts", "dist/virtual.d.ts.map"],
+);
 
 const workspacePackageTargets = collectWorkspacePackageManifests(workspaceRoot).pipe(
   Effect.flatMap((manifests) =>
@@ -631,6 +765,13 @@ const verifyPackageTarget = (target) =>
     const distArtifactDrift = target.payload === "dist-package"
       ? distPackageArtifactDriftFailures(target, files, yield* collectDistPackageSourceStems(target))
       : [];
+    const declarationArtifactPackDrift = target.payload === "dist-package"
+      ? declarationArtifactPackFailures(target, files)
+      : [];
+    const declarationArtifactContentDrift =
+      target.payload === "dist-package" && declarationArtifactPackDrift.length === 0
+        ? yield* declarationArtifactContentFailures(target)
+        : [];
     const missingManifestTargets = manifestTargetValidationFailures({
       packageName: target.label,
       packageJson: target.packageJson,
@@ -686,6 +827,18 @@ const verifyPackageTarget = (target) =>
           [
             "Run a clean build or remove stale dist files before packing framework packages.",
             ...distArtifactDrift,
+          ].join(" "),
+        ),
+      );
+    }
+    if (declarationArtifactPackDrift.length > 0 || declarationArtifactContentDrift.length > 0) {
+      return yield* Effect.fail(
+        fail(
+          `${target.label} package dry-run copied declaration artifacts are stale.`,
+          [
+            "Keep declaration-only public Adapter artifacts byte-identical to their source declarations and remove stale declaration maps.",
+            ...declarationArtifactPackDrift,
+            ...declarationArtifactContentDrift,
           ].join(" "),
         ),
       );

@@ -649,11 +649,12 @@ Last evidence pass: May 16, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 171 ran `pnpm audit:public-api` after
-    adding the Public API Symbol Policy Module and public hover policy
-    reachability check.
+  - Latest focused evidence: Review 173 ran `node --check
+    scripts/verify-package-dry-runs.mjs`, `pnpm --filter @effect-ui/start
+    build`, and `pnpm example:pack-dry-run` after adding the Start Virtual
+    Declaration Artifact Adapter byte check.
     Latest full evidence:
-    `pnpm verify` ran after Review 171 with 53 test files / 1028 tests.
+    `pnpm verify` ran after Review 173 with 53 test files / 1028 tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.
@@ -792,12 +793,12 @@ Last evidence pass: May 16, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 171 Public API Symbol Policy
-    Module repair or the compiled Query Execution Plan no-op closure. Future
-    architecture sweeps remain tracked in `docs/architecture-deepening-review.md`.
+  - Evidence: no new ADR required for the Review 173 Start Virtual Declaration
+    Artifact Adapter guardrail. Future architecture sweeps remain tracked in
+    `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 171
-    Public API Symbol Policy Module slice:
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 173
+    Start Virtual Declaration Artifact Adapter guardrail:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
     402 physical/virtual files, 53 root test files / 1028 tests, devtools-panel verify with 1
@@ -806,12 +807,12 @@ Last evidence pass: May 16, 2026.
     starter verify with 1 starter test file / 2 tests, React starter verify
     with 1 starter test file / 3 tests, generated starter-suite
     packaging/verifies for basic/react/project-console, 16-target package
-    dry-run gate, project-console typecheck, 4 project-console test files / 27
-    tests, project-console build, and leak scans.
+    dry-run gate including the Start virtual declaration byte check,
+    project-console typecheck, 4 project-console test files / 27 tests,
+    project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 171 records the public API inventory audit focused
-    verification and Effect-first audit over 402 files. Full verification is
-    recorded in the latest full gate above.
+  - Evidence: Review 173 records the Start build and package dry-run focused
+    verification. Full verification is recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items
 

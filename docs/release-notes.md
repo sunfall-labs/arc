@@ -65,7 +65,7 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 171:
+Latest full gate on May 16, 2026 after Review 173:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
@@ -82,7 +82,7 @@ Latest full gate on May 16, 2026 after Review 171:
   local packages);
 - 16-target package dry-run gate for all framework packages plus the basic
   starter, React starter, project console, devtools panel, and devtools
-  extension;
+  extension, including the `@effect-ui/start/virtual` declaration byte check;
 - project console typecheck;
 - 4 project console test files / 27 tests;
 - project console production build;
@@ -108,6 +108,11 @@ Latest full gate on May 16, 2026 after Review 171:
   re-exported public source Modules. The compiled Query Execution Plan
   candidate was re-reviewed and closed as already handled by the existing DB
   Query Execution Plan Module.
+- Review 172 cleaned up stale current-facing Review167 carry-forward language.
+- Review 173 closed the Start Virtual Declaration Artifact Adapter guardrail:
+  `@effect-ui/start/virtual` package dry-runs now require
+  `dist/virtual.d.ts`, compare it byte-for-byte against
+  `src/virtual-modules.d.ts`, and reject stale `dist/virtual.d.ts.map` files.
 - Review 167 closed shared Core route render identity for React/Solid route
   `UiScope` lifetimes, same-ref Resource preload failure cleanup after manual
   prefetch/refresh retry, detached Start agent graph facts, and React/Solid DB
@@ -941,10 +946,9 @@ Latest full gate on May 16, 2026 after Review 171:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 171 closed the Public API
-  Symbol Policy Module repair and closed the compiled Query Execution Plan
-  candidate as already handled. Fresh no-new-improvement sweeps still need to
-  start before any clean-sweep count can start.
+- The latest full `pnpm verify` passed after Review 173 closed the Start
+  Virtual Declaration Artifact Adapter guardrail. Fresh no-new-improvement
+  sweeps still need to start before any clean-sweep count can start.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
   Effect-first audit over 402 physical/virtual files, 53 root test files / 1028 tests,

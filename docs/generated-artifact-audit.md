@@ -65,6 +65,12 @@ repeating stale package/test totals.
     compare packed JS/declaration/map stems to source stems. Generated or stale
     dist files now fail the same release rehearsal as source-package payload
     drift.
+- Start virtual declaration artifact
+  - Review173 extends `pnpm example:pack-dry-run` so the copied
+    `@effect-ui/start/virtual` declaration Adapter is byte-checked:
+    `packages/start/src/virtual-modules.d.ts` must match
+    `packages/start/dist/virtual.d.ts`, and stale `dist/virtual.d.ts.map`
+    artifacts are forbidden.
 
 ## Verification Evidence
 
@@ -90,6 +96,10 @@ repeating stale package/test totals.
 - Review166 full `pnpm verify` passed with 53 root test files / 1021 tests,
   generated starter-suite packaging/verifies at 19/24/30 app files, and the
   16-target package dry-run gate.
+- Review173 focused Start artifact verification passed: `pnpm --filter
+  @effect-ui/start build` and `pnpm example:pack-dry-run` with the copied
+  virtual declaration Adapter byte check and stale declaration-map rejection
+  active.
 
 ## Follow-Up
 
