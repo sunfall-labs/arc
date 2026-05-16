@@ -59,10 +59,11 @@ outside import declarations. Manifest
 entries may also list `requiredTypeTestImports` when a public symbol is
 important enough to pin as a direct import; the audit rejects entries that are
 not directly imported and exercised outside import declarations. It also checks
-that every package root
-barrel's local re-exported modules are named in that package's Source Surface
-section, and that Source Surface local-module lists do not name modules the root
-barrel does not export. Declaration-level symbol policy lives in
+manifest `sourceSurface` lists for subpath entrypoints against their local
+re-exported Modules, checks that every package root barrel's local re-exported
+modules are named in that package's Source Surface section, and checks that
+Source Surface local-module lists do not name Modules the source file does not
+export. Declaration-level symbol policy lives in
 `scripts/public-api-symbol-policy.mjs`: curated namespace-backed source modules
 must have an explicit audit allowance and a root-barrel import, curated hover
 declaration groups must be reachable from a package export or re-exported
@@ -427,6 +428,10 @@ Subpath exports:
 
 - `./vite` owns `effectUiStart`, file route discovery, virtual module creation,
   build-policy validation, app graph diagnostics loading, and SSR dev handling.
+  Manifest-pinned Source Surface Modules: `app-graph`,
+  `generated-route-definitions`, `start-app-graph-diagnostics-policy`,
+  `start-manifest-wall`, `start-virtual-modules`, `start-vite-dev-ssr`, and
+  `start-vite-diagnostics-loader`.
   `effectUiStart` returns the concrete `EffectUiStartPlugin` interface rather
   than a broad Vite `PluginOption`, and its SSR module handler type is named
   `StartSsrRequestHandler` so it cannot be confused with the root Effect
@@ -446,6 +451,7 @@ Subpath exports:
   temporary Vite server lifetime and diagnostics DTO decoding share one
   Effect-first policy while the public `./vite` Interface stays stable.
 - `./diagnostics-report` owns grouped repair reports with owner/edit guidance.
+  Manifest-pinned Source Surface Module: `start-diagnostics-contract`.
 - `createStartAgentGraph(...)`, `queryStartAgentGraph(...)`,
   `createStartAgentGraphImpact(...)`, `formatStartAgentGraphImpact(...)`, and
   `formatStartAgentGraph(...)` project resolved Start diagnostics into typed
@@ -456,37 +462,43 @@ Subpath exports:
   machine payloads behind `--json`.
 - `./adapters` is a compatibility facade that re-exports the host-specific
   fetch and Node adapter Modules, including `StartRequestHandlerError` and
-  `StartNodeAdapterError` for host-facing failure handling.
+  `StartNodeAdapterError` for host-facing failure handling. Manifest-pinned
+  Source Surface Modules: `fetch-adapter` and `node-adapter`.
 - `./fetch-adapter` owns fetch-only request handler conversion and carries no
-  Node imports. `toFetchHandlerEffect(...)` is the canonical Effect v4 adapter
-  and preserves handler service requirements. `createFetchHandler(...)` remains
-  a compatibility host facade for Fetch-style platforms that require
-  `(request) => Promise<Response>`; it wires the incoming `Request.signal` into
-  Effect run options so host aborts interrupt request Effects instead of
-  leaving detached work behind. `StartRequestHandlerError` is re-exported from
-  this subpath and from `@effect-ui/start-fetch`.
+  Node imports. Manifest-pinned Source Surface Module:
+  `start-request-handler-error`. `toFetchHandlerEffect(...)` is the canonical
+  Effect v4 adapter and preserves handler service requirements.
+  `createFetchHandler(...)` remains a compatibility host facade for Fetch-style
+  platforms that require `(request) => Promise<Response>`; it wires the incoming
+  `Request.signal` into Effect run options so host aborts interrupt request
+  Effects instead of leaving detached work behind. `StartRequestHandlerError`
+  is re-exported from this subpath and from `@effect-ui/start-fetch`.
 - `./node-adapter` owns Start Node handler invocation and Node HTTP server
   callback wiring. It re-exports expert-public Node Web Exchange helpers for
   compatibility: Node request origin reconstruction, Web Request conversion,
-  Web Response writing, and `StartNodeAdapterError` values. Effect-first Node
-  handlers preserve Start handler service requirements, and Node server error
-  hooks accept pure values or Effects, not Promise-shaped callbacks.
+  Web Response writing, and `StartNodeAdapterError` values. Manifest-pinned
+  Source Surface Modules: `node-web-exchange`, `start-host-runtime-runner`, and
+  `start-request-handler-error`. Effect-first Node handlers preserve Start
+  handler service requirements, and Node server error hooks accept pure values
+  or Effects, not Promise-shaped callbacks.
   `StartRequestHandlerError` and `StartNodeAdapterError` are also re-exported
   from `@effect-ui/start-node`.
 - `./virtual` owns virtual module typings only.
 - `effect-ui-start` owns diagnostics and agent graph CLI execution. Its
   bin/host wrapper defines the command tree with Effect v4 `Command`, `Flag`,
   and `Argument` primitives, including graph/impact query-kind subcommands and
-  inherited graph `--verbose` shared-flag context. The internal Start Agent
-  Graph Vocabulary Module owns query kinds, query-to-node mapping, and
-  node-to-impact-relation mapping; the Start Diagnostics CLI Contract Module
-  owns validation text and shell-safe impact verify commands, while the Start
-  Diagnostics CLI Runner Module owns parsed command execution, app graph
-  diagnostics loading, agent graph/impact projection, output formatting, and
-  failure reporting. Internally, Start Agent Graph Contract, Query, Formatter,
-  Display, and Impact Planner Modules keep DTO vocabulary, query matching,
-  text presentation, and impact semantics separate while `agent-graph.ts`
-  remains the public facade. The
+  inherited graph `--verbose` shared-flag context. The `@effect-ui/start/cli`
+  subpath's manifest-pinned Source Surface Module is
+  `start-diagnostics-cli-runner`. The internal Start Agent Graph Vocabulary
+  Module owns query kinds, query-to-node mapping, and node-to-impact-relation
+  mapping; the Start Diagnostics CLI Contract Module owns validation text and
+  shell-safe impact verify commands, while the Start Diagnostics CLI Runner
+  Module owns parsed command execution, app graph diagnostics loading, agent
+  graph/impact projection, output formatting, and failure reporting.
+  Internally, Start Agent Graph Contract, Query, Formatter, Display, and Impact
+  Planner Modules keep DTO vocabulary, query matching, text presentation, and
+  impact semantics separate while `agent-graph.ts` remains the public facade.
+  The
   diagnostics loader acquires the temporary Vite server with
   `Effect.acquireRelease(...)` inside `Effect.scoped(...)`, so CLI and CI
   diagnostics close the Vite resource on success, typed failure, or

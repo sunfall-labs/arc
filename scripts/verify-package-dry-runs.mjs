@@ -138,6 +138,11 @@ const manifestMetadataValidationFailures = (target) => {
       failures.push(`${target.label} package.json files allowlist must include .gitignore for copyable source payload hygiene.`);
     }
   }
+  if (target.payload === "source-package") {
+    if (!isNonEmptyString(packageJson.scripts?.verify)) {
+      failures.push(`${target.label} package.json must declare a verify script so workspace verification cannot skip copyable source packages.`);
+    }
+  }
 
   return failures;
 };
@@ -204,6 +209,12 @@ const distArtifactStem = (filePath) => {
 };
 
 const distArtifactKind = (filePath) => {
+  if (filePath.endsWith(".js.map")) {
+    return "js.map";
+  }
+  if (filePath.endsWith(".d.ts.map")) {
+    return "types.map";
+  }
   if (filePath.endsWith(".js")) {
     return "js";
   }
@@ -211,6 +222,25 @@ const distArtifactKind = (filePath) => {
     return "types";
   }
   return undefined;
+};
+
+const declarationArtifactTypeMapOptionalStems = (target) =>
+  new Set(
+    (target.declarationArtifacts ?? [])
+      .map((artifact) =>
+        isNonEmptyString(artifact.output) && artifact.output.startsWith("dist/")
+          ? distArtifactStem(artifact.output)
+          : undefined
+      )
+      .filter(Boolean)
+  );
+
+const requiredDistArtifactKinds = (target, stem) => {
+  const required = new Set(["js", "js.map", "types", "types.map"]);
+  if (declarationArtifactTypeMapOptionalStems(target).has(stem)) {
+    required.delete("types.map");
+  }
+  return required;
 };
 
 const collectDistPackageSourceStems = (target) =>
@@ -244,13 +274,26 @@ const collectDistPackageSourceStems = (target) =>
 
 const distPackageArtifactDriftFailures = (target, files, sourceStems) => {
   const artifactStems = new Set(files.map(distArtifactStem).filter(Boolean));
-  const jsStems = new Set(files.filter((file) => distArtifactKind(file) === "js").map(distArtifactStem));
-  const typeStems = new Set(files.filter((file) => distArtifactKind(file) === "types").map(distArtifactStem));
+  const artifactKindsByStem = new Map();
+  for (const file of files) {
+    const stem = distArtifactStem(file);
+    const kind = distArtifactKind(file);
+    if (stem === undefined || kind === undefined) {
+      continue;
+    }
+    const kinds = artifactKindsByStem.get(stem) ?? new Set();
+    kinds.add(kind);
+    artifactKindsByStem.set(stem, kinds);
+  }
   const extra = [...artifactStems]
     .filter((stem) => !sourceStems.has(stem))
     .sort((left, right) => left.localeCompare(right));
-  const missing = [...sourceStems]
-    .filter((stem) => !jsStems.has(stem) || !typeStems.has(stem))
+  const missing = [...sourceStems].flatMap((stem) => {
+    const actualKinds = artifactKindsByStem.get(stem) ?? new Set();
+    return [...requiredDistArtifactKinds(target, stem)]
+      .filter((kind) => !actualKinds.has(kind))
+      .map((kind) => `${stem}.${kind === "types" ? "d.ts" : kind === "types.map" ? "d.ts.map" : kind}`);
+  })
     .sort((left, right) => left.localeCompare(right));
   const failures = [];
 
@@ -258,7 +301,7 @@ const distPackageArtifactDriftFailures = (target, files, sourceStems) => {
     failures.push(`${target.label} package dry-run includes stale dist artifacts without matching src files: ${extra.map((stem) => "dist/" + stem).join(", ")}.`);
   }
   if (missing.length > 0) {
-    failures.push(`${target.label} package dry-run is missing built JS or declaration artifacts for src files: ${missing.map((stem) => "src/" + stem).join(", ")}.`);
+    failures.push(`${target.label} package dry-run is missing built JS, declaration, or source-map artifacts for src files: ${missing.map((stem) => "dist/" + stem).join(", ")}.`);
   }
 
   return failures;
@@ -456,9 +499,24 @@ assertManifestMetadataPolicy(
       private: true,
       license: "UNLICENSED",
       files: ["src"],
+      scripts: { verify: "pnpm test" },
     },
   },
   [".gitignore"],
+);
+assertManifestMetadataPolicy(
+  "source package missing verify script",
+  {
+    label: "@effect-ui/source-self-test",
+    payload: "source-package",
+    packageJson: {
+      private: true,
+      license: "UNLICENSED",
+      files: ["src", ".gitignore"],
+      scripts: {},
+    },
+  },
+  ["verify script"],
 );
 
 const sourcePackageSelfTest = {
@@ -498,9 +556,13 @@ const distSourceStemsSelfTest = new Set(["index", "feature"]);
 const distArtifactFilesSelfTest = [
   "package.json",
   "dist/index.js",
+  "dist/index.js.map",
   "dist/index.d.ts",
+  "dist/index.d.ts.map",
   "dist/feature.js",
+  "dist/feature.js.map",
   "dist/feature.d.ts",
+  "dist/feature.d.ts.map",
 ];
 const distArtifactDriftSelfTest = [
   ...distArtifactFilesSelfTest,
@@ -508,6 +570,19 @@ const distArtifactDriftSelfTest = [
   "dist/stale.d.ts",
 ];
 const distArtifactMissingSelfTest = distArtifactFilesSelfTest.filter((file) => file !== "dist/feature.d.ts");
+const distArtifactMissingJsMapSelfTest = distArtifactFilesSelfTest.filter((file) => file !== "dist/feature.js.map");
+const distArtifactMissingTypesMapSelfTest = distArtifactFilesSelfTest.filter((file) => file !== "dist/feature.d.ts.map");
+const distArtifactDeclarationAdapterSelfTest = {
+  ...validDistPackageSelfTest,
+  declarationArtifacts: [
+    {
+      source: "src/virtual-modules.d.ts",
+      output: "dist/feature.d.ts",
+      forbidden: ["dist/feature.d.ts.map"],
+    },
+  ],
+};
+const distArtifactDeclarationAdapterFilesSelfTest = distArtifactFilesSelfTest.filter((file) => file !== "dist/feature.d.ts.map");
 assertSourcePackageManifestPolicy(
   "dist artifact drift self-test helper baseline",
   sourcePackageSelfTest,
@@ -521,8 +596,17 @@ if (distPackageArtifactDriftFailures(validDistPackageSelfTest, distArtifactFiles
 if (!distPackageArtifactDriftFailures(validDistPackageSelfTest, distArtifactDriftSelfTest, distSourceStemsSelfTest).some((failure) => failure.includes("stale dist artifacts"))) {
   failSelfTest("dist artifact drift self-test did not catch stale dist artifacts.");
 }
-if (!distPackageArtifactDriftFailures(validDistPackageSelfTest, distArtifactMissingSelfTest, distSourceStemsSelfTest).some((failure) => failure.includes("missing built JS or declaration"))) {
+if (!distPackageArtifactDriftFailures(validDistPackageSelfTest, distArtifactMissingSelfTest, distSourceStemsSelfTest).some((failure) => failure.includes("dist/feature.d.ts"))) {
   failSelfTest("dist artifact drift self-test did not catch missing dist artifacts.");
+}
+if (!distPackageArtifactDriftFailures(validDistPackageSelfTest, distArtifactMissingJsMapSelfTest, distSourceStemsSelfTest).some((failure) => failure.includes("dist/feature.js.map"))) {
+  failSelfTest("dist artifact drift self-test did not catch missing JS source maps.");
+}
+if (!distPackageArtifactDriftFailures(validDistPackageSelfTest, distArtifactMissingTypesMapSelfTest, distSourceStemsSelfTest).some((failure) => failure.includes("dist/feature.d.ts.map"))) {
+  failSelfTest("dist artifact drift self-test did not catch missing declaration maps.");
+}
+if (distPackageArtifactDriftFailures(distArtifactDeclarationAdapterSelfTest, distArtifactDeclarationAdapterFilesSelfTest, distSourceStemsSelfTest).length !== 0) {
+  failSelfTest("dist artifact drift self-test expected copied declaration adapters to omit declaration maps.");
 }
 
 const declarationArtifactSelfTest = {

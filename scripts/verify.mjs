@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Data, Effect } from "effect";
+import { workspaceVerifyPackageTargetsEffect } from "./workspace-verification-plan.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = dirname(__dirname);
@@ -154,28 +155,8 @@ const verify = Effect.gen(function* () {
 
   yield* run("workspace tests", ["test"]);
 
-  yield* runAll("example verifies", [
-    verifyWorkspacePackage({
-      label: "devtools panel",
-      packageName: "@effect-ui/example-devtools-panel"
-    }),
-    verifyWorkspacePackage({
-      label: "devtools extension",
-      packageName: "@effect-ui/example-devtools-extension"
-    }),
-    verifyWorkspacePackage({
-      label: "basic starter",
-      packageName: "@effect-ui/starter-basic"
-    }),
-    verifyWorkspacePackage({
-      label: "React starter",
-      packageName: "@effect-ui/starter-react"
-    }),
-    verifyWorkspacePackage({
-      label: "project console",
-      packageName: "@effect-ui/example-project-console"
-    })
-  ]);
+  const verifyPackageTargets = yield* workspaceVerifyPackageTargetsEffect(workspaceRoot);
+  yield* runAll("package verifies", verifyPackageTargets.map(verifyWorkspacePackage));
 
   yield* packageStarters;
 });

@@ -71,6 +71,13 @@ exports. It supports the release-engineering charter workstream.
   stems against `src/**/*.ts(x)` source stems, with the Start virtual module
   handled explicitly. Stale generated dist artifacts and missing built
   declaration/JavaScript files now fail the release rehearsal.
+- Review179 tightened the same gate from source-map stem matching to concrete
+  source-map artifact matching: framework dist packages must pack `*.js`,
+  `*.js.map`, `*.d.ts`, and `*.d.ts.map` for every source stem, with copied
+  declaration artifacts such as Start's virtual module explicitly allowed to
+  omit their forbidden declaration map. Source packages must also declare a
+  package-local `verify` script so the root verifier cannot skip a copyable app
+  package silently.
 
 ## Verification Evidence
 
@@ -120,11 +127,17 @@ exports. It supports the release-engineering charter workstream.
   all 16 package payloads: 11 framework dist packages, 19 basic starter files,
   24 React starter files, 30 project-console files, 10 devtools panel files,
   and 15 devtools extension files.
-- The latest full `pnpm verify` passed after Review166 with 11 package builds,
+- The latest full `pnpm verify` passed after Review179 with 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 274 files, 53 root test files / 1021 tests,
-  devtools verifies, generated starter packaging, the 16-target dry-run gate,
-  project-console typecheck/tests/build, and leak scan.
+  Effect-first audit over 404 files, 53 root test files / 1031 tests,
+  derived package-level verifies for the five copyable source packages,
+  generated starter packaging, and the 16-target dry-run gate.
+- Review179 focused `pnpm example:pack-dry-run` passed across all 16 package
+  payloads after adding concrete source-map artifact validation and source
+  package verify-script enforcement: core 201 files, db 149, devtools 65,
+  devtools-extension 15, devtools-panel 10, project-console 30, react 25,
+  react-db 17, solid 25, solid-db 17, start 264, start-fetch 5, start-node 5,
+  starter-basic 19, starter-react 24, and tsrx 5.
 - Review166 focused `pnpm starter:package` passed after adding an exact dry-run
   comparison between each generated starter tarball's non-local app files and
   the verified generated app file manifest.

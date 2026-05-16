@@ -437,6 +437,78 @@ void text;
   ["virtual module virtual:effect-ui/server-functions", "symbol reference actionManifest", "symbol reference ActionManifestEntry"]
 );
 
+const sourceSurfaceCoverageFailures = (entry, actualModules) => {
+  if (entry.sourceSurface === undefined) {
+    return [];
+  }
+
+  const surfaceFailures = [];
+  if (
+    !Array.isArray(entry.sourceSurface) ||
+    entry.sourceSurface.some((moduleName) => typeof moduleName !== "string" || moduleName.length === 0)
+  ) {
+    return [`${entry.package} export ${entry.export} sourceSurface must be an array of non-empty strings`];
+  }
+
+  const expectedModules = [...new Set(entry.sourceSurface)].sort();
+  if (expectedModules.length !== entry.sourceSurface.length) {
+    surfaceFailures.push(`${entry.package} export ${entry.export} sourceSurface contains duplicate module names`);
+  }
+
+  const expectedModuleSet = new Set(expectedModules);
+  for (const moduleName of actualModules) {
+    if (!expectedModuleSet.has(moduleName)) {
+      surfaceFailures.push(`${entry.package} export ${entry.export} sourceSurface is missing local re-exported module ${moduleName}`);
+    }
+  }
+
+  const actualModuleSet = new Set(actualModules);
+  for (const moduleName of expectedModules) {
+    if (!actualModuleSet.has(moduleName)) {
+      surfaceFailures.push(`${entry.package} export ${entry.export} sourceSurface lists ${moduleName}, but ${basename(entry.source)} does not re-export it`);
+    }
+  }
+
+  return surfaceFailures;
+};
+
+const assertSourceSurfaceSelfTest = (name, sourceSurface, actualModules, expectedFragments) => {
+  const failures = sourceSurfaceCoverageFailures(
+    {
+      package: "@effect-ui/self-test",
+      export: "./subpath",
+      source: "packages/self-test/src/subpath.ts",
+      sourceSurface,
+    },
+    actualModules,
+  );
+  if (failures.length !== expectedFragments.length) {
+    failSelfTest(
+      `${name} sourceSurface self-test expected ${expectedFragments.length} failures but found ${failures.length}: ${failures.join(" ")}`
+    );
+  }
+  for (const expectedFragment of expectedFragments) {
+    if (!failures.some((failure) => failure.includes(expectedFragment))) {
+      failSelfTest(
+        `${name} sourceSurface self-test did not find expected failure fragment ${expectedFragment}: ${failures.join(" ")}`
+      );
+    }
+  }
+};
+
+assertSourceSurfaceSelfTest(
+  "valid source surface",
+  ["alpha", "beta"],
+  ["alpha", "beta"],
+  []
+);
+assertSourceSurfaceSelfTest(
+  "source surface drift",
+  ["alpha", "stale"],
+  ["alpha", "missing"],
+  ["missing local re-exported module missing", "lists stale"]
+);
+
 for (const entry of publicApiManifest.entrypoints ?? []) {
   const key = `${entry.package}\0${entry.export}`;
   if (expectedEntrypoints.has(key)) {
@@ -563,6 +635,12 @@ const exportedModules = (entrypoint) => {
   const modules = exportedModuleNames(source);
   return [...new Set(modules)].sort();
 };
+
+for (const entry of expectedEntrypoints.values()) {
+  if (existsSync(join(root, entry.source))) {
+    failures.push(...sourceSurfaceCoverageFailures(entry, exportedModules(join(root, entry.source))));
+  }
+}
 
 const toRelativeSourceFile = (file) => relative(root, file).split("\\").join("/");
 
