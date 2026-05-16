@@ -10,6 +10,18 @@ export class StartRequestHandlerError extends Data.TaggedError("StartRequestHand
   readonly cause: unknown;
 }> {}
 
+/** Guidance attached when a request handler returns a non-Effect value. */
+export const invalidStartRequestHandlerReturnMessage =
+  "Start request handlers must return an Effect. Wrap host Promise work with Effect.tryPromise(...) at the host Adapter seam.";
+
+/** Cause used when an untyped request handler returns something other than an Effect. */
+export class StartRequestHandlerInvalidReturn extends Data.TaggedError(
+  "StartRequestHandlerInvalidReturn"
+)<{
+  readonly message: string;
+  readonly received: unknown;
+}> {}
+
 export const makeStartRequestHandlerError = (
   request: Request,
   cause: unknown

@@ -65,14 +65,14 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 190:
+Latest full gate on May 16, 2026 after Review 191:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
 - Effect-first audit over 404 package/example/config/script/type-test/generated
   template/docs-snippet physical and virtual files;
-- 53 root test files / 1033 tests;
+- 53 root test files / 1035 tests;
 - package-level verifies for the devtools panel, devtools extension, basic
   starter, React starter, and project console packages;
 - starter-suite packaging for basic (19 app files / 5 local packages), React
@@ -86,14 +86,21 @@ Latest full gate on May 16, 2026 after Review 190:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 191 moved Promise-member rejection into the shared `EffectInput`
+  contract, so `toEffect(...)`, `invokeEffectInput(...)`, and ActionResult
+  helpers reject union-shaped Promise success values while still accepting
+  Effects. Start host handlers now report invalid non-Effect return shapes as
+  typed `StartRequestHandlerError` causes, DB query validation rejects reserved
+  source aliases consistently, and Start/Devtools/DB public LSP docs are pinned
+  by source-surface, type-test, and hover-doc policy gates.
+- Clean Sweep 1 after Review190 reached 1/30, but Clean Sweep 2 found Review191
+  work. The active Thirty-Sweep clean counter is reset to 0/30 until a fresh
+  post-Review191 sweep reports no actionable findings.
 - Review 190 tightened `Server.fn(...)` so union-shaped Promise handler returns
   are rejected at the public type surface, preserved negative query window
   values until validator rejection, removed the accidental public query
   projection helper, and clarified raw `.catch(...)`/`async` audit evidence
   around scanner fixture strings and prose-only hits.
-- The fresh post-Review190 Core/React/Solid, DB/public API, and
-  Start/devtools/examples/docs/scripts sweeps reported no actionable findings,
-  so the Thirty-Sweep clean counter is now 1/30.
 - Review 189 clarified Promise-method audit evidence: raw grep hits in
   `scripts/audit-effect-first.mjs` are scanner fixture strings for banned
   Promise forms, while `pnpm audit:effect-first` is the authoritative

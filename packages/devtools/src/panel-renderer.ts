@@ -17,6 +17,7 @@ export type DevtoolsPanelsResolver = (input: DevtoolsPanelUiInput) => DevtoolsPa
 const defaultDevtoolsPanelTitle = "Effect UI Devtools";
 const defaultDevtoolsMaxPanelItems = 8;
 
+/** Default CSS used by the embeddable Devtools panel renderer. */
 export const devtoolsPanelStyles = `
 .effect-ui-devtools {
   color: #172033;

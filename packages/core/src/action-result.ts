@@ -1,5 +1,5 @@
 import { Effect, type Schema } from "effect";
-import type { EffectInput, EffectInputCallbackError } from "./effect-like.js";
+import type { EffectInput, EffectInputCallbackError, RejectPromiseLikeValue } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
 import {
   FormValidationError,
@@ -376,7 +376,7 @@ const validationEffect = <Values extends object, E, R = never>(
 
 /** Converts an Effect into a successful or failure `ActionResult`. */
 const fromEffect = <A, E = never, R = never>(
-  effect: EffectInput<A, E, R> & (A extends PromiseLike<unknown> ? never : unknown)
+  effect: EffectInput<A, E, R> & RejectPromiseLikeValue<A>
 ): Effect.Effect<ActionResult<A, never, never, E>, never, R> =>
   toEffect(effect as never).pipe(
     Effect.map((value) => success(value)),
@@ -386,7 +386,7 @@ const fromEffect = <A, E = never, R = never>(
 /** Converts a form validation Effect into success or validation-failure results. */
 const fromValidationEffect = <Values extends object, E, R = never>(
   effect: EffectInput<Values, FormValidationError<Values, E>, R> &
-    (Values extends PromiseLike<unknown> ? never : unknown)
+    RejectPromiseLikeValue<Values>
 ): Effect.Effect<ActionResult<Values, Values, E, never>, never, R> =>
   toEffect(effect as never).pipe(
     Effect.map((value) => success(value)),

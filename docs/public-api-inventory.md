@@ -59,7 +59,7 @@ outside import declarations. Manifest
 entries may also list `requiredTypeTestImports` when a public symbol is
 important enough to pin as a direct import; the audit rejects entries that are
 not directly imported and exercised outside import declarations. It also checks
-manifest `sourceSurface` lists for subpath entrypoints against their local
+manifest `sourceSurface` lists for entrypoints against their local
 re-exported Modules, checks that every package root barrel's local re-exported
 modules are named in that package's Source Surface section, and checks that
 Source Surface local-module lists do not name Modules the source file does not
@@ -70,10 +70,11 @@ declaration groups must be reachable from a package export or re-exported
 source module, and those declarations must keep JSDoc for LSP hovers. Together
 these checks keep hover/LSP docs from drifting away from exported source files.
 The curated hover declarations currently cover the Core Program,
-browser-router/router Adapter, Start diagnostics surfaces, every curated Start
-fetch/Node Adapter overload/implementation declaration, and the DB Collection
-contract, Query plan, flush/background-sync, reactive binding, server
-collection, and SQLite persistence seams. The broad
+browser-router/router Adapter, Start diagnostics, generated file-route module,
+fetch, and Node Adapter seams, Devtools DTO/normalizer/panel contract seams,
+and the DB Collection contract, Collection/Query namespace aliases, Query plan,
+flush/background-sync, reactive binding, server collection, and SQLite
+persistence seams. The broad
 `type-tests/framework.test-d.ts` file remains as cross-package integration
 coverage.
 
@@ -345,6 +346,11 @@ The root export includes:
   facades. It is not exported; public host adapter APIs remain unchanged, and
   `StartForkRuntime` stays re-exported from the Node adapter for callback
   hosts.
+- The internal Start Host Adapter Core normalizes synchronous handler throws,
+  non-Effect handler return shapes, and handler Effect failures into
+  `StartRequestHandlerError`. Plain `Response` and Promise-shaped handler
+  returns are invalid; host Promise work belongs behind `Effect.tryPromise(...)`
+  at the adapter seam.
 - transport APIs: RPC/action paths, request-id and trace headers, media-type
   helpers, and browser RPC/action clients;
 - expert-public transport validators and endpoint builders:
@@ -787,8 +793,9 @@ Release decisions:
   live-query input/dependency selection; app code should prefer the framework
   adapter hooks. They are pinned in the focused DB type test and required by
   the public hover-doc audit so adapter-facing LSP vocabulary cannot drift.
-- DB public hover docs are now curated for Collection contract types, Query
-  plan diagnostics, flush/background-sync result types, collection reactive
+- DB public hover docs are now curated for Collection contract types,
+  `Collection.*` namespace aliases, Query plan diagnostics, `Query.*`
+  namespace aliases, flush/background-sync result types, collection reactive
   binding helpers, server collection adapters, and SQLite persistence helpers.
   These are the expert-public seams most likely to show up in adapter, tooling,
   and recipe code, so missing JSDoc on those declarations fails

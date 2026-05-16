@@ -233,6 +233,21 @@ export const evaluateQueryJoinKey = (value: QueryJoinKey): string =>
 export const evaluateQueryGroupKey = (value: Record<string, unknown>): string =>
   evaluateQueryOperation("aggregate", () => stableStringify(value));
 
+const reservedQuerySourceAliases = new Set(["__proto__", "constructor", "prototype"]);
+
+/** Builds the diagnostic message for a source alias that cannot safely key a row context. */
+export const reservedQuerySourceAliasReason = (alias: string): string =>
+  `Query source alias "${alias}" is reserved. Use a domain alias that can be represented as an own object property.`;
+
+/** Rejects source aliases that would collide with object prototype mechanics. */
+export const validateQuerySourceAlias = (alias: string): void => {
+  if (reservedQuerySourceAliases.has(alias)) {
+    throw new UnsupportedLiveQuery({
+      reason: reservedQuerySourceAliasReason(alias)
+    });
+  }
+};
+
 /** Validates alias and join invariants before a Query plan reads source rows. */
 export const validateQueryPlan = <TContext extends AnyQueryContext>(
   builder: QueryPlanBuilder<TContext>
@@ -252,6 +267,7 @@ export const validateQueryPlan = <TContext extends AnyQueryContext>(
 
   const aliases = new Map<string, AnyCollection>();
   for (const [alias, collection] of builder.sources) {
+    validateQuerySourceAlias(alias);
     const existing = aliases.get(alias);
     if (existing) {
       throw new UnsupportedLiveQuery({

@@ -169,6 +169,72 @@ export const publicHoverDocGroups = [
     ]
   },
   {
+    file: "packages/devtools/src/devtools-contract.ts",
+    declarations: [
+      "DevtoolsStartAppGraphSchemaCoverage",
+      "DevtoolsStartAppGraphUnknownActionBehaviorEntry",
+      "DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry",
+      "DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry",
+      "DevtoolsSummaryResourceRef",
+      "DevtoolsSummaryInvalidationTarget",
+      "DevtoolsSummaryInvalidationCause",
+      "DevtoolsSummaryInvalidationPlan",
+      "DevtoolsSummaryRoutePlan",
+      "DevtoolsSummaryResource",
+      "DevtoolsPanelMetric",
+      "DevtoolsPanelItem"
+    ]
+  },
+  {
+    file: "packages/devtools/src/app-graph-normalizer.ts",
+    declarations: [
+      "normalizeRouteModulePreloadCollections",
+      "normalizeAppGraphCollectionDefinitions",
+      "normalizeAppGraphUnknownRoutePreloadCollections"
+    ]
+  },
+  {
+    file: "packages/devtools/src/panel-renderer.ts",
+    declarations: [
+      "devtoolsPanelStyles"
+    ]
+  },
+  {
+    file: "packages/devtools/src/summary.ts",
+    declarations: [
+      "describeDevtoolsSummary",
+      "describeDevtoolsSummaryEffect"
+    ]
+  },
+  {
+    file: "packages/devtools/src/panel-contract.ts",
+    declarations: [
+      "DevtoolsPanelContractErrorReason",
+      "DevtoolsPanelContractResolution",
+      "DevtoolsBridgePayloadContractResolution",
+      "normalizeDevtoolsPanels",
+      "resolveDevtoolsPanelsInput"
+    ]
+  },
+  {
+    file: "packages/start/src/file-route-modules.ts",
+    declarations: [
+      "FileRouteDefinitionsModuleOptions",
+      "FileRouteModuleReference",
+      "FileRouteCompanionModuleReference",
+      "GeneratedFileRouteDefinitionsModuleOptions",
+      "FileRouteDefinitionsModuleInvalidIdentifier",
+      "FileRouteDefinitionsModuleInvalidExportName",
+      "FileRouteDefinitionsModuleError",
+      "isFileRouteDefinitionsModuleError",
+      "defaultGeneratedFileRouteDefinitionsHeader",
+      "createFileRouteModuleReferences",
+      "createFileRouteCompanionModuleReferences",
+      "createFileRouteDefinitionsModule",
+      "createGeneratedFileRouteDefinitionsModule"
+    ]
+  },
+  {
     file: "packages/db/src/collection-contract.ts",
     declarations: [
       "CollectionKey",
@@ -217,6 +283,108 @@ export const publicHoverDocGroups = [
     ]
   },
   {
+    file: "packages/db/src/index.ts",
+    namespaceDeclarations: {
+      Collection: [
+        "Definition",
+        "Row",
+        "Key",
+        "Origin",
+        "State",
+        "RuntimeError",
+        "Mutation",
+        "Transaction",
+        "MutationContext",
+        "RollbackRow",
+        "PendingMutation",
+        "Policy",
+        "SyncDiagnostics",
+        "IndexValue",
+        "IndexResult",
+        "IndexDefinition",
+        "IndexInput",
+        "IndexRecord",
+        "Store",
+        "StoreDiagnostics",
+        "StoreDiagnosticsSnapshot",
+        "StoreEvent",
+        "Update",
+        "Change",
+        "RowSnapshot",
+        "Snapshot",
+        "HydrationPayload",
+        "HydrateOptions",
+        "SnapshotCodecError",
+        "PersistenceStorage",
+        "PersistOptions",
+        "PersistenceConfig",
+        "PersistedOptions",
+        "LiveQueryOptions",
+        "StorageLike",
+        "MemoryStorage",
+        "DefinitionDiagnostics",
+        "Diagnostics",
+        "DefinitionRegistryAdapter",
+        "DefinitionRegistryOptions",
+        "DefinitionRegistration",
+        "DefinitionDuplicatePolicy",
+        "DefinitionDuplicateDiagnostics",
+        "DefinitionRegistryDiagnostics",
+        "PreloadCollector",
+        "Collected",
+        "ServerOptions",
+        "ServerOperation",
+        "ServerResult",
+        "ServerInsertPayload",
+        "ServerUpdatePayload",
+        "ServerDeletePayload",
+        "SyncAdapter",
+        "SyncOptions",
+        "ResourceSyncAdapterOptions",
+        "QuerySyncKey",
+        "QuerySyncFetchOptions",
+        "QuerySyncInvalidateOptions",
+        "QuerySyncClient",
+        "QuerySyncAdapterOptions",
+        "QuerySyncMutationInvalidationPolicy",
+        "ChangeFeedUnsubscribe",
+        "ChangeFeedSubscription",
+        "ChangeFeedContext",
+        "ChangeFeedAdapter",
+        "ChangeFeedSubscribeOptions",
+        "ChangeFeedDispatchPolicy",
+        "ChangeFeedLateEmitPolicy",
+        "SyncInsertPayload",
+        "SyncUpdatePayload",
+        "SyncDeletePayload",
+        "FlushAllPendingMutationsContext",
+        "FlushAllPendingMutationsSkip",
+        "FlushAllPendingMutationsOptions",
+        "FlushAllPendingMutationsResult",
+        "BackgroundSyncTrigger",
+        "BackgroundSyncPending",
+        "BackgroundSyncAdapterContext",
+        "BackgroundSyncAdapter",
+        "BackgroundSyncOptions",
+        "BackgroundSyncResult",
+        "SQLiteStorageKey",
+        "SQLiteStorageRow",
+        "SQLiteStorageTable",
+        "SQLiteStorageDriver",
+        "SQLiteStorageOptions",
+        "SQLiteMemoryStatement",
+        "SQLiteMemoryStatementDatabase",
+        "SQLiteStatementValue",
+        "SQLiteStatementParams",
+        "SQLiteStatementRow",
+        "SQLiteStatementDatabase",
+        "SQLitePreparedStatement",
+        "SQLitePreparedStatementDatabase",
+        "SQLitePreparedStatementDatabaseOptions"
+      ]
+    }
+  },
+  {
     file: "packages/db/src/query-plan.ts",
     declarations: [
       "UnsupportedLiveQuery",
@@ -242,6 +410,26 @@ export const publicHoverDocGroups = [
       "QueryExecution",
       "QueryAggregate"
     ]
+  },
+  {
+    file: "packages/db/src/query-builder.ts",
+    namespaceDeclarations: {
+      Query: [
+        "Builder",
+        "Factory",
+        "Live",
+        "LiveState",
+        "EvaluationError",
+        "JoinStrategy",
+        "PlanSourceDiagnostics",
+        "PlanJoinDiagnostics",
+        "PlanDiagnostics",
+        "Root",
+        "Aggregate",
+        "Aggregates",
+        "AggregateResult"
+      ]
+    }
   },
   {
     file: "packages/db/src/flush-policy.ts",

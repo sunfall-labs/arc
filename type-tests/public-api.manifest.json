@@ -73,10 +73,27 @@
       "source": "packages/devtools/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/devtools.test-d.ts",
+      "sourceSurface": [
+        "app-graph-normalizer",
+        "bridge",
+        "devtools-contract",
+        "panel-contract",
+        "panel-renderer",
+        "serialization",
+        "summary"
+      ],
       "requiredTypeTestImports": [
+        "DevtoolsStartAppGraphSchemaCoverage",
+        "DevtoolsStartAppGraphUnknownActionBehaviorEntry",
+        "DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry",
+        "DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry",
         "DevtoolsUnknownInvalidationTarget",
         "describeInvalidationPlan",
-        "describeRoutePlan"
+        "describeRoutePlan",
+        "normalizeAppGraphCollectionDefinitions",
+        "normalizeAppGraphUnknownRoutePreloadCollections",
+        "normalizeDevtoolsAppGraphDiagnostics",
+        "normalizeRouteModulePreloadCollections"
       ]
     },
     {
@@ -169,7 +186,47 @@
       "import": "@effect-ui/start",
       "source": "packages/start/src/index.ts",
       "docs": "docs/public-api-inventory.md",
-      "typeTest": "type-tests/start.test-d.ts"
+      "typeTest": "type-tests/start.test-d.ts",
+      "sourceSurface": [
+        "action-manifest",
+        "agent-graph",
+        "app-graph",
+        "diagnostics-report",
+        "effect-rpc-compat",
+        "file-route",
+        "file-route-modules",
+        "file-routes",
+        "hydration",
+        "render-hydration-plan",
+        "request-trace",
+        "rpc",
+        "server-function-manifest",
+        "start-action-client",
+        "start-action-request-codec",
+        "start-collection-resolution",
+        "start-fetch",
+        "start-request-handler",
+        "start-rpc-client",
+        "start-transport-endpoints",
+        "start-transport-protocol",
+        "streaming"
+      ],
+      "requiredTypeTestImports": [
+        "FileRouteCompanionModuleReference",
+        "FileRouteDefinitionsModuleError",
+        "FileRouteDefinitionsModuleInvalidExportName",
+        "FileRouteDefinitionsModuleInvalidIdentifier",
+        "FileRouteDefinitionsModuleOptions",
+        "FileRouteManifest",
+        "FileRouteModuleReference",
+        "GeneratedFileRouteDefinitionsModuleOptions",
+        "createFileRouteCompanionModuleReferences",
+        "createFileRouteDefinitionsModule",
+        "createFileRouteModuleReferences",
+        "createGeneratedFileRouteDefinitionsModule",
+        "defaultGeneratedFileRouteDefinitionsHeader",
+        "isFileRouteDefinitionsModuleError"
+      ]
     },
     {
       "package": "@effect-ui/start",

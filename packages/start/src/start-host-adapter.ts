@@ -1,6 +1,8 @@
 import { Effect } from "effect";
 import {
+  invalidStartRequestHandlerReturnMessage,
   normalizeStartRequestHandlerError,
+  StartRequestHandlerInvalidReturn,
   type StartRequestHandlerError
 } from "./start-request-handler-error.js";
 
@@ -39,12 +41,25 @@ export function invokeStartRequestHandlerEffect(
 ): Effect.Effect<Response, StartRequestHandlerError, any> {
   return Effect.flatMap(
     Effect.try({
-      try: () => handler(request),
+      try: () => handler(request) as unknown,
       catch: (cause) => startRequestHandlerError(request, cause)
     }),
-    (effect) =>
-      effect.pipe(
+    (effect) => {
+      if (!Effect.isEffect(effect)) {
+        return Effect.fail(
+          startRequestHandlerError(
+            request,
+            new StartRequestHandlerInvalidReturn({
+              message: invalidStartRequestHandlerReturnMessage,
+              received: effect
+            })
+          )
+        );
+      }
+
+      return (effect as Effect.Effect<Response, unknown, any>).pipe(
         Effect.mapError((cause) => startRequestHandlerError(request, cause))
-      )
+      );
+    }
   );
 }

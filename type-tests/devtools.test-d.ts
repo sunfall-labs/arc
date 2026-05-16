@@ -31,8 +31,12 @@ import {
   makeDevtoolsStore,
   mountDevtoolsPanels,
   mountDevtoolsPanelsEffect,
+  normalizeAppGraphCollectionDefinitions,
+  normalizeAppGraphUnknownRoutePreloadCollections,
+  normalizeDevtoolsAppGraphDiagnostics,
   normalizeDevtoolsPanels,
   normalizeEffectUiDevtoolsBridgePayload,
+  normalizeRouteModulePreloadCollections,
   resolveDevtoolsPanelContract,
   resolveDevtoolsPanelsInput,
   resolveEffectUiDevtoolsBridgePayload,
@@ -70,6 +74,10 @@ import {
   type DevtoolsSerializableValue,
   type DevtoolsSnapshot,
   type DevtoolsStartAppGraphDiagnostics,
+  type DevtoolsStartAppGraphSchemaCoverage,
+  type DevtoolsStartAppGraphUnknownActionBehaviorEntry,
+  type DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry,
+  type DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry,
   type DevtoolsStore,
   type DevtoolsStoreOptions,
   type DevtoolsSummary,
@@ -479,6 +487,19 @@ const devtoolsBridgeInstallEffect: Effect.Effect<void, never, Scope.Scope> =
   installDevtoolsBridgeEffect(() => devtoolsBridgePayload, devtoolsBridgeTarget);
 
 declare const devtoolsAppGraph: DevtoolsStartAppGraphDiagnostics;
+const normalizedDevtoolsAppGraph: DevtoolsStartAppGraphDiagnostics =
+  normalizeDevtoolsAppGraphDiagnostics(devtoolsAppGraph);
+const normalizedAppGraphCollections = normalizeAppGraphCollectionDefinitions(devtoolsAppGraph);
+const normalizedAppGraphUnknownCollectionPreloads =
+  normalizeAppGraphUnknownRoutePreloadCollections(devtoolsAppGraph);
+const normalizedRoutePreloadCollections =
+  normalizeRouteModulePreloadCollections(devtoolsAppGraph.routeModules[0]!);
+const devtoolsStartSchemaCoverage: DevtoolsStartAppGraphSchemaCoverage =
+  normalizedDevtoolsAppGraph.schemaCoverage.actions;
+type DevtoolsStartUnknowns =
+  | DevtoolsStartAppGraphUnknownActionBehaviorEntry
+  | DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry
+  | DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry;
 devtoolsStore.setAppGraphDiagnostics(devtoolsAppGraph);
 const devtoolsSetAppGraphDiagnosticsEffect: Effect.Effect<void> =
   devtoolsStore.setAppGraphDiagnosticsEffect(devtoolsAppGraph);
@@ -532,3 +553,9 @@ void devtoolsBridgeInstallEffect;
 void devtoolsSetAppGraphDiagnosticsEffect;
 void devtoolsClearAppGraphDiagnosticsEffect;
 void devtoolsActionInvalidationPlanConflict;
+void normalizedDevtoolsAppGraph;
+void normalizedAppGraphCollections;
+void normalizedAppGraphUnknownCollectionPreloads;
+void normalizedRoutePreloadCollections;
+void devtoolsStartSchemaCoverage;
+type _DevtoolsStartUnknowns = DevtoolsStartUnknowns;

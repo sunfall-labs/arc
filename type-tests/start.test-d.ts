@@ -2,14 +2,20 @@ import {
   collectStartAppGraphDiagnosticsPolicyViolations,
   createStartAppGraph,
   createStartAppGraphDiagnosticsPolicyException,
+  createFileRouteCompanionModuleReferences,
+  createFileRouteDefinitionsModule,
+  createFileRouteModuleReferences,
+  createGeneratedFileRouteDefinitionsModule,
   createRequestHandler,
   createStartStreamedHtmlResponseEffect,
+  defaultGeneratedFileRouteDefinitionsHeader,
   describeStartAppGraph,
   describeStartAppGraphRuntimeDiagnostics,
   deserializeStartAppGraph,
   enforceStartAppGraphDiagnosticsPolicy,
   formatStartAppGraphDiagnosticsPolicyViolation,
   hydrateStartHydrationChunks,
+  isFileRouteDefinitionsModuleError,
   preloadRequestEffect,
   startEffectRpcEndpointDescriptor,
   startRequestCountMetric,
@@ -18,6 +24,8 @@ import {
   resolveStartTransportEndpointsEffect,
   validateStartEndpointPathEffect,
   StartAppGraphDiagnosticsDtoError,
+  FileRouteDefinitionsModuleInvalidExportName,
+  FileRouteDefinitionsModuleInvalidIdentifier,
   StartAppGraphMissingWireSchemas,
   StartAppGraphParseError,
   StartTransportEndpointConflictError,
@@ -44,6 +52,12 @@ import {
   type StartEndpointConflictErrorInput,
   type StartEndpointPathErrorInput,
   type StartFetch,
+  type FileRouteCompanionModuleReference,
+  type FileRouteDefinitionsModuleError,
+  type FileRouteDefinitionsModuleOptions,
+  type FileRouteManifest,
+  type FileRouteModuleReference,
+  type GeneratedFileRouteDefinitionsModuleOptions,
   type StartAppGraphWireSchemaPolicy,
   type HydrateStartPayloadOptions,
   type ServerFunctionManifest,
@@ -82,14 +96,20 @@ const startExports: Array<unknown> = [
   collectStartAppGraphDiagnosticsPolicyViolations,
   createStartAppGraph,
   createStartAppGraphDiagnosticsPolicyException,
+  createFileRouteCompanionModuleReferences,
+  createFileRouteDefinitionsModule,
+  createFileRouteModuleReferences,
+  createGeneratedFileRouteDefinitionsModule,
   createRequestHandler,
   createStartStreamedHtmlResponseEffect,
+  defaultGeneratedFileRouteDefinitionsHeader,
   describeStartAppGraph,
   describeStartAppGraphRuntimeDiagnostics,
   deserializeStartAppGraph,
   enforceStartAppGraphDiagnosticsPolicy,
   formatStartAppGraphDiagnosticsPolicyViolation,
   hydrateStartHydrationChunks,
+  isFileRouteDefinitionsModuleError,
   preloadRequestEffect,
   startEffectRpcEndpointDescriptor,
   startRequestCountMetric,
@@ -98,6 +118,8 @@ const startExports: Array<unknown> = [
   resolveStartTransportEndpointsEffect,
   validateStartEndpointPathEffect,
   StartAppGraphDiagnosticsDtoError,
+  FileRouteDefinitionsModuleInvalidExportName,
+  FileRouteDefinitionsModuleInvalidIdentifier,
   StartAppGraphMissingWireSchemas,
   StartAppGraphParseError,
   StartTransportEndpointConflictError,
@@ -125,6 +147,12 @@ type StartTypes =
   | StartAppGraphRoutePreloadResourcesPolicy
   | StartEndpointConflictErrorInput
   | StartEndpointPathErrorInput
+  | FileRouteCompanionModuleReference
+  | FileRouteDefinitionsModuleError
+  | FileRouteDefinitionsModuleOptions
+  | FileRouteManifest
+  | FileRouteModuleReference
+  | GeneratedFileRouteDefinitionsModuleOptions
   | StartAppGraphWireSchemaPolicy
   | HydrateStartPayloadOptions
   | ServerFunctionManifest
@@ -170,6 +198,42 @@ void legacyHydrationScript;
 void deprecatedHydrationScript;
 void hydrationRootScript;
 void hydrationPlan;
+
+declare const startFileRouteManifest: FileRouteManifest;
+const fileRouteDefinitionsOptions: FileRouteDefinitionsModuleOptions = {
+  generatedFile: "src/routeTree.gen.ts",
+  importMode: "relative",
+  routeModuleExportName: "Route"
+};
+const fileRouteModuleReferences: readonly FileRouteModuleReference[] =
+  createFileRouteModuleReferences(startFileRouteManifest, fileRouteDefinitionsOptions);
+const fileRouteCompanionReferences: readonly FileRouteCompanionModuleReference[] =
+  createFileRouteCompanionModuleReferences(startFileRouteManifest, fileRouteDefinitionsOptions);
+const generatedFileRouteDefinitionsOptions: GeneratedFileRouteDefinitionsModuleOptions = {
+  ...fileRouteDefinitionsOptions,
+  header: defaultGeneratedFileRouteDefinitionsHeader
+};
+const fileRouteDefinitionsModule: string =
+  createFileRouteDefinitionsModule(startFileRouteManifest, fileRouteDefinitionsOptions);
+const generatedFileRouteDefinitionsModule: string =
+  createGeneratedFileRouteDefinitionsModule(startFileRouteManifest, generatedFileRouteDefinitionsOptions);
+const invalidFileRouteIdentifier = new FileRouteDefinitionsModuleInvalidIdentifier({
+  routeId: "route-projects",
+  routePath: "/projects"
+});
+const invalidFileRouteExportName = new FileRouteDefinitionsModuleInvalidExportName({
+  exportName: "1Route"
+});
+const fileRouteDefinitionsError: FileRouteDefinitionsModuleError = invalidFileRouteIdentifier;
+if (isFileRouteDefinitionsModuleError(fileRouteDefinitionsError)) {
+  const routeDefinitionErrorTag: string = fileRouteDefinitionsError._tag;
+  void routeDefinitionErrorTag;
+}
+void fileRouteModuleReferences;
+void fileRouteCompanionReferences;
+void fileRouteDefinitionsModule;
+void generatedFileRouteDefinitionsModule;
+void invalidFileRouteExportName;
 
 interface HydrationRuntimeService {
   readonly hydrationRuntimeService: unique symbol;

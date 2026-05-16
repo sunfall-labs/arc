@@ -29,6 +29,7 @@ const hasRouteModulePreloadCollections = (
 ): boolean =>
   Object.prototype.hasOwnProperty.call(routeModule, "preloadCollections");
 
+/** Normalizes route-module collection preload diagnostics for legacy app graph DTOs. */
 export const normalizeRouteModulePreloadCollections = (
   routeModule: DevtoolsStartAppGraphRouteModuleDiagnostics
 ): DevtoolsStartAppGraphRoutePreloadCollections => {
@@ -152,6 +153,7 @@ const normalizeAppGraphCollection = (
   persistence: { ...collection.persistence }
 });
 
+/** Returns detached collection-definition diagnostics with legacy defaults filled in. */
 export const normalizeAppGraphCollectionDefinitions = (
   appGraph: DevtoolsStartAppGraphDiagnostics
 ): readonly DevtoolsStartAppGraphCollectionDiagnostics[] =>
@@ -159,6 +161,7 @@ export const normalizeAppGraphCollectionDefinitions = (
     readonly collectionDefinitions?: readonly DevtoolsStartAppGraphCollectionDiagnostics[];
   }).collectionDefinitions ?? []).map(normalizeAppGraphCollection);
 
+/** Derives unknown route collection-preload diagnostics from normalized route modules. */
 export const normalizeAppGraphUnknownRoutePreloadCollections = (
   appGraph: DevtoolsStartAppGraphDiagnostics
 ): readonly DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry[] => {

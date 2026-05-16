@@ -526,6 +526,7 @@ export interface DevtoolsStore {
   readonly getCausalGraphEffect: () => Effect.Effect<DevtoolsCausalGraph>;
 }
 
+/** Count of contracts with input, output, and error schemas in a Start app graph. */
 export interface DevtoolsStartAppGraphSchemaCoverage {
   readonly total: number;
   readonly input: number;
@@ -715,6 +716,7 @@ export interface DevtoolsStartAppGraphCollectionDiagnostics {
   };
 }
 
+/** Action whose behavior policy could not be fully described statically. */
 export interface DevtoolsStartAppGraphUnknownActionBehaviorEntry {
   readonly kind: "action";
   readonly name: string;
@@ -724,6 +726,7 @@ export interface DevtoolsStartAppGraphUnknownActionBehaviorEntry {
   readonly concurrency: DevtoolsStartAppGraphActionConcurrency;
 }
 
+/** Route whose resource preload policy remains unknown after app graph analysis. */
 export interface DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry {
   readonly kind: "route";
   readonly routeId: string;
@@ -734,6 +737,7 @@ export interface DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry {
   readonly preloadResources: DevtoolsStartAppGraphRoutePreloadResources;
 }
 
+/** Route whose collection preload policy remains unknown after app graph analysis. */
 export interface DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry {
   readonly kind: "route";
   readonly routeId: string;
@@ -778,12 +782,14 @@ export interface DevtoolsStartAppGraphDiagnostics {
   readonly unknownRoutePreloadCollections: readonly DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry[];
 }
 
+/** Stable resource reference used by summaries, routes, and invalidation plans. */
 export interface DevtoolsSummaryResourceRef {
   readonly key: string;
   readonly family: string;
   readonly input: DevtoolsSerializableValue;
 }
 
+/** Resource or tag target selected by an invalidation plan. */
 export type DevtoolsSummaryInvalidationTarget =
   | DevtoolsSummaryResourceRef & {
       readonly _tag: "Ref";
@@ -794,6 +800,7 @@ export type DevtoolsSummaryInvalidationTarget =
       readonly name: string;
     };
 
+/** Resource or tag cause that matched an invalidation target. */
 export type DevtoolsSummaryInvalidationCause =
   | {
       readonly _tag: "Ref";
@@ -806,6 +813,7 @@ export type DevtoolsSummaryInvalidationCause =
       readonly name: string;
     };
 
+/** Summarized invalidation plan with matched resources and causes. */
 export interface DevtoolsSummaryInvalidationPlan {
   readonly index: number;
   readonly targetCount: number;
@@ -818,6 +826,7 @@ export interface DevtoolsSummaryInvalidationPlan {
   }>;
 }
 
+/** Summarized navigation plan with route params, search, and hydration facts. */
 export interface DevtoolsSummaryRoutePlan {
   readonly index: number;
   readonly _tag: "Matched" | "NotFound";
@@ -831,6 +840,7 @@ export interface DevtoolsSummaryRoutePlan {
   readonly resources: ReadonlyArray<DevtoolsSummaryResourceRef>;
 }
 
+/** Resource summary row merged from snapshots, route plans, traces, and events. */
 export interface DevtoolsSummaryResource {
   readonly key: string;
   readonly family: string | null;
@@ -1215,6 +1225,7 @@ export type DevtoolsPanelId =
 /** Highest diagnostic level represented by a panel, row, or metric group. */
 export type DevtoolsPanelSeverity = "ok" | "info" | "warning" | "error";
 
+/** Small scalar fact displayed in a Devtools panel or panel item. */
 export interface DevtoolsPanelMetric {
   /** Human-readable metric label. */
   readonly label: string;
@@ -1224,6 +1235,7 @@ export interface DevtoolsPanelMetric {
   readonly unit?: string;
 }
 
+/** One row in a Devtools panel, with optional metrics and structured detail. */
 export interface DevtoolsPanelItem {
   /** Stable item id for DOM keys, routing, and snapshot tests. */
   readonly id: string;

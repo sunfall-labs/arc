@@ -6404,6 +6404,56 @@ describe("Query", () => {
     }
   });
 
+  it("rejects reserved query source aliases consistently", async () => {
+    const Projects = Collection.define<Project>({
+      name: "Projects.reserved-query-alias",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+      ]
+    });
+    const aliases = ["__proto__", "constructor", "prototype"] as const;
+
+    for (const alias of aliases) {
+      const reason = `Query source alias "${alias}" is reserved. Use a domain alias that can be represented as an own object property.`;
+      const factory = (query: Query.Root) =>
+        query
+          .from({ [alias]: Projects } as Record<string, typeof Projects>)
+          .select(() => "unreachable");
+
+      expect(() => Query.diagnostics(factory)).toThrow(UnsupportedLiveQuery);
+
+      const onceExit = await Effect.runPromiseExit(Query.onceEffect(factory));
+      expect(Exit.isFailure(onceExit)).toBe(true);
+      if (Exit.isFailure(onceExit)) {
+        const error = onceExit.cause.reasons.find(Cause.isFailReason)?.error;
+        expect(error).toBeInstanceOf(QueryEvaluationError);
+        expect(error).toMatchObject({
+          operation: "evaluate",
+          cause: {
+            _tag: "UnsupportedLiveQuery",
+            reason
+          }
+        });
+      }
+
+      const live = Query.live(factory);
+      expect(live.data.get()).toEqual([]);
+      expect(live.state.get()).toMatchObject({
+        _tag: "Failure",
+        data: [],
+        error: {
+          _tag: "QueryEvaluationError",
+          operation: "evaluate",
+          cause: {
+            _tag: "UnsupportedLiveQuery",
+            reason
+          }
+        }
+      });
+    }
+  });
+
   it("rejects duplicate query aliases consistently", async () => {
     const projectLoad = vi.fn(() =>
       Effect.succeed<ReadonlyArray<Project>>([

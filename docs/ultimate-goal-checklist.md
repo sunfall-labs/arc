@@ -807,25 +807,27 @@ Last evidence pass: May 16, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 190 Server union-Promise,
-    query window, and audit-fixture docs refresh. Future architecture sweeps remain tracked in
+  - Evidence: no new ADR required for the Review 191 shared EffectInput
+    Promise-union, Start host invalid-return, DB reserved-alias, and public LSP
+    docs gate refresh. Future architecture sweeps remain tracked in
     `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 190
-    Server union-Promise, query window, and audit-fixture docs refresh:
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 191
+    shared EffectInput Promise-union, Start host invalid-return,
+    DB reserved-alias, and public LSP docs gate refresh:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
-    404 physical/virtual files, 53 root test files / 1033 tests,
+    404 physical/virtual files, 53 root test files / 1035 tests,
     package-level verifies for the devtools/starter/example packages,
     generated starter-suite packaging/verifies for basic/react/project-console,
     16-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 190 records Core/DB typechecks, public type tests, DB
-    collection regressions, public API audit, Effect-first audit,
-    current-gate/audit-fixture wording greps, and whitespace check. Clean
-    Sweep 1 after Review190 records no-actionable findings across the three
-    post-fix review lanes.
+  - Evidence: Review 191 records Core/Start/DB/Devtools typechecks, public type
+    tests, public API audit, Effect-first audit, Core effect/action-result
+    tests, Start adapter tests, DB query alias regressions, and Devtools tests.
+    Clean Sweep 1 after Review190 remains historical 1/30 evidence, but Clean
+    Sweep 2 found Review191 work and reset the active counter to 0/30.
     Full verification is recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items

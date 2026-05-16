@@ -12,11 +12,13 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review190, the Server union-Promise, query window, and audit-fixture docs
-refresh found by the first post-Review189 clean-sweep candidate. The newest
-post-fix no-actionable sweep is Clean Sweep 1 after Review190. Some older
-review entries remain below this tip from prior ledger merges; use this tip
-rather than file order alone when looking for the latest architecture sweep.
+Review191, the shared EffectInput Promise-union, Start host invalid-return, DB
+reserved-alias, and public LSP docs gate refresh found by Clean Sweep 2 after
+Review190. Clean Sweep 1 after Review190 remains historical evidence, but Clean
+Sweep 2 found actionable work, so the active Thirty-Sweep clean counter is reset
+to 0/30 until a fresh post-Review191 sweep reports no actionable findings. Some
+older review entries remain below this tip from prior ledger merges; use this
+tip rather than file order alone when looking for the latest architecture sweep.
 
 The fresh post-Review185 subagent sweep reported no actionable Core/React/Solid,
 DB/public API, or Start/devtools/scripts findings after focused verification.
@@ -29,7 +31,105 @@ Review190 Server union-Promise, query window, and audit-fixture docs drift. The
 fresh post-Review190 Core/React/Solid, DB/public API, and
 Start/devtools/examples/docs/scripts sweeps found no actionable Module,
 Interface, Seam, Adapter, Locality, Depth, Leverage, typed error, or docs drift
-work, so the Thirty-Sweep clean counter is now 1/30.
+work, creating Clean Sweep 1. The next Clean Sweep 2 candidate found Review191
+work, so the counter is no longer active until the post-Review191 sweep is
+clean.
+
+## Review 191: EffectInput, Start Host, DB Aliases, And LSP Gates
+
+Review191 fixed the actionable findings from Clean Sweep 2 after Review190.
+
+1. Shared EffectInput Promise-Union Gate
+   - Status: fixed.
+   - Files: `packages/core/src/effect-like.ts`,
+     `packages/core/src/action-result.ts`, `type-tests/framework.test-d.ts`,
+     `scripts/audit-effect-first.mjs`.
+   - Problem: direct Promise values were rejected, but explicit success types
+     such as `Project | Promise<Project>` could still cross `toEffect(...)`,
+     `invokeEffectInput(...)`, and `ActionResult.fromEffect(...)` seams because
+     local checks did not reject extracted Promise members.
+   - Fix: moved the shared `HasPromiseLike` rule into `EffectInput` itself,
+     kept Effect values accepted, switched ActionResult helpers to
+     `RejectPromiseLikeValue`, and added negative public type tests for
+     union-shaped Promise success values.
+   - Benefits: the Core EffectInput Module now owns this rule once; callers
+     cannot smuggle host Promise work through union annotations.
+
+2. Start Host Invalid-Return Normalization
+   - Status: fixed.
+   - Files: `packages/start/src/start-host-adapter.ts`,
+     `packages/start/src/start-request-handler-error.ts`,
+     `packages/start/test/adapters.test.ts`.
+   - Problem: JS, `any`, or runtime-loaded Start request handlers returning a
+     plain `Response` or Promise-shaped value failed with raw
+     `TypeError: effect.pipe is not a function` instead of the host error
+     contract.
+   - Fix: the Start Host Adapter now checks that handler results are Effects
+     before running them and wraps invalid return shapes in
+     `StartRequestHandlerError` with a typed
+     `StartRequestHandlerInvalidReturn` cause and Effect-first guidance.
+   - Benefits: host-boundary failures stay local to the Start Adapter seam, and
+     app handlers still learn to use `Effect.tryPromise(...)` for host Promise
+     work.
+
+3. DB Reserved Query Alias Validation
+   - Status: fixed.
+   - Files: `packages/db/src/query-plan.ts`,
+     `packages/db/src/query-builder.ts`,
+     `packages/db/test/collection.test.ts`.
+   - Problem: aliases like `__proto__` behaved differently between one-shot
+     query execution and live query evaluation because snapshot execution
+     mutated a normal row context object.
+   - Fix: Query Plan validation now rejects `__proto__`, `constructor`, and
+     `prototype` as source aliases before any execution path reads rows.
+   - Benefits: `Query.build(...).execute()`, `Query.onceEffect(...)`,
+     `Query.live(...)`, and diagnostics share one alias contract.
+
+4. Public LSP Docs And Source-Surface Gates
+   - Status: fixed.
+   - Files: `packages/start/src/file-route-modules.ts`,
+     `packages/devtools/src/devtools-contract.ts`,
+     `packages/devtools/src/app-graph-normalizer.ts`,
+     `packages/devtools/src/panel-contract.ts`,
+     `packages/devtools/src/panel-renderer.ts`,
+     `packages/devtools/src/summary.ts`, `packages/db/src/index.ts`,
+     `packages/db/src/query-builder.ts`,
+     `scripts/public-api-symbol-policy.mjs`,
+     `type-tests/public-api.manifest.json`, `type-tests/start.test-d.ts`,
+     `type-tests/devtools.test-d.ts`.
+   - Problem: Start and Devtools root exports had wider public Interfaces than
+     the source-surface/type-test/hover-doc gates enforced, and DB namespace
+     aliases had shallow LSP hover text even though docs recommend the
+     namespace-owned API.
+   - Fix: pinned Start and Devtools root `sourceSurface` lists, added direct
+     type-test imports for generated route helpers and Devtools app-graph
+     normalizers, added declaration-site JSDoc for the public Start/Devtools
+     concepts, and expanded the public hover-doc policy to cover Start
+     file-route modules, Devtools DTO/normalizer/panel seams, and DB
+     `Collection.*` / `Query.*` namespace aliases.
+   - Benefits: public LSP documentation is now guarded by executable policy
+     instead of a one-time comment pass.
+
+Focused workspace evidence for this pass: `pnpm --filter @effect-ui/core
+typecheck`, `pnpm --filter @effect-ui/start typecheck`, `pnpm --filter
+@effect-ui/db typecheck`, `pnpm --filter @effect-ui/devtools typecheck`,
+`pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first`,
+`pnpm exec vitest run packages/core/test/effect-like.test.ts
+packages/core/test/action-result.test.ts`, `pnpm exec vitest run
+packages/start/test/adapters.test.ts`, `pnpm exec vitest run
+packages/db/test/collection.test.ts --testNamePattern "reserved query source
+aliases|duplicate query aliases|zero-source live queries"`, and `pnpm exec
+vitest run packages/devtools/test/devtools.test.ts` passed. Full `pnpm verify`
+passed: 11 package builds, workspace typecheck, public type tests, public API
+inventory audit, Effect-first audit over 404 physical/virtual files, 53 root
+test files / 1035 tests, devtools-panel verify with 2 tests,
+devtools-extension verify with 20 tests, basic starter verify with 2 tests,
+React starter verify with 3 tests, generated starter-suite packaging/verifies
+for basic/react/project-console, 16-target package dry-run gate,
+project-console typecheck, 4 project-console test files / 27 tests,
+project-console build, and leak scans. Because Clean Sweep 2 found this work,
+the active Thirty-Sweep clean counter is reset to 0/30 until fresh post-fix
+sweeps are clean.
 
 ## Clean Sweep 1: Post-Review190 No-Actionable Sweep
 

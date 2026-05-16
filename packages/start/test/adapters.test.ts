@@ -27,7 +27,10 @@ import {
   nodeRequestOrigin as packagedNodeRequestOrigin
 } from "@effect-ui/start-node";
 import { createRequestHandler } from "../src/start-request-handler.js";
-import { normalizeStartRequestHandlerError } from "../src/start-request-handler-error.js";
+import {
+  normalizeStartRequestHandlerError,
+  StartRequestHandlerInvalidReturn
+} from "../src/start-request-handler-error.js";
 import { startRequestHandlerError } from "../src/start-host-adapter.js";
 
 const listen = (server: ReturnType<typeof createServer>): Promise<number> =>
@@ -184,6 +187,25 @@ describe("Start deployment adapters", () => {
       cause
     });
     await expect(promiseHandler(request)).rejects.toBeInstanceOf(StartRequestHandlerError);
+  });
+
+  it("normalizes invalid handler return shapes in fetch adapters", async () => {
+    const request = new Request("https://example.com/invalid-return");
+    const effectHandler = toFetchHandlerEffect((() =>
+      new Response("not an Effect")) as never);
+    const promiseHandler = createFetchHandler((() =>
+      Promise.resolve(new Response("not an Effect"))) as never);
+
+    const error = await Effect.runPromise(Effect.flip(effectHandler(request)));
+
+    expect(error).toBeInstanceOf(StartRequestHandlerError);
+    expect(error.cause).toBeInstanceOf(StartRequestHandlerInvalidReturn);
+    expect(error.cause).toMatchObject({
+      message: expect.stringContaining("Effect.tryPromise")
+    });
+    await expect(promiseHandler(request)).rejects.toMatchObject({
+      cause: expect.any(StartRequestHandlerInvalidReturn)
+    });
   });
 
   it("preserves StartRequestHandlerError values through the shared host normalizer", async () => {

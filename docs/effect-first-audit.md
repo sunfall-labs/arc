@@ -1341,15 +1341,18 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The current full `pnpm verify` passed after the Review 190 Server
-  union-Promise, query window, and audit-fixture docs refresh: 11 package
+- The current full `pnpm verify` passed after the Review 191 shared EffectInput
+  Promise-union, Start host invalid-return, DB reserved-alias, and public LSP
+  docs gate refresh: 11 package
   builds, workspace typecheck, type tests,
   public API inventory audit, Effect-first audit over 404
   package/example/config/script/type-test/generated/docs files, 53 root test
-  files / 1033 tests, package-level verifies for copyable/source packages,
+  files / 1035 tests, package-level verifies for copyable/source packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console
-  test files / 27 tests, build, and leak scans. Review 185 remains historical
+  test files / 27 tests, build, and leak scans. The Effect-first audit now
+  anchors 7 `PromiseLike` occurrences after replacing older local parameter
+  checks with the shared `RejectPromiseLikeValue` helper. Review 185 remains historical
   evidence for starter catalog typed-error validation, and Review 165 remains
   historical evidence for the Effect-first seams, atomic hydration, route
   identity, and guardrail closure slice.

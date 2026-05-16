@@ -36,6 +36,7 @@ export const devtoolsPanelSeverities: readonly DevtoolsPanelSeverity[] = [
 const devtoolsPanelIdSet: ReadonlySet<string> = new Set(devtoolsPanelIds);
 const devtoolsPanelSeveritySet: ReadonlySet<string> = new Set(devtoolsPanelSeverities);
 
+/** Stable reason codes for public Devtools panel contract validation failures. */
 export type DevtoolsPanelContractErrorReason =
   | "InvalidType"
   | "InvalidVersion"
@@ -56,6 +57,7 @@ export class DevtoolsPanelContractError extends Data.TaggedError(
   readonly value?: unknown;
 }> {}
 
+/** Result of resolving an unknown value as a complete Devtools panel contract. */
 export type DevtoolsPanelContractResolution =
   | {
       readonly _tag: "Valid";
@@ -67,6 +69,7 @@ export type DevtoolsPanelContractResolution =
       readonly panels: DevtoolsPanels;
     };
 
+/** Result of resolving an inspected-window bridge payload into panel data. */
 export type DevtoolsBridgePayloadContractResolution =
   | {
       readonly _tag: "Valid";
@@ -506,6 +509,7 @@ const normalizeDevtoolsPanel = (value: unknown): DevtoolsPanel | undefined => {
 export const isDevtoolsPanel = (value: unknown): value is DevtoolsPanel =>
   normalizeDevtoolsPanel(value) !== undefined;
 
+/** Normalizes an unknown value into the complete public Devtools panel model. */
 export const normalizeDevtoolsPanels = (value: unknown): DevtoolsPanels | undefined => {
   if (!isRecord(value)) {
     return undefined;
@@ -734,6 +738,7 @@ export const resolveDevtoolsPanelContract = (
   };
 };
 
+/** Resolves explicit panel UI input or derives panels from summary inputs. */
 export const resolveDevtoolsPanelsInput = (
   input: DevtoolsPanelUiInput,
   describePanels: (input: DevtoolsPanelsInput) => DevtoolsPanels

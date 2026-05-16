@@ -35,6 +35,7 @@ const stateCounts = (
     .map(([state, count]) => ({ state, count }));
 };
 
+/** Projects snapshots, app graph facts, traces, and events into a stable Devtools summary. */
 export const describeDevtoolsSummary = (
   input: DevtoolsSummaryInput = {}
 ): DevtoolsSummary => {
@@ -100,6 +101,7 @@ export const describeDevtoolsSummary = (
   };
 };
 
+/** Effect wrapper for `describeDevtoolsSummary(...)`. */
 export const describeDevtoolsSummaryEffect = (
   input: DevtoolsSummaryInput = {}
 ): Effect.Effect<DevtoolsSummary> =>

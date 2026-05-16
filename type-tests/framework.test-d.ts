@@ -23,6 +23,7 @@ import {
   cloneResourceSnapshotValue,
   defineApp,
   hrefForRouteInput,
+  invokeEffectInput,
   isRouteParamName,
   makeActionSubmissionController,
   makeCoreDefinitionRegistry,
@@ -494,6 +495,15 @@ type ProjectError = {
   readonly _tag: "ProjectError";
   readonly message: string;
 };
+
+// @ts-expect-error direct EffectInput values cannot include Promise-shaped union members
+toEffect<typeof maybePromisedProject>(maybePromisedProject);
+// @ts-expect-error ActionResult.fromEffect rejects Promise-shaped union success values
+ActionResult.fromEffect<typeof maybePromisedProject>(maybePromisedProject);
+// @ts-expect-error ActionResult.fromValidationEffect rejects Promise-shaped union success values
+ActionResult.fromValidationEffect<typeof maybePromisedProject, ProjectError>(maybePromisedProject);
+// @ts-expect-error invokeEffectInput rejects callbacks whose success type includes Promise-shaped union members
+invokeEffectInput<[], typeof maybePromisedProject>("test.callback", () => maybePromisedProject);
 
 const coreDefinitionRegistry = makeCoreDefinitionRegistry({
   actions: [{ name: "Project.rename", effect: Effect.void }],

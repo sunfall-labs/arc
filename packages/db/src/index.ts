@@ -377,38 +377,71 @@ export const isCollection = isCollectionDefinition;
  * from the current runtime store or fork work onto the current runtime.
  */
 export namespace Collection {
+  /** Runtime definition returned by `Collection.define(...)`. */
   export type Definition<A extends object, K extends CollectionKey = string, E = never, R = never> = CollectionDefinition<A, K, E, R>;
+  /** Stored row shape with collection key metadata attached. */
   export type Row<A extends object, K extends CollectionKey = CollectionKey> = CollectionRow<A, K>;
+  /** Key values accepted by collections and row references. */
   export type Key = CollectionKey;
+  /** Origin marker for local, remote, or hydrated collection rows. */
   export type Origin = CollectionOrigin;
+  /** Reactive load state for one collection. */
   export type State<E = never> = CollectionLoadState<E>;
+  /** Runtime collection error channel including callback and storage failures. */
   export type RuntimeError<E = never> = CollectionRuntimeError<E>;
+  /** Optimistic mutation record queued for a collection. */
   export type Mutation<A extends object, K extends CollectionKey> = CollectionMutation<A, K>;
+  /** Committed mutation transaction record for diagnostics and rollback. */
   export type Transaction<A extends object, K extends CollectionKey> = CollectionTransaction<A, K>;
+  /** Context passed to collection mutation handlers. */
   export type MutationContext<A extends object, K extends CollectionKey> = CollectionMutationContext<A, K>;
+  /** Previous row snapshot retained for rollback. */
   export type RollbackRow<A extends object, K extends CollectionKey> = CollectionRollbackRow<A, K>;
+  /** Mutation waiting for its handler to flush. */
   export type PendingMutation<A extends object, K extends CollectionKey> = CollectionPendingMutation<A, K>;
+  /** Collection reload, garbage collection, and retry policy. */
   export type Policy<E = never> = CollectionPolicy<E>;
+  /** Sync adapter diagnostic facts for a collection. */
   export type SyncDiagnostics = CollectionSyncDiagnostics;
+  /** Scalar value accepted by collection secondary indexes. */
   export type IndexValue = CollectionIndexValue;
+  /** Result row stored under one secondary index key. */
   export type IndexResult = CollectionIndexResult;
+  /** Secondary index definition for collection rows. */
   export type IndexDefinition<A extends object> = CollectionIndexDefinition<A>;
+  /** User-facing secondary index configuration. */
   export type IndexInput<A extends object> = CollectionIndexInput<A>;
+  /** Map of named secondary indexes for a collection. */
   export type IndexRecord<A extends object> = CollectionIndexRecord<A>;
+  /** Runtime in-memory store shared by collection definitions. */
   export type Store = CollectionStore;
+  /** Diagnostics facade for the current collection store. */
   export type StoreDiagnostics = CollectionStoreDiagnostics;
+  /** Serializable snapshot of collection store diagnostics. */
   export type StoreDiagnosticsSnapshot = CollectionStoreDiagnosticsSnapshot;
+  /** Lifecycle event emitted by the collection store. */
   export type StoreEvent = CollectionStoreEvent;
+  /** Partial row update payload. */
   export type Update<A extends object> = CollectionUpdate<A>;
+  /** Remote or local row change event. */
   export type Change<A extends object, K extends CollectionKey = CollectionKey> = CollectionChange<A, K>;
+  /** Durable snapshot for one collection row. */
   export type RowSnapshot<A extends object, K extends CollectionKey> = CollectionRowSnapshot<A, K>;
+  /** Durable snapshot for one collection. */
   export type Snapshot<A extends object = object, K extends CollectionKey = CollectionKey> = CollectionSnapshot<A, K>;
+  /** Multi-collection hydration payload used by Start and persistence. */
   export type HydrationPayload = CollectionHydrationPayload;
+  /** Options for applying collection hydration payloads. */
   export type HydrateOptions = CollectionHydrateOptions;
+  /** Error raised when collection snapshots fail validation or serialization. */
   export type SnapshotCodecError = CollectionSnapshotCodecError;
+  /** Effect-aware key/value storage contract for collection persistence. */
   export type PersistenceStorage<E = never, R = never> = CollectionPersistenceStorage<E, R>;
+  /** Options for writing a collection snapshot to persistence. */
   export type PersistOptions = CollectionPersistOptions;
+  /** Persistence policy attached to a collection definition. */
   export type PersistenceConfig<E = never, R = never> = CollectionPersistenceConfig<E, R>;
+  /** Collection options with persistence error and requirement channels preserved. */
   export type PersistedOptions<
     A extends object,
     K extends CollectionKey = string,
@@ -417,46 +450,78 @@ export namespace Collection {
     PE = never,
     PR = never
   > = CollectionPersistedOptions<A, K, E, R, PE, PR>;
+  /** Options for materializing a read-only collection from a live query. */
   export type LiveQueryOptions<A extends object, K extends CollectionKey, E = never, R = never> =
     CollectionLiveQueryOptions<A, K, E, R>;
+  /** Synchronous Web Storage-like shape accepted by `Collection.storage(...)`. */
   export type StorageLike = CollectionStorageLike;
+  /** In-memory persistence storage for tests, demos, and ephemeral state. */
   export type MemoryStorage = CollectionMemoryStorage;
+  /** Diagnostics for one registered collection definition. */
   export type DefinitionDiagnostics = CollectionDefinitionDiagnostics;
+  /** Registry-level diagnostics for collection definitions. */
   export type Diagnostics = CollectionDiagnostics;
+  /** Adapter that owns collection definition registration policy. */
   export type DefinitionRegistryAdapter = CollectionDefinitionRegistryAdapter;
+  /** Options for an isolated collection definition registry. */
   export type DefinitionRegistryOptions = CollectionDefinitionRegistryOptions;
+  /** Registration result for one collection definition. */
   export type DefinitionRegistration = CollectionDefinitionRegistration;
+  /** Duplicate-name policy for collection definition registration. */
   export type DefinitionDuplicatePolicy = CollectionDefinitionDuplicatePolicy;
+  /** Diagnostics for duplicate collection definition registrations. */
   export type DefinitionDuplicateDiagnostics = CollectionDefinitionDuplicateDiagnostics;
+  /** Snapshot of collection definition registry diagnostics. */
   export type DefinitionRegistryDiagnostics = CollectionDefinitionRegistryDiagnostics;
+  /** Scoped collector state used during SSR/data preload. */
   export type PreloadCollector = CollectionPreloadCollectorState;
+  /** Value plus ordered collection definitions collected during preload. */
   export type Collected<A> = CollectionPreloadCollected<A>;
+  /** Options for creating collection definitions from server operations. */
   export type ServerOptions<A extends object, K extends CollectionKey = string, E = never, R = never> =
     ServerCollectionOptions<A, K, E, R>;
+  /** Server operation callback accepted by server-backed collections. */
   export type ServerOperation<I, A, E = never, R = never> = ServerCollectionOperation<I, A, E, R>;
+  /** Result returned by server-backed collection operations. */
   export type ServerResult<A, E = never, R = never> = ServerCollectionResult<A, E, R>;
+  /** Insert payload sent through collection server operations. */
   export type ServerInsertPayload<A extends object, K extends CollectionKey> = ServerCollectionInsertPayload<A, K>;
+  /** Update payload sent through collection server operations. */
   export type ServerUpdatePayload<A extends object, K extends CollectionKey> = ServerCollectionUpdatePayload<A, K>;
+  /** Delete payload sent through collection server operations. */
   export type ServerDeletePayload<A extends object, K extends CollectionKey> = ServerCollectionDeletePayload<A, K>;
+  /** Sync adapter contract for loading and mutating remote collection data. */
   export type SyncAdapter<A extends object, K extends CollectionKey = string, E = never, R = never> =
     CollectionSyncAdapter<A, K, E, R>;
+  /** Collection options produced from a sync adapter. */
   export type SyncOptions<A extends object, K extends CollectionKey = string, E = never, R = never> =
     CollectionSyncOptions<A, K, E, R>;
+  /** Options for adapting a Core Resource into a collection sync adapter. */
   export type ResourceSyncAdapterOptions<I, A extends object, K extends CollectionKey = string, E = never, R = never> =
     CollectionResourceSyncAdapterOptions<I, A, K, E, R>;
+  /** Stable cache key used by query-sync adapters. */
   export type QuerySyncKey = CollectionQuerySyncKey;
+  /** Options passed when a query-sync adapter fetches rows. */
   export type QuerySyncFetchOptions<A extends object, E = never, R = never> =
     CollectionQuerySyncFetchOptions<A, E, R>;
+  /** Options for invalidating query-sync client cache entries. */
   export type QuerySyncInvalidateOptions = CollectionQuerySyncInvalidateOptions;
+  /** Query-client bridge used by query-sync adapters. */
   export type QuerySyncClient<A extends object, E = never, R = never> =
     CollectionQuerySyncClient<A, E, R>;
+  /** Options for adapting a query client into a collection sync adapter. */
   export type QuerySyncAdapterOptions<A extends object, K extends CollectionKey = string, E = never, R = never> =
     CollectionQuerySyncAdapterOptions<A, K, E, R>;
+  /** Policy for invalidating query-sync caches after mutations. */
   export type QuerySyncMutationInvalidationPolicy = CollectionQuerySyncMutationInvalidationPolicy;
+  /** Cleanup callback returned by collection change feeds. */
   export type ChangeFeedUnsubscribe = CollectionChangeFeedUnsubscribe;
+  /** Active remote change-feed subscription. */
   export type ChangeFeedSubscription = CollectionChangeFeedSubscription;
+  /** Context passed to change-feed adapters. */
   export type ChangeFeedContext<A extends object, K extends CollectionKey = string, E = never, R = never> =
     CollectionChangeFeedContext<A, K, E, R>;
+  /** Remote change-feed adapter that emits collection changes. */
   export type ChangeFeedAdapter<
     A extends object,
     K extends CollectionKey = string,
@@ -466,51 +531,81 @@ export namespace Collection {
     CollectionRequirements = never
   > =
     CollectionChangeFeedAdapter<A, K, E, R, CollectionError, CollectionRequirements>;
+  /** Options for subscribing a collection to a change feed. */
   export type ChangeFeedSubscribeOptions = CollectionChangeFeedSubscribeOptions;
+  /** Dispatch behavior for incoming change-feed events. */
   export type ChangeFeedDispatchPolicy = CollectionChangeFeedDispatchPolicy;
+  /** Policy for handling change-feed emissions after unsubscribe. */
   export type ChangeFeedLateEmitPolicy = CollectionChangeFeedLateEmitPolicy;
+  /** Insert change emitted by sync/change-feed protocols. */
   export type SyncInsertPayload<A extends object, K extends CollectionKey> = CollectionSyncInsertPayload<A, K>;
+  /** Update change emitted by sync/change-feed protocols. */
   export type SyncUpdatePayload<A extends object, K extends CollectionKey> = CollectionSyncUpdatePayload<A, K>;
+  /** Delete change emitted by sync/change-feed protocols. */
   export type SyncDeletePayload<A extends object, K extends CollectionKey> = CollectionSyncDeletePayload<A, K>;
+  /** Context passed when flushing pending mutations across collections. */
   export type FlushAllPendingMutationsContext = FlushCollectionPendingMutationsContext;
+  /** Predicate for skipping a background flush attempt. */
   export type FlushAllPendingMutationsSkip<SkipError = never, SkipRequirements = never> =
     FlushCollectionPendingMutationsSkip<SkipError, SkipRequirements>;
+  /** Options for flushing pending mutations across collections. */
   export type FlushAllPendingMutationsOptions<SkipError = never, SkipRequirements = never> =
     FlushCollectionsPendingMutationsOptions<SkipError, SkipRequirements>;
+  /** Result of flushing pending mutations across collections. */
   export type FlushAllPendingMutationsResult = FlushCollectionPendingMutationsResult;
+  /** Event that triggered a collection background sync attempt. */
   export type BackgroundSyncTrigger = CollectionBackgroundSyncTrigger;
+  /** Pending-mutation facts passed to background sync logic. */
   export type BackgroundSyncPending = CollectionBackgroundSyncPending;
+  /** Context passed to background sync adapters. */
   export type BackgroundSyncAdapterContext = CollectionBackgroundSyncAdapterContext;
+  /** Adapter that performs background sync for pending mutations. */
   export type BackgroundSyncAdapter<AdapterError = never, AdapterRequirements = never> =
     CollectionBackgroundSyncAdapter<AdapterError, AdapterRequirements>;
+  /** Background sync policy and adapter options. */
   export type BackgroundSyncOptions<
     AdapterError = never,
     AdapterRequirements = never,
     SkipError = never,
     SkipRequirements = never
   > = CollectionBackgroundSyncOptions<AdapterError, AdapterRequirements, SkipError, SkipRequirements>;
+  /** Result returned by background sync attempts. */
   export type BackgroundSyncResult = CollectionBackgroundSyncResult;
+  /** SQLite persistence storage key shape. */
   export type SQLiteStorageKey = SQLitePersistenceKey;
+  /** SQLite persistence storage row shape. */
   export type SQLiteStorageRow = SQLitePersistenceRow;
+  /** SQL table adapter used by SQLite persistence. */
   export type SQLiteStorageTable<E = never, R = never> = SQLitePersistenceTable<E, R>;
+  /** Driver abstraction used by SQLite persistence storage. */
   export type SQLiteStorageDriver<E = never, R = never> = SQLitePersistenceDriver<E, R>;
+  /** Options for SQLite persistence storage. */
   export type SQLiteStorageOptions = SQLitePersistenceOptions;
+  /** In-memory SQL statement handle. */
   export type SQLiteMemoryStatement = SQLitePersistenceMemoryStatement;
+  /** In-memory SQL statement database. */
   export type SQLiteMemoryStatementDatabase = SQLitePersistenceMemoryStatementDatabase;
+  /** Scalar value accepted by SQLite statement parameters and rows. */
   export type SQLiteStatementValue = SQLitePersistenceStatementValue;
+  /** Positional SQLite statement parameters. */
   export type SQLiteStatementParams = SQLitePersistenceStatementParams;
+  /** Row returned by a SQLite statement. */
   export type SQLiteStatementRow = SQLitePersistenceStatementRow;
+  /** Minimal SQL statement database accepted by the persistence adapter. */
   export type SQLiteStatementDatabase<E = never, R = never> = SQLitePersistenceStatementDatabase<E, R>;
+  /** Prepared SQLite statement returned by adapted databases. */
   export type SQLitePreparedStatement<
     Row extends SQLiteStatementRow = SQLiteStatementRow,
     E = never,
     R = never
   > = SQLitePersistencePreparedStatement<Row, E, R>;
+  /** Prepared-statement database adapter for SQLite persistence. */
   export type SQLitePreparedStatementDatabase<
     Row extends SQLiteStatementRow = SQLiteStatementRow,
     E = never,
     R = never
   > = SQLitePersistencePreparedStatementDatabase<Row, E, R>;
+  /** Options for adapting prepare/run/all style SQLite clients. */
   export type SQLitePreparedStatementDatabaseOptions = SQLitePersistencePreparedStatementDatabaseOptions;
 
   /** Build `Collection.define` options from server functions or Effect callbacks. */

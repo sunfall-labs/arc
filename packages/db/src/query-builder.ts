@@ -303,6 +303,13 @@ export type QueryFactory<TResult, E = never, R = never> = (query: QueryRoot) => 
  * Root query DSL entrypoint passed to query factories.
  */
 export interface QueryRoot {
+  /**
+   * Starts a query from named collection sources.
+   *
+   * Source names become row context properties, so prototype-reserved keys such
+   * as `__proto__`, `constructor`, and `prototype` are rejected during query
+   * validation.
+   */
   from<const Sources extends SourceRecord>(
     sources: Sources
   ): QueryBuilder<
@@ -461,19 +468,32 @@ const aggregateMax = <TContext, V extends number | string | Date | bigint>(
  * builder. Use `onceEffect` for one-shot reads and `live` for reactive data.
  */
 export namespace Query {
+  /** Immutable query builder carrying context, result, error, and requirement types. */
   export type Builder<TContext extends AnyQueryContext, TResult, E = never, R = never> =
     QueryBuilder<TContext, TResult, E, R>;
+  /** Function that receives the query root DSL and returns a builder. */
   export type Factory<TResult, E = never, R = never> = QueryFactory<TResult, E, R>;
+  /** Reactive query handle backed by source collection state. */
   export type Live<T, E = never, R = never> = LiveQuery<T, E, R>;
+  /** Load state emitted by a live query. */
   export type LiveState<T, E = never> = LiveQueryState<T, E>;
+  /** Error raised when query factory or callback evaluation fails. */
   export type EvaluationError = QueryEvaluationError;
+  /** Execution strategy selected for one query join. */
   export type JoinStrategy = QueryJoinStrategy;
+  /** Source row-count diagnostics for a query plan. */
   export type PlanSourceDiagnostics = QueryPlanSourceDiagnostics;
+  /** Join cost and strategy diagnostics for a query plan. */
   export type PlanJoinDiagnostics = QueryPlanJoinDiagnostics;
+  /** Full diagnostics summary for a compiled query plan. */
   export type PlanDiagnostics = QueryPlanDiagnostics;
+  /** Root DSL object passed to query factories. */
   export type Root = QueryRoot;
+  /** Aggregate definition consumed by `groupBy(...)`. */
   export type Aggregate<TContext, R, V = unknown> = QueryAggregate<TContext, R, V>;
+  /** Named aggregate map consumed by `groupBy(...)`. */
   export type Aggregates<TContext> = QueryAggregateRecord<TContext>;
+  /** Result type for a grouped query key plus aggregate map. */
   export type AggregateResult<
     TKey extends Record<string, unknown>,
     Aggregates extends AnyQueryAggregateRecord
