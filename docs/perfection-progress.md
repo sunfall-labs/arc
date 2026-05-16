@@ -41,12 +41,12 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest focused Review188 slice is green for the DB sharp-cast and docs
-  honesty refresh found by the first post-Review187 clean-sweep candidate.
-  Review188 removed a few DB/React-DB/Solid-DB inline sharp casts and updated
-  sharp-cast docs so remaining broad-grep hits are named package, example, and
-  type-test seams.
-- The latest recorded full verification gate is green after Review188:
+- The latest focused Review189 slice is green for the Promise-method audit
+  fixture docs refresh found by the first post-Review188 clean-sweep candidate.
+  Review189 clarified that raw Promise-method grep hits in
+  `scripts/audit-effect-first.mjs` are scanner fixture strings, while
+  `pnpm audit:effect-first` is the authoritative guardrail.
+- The latest recorded full verification gate is green after Review189:
   `pnpm verify` completed with 53 root test files / 1033 tests, public API
   inventory audit, Effect-first audit over 404 physical/virtual files,
   package-level verifies, parallel example package verifies and leak scans,
@@ -55,17 +55,18 @@ or command result that proves it.
   for mounted Resource UI retention, Program dispatch disposal semantics,
   payload-atomic DB hydration, Start CLI EffectInput writers, dev SSR
   cancellation, public adapter pins, and Effect-first Promise alias scanning.
-- The latest completed sweep through Review188 still found actionable docs drift
+- The latest completed sweep through Review189 still found actionable docs drift
   work, so the Thirty-Sweep clean counter has not started.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
   example, script, and type-test sources while keeping negative runtime
   validation tests explicit.
 - Negative tests no longer use raw `throw new Error(...)` sentinels; the raw
   throw/subclass grep across package, example, and script sources is clean.
-- Package, example, script, and type-test sources no longer use raw
+- Package, example, and type-test implementation sources no longer use raw
   `new Promise(...)`, `Promise.resolve(...)`, `.then(...)`, or `.finally(...)`;
   Node listener/timer adapter-test helpers now use `Effect.callback(...)` and
-  `Effect.sleep(...)`.
+  `Effect.sleep(...)`, and `scripts/audit-effect-first.mjs` owns scanner
+  fixture strings for banned Promise forms.
 - Type tests now use declared Promise values for Promise host-boundary
   assertions instead of Promise method syntax.
 - Package, example, script, and type-test sources no longer use direct Promise
@@ -611,6 +612,7 @@ or command result that proves it.
 | 425 | Review 186 Review185 current-gate sentence | `docs/architecture-deepening-review.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md` | Fixed a stale sentence in the Review185 architecture entry that still said the audit docs were changed to name Review184 as the current full gate. The current readiness docs now agree that Review186 is the latest focused/docs checkpoint, Review186 has the latest full verification gate, and the Thirty-Sweep clean counter remains unstarted because this pass found actionable docs drift. | Focused verification passed: current-gate wording grep, `pnpm audit:effect-first`, and `git diff --check`. Full `pnpm verify` passed after Review186: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 404 files, 53 root test files / 1033 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. |
 | 426 | Review 187 audit-doc current-gate and checklist refresh | `docs/architecture-deepening-review.md`; `docs/effect-first-audit.md`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/ultimate-goal-checklist.md` | Updated Effect-first, package-hygiene, and sharp-cast audit docs that still named Review185 as the current full verification gate after Review186. Updated the final checklist so broad sharp-cast status says named seams are documented and bounded instead of claiming a zero-hit grep. | Focused verification passed: audit-doc current-gate grep had no current-facing Review185/186 hits, broad sharp-cast grep reported only documented named seams, `pnpm audit:effect-first` passed, and `git diff --check` passed. Full `pnpm verify` passed after Review187: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 404 files, 53 root test files / 1033 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. |
 | 427 | Review 188 DB sharp-cast and docs honesty | `docs/architecture-deepening-review.md`; `docs/effect-first-audit.md`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/ultimate-goal-checklist.md`; `packages/db/src/change-feed-dispatcher.ts`; `packages/db/src/collection-change-feed-runtime.ts`; `packages/db/src/live-query-collection.ts`; `packages/db/src/runtime-collection-store.ts`; `packages/react-db/test/react-db.test.ts`; `packages/solid-db/test/solid-db.test.ts` | Typed collection change-feed dispatcher completions with the collection runtime error channel, removed inline Effect assertions from change-feed emit and read-only live-query restore, named the Runtime Collection Store weak-map state boundary, and removed redundant React/Solid DB delayed-cleanup Effect assertions. Updated sharp-cast docs and release notes so current broad-grep hits are package, example, and type-test named seams rather than zero-hit claims. | Focused verification passed: DB/React-DB/Solid-DB typechecks, broad sharp-cast grep review, stale sharp-cast zero-hit wording grep, `pnpm audit:effect-first`, and `git diff --check`. Full `pnpm verify` passed after Review188: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 404 files, 53 root test files / 1033 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. |
+| 428 | Review 189 Promise-method audit fixture docs | `docs/architecture-deepening-review.md`; `docs/effect-first-audit.md`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/ultimate-goal-checklist.md` | Clarified that raw Promise-method and Promise-constructor greps intentionally report `scripts/audit-effect-first.mjs` scanner fixture strings, while `pnpm audit:effect-first` is the authoritative guardrail that distinguishes fixture text from implementation Promise choreography. | Focused verification passed: Promise-method raw grep review, `pnpm audit:effect-first`, current-gate wording grep, and `git diff --check`. Full `pnpm verify` passed after Review189: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 404 files, 53 root test files / 1033 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. |
 
 ## Thirty-Sweep Gate
 

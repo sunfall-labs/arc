@@ -12,20 +12,57 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review188, the sharp-cast docs honesty refresh found by the first
-post-Review187 clean-sweep candidate. Some older review entries remain below
+Review189, the Promise-method audit fixture docs refresh found by the first
+post-Review188 clean-sweep candidate. Some older review entries remain below
 this tip from prior ledger merges; use this tip rather than file order alone
 when looking for the latest architecture sweep.
 
 The fresh post-Review185 subagent sweep reported no actionable Core/React/Solid,
 DB/public API, or Start/devtools/scripts findings after focused verification.
 The docs preparation pass found the Review186 stale ledger sentence, the broader
-audit-doc scan found the Review187 current-gate drift, and the first
-post-Review187 clean-sweep candidate found the Review188 sharp-cast docs drift
-below. Do not start the clean-sweep counter until a fresh full sweep after
-Review188 finds no
+audit-doc scan found the Review187 current-gate drift, the first
+post-Review187 clean-sweep candidate found the Review188 sharp-cast docs drift,
+and the first post-Review188 candidate found the Review189 Promise-method audit
+fixture docs drift below. Do not start the clean-sweep counter until a fresh
+full sweep after Review189 finds no
 actionable Module, Interface, Seam, Adapter, Locality, Depth, Leverage, typed
 error, or docs drift work.
+
+## Review 189: Promise-Method Audit Fixture Docs
+
+Review189 fixed Promise-method docs that treated a raw grep as zero-hit even
+though the Effect-first audit script intentionally contains banned Promise
+syntax inside self-test fixture strings.
+
+1. Promise-Method Audit Fixture Seam
+   - Status: fixed.
+   - Files: `docs/sharp-cast-audit.md`,
+     `docs/architecture-deepening-review.md`, `docs/effect-first-audit.md`,
+     `docs/package-hygiene-audit.md`, `docs/perfection-progress.md`,
+     `docs/release-notes.md`, `docs/ultimate-goal-checklist.md`.
+   - Problem: `docs/sharp-cast-audit.md` and related readiness docs said the
+     broad Promise constructor and Promise-method grep over packages, examples,
+     scripts, and type tests was clean. The raw grep correctly reports
+     `scripts/audit-effect-first.mjs` self-test fixture strings such as
+     `new Promise(...)`, `Promise.resolve`, `.then(...)`, and `.finally(...)`;
+     those snippets are scanner negative fixtures, not implementation Promise
+     choreography.
+   - Fix: changed the current sweep wording and verification evidence to say
+     `pnpm audit:effect-first` owns the Promise-method guardrail, while raw
+     `scripts/` grep output is expected to include audit fixture strings.
+   - Benefits: future reviewers can distinguish implementation Promise usage
+     from scanner fixture text without rediscovering the same docs mismatch.
+
+Focused verification after the patch: Promise-method raw grep confirmed only
+audit fixture hits in scripts, `pnpm audit:effect-first` passed over 404 files,
+current-gate wording grep passed, and `git diff --check` passed. Full `pnpm
+verify` passed after Review189 through the Effect-driven runner: 11 package
+builds, workspace typecheck, public type tests, public API inventory audit,
+Effect-first audit over 404 physical/virtual files, 53 root test files / 1033
+tests, package-level verifies, generated starter packaging, 16-target package
+dry-run gate, project-console checks, and leak scans. The clean-sweep candidate
+that prompted this Review189 fix found actionable docs drift, so the
+Thirty-Sweep clean counter remains unstarted.
 
 ## Review 188: DB Sharp-Cast And Docs Honesty
 

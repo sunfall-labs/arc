@@ -458,21 +458,26 @@ interruption.
     shapes and unapproved `PromiseLike<T>` return seams, with self-tests for
     both patterns before scanning workspace files.
 - Source grep follow-up:
-  - `rg -n "\\basync\\b|new Promise|Promise\\.resolve|\\.then\\(|\\.finally\\(" packages/*/src scripts -g '*.ts' -g '*.mjs'`
-    currently finds no package source or tooling script hits.
+  - `rg -n "\\basync\\b|new Promise|Promise\\.resolve|\\.then\\(|\\.finally\\(" packages/*/src -g '*.ts'`
+    currently finds no package source hits. Raw `scripts/` hits are expected in
+    `scripts/audit-effect-first.mjs` scanner fixture strings; this audit is the
+    authoritative guardrail for distinguishing those fixtures from
+    implementation Promise choreography.
   - `rg -n "\\.catch\\(" packages/*/src scripts -g '*.ts' -g '*.mjs' | rg -v "Effect\\.catch"`
     currently finds no non-Effect catch hits.
   - `rg -n "\\.catch\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs' | rg -v "Effect\\.catch"`
     currently finds no direct Promise catch hits outside the docs that record
     historical evidence.
-  - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts -g '*.ts' -g '*.tsx' -g '*.mjs'`
-    currently finds no package, example, or script hits.
-  - `rg -n "new Promise|Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
-    currently reports no hits.
-  - `rg -n "Promise\\.all|Promise\\.race|Promise\\.resolve|new Promise|\\.then\\(|\\.finally\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
-    currently reports no hits.
-  - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
-    currently finds no hits outside the docs that record historical evidence.
+  - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples type-tests -g '*.ts' -g '*.tsx'`
+    currently finds no package, example, or type-test implementation hits.
+    Raw `scripts/` hits are expected in `scripts/audit-effect-first.mjs`
+    scanner fixture strings.
+  - `rg -n "new Promise|Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples type-tests -g '*.ts' -g '*.tsx'`
+    currently finds no package, example, or type-test implementation hits.
+  - `rg -n "new Promise|Promise\\.resolve|\\.then\\(|\\.finally\\(" scripts -g '*.mjs'`
+    currently reports only `scripts/audit-effect-first.mjs` scanner fixture
+    strings; keep that script covered by this audit instead of treating raw grep
+    output as implementation evidence.
 
 ## Verification Evidence
 
@@ -528,7 +533,7 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 188 `pnpm verify` run recorded in
+- The current full gate is the Review 189 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
   over 404 files, 53 root test files / 1033 tests, package-level verifies,
@@ -1330,8 +1335,8 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The current full `pnpm verify` passed after the Review 188 DB sharp-cast and
-  docs honesty refresh: 11 package builds, workspace typecheck, type tests,
+- The current full `pnpm verify` passed after the Review 189 Promise-method
+  audit fixture docs refresh: 11 package builds, workspace typecheck, type tests,
   public API inventory audit, Effect-first audit over 404
   package/example/config/script/type-test/generated/docs files, 53 root test
   files / 1033 tests, package-level verifies for copyable/source packages,

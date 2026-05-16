@@ -17,15 +17,19 @@ zero hits.
 - No package source currently contains raw Promise method choreography such as
   `.then(...)`, `.finally(...)`, `Promise.resolve(...)`, or `new Promise(...)`
   outside tests and host-boundary code.
-- No package, example, script, or type-test source currently contains
+- No package, example, or type-test implementation source currently contains
   `new Promise(...)`, `Promise.resolve`, `.then(...)`, or `.finally(...)`; Node
   listener/timer adapter-test helpers use `Effect.callback(...)` and
-  `Effect.sleep(...)`.
-- No package, example, script, or type-test source currently contains
-  `Promise.resolve`, `.then(...)`, or `.finally(...)`.
-- No package source, script, or type-test source currently contains `async`
-  callback syntax or Promise method choreography; example test files keep
-  `async` only at test/host boundaries.
+  `Effect.sleep(...)`. Raw `scripts/` grep hits are expected in
+  `scripts/audit-effect-first.mjs` because that audit script embeds scanner
+  fixture strings for banned Promise forms.
+- No package, example, or type-test implementation source currently contains
+  `Promise.resolve`, `.then(...)`, or `.finally(...)`; the Effect-first audit
+  script owns the scanner fixture strings that exercise those patterns.
+- No package source or type-test source currently contains `async` callback
+  syntax or Promise method choreography; example test files keep `async` only
+  at test/host boundaries, and `scripts/audit-effect-first.mjs` keeps Promise
+  method fixture strings for scanner self-tests.
 - No package, example, script, or type-test source currently contains direct
   Promise `.catch(...)` outside Effect's `Effect.catch(...)` operator.
 - The devtools extension transport structurally validates inspected-window
@@ -137,7 +141,7 @@ zero hits.
 
 ## Verification Evidence
 
-The current full verification gate is recorded in the Review 188 ledgers: 11
+The current full verification gate is recorded in the Review 189 ledgers: 11
 package builds, workspace typecheck, type tests, public API inventory audit,
 Effect-first audit over 404 files, 53 root test files / 1033 tests,
 package-level verifies, generated starter-suite packaging/verifies for
@@ -157,10 +161,14 @@ static extraction guardrails.
 - Test/source `any` grep:
   - `rg -n "as any|@ts-ignore" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
 - Promise-method grep:
-  - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts -g '*.ts' -g '*.tsx' -g '*.mjs'`
-  - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
+  - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples type-tests -g '*.ts' -g '*.tsx'`
+  - Raw `scripts/` hits are expected in `scripts/audit-effect-first.mjs`
+    scanner fixture strings; `pnpm audit:effect-first` is the authoritative
+    guardrail for distinguishing those fixtures from implementation usage.
 - Promise-constructor/method grep:
-  - `rg -n "new Promise|Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
+  - `rg -n "new Promise|Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples type-tests -g '*.ts' -g '*.tsx'`
+  - Raw `scripts/` hits are expected in `scripts/audit-effect-first.mjs`
+    scanner fixture strings; keep them covered by `pnpm audit:effect-first`.
 - Promise-catch grep:
   - `rg -n "\\.catch\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs' | rg -v "Effect\\.catch"`
 - Historical `pnpm verify` passed after the cast/fire-and-forget cleanup stack: 9

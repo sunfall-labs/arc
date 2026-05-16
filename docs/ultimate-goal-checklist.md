@@ -265,9 +265,12 @@ Last evidence pass: May 16, 2026.
     focused example verifies/typecheck passed. Full `pnpm verify` also passed.
 - [x] Raw Promise constructor/method helpers are absent from source and tests.
   - Evidence: Start adapter listener/close/timer helpers use
-    `Effect.callback(...)` and `Effect.sleep(...)`; `rg -n "new Promise|Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
-    reports no hits, and Start typecheck, public type tests, and Start adapter
-    tests passed. Full `pnpm verify` also passed.
+    `Effect.callback(...)` and `Effect.sleep(...)`; `rg -n "new Promise|Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples type-tests -g '*.ts' -g '*.tsx'`
+    reports no implementation hits. Raw `scripts/` hits are expected in
+    `scripts/audit-effect-first.mjs` scanner fixture strings, with
+    `pnpm audit:effect-first` as the authoritative guardrail. Start typecheck,
+    public type tests, and Start adapter tests passed. Full `pnpm verify` also
+    passed.
 - [x] Low-risk Effect-shaped tests avoid async wrappers.
   - Evidence: Solid-DB, UiScope, and Resource Store tests return
     `Effect.runPromise(...)` programs; focused Core/Solid-DB typechecks, public
@@ -277,8 +280,9 @@ Last evidence pass: May 16, 2026.
 - [x] Compile-time Promise rejection tests avoid Promise-shaped callback syntax.
   - Evidence: `type-tests/framework.test-d.ts` uses declared Promise values for
     negative Promise-return checks; `pnpm typecheck:types` passed and the
-    async/Promise-method grep over package source, scripts, and type tests
-    reports no hits. Full `pnpm verify` passed after this cleanup.
+    async/Promise-method grep over package source and type tests reports no
+    implementation hits. Raw `scripts/` hits are the Effect-first audit
+    scanner fixtures. Full `pnpm verify` passed after this cleanup.
 - [x] Runtime lifecycle guarantees have behavioral tests.
   - Evidence: core runtime/resource/action/scope/server/route tests in
     `packages/core/test`.
@@ -651,12 +655,11 @@ Last evidence pass: May 16, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 188 ran DB/React-DB/Solid-DB typechecks,
-    broad sharp-cast grep review, stale sharp-cast zero-hit wording grep,
-    `pnpm audit:effect-first`, and `git diff --check` after tightening DB
-    sharp-cast seams and refreshing sharp-cast docs.
+  - Latest focused evidence: Review 189 ran Promise-method raw grep review,
+    `pnpm audit:effect-first`, current-gate wording grep, and
+    `git diff --check` after clarifying audit fixture docs.
     Latest full evidence:
-    `pnpm verify` ran after Review 188 with 53 test files / 1033 tests.
+    `pnpm verify` ran after Review 189 with 53 test files / 1033 tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.
@@ -795,12 +798,12 @@ Last evidence pass: May 16, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 188 DB sharp-cast and docs
-    honesty refresh. Future architecture sweeps remain tracked in
+  - Evidence: no new ADR required for the Review 189 Promise-method audit
+    fixture docs refresh. Future architecture sweeps remain tracked in
     `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 188
-    DB sharp-cast and docs honesty refresh:
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 189
+    Promise-method audit fixture docs refresh:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
     404 physical/virtual files, 53 root test files / 1033 tests,
@@ -809,8 +812,8 @@ Last evidence pass: May 16, 2026.
     16-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 188 records broad sharp-cast grep review, stale
-    sharp-cast zero-hit wording grep, Effect-first audit, and whitespace check.
+  - Evidence: Review 189 records Promise-method raw grep review,
+    Effect-first audit, current-gate wording grep, and whitespace check.
     Full verification is recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items
