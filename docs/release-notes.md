@@ -149,6 +149,11 @@ Latest full gate on May 15, 2026:
   Execution Plan and Live Query Runtime now share one source alias/key, merged
   context, ordered tie-break, IVM metadata, and collection-row delta identity
   policy while public Query and Collection APIs stay unchanged.
+- Review 129 started from fresh post-Review128 subagent sweeps and fixed the
+  Start/docs findings: graph kind vocabulary now lives in one internal Module,
+  Start diagnostics DTO decoding validates resource/tag/collection registry
+  diagnostics structurally, and public Start graph/diagnostics plus Core
+  Program namespace hovers now explain their agent-facing purpose.
 - Review 85 extracted the internal Solid Route Render Scope Controller:
   `RouterOutlet` now delegates route branch rendering, route-owned `UiScope`
   creation, Solid root cleanup, runtime-bound route finalizers, transition

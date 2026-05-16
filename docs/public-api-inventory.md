@@ -401,9 +401,10 @@ Subpath exports:
 - `effect-ui-start` owns diagnostics and agent graph CLI execution. Its
   bin/host wrapper defines the command tree with Effect v4 `Command`, `Flag`,
   and `Argument` primitives, including graph/impact query-kind subcommands and
-  inherited graph `--verbose` shared-flag context. The internal Start
-  Diagnostics CLI Contract Module owns the shared query-kind catalog,
-  validation text, and shell-safe impact verify commands, while the Start
+  inherited graph `--verbose` shared-flag context. The internal Start Agent
+  Graph Vocabulary Module owns query kinds, query-to-node mapping, and
+  node-to-impact-relation mapping; the Start Diagnostics CLI Contract Module
+  owns validation text and shell-safe impact verify commands, while the Start
   Diagnostics CLI Runner Module owns parsed command execution, app graph
   diagnostics loading, agent graph/impact projection, output formatting, and
   failure reporting. Internally, Start Agent Graph Contract, Query, Formatter,
@@ -520,7 +521,7 @@ The root export includes:
   `collection-reactive-binding`, `collection-registry`,
   `collection-snapshot-codec`, `collection-state`, `flush-policy`,
   `live-query-collection`, `query-builder`, `query-plan`, `server-collection`,
-  and `sqlite-persistence`.
+  `sync-adapter`, and `sqlite-persistence`.
 - `Collection`, `Query`, live query types, collection snapshots, hydration, and
   persistence configuration;
 - sync adapters, server collection helpers, SQLite persistence helpers, and

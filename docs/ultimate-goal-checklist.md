@@ -173,9 +173,13 @@ Last evidence pass: May 15, 2026.
 - [x] Start agent graph CLI semantics and formatting are separated.
   - Evidence: `packages/start/src/start-agent-graph-contract.ts`,
     `start-agent-graph-query.ts`, `start-agent-graph-display.ts`,
-    `start-agent-graph-formatter.ts`, and `start-agent-graph-impact.ts` own
-    DTO contracts, query matching, display policy, text formatting, and impact
-    planning behind the stable `agent-graph.ts` facade.
+    `start-agent-graph-formatter.ts`, `start-agent-graph-impact.ts`, and
+    `start-agent-graph-vocabulary.ts` own DTO contracts, query matching,
+    display policy, text formatting, impact planning, and graph-kind
+    vocabulary behind the stable `agent-graph.ts` facade. Start diagnostics
+    DTO decoding now validates resource/tag/collection registry facts, and
+    Start graph/diagnostics plus Core `Program` namespace hovers have
+    declaration-site JSDoc.
 - [x] Core runtime service erasure is named at the runtime value boundary.
   - Evidence: `packages/core/src/runtime.ts` erases ManagedRuntime services at
     the `ManagedRuntime<any, ER>` value boundary, so runtime helpers no longer

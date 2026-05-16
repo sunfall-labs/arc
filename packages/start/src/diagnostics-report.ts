@@ -28,6 +28,12 @@ const summaryLines = (summary: StartDiagnosticsReportSummary): readonly string[]
   `findings: ${summary.findingCount}`
 ];
 
+/**
+ * Formats a diagnostics report as deterministic CLI text.
+ *
+ * Output is grouped by owner and includes issue/edit/detail lines so agents can
+ * turn the report into a concrete repair checklist.
+ */
 export const formatStartDiagnosticsReport = (
   report: StartDiagnosticsReport
 ): string => {

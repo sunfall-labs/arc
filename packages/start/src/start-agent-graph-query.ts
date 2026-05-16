@@ -2,39 +2,10 @@ import { Effect } from "effect";
 import type {
   StartAgentGraph,
   StartAgentGraphNode,
-  StartAgentGraphNodeKind,
   StartAgentGraphQuery,
-  StartAgentGraphQueryKind,
   StartAgentGraphQueryResult
 } from "./start-agent-graph-contract.js";
-
-const nodeKindForQuery = (
-  kind: StartAgentGraphQueryKind | undefined
-): StartAgentGraphNodeKind | undefined => {
-  switch (kind) {
-    case "action":
-      return "Action";
-    case "collection":
-      return "Collection";
-    case "endpoint":
-      return "Endpoint";
-    case "finding":
-      return "Finding";
-    case "module":
-      return "Module";
-    case "resource":
-      return "ResourceFamily";
-    case "resource-tag":
-      return "ResourceTag";
-    case "route":
-      return "Route";
-    case "server-function":
-      return "ServerFunction";
-    case "node":
-    case undefined:
-      return undefined;
-  }
-};
+import { startAgentGraphNodeKindForQuery } from "./start-agent-graph-vocabulary.js";
 
 const searchableText = (node: StartAgentGraphNode): string =>
   [
@@ -49,7 +20,7 @@ const matchesQuery = (
   node: StartAgentGraphNode,
   query: StartAgentGraphQuery
 ): boolean => {
-  const kind = nodeKindForQuery(query.kind);
+  const kind = startAgentGraphNodeKindForQuery(query.kind);
   if (kind !== undefined && node.kind !== kind) {
     return false;
   }
@@ -58,6 +29,12 @@ const matchesQuery = (
   return text === undefined || text.length === 0 || searchableText(node).includes(text);
 };
 
+/**
+ * Filters a Start agent graph by semantic node kind and optional text.
+ *
+ * Returned edges include any edge touching a matched node, which keeps the
+ * result useful for diagnostics CLI output and impact planning.
+ */
 export const queryStartAgentGraph = (
   graph: StartAgentGraph,
   query: StartAgentGraphQuery = {}
@@ -71,6 +48,7 @@ export const queryStartAgentGraph = (
   };
 };
 
+/** Effect wrapper for `queryStartAgentGraph(...)`, useful in CLI pipelines. */
 export const queryStartAgentGraphEffect = (
   graph: StartAgentGraph,
   query: StartAgentGraphQuery = {}

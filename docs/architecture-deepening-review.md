@@ -11,9 +11,42 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 128, immediately after Review 127. Some older review
+The newest review is Review 129, immediately after Review 128. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 129: Start Graph Vocabulary, Diagnostics DTO Depth, and LSP Docs
+
+Status: fixed for the Start/docs findings from the fresh Review 129 sweep and
+focused verification is green. The same sweep found a DB store-explicit
+snapshot Interface candidate, so the Thirty-Sweep clean counter remains at 0.
+
+- Start Agent Graph Vocabulary: added
+  `packages/start/src/start-agent-graph-vocabulary.ts` as the semantic catalog
+  for query kinds, query-to-node mapping, and node-to-impact-relation mapping.
+  The CLI contract, graph query Module, and impact planner now consume one
+  vocabulary Seam instead of each owning partial graph-kind switches.
+- Start App Graph Diagnostics DTO: `packages/start/src/app-graph.ts` now
+  validates resource family diagnostics, resource tag diagnostics, and
+  collection definition diagnostics structurally instead of only checking that
+  registry sections are arrays. The DTO decoder now catches malformed registry
+  diagnostics before the Vite diagnostics loader, CLI, devtools, or agent graph
+  adapters can assume missing `name`/policy fields.
+- LSP-facing public docs: Start agent graph DTOs/functions, diagnostics report
+  contracts, diagnostics report formatting, and the golden-path `Program`
+  namespace aliases now have declaration-site JSDoc for hover help. The public
+  API inventory also names the DB `sync-adapter` source surface and current
+  docs-drift scope.
+
+Focused verification passed: `pnpm --filter @effect-ui/start typecheck`, `pnpm
+--filter @effect-ui/core typecheck`, `pnpm --filter @effect-ui/start build`,
+`pnpm exec vitest run
+packages/start/test/app-graph.test.ts` (1 file / 16 tests), `pnpm exec vitest
+run packages/start/test/start.test.ts -t 'diagnostics CLI|agent graph|app graph
+diagnostics|diagnostics report'` (1 file / 7 selected tests), `pnpm
+typecheck:types`, `pnpm audit:public-api`, and `pnpm audit:effect-first` over
+244 files.
+Full `pnpm verify` is pending until the DB Review 129 follow-up is fixed.
 
 ## Review 128: DB Query Context Identity Module
 

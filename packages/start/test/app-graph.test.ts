@@ -285,6 +285,62 @@ describe("Start app graph", () => {
             diagnosticsPolicyViolations: []
           })
         );
+        const invalidRegistryExits = yield* Effect.all([
+          Effect.exit(
+            decodeStartAppGraphDiagnosticsDtoEffect({
+              diagnostics: {
+                ...diagnostics,
+                resourceFamilies: [
+                  {
+                    name: "Project.Resource",
+                    inputSchema: true
+                  }
+                ]
+              },
+              diagnosticsPolicyViolations: []
+            })
+          ),
+          Effect.exit(
+            decodeStartAppGraphDiagnosticsDtoEffect({
+              diagnostics: {
+                ...diagnostics,
+                resourceTags: [
+                  {
+                    name: "Project.Tag",
+                    keyed: "yes"
+                  }
+                ]
+              },
+              diagnosticsPolicyViolations: []
+            })
+          ),
+          Effect.exit(
+            decodeStartAppGraphDiagnosticsDtoEffect({
+              diagnostics: {
+                ...diagnostics,
+                collectionDefinitions: [
+                  {
+                    name: "Projects",
+                    inputSchema: true,
+                    outputSchema: true,
+                    initialData: false,
+                    indexes: [],
+                    load: true,
+                    handlers: {
+                      insert: false,
+                      update: false,
+                      delete: false
+                    },
+                    policy: {
+                      retry: false
+                    }
+                  }
+                ]
+              },
+              diagnosticsPolicyViolations: []
+            })
+          )
+        ]);
         const invalidPolicyExit = yield* Effect.exit(
           decodeStartAppGraphDiagnosticsDtoEffect({
             diagnostics,
@@ -306,6 +362,11 @@ describe("Start app graph", () => {
           expect(firstFailure(invalidDiagnosticsExit)).toBeInstanceOf(
             StartAppGraphDiagnosticsDtoError
           );
+          for (const exit of invalidRegistryExits) {
+            expect(firstFailure(exit)).toBeInstanceOf(
+              StartAppGraphDiagnosticsDtoError
+            );
+          }
           expect(firstFailure(invalidPolicyExit)).toBeInstanceOf(
             StartAppGraphDiagnosticsDtoError
           );

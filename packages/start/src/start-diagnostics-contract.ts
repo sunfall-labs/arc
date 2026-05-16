@@ -6,8 +6,10 @@ import type {
   StartAppGraphWireSchemaField
 } from "./app-graph.js";
 
+/** Overall Start diagnostics status used by CI, CLI, and agent repair reports. */
 export type StartDiagnosticsReportStatus = "pass" | "needs-attention";
 
+/** Finding families emitted from app graph diagnostics and build policy checks. */
 export type StartDiagnosticsReportFindingKind =
   | "route-preload-resources"
   | "route-preload-collections"
@@ -15,20 +17,29 @@ export type StartDiagnosticsReportFindingKind =
   | "action-behavior"
   | "policy-violation";
 
+/** One actionable repair item grouped by the file, module, or policy owner. */
 export interface StartDiagnosticsReportFinding {
+  /** Finding family used by graph nodes and CLI filters. */
   readonly kind: StartDiagnosticsReportFindingKind;
+  /** File, module export, or policy area that should own the edit. */
   readonly owner: string;
+  /** Route, action, server function, or policy subject being reported. */
   readonly subject: string;
+  /** Human-readable problem statement. */
   readonly issue: string;
+  /** Suggested edit for agents or developers. */
   readonly edit: string;
+  /** Extra stable facts for CLI output and devtools panels. */
   readonly details: readonly string[];
 }
 
+/** All findings owned by one edit target. */
 export interface StartDiagnosticsReportOwnerGroup {
   readonly owner: string;
   readonly findings: readonly StartDiagnosticsReportFinding[];
 }
 
+/** Count summary for the diagnostics report and graph self-review. */
 export interface StartDiagnosticsReportSummary {
   readonly routes: number;
   readonly serverFunctions: number;
@@ -44,13 +55,16 @@ export interface StartDiagnosticsReportSummary {
   readonly findingCount: number;
 }
 
+/** Grouped repair report produced from Start app graph diagnostics. */
 export interface StartDiagnosticsReport {
+  /** `pass` when no findings exist; `needs-attention` otherwise. */
   readonly status: StartDiagnosticsReportStatus;
   readonly summary: StartDiagnosticsReportSummary;
   readonly findings: readonly StartDiagnosticsReportFinding[];
   readonly groups: readonly StartDiagnosticsReportOwnerGroup[];
 }
 
+/** Input accepted by the diagnostics report builder. */
 export interface StartDiagnosticsReportInput {
   readonly diagnostics: StartAppGraphDiagnostics;
   readonly diagnosticsPolicyViolations?: readonly StartAppGraphDiagnosticsPolicyViolation[];
@@ -154,6 +168,12 @@ const groupFindings = (
     }));
 };
 
+/**
+ * Converts Start app graph diagnostics into a grouped repair report.
+ *
+ * Findings include schema gaps, unknown action behavior, unknown route preload
+ * declarations, and diagnostics policy violations.
+ */
 export const createStartDiagnosticsReport = (
   input: StartDiagnosticsReportInput
 ): StartDiagnosticsReport => {

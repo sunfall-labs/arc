@@ -1,39 +1,12 @@
 import type {
   StartAgentGraphImpactOptions,
-  StartAgentGraphQuery,
-  StartAgentGraphQueryKind
-} from "./agent-graph.js";
-
-/**
- * Query kinds exposed by the `effect-ui-start graph` and `effect-ui-start impact`
- * Effect CLI command trees.
- */
-export const startAgentGraphQueryKinds = [
-  "action",
-  "collection",
-  "endpoint",
-  "finding",
-  "module",
-  "node",
-  "resource",
-  "resource-tag",
-  "route",
-  "server-function"
-] as const satisfies ReadonlyArray<StartAgentGraphQueryKind>;
-
-const startAgentGraphQueryKindSet = new Set<StartAgentGraphQueryKind>(
-  startAgentGraphQueryKinds
-);
-
-/** Checks whether an argv value is one of the Start agent graph query subcommands. */
-export const isStartAgentGraphQueryKind = (
-  value: string
-): value is StartAgentGraphQueryKind =>
-  startAgentGraphQueryKindSet.has(value as StartAgentGraphQueryKind);
-
-/** Human-readable query-kind list for usage and CLI validation messages. */
-export const startAgentGraphQueryKindsText = (): string =>
-  startAgentGraphQueryKinds.join(", ");
+  StartAgentGraphQuery
+} from "./start-agent-graph-contract.js";
+export {
+  isStartAgentGraphQueryKind,
+  startAgentGraphQueryKinds,
+  startAgentGraphQueryKindsText
+} from "./start-agent-graph-vocabulary.js";
 
 const shellSafePattern = /^[A-Za-z0-9_./:@=-]+$/;
 
@@ -59,7 +32,13 @@ const queryCommandArgs = (
   return args.length === 0 ? "" : ` ${args.map(shellArg).join(" ")}`;
 };
 
-/** Effect CLI commands agents should run to verify an impact query. */
+/**
+ * Effect CLI commands agents should run after editing nodes matched by an
+ * impact query.
+ *
+ * Arguments are shell-escaped so impact reports can be pasted directly into
+ * repair checklists.
+ */
 export const startDiagnosticsCliVerifyCommandsForQuery = (
   query: StartAgentGraphQuery,
   options: StartAgentGraphImpactOptions

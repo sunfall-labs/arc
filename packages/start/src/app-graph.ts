@@ -391,6 +391,81 @@ const isPreloadCollectionDiagnostics = (
   typeof value.status === "string" &&
   isStringArray(value.collections);
 
+const isResourceFamilyDiagnostics = (
+  value: unknown
+): value is StartAppGraphResourceFamilyDiagnostics =>
+  isRecord(value) &&
+  typeof value.name === "string" &&
+  typeof value.inputSchema === "boolean" &&
+  typeof value.outputSchema === "boolean" &&
+  typeof value.errorSchema === "boolean" &&
+  typeof value.providesTags === "boolean" &&
+  isRecord(value.policy) &&
+  typeof value.policy.retry === "boolean";
+
+const isResourceTagDiagnostics = (
+  value: unknown
+): value is StartAppGraphResourceTagDiagnostics =>
+  isRecord(value) &&
+  typeof value.name === "string" &&
+  typeof value.keyed === "boolean";
+
+const isCollectionIndexDiagnostics = (
+  value: unknown
+): value is StartAppGraphCollectionDiagnostics["indexes"][number] =>
+  isRecord(value) &&
+  typeof value.name === "string" &&
+  typeof value.unique === "boolean";
+
+const isCollectionHandlersDiagnostics = (
+  value: unknown
+): value is StartAppGraphCollectionDiagnostics["handlers"] =>
+  isRecord(value) &&
+  typeof value.insert === "boolean" &&
+  typeof value.update === "boolean" &&
+  typeof value.delete === "boolean";
+
+const isCollectionPolicyDiagnostics = (
+  value: unknown
+): value is StartAppGraphCollectionDiagnostics["policy"] =>
+  isRecord(value) &&
+  typeof value.retry === "boolean";
+
+const isCollectionPersistenceDiagnostics = (
+  value: unknown
+): value is StartAppGraphCollectionDiagnostics["persistence"] =>
+  isRecord(value) &&
+  typeof value.enabled === "boolean" &&
+  (value.key === undefined || typeof value.key === "string") &&
+  typeof value.hydrate === "boolean" &&
+  typeof value.restoreOnPreload === "boolean" &&
+  typeof value.loadAfterRestore === "boolean" &&
+  typeof value.persistOnLoad === "boolean" &&
+  typeof value.persistOnMutation === "boolean" &&
+  typeof value.persistOnWrite === "boolean";
+
+const isCollectionSyncDiagnostics = (
+  value: unknown
+): value is NonNullable<StartAppGraphCollectionDiagnostics["sync"]> =>
+  isRecord(value) &&
+  typeof value.adapter === "string";
+
+const isCollectionDefinitionDiagnostics = (
+  value: unknown
+): value is StartAppGraphCollectionDiagnostics =>
+  isRecord(value) &&
+  typeof value.name === "string" &&
+  typeof value.inputSchema === "boolean" &&
+  typeof value.outputSchema === "boolean" &&
+  typeof value.initialData === "boolean" &&
+  Array.isArray(value.indexes) &&
+  value.indexes.every(isCollectionIndexDiagnostics) &&
+  typeof value.load === "boolean" &&
+  isCollectionHandlersDiagnostics(value.handlers) &&
+  isCollectionPolicyDiagnostics(value.policy) &&
+  (value.sync === undefined || isCollectionSyncDiagnostics(value.sync)) &&
+  isCollectionPersistenceDiagnostics(value.persistence);
+
 const isRouteDiagnostics = (
   value: unknown
 ): value is StartAppGraphRouteDiagnostics =>
@@ -553,8 +628,11 @@ const isStartAppGraphDiagnostics = (
   Array.isArray(value.actionModules) &&
   value.actionModules.every(isActionDiagnostics) &&
   Array.isArray(value.resourceFamilies) &&
+  value.resourceFamilies.every(isResourceFamilyDiagnostics) &&
   Array.isArray(value.resourceTags) &&
+  value.resourceTags.every(isResourceTagDiagnostics) &&
   Array.isArray(value.collectionDefinitions) &&
+  value.collectionDefinitions.every(isCollectionDefinitionDiagnostics) &&
   isStringArray(value.serverOnlyModules) &&
   isStringArray(value.browserClientModules) &&
   typeof value.rpcPath === "string" &&

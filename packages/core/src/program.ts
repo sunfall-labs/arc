@@ -136,14 +136,29 @@ export namespace Program {
   export type Story<Model, Message, E = never, R = never> = ProgramStory<Model, Message, E, R>;
   export type StoryOptions<Model> = ProgramStoryOptions<Model>;
 
+  /**
+   * Defines a headless model/message Program.
+   *
+   * The update callback returns an Effect or pure step; Promise-shaped updates
+   * are rejected so async work stays in the Effect runtime.
+   */
   export const define = defineProgram;
+  /** Runs one Program update deterministically without starting subscriptions. */
   export const step = programStepEffect;
+  /** Creates a deterministic Program story for tests and examples. */
   export const story = makeProgramStory;
+  /** Starts a Program on the current Runtime Spine and UI scope. */
   export const start = startProgramWithRuntimeError;
+  /** Returns a pure model update step with no commands. */
   export const next = programNext;
+  /** Creates a command that can emit a follow-up message through Effect. */
   export const command = programCommand;
+  /** Creates a command from an Effect that may fail through the Program error channel. */
   export const effect = programEffect;
+  /** Creates a command that immediately dispatches another message. */
   export const dispatch = programDispatch;
+  /** Creates a step that emits several commands after a model update. */
   export const commands = programCommands;
+  /** Creates a Stream-backed subscription for model-driven external input. */
   export const subscription = programSubscription;
 }

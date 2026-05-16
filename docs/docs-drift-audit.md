@@ -57,7 +57,14 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     extraction, Review 117 browser route render decision module extraction,
     Review 118 devtools fact identity index helper extraction, Review 119
     devtools runtime seam collapse, and Review 120 start action response codec
-    module extraction.
+    module extraction, Review 121 db collection mutation workflow extraction,
+    Review 122 browser router link decision extraction, Review 123 start
+    diagnostics CLI contract extraction, Review 124 core program runtime
+    timeline extraction, Review 125 core program runtime coordinator
+    extraction, Review 126 core program runtime lifecycle hardening, Review
+    127 start agent graph formatter and impact extraction, Review 128 db query
+    context identity extraction, and the Start/docs portion of the Review 129
+    graph vocabulary, diagnostics DTO, and LSP docs sweep.
 
 ## Current Sweep Results
 
@@ -468,6 +475,9 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Updated current-facing verification snapshots after Review 128 full
   verification so the latest gate points at the 243-file Effect-first audit and
   53 root test files / 872 tests.
+- Added Review 129 Start/docs evidence for Start Agent Graph Vocabulary,
+  registry diagnostics DTO validation, public hover JSDoc, the DB `sync-adapter`
+  source-surface inventory entry, and the 244-file Effect-first focused audit.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are
   wrapped with `Effect.tryPromise(...)` at the Adapter seam.
 - Clarified that `virtual:effect-ui/routes` exposes runtime helpers while the

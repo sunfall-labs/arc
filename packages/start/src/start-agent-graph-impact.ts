@@ -13,6 +13,7 @@ import {
 import {
   queryStartAgentGraph
 } from "./start-agent-graph-query.js";
+import { startAgentGraphRelationKindForNode } from "./start-agent-graph-vocabulary.js";
 import { startDiagnosticsCliVerifyCommandsForQuery } from "./start-diagnostics-cli-contract.js";
 import type {
   StartAgentGraph,
@@ -20,41 +21,15 @@ import type {
   StartAgentGraphImpact,
   StartAgentGraphImpactOptions,
   StartAgentGraphImpactRelation,
-  StartAgentGraphImpactRelationKind,
   StartAgentGraphNode,
   StartAgentGraphQuery
 } from "./start-agent-graph-contract.js";
-
-const relationKindForNode = (
-  node: StartAgentGraphNode
-): StartAgentGraphImpactRelationKind => {
-  switch (node.kind) {
-    case "Action":
-      return "action";
-    case "Collection":
-      return "collection";
-    case "Endpoint":
-      return "endpoint";
-    case "Finding":
-      return "finding";
-    case "Module":
-      return "module";
-    case "ResourceFamily":
-      return "resource";
-    case "ResourceTag":
-      return "resource-tag";
-    case "Route":
-      return "route";
-    case "ServerFunction":
-      return "server-function";
-  }
-};
 
 const relationFromNode = (
   node: StartAgentGraphNode,
   reason: string
 ): StartAgentGraphImpactRelation => ({
-  kind: relationKindForNode(node),
+  kind: startAgentGraphRelationKindForNode(node.kind),
   label: node.label,
   reason,
   ...(node.owner === undefined ? {} : { owner: node.owner })
@@ -296,6 +271,12 @@ const editTargetForNode = (
 ): string | undefined =>
   node.owner ?? (node.kind === "Module" ? node.label : undefined);
 
+/**
+ * Builds an agent-readable impact brief for the nodes matched by a graph query.
+ *
+ * The result names edit targets, direct dependencies, likely affected callers,
+ * warnings, and shell-safe verification commands.
+ */
 export const createStartAgentGraphImpact = (
   graph: StartAgentGraph,
   query: StartAgentGraphQuery,
@@ -320,6 +301,7 @@ export const createStartAgentGraphImpact = (
   };
 };
 
+/** Effect wrapper for `createStartAgentGraphImpact(...)`. */
 export const createStartAgentGraphImpactEffect = (
   graph: StartAgentGraph,
   query: StartAgentGraphQuery,

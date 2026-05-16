@@ -259,6 +259,7 @@ const formatImpactItem = (
   ...item.verify.map((command) => `- ${command}`)
 ];
 
+/** Formats an impact report as concise, agent-readable repair text. */
 export const formatStartAgentGraphImpact = (
   impact: StartAgentGraphImpact
 ): string => {
@@ -283,6 +284,12 @@ export const formatStartAgentGraphImpact = (
   return lines.join("\n");
 };
 
+/**
+ * Formats the Start agent graph for CLI output.
+ *
+ * Without a query this prints a graph overview; with a query it prints matched
+ * nodes and their nearby relations. `verbose` includes expanded node details.
+ */
 export const formatStartAgentGraph = (
   graph: StartAgentGraph,
   options: StartAgentGraphFormatOptions = {}

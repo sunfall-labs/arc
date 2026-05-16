@@ -1145,6 +1145,10 @@ interruption.
 - Devtools Panels and Store no longer expose internal single-adapter runtime
   injection seams. Effect wrappers and store Effect methods stay intact while
   pure projection dependencies live in the owning Modules.
+- Review 129 added the Start Agent Graph Vocabulary Module and kept the focused
+  Effect-first audit green over 244 auditable package/example/script/type-test
+  files. The new Module is pure graph vocabulary and adds no Promise-shaped
+  host boundary.
 - The latest full `pnpm verify` passed after the Review 128 DB Query Context
   Identity Module slice: 11 package builds, workspace typecheck, type tests,
   public API inventory audit, Effect-first audit over 243
@@ -1160,8 +1164,9 @@ interruption.
   expanded it to 228 files, Review 120 expanded it to 230 files, Review 121
   expanded it to 231 files, Review 123 expanded it to 232 files, Review
   124 expanded it to 233 files, Review 125 expanded it to 237 files, Review
-  127 expanded it to 242 files, and Review 128 expanded it to 243 files while
-  keeping it green over that scope.
+  127 expanded it to 242 files, Review 128 expanded it to 243 files, and the
+  Review 129 focused audit expanded it to 244 files while keeping it green over
+  that scope.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,
