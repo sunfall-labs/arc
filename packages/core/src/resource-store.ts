@@ -1,4 +1,4 @@
-import { Context, Data, Effect, Exit, Fiber, PubSub, Scope } from "effect";
+import { Cause, Context, Data, Effect, Exit, Fiber, PubSub, Scope } from "effect";
 
 /** Runtime marker for the Resource Store service. */
 export const ResourceStoreTypeId: unique symbol = Symbol.for("@effect-ui/core/ResourceStore") as typeof ResourceStoreTypeId;
@@ -190,10 +190,18 @@ export interface MutableResourceStore extends ResourceStore {
   readonly fibers: Set<ResourceStoreFiber>;
 }
 
+/** Error raised when Resource Store disposal observes a module finalizer failure. */
+export class ResourceStoreDisposeError extends Data.TaggedError("ResourceStoreDisposeError")<{
+  /** Structured Effect cause reported by the failing module finalizer. */
+  readonly cause: Cause.Cause<unknown>;
+  /** Human-readable repair hint suitable for diagnostics and adapter hooks. */
+  readonly guidance: string;
+}> {}
+
 /** Store-local module state registered by Resource runtime helpers. */
 export interface ResourceStoreModule {
   /** Optional cleanup work run when the Resource Store is disposed. */
-  readonly disposeEffect?: Effect.Effect<void>;
+  readonly disposeEffect?: Effect.Effect<void, ResourceStoreDisposeError>;
 }
 
 /** @internal Creates an empty mutable Resource Store implementation. */
@@ -296,8 +304,14 @@ export const unsafeMutableResourceStore = (store: ResourceStore): MutableResourc
   return store as MutableResourceStore;
 };
 
+const resourceStoreDisposeError = (cause: Cause.Cause<unknown>): ResourceStoreDisposeError =>
+  new ResourceStoreDisposeError({
+    cause,
+    guidance: "A Resource Store module finalizer failed during runtime disposal. Inspect `cause` to find the failing finalizer and keep module cleanup Effects typed."
+  });
+
 /** Interrupts tracked fibers, runs module finalizers, and shuts down store events. */
-export const disposeResourceStoreEffect = (store: ResourceStore): Effect.Effect<void> =>
+export const disposeResourceStoreEffect = (store: ResourceStore): Effect.Effect<void, ResourceStoreDisposeError> =>
   Effect.gen(function* () {
     const fibers = store.fiberRegistry.drain();
     if (fibers.length > 0) {
@@ -311,7 +325,7 @@ export const disposeResourceStoreEffect = (store: ResourceStore): Effect.Effect<
     );
     const failure = exits.find(Exit.isFailure);
     if (failure) {
-      return yield* Effect.failCause(failure.cause);
+      return yield* Effect.fail(resourceStoreDisposeError(failure.cause as Cause.Cause<unknown>));
     }
   }).pipe(Effect.ensuring(store.eventBus.shutdownEffect));
 

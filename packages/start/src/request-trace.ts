@@ -1,4 +1,6 @@
 import {
+  ResourceStoreDisposeError,
+  RuntimeDisposeError,
   runWithRuntime,
   toEffect,
   type EffectInput,
@@ -712,14 +714,28 @@ export const requestRuntimeDisposeTraceEffect = <RuntimeServices, RuntimeError>(
     };
   });
 
+const cleanupFailureMessage = (cause: Cause.Cause<unknown>): string | undefined => {
+  const failReason = cause.reasons.find(Cause.isFailReason);
+  if (failReason === undefined) {
+    return undefined;
+  }
+
+  const error = failReason.error;
+  if (error instanceof RuntimeDisposeError || error instanceof ResourceStoreDisposeError) {
+    return cleanupFailureMessage(error.cause) ?? error._tag;
+  }
+
+  return String(error);
+};
+
 const startRequestTraceCleanupFailure = <E>(
   cause: Cause.Cause<E>
 ): StartRequestTraceCleanupFailure => {
-  const failReason = cause.reasons.find(Cause.isFailReason);
-  if (failReason !== undefined) {
+  const failureMessage = cleanupFailureMessage(cause as Cause.Cause<unknown>);
+  if (failureMessage !== undefined) {
     return {
       _tag: "Failure",
-      message: String(failReason.error)
+      message: failureMessage
     };
   }
 

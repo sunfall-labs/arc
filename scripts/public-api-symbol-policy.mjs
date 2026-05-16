@@ -678,6 +678,19 @@ export const publicHoverDocGroups = [
     ]
   },
   {
+    file: "packages/start/src/start-action-request-codec.ts",
+    declarations: [
+      "StartActionFormField",
+      "StartActionFormOptions"
+    ]
+  },
+  {
+    file: "packages/start/src/start-transport-protocol.ts",
+    declarations: [
+      "StartActionDuplicateName"
+    ]
+  },
+  {
     file: "packages/start/src/agent-graph.ts",
     declarations: [
       "createStartAgentGraph",
@@ -740,8 +753,24 @@ export const publicHoverDocGroups = [
   {
     file: "packages/start/src/start-manifest-wall.ts",
     declarations: [
+      "defaultServerEntry",
+      "defaultFileRouteDirectory",
+      "defaultFileRouteGeneratedFile",
+      "defaultStartBuildWireSchemaPolicy",
+      "defaultStartBuildPolicy",
       "StartBuildPolicy",
       "StartBuildPolicyError"
+    ]
+  },
+  {
+    file: "packages/start/src/start-virtual-modules.ts",
+    declarations: [
+      "serverFunctionManifestVirtualModuleId",
+      "actionManifestVirtualModuleId",
+      "fileRouteManifestVirtualModuleId",
+      "fileRouteDefinitionsVirtualModuleId",
+      "appGraphVirtualModuleId",
+      "appGraphRuntimeDiagnosticsVirtualModuleId"
     ]
   },
   {

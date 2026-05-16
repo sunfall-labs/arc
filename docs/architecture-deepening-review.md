@@ -11,14 +11,13 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review193, the post-Review192 sweep
-fixing route preload Promise annotations, sync capability Promise escapes,
-file-route resource selector Promise escapes, serviceful query diagnostics,
-Start manifest LSP docs, and remaining current-gate docs drift. The newest full
-verification checkpoint is Review193. Clean Sweep 1 after Review190 remains
-historical evidence, but later sweeps found Review191, Review192, and Review193
-work, so the active Thirty-Sweep clean counter is 0/30 until a fresh
-post-Review193 sweep reports no actionable findings. Some older review entries
+The newest completed focused review is Review194, the post-Review193 sweep
+fixing typed runtime disposal, Resource read/ref depth, Resource retry callback
+locality, Start Vite/action LSP docs, and current-gate docs drift. The newest
+full verification checkpoint is Review194. Clean Sweep 1 after Review190 remains
+historical evidence, but later sweeps found Review191, Review192, Review193, and
+Review194 work, so the active Thirty-Sweep clean counter is 0/30 until a fresh
+post-Review194 sweep reports no actionable findings. Some older review entries
 remain below this tip from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
 
@@ -34,9 +33,85 @@ fresh post-Review190 Core/React/Solid, DB/public API, and
 Start/devtools/examples/docs/scripts sweeps found no actionable Module,
 Interface, Seam, Adapter, Locality, Depth, Leverage, typed error, or docs drift
 work, creating Clean Sweep 1. The next Clean Sweep 2 candidate found Review191
-work. The first post-Review191 sweep found Review192 docs drift, and the first
-post-Review192 sweep found Review193 Core/Start/DB/public docs work, so the
-counter is no longer active until the post-Review193 sweep is clean.
+work. The first post-Review191 sweep found Review192 docs drift, the first
+post-Review192 sweep found Review193 Core/Start/DB/public docs work, and the
+first post-Review193 sweep found Review194 Core/Start/docs work, so the counter
+is no longer active until the post-Review194 sweep is clean.
+
+## Review 194: Typed Runtime Disposal, Resource Read Depth, And Start LSP Pins
+
+Review194 fixed actionable findings from the fresh post-Review193 subagent
+sweep.
+
+1. Runtime And Resource Store Disposal Error Channels
+   - Status: fixed.
+   - Files: `packages/core/src/runtime.ts`,
+     `packages/core/src/resource-store.ts`, `packages/react/src/runtime.ts`,
+     `packages/solid/src/runtime.ts`, `packages/start/src/request-trace.ts`,
+     `packages/core/test/runtime.test.ts`,
+     `packages/core/test/resource-store.test.ts`,
+     `packages/react/test/hooks.test.ts`,
+     `packages/solid/test/hooks.test.ts`,
+     `examples/project-console/src/domain.mock.test.ts`,
+     `type-tests/core.test-d.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: runtime and Resource Store disposal Interfaces were typed as
+     infallible even though module finalizers could fail, forcing React/Solid
+     disposal observers and Start request traces to receive erased `unknown`
+     cleanup failures.
+   - Fix: added `ResourceStoreDisposeError` and `RuntimeDisposeError`, typed
+     `disposeResourceStoreEffect(...)` and runtime `disposeEffect`, typed
+     React/Solid `onDisposeFailure(...)` observers, and unwrapped nested cleanup
+     errors in Start request traces.
+   - Benefits: runtime cleanup is now an Effect-first typed Interface, while
+     host Adapters decide whether cleanup failure should be observed, traced, or
+     best-effort ignored at their boundary.
+
+2. Resource Read Failure Depth And Retry Locality
+   - Status: fixed.
+   - Files: `packages/core/src/resource.ts`,
+     `packages/core/src/resource-runtime.ts`, `packages/core/test/resource.test.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: `Resource.ReadError` erased the failed ref's input/service type
+     parameters, and Resource retry wrapped synchronous loader callback failures
+     together with the returned load Effect.
+   - Fix: `ResourceFailure` in `Resource.ReadError` now preserves the original
+     `ResourceRef<I, A, E, R>`, and Resource retry now applies only to the Effect
+     returned by the loader after the callback has successfully returned.
+   - Benefits: callers can recover typed `failure.ref.input` and requirements,
+     and retry policy no longer retries callback construction bugs as domain load
+     failures.
+
+3. Start Vite And Action LSP Pins Plus Current-Gate Docs
+   - Status: fixed.
+   - Files: `packages/start/src/start-action-request-codec.ts`,
+     `packages/start/src/start-transport-protocol.ts`,
+     `packages/start/src/start-manifest-wall.ts`,
+     `packages/start/src/start-virtual-modules.ts`,
+     `scripts/public-api-symbol-policy.mjs`,
+     `type-tests/start.test-d.ts`, `type-tests/start-vite.test-d.ts`,
+     `type-tests/public-api.manifest.json`, `docs/release-notes.md`,
+     `docs/effect-first-audit.md`.
+   - Problem: Start action form and duplicate-name surfaces lacked declaration
+     hover docs, Vite defaults and virtual module ids were not pinned by the
+     hover-doc/type-test policy, and current-gate docs still split Review191 and
+     Review193 as latest verification facts.
+   - Fix: added JSDoc to the missing public declarations, extended the public API
+     hover-doc policy, pinned root and `@effect-ui/start/vite` type-test imports,
+     and made current-gate docs name the Review194 verification.
+   - Benefits: Start's public LSP surface now describes why action forms,
+     duplicate action names, Vite defaults, and virtual module ids exist, and
+     release-readiness facts have one current owner.
+
+Focused evidence for this pass: Core/React/Solid/Start package typechecks,
+public type tests, public API audit, Effect-first audit, Core runtime/resource
+regressions, React/Solid disposal observer regressions, Start cleanup trace
+regression, and `git diff --check` passed. Full `pnpm verify` passed after
+Review194 with 11 package builds, workspace typecheck, public type tests, public
+API audit, Effect-first audit over 404 files, 53 root test files / 1038 tests,
+package-level verifies, generated starter packaging, the 16-target package
+dry-run gate, project-console checks, and leak scans. Because this sweep found
+work, the active clean counter remains 0/30.
 
 ## Review 193: Post-Review192 Effect And LSP Holes
 

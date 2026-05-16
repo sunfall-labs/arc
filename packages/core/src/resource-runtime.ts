@@ -1,4 +1,4 @@
-import { Cache, Clock, Context, Duration, Effect, Exit, Fiber, Option, PubSub, Scope, type Schedule } from "effect";
+import { Cache, Clock, Context, Duration, Effect, Exit, Fiber, Option, PubSub, Scope } from "effect";
 import {
   planResourceInvalidationTargets,
   removeResourceRefFromTagIndex,
@@ -10,7 +10,7 @@ import {
 import { describeResourceStoreInvalidationCause, publishResourceStoreEvent } from "./resource-events.js";
 import { ResourceCollector, type ResourceCollected } from "./resource-collector.js";
 import { MissingResourceInput, ResourceFailure, ResourcePending } from "./resource-errors.js";
-import { EffectInputCallbackError, invokeEffectInput } from "./effect-like.js";
+import { EffectInputCallbackError, toEffect } from "./effect-like.js";
 import { parseDuration } from "./resource-duration.js";
 import { lookupResourceHydrationFamily } from "./resource-registry.js";
 import {
@@ -125,6 +125,27 @@ const resourceEntries = <I, A, E, R>(
   return entries;
 };
 
+const resourceLoadEffect = <I, A, E, R>(
+  family: ResourceFamily<I, A, E, R>,
+  input: I
+): Effect.Effect<A, ResourceLoadError<E>, R> =>
+  Effect.flatMap(
+    Effect.try({
+      try: () => family.options.load(input),
+      catch: (cause) =>
+        new EffectInputCallbackError({
+          operation: `Resource.load(${family.options.name})`,
+          cause,
+          guidance: "EffectInput callbacks must return values or Effects. Synchronous callback throws are reported in the Effect error channel."
+        })
+    }),
+    (output) => {
+      const effect = toEffect(output);
+      const retry = family.options.policy?.retry;
+      return retry === undefined ? effect : Effect.retry(effect, retry);
+    }
+  );
+
 const resourceCache = <I, A, E, R>(
   family: ResourceFamily<I, A, E, R>,
   store: ResourceStoreState
@@ -144,13 +165,7 @@ const resourceCache = <I, A, E, R>(
         }
 
         const input = inputs.get(key) as I;
-        const load = invokeEffectInput(
-          `Resource.load(${family.options.name})`,
-          family.options.load,
-          input
-        );
-        const retry = family.options.policy?.retry;
-        return retry ? Effect.retry(load, retry as Schedule.Schedule<unknown, ResourceLoadError<E>>) : load;
+        return resourceLoadEffect(family, input);
       },
       {
         capacity: Number.POSITIVE_INFINITY,
@@ -469,7 +484,7 @@ type ResourceReadDecision<I, A, E, R> =
     }
   | {
       readonly _tag: "Failure";
-      readonly failure: ResourceFailure<unknown, A, ResourceLoadError<E>, unknown, E>;
+      readonly failure: ResourceFailure<I, A, ResourceLoadError<E>, R, E>;
     };
 
 const resourceReadDecision = <I, A, E, R>(
@@ -498,7 +513,7 @@ const resourceReadDecision = <I, A, E, R>(
     return {
       _tag: "Failure",
       failure: new ResourceFailure({
-        ref: ref as ResourceRef<unknown, A, E, unknown>,
+        ref,
         error: state.error,
         previous: hasPrevious ? state.previous : undefined,
         hasPrevious
@@ -551,7 +566,7 @@ export const readResourceEffect = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>
 ): Effect.Effect<
   A,
-  ResourcePending<I, A, E, R> | ResourceFailure<unknown, A, ResourceLoadError<E>, unknown, E>,
+  ResourcePending<I, A, E, R> | ResourceFailure<I, A, ResourceLoadError<E>, R, E>,
   R
 > =>
   Effect.gen(function* () {

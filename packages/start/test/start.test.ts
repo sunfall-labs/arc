@@ -1914,6 +1914,7 @@ describe("Effect UI Start", () => {
         teardown: expect.objectContaining({
           runtimeDisposed: false,
           cleanupFailure: expect.objectContaining({
+            _tag: "Failure",
             message: "cleanup-failed"
           })
         })

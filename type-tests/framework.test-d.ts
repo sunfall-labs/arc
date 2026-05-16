@@ -11,9 +11,11 @@ import {
   ResourceFailure,
   ResourceHydrationApplyError,
   ResourcePending,
+  ResourceStoreDisposeError,
   ResourceSnapshotCodecError,
   ResponseContext,
   Route,
+  RuntimeDisposeError,
   Server,
   Signal,
   browserRouterLinkClickDecision,
@@ -22,6 +24,7 @@ import {
   buildRoutePath,
   cloneResourceSnapshotValue,
   defineApp,
+  disposeResourceStoreEffect,
   hrefForRouteInput,
   invokeEffectInput,
   isRouteParamName,
@@ -1360,6 +1363,8 @@ adapterResourceStore.moduleRegistry.register(Symbol("adapter-module"), {
 const adapterResourceStoreModuleCount: Effect.Effect<number> = adapterResourceStore.diagnostics.moduleCountEffect;
 const adapterResourceStoreEventBusShutdown: Effect.Effect<boolean> =
   adapterResourceStore.diagnostics.eventBusShutdownEffect;
+const adapterResourceStoreDispose: Effect.Effect<void, ResourceStoreDisposeError> =
+  disposeResourceStoreEffect(adapterResourceStore);
 const publicResourceStoreRuntime = makeRuntime();
 // @ts-expect-error ResourceStore internals are intentionally not public.
 publicResourceStoreRuntime.resourceStore.entries;
@@ -1391,6 +1396,7 @@ void resourceDefinitionDiagnostics;
 void resourceDefinitionDuplicatePolicy;
 void adapterResourceStoreModuleCount;
 void adapterResourceStoreEventBusShutdown;
+void adapterResourceStoreDispose;
 void typedAdapterResourceStore;
 void validatedResourceSnapshotsEffect;
 
@@ -1422,6 +1428,16 @@ const projectResourceFailure = new ResourceFailure({
 });
 const projectResourceFailureError: ProjectError | Server.ClientError = projectResourceFailure.error;
 const projectResourceFailureHasPrevious: boolean = projectResourceFailure.hasPrevious;
+const typedProjectResourceFailure: ResourceFailure<
+  string,
+  Project,
+  Resource.LoadError<ProjectError | Server.ClientError>,
+  ProjectApi,
+  ProjectError | Server.ClientError
+> = projectResourceFailure;
+const projectResourceFailureInput: string = typedProjectResourceFailure.ref.input;
+const projectResourceFailureRef: Resource.Ref<string, Project, ProjectError | Server.ClientError, ProjectApi> =
+  typedProjectResourceFailure.ref;
 void projectRead;
 void projectReadViaHelper;
 void projectSuspenseRead;
@@ -1430,6 +1446,8 @@ void projectResourcePendingPrevious;
 void projectResourcePendingHasPrevious;
 void projectResourceFailureError;
 void projectResourceFailureHasPrevious;
+void projectResourceFailureInput;
+void projectResourceFailureRef;
 void deleteProjectEffect;
 
 Resource.family<string, Project>({
@@ -2315,7 +2333,12 @@ RuntimeProvider({
     readDocument: () => "ok"
   }),
   onDisposeFailure: (error) => {
-    void error;
+    const phase: "resource-store" | "managed-runtime" = error.phase;
+    const cause: Cause.Cause<unknown> = error.cause;
+    const typedError: RuntimeDisposeError = error;
+    void phase;
+    void cause;
+    void typedError;
     return Effect.void;
   }
 });
@@ -2340,18 +2363,26 @@ RuntimeProvider({
 });
 // @ts-expect-error RuntimeProvider source creates provider-owned runtimes; existing runtimes use the runtime prop
 RuntimeProvider({ source: typedRuntime });
+const typedRuntimeDisposeEffect: Effect.Effect<void, RuntimeDisposeError> = typedRuntime.disposeEffect;
 typedRuntime.runSync(RuntimeDocumentService.useSync((service) => service.readDocument()));
 // @ts-expect-error Runtime Spine cannot run an effect with services it does not provide
 typedRuntime.runSync(RuntimeMissingService.useSync((service) => service.readMissing()));
 // @ts-expect-error Runtime Spine cannot fork an effect with services it does not provide
 typedRuntime.runFork(RuntimeMissingService.useSync((service) => service.readMissing()));
 declare const erasedRuntime: AnyEffectUiRuntime<never>;
+const erasedRuntimeDisposeEffect: Effect.Effect<void, RuntimeDisposeError> = erasedRuntime.disposeEffect;
 const erasedRuntimeProvidedEffect: Effect.Effect<string> = erasedRuntime.provide(
   RuntimeMissingService.useSync((service) => service.readMissing())
 );
 erasedRuntime.runSync(RuntimeMissingService.useSync((service) => service.readMissing()));
 const runtimeUiScope: UiScope = makeRuntimeUiScope(erasedRuntime);
 const runtimeUiScopeFrame: RuntimeUiScopeFrame = makeRuntimeUiScopeFrame(erasedRuntime);
+void runtimeProvidedEffect;
+void runtimeMissingRequirementEffect;
+void runtimeMissingRequirementErased;
+void typedRuntimeDisposeEffect;
+void erasedRuntimeDisposeEffect;
+void erasedRuntimeProvidedEffect;
 void runtimeUiScope;
 void runtimeUiScopeFrame;
 const viteDevServer = startDevServerFromVite({

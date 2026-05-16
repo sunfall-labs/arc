@@ -659,16 +659,17 @@ Last evidence pass: May 16, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 193 ran Core/DB/Start typechecks, public
-    type tests, focused Core/Start regressions, public API audit, Effect-first
-    audit, and whitespace checks after tightening route preload annotations,
-    sync capability Promise rejection, file-route helper selector Promise
-    rejection, serviceful query diagnostics, and Start manifest LSP docs.
-    Clean Sweep 1 after Review190 remains historical 1/30 evidence, but Clean
-    later sweeps found Review191, Review192, and Review193 work, leaving the
-    active counter at 0/30.
+  - Latest focused evidence: Review 194 ran Core/React/Solid/Start typechecks,
+    public type tests, public API audit, Effect-first audit, Core
+    runtime/resource regressions, React/Solid disposal observer regressions,
+    Start cleanup trace regression, and whitespace checks after typing runtime
+    disposal, preserving Resource read failure ref depth, localizing Resource
+    retry, and pinning Start action/Vite LSP docs.
+    Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
+    sweeps found Review191, Review192, Review193, and Review194 work, leaving
+    the active counter at 0/30.
     Latest full evidence:
-    `pnpm verify` ran after Review 193 with 53 test files / 1037 tests.
+    `pnpm verify` ran after Review 194 with 53 test files / 1038 tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.
@@ -807,27 +808,26 @@ Last evidence pass: May 16, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 193 route preload,
-    capability, file-route selector, query diagnostics, manifest docs, and
-    current-gate docs refresh. Future architecture sweeps remain tracked in
+  - Evidence: no new ADR required for the Review 194 typed disposal,
+    Resource read/retry locality, Start LSP pins, and current-gate docs refresh.
+    Future architecture sweeps remain tracked in
     `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 193
-    route preload, capability, file-route selector, query diagnostics, and
-    Start manifest LSP docs refresh:
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 194
+    typed disposal, Resource read/retry, and Start action/Vite LSP docs refresh:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
-    404 physical/virtual files, 53 root test files / 1037 tests,
+    404 physical/virtual files, 53 root test files / 1038 tests,
     package-level verifies for the devtools/starter/example packages,
     generated starter-suite packaging/verifies for basic/react/project-console,
     16-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 193 records Core/DB/Start typechecks, public type tests,
-    focused Core/Start regressions, public API audit, Effect-first audit, and
-    whitespace checks. Clean Sweep 1 after Review190 remains historical 1/30
-    evidence, but later sweeps found Review191, Review192, and Review193 work,
-    leaving the active counter at 0/30.
+  - Evidence: Review 194 records Core/React/Solid/Start typechecks, public type
+    tests, public API audit, Effect-first audit, focused Core/React/Solid/Start
+    regressions, and whitespace checks. Clean Sweep 1 after Review190 remains
+    historical 1/30 evidence, but later sweeps found Review191, Review192,
+    Review193, and Review194 work, leaving the active counter at 0/30.
     Full verification is recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items

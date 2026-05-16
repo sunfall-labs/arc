@@ -202,6 +202,7 @@ const withTransportRequestErrorHeaders = (
   return response;
 };
 
+/** Error raised when multiple Start actions use the same public action name. */
 export class StartActionDuplicateName extends Data.TaggedError("StartActionDuplicateName")<{
   readonly actionName: string;
   readonly first: number;

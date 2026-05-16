@@ -34,11 +34,17 @@ import {
   type ServerFunctionManifest
 } from "./server-function-manifest.js";
 
+/** Vite virtual module id for the generated server function manifest. */
 export const serverFunctionManifestVirtualModuleId = "virtual:effect-ui/server-functions";
+/** Vite virtual module id for the generated action manifest. */
 export const actionManifestVirtualModuleId = "virtual:effect-ui/actions";
+/** Vite virtual module id for the generated file route manifest. */
 export const fileRouteManifestVirtualModuleId = "virtual:effect-ui/file-routes";
+/** Vite virtual module id for generated file route definitions. */
 export const fileRouteDefinitionsVirtualModuleId = "virtual:effect-ui/routes";
+/** Vite virtual module id for the generated Start app graph. */
 export const appGraphVirtualModuleId = "virtual:effect-ui/app-graph";
+/** Vite virtual module id for generated Start app graph runtime diagnostics. */
 export const appGraphRuntimeDiagnosticsVirtualModuleId = "virtual:effect-ui/app-graph/runtime-diagnostics";
 
 const resolvedServerFunctionManifestVirtualModuleId = `\0${serverFunctionManifestVirtualModuleId}`;

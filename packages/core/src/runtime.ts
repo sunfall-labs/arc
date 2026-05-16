@@ -1,4 +1,4 @@
-import { Context, Effect, Exit, Fiber, Layer, ManagedRuntime, Redactable } from "effect";
+import { Cause, Context, Data, Effect, Exit, Fiber, Layer, ManagedRuntime, Redactable } from "effect";
 import {
   disposeResourceStoreEffect,
   makeMutableResourceStore,
@@ -19,6 +19,16 @@ type RuntimeReadyEffect<A, E, RIn, RProvided> =
   [RuntimeRemainingRequirements<RIn, RProvided>] extends [never]
     ? Effect.Effect<A, E, RIn>
     : never;
+
+/** Error raised when runtime disposal fails while closing owned runtime state. */
+export class RuntimeDisposeError extends Data.TaggedError("RuntimeDisposeError")<{
+  /** Runtime disposal phase that reported the failure. */
+  readonly phase: "resource-store" | "managed-runtime";
+  /** Structured Effect cause reported by the failing disposal phase. */
+  readonly cause: Cause.Cause<unknown>;
+  /** Human-readable repair hint suitable for adapter hooks and diagnostics. */
+  readonly guidance: string;
+}> {}
 
 /**
  * Runtime Spine whose service set is intentionally erased at a host seam.
@@ -43,7 +53,8 @@ export interface AnyEffectUiRuntime<ER = unknown> {
   ): Fiber.Fiber<A, E | ER>;
   /** Runs a synchronous Effect at a host or ambient seam where service typing is erased. */
   runSync<A, E, RIn>(effect: Effect.Effect<A, E, RIn>): A;
-  readonly disposeEffect: Effect.Effect<void>;
+  /** Disposes runtime-owned resources and reports typed disposal failures. */
+  readonly disposeEffect: Effect.Effect<void, RuntimeDisposeError>;
 }
 
 /**
@@ -74,7 +85,8 @@ export interface EffectUiRuntime<R = never, ER = never> {
   ): Fiber.Fiber<A, E | ER>;
   /** Runs a synchronous Effect whose service requirements are satisfied by this runtime. */
   runSync<A, E, RIn>(effect: RuntimeReadyEffect<A, E, RIn, R>): A;
-  readonly disposeEffect: Effect.Effect<void>;
+  /** Disposes runtime-owned resources and reports typed disposal failures. */
+  readonly disposeEffect: Effect.Effect<void, RuntimeDisposeError>;
 }
 
 /** Options for providing runtime services to an Effect without executing it. */
@@ -107,6 +119,23 @@ const currentFiberRuntime = (): CurrentRuntimeBoundary | undefined =>
     Redactable.getRedacted(currentFiberContextProbe) as Context.Context<never>,
     AmbientRuntime
   );
+
+const runtimeDisposeError = (
+  phase: RuntimeDisposeError["phase"],
+  cause: Cause.Cause<unknown>
+): RuntimeDisposeError =>
+  new RuntimeDisposeError({
+    phase,
+    cause,
+    guidance: phase === "resource-store"
+      ? "Runtime Resource Store disposal failed. Inspect `cause` for the ResourceStoreDisposeError and the failing module finalizer."
+      : "Managed runtime disposal failed. Inspect `cause` for the underlying finalizer defect."
+  });
+
+const mapRuntimeDisposeCause = (
+  phase: RuntimeDisposeError["phase"]
+) => (cause: Cause.Cause<unknown>): Effect.Effect<never, RuntimeDisposeError> =>
+  Effect.fail(runtimeDisposeError(phase, cause));
 
 const fromManagedRuntime = <R, ER>(
   managed: ManagedRuntime.ManagedRuntime<R, ER>,
@@ -177,18 +206,18 @@ const fromManagedRuntime = <R, ER>(
     }) as Effect.Effect<A, E | ER, RuntimeRemainingRequirements<RIn, R>>;
 
   const disposeStore = disposeResourceStoreEffect(resourceStore);
-  const disposeEffect = options.disposeManaged
+  const disposeEffect: Effect.Effect<void, RuntimeDisposeError> = options.disposeManaged
     ? Effect.gen(function* () {
         const storeExit = yield* Effect.exit(disposeStore);
         const managedExit = yield* Effect.exit(managed.disposeEffect);
         if (Exit.isFailure(storeExit)) {
-          return yield* Effect.failCause(storeExit.cause);
+          return yield* Effect.fail(runtimeDisposeError("resource-store", storeExit.cause));
         }
         if (Exit.isFailure(managedExit)) {
-          return yield* Effect.failCause(managedExit.cause);
+          return yield* Effect.fail(runtimeDisposeError("managed-runtime", managedExit.cause));
         }
       })
-    : disposeStore;
+    : disposeStore.pipe(Effect.catchCause(mapRuntimeDisposeCause("resource-store")));
   runtime = {
     [RuntimeTypeId]: RuntimeTypeId,
     managed: managedRuntime,

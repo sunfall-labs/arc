@@ -1,6 +1,6 @@
-import { Action, makeRuntime, Program, Resource, Signal } from "@effect-ui/core";
+import { Action, makeRuntime, Program, Resource, ResourceStoreDisposeError, RuntimeDisposeError, Signal } from "@effect-ui/core";
 import { Window } from "happy-dom";
-import { Context, Deferred, Effect, Fiber, Layer, Scope, Stream } from "effect";
+import { Cause, Context, Deferred, Effect, Fiber, Layer, Scope, Stream } from "effect";
 import { Suspense, act, createElement, useEffect, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
@@ -1175,9 +1175,18 @@ describe("react hooks", () => {
         root.unmount();
       });
 
-      await expect(Effect.runPromise(
+      const error = await Effect.runPromise(
         Deferred.await(observed).pipe(Effect.timeout("1 second"))
-      )).resolves.toBe("react dispose failed");
+      );
+      expect(error).toBeInstanceOf(RuntimeDisposeError);
+      if (error instanceof RuntimeDisposeError) {
+        expect(error.phase).toBe("resource-store");
+        const storeError = error.cause.reasons.find(Cause.isFailReason)?.error;
+        expect(storeError).toBeInstanceOf(ResourceStoreDisposeError);
+        if (storeError instanceof ResourceStoreDisposeError) {
+          expect(storeError.cause.reasons.find(Cause.isFailReason)?.error).toBe("react dispose failed");
+        }
+      }
     } finally {
       cleanupDom();
     }

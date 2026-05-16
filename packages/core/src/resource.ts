@@ -230,7 +230,7 @@ export type ResourceLoadError<E> = E | EffectInputCallbackError;
 /** Effect-first read failures for a Resource ref whose value is unavailable. */
 export type ResourceReadError<I, A, E = never, R = never> =
   | ResourcePending<I, A, E, R>
-  | ResourceFailure<unknown, A, ResourceLoadError<E>, unknown, E>;
+  | ResourceFailure<I, A, ResourceLoadError<E>, R, E>;
 
 export interface ResourceHydrationOptions {
   /**

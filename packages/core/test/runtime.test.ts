@@ -1,4 +1,4 @@
-import { Context, Effect, Layer } from "effect";
+import { Cause, Context, Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   Action,
@@ -6,6 +6,8 @@ import {
   makeResourceStore,
   makeRuntime,
   Resource,
+  ResourceStoreDisposeError,
+  RuntimeDisposeError,
   ResourcePending,
   runWithRuntime,
   Server,
@@ -180,8 +182,17 @@ describe("Effect UI runtime", () => {
 
         yield* Effect.sync(() => {
           expect(exit._tag).toBe("Failure");
-          if (exit._tag === "Failure") {
-            expect(exit.cause.reasons.find((reason) => reason._tag === "Fail")?.error).toBe("store dispose failed");
+          const error = exit._tag === "Failure"
+            ? exit.cause.reasons.find(Cause.isFailReason)?.error
+            : undefined;
+          expect(error).toBeInstanceOf(RuntimeDisposeError);
+          if (error instanceof RuntimeDisposeError) {
+            expect(error.phase).toBe("resource-store");
+            const storeError = error.cause.reasons.find(Cause.isFailReason)?.error;
+            expect(storeError).toBeInstanceOf(ResourceStoreDisposeError);
+            if (storeError instanceof ResourceStoreDisposeError) {
+              expect(storeError.cause.reasons.find(Cause.isFailReason)?.error).toBe("store dispose failed");
+            }
           }
           expect(layerFinalized).toBe(true);
         });

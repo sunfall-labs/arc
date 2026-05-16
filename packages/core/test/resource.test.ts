@@ -1180,6 +1180,28 @@ describe("Resource", () => {
     expect(read(ref)).toEqual({ id: "retry" });
   });
 
+  it("does not retry synchronous resource loader callback throws", async () => {
+    let attempts = 0;
+    const User = Resource.family({
+      name: "User.retry.sync-loader-throw",
+      load: (_id: string) => {
+        attempts++;
+        throw new Error("loader exploded");
+      },
+      policy: {
+        retry: Schedule.recurs(2)
+      }
+    });
+    const ref = User("1");
+
+    await expect(Effect.runPromise(Resource.prefetchEffect(ref))).rejects.toMatchObject({
+      _tag: "EffectInputCallbackError",
+      operation: "Resource.load(User.retry.sync-loader-throw)",
+      cause: expect.any(Error)
+    });
+    expect(attempts).toBe(1);
+  });
+
   it("captures synchronous resource loader throws in the Effect error channel", async () => {
     const User = Resource.family({
       name: "User.sync-loader-throw",

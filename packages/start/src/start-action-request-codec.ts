@@ -29,6 +29,7 @@ export interface StartActionRequest {
   readonly input: unknown;
 }
 
+/** Hidden field emitted by `startActionForm(...)` for progressive HTML POSTs. */
 export interface StartActionFormField {
   /** Hidden form field name. */
   readonly name: string;
@@ -48,6 +49,7 @@ export interface StartActionForm {
   readonly hiddenFields: readonly StartActionFormField[];
 }
 
+/** Options used to build a progressive HTML form for a typed Start action. */
 export interface StartActionFormOptions<I> {
   /** Form action URL. Defaults to the Start action endpoint. */
   readonly action?: string;

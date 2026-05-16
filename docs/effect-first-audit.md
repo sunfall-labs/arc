@@ -538,10 +538,10 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 193 `pnpm verify` run recorded in
+- The current full gate is the Review 194 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
-  over 404 files, 53 root test files / 1037 tests, package-level verifies,
+  over 404 files, 53 root test files / 1038 tests, package-level verifies,
   generated starter packaging, 16-target package dry-run gate, project-console
   checks, and leak scans. Review 185 remains historical focused evidence for
   the starter catalog typed-error seam, and Review 165 remains historical
@@ -1341,14 +1341,14 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The current full `pnpm verify` passed after the Review 191 shared EffectInput
-  Promise-union, Start host invalid-return, DB reserved-alias, and public LSP
-  docs gate refresh, with Review193 adding the sync capability runtime
+- The current full `pnpm verify` passed after the Review 194 typed runtime
+  disposal, Resource read/ref depth, Resource retry locality, and Start action/Vite
+  LSP pin refresh, with Review193 retaining the sync capability runtime
   Promise-like guard: 11 package
   builds, workspace typecheck, type tests,
   public API inventory audit, Effect-first audit over 404
   package/example/config/script/type-test/generated/docs files, 53 root test
-  files / 1037 tests, package-level verifies for copyable/source packages,
+  files / 1038 tests, package-level verifies for copyable/source packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console
   test files / 27 tests, build, and leak scans. The Effect-first audit now

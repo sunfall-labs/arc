@@ -287,7 +287,7 @@ export const preloadRequestEffect = <
   const runtime = makeRequestRuntime(app);
   return Effect.ensuring(
     preloadRequestEffectWithRuntime(app, request, runtime, options),
-    runtime.disposeEffect
+    runtime.disposeEffect.pipe(Effect.catch(() => Effect.void))
   );
 };
 

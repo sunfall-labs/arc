@@ -7,9 +7,11 @@ import {
   Program,
   RequestContext,
   Resource,
+  ResourceStoreDisposeError,
   ResourceSnapshotCodecError,
   ResponseContext,
   Route,
+  RuntimeDisposeError,
   Server,
   Signal,
   UiScope,
@@ -27,6 +29,7 @@ import {
   createBrowserRouterKernel,
   createBrowserRouterHostController,
   defineApp,
+  disposeResourceStoreEffect,
   forkScoped,
   hrefForRouteInput,
   isPlainLeftClick,
@@ -103,6 +106,9 @@ import {
 
 const runtime = makeRuntime();
 const requestRuntime = withResourceStore(runtime, makeResourceStore());
+const runtimeDisposeEffect: Effect.Effect<void, RuntimeDisposeError> = runtime.disposeEffect;
+const requestRuntimeStoreDisposeEffect: Effect.Effect<void, ResourceStoreDisposeError> =
+  disposeResourceStoreEffect(requestRuntime.resourceStore);
 const coreRoutes = [route("/projects/:id", {})] as const;
 declare const browserRouterKernelRuntime: AnyEffectUiRuntime<never>;
 const browserRouterKernelOptions: BrowserRouterKernelOptions<typeof coreRoutes, never> = {
@@ -145,9 +151,11 @@ const coreExports: Array<unknown> = [
   Program,
   RequestContext,
   Resource,
+  ResourceStoreDisposeError,
   ResourceSnapshotCodecError,
   ResponseContext,
   Route,
+  RuntimeDisposeError,
   Server,
   Signal,
   UiScope,
@@ -163,6 +171,7 @@ const coreExports: Array<unknown> = [
   createBrowserRouterKernel,
   createBrowserRouterHostController,
   defineApp,
+  disposeResourceStoreEffect,
   forkScoped,
   hrefForRouteInput,
   isPlainLeftClick,
@@ -196,6 +205,8 @@ const coreExports: Array<unknown> = [
   historyWindow,
   runtime,
   requestRuntime,
+  runtimeDisposeEffect,
+  requestRuntimeStoreDisposeEffect,
   resourceUiMatchState,
   routeParamsFromSegments,
   routePathFromSegments,

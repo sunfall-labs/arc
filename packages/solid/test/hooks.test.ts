@@ -1,5 +1,5 @@
-import { Action, makeRuntime, onDispose, Program, Resource, ResourceFailure, ResourcePending, runWithRuntime } from "@effect-ui/core";
-import { Context, Deferred, Effect, Fiber, Layer, Stream } from "effect";
+import { Action, makeRuntime, onDispose, Program, Resource, ResourceFailure, ResourcePending, ResourceStoreDisposeError, RuntimeDisposeError, runWithRuntime } from "@effect-ui/core";
+import { Cause, Context, Deferred, Effect, Fiber, Layer, Stream } from "effect";
 import { createRoot, createSignal } from "solid-js";
 import { createComponent } from "solid-js/web";
 import { describe, expect, it, vi } from "vitest";
@@ -472,7 +472,15 @@ describe("solid hooks", () => {
 
         dispose?.();
         const error = yield* Deferred.await(observed).pipe(Effect.timeout("1 second"));
-        expect(error).toBe("solid dispose failed");
+        expect(error).toBeInstanceOf(RuntimeDisposeError);
+        if (error instanceof RuntimeDisposeError) {
+          expect(error.phase).toBe("resource-store");
+          const storeError = error.cause.reasons.find(Cause.isFailReason)?.error;
+          expect(storeError).toBeInstanceOf(ResourceStoreDisposeError);
+          if (storeError instanceof ResourceStoreDisposeError) {
+            expect(storeError.cause.reasons.find(Cause.isFailReason)?.error).toBe("solid dispose failed");
+          }
+        }
       })
     ));
 

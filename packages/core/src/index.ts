@@ -17,6 +17,7 @@ export {
   disposeResourceStoreEffect,
   makeResourceStore,
   ResourceStore,
+  ResourceStoreDisposeError,
   ResourceStoreTypeId,
   type ResourceStoreDiagnostics,
   type ResourceStoreDiagnosticsSnapshot,

@@ -8,6 +8,7 @@ import {
   type AnyEffectUiRuntime,
   type EffectInput,
   type EffectUiRuntime,
+  type RuntimeDisposeError,
   type RuntimeUiScopeFrame,
   type UiScope
 } from "@effect-ui/core";
@@ -46,7 +47,7 @@ interface RuntimeProviderSourceProps<RuntimeServices = never, ER = never> extend
    * Promise-shaped observers are rejected by `EffectInput`; observer failures
    * are ignored after the disposal failure has been reported.
    */
-  readonly onDisposeFailure?: (error: unknown) => EffectInput<void, unknown>;
+  readonly onDisposeFailure?: (error: RuntimeDisposeError) => EffectInput<void>;
 }
 
 interface RuntimeProviderDefaultProps extends RuntimeProviderChildren {
@@ -58,7 +59,7 @@ interface RuntimeProviderDefaultProps extends RuntimeProviderChildren {
    * Promise-shaped observers are rejected by `EffectInput`; observer failures
    * are ignored after the disposal failure has been reported.
    */
-  readonly onDisposeFailure?: (error: unknown) => EffectInput<void, unknown>;
+  readonly onDisposeFailure?: (error: RuntimeDisposeError) => EffectInput<void>;
 }
 
 /** Props accepted by React `RuntimeProvider` for host-owned or provider-owned runtimes. */

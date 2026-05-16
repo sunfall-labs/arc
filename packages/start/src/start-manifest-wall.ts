@@ -159,14 +159,19 @@ export interface StartManifestWallDefineValues {
   readonly __EFFECT_UI_APP_GRAPH__: string;
 }
 
+/** Default server entry module used by the Start Manifest Wall. */
 export const defaultServerEntry = "/src/server.tsx";
+/** Default directory scanned for file routes. */
 export const defaultFileRouteDirectory = "src/routes";
+/** Default generated route tree output path. */
 export const defaultFileRouteGeneratedFile = "src/routeTree.gen.ts";
+/** Default wire-schema policy applied while building the Start app graph. */
 export const defaultStartBuildWireSchemaPolicy: Required<StartAppGraphWireSchemaPolicy> = {
   requireInput: true,
   requireOutput: true,
   requireError: false
 };
+/** Default Start build policy used by the Vite plugin and manifest helpers. */
 export const defaultStartBuildPolicy: StartBuildPolicy = {
   wireSchemas: defaultStartBuildWireSchemaPolicy
 };

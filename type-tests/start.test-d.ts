@@ -59,6 +59,7 @@ import {
   StartAppGraphDiagnosticsDtoError,
   FileRouteDefinitionsModuleInvalidExportName,
   FileRouteDefinitionsModuleInvalidIdentifier,
+  StartActionDuplicateName,
   StartAppGraphMissingWireSchemas,
   StartAppGraphParseError,
   StartTransportEndpointConflictError,
@@ -82,6 +83,8 @@ import {
   type StartAppGraphDiagnosticsPolicyViolation,
   type StartAppGraphRoutePreloadCollectionsPolicy,
   type StartAppGraphRoutePreloadResourcesPolicy,
+  type StartActionFormField,
+  type StartActionFormOptions,
   type StartEndpointConflictErrorInput,
   type StartEndpointPathErrorInput,
   type StartFetch,
@@ -208,6 +211,7 @@ const startExports: Array<unknown> = [
   StartAppGraphDiagnosticsDtoError,
   FileRouteDefinitionsModuleInvalidExportName,
   FileRouteDefinitionsModuleInvalidIdentifier,
+  StartActionDuplicateName,
   StartAppGraphMissingWireSchemas,
   StartAppGraphParseError,
   StartTransportEndpointConflictError,
@@ -233,6 +237,8 @@ type StartTypes =
   | StartAppGraphDiagnosticsPolicyViolation
   | StartAppGraphRoutePreloadCollectionsPolicy
   | StartAppGraphRoutePreloadResourcesPolicy
+  | StartActionFormField
+  | StartActionFormOptions<{ readonly id: string }>
   | StartEndpointConflictErrorInput
   | StartEndpointPathErrorInput
   | ActionBehaviorMetadata

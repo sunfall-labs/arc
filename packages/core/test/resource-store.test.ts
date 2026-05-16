@@ -5,6 +5,7 @@ import {
   makeResourceStore,
   makeRuntime,
   Resource,
+  ResourceStoreDisposeError,
   ResourceStoreTypeId
 } from "../src/index.js";
 
@@ -38,9 +39,11 @@ describe("Resource Store disposal", () => {
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* Effect.flip(disposeResourceStoreEffect(store));
+        const error = yield* Effect.flip(disposeResourceStoreEffect(store));
         const shutdown = yield* store.diagnostics.eventBusShutdownEffect;
         const moduleCount = yield* store.diagnostics.moduleCountEffect;
+        expect(error).toBeInstanceOf(ResourceStoreDisposeError);
+        expect(error.cause.reasons.find(Cause.isFailReason)?.error).toBe("dispose failed");
         expect(shutdown).toBe(true);
         expect(moduleCount).toBe(0);
         expect(secondFinalizerRan).toBe(true);
