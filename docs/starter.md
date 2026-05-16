@@ -61,7 +61,18 @@ generated starter rewrites workspace protocol dependencies to local
 `.effect-ui-packages/*` file dependencies, removes monorepo Vite aliases, writes
 a standalone `tsconfig.json`, verifies the app file manifest against the
 copyable source manifest, installs outside the workspace, runs the generated
-starter's own `verify` script, removes generated install/build/test artifacts,
-and rechecks the manifest after verification. Each generated app also carries a
-starter-local `.gitignore` for `node_modules`, `dist`, `.test-dist`, build info,
-and macOS metadata.
+starter's own `verify` script, rejects generated route artifact content drift,
+removes generated install/build/test artifacts, and rechecks the manifest after
+verification. Each generated app also carries a starter-local `.gitignore` for
+`node_modules`, `dist`, `.test-dist`, build info, and macOS metadata.
+
+Verify package payloads for the copyable examples:
+
+```sh
+pnpm example:pack-dry-run
+```
+
+That gate checks the basic starter, React starter, project console, devtools
+panel, and devtools extension dry-run package payloads for source-only files,
+local `.gitignore` coverage, and absence of generated output or dependency
+artifacts.

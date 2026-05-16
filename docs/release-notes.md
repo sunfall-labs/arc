@@ -65,13 +65,13 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 148:
+Latest full gate on May 16, 2026 after Review 149:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 258 package/example/config/script/type-test files;
-- 53 root test files / 900 tests;
+- Effect-first audit over 259 package/example/config/script/type-test files;
+- 53 root test files / 901 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
 - basic starter verify with 1 starter test file / 2 tests;
@@ -79,13 +79,15 @@ Latest full gate on May 16, 2026 after Review 148:
 - starter-suite packaging for basic (19 app files / 5 local packages), React
   (24 app files / 4 local packages), and project console (30 app files / 6
   local packages);
+- five-package dry-run gate for the basic starter, React starter, project
+  console, devtools panel, and devtools extension;
 - project console typecheck;
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
-- Review 148 closed public Resource Store opacity, `hasPrevious` read hovers,
-  indexed join error locality, Promise static extraction guardrails, Start
-  virtual declaration-map cleanup, and devtools example package hygiene.
+- Review 149 closed Resource Store implementation marker opacity, lazy runtime
+  store override validation, template-literal Promise member guardrails,
+  generated route artifact content-drift checks, and package dry-run gating.
 - `pnpm benchmark` refreshed the SSR, route preload, Resource, live query, and
   RPC transport baselines.
 - The latest `pnpm verify` includes the starter-suite packaging gate and the
@@ -867,17 +869,18 @@ Latest full gate on May 16, 2026 after Review 148:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 148 closed Resource Store
-  opacity, indexed join error locality, Promise static extraction guardrails,
-  Start virtual declaration-map cleanup, and devtools package hygiene:
+- The latest full `pnpm verify` passed after Review 149 closed runtime store
+  laziness, Resource Store implementation marker opacity, template-literal
+  Promise member guardrails, generated route artifact content-drift checks, and
+  package dry-run gating:
   11 package builds, workspace typecheck, public type tests, public API
-  inventory audit, Effect-first audit over 258 files, 53 root test
-  files / 900 tests,
+  inventory audit, Effect-first audit over 259 files, 53 root test
+  files / 901 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,
   generated starter-suite packaging/verifies for basic/react/project-console,
-  project-console typecheck, 4 project-console test files / 27 tests, build,
-  and leak scans.
+  five-package dry-run gate, project-console typecheck, 4 project-console test
+  files / 27 tests, build, and leak scans.
 - The previous full `pnpm verify` passed after Review 64 store-owned Resource
   load ownership, Start stream/manifest walls, DB hydration/dehydrate preflight,
   Devtools runtime-only causal facts, and panel row identity fixes: 9 package

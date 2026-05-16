@@ -580,6 +580,10 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   error-operation locality, React/Solid DB adapter wording, Promise static
   extraction guardrails, Start virtual declaration-map cleanup, and devtools
   example `.gitignore` package hygiene.
+- Added Review 149 evidence for module-local Resource Store implementation
+  branding, lazy runtime store override validation, template-literal Promise
+  member guardrails, generated route artifact content-drift checks, and the
+  new package dry-run verification gate.
 - Left older checkpoint counts in place only where they explicitly describe
   historical evidence from that checkpoint; current verification counts are
   recorded in the verification gate and progress ledger.

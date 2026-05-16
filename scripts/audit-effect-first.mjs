@@ -148,6 +148,7 @@ const allowed = [
       seam("packages/start/src/start-host-runtime-runner.ts", "Start host Promise runtime runner", /export const runStartHostPromise[\s\S]*?Effect\.runPromise\(/),
       seam("packages/start/src/cli.ts", "Start diagnostics CLI bin runner", /void Effect\.runPromise\(runStartDiagnosticsCliMainEffect\(\)\);/),
       seam("scripts/package-project-console-starter.mjs", "Project console starter packaging script runner", /await Effect\.runPromise\(/),
+      seam("scripts/verify-package-dry-runs.mjs", "Package dry-run verification script runner", /await Effect\.runPromise\(/),
       seam("examples/basic-starter/scripts/leak-scan.mjs", "Basic starter leak-scan script runner", /await Effect\.runPromise\(/),
       seam("examples/react-starter/scripts/leak-scan.mjs", "React starter leak-scan script runner", /await Effect\.runPromise\(/),
       seam("examples/project-console/scripts/leak-scan.mjs", "Project console leak-scan script runner", /await Effect\.runPromise\(/)
@@ -207,8 +208,11 @@ const allowed = [
   }
 ];
 
+const staticMemberKeyPattern = (member) =>
+  "(?:['\"]" + member + "['\"]|`" + member + "`)";
+
 const memberAccessPattern = (member) =>
-  "(?:(?:\\?\\.\\s*|\\.\\s*)" + member + "\\b|(?:\\?\\.\\s*)?\\[\\s*['\"]" + member + "['\"]\\s*\\])";
+  "(?:(?:\\?\\.\\s*|\\.\\s*)" + member + "\\b|(?:\\?\\.\\s*)?\\[\\s*" + staticMemberKeyPattern(member) + "\\s*\\])";
 
 const memberCallSuffixPattern =
   "(?:\\s*(?:\\?\\.\\s*)?(?:<[^>]+>\\s*)?\\(|\\s*\\)\\s*(?:\\?\\.\\s*)?(?:<[^>]+>\\s*)?\\(|\\s*\\)?\\s*(?:\\?\\.\\s*|\\.\\s*)(?:call|apply|bind)\\s*(?:\\?\\.\\s*)?\\()";
@@ -267,6 +271,7 @@ const banned = [
     name: "await keyword",
     seams: [
       seam("scripts/package-project-console-starter.mjs", "Project console starter packaging script runner", /await Effect\.runPromise\(/),
+      seam("scripts/verify-package-dry-runs.mjs", "Package dry-run verification script runner", /await Effect\.runPromise\(/),
       seam("examples/basic-starter/scripts/leak-scan.mjs", "Basic starter leak-scan script runner", /await Effect\.runPromise\(/),
       seam("examples/react-starter/scripts/leak-scan.mjs", "React starter leak-scan script runner", /await Effect\.runPromise\(/),
       seam("examples/project-console/scripts/leak-scan.mjs", "Project console leak-scan script runner", /await Effect\.runPromise\(/)
@@ -438,7 +443,9 @@ assertAuditPattern("structural thenable type surface", "interface Token<T> { the
 assertAuditPattern("structural thenable type surface", "type Token<T> = { readonly then: (resolve: (value: T) => void) => void }", 1);
 assertBannedPattern("Promise.all", "Promise\n.all([]);", 1);
 assertBannedPattern("Promise.all", "Promise[\"all\"]([]);", 1);
+assertBannedPattern("Promise.all", "Promise[`all`]([]);", 1);
 assertBannedPattern("Promise.all", "Promise?.[\"all\"]?.([]);", 1);
+assertBannedPattern("Promise.all", "Promise?.[`all`]?.([]);", 1);
 assertBannedPattern("Promise.all", "(Promise).all([]);", 1);
 assertBannedPattern("Promise.all", "(Promise.all)([]);", 1);
 assertBannedPattern("Promise.allSettled", "Promise.allSettled([]);", 1);
@@ -448,12 +455,14 @@ assertBannedPattern("Promise.resolve", "Promise.resolve?.(value);", 1);
 assertBannedPattern("Promise.resolve", "(Promise).resolve(value);", 1);
 assertBannedPattern("Promise.all.extraction", "const all = Promise.all; all([]);", 1);
 assertBannedPattern("Promise.all.extraction", "const all = Promise[\"all\"]; all([]);", 1);
+assertBannedPattern("Promise.all.extraction", "const all = Promise[`all`]; all([]);", 1);
 assertBannedPattern("Promise.all.extraction", "const { all } = Promise; all([]);", 1);
 assertBannedPattern("Promise.all.extraction", "const { all: promiseAll } = Promise; promiseAll([]);", 1);
 assertBannedPattern("Promise.race.extraction", "const race = Promise.race; race([]);", 1);
 assertBannedPattern("Promise.resolve.extraction", "const resolve = Promise.resolve; resolve(value);", 1);
 assertBannedPattern(".then(...)", "client.then<string>(() => undefined);", 1);
 assertBannedPattern(".then(...)", "client[\"then\"](() => undefined);", 1);
+assertBannedPattern(".then(...)", "client[`then`](() => undefined);", 1);
 assertBannedPattern(".then(...)", "client.then\n<string>(() => undefined);", 1);
 assertBannedPattern(".then(...)", "client.then?.(() => undefined);", 1);
 assertBannedPattern(".then(...)", "client[\"then\"]?.(() => undefined);", 1);
@@ -466,10 +475,12 @@ assertBannedPattern("non-Effect .catch(...)", "Effect\n.catch<Error>(() => Effec
 assertBannedPattern("non-Effect .catch(...)", "client.catch(() => undefined);", 1);
 assertBannedPattern("non-Effect .catch(...)", "client.catch<Error>(() => undefined);", 1);
 assertBannedPattern("non-Effect .catch(...)", "client[\"catch\"](() => undefined);", 1);
+assertBannedPattern("non-Effect .catch(...)", "client[`catch`](() => undefined);", 1);
 assertBannedPattern("non-Effect .catch(...)", "client.catch.call(client, () => undefined);", 1);
 assertBannedPattern("non-Effect .catch(...)", codeLines("`${client.catch(() => undefined)}`;")[0], 1);
 assertBannedPattern(".finally(...)", "client.finally<void>(() => undefined);", 1);
 assertBannedPattern(".finally(...)", "client[\"finally\"](() => undefined);", 1);
+assertBannedPattern(".finally(...)", "client[`finally`](() => undefined);", 1);
 assertBannedPattern(".finally(...)", "client.finally.call(client, () => undefined);", 1);
 assertBannedPattern("async function syntax", "async function run() {}", 1);
 assertBannedPattern("await keyword", "await run();", 1);

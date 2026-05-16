@@ -1,4 +1,4 @@
-import { Deferred, Effect } from "effect";
+import { Cause, Deferred, Effect, Exit } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   disposeResourceStoreEffect,
@@ -113,25 +113,59 @@ describe("Resource Store disposal", () => {
       name: "ResourceStore.fake-adapter",
       load: (id: string) => Effect.succeed({ id })
     });
+    const provided = runtime.provide(Resource.prefetchEffect(Project("atlas")), {
+      // @ts-expect-error structural ResourceStore adapters are intentionally rejected at runtime.
+      resourceStore: fakeStore
+    });
 
     return Effect.runPromise(
       Effect.gen(function* () {
-        yield* Effect.try({
-          try: () =>
-            runtime.provide(Resource.prefetchEffect(Project("atlas")), {
-              // @ts-expect-error structural ResourceStore adapters are intentionally rejected at runtime.
-              resourceStore: fakeStore
-            }),
-          catch: (error) => error
-        }).pipe(
-          Effect.match({
-            onFailure: (error) =>
-              expect(error).toMatchObject({
-                _tag: "InvalidResourceStore"
-              }),
-            onSuccess: () => expect.fail("expected fake ResourceStore to be rejected")
-          })
-        );
+        const exit = yield* Effect.exit(provided);
+        expect(Exit.isFailure(exit)).toBe(true);
+        if (Exit.isFailure(exit)) {
+          const defect = exit.cause.reasons.find(Cause.isDieReason)?.defect;
+          expect(defect).toMatchObject({
+            _tag: "InvalidResourceStore"
+          });
+        }
+      }).pipe(
+        Effect.ensuring(disposeResourceStoreEffect(store)),
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
+  it("rejects stores that spoof the old global implementation marker", () => {
+    const runtime = makeRuntime();
+    const store = makeResourceStore();
+    const spoofedMarker = Symbol.for("@effect-ui/core/ResourceStoreImplementation");
+    const fakeStore = {
+      [ResourceStoreTypeId]: ResourceStoreTypeId,
+      [spoofedMarker]: spoofedMarker,
+      eventBus: store.eventBus,
+      moduleRegistry: store.moduleRegistry,
+      fiberRegistry: store.fiberRegistry,
+      diagnostics: store.diagnostics
+    };
+    const Project = Resource.family({
+      name: "ResourceStore.fake-global-marker",
+      load: (id: string) => Effect.succeed({ id })
+    });
+    const provided = runtime.provide(Resource.prefetchEffect(Project("atlas")), {
+      // @ts-expect-error the implementation marker is private and cannot be recreated with Symbol.for.
+      resourceStore: fakeStore
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const exit = yield* Effect.exit(provided);
+        expect(Exit.isFailure(exit)).toBe(true);
+        if (Exit.isFailure(exit)) {
+          const defect = exit.cause.reasons.find(Cause.isDieReason)?.defect;
+          expect(defect).toMatchObject({
+            _tag: "InvalidResourceStore"
+          });
+        }
       }).pipe(
         Effect.ensuring(disposeResourceStoreEffect(store)),
         Effect.ensuring(runtime.disposeEffect)

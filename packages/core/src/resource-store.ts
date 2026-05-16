@@ -2,7 +2,7 @@ import { Context, Data, Effect, Exit, Fiber, PubSub, Scope } from "effect";
 
 /** Runtime marker for the Resource Store service. */
 export const ResourceStoreTypeId: unique symbol = Symbol.for("@effect-ui/core/ResourceStore") as typeof ResourceStoreTypeId;
-const ResourceStoreImplementationTypeId: unique symbol = Symbol.for("@effect-ui/core/ResourceStoreImplementation") as typeof ResourceStoreImplementationTypeId;
+const ResourceStoreImplementationTypeId: unique symbol = Symbol("@effect-ui/core/ResourceStoreImplementation") as typeof ResourceStoreImplementationTypeId;
 
 /** Erased fiber tracked by a Resource Store for interruption on disposal. */
 export type ResourceStoreFiber = Fiber.Fiber<unknown, never>;

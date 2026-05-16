@@ -213,6 +213,7 @@ const forbiddenSourceSegments = new Set([
   localPackagesDirectoryName,
 ]);
 const forbiddenGeneratedAppSegments = new Set(["node_modules", "dist", ".test-dist"]);
+const generatedAppContentFiles = ["src/routeTree.gen.ts"];
 
 const toPosixPath = (filePath) => filePath.split(sep).join("/");
 
@@ -599,6 +600,47 @@ const assertNoWorkspaceProtocol = (starter) =>
     }
   });
 
+const assertGeneratedAppContentMatchesSource = (starter) =>
+  Effect.gen(function* () {
+    const changed = [];
+    for (const file of generatedAppContentFiles) {
+      const sourcePath = resolve(starter.sourceDir, file);
+      const generatedPath = resolve(starter.outputDir, file);
+      const sourceExists = yield* pathExists(sourcePath);
+      const generatedExists = yield* pathExists(generatedPath);
+      if (!sourceExists && !generatedExists) {
+        continue;
+      }
+      if (!sourceExists || !generatedExists) {
+        changed.push(file);
+        continue;
+      }
+      const sourceText = yield* fsEffect(
+        `read source ${starter.displayName} ${file}`,
+        () => readFile(sourcePath, "utf8"),
+      );
+      const generatedText = yield* fsEffect(
+        `read generated ${starter.displayName} ${file}`,
+        () => readFile(generatedPath, "utf8"),
+      );
+      if (sourceText !== generatedText) {
+        changed.push(file);
+      }
+    }
+
+    if (changed.length > 0) {
+      return yield* Effect.fail(
+        fail(
+          `Generated ${starter.displayName} app content drifted during standalone verify.`,
+          [
+            `Changed generated files: ${changed.join(", ")}`,
+            "Regenerate and commit these source starter artifacts before packaging so Vite does not silently repair the copied starter.",
+          ].join(" "),
+        ),
+      );
+    }
+  });
+
 const verifyStandaloneConfigs = (starter) =>
   Effect.gen(function* () {
     const viteConfigText = yield* fsEffect(
@@ -768,6 +810,7 @@ const packageStarter = (workspacePackages, starter) =>
     const verifiedGeneratedAppFiles = yield* collectGeneratedAppFiles();
     yield* assertSameFileManifest(starter, expectedFiles, verifiedGeneratedAppFiles);
     yield* assertNoForbiddenGeneratedAppSegments(starter, verifiedGeneratedAppFiles);
+    yield* assertGeneratedAppContentMatchesSource(starter);
     yield* assertNoWorkspaceProtocol(starter);
 
     return {

@@ -43,6 +43,15 @@ copied as starters and whether browser/server boundaries remain explicit.
   files and include them in their package allowlists, keeping copied shells
   source-only while excluding `node_modules`, `dist`, `.test-dist`, build info,
   and local metadata.
+- Starter packaging compares generated route artifact contents after standalone
+  verify, currently `src/routeTree.gen.ts`, so copied starters cannot be
+  silently repaired by the Start Vite adapter while the source starter artifact
+  remains stale.
+- `pnpm example:pack-dry-run` runs an Effect-backed dry-run gate for the basic
+  starter, React starter, project-console example, devtools panel, and devtools
+  extension. The root `pnpm verify` command includes this gate and rejects
+  generated output, dependency directories, lockfiles, build info, local
+  metadata, and missing `.gitignore` files.
 
 ## Verification Evidence
 
@@ -75,6 +84,9 @@ copied as starters and whether browser/server boundaries remain explicit.
   virtual declaration no longer leaves a stale source map.
 - `pnpm starter:package` passed and generated starter checks confirmed no
   copied `@effect-ui/start` package contains `dist/virtual.d.ts.map`.
+- `pnpm example:pack-dry-run` passed for all five copyable packages:
+  19 basic starter files, 24 React starter files, 30 project-console files,
+  10 devtools panel files, and 15 devtools extension files.
 - `find .test-dist/starters -maxdepth 2 \( -name node_modules -o -name dist
   -o -name pnpm-lock.yaml -o -name .test-dist \) -print` returned no output,
   and `find .test-dist/starters -maxdepth 2 -name .gitignore -print` listed all

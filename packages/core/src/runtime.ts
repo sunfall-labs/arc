@@ -161,19 +161,20 @@ const fromManagedRuntime = <R, ER>(
   const provideRuntimeServices = <A, E, RIn>(
     effect: Effect.Effect<A, E, RIn>,
     provideOptions?: RuntimeProvideOptions
-  ): Effect.Effect<A, E | ER, RuntimeRemainingRequirements<RIn, R>> => {
-    const store = provideOptions?.resourceStore === undefined
-      ? resourceStore
-      : unsafeMutableResourceStore(provideOptions.resourceStore);
-    const ambientRuntime = runtimeForResourceStore(store);
-    return Effect.flatMap(managedRuntime.contextEffect, (context) =>
-      Effect.provideService(
-        provideStore(Effect.provideContext(effect, context), store),
-        AmbientRuntime,
-        ambientRuntime
+  ): Effect.Effect<A, E | ER, RuntimeRemainingRequirements<RIn, R>> =>
+    Effect.suspend(() => {
+      const store = provideOptions?.resourceStore === undefined
+        ? resourceStore
+        : unsafeMutableResourceStore(provideOptions.resourceStore);
+      const ambientRuntime = runtimeForResourceStore(store);
+      return Effect.flatMap(managedRuntime.contextEffect, (context) =>
+        Effect.provideService(
+          provideStore(Effect.provideContext(effect, context), store),
+          AmbientRuntime,
+          ambientRuntime
+        )
       )
-    ) as Effect.Effect<A, E | ER, RuntimeRemainingRequirements<RIn, R>>;
-  };
+    }) as Effect.Effect<A, E | ER, RuntimeRemainingRequirements<RIn, R>>;
 
   const disposeStore = disposeResourceStoreEffect(resourceStore);
   const disposeEffect = options.disposeManaged

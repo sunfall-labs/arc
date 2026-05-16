@@ -11,9 +11,60 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 148, immediately after Review 147. Some older review
+The newest review is Review 149, immediately after Review 148. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 149: Runtime Store Laziness And Copyability Gates
+
+Status: fixed for the fresh post-Review148 Core runtime, Effect-first guardrail,
+and starter/package sweeps. Focused and full verification are green. Fresh
+post-fix sweeps still need to run before the clean-sweep counter can start.
+
+- Resource Store implementation opacity: the internal Resource Store
+  implementation marker now uses a module-local `Symbol(...)` instead of a
+  global `Symbol.for(...)`, so external structural Adapters cannot recreate the
+  marker and reach mutable internals. A regression proves the old global marker
+  spoof is rejected as `InvalidResourceStore`.
+- Runtime Spine laziness: `EffectUiRuntime.provide(...)` now validates
+  `resourceStore` overrides inside the returned Effect with `Effect.suspend(...)`
+  rather than throwing synchronously while constructing the Effect. The public
+  Interface now matches its LSP promise that providing services does not start
+  or validate work until the Effect is run.
+- Effect-first template-key guardrail: the audit now treats static
+  no-substitution template keys such as ``Promise[`all`]`` and
+  ``client[`then`]`` like quoted bracket access. Self-tests cover direct Promise
+  static calls, extracted Promise statics, `.then(...)`, `.catch(...)`, and
+  `.finally(...)` through template keys.
+- Generated starter content drift: `pnpm starter:package` now compares generated
+  route artifact contents, currently `src/routeTree.gen.ts`, after standalone
+  verify. If Vite silently rewrites a copied starter's generated artifact, the
+  packager fails until the source starter artifact is regenerated and committed.
+- Package dry-run locality: root `pnpm verify` now includes
+  `pnpm example:pack-dry-run`, an Effect-backed package payload gate that runs
+  dry-runs for the basic starter, React starter, project-console example,
+  devtools panel, and devtools extension. It rejects `dist`, `.test-dist`,
+  `node_modules`, lockfiles, build info, local metadata, and missing
+  `.gitignore` files.
+
+Focused verification passed: Core typecheck, public type tests, public API
+audit, Effect-first audit over 259 files, Core ResourceStore/runtime tests
+2 files / 16 tests, starter-suite packaging/verifies for basic (19 app files /
+5 local packages), React (24 app files / 4 local packages), and project-console
+(30 app files / 6 local packages), source routeTree generated-artifact diff,
+Start virtual declaration-map absence checks, the new five-package dry-run gate,
+and raw Error/TypeError/subclass grep.
+
+Full `pnpm verify` passed after Review 149: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 259 files, 53 root test files / 901 tests, devtools-panel verify with
+2 tests, devtools-extension verify with 20 tests, basic starter verify with
+2 tests, React starter verify with 3 tests, generated starter-suite packaging/
+verifies for basic (19 app files / 5 local packages), React (24 app files /
+4 local packages), and project-console (30 app files / 6 local packages),
+five-package dry-run gate for the basic starter, React starter, project-console
+example, devtools panel, and devtools extension, project-console typecheck,
+4 project-console test files / 27 tests, project-console build, and leak scan.
 
 ## Review 148: Resource Store Opacity, Query Error Locality, And Audit Guardrails
 
