@@ -1,6 +1,6 @@
 import { Context, Deferred, Effect, Exit, Layer, Option, Queue, Stream } from "effect";
 import { describe, expect, it } from "vitest";
-import { makeRuntime, Program, read, runWithRuntime } from "../src/index.js";
+import { makeRuntime, Program, read, RuntimeTypeId, runWithRuntime, type AnyEffectUiRuntime } from "../src/index.js";
 
 interface CounterApi {
   readonly load: Effect.Effect<number>;
@@ -62,6 +62,42 @@ describe("Program", () => {
         yield* Deferred.await(loaded);
 
         expect(read(program.model)).toEqual({ count: 4, loading: false });
+        yield* program.disposeEffect;
+        yield* runtime.disposeEffect;
+      })
+    ));
+
+  it("routes fire-and-forget dispatch through the owning Runtime Spine", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const base = makeRuntime();
+        const baseRuntime = base as AnyEffectUiRuntime<never>;
+        let runForks = 0;
+        const runtime: AnyEffectUiRuntime<never> = {
+          [RuntimeTypeId]: RuntimeTypeId,
+          managed: baseRuntime.managed,
+          resourceStore: baseRuntime.resourceStore,
+          provide: baseRuntime.provide,
+          runFork: (effect, options) => {
+            runForks++;
+            return baseRuntime.runFork(effect, options);
+          },
+          runSync: baseRuntime.runSync,
+          disposeEffect: baseRuntime.disposeEffect
+        };
+        const program = runWithRuntime(runtime, () =>
+          Program.start(Program.define<number, "increment">({
+            initial: 0,
+            update: (model) => model + 1
+          }))
+        );
+
+        program.dispatch("increment");
+        yield* Effect.sleep("20 millis");
+
+        expect(read(program.model)).toBe(1);
+        expect(runForks).toBe(1);
+
         yield* program.disposeEffect;
         yield* runtime.disposeEffect;
       })

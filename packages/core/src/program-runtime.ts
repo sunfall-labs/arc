@@ -18,6 +18,7 @@ import {
   makeProgramRuntimeTimeline,
   type ProgramRuntimeTimelineEventInput
 } from "./program-runtime-timeline.js";
+import { makeProgramRuntimeScheduler } from "./program-runtime-scheduler.js";
 import type { AnyEffectUiRuntime } from "./runtime.js";
 import { Signal } from "./signal.js";
 
@@ -69,6 +70,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
     ...(definition.name === undefined ? {} : { name: definition.name }),
     ...(definition.timeline === undefined ? {} : { timeline: definition.timeline })
   });
+  const scheduler = makeProgramRuntimeScheduler(runtime);
   const timeline = runtimeTimeline.timeline;
   const recordTimeline = (event: RuntimeProgramEventInput): void =>
     runtimeTimeline.record(event);
@@ -230,7 +232,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
     if (subscriptionFiber) {
       const fiber = subscriptionFiber;
       subscriptionFiber = undefined;
-      void Effect.runFork(Fiber.interrupt(fiber).pipe(Effect.catch(() => Effect.void)));
+      void scheduler.forkRuntime(Fiber.interrupt(fiber).pipe(Effect.catch(() => Effect.void)));
     }
 
     const subscriptionsForModel = definition.subscriptions;
@@ -285,7 +287,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
       );
     }).pipe(Effect.asVoid);
 
-    subscriptionFiber = Effect.runFork(
+    subscriptionFiber = scheduler.forkProvided(
       runWithProgramRuntime(Effect.scoped(runSubscriptions)).pipe(
         Effect.catch((error: RuntimeFailure) => {
           const failure = makeProgramFailure<Message, RuntimeFailure>("Subscription", error);
@@ -301,7 +303,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
     );
   };
 
-  processorFiber = Effect.runFork(processor);
+  processorFiber = scheduler.forkProvided(processor);
   restartSubscriptions(Signal.peek(model));
 
   const disposeEffect = Effect.gen(function* () {
@@ -335,7 +337,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
     failures,
     timeline,
     dispatch: (message) => {
-      void Effect.runFork(instanceDispatchEffect(message).pipe(Effect.catch(() => Effect.void)));
+      void scheduler.forkRuntime(instanceDispatchEffect(message).pipe(Effect.catch(() => Effect.void)));
     },
     dispatchEffect: instanceDispatchEffect,
     clearFailures: () => failures.set([]),

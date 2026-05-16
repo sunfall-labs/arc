@@ -2,7 +2,7 @@
 
 import { Cause, Context, Deferred, Effect, Layer, Schema } from "effect";
 import { describe, expect, it, vi } from "vitest";
-import { makeRuntime, onDispose, Resource, route, RouteNavigationError, RoutePreloadError, runWithRuntime } from "@effect-ui/core";
+import { makeMemoryBrowserHistoryAdapter, makeRuntime, onDispose, Resource, route, RouteNavigationError, RoutePreloadError, runWithRuntime } from "@effect-ui/core";
 import type { BrowserRouter, BrowserRouterState } from "../src/index.js";
 
 vi.doMock("solid-js", () => import("solid-js/dist/solid.js"));
@@ -599,6 +599,71 @@ describe("createBrowserRouter", () => {
             }))
           );
           expect(preloaded).toEqual(["atlas", "atlas"]);
+        })
+      )
+    ));
+
+  it("forwards RouterProvider history adapters to navigation", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+
+          const history = makeMemoryBrowserHistoryAdapter({ initialHref: "/" });
+          const initialWindowPathname = window.location.pathname;
+          const HomeRoute = route("/", {
+            component: () => {
+              const element = document.createElement("h1");
+              element.textContent = "Home";
+              return element;
+            }
+          });
+          const ProjectRoute = route("/provider-history/:id", {
+            component: ({ params }) => {
+              const element = document.createElement("h1");
+              element.textContent = `Project ${params.id}`;
+              return element;
+            }
+          });
+          const container = document.createElement("div");
+          let router: BrowserRouter<readonly [typeof HomeRoute, typeof ProjectRoute]> | undefined;
+          const CaptureRouter = () => {
+            router = useRouter<readonly [typeof HomeRoute, typeof ProjectRoute]>();
+            return createComponent(RouterOutlet, {});
+          };
+
+          const dispose = render(
+            () =>
+              createComponent(RouterProvider, {
+                routes: [HomeRoute, ProjectRoute] as const,
+                history,
+                runtime,
+                get children() {
+                  return createComponent(CaptureRouter, {});
+                }
+              }),
+            container
+          );
+          yield* Effect.addFinalizer(() => Effect.sync(dispose));
+
+          yield* Effect.promise(() =>
+            vi.waitFor(() => expect(container.textContent).toBe("Home"))
+          );
+
+          expect(router).toBeDefined();
+          router!.navigateHref("/provider-history/atlas");
+          yield* Effect.promise(() =>
+            vi.waitFor(() =>
+              expect(router!.state()).toMatchObject({
+                _tag: "Ready",
+                href: "/provider-history/atlas"
+              })
+            )
+          );
+
+          expect(history.entries()).toEqual(["/", "/provider-history/atlas"]);
+          expect(window.location.pathname).toBe(initialWindowPathname);
         })
       )
     ));

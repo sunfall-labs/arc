@@ -72,7 +72,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     Review 135 store-explicit hydrate apply and strict diagnostics DTOs,
     Review 136 exact Effect audit and public inventory drift, Review 137
     bidirectional public source surface audit, Review 138 Effect audit wording
-    exactness, and Review 139 endpoint runner, query seams, and audit anchors.
+    exactness, Review 139 endpoint runner, query seams, and audit anchors, and
+    Review 140 router history projection and Program runtime scheduling.
 
 ## Current Sweep Results
 

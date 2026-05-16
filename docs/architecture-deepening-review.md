@@ -11,15 +11,45 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 139, immediately after Review 138. Some older review
+The newest review is Review 140, immediately after Review 139. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 140: Router History Projection and Program Runtime Scheduling
+
+Status: fixed for the fresh post-Review139 Core/React/Solid sweep. Focused
+verification is green. Full verification is still inherited from Review 139
+until the next single-command gate runs.
+
+- Router Provider history projection: React and Solid `RouterProvider` now
+  expose the Core `BrowserHistoryAdapter` seam that `createBrowserRouter(...)`
+  already accepted. Provider-level tests prove navigation commits to the
+  injected memory history Adapter and does not mutate the host `window.history`
+  path.
+- Program Runtime Scheduler: live Program background-fiber policy now lives in
+  `program-runtime-scheduler.ts`. Runtime-owned detached work enters the
+  Runtime Spine through `runtime.runFork(...)`, while already-provided
+  acknowledged processor/subscription Effects keep their explicit
+  `runtime.provide(...)` boundary so Runtime Spine startup/provision failures
+  still become typed Program dispatch/subscription failures instead of killing
+  the queue before acknowledgements complete.
+- Program dispatch regression hook: Core Program tests now wrap an
+  `AnyEffectUiRuntime` and assert fire-and-forget dispatch enters the owning
+  Runtime Spine, while the existing runtime-provision failure test continues to
+  cover acknowledged dispatch error reporting.
+
+Focused verification passed: `pnpm --filter @effect-ui/core typecheck`, `pnpm
+--filter @effect-ui/react typecheck`, `pnpm --filter @effect-ui/solid
+typecheck`, `pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm
+audit:effect-first`, `pnpm exec vitest run packages/core/test/program.test.ts
+packages/react/test/router.test.ts packages/solid/test/router.test.ts` (3 files
+/ 47 tests), and `git diff --check`.
 
 ## Review 139: Endpoint Runner, Query Seams, and Audit Anchors
 
 Status: fixed for the fresh post-Review138 Start, DB, public audit, and
-docs/vocabulary sweeps. Focused verification is green. Full verification is
-still inherited from Review 138 until the next single-command gate runs.
+docs/vocabulary sweeps. Full verification passed after this slice, but fresh
+post-fix sweeps found the Review 140 Core/React/Solid runtime/router seams.
 
 - Start Transport Endpoint Runner: shared RPC/action endpoint policy now lives
   in `start-transport-endpoint-runner.ts`. RPC and action endpoints provide
@@ -58,6 +88,12 @@ packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.
 packages/db/test/sync-adapter.test.ts` (3 files / 149 tests), `pnpm exec
 vitest run packages/start/test/rpc.test.ts packages/start/test/start.test.ts`
 (2 files / 149 tests), and `git diff --check`.
+Full `pnpm verify` passed after the slice: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 248 files, 53 root test files / 884 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, project-console packaging/typecheck/
+tests/build with 4 files / 27 tests, and leak scans.
 
 ## Review 138: Effect Audit Wording Exactness
 

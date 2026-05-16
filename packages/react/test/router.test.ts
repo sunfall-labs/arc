@@ -1,4 +1,4 @@
-import { makeRuntime, onDispose, Resource, route, runWithRuntime } from "@effect-ui/core";
+import { makeMemoryBrowserHistoryAdapter, makeRuntime, onDispose, Resource, route, runWithRuntime } from "@effect-ui/core";
 import { Effect } from "effect";
 import { Window } from "happy-dom";
 import { act, createElement, Fragment, useState } from "react";
@@ -132,6 +132,46 @@ describe("react router", () => {
       await flushReact();
 
       expect(container.textContent).toBe("Project atlas");
+    });
+  });
+
+  it("forwards RouterProvider history adapters to navigation", async () => {
+    let router: BrowserRouter<typeof routes> | undefined;
+    const history = makeMemoryBrowserHistoryAdapter({ initialHref: "/" });
+    const Home = route("/", {
+      component: () => createElement("h1", {}, "Home")
+    });
+    const Project = route("/provider-history/:id", {
+      component: ({ params }) => createElement("h1", {}, `Project ${(params as { id: string }).id}`)
+    });
+    const routes = [Home, Project] as const;
+
+    function CaptureRouter() {
+      router = useRouter<typeof routes>();
+      return null;
+    }
+
+    await withReactRoot(async (root, container) => {
+      await act(async () => {
+        root.render(
+          createElement(
+            RouterProvider,
+            { routes, history },
+            createElement(Fragment, {}, createElement(CaptureRouter), createElement(RouterOutlet))
+          )
+        );
+      });
+      await flushReact();
+      expect(container.textContent).toBe("Home");
+
+      await act(async () => {
+        router!.navigateHref("/provider-history/atlas");
+      });
+      await flushReact();
+
+      expect(container.textContent).toBe("Project atlas");
+      expect(history.entries()).toEqual(["/", "/provider-history/atlas"]);
+      expect(window.location.pathname).toBe("/");
     });
   });
 

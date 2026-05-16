@@ -64,13 +64,13 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 15, 2026 after Review 138:
+Latest full gate on May 16, 2026 after Review 139:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 246 package/example/script/type-test files;
-- 53 root test files / 882 tests;
+- Effect-first audit over 248 package/example/script/type-test files;
+- 53 root test files / 884 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
 - basic starter verify with 1 starter test file / 2 tests;
@@ -201,6 +201,10 @@ Latest full gate on May 15, 2026 after Review 138:
   through the Query Execution Plan Module Interface, Collection projection/state
   callback policy lives in one DB Module, public type-test rows can require
   concrete references, and Effect-first allowances are anchored to named seams.
+- Review 140 closed fresh Core/React/Solid runtime/router seams: React and
+  Solid `RouterProvider` now forward injected Browser History Adapters, and the
+  Program Runtime Scheduler makes detached Runtime Spine forks explicit while
+  preserving typed Program runtime provision failures for acknowledged work.
 - Review 85 extracted the internal Solid Route Render Scope Controller:
   `RouterOutlet` now delegates route branch rendering, route-owned `UiScope`
   creation, Solid root cleanup, runtime-bound route finalizers, transition
@@ -830,11 +834,11 @@ Latest full gate on May 15, 2026 after Review 138:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 138 tightened Effect-first
-  audit wording around exact allowed occurrence counts:
+- The latest full `pnpm verify` passed after Review 139 closed the endpoint
+  runner, query seam, and audit-anchor tranche:
   11 package builds, workspace typecheck, public type tests, public API
-  inventory audit, Effect-first audit over 246 files, 53 root test
-  files / 882 tests,
+  inventory audit, Effect-first audit over 248 files, 53 root test
+  files / 884 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,
   project-console packaging/typecheck/tests/build with 4 files / 27 tests, and

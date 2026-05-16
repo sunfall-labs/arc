@@ -137,6 +137,8 @@ export type RouterProviderProps<
   readonly routes: Routes;
   /** Initial URL used for tests or SSR hydration. */
   readonly initialHref?: string;
+  /** Host history Adapter. Defaults to `window.history` when a browser is available. */
+  readonly history?: BrowserHistoryAdapter;
   readonly children?: JSX.Element;
 };
 
@@ -295,9 +297,11 @@ export const RouterProvider = <
   const routerRuntime = runtime as unknown as EffectUiRuntime<Route.PreloadRequirements<Routes[number]>, ER>;
   const router = createBrowserRouter<Routes, ER>(
     props.routes,
-    props.initialHref === undefined
-      ? { runtime: routerRuntime }
-      : { initialHref: props.initialHref, runtime: routerRuntime }
+    {
+      runtime: routerRuntime,
+      ...(props.history === undefined ? {} : { history: props.history }),
+      ...(props.initialHref === undefined ? {} : { initialHref: props.initialHref })
+    }
   );
   return createComponent(RuntimeContext.Provider, {
     value: runtime as AnyEffectUiRuntime<never>,

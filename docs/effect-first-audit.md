@@ -386,12 +386,15 @@ interruption.
 
 ## Verification Evidence
 
+- Review 140 focused verification passed `pnpm audit:effect-first` over 249
+  package/example/script/type-test files after adding the Program Runtime
+  Scheduler source file without introducing Promise-shaped coordination.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The latest full gate is the Review 138 `pnpm verify` run: 11 package builds,
+- The latest full gate is the Review 139 `pnpm verify` run: 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 246 files, 53 root test files / 882 tests,
+  Effect-first audit over 248 files, 53 root test files / 884 tests,
   devtools-panel/devtools-extension/starter/project-console gates, and leak
   scans.
 - `pnpm exec vitest run packages/core/test/runtime.test.ts packages/start/test/start.test.ts`
@@ -1188,10 +1191,10 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The latest full `pnpm verify` passed after the Review 138 Effect Audit
-  Wording Exactness slice: 11 package builds, workspace typecheck,
-  type tests, public API inventory audit, Effect-first audit over 246
-  package/example/script/type-test files, 53 root test files / 882 tests,
+- The latest full `pnpm verify` passed after the Review 139 Endpoint Runner,
+  Query Seams, and Audit Anchors slice: 11 package builds, workspace typecheck,
+  type tests, public API inventory audit, Effect-first audit over 248
+  package/example/script/type-test files, 53 root test files / 884 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
   verify with 1 starter test file / 2 tests, React starter verify with 1
@@ -1207,7 +1210,9 @@ interruption.
   129 focused audit expanded it to 244 files, Review 130 focused audit
   expanded it to 245 files, Review 131 kept that 245-file scope green after
   hover-only public docs changes, Review 132 expanded it to 246 files while
-  keeping the scope green, and Review 133 kept that 246-file scope green.
+  keeping the scope green, Review 133 kept that 246-file scope green, Review
+  139 expanded it to 248 files with exact seam anchors, and Review 140 expanded
+  it to 249 files with the Program Runtime Scheduler Module.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

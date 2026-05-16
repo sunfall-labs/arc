@@ -10,7 +10,7 @@ Legend:
 - `[ ]` means the item is still a future win condition or needs stronger
   verification before it can be claimed.
 
-Last evidence pass: May 15, 2026.
+Last evidence pass: May 16, 2026.
 
 ## Prompt-To-Artifact Audit
 
@@ -789,10 +789,10 @@ Last evidence pass: May 15, 2026.
   - Evidence: no new ADR required for the Start Action Response Codec
     extraction.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 15, 2026 after the Review 138
-    Effect audit wording exactness slice: 11 package builds, workspace
-    typecheck, type tests, public API inventory audit, Effect-first audit over
-    246 files, 53 root test files / 882 tests,
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 139
+    Endpoint Runner, Query Seams, and Audit Anchors slice: 11 package builds,
+    workspace typecheck, type tests, public API inventory audit, Effect-first
+    audit over 248 files, 53 root test files / 884 tests,
     devtools-panel verify with 1 panel test file / 2 tests, devtools-extension
     verify with 1 extension test file / 20 tests, basic starter verify with 1
     starter test file / 2 tests, React starter verify with 1 starter test file
@@ -800,8 +800,9 @@ Last evidence pass: May 15, 2026.
     project-console test files / 27 tests, project-console build, and leak
     scans.
 - [x] Latest focused post-verify sweep recorded.
-  - Evidence: Review 139 records focused Start, DB, public API, Effect-first,
-    type-test, and whitespace verification after the fresh architecture sweep.
+  - Evidence: Review 140 records focused Core, React, Solid, public API,
+    Effect-first, type-test, and whitespace verification after the fresh
+    architecture sweep.
 
 ## Remaining Winning-Bar Items
 
