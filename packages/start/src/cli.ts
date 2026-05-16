@@ -131,6 +131,8 @@ const graphQueryKinds = [
   "server-function"
 ] as const satisfies ReadonlyArray<StartAgentGraphQueryKind>;
 
+const startDiagnosticsCliVersion = "0.0.0-alpha.0";
+
 const graphQueryKindSet = new Set<StartAgentGraphQueryKind>(graphQueryKinds);
 
 const isGraphQueryKind = (value: string): value is StartAgentGraphQueryKind =>
@@ -244,6 +246,22 @@ const noopConsole: Console.Console = {
   trace: () => undefined,
   warn: () => undefined
 };
+
+const formatConsoleArgs = (args: ReadonlyArray<unknown>): string =>
+  args.map((arg) => typeof arg === "string" ? arg : String(arg)).join(" ");
+
+const makeStartDiagnosticsCliConsole = (
+  stdout: (text: string) => void,
+  stderr: (text: string) => void
+): Console.Console => ({
+  ...noopConsole,
+  error: (...args: ReadonlyArray<unknown>) => {
+    stderr(formatConsoleArgs(args));
+  },
+  log: (...args: ReadonlyArray<unknown>) => {
+    stdout(formatConsoleArgs(args));
+  }
+});
 
 const noopTerminal = Terminal.make({
   columns: Effect.succeed(80),
@@ -411,10 +429,11 @@ const makeStartDiagnosticsCliCommand = (
 
 const runStartDiagnosticsCliCommandGrammarEffect = (
   command: ReturnType<typeof makeStartDiagnosticsCliCommand>,
-  args: readonly string[]
+  args: readonly string[],
+  console: Console.Console = noopConsole
 ): Effect.Effect<void, unknown> =>
-  Command.runWith(command, { version: "0.0.0" })(args).pipe(
-    Effect.provideService(Console.Console, noopConsole),
+  Command.runWith(command, { version: startDiagnosticsCliVersion })(args).pipe(
+    Effect.provideService(Console.Console, console),
     Effect.provide(startDiagnosticsCliCommandEnvironmentLayer)
   );
 
@@ -499,25 +518,34 @@ export const runStartDiagnosticsCliEffect = (
     const stdout = io.stdout ?? ((text) => process.stdout.write(`${text}\n`));
     const stderr = io.stderr ?? ((text) => process.stderr.write(`${text}\n`));
 
-    const parsed = yield* parseStartDiagnosticsCliArgsEffect(args).pipe(
-      Effect.map((command) => ({ _tag: "Success" as const, command })),
+    const cliResultRef = yield* Ref.make<StartDiagnosticsCliResult | undefined>(undefined);
+    const command = makeStartDiagnosticsCliCommand((parsedCommand) =>
+      runStartDiagnosticsCliCommandEffect(parsedCommand, io).pipe(
+        Effect.tap((result) => Ref.set(cliResultRef, result)),
+        Effect.asVoid
+      )
+    );
+
+    const grammarResult = yield* runStartDiagnosticsCliCommandGrammarEffect(
+      command,
+      args,
+      makeStartDiagnosticsCliConsole(stdout, stderr)
+    ).pipe(
+      Effect.map(() => ({ _tag: "Success" as const })),
       Effect.catch((cause) => Effect.succeed({ _tag: "Failure" as const, cause }))
     );
 
-    if (parsed._tag === "Failure") {
-      const payload = startDiagnosticsCliErrorPayload(parsed.cause);
-      yield* writeStartDiagnosticsCliLineEffect(stderr, `${payload.message}\n\n${startDiagnosticsCliUsage}`);
+    if (grammarResult._tag === "Failure") {
+      if (CliError.isCliError(grammarResult.cause) && grammarResult.cause._tag === "ShowHelp") {
+        return { exitCode: grammarResult.cause.errors.length === 0 ? 0 : 1 };
+      }
+
+      const payload = startDiagnosticsCliErrorPayload(grammarResult.cause);
+      yield* writeStartDiagnosticsCliLineEffect(stderr, String(payload.message));
       return { exitCode: 1 };
     }
 
-    const command = parsed.command;
-
-    if (command._tag === "Help") {
-      yield* writeStartDiagnosticsCliLineEffect(stdout, startDiagnosticsCliUsage);
-      return { exitCode: 0 };
-    }
-
-    return yield* runStartDiagnosticsCliCommandEffect(command, io);
+    return (yield* Ref.get(cliResultRef)) ?? { exitCode: 0 };
   });
 
 /** Alias for `runStartDiagnosticsCliEffect` on the current CLI surface. */

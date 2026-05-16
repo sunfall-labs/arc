@@ -47,8 +47,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     db sqlite statement contract ownership, Review 104 db persisted options
     ownership, Review 105 start client transport status policy, Review 106
     core resource UI binding runtime locality, Review 107 start diagnostics
-    CLI shared flags, and Review 108 start diagnostics CLI query argument
-    sweeps.
+    CLI shared flags, Review 108 start diagnostics CLI query argument, and
+    Review 109 start diagnostics CLI runtime dispatch sweeps.
 
 ## Current Sweep Results
 
@@ -387,7 +387,11 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   CLI query-argument cleanup. Current docs now record that graph/impact query
   parsing reports `CliError.InvalidValue` through Effect v4 `Argument`
   parsers.
-- Updated current-facing verification snapshots after Review 108 full
+- Added Review 109 and progress entry 348 evidence for the Start diagnostics
+  CLI runtime-dispatch cleanup. Current docs now record that the runtime runner
+  executes the Effect v4 command tree directly and lets built-in help/version
+  actions use Effect CLI formatter output.
+- Updated current-facing verification snapshots after Review 109 full
   verification so the latest gate points at the 225-file Effect-first audit and
   52 root test files / 859 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are

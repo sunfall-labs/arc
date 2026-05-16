@@ -5641,6 +5641,33 @@ describe("Effect UI Start", () => {
       }
     });
 
+    const helpStdout: string[] = [];
+    const helpStderr: string[] = [];
+    const helpResult = await Effect.runPromise(
+      runStartDiagnosticsCliEffect(["--help"], {
+        stdout: (text) => helpStdout.push(text),
+        stderr: (text) => helpStderr.push(text),
+        loadDiagnosticsEffect: () => Effect.die("unreachable")
+      })
+    );
+    expect(helpResult.exitCode).toBe(0);
+    expect(helpStderr).toEqual([]);
+    expect(helpStdout.join("\n")).toContain("USAGE");
+    expect(helpStdout.join("\n")).toContain("effect-ui-start <subcommand> [flags]");
+
+    const versionStdout: string[] = [];
+    const versionStderr: string[] = [];
+    const versionResult = await Effect.runPromise(
+      runStartDiagnosticsCliEffect(["--version"], {
+        stdout: (text) => versionStdout.push(text),
+        stderr: (text) => versionStderr.push(text),
+        loadDiagnosticsEffect: () => Effect.die("unreachable")
+      })
+    );
+    expect(versionResult.exitCode).toBe(0);
+    expect(versionStderr).toEqual([]);
+    expect(versionStdout.join("\n")).toContain("effect-ui-start v0.0.0-alpha.0");
+
     const stdout: string[] = [];
     const stderr: string[] = [];
     const result = await Effect.runPromise(
@@ -5867,8 +5894,7 @@ describe("Effect UI Start", () => {
     );
 
     expect(result.exitCode).toBe(1);
-    expect(stderr.join("\n")).toContain('Unknown command "unknown".');
-    expect(stderr.join("\n")).toContain("Usage: effect-ui-start diagnostics");
+    expect(stderr.join("\n")).toContain('Unknown subcommand "unknown" for "effect-ui-start"');
 
     const extraGraphStderr: string[] = [];
     const extraGraphResult = await Effect.runPromise(

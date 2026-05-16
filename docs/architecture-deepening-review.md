@@ -11,9 +11,39 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 108, immediately after Review 107. Some older review
+The newest review is Review 109, immediately after Review 108. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 109: Start Diagnostics CLI Runtime Dispatch
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Start CLI runtime: `runStartDiagnosticsCliEffect(...)` now builds the
+  Effect v4 command tree with handlers that delegate directly to
+  `runStartDiagnosticsCliCommandEffect(...)`.
+- Dispatch locality: runtime execution no longer calls
+  `parseStartDiagnosticsCliArgsEffect(...)` and then manually dispatches the
+  parsed command. The parser helper remains available for tests/embedding.
+- Built-in CLI actions: `--help`, `--version`, and unknown-subcommand handling
+  now flow through `Command.runWith(...)`, Effect CLI's built-in global flags,
+  `CliError.ShowHelp`, and the formatter output path.
+- Version source: the `effect-ui-start` command runner now reports
+  `0.0.0-alpha.0`, matching the package version.
+
+Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm exec
+vitest run packages/start/test/start.test.ts -t "Start diagnostics CLI"` (1 file
+/ 3 selected tests), `pnpm audit:effect-first` over 225 files, `pnpm --filter
+@effect-ui/start build`, built CLI `--help`, `--version`, unknown-subcommand,
+and valid graph query probes, and `git diff --check` passed. Full `pnpm verify`
+passed: 11 package builds, workspace typecheck, public type tests, public API
+inventory audit, Effect-first audit over 225 files, 52 root test files / 859
+tests, devtools-panel verify with 2 tests, devtools-extension verify with 20
+tests, basic starter verify with 2 tests, React starter verify with 3 tests,
+project-console packaging/typecheck/tests/build with 4 files / 27 tests, and
+leak scans.
 
 ## Review 108: Start Diagnostics CLI Query Arguments
 

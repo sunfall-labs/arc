@@ -203,6 +203,9 @@ Latest full gate on May 15, 2026:
 - Review 108 moved Start diagnostics CLI graph/impact query parsing into Effect
   v4 `Argument` parsers that report `CliError.InvalidValue` instead of
   throwing during command construction.
+- Review 109 made `runStartDiagnosticsCliEffect(...)` execute the Effect v4
+  command tree directly, including built-in `--help`, `--version`, and
+  unknown-subcommand formatter handling.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime
