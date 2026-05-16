@@ -450,8 +450,11 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Added Review 124 evidence for the Core Program Runtime Timeline cleanup.
   Current docs now record that Program timeline retention and disabled timeline
   behavior live in a focused internal Module.
-- Updated current-facing verification snapshots after Review 124 full
-  verification so the latest gate points at the 233-file Effect-first audit and
+- Added Review 125 evidence for the Core Program Runtime Coordinator cleanup.
+  Current docs now record that Program contracts, primitives, story execution,
+  and live Queue/Fiber/Scope runtime execution live in focused internal Modules.
+- Updated current-facing verification snapshots after Review 125 full
+  verification so the latest gate points at the 237-file Effect-first audit and
   52 root test files / 863 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are
   wrapped with `Effect.tryPromise(...)` at the Adapter seam.

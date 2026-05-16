@@ -11,9 +11,42 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 124, immediately after Review 123. Some older review
+The newest review is Review 125, immediately after Review 124. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 125: Core Program Runtime Coordinator Module
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Program Contract: added `packages/core/src/program-contract.ts` for Program
+  symbols, public data Interfaces, event DTOs, story Interfaces, and the runtime
+  error channel.
+- Program Primitives: added `packages/core/src/program-primitives.ts` for
+  Program guards, command/subscription normalization, failure DTO construction,
+  EffectInput update stepping, and pure constructors shared by story and
+  runtime execution.
+- Program Story Harness: added `packages/core/src/program-story.ts` so
+  deterministic story execution and command resolution no longer import live
+  runtime Queue, Fiber, Scope, or subscription machinery.
+- Program Runtime Coordinator: added `packages/core/src/program-runtime.ts` for
+  live queue processing, command fibers, subscription fibers, runtime provision,
+  failure recording, dispatch acknowledgements, and disposal. The public
+  `packages/core/src/program.ts` file is now the facade that preserves the
+  public exports and `Program` namespace while capturing Runtime Spine and
+  `UiScope`.
+
+Focused verification passed: `pnpm --filter @effect-ui/core typecheck`, `pnpm
+exec vitest run packages/core/test/program.test.ts` (1 file / 8 tests), `pnpm
+exec vitest run packages/devtools/test/devtools.test.ts -t 'Program'` (1 file
+/ 3 selected tests), `pnpm exec vitest run packages/react/test/hooks.test.ts -t
+'Program'` (1 file / 1 selected test), `pnpm exec vitest run
+packages/solid/test/hooks.test.ts -t 'Program'` (1 file / 1 selected test),
+`pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first` over
+237 files, and `git diff --check`.
+Full `pnpm verify` also passed after the slice.
 
 ## Review 124: Core Program Runtime Timeline Module
 

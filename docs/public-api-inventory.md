@@ -161,7 +161,8 @@ Release decisions:
 - `Capability.useEffect(...)` is public with explicit pure-value and
   Effect-returning overloads; Promise-returning callbacks remain rejected so
   host async work is routed through Effect primitives.
-- `Program` is the public headless frontend loop for centralized model/message
+- `Program` is the public facade for the headless frontend loop around
+  centralized model/message
   state. `Program.define(...)` accepts a pure initial model, an
   Effect-returning `update(model, message)` callback, Effect commands, and
   Stream subscriptions. `Program.start(...)` runs against the active Runtime
@@ -173,6 +174,11 @@ Release decisions:
   and disabled timeline behavior are implemented by the internal Program
   Runtime Timeline Module, while the public Program facade keeps queue,
   command, subscription, failure, and disposal orchestration.
+  Internally, Program Contract, Program Primitives, Program Story Harness, and
+  Program Runtime Coordinator Modules separate public data Interfaces, pure
+  constructors/normalizers, deterministic story execution, and live
+  Queue/Fiber/Scope execution while the public export surface stays anchored at
+  `program.ts`.
   `Program.RuntimeError<E, ER = never>` separates Program-domain failures from
   Runtime Spine startup/provision failures; Solid and React adapters expose the
   same `ER` parameter on `useProgram(...)`.

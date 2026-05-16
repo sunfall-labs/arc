@@ -161,6 +161,10 @@ Last evidence pass: May 15, 2026.
   - Evidence: `packages/core/src/program-runtime-timeline.ts` owns Program event
     retention and disabled timeline behavior, with coverage in
     `packages/core/test/program.test.ts`.
+- [x] Program facade is separated from contract, story, and runtime execution.
+  - Evidence: `packages/core/src/program.ts` preserves public exports while
+    `program-contract.ts`, `program-primitives.ts`, `program-story.ts`, and
+    `program-runtime.ts` own focused internal Modules.
 - [x] Core runtime service erasure is named at the runtime value boundary.
   - Evidence: `packages/core/src/runtime.ts` erases ManagedRuntime services at
     the `ManagedRuntime<any, ER>` value boundary, so runtime helpers no longer

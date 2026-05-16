@@ -1124,15 +1124,19 @@ interruption.
   timeline behavior without adding a Promise-shaped host boundary; `program.ts`
   continues to run queue, command, subscription, and disposal work with Effect
   fibers and scopes.
+- Program Contract, Primitives, Story Harness, and Runtime Coordinator now split
+  public Program surface, pure constructors, deterministic story execution, and
+  live Queue/Fiber/Scope execution without introducing Promise-shaped async
+  work.
 - Devtools Fact Identity now owns first-match fact index helpers for Store and
   Summary matching. The cleanup is pure identity policy, so no Promise-shaped
   host boundary or Effect runtime seam was added.
 - Devtools Panels and Store no longer expose internal single-adapter runtime
   injection seams. Effect wrappers and store Effect methods stay intact while
   pure projection dependencies live in the owning Modules.
-- The latest full `pnpm verify` passed after the Review 124 Core Program Runtime
-  Timeline slice: 11 package builds, workspace typecheck, type tests,
-  public API inventory audit, Effect-first audit over 233
+- The latest full `pnpm verify` passed after the Review 125 Core Program Runtime
+  Coordinator slice: 11 package builds, workspace typecheck, type tests,
+  public API inventory audit, Effect-first audit over 237
   package/example/script/type-test files, 52 root test files / 863 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
@@ -1144,7 +1148,8 @@ interruption.
   the scanner to 226 files, Review 115 expanded it to 227 files, Review 116
   expanded it to 228 files, Review 120 expanded it to 230 files, Review 121
   expanded it to 231 files, Review 123 expanded it to 232 files, and Review
-  124 expanded it to 233 files while keeping it green over that scope.
+  124 expanded it to 233 files, and Review 125 expanded it to 237 files while
+  keeping it green over that scope.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,
