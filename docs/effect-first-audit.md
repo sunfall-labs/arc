@@ -1057,8 +1057,11 @@ interruption.
   `Effect.acquireRelease(...)` inside `Effect.scoped(...)`, keeping the
   `effect-ui-start` CLI diagnostics path and Vite build gate on the same
   scoped Effect resource lifetime.
-- The latest full `pnpm verify` passed after the Review 102 Start Diagnostics
-  Vite Server Lifetime slice: 11 package builds, workspace typecheck, type
+- DB SQLite statement contracts are owned by `sqlite-persistence.ts`; the public
+  `Collection.SQLiteStatement*` namespace names now alias those contracts from
+  the DB root facade instead of redefining them.
+- The latest full `pnpm verify` passed after the Review 103 DB SQLite Statement
+  Contract Ownership slice: 11 package builds, workspace typecheck, type
   tests, public API inventory audit, Effect-first audit over 225
   package/example/script/type-test files, 52 root test files / 859 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
@@ -1067,7 +1070,7 @@ interruption.
   starter test file / 3 tests, project-console starter packaging, typecheck,
   4 project-console test files / 27 tests, build, and leak scans. Review 75
   added the public API inventory audit to the full gate, Review 86 kept the
-  scanner green over the expanded public type-test scope, and Review 102 kept
+  scanner green over the expanded public type-test scope, and Review 103 kept
   the Effect-first scanner green over its expanded 225-file scope.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core

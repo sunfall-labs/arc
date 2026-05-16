@@ -493,7 +493,9 @@ Release decisions:
 
 - SQLite helper names are expert public storage-adapter APIs. Keep them because
   local-first recipes need a SQLite-shaped seam without a runtime dependency on
-  a specific SQLite package.
+  a specific SQLite package. `sqlite-persistence.ts` owns the statement value,
+  params, row, database, prepared-statement, and memory contracts; the DB root
+  only aliases them under `Collection.*` for namespace ergonomics.
 - Mutation, transaction, event, and store diagnostic types are expert public for
   tests, devtools, persistence, and sync adapters. App code should use
   `Collection` namespace operations instead of constructing those records

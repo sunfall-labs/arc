@@ -43,7 +43,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     public type-test ownership, Review 98 core resource-store test effect
     boundary, Review 99 devtools serialization policy contract edge, Review
     100 start default fetch abort signal, Review 101 start transport body
-    reader, and Review 102 start diagnostics vite server lifetime sweeps.
+    reader, Review 102 start diagnostics vite server lifetime, and Review 103
+    db sqlite statement contract ownership sweeps.
 
 ## Current Sweep Results
 
@@ -360,7 +361,10 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   Vite server lifetime cleanup. Current docs now record that the Effect v4 CLI
   diagnostics path acquires temporary Vite servers through scoped
   `Effect.acquireRelease(...)`.
-- Updated current-facing verification snapshots after Review 102 full
+- Added Review 103 and progress entry 342 evidence for the DB SQLite statement
+  contract ownership cleanup. Current docs now record that the SQLite
+  persistence module owns statement contracts while the DB root aliases them.
+- Updated current-facing verification snapshots after Review 103 full
   verification so the latest gate points at the 225-file Effect-first audit and
   52 root test files / 859 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are

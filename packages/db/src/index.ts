@@ -36,7 +36,11 @@ import {
   type SQLitePersistenceKey,
   type SQLitePersistenceOptions,
   type SQLitePersistenceRow,
-  type SQLitePersistenceTable
+  type SQLitePersistenceTable,
+  type SQLiteStatementDatabase as SQLitePersistenceStatementDatabase,
+  type SQLiteStatementParams as SQLitePersistenceStatementParams,
+  type SQLiteStatementRow as SQLitePersistenceStatementRow,
+  type SQLiteStatementValue as SQLitePersistenceStatementValue
 } from "./sqlite-persistence.js";
 import {
   serverCollectionOptions,
@@ -514,21 +518,10 @@ export namespace Collection {
   export type SQLiteStorageOptions = SQLitePersistenceOptions;
   export type SQLiteMemoryStatement = SQLitePersistenceMemoryStatement;
   export type SQLiteMemoryStatementDatabase = SQLitePersistenceMemoryStatementDatabase;
-  export type SQLiteStatementValue = string | number | null;
-  export type SQLiteStatementParams = ReadonlyArray<SQLiteStatementValue>;
-  export interface SQLiteStatementRow {
-    readonly namespace?: unknown;
-    readonly key?: unknown;
-    readonly schema_version?: unknown;
-    readonly schemaVersion?: unknown;
-    readonly value?: unknown;
-    readonly updated_at?: unknown;
-    readonly updatedAt?: unknown;
-  }
-  export interface SQLiteStatementDatabase<E = never, R = never> {
-    readonly execute: (sql: string, params?: SQLiteStatementParams) => EffectInput<void, E, R>;
-    readonly select: (sql: string, params?: SQLiteStatementParams) => EffectInput<ReadonlyArray<SQLiteStatementRow>, E, R>;
-  }
+  export type SQLiteStatementValue = SQLitePersistenceStatementValue;
+  export type SQLiteStatementParams = SQLitePersistenceStatementParams;
+  export type SQLiteStatementRow = SQLitePersistenceStatementRow;
+  export type SQLiteStatementDatabase<E = never, R = never> = SQLitePersistenceStatementDatabase<E, R>;
   export type SQLitePreparedStatement<
     Row extends SQLiteStatementRow = SQLiteStatementRow,
     E = never,

@@ -185,6 +185,9 @@ Latest full gate on May 15, 2026:
   `Effect.acquireRelease(...)` inside `Effect.scoped(...)`, so the Effect v4 CLI
   diagnostics runner, CI loader, and build gate all close temporary Vite
   servers through the same scoped resource policy.
+- Review 103 moved DB SQLite statement contract ownership back to
+  `sqlite-persistence.ts`; the root `Collection.SQLiteStatement*` names now
+  alias the storage Adapter contracts instead of redefining them.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime

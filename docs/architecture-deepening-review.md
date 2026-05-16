@@ -11,9 +11,36 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 102, immediately after Review 101. Some older review
+The newest review is Review 103, immediately after Review 102. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 103: DB SQLite Statement Contract Ownership
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- DB facade: `packages/db/src/index.ts` no longer defines
+  `Collection.SQLiteStatementValue`, `SQLiteStatementParams`,
+  `SQLiteStatementRow`, or `SQLiteStatementDatabase` structurally in the root
+  namespace.
+- SQLite ownership: those namespace entries now alias the contracts already
+  owned by `packages/db/src/sqlite-persistence.ts`.
+- Public API: the `Collection.SQLiteStatement*` names remain available for
+  LSP/discovery ergonomics, but the root facade no longer duplicates the
+  statement adapter contract.
+
+Focused verification: `pnpm --filter @effect-ui/db typecheck`, `pnpm
+typecheck:types`, `pnpm vitest run packages/db/test/sqlite-persistence.test.ts
+packages/db/test/persisted-options.test.ts` (2 files / 13 tests), `pnpm
+audit:effect-first` over 225 files, and `git diff --check` passed. Full `pnpm
+verify` passed: 11 package builds, workspace typecheck, public type tests,
+public API inventory audit, Effect-first audit over 225 files, 52 root test
+files / 859 tests, devtools-panel verify with 2 tests, devtools-extension
+verify with 20 tests, basic starter verify with 2 tests, React starter verify
+with 3 tests, project-console packaging/typecheck/tests/build with 4 files / 27
+tests, and leak scans.
 
 ## Review 102: Start Diagnostics Vite Server Lifetime
 
