@@ -65,9 +65,10 @@ starter's own `verify` script, rejects generated route/virtual artifact content 
 removes generated install/build/test artifacts, and rechecks the manifest after
 verification. Each generated app also carries a starter-local `.gitignore` for
 `node_modules`, `dist`, `.test-dist`, build info, and macOS metadata.
-The generated artifact drift check covers both `src/routeTree.gen.ts` and
-`src/effect-ui-start-virtual.d.ts`, so route and virtual-module editor
-contracts stay source-attributed.
+The generated artifact drift check covers `src/routeTree.gen.ts` and
+`src/effect-ui-start-virtual.d.ts` for every generated starter, plus
+`src/virtual-manifest-types.ts` for the project-console starter, so route,
+virtual-module, and manifest editor contracts stay source-attributed.
 The generated package manifests include `.effect-ui-packages`, and the packager
 dry-runs each generated starter tarball to prove those local file-package
 Adapters are actually included while generated app artifacts stay out.

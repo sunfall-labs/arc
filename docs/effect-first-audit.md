@@ -75,6 +75,9 @@ interruption.
     such as `const { Promise: { all } } = globalThis` and
     `const { ["Promise"]: P } = globalThis`, so extracted static calls cannot
     bypass the Effect-first guardrail.
+  - The Review 161 pass treats `self` as a host-global Promise receiver beside
+    `globalThis` and `window`, covering direct statics, aliases, extracted
+    statics, destructuring, computed destructuring, and constructors.
 - `packages/start/src/start-fetch.ts` and `packages/start/src/file-route.ts`
   - Custom Start fetchers and file-route preload helpers now reject
     Promise-shaped erased JavaScript values before they cross deeper runtime
@@ -474,9 +477,10 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The latest full gate is the Review 157 `pnpm verify` run: 11 package builds,
+- The latest full gate is the Review 160 `pnpm verify` run recorded in
+  `docs/architecture-deepening-review.md`: 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 273 files, 53 root test files / 954 tests,
+  Effect-first audit over 274 files, 53 root test files / 970 tests,
   devtools-panel/devtools-extension/starter-suite/16-target package-dry-run/
   project-console gates, and leak scans.
 - `pnpm exec vitest run packages/core/test/runtime.test.ts packages/start/test/start.test.ts`
@@ -1273,11 +1277,11 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The latest full `pnpm verify` passed after the Review 157 Durable Restore
-  Locality, Devtools Secrets, And Public CLI Surface slice: 11 package builds,
+- The latest full `pnpm verify` passed after the Review 160 Committed Program
+  Startup, Durable Query Snapshots, And Hostile Diagnostics slice: 11 package builds,
   workspace typecheck, type tests, public API inventory audit,
-  Effect-first audit over 273 package/example/config/script/type-test/generated
-  template files, 53 root test files / 954 tests,
+  Effect-first audit over 274 package/example/config/script/type-test/generated
+  template files, 53 root test files / 970 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
   verify with 1 starter test file / 2 tests, React starter verify with 1
@@ -1310,7 +1314,8 @@ interruption.
   static template-literal member keys, and Review 150 kept that 259-file scope
   green while catching `Promise.try` and `Promise.withResolvers`. Review157
   kept the focused audit green over 273 files while catching nested and
-  computed global Promise extraction.
+  computed global Promise extraction. Review161 kept the focused audit green
+  over 274 files while adding `self.Promise` host-global coverage.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

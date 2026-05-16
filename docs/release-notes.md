@@ -65,13 +65,14 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 151:
+Latest full gate on May 16, 2026 after Review 160:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 259 package/example/config/script/type-test files;
-- 53 root test files / 908 tests;
+- Effect-first audit over 274 package/example/config/script/type-test/generated
+  template files;
+- 53 root test files / 970 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
 - basic starter verify with 1 starter test file / 2 tests;
@@ -86,6 +87,10 @@ Latest full gate on May 16, 2026 after Review 151:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 160 closed committed React Program startup, durable DB live-query
+  snapshots, local unsynced row preservation, and hostile-safe Start agent graph
+  fact rendering. See `docs/architecture-deepening-review.md` for the current
+  review tip and full evidence.
 - Review 150 closed Start fetch/Node Adapter overload hovers, public type-test
   raw-text coverage drift, `Promise.try` / `Promise.withResolvers` guardrails,
   generated starter tarball local-package inclusion, and the expanded 16-target
@@ -874,12 +879,11 @@ Latest full gate on May 16, 2026 after Review 151:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 151 closed Core state
-  presence, source package gates, DB/Start collection identity, SQLite row
-  validation, generated route output containment, and Effect RPC hover coverage:
-  11 package builds, workspace typecheck, public type tests, public API
-  inventory audit, Effect-first audit over 259 files, 53 root test
-  files / 908 tests,
+- The latest full `pnpm verify` passed after Review 160 closed committed React
+  Program startup, durable DB live-query snapshots, local unsynced row
+  preservation, and hostile-safe Start agent graph fact rendering: 11 package
+  builds, workspace typecheck, public type tests, public API inventory audit,
+  Effect-first audit over 274 files, 53 root test files / 970 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,
   generated starter-suite packaging/verifies for basic/react/project-console,
