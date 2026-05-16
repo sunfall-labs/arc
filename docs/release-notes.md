@@ -65,14 +65,14 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 160:
+Latest full gate on May 16, 2026 after Review 161:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
 - Effect-first audit over 274 package/example/config/script/type-test/generated
   template files;
-- 53 root test files / 970 tests;
+- 53 root test files / 977 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
 - basic starter verify with 1 starter test file / 2 tests;
@@ -87,6 +87,10 @@ Latest full gate on May 16, 2026 after Review 160:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 161 closed DB durable write interruption gaps, transitive live-query
+  snapshot permits, authoritative Start transport diagnostics, typed
+  stable-stringify host failures, React action value adaptation, Start/Vite
+  route writer public pins, and the `self.Promise` Effect-first guardrail.
 - Review 160 closed committed React Program startup, durable DB live-query
   snapshots, local unsynced row preservation, and hostile-safe Start agent graph
   fact rendering. See `docs/architecture-deepening-review.md` for the current
@@ -879,11 +883,13 @@ Latest full gate on May 16, 2026 after Review 160:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 160 closed committed React
-  Program startup, durable DB live-query snapshots, local unsynced row
-  preservation, and hostile-safe Start agent graph fact rendering: 11 package
+- The latest full `pnpm verify` passed after Review 161 closed DB durable write
+  interruption gaps, transitive live-query snapshot permits, authoritative
+  Start transport diagnostics, typed stable-stringify host failures, React
+  action value adaptation, Start/Vite route writer public pins, and the
+  `self.Promise` Effect-first guardrail: 11 package
   builds, workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 274 files, 53 root test files / 970 tests,
+  Effect-first audit over 274 files, 53 root test files / 977 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,
   generated starter-suite packaging/verifies for basic/react/project-console,

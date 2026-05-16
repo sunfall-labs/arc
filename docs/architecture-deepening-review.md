@@ -12,9 +12,145 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review160, immediately after Review159. Some older review entries remain below
+Review161, immediately after Review160. Some older review entries remain below
 it from prior ledger merges; use this tip rather than file order alone when
 looking for the latest architecture sweep.
+
+## Review 161: Durability, Diagnostics, React Action Values, And Guardrails
+
+Review161 fixed fresh findings from the post-Review160 subagent sweeps across
+DB, Start, Core, React, and public guardrails.
+
+1. DB Durable Commit Interruption And Readonly Change Feeds
+   - Status: fixed.
+   - Files: `packages/db/src/collection-write-commit.ts`,
+     `packages/db/src/collection-mutation-workflow.ts`,
+     `packages/db/src/collection-runtime.ts`,
+     `packages/db/test/collection.test.ts`,
+     `packages/db/test/live-query-collection.test.ts`.
+   - Problem: direct writes and mutation workflow persistence could be
+     interrupted after visible state mutation but before durable persistence
+     settled. Readonly collection definitions could also subscribe to
+     change-feed adapters before the readonly mutation guard rejected them.
+   - Fix: direct write commits and mutation enqueue/commit/rollback paths now
+     run through uninterruptible durable sections with explicit restoration
+     where rollback is required. Readonly change-feed subscription rejects with
+     `ReadonlyCollectionMutation` before acquiring a store/feed side effect.
+   - Benefits: collection state publication stays behind the durable commit
+     Seam, and readonly collection Interfaces reject write-like adapters before
+     observable work starts.
+
+2. DB Live Query Transitive Snapshot Permits
+   - Status: fixed.
+   - Files: `packages/db/src/collection-definition-snapshot.ts`,
+     `packages/db/src/live-query-collection.ts`,
+     `packages/db/src/live-query-collection-materialization.ts`,
+     `packages/db/test/live-query-collection.test.ts`.
+   - Problem: live-query collection snapshots only acquired permits for their
+     direct sources. A nested live-query collection source could therefore
+     materialize through a derived dummy state while an underlying durable source
+     write was still in flight.
+   - Fix: collection definitions can expose durable snapshot sources, and live
+     query collection materialization flattens those sources transitively before
+     acquiring snapshot permits.
+   - Benefits: derived snapshots now observe committed writable sources even
+     across nested live-query collection graphs.
+
+3. Start Transport Diagnostics Finalization
+   - Status: fixed.
+   - Files: `packages/start/src/start-transport-endpoint-runner.ts`,
+     `packages/start/test/start.test.ts`.
+   - Problem: RPC/action transport diagnostics were applied before
+     `ResponseContext` metadata, so handler code could overwrite
+     `x-effect-ui-request-id`, transport kind, or protocol-version headers.
+   - Fix: the transport runner writes authoritative diagnostics into the shared
+     `ResponseContext` after user code runs, and still clones the immediate
+     response with those diagnostics.
+   - Benefits: request correlation and transport diagnostics stay authoritative
+     for both full Start handlers and direct RPC/action response helpers.
+
+4. Core Stable Stringify Typed Host Failures
+   - Status: fixed.
+   - Files: `packages/core/src/stable-stringify.ts`,
+     `packages/core/test/stable-stringify.test.ts`.
+   - Problem: hostile getters, sparse-array index accessors, and proxy
+     `ownKeys` traps could throw raw host errors through stable key encoding.
+   - Fix: object key discovery, array index reads, Map/Set iteration, and final
+     JSON encoding now wrap unexpected host failures as
+     `StableStringifyEncodeFailure` with path and cause details.
+   - Benefits: stable key generation keeps its typed error Interface even when
+     input data is adversarial.
+
+5. React Action Hook Value Adaptation
+   - Status: fixed.
+   - Files: `packages/react/src/hooks.ts`, `packages/react/test/hooks.test.ts`,
+     `type-tests/react.test-d.ts`.
+   - Problem: React `useAction(...)` returned the Core `ActionInstance`
+     directly, leaking Core `ReadableSignal` values for `state` and
+     `invalidationPlan` into React UI code.
+   - Fix: `useAction(...)` now returns a React `ActionHandle` with subscribed
+     React values plus `submitEffect`, `resetEffect`, `reset`, and the
+     underlying Core instance at `handle.instance`.
+   - Benefits: React action UI follows the same Adapter pattern as Resource and
+     Program hooks while preserving the lower-level Core controller.
+
+6. Start/Vite Route Definition Writer Public Pins
+   - Status: fixed.
+   - Files: `packages/start/src/generated-route-definitions.ts`,
+     `type-tests/start-vite.test-d.ts`,
+     `type-tests/public-api.manifest.json`.
+   - Problem: the expert-public `@effect-ui/start/vite` route definition writer
+     symbols were documented but not directly required by the public type-test
+     manifest, and the failure union lacked enough hover context.
+   - Fix: the sync/effect writers, result/failure types, and filesystem/path
+     errors are directly imported and exercised by type tests, with required
+     manifest pins. The writer plan/result/error/failure types now carry
+     LSP-facing field and union docs.
+   - Benefits: CI keeps the expert-public route writer Interface discoverable
+     and type-pinned.
+
+7. Effect-First `self.Promise` Guardrail
+   - Status: fixed.
+   - Files: `scripts/audit-effect-first.mjs`,
+     `docs/effect-first-audit.md`.
+   - Problem: the Promise static/constructor AST audit covered `globalThis` and
+     `window` but not the Worker/browser `self` host global.
+   - Fix: `self` is now treated as a Promise constructor receiver, with
+     self-tests for direct statics, element access, aliases, extracted statics,
+     destructuring, computed destructuring, and constructors.
+   - Benefits: browser and Worker code cannot bypass the Effect-first policy by
+     spelling host Promise access through `self.Promise`.
+
+8. Current-Facing Documentation Drift
+   - Status: fixed.
+   - Files: `docs/release-notes.md`, `docs/effect-first-audit.md`,
+     `docs/package-hygiene-audit.md`, `docs/starter.md`,
+     `docs/perfection-progress.md`.
+   - Problem: current-facing docs still pointed at older Review151/157 gates or
+     under-described generated starter artifact drift coverage.
+   - Fix: verification summaries now point at the current Review161 gate, audit
+     docs link back to this review ledger for the latest source of truth, and
+     starter docs mention the project-console-only generated manifest artifact.
+   - Benefits: reviewers and agents no longer have to reconcile stale "latest"
+     claims across docs.
+
+Focused verification passed across the Review161 slices: DB package typecheck,
+DB collection/live-query/sync-adapter tests 3 files / 179 tests, Start package
+typecheck, focused Start transport diagnostics test, Core package typecheck,
+Core stable-stringify tests 1 file / 7 tests, React package typecheck, focused
+React action hook tests, public type tests, public API inventory audit,
+Effect-first audit over 274 files, and `git diff --check`.
+
+Full `pnpm verify` passed after Review161: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 274 files, 53 root test files / 977 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, generated starter-suite
+packaging/verifies for basic/react/project-console at 19/24/30 app files with
+5/4/6 local packages, 16-target package dry-run gate, project-console
+typecheck, 4 project-console test files / 27 tests, project-console build, and
+leak scans. Fresh post-fix sweeps still need to run before the clean-sweep
+counter can start.
 
 ## Review 160: Committed Program Startup, Durable Query Snapshots, And Hostile Diagnostics
 
