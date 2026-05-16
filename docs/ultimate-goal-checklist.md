@@ -653,8 +653,8 @@ Last evidence pass: May 16, 2026.
     collection/sync adapter/live-query/SQLite tests 4 files / 172 tests, Start
     start/RPC/app-graph tests 3 files / 182 tests, generated starter
     packaging, and the 16-target package dry-run gate. Latest full evidence:
-    `pnpm verify` ran all root package tests after Review 152: 53 test files /
-    919 tests.
+    `pnpm verify` ran all root package tests after Review 153: 53 test files /
+    929 tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.
@@ -796,24 +796,24 @@ Last evidence pass: May 16, 2026.
   - Evidence: no new ADR required for the Start Action Response Codec
     extraction.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 152
-    runtime seam, router module, and generated guardrail slice: 11 package builds,
-    workspace typecheck, type tests, public API inventory audit, Effect-first
-    audit over 269 files, 53 root test files / 919 tests,
-    devtools-panel verify with 1 panel test file / 2 tests, devtools-extension
-    verify with 1 extension test file / 20 tests, basic starter verify with 1
-    starter test file / 2 tests, React starter verify with 1 starter test file
-    / 3 tests, generated starter-suite packaging/verifies for
-    basic/react/project-console, 16-target package dry-run gate, project-console
-    typecheck, 4 project-console test files / 27 tests, project-console build,
-    and leak scans.
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 153
+    runtime-bound Program, request-finalization, DB generation, and package wall
+    slice: 11 package builds, workspace typecheck, type tests, public API
+    inventory audit, Effect-first audit over 272 files, 53 root test files /
+    929 tests, devtools-panel verify with 1 panel test file / 2 tests,
+    devtools-extension verify with 1 extension test file / 20 tests, basic
+    starter verify with 1 starter test file / 2 tests, React starter verify
+    with 1 starter test file / 3 tests, generated starter-suite
+    packaging/verifies for basic/react/project-console, 16-target package
+    dry-run gate, project-console typecheck, 4 project-console test files / 27
+    tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
   - Evidence: Review 153 records focused Core/React/Solid/DB/Start
     typechecks, public type tests, public API audit, Effect-first audit over
     272 files, script syntax checks, Core/React/Solid/DB/Start focused tests,
     generated starter packaging, 16-target package dry-run gate, and
-    `git diff --check`. Full verification is still recorded in the latest full
-    gate above.
+    `git diff --check`. Full verification is recorded in the latest full gate
+    above.
 
 ## Remaining Winning-Bar Items
 
