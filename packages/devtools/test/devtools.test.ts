@@ -948,7 +948,7 @@ describe("devtools invalidation plans", () => {
         runtimeActionCount: 1,
         invalidationPlanCount: 1,
         routePlanCount: 1,
-        missingSchemaCount: 1,
+        missingSchemaCount: 2,
         unknownActionBehaviorCount: 0,
         unknownRoutePreloadResourcesCount: 0,
         unknownRoutePreloadCollectionsCount: 0,
@@ -1045,12 +1045,20 @@ describe("devtools invalidation plans", () => {
     });
     expect(panels.panels.find((panel) => panel.id === "diagnostics")).toMatchObject({
       severity: "error",
-      items: [
-        {
-          id: "missing-schema:action:User.rename",
+      items: expect.arrayContaining([
+        expect.objectContaining({
+          id: "missing-schema:serverFunction:User.get",
+          label: "User.get",
+          detail: "serverFunction",
           severity: "error"
-        }
-      ]
+        }),
+        expect.objectContaining({
+          id: "missing-schema:action:User.rename",
+          label: "User.rename",
+          detail: "action",
+          severity: "error"
+        })
+      ])
     });
     expect(JSON.parse(JSON.stringify(panels))).toEqual(panels);
     await expect(
@@ -1767,6 +1775,331 @@ describe("devtools invalidation plans", () => {
         collections: []
       }
     });
+  });
+
+  it("repairs stale app graph counts, schema coverage, and unknown preload facts at public seams", () => {
+    const staleAppGraph: DevtoolsStartAppGraphDiagnostics = {
+      ...appGraphDiagnostics,
+      routeCount: 99,
+      serverFunctionCount: 0,
+      actionCount: 3,
+      routeModules: [
+        {
+          ...appGraphDiagnostics.routeModules[0]!,
+          pathParamCount: 42,
+          hasPathParams: false,
+          preloadResources: {
+            status: "unknown",
+            families: []
+          },
+          preloadCollections: {
+            status: "unknown",
+            collections: []
+          }
+        }
+      ],
+      serverFunctionModules: [
+        {
+          ...appGraphDiagnostics.serverFunctionModules[0]!,
+          wire: {
+            inputSchema: true,
+            outputSchema: false,
+            errorSchema: false,
+            complete: true,
+            missing: []
+          }
+        }
+      ],
+      actionModules: [
+        {
+          ...appGraphDiagnostics.actionModules[0]!,
+          wire: {
+            inputSchema: false,
+            outputSchema: false,
+            errorSchema: true,
+            complete: true,
+            missing: []
+          }
+        }
+      ],
+      schemaCoverage: {
+        serverFunctions: {
+          total: 99,
+          input: 99,
+          output: 99,
+          error: 99
+        },
+        actions: {
+          total: 99,
+          input: 99,
+          output: 99,
+          error: 99
+        }
+      },
+      missingSchemas: [
+        {
+          kind: "action",
+          name: "Stale.deleted",
+          input: false,
+          output: false,
+          error: false
+        }
+      ],
+      unknownRoutePreloadResources: [
+        {
+          kind: "route",
+          routeId: "route_stale",
+          routePath: "/stale",
+          moduleId: "src/routes/stale.tsx",
+          filePath: "src/routes/stale.tsx",
+          preload: "unknown",
+          preloadResources: {
+            status: "unknown",
+            families: ["Stale.family"]
+          }
+        }
+      ],
+      unknownRoutePreloadCollections: [
+        {
+          kind: "route",
+          routeId: "route_stale",
+          routePath: "/stale",
+          moduleId: "src/routes/stale.tsx",
+          filePath: "src/routes/stale.tsx",
+          preload: "unknown",
+          preloadCollections: {
+            status: "unknown",
+            collections: ["Stale.collection"]
+          }
+        }
+      ]
+    };
+    const store = makeDevtoolsStore();
+
+    store.setAppGraphDiagnostics(staleAppGraph);
+
+    const snapshotAppGraph = store.getSnapshot().appGraph;
+    expect(snapshotAppGraph).toMatchObject({
+      routeCount: 1,
+      serverFunctionCount: 1,
+      actionCount: 1,
+      routeModules: [
+        {
+          pathParamCount: 1,
+          hasPathParams: true
+        }
+      ],
+      serverFunctionModules: [
+        {
+          wire: {
+            complete: false,
+            missing: ["output", "error"]
+          }
+        }
+      ],
+      actionModules: [
+        {
+          wire: {
+            complete: false,
+            missing: ["input", "output"]
+          }
+        }
+      ],
+      schemaCoverage: {
+        serverFunctions: {
+          total: 1,
+          input: 1,
+          output: 0,
+          error: 0
+        },
+        actions: {
+          total: 1,
+          input: 0,
+          output: 0,
+          error: 1
+        }
+      },
+      unknownRoutePreloadResources: [
+        {
+          routeId: "route_users_$id",
+          routePath: "/users/:id",
+          preloadResources: {
+            status: "unknown",
+            families: []
+          }
+        }
+      ],
+      unknownRoutePreloadCollections: [
+        {
+          routeId: "route_users_$id",
+          routePath: "/users/:id",
+          preloadCollections: {
+            status: "unknown",
+            collections: []
+          }
+        }
+      ]
+    });
+    expect(snapshotAppGraph?.missingSchemas).toEqual([
+      {
+        kind: "serverFunction",
+        name: "User.get",
+        input: true,
+        output: false,
+        error: false
+      },
+      {
+        kind: "action",
+        name: "User.rename",
+        input: false,
+        output: false,
+        error: true
+      }
+    ]);
+
+    const directSummary = describeDevtoolsSummary({ appGraph: staleAppGraph });
+    const storeSummary = store.getSummary();
+    for (const summary of [directSummary, storeSummary]) {
+      expect(summary.overview).toMatchObject({
+        routeCount: 1,
+        serverFunctionCount: 1,
+        actionCount: 1,
+        missingSchemaCount: 2,
+        unknownRoutePreloadResourcesCount: 1,
+        unknownRoutePreloadCollectionsCount: 1
+      });
+      expect(summary.graph._tag).toBe("Available");
+      if (summary.graph._tag !== "Available") {
+        expect.fail("Expected normalized app graph summary.");
+      }
+      expect(summary.graph.routes).toMatchObject({
+        count: 1,
+        modules: [
+          {
+            routePath: "/users/:id",
+            pathParamCount: 1,
+            hasPathParams: true,
+            preloadResources: {
+              status: "unknown",
+              families: []
+            },
+            preloadCollections: {
+              status: "unknown",
+              collections: []
+            }
+          }
+        ],
+        unknownPreloadResources: [
+          {
+            routeId: "route_users_$id",
+            routePath: "/users/:id"
+          }
+        ],
+        unknownPreloadCollections: [
+          {
+            routeId: "route_users_$id",
+            routePath: "/users/:id"
+          }
+        ]
+      });
+      expect(summary.graph.serverFunctions.schemaCoverage).toEqual({
+        total: 1,
+        input: 1,
+        output: 0,
+        error: 0
+      });
+      expect(summary.graph.actions.schemaCoverage).toEqual({
+        total: 1,
+        input: 0,
+        output: 0,
+        error: 1
+      });
+    }
+
+    const panels = describeDevtoolsPanels({ appGraph: staleAppGraph });
+    expect(panels.panels.find((panel) => panel.id === "app-graph")).toMatchObject({
+      summary: "1 routes, 1 server functions, 1 actions",
+      items: [
+        expect.objectContaining({
+          label: "/users/:id",
+          severity: "warning",
+          metrics: expect.arrayContaining([
+            {
+              label: "params",
+              value: 1
+            },
+            {
+              label: "preload resources",
+              value: "unknown"
+            },
+            {
+              label: "preload collections",
+              value: "unknown"
+            }
+          ])
+        })
+      ]
+    });
+    expect(panels.panels.find((panel) => panel.id === "diagnostics")?.items)
+      .toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          id: "unknown-preload-resources:route_users_$id",
+          label: "/users/:id",
+          detail: "unknown preload resources"
+        }),
+        expect.objectContaining({
+          id: "unknown-preload-collections:route_users_$id",
+          label: "/users/:id",
+          detail: "unknown preload collections"
+        })
+      ]));
+    expect(panels.panels.find((panel) => panel.id === "diagnostics")?.items)
+      .not.toEqual(expect.arrayContaining([
+        expect.objectContaining({
+          label: "/stale"
+        })
+      ]));
+
+    const causalGraph = store.getCausalGraph();
+    expect(causalGraph.nodes).toContainEqual(
+      expect.objectContaining({
+        id: "schema-coverage:serverFunctions",
+        data: {
+          total: 1,
+          input: 1,
+          output: 0,
+          error: 0
+        }
+      })
+    );
+    expect(causalGraph.nodes).toContainEqual(
+      expect.objectContaining({
+        id: "schema-coverage:actions",
+        data: {
+          total: 1,
+          input: 0,
+          output: 0,
+          error: 1
+        }
+      })
+    );
+    expect(causalGraph.nodes).toContainEqual(
+      expect.objectContaining({
+        id: "route:/users/:id",
+        data: expect.objectContaining({
+          pathParamCount: 1,
+          hasPathParams: true,
+          preloadResources: {
+            status: "unknown",
+            families: []
+          },
+          preloadCollections: {
+            status: "unknown",
+            collections: []
+          }
+        })
+      })
+    );
   });
 
   it("derives a deterministic causal graph from routes, resources, actions, schemas, and runtime events", async () => {
@@ -2920,7 +3253,7 @@ describe("devtools invalidation plans", () => {
       routeCount: 1,
       serverFunctionCount: 1,
       actionCount: 1,
-      missingSchemaCount: 1
+      missingSchemaCount: 2
     });
     expect(store.getSummary().graph).toMatchObject({
       _tag: "Available",

@@ -94,6 +94,11 @@ interruption.
     `const host = globalThis; host.Promise.all(...)`, `host = self`, and
     destructuring through those aliases cannot bypass the Promise static and
     constructor guard.
+  - The Review 168 pass adds Markdown TypeScript/JavaScript snippet extraction
+    to the same scanner. README, `docs/`, and example Markdown fences plus
+    generated starter README templates are projected as virtual source files,
+    so copyable docs cannot introduce Promise-first examples outside explicit
+    comparison Adapter allowances.
 - `packages/start/src/start-fetch.ts` and `packages/start/src/file-route.ts`
   - Custom Start fetchers and file-route preload helpers now reject
     Promise-shaped erased JavaScript values before they cross deeper runtime

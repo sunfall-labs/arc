@@ -2,17 +2,32 @@ import type {
   DevtoolsStartAppGraphActionDiagnostics,
   DevtoolsStartAppGraphCollectionDiagnostics,
   DevtoolsStartAppGraphDiagnostics,
+  DevtoolsStartAppGraphMissingSchema,
   DevtoolsStartAppGraphRouteModuleDiagnostics,
   DevtoolsStartAppGraphRoutePreloadCollections,
+  DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry,
   DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry
 } from "./devtools-contract.js";
 
 const copyStringArray = (values: readonly string[]): readonly string[] => [...values];
 
+const missingWireSchemas = (
+  wire: Pick<DevtoolsStartAppGraphActionDiagnostics["wire"], "inputSchema" | "outputSchema" | "errorSchema">
+): readonly ("input" | "output" | "error")[] => [
+  ...(wire.inputSchema ? [] as const : ["input"] as const),
+  ...(wire.outputSchema ? [] as const : ["output"] as const),
+  ...(wire.errorSchema ? [] as const : ["error"] as const)
+];
+
 const defaultRoutePreloadCollections = (): DevtoolsStartAppGraphRoutePreloadCollections => ({
   status: "unknown",
   collections: []
 });
+
+const hasRouteModulePreloadCollections = (
+  routeModule: DevtoolsStartAppGraphRouteModuleDiagnostics
+): boolean =>
+  Object.prototype.hasOwnProperty.call(routeModule, "preloadCollections");
 
 export const normalizeRouteModulePreloadCollections = (
   routeModule: DevtoolsStartAppGraphRouteModuleDiagnostics
@@ -27,47 +42,56 @@ export const normalizeRouteModulePreloadCollections = (
 };
 
 const copyAppGraphSchemaCoverage = (
-  coverage: DevtoolsStartAppGraphDiagnostics["schemaCoverage"]["serverFunctions"]
+  modules: readonly {
+    readonly wire: DevtoolsStartAppGraphActionDiagnostics["wire"];
+  }[]
 ): DevtoolsStartAppGraphDiagnostics["schemaCoverage"]["serverFunctions"] => ({
-  total: coverage.total,
-  input: coverage.input,
-  output: coverage.output,
-  error: coverage.error
+  total: modules.length,
+  input: modules.filter((module) => module.wire.inputSchema).length,
+  output: modules.filter((module) => module.wire.outputSchema).length,
+  error: modules.filter((module) => module.wire.errorSchema).length
 });
 
 const copyAppGraphWireDiagnostics = (
   wire: DevtoolsStartAppGraphActionDiagnostics["wire"]
-): DevtoolsStartAppGraphActionDiagnostics["wire"] => ({
-  inputSchema: wire.inputSchema,
-  outputSchema: wire.outputSchema,
-  errorSchema: wire.errorSchema,
-  complete: wire.complete,
-  missing: [...wire.missing]
-});
+): DevtoolsStartAppGraphActionDiagnostics["wire"] => {
+  const missing = missingWireSchemas(wire);
+  return {
+    inputSchema: wire.inputSchema,
+    outputSchema: wire.outputSchema,
+    errorSchema: wire.errorSchema,
+    complete: missing.length === 0,
+    missing
+  };
+};
 
 const normalizeAppGraphRouteModule = (
   routeModule: DevtoolsStartAppGraphRouteModuleDiagnostics
-): DevtoolsStartAppGraphRouteModuleDiagnostics => ({
-  routeId: routeModule.routeId,
-  routePath: routeModule.routePath,
-  moduleId: routeModule.moduleId,
-  filePath: routeModule.filePath,
-  pathParamCount: routeModule.pathParamCount,
-  hasPathParams: routeModule.hasPathParams,
-  params: routeModule.params.map((param) => ({
+): DevtoolsStartAppGraphRouteModuleDiagnostics => {
+  const params = routeModule.params.map((param) => ({
     name: param.name,
     optional: param.optional
-  })),
-  paramsSchema: routeModule.paramsSchema,
-  searchSchema: routeModule.searchSchema,
-  preload: routeModule.preload,
-  preloadResources: {
-    status: routeModule.preloadResources.status,
-    families: [...routeModule.preloadResources.families]
-  },
-  preloadCollections: normalizeRouteModulePreloadCollections(routeModule),
-  component: routeModule.component
-});
+  }));
+
+  return {
+    routeId: routeModule.routeId,
+    routePath: routeModule.routePath,
+    moduleId: routeModule.moduleId,
+    filePath: routeModule.filePath,
+    pathParamCount: params.length,
+    hasPathParams: params.length > 0,
+    params,
+    paramsSchema: routeModule.paramsSchema,
+    searchSchema: routeModule.searchSchema,
+    preload: routeModule.preload,
+    preloadResources: {
+      status: routeModule.preloadResources.status,
+      families: [...routeModule.preloadResources.families]
+    },
+    preloadCollections: normalizeRouteModulePreloadCollections(routeModule),
+    component: routeModule.component
+  };
+};
 
 const copyAppGraphServerFunction = (
   serverFunction: DevtoolsStartAppGraphDiagnostics["serverFunctionModules"][number]
@@ -137,61 +161,119 @@ export const normalizeAppGraphCollectionDefinitions = (
 
 export const normalizeAppGraphUnknownRoutePreloadCollections = (
   appGraph: DevtoolsStartAppGraphDiagnostics
-): readonly DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry[] =>
-  ((appGraph as {
+): readonly DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry[] => {
+  const supplied = (appGraph as {
     readonly unknownRoutePreloadCollections?: readonly DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry[];
-  }).unknownRoutePreloadCollections ?? []).map((entry) => ({
-    kind: entry.kind,
-    routeId: entry.routeId,
-    routePath: entry.routePath,
-    moduleId: entry.moduleId,
-    filePath: entry.filePath,
-    preload: entry.preload,
-    preloadCollections: {
-      status: entry.preloadCollections.status,
-      collections: [...entry.preloadCollections.collections]
-    }
-  }));
+  }).unknownRoutePreloadCollections ?? [];
+  return supplied.length === 0
+    ? []
+    : appGraph.routeModules
+        .filter((routeModule) =>
+          hasRouteModulePreloadCollections(routeModule) &&
+          routeModule.preloadCollections.status === "unknown"
+        )
+        .map((routeModule) => ({
+          kind: "route" as const,
+          routeId: routeModule.routeId,
+          routePath: routeModule.routePath,
+          moduleId: routeModule.moduleId,
+          filePath: routeModule.filePath,
+          preload: routeModule.preload,
+          preloadCollections: {
+            status: routeModule.preloadCollections.status,
+            collections: [...routeModule.preloadCollections.collections]
+          }
+        }));
+};
+
+const normalizeAppGraphUnknownRoutePreloadResources = (
+  appGraph: DevtoolsStartAppGraphDiagnostics
+): readonly DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry[] =>
+  appGraph.routeModules
+    .filter((routeModule) => routeModule.preloadResources.status === "unknown")
+    .map((routeModule) => ({
+      kind: "route" as const,
+      routeId: routeModule.routeId,
+      routePath: routeModule.routePath,
+      moduleId: routeModule.moduleId,
+      filePath: routeModule.filePath,
+      preload: routeModule.preload,
+      preloadResources: {
+        status: routeModule.preloadResources.status,
+        families: [...routeModule.preloadResources.families]
+      }
+    }));
+
+const missingSchemasForModules = (
+  serverFunctions: readonly DevtoolsStartAppGraphDiagnostics["serverFunctionModules"][number][],
+  actions: readonly DevtoolsStartAppGraphActionDiagnostics[]
+): readonly DevtoolsStartAppGraphMissingSchema[] => [
+  ...serverFunctions.flatMap((serverFunction): readonly DevtoolsStartAppGraphMissingSchema[] =>
+    serverFunction.wire.complete
+      ? []
+      : [{
+          kind: "serverFunction" as const,
+          name: serverFunction.name,
+          input: serverFunction.wire.inputSchema,
+          output: serverFunction.wire.outputSchema,
+          error: serverFunction.wire.errorSchema
+        }]
+  ),
+  ...actions.flatMap((action): readonly DevtoolsStartAppGraphMissingSchema[] =>
+    action.wire.complete
+      ? []
+      : [{
+          kind: "action" as const,
+          name: action.name,
+          input: action.wire.inputSchema,
+          output: action.wire.outputSchema,
+          error: action.wire.errorSchema
+        }]
+  )
+];
 
 /** Normalizes legacy Start app graph diagnostics and returns a detached structured copy. */
 export const normalizeDevtoolsAppGraphDiagnostics = (
   appGraph: DevtoolsStartAppGraphDiagnostics
-): DevtoolsStartAppGraphDiagnostics => ({
-  version: appGraph.version,
-  routeCount: appGraph.routeCount,
-  serverFunctionCount: appGraph.serverFunctionCount,
-  actionCount: appGraph.actionCount,
-  routePaths: copyStringArray(appGraph.routePaths),
-  routeModules: appGraph.routeModules.map(normalizeAppGraphRouteModule),
-  serverFunctionModules: appGraph.serverFunctionModules.map(copyAppGraphServerFunction),
-  actionModules: appGraph.actionModules.map(copyAppGraphAction),
-  resourceFamilies: appGraph.resourceFamilies.map(copyAppGraphResourceFamily),
-  resourceTags: appGraph.resourceTags.map((tag) => ({
-    name: tag.name,
-    keyed: tag.keyed
-  })),
-  collectionDefinitions: normalizeAppGraphCollectionDefinitions(appGraph),
-  serverOnlyModules: copyStringArray(appGraph.serverOnlyModules),
-  browserClientModules: copyStringArray(appGraph.browserClientModules),
-  rpcPath: appGraph.rpcPath,
-  actionPath: appGraph.actionPath,
-  schemaCoverage: {
-    serverFunctions: copyAppGraphSchemaCoverage(appGraph.schemaCoverage.serverFunctions),
-    actions: copyAppGraphSchemaCoverage(appGraph.schemaCoverage.actions)
-  },
-  missingSchemas: appGraph.missingSchemas.map((missingSchema) => ({ ...missingSchema })),
-  unknownActionBehavior: appGraph.unknownActionBehavior.map((entry) => ({ ...entry })),
-  unknownRoutePreloadResources: appGraph.unknownRoutePreloadResources.map((entry) => ({
-    kind: entry.kind,
-    routeId: entry.routeId,
-    routePath: entry.routePath,
-    moduleId: entry.moduleId,
-    filePath: entry.filePath,
-    preload: entry.preload,
-    preloadResources: {
-      status: entry.preloadResources.status,
-      families: [...entry.preloadResources.families]
-    }
-  })),
-  unknownRoutePreloadCollections: normalizeAppGraphUnknownRoutePreloadCollections(appGraph)
-});
+): DevtoolsStartAppGraphDiagnostics => {
+  const routeModules = appGraph.routeModules.map(normalizeAppGraphRouteModule);
+  const serverFunctionModules = appGraph.serverFunctionModules.map(copyAppGraphServerFunction);
+  const actionModules = appGraph.actionModules.map(copyAppGraphAction);
+  const suppliedUnknownRoutePreloadCollections = (appGraph as {
+    readonly unknownRoutePreloadCollections?: readonly DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry[];
+  }).unknownRoutePreloadCollections ?? [];
+  const normalizedAppGraph = {
+    version: appGraph.version,
+    routeCount: routeModules.length,
+    serverFunctionCount: serverFunctionModules.length,
+    actionCount: actionModules.length,
+    routePaths: copyStringArray(appGraph.routePaths),
+    routeModules,
+    serverFunctionModules,
+    actionModules,
+    resourceFamilies: appGraph.resourceFamilies.map(copyAppGraphResourceFamily),
+    resourceTags: appGraph.resourceTags.map((tag) => ({
+      name: tag.name,
+      keyed: tag.keyed
+    })),
+    collectionDefinitions: normalizeAppGraphCollectionDefinitions(appGraph),
+    serverOnlyModules: copyStringArray(appGraph.serverOnlyModules),
+    browserClientModules: copyStringArray(appGraph.browserClientModules),
+    rpcPath: appGraph.rpcPath,
+    actionPath: appGraph.actionPath,
+    schemaCoverage: {
+      serverFunctions: copyAppGraphSchemaCoverage(serverFunctionModules),
+      actions: copyAppGraphSchemaCoverage(actionModules)
+    },
+    missingSchemas: missingSchemasForModules(serverFunctionModules, actionModules),
+    unknownActionBehavior: appGraph.unknownActionBehavior.map((entry) => ({ ...entry })),
+    unknownRoutePreloadResources: [] as readonly DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry[],
+    unknownRoutePreloadCollections: suppliedUnknownRoutePreloadCollections
+  };
+
+  return {
+    ...normalizedAppGraph,
+    unknownRoutePreloadResources: normalizeAppGraphUnknownRoutePreloadResources(normalizedAppGraph),
+    unknownRoutePreloadCollections: normalizeAppGraphUnknownRoutePreloadCollections(normalizedAppGraph)
+  };
+};

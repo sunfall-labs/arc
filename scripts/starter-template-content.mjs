@@ -151,3 +151,18 @@ export const generatedStarterEffectFirstTemplates = [
     source: solidStarterViteConfig("projectConsoleStartOptions"),
   },
 ];
+
+export const generatedStarterReadmeTemplates = [
+  {
+    file: "generated-starter-templates/basic/README.md",
+    source: basicStarterReadme,
+  },
+  {
+    file: "generated-starter-templates/react/README.md",
+    source: reactStarterReadme,
+  },
+  {
+    file: "generated-starter-templates/project-console/README.md",
+    source: projectConsoleStarterReadme,
+  },
+];

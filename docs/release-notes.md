@@ -65,14 +65,14 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 167:
+Latest full gate on May 16, 2026 after Review 168:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 274 package/example/config/script/type-test/generated
-  template files;
-- 53 root test files / 1025 tests;
+- Effect-first audit over 398 package/example/config/script/type-test/generated
+  template/docs-snippet physical and virtual files;
+- 53 root test files / 1026 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
 - basic starter verify with 1 starter test file / 2 tests;
@@ -87,6 +87,9 @@ Latest full gate on May 16, 2026 after Review 167:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 168 closed Markdown TypeScript/JavaScript snippet coverage in the
+  Effect-first Source Audit and Devtools app graph repair for stale public
+  Store/Bridge inputs.
 - Review 167 closed shared Core route render identity for React/Solid route
   `UiScope` lifetimes, same-ref Resource preload failure cleanup after manual
   prefetch/refresh retry, detached Start agent graph facts, and React/Solid DB
@@ -919,13 +922,12 @@ Latest full gate on May 16, 2026 after Review 167:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 167 closed shared Core
-  route-render identity, Resource UI manual-retry cleanup, detached Start agent
-  graph facts, and React/Solid DB adapter re-export pins. Larger Review167
+- The latest full `pnpm verify` passed after Review 168 closed docs-snippet
+  Effect-first coverage and Devtools app graph normalization repair. Larger
   module-depth candidates remain carried forward before any clean-sweep count
   can start. Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 274 files, 53 root test files / 1025 tests,
+  Effect-first audit over 398 physical/virtual files, 53 root test files / 1026 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,
   generated starter-suite packaging/verifies for basic/react/project-console,

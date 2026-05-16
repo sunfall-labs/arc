@@ -1,13 +1,25 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import ts from "typescript";
-import { generatedStarterEffectFirstTemplates } from "./starter-template-content.mjs";
+import {
+  generatedStarterEffectFirstTemplates,
+  generatedStarterReadmeTemplates
+} from "./starter-template-content.mjs";
 
 const root = process.cwd();
 
 const typeScriptSourceExtensions = new Set([".ts", ".tsx"]);
 const typeScriptDeclarationExtensions = new Set([".ts", ".tsx", ".d.ts"]);
 const scriptExtensions = new Set([".mjs"]);
+const markdownSnippetExtensions = new Map([
+  ["js", ".js"],
+  ["jsx", ".jsx"],
+  ["javascript", ".js"],
+  ["mjs", ".mjs"],
+  ["ts", ".ts"],
+  ["tsx", ".tsx"],
+  ["typescript", ".ts"]
+]);
 
 const extensionOf = (fileName) =>
   fileName.endsWith(".d.ts")
@@ -72,6 +84,19 @@ const auditableRoots = [
       entry.isFile() &&
       relativeFile.startsWith("type-tests/") &&
       typeScriptDeclarationExtensions.has(extensionOf(entry.name))
+  },
+  {
+    name: "markdown docs",
+    directory: root,
+    description: "README, docs, and example Markdown files with TypeScript/JavaScript fences",
+    include: (relativeFile, entry) =>
+      entry.isFile() &&
+      relativeFile.endsWith(".md") &&
+      (
+        relativeFile === "README.md" ||
+        relativeFile.startsWith("docs/") ||
+        relativeFile.startsWith("examples/")
+      )
   }
 ];
 
@@ -80,12 +105,13 @@ const collectFiles = (auditableRoot) => {
   if (!existsSync(auditableRoot.directory)) {
     return sourceFiles;
   }
+  const skippedDirectories = new Set([".git", ".test-dist", "dist", "node_modules"]);
 
   const visit = (directory) => {
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const fullPath = join(directory, entry.name);
       if (entry.isDirectory()) {
-        if (entry.name !== "dist" && entry.name !== "node_modules") {
+        if (!skippedDirectories.has(entry.name)) {
           visit(fullPath);
         }
         continue;
@@ -119,7 +145,68 @@ const generatedStarterTemplateFiles = generatedStarterEffectFirstTemplates.map((
   read: () => template.source
 }));
 
-const sourceFiles = [...physicalSourceFiles, ...generatedStarterTemplateFiles];
+const extractMarkdownCodeSnippets = (relativeFile, source) => {
+  const snippets = [];
+  const lines = source.split(/\r?\n/);
+  let active;
+  let snippetIndex = 0;
+
+  for (let index = 0; index < lines.length; index += 1) {
+    const fence = lines[index].match(/^```([^\s`]*)/);
+    if (fence === null) {
+      if (active !== undefined) {
+        active.lines.push(lines[index]);
+      }
+      continue;
+    }
+
+    if (active === undefined) {
+      active = {
+        language: (fence[1] ?? "").toLowerCase(),
+        startLine: index + 2,
+        lines: []
+      };
+      continue;
+    }
+
+    const extension = markdownSnippetExtensions.get(active.language);
+    if (extension !== undefined) {
+      snippetIndex += 1;
+      snippets.push({
+        relativeFile: `${relativeFile}:${active.startLine}:snippet-${snippetIndex}${extension}`,
+        source: active.lines.join("\n")
+      });
+    }
+    active = undefined;
+  }
+
+  return snippets;
+};
+
+const markdownSnippetFiles = physicalSourceFiles
+  .filter((file) => file.relativeFile.endsWith(".md"))
+  .flatMap((file) =>
+    extractMarkdownCodeSnippets(file.relativeFile, file.read()).map((snippet) => ({
+      relativeFile: snippet.relativeFile,
+      read: () => snippet.source
+    }))
+  );
+
+const generatedStarterReadmeSnippetFiles = generatedStarterReadmeTemplates
+  .flatMap((template) =>
+    extractMarkdownCodeSnippets(template.file, template.source).map((snippet) => ({
+      relativeFile: snippet.relativeFile,
+      read: () => snippet.source
+    }))
+  );
+
+const sourceFiles = [
+  ...physicalSourceFiles.filter((file) => !file.relativeFile.endsWith(".md")),
+  ...generatedStarterTemplateFiles,
+  ...markdownSnippetFiles,
+  ...generatedStarterReadmeSnippetFiles
+];
+const sourceFileNames = new Set(sourceFiles.map((file) => file.relativeFile));
 
 const seam = (file, name, anchor) => ({ file, name, anchor });
 
@@ -132,6 +219,12 @@ const printScopeSummary = () => {
   }
   console.log(
     `- generated starter templates: ${generatedStarterTemplateFiles.length} virtual files (standalone starter TypeScript templates emitted by scripts/package-project-console-starter.mjs)`
+  );
+  console.log(
+    `- markdown code snippets: ${markdownSnippetFiles.length} virtual files (README, docs, and example TypeScript/JavaScript fences)`
+  );
+  console.log(
+    `- generated starter README snippets: ${generatedStarterReadmeSnippetFiles.length} virtual files (standalone starter README TypeScript/JavaScript fences)`
   );
   console.log(`- total auditable files: ${sourceFiles.length}`);
   console.log("Effect-first anchored allowed occurrences:");
@@ -778,12 +871,20 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
 };
 
 const banned = [
-  { pattern: new RegExp("\\b" + "async\\b", "g"), name: "async function syntax" },
+  {
+    pattern: new RegExp("\\b" + "async\\b", "g"),
+    name: "async function syntax",
+    seams: [
+      seam("docs/effect-ui-framework-comparison.md:83:snippet-3.ts", "React Router comparison action", /export async function action/)
+    ]
+  },
   { pattern: memberCallPattern("then"), name: "." + "then(...)" },
   {
     pattern: /(?<!\.)\bawait\b/g,
     name: "await keyword",
     seams: [
+      seam("docs/effect-ui-framework-comparison.md:83:snippet-3.ts", "React Router comparison formData await", /await request\.formData\(\)/),
+      seam("docs/effect-ui-framework-comparison.md:83:snippet-3.ts", "React Router comparison mutation await", /await renameProject\(name\)/),
       seam("scripts/package-project-console-starter.mjs", "Project console starter packaging script runner", /await Effect\.runPromise\(/),
       seam("scripts/verify-package-dry-runs.mjs", "Package dry-run verification script runner", /await Effect\.runPromise\(/),
       seam("examples/basic-starter/scripts/leak-scan.mjs", "Basic starter leak-scan script runner", /await Effect\.runPromise\(/),
@@ -906,6 +1007,30 @@ const failSelfTest = (message) => {
   process.exit(1);
 };
 
+const assertMarkdownSnippetExtraction = () => {
+  const snippets = extractMarkdownCodeSnippets(
+    "docs/self-test.md",
+    [
+      "```ts",
+      "Effect.succeed(1);",
+      "```",
+      "```sh",
+      "pnpm verify",
+      "```",
+      "```tsx",
+      "<RuntimeProvider />",
+      "```"
+    ].join("\n")
+  );
+  if (
+    snippets.length !== 2 ||
+    snippets[0].relativeFile !== "docs/self-test.md:2:snippet-1.ts" ||
+    snippets[1].relativeFile !== "docs/self-test.md:8:snippet-2.tsx"
+  ) {
+    failSelfTest("Markdown snippet extraction self-test failed");
+  }
+};
+
 const assertAuditPattern = (checkName, source, expectedMatches) => {
   const check = allowed.find((candidate) => candidate.name === checkName);
   if (check === undefined) {
@@ -964,6 +1089,7 @@ const assertPromiseStaticBans = (source, expectedNames) => {
   }
 };
 
+assertMarkdownSnippetExtraction();
 assertAuditPattern("Promise return type", "const value: Promise <string> = promised;", 1);
 assertAuditPattern("Promise return type", "const value: Promise\n<string> = promised;", 1);
 assertAuditPattern("PromiseLike return type", ") => void | PromiseLike <string>;", 1);
@@ -1183,7 +1309,7 @@ for (const file of sourceFiles) {
 
 for (const check of allowed) {
   for (const allowedSeam of check.seams) {
-    if (!existsSync(join(root, allowedSeam.file))) {
+    if (!sourceFileNames.has(allowedSeam.file) && !existsSync(join(root, allowedSeam.file))) {
       failures.push(`${allowedSeam.file} seam "${allowedSeam.name}" for ${check.name} points at a missing file`);
     }
   }
@@ -1194,7 +1320,7 @@ for (const check of banned) {
     continue;
   }
   for (const allowedSeam of check.seams) {
-    if (!existsSync(join(root, allowedSeam.file))) {
+    if (!sourceFileNames.has(allowedSeam.file) && !existsSync(join(root, allowedSeam.file))) {
       failures.push(`${allowedSeam.file} seam "${allowedSeam.name}" for ${check.name} points at a missing file`);
     }
   }

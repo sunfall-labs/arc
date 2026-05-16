@@ -12,9 +12,65 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review167, immediately after Review166. Some older review entries remain below
+Review168, immediately after Review167. Some older review entries remain below
 it from prior ledger merges; use this tip rather than file order alone when
 looking for the latest architecture sweep.
+
+## Review 168: Docs Snippet Guardrails And Devtools App Graph Normalization
+
+Review168 fixed two carried-forward Review167 findings whose Interfaces were
+still shallower than their stated responsibilities.
+
+1. Docs Snippet Effect-First Guardrail
+   - Status: fixed.
+   - Files: `CONTEXT.md`, `scripts/audit-effect-first.mjs`,
+     `scripts/starter-template-content.mjs`, `docs/effect-first-audit.md`.
+   - Problem: the Effect-first Source Audit guarded package source, examples,
+     scripts, public type tests, and generated Vite templates, but copyable
+     Markdown TypeScript/JavaScript snippets and generated starter README
+     snippets were outside the audit Seam. A Promise-first docs example could
+     drift while `pnpm audit:effect-first` stayed green.
+   - Fix: the audit now extracts `ts`, `tsx`, `js`, `jsx`, `mjs`,
+     `typescript`, and `javascript` fenced snippets from README, `docs/`, and
+     example Markdown, plus generated starter README templates, then runs the
+     same Promise/async scanner over those virtual files. The one intentional
+     React Router comparison snippet is anchored as an explicit comparison
+     Adapter exception.
+   - Benefits: the Effect-first Source Audit has more Depth behind one
+     Interface, and copyable docs get the same Leverage as implementation
+     source without a second checker.
+
+2. Devtools App Graph Summary Input Normalization
+   - Status: fixed.
+   - Files: `packages/devtools/src/app-graph-normalizer.ts`,
+     `packages/devtools/test/devtools.test.ts`.
+   - Problem: Devtools normalized and detached app graph diagnostics, but still
+     trusted supplied route/server/action counts, schema coverage, missing
+     schema facts, route param counts, and stale unknown preload arrays from
+     public Store or Bridge inputs.
+   - Fix: the Devtools App Graph Summary Input Normalization Module now derives
+     counts from normalized module arrays, repairs route param counts, derives
+     wire `complete`/`missing`, schema coverage, and missing schema facts from
+     module wire booleans, and rebuilds unknown preload resource/collection
+     facts from route modules while preserving legacy empty collection
+     diagnostics behavior.
+   - Benefits: Store, panel, summary, and causal graph consumers get coherent
+     app graph facts from one normalization Interface, and compatibility repair
+     stays local.
+
+Focused verification passed for Review168: Devtools typecheck,
+`pnpm vitest run packages/devtools/test/devtools.test.ts -t "repairs stale app graph|legacy app graph|graph-aware summaries"`,
+and `pnpm audit:effect-first`.
+
+Full `pnpm verify` passed after Review168: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 398 physical/virtual package/example/config/script/type-test/generated/docs
+files, 53 root test files / 1026 tests, devtools-panel verify with 2 tests,
+devtools-extension verify with 20 tests, basic starter verify with 2 tests,
+React starter verify with 3 tests, starter-suite packaging/verifies for
+basic/react/project-console at 19/24/30 app files with 5/4/6 local packages,
+16-target package dry-run gate, project-console typecheck, 4 project-console
+test files / 27 tests, project-console build, and leak scans.
 
 ## Review 167: Shared Route Render Identity, Resource Retry Cleanup, Agent Facts, And DB Pins
 
