@@ -97,6 +97,60 @@ export const callStartFetchEffect = <FetchError, FetchRequirements>(
     (effect) => effect.pipe(Effect.mapError(onError))
   );
 
+const mergeAbortSignals = (
+  signals: ReadonlyArray<AbortSignal>
+): AbortSignal => {
+  const uniqueSignals = signals.filter((signal, index, all) =>
+    all.indexOf(signal) === index
+  );
+  if (uniqueSignals.length === 1) {
+    return uniqueSignals[0]!;
+  }
+
+  const abortSignalAny = (AbortSignal as typeof AbortSignal & {
+    any?: (signals: Iterable<AbortSignal>) => AbortSignal;
+  }).any;
+  if (typeof abortSignalAny === "function") {
+    return abortSignalAny(uniqueSignals);
+  }
+
+  const controller = new AbortController();
+  const abortFrom = (source: AbortSignal): void => {
+    if (controller.signal.aborted) {
+      return;
+    }
+    controller.abort((source as AbortSignal & { readonly reason?: unknown }).reason);
+  };
+
+  for (const signal of uniqueSignals) {
+    if (signal.aborted) {
+      abortFrom(signal);
+      break;
+    }
+    signal.addEventListener("abort", () => abortFrom(signal), { once: true });
+  }
+
+  return controller.signal;
+};
+
+const withStartFetchAbortSignal = (
+  input: StartFetchInput,
+  init: StartFetchInit,
+  effectSignal: AbortSignal
+): StartFetchInit => {
+  const signals = [effectSignal];
+  if (init?.signal) {
+    signals.push(init.signal);
+  }
+  if (typeof Request === "function" && input instanceof Request) {
+    signals.push(input.signal);
+  }
+  return {
+    ...init,
+    signal: mergeAbortSignals(signals)
+  };
+};
+
 export const resolveStartFetchEffect = <FetchError = never, FetchRequirements = never>(
   fetcher: StartFetch<FetchError, FetchRequirements> | undefined,
   unavailableMessage: string
@@ -116,7 +170,7 @@ export const resolveStartFetchEffect = <FetchError = never, FetchRequirements = 
 
   return Effect.succeed(((input, init) =>
     Effect.tryPromise({
-      try: () => globalThis.fetch(input, init),
+      try: (signal) => globalThis.fetch(input, withStartFetchAbortSignal(input, init, signal)),
       catch: (cause) =>
         new ServerTransportError({
           reason: "Network",

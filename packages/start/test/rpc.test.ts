@@ -1,4 +1,4 @@
-import { Cause, Data, Effect, Exit, Layer, Schema } from "effect";
+import { Cause, Data, Deferred, Effect, Exit, Fiber, Layer, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   defineApp,
@@ -365,6 +365,63 @@ describe("Start RPC transport", () => {
         });
       })
     ));
+
+  it("aborts the default global fetch when the client Effect is interrupted", () => {
+    const previousFetch = globalThis.fetch;
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const Echo = Server.contract<string, string>("Start.transport.abort-default-fetch", {
+          input: Schema.String,
+          output: Schema.String
+        });
+        const echo = Server.client(Echo);
+        const started = yield* Deferred.make<AbortSignal>();
+        const aborted = yield* Deferred.make<void>();
+
+        globalThis.fetch = ((_input, init) => {
+          const signal = init?.signal;
+          if (signal === undefined) {
+            return Promise.reject(new Error("missing fetch abort signal"));
+          }
+          Effect.runFork(Deferred.succeed(started, signal));
+          return new Promise<Response>((_resolve, reject) => {
+            signal.addEventListener(
+              "abort",
+              () => {
+                Effect.runFork(Deferred.succeed(aborted, undefined));
+                reject(signal.reason);
+              },
+              { once: true }
+            );
+          });
+        }) as typeof globalThis.fetch;
+
+        const runtime = Layer.succeed(ServerClient)(
+          makeRpcClient({
+            endpoint: `https://example.com${serverRpcPath}`
+          })
+        );
+
+        const fiber = yield* Effect.forkDetach(Effect.provide(echo.effect("hello"), runtime), {
+          startImmediately: true
+        });
+        const signal = yield* Deferred.await(started);
+        yield* Effect.sync(() => {
+          expect(signal.aborted).toBe(false);
+        });
+        yield* Fiber.interrupt(fiber);
+        yield* Deferred.await(aborted);
+        yield* Effect.sync(() => {
+          expect(signal.aborted).toBe(true);
+        });
+      }).pipe(
+        Effect.ensuring(Effect.sync(() => {
+          globalThis.fetch = previousFetch;
+        }))
+      )
+    );
+  });
 
   it("shares client transport request serialization and defect response mapping", () =>
     Effect.runPromise(

@@ -41,7 +41,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     runtime, Review 94 browser router host controller, Review 95 core action
     execution workflow, Review 96 devtools public contract, Review 97 devtools
     public type-test ownership, Review 98 core resource-store test effect
-    boundary, and Review 99 devtools serialization policy contract edge sweeps.
+    boundary, Review 99 devtools serialization policy contract edge, and
+    Review 100 start default fetch abort signal sweeps.
 
 ## Current Sweep Results
 
@@ -347,9 +348,13 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   policy contract edge cleanup. Public API docs now record that
   `DevtoolsSerializationPolicy` belongs to `devtools-contract.ts` and is only
   re-exported from `serialization.ts` for compatibility.
-- Updated current-facing verification snapshots after Review 99 full
+- Added Review 100 and progress entry 339 evidence for the Start default fetch
+  abort signal cleanup. Current docs now record that the default global fetch
+  adapter receives Effect v4's `tryPromise` AbortSignal and merges it with
+  request/init signals.
+- Updated current-facing verification snapshots after Review 100 full
   verification so the latest gate points at the 224-file Effect-first audit and
-  52 root test files / 857 tests.
+  52 root test files / 858 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are
   wrapped with `Effect.tryPromise(...)` at the Adapter seam.
 - Clarified that `virtual:effect-ui/routes` exposes runtime helpers while the

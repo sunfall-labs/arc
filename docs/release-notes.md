@@ -70,7 +70,7 @@ Latest full gate on May 15, 2026:
 - workspace typecheck and public type tests;
 - public API inventory audit;
 - Effect-first audit over 224 package/example/script/type-test files;
-- 52 root test files / 857 tests;
+- 52 root test files / 858 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
 - basic starter verify with 1 starter test file / 2 tests;
@@ -174,6 +174,10 @@ Latest full gate on May 15, 2026:
   `DevtoolsSerializationPolicy` now lives with the public Devtools contract,
   while `serialization.ts` re-exports it for compatibility and depends on the
   contract instead of the other way around.
+- Review 100 wired the default Start global fetch adapter into Effect v4
+  interruption: the `AbortSignal` from `Effect.tryPromise(...)` is merged with
+  any request/init signal before calling `globalThis.fetch`, so interrupting
+  browser RPC/action client fibers aborts the underlying fetch.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime

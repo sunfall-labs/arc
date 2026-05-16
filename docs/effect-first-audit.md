@@ -1045,17 +1045,21 @@ interruption.
 - The Devtools serialization policy now belongs to the public contract module.
   The serialization implementation re-exports that type for compatibility and
   imports from the contract, closing the contract-to-implementation back-edge.
-- The latest full `pnpm verify` passed after the Review 99 Devtools
-  Serialization Policy Contract Edge slice: 11 package builds, workspace typecheck, type
+- The default Start global fetch adapter now passes the `AbortSignal` supplied
+  by Effect v4 `Effect.tryPromise(...)` into `globalThis.fetch`, merging it
+  with caller-provided request/init signals so fiber interruption aborts the
+  underlying host fetch.
+- The latest full `pnpm verify` passed after the Review 100 Start Default Fetch
+  Abort Signal slice: 11 package builds, workspace typecheck, type
   tests, public API inventory audit, Effect-first audit over 224
-  package/example/script/type-test files, 52 root test files / 857 tests,
+  package/example/script/type-test files, 52 root test files / 858 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
   verify with 1 starter test file / 2 tests, React starter verify with 1
   starter test file / 3 tests, project-console starter packaging, typecheck,
   4 project-console test files / 27 tests, build, and leak scans. Review 75
   added the public API inventory audit to the full gate, Review 86 kept the
-  scanner green over the expanded public type-test scope, and Review 99 kept
+  scanner green over the expanded public type-test scope, and Review 100 kept
   the Effect-first scanner green over its expanded 224-file scope.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core

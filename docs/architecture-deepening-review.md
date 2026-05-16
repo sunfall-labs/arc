@@ -11,9 +11,36 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 99, immediately after Review 98. Some older review
+The newest review is Review 100, immediately after Review 99. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 100: Start Default Fetch Abort Signal
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Start fetch: the default `globalThis.fetch` adapter in
+  `packages/start/src/start-fetch.ts` now passes through the AbortSignal Effect
+  v4 supplies to `Effect.tryPromise(...)`.
+- Signal policy: default fetch calls merge the Effect interruption signal with
+  any caller-provided `init.signal` and any `Request` input signal, using
+  `AbortSignal.any(...)` when available and a small fallback controller
+  otherwise.
+- Regression coverage: `packages/start/test/rpc.test.ts` now forks a browser
+  RPC client call, interrupts the fiber, and verifies that the fake global
+  fetch receives and observes an aborted signal.
+
+Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm vitest
+run packages/start/test/rpc.test.ts packages/start/test/start.test.ts` (2 files
+/ 142 tests), `pnpm audit:effect-first` over 224 files, and `git diff --check`
+passed. Full `pnpm verify` passed: 11 package builds, workspace typecheck,
+public type tests, public API inventory audit, Effect-first audit over 224
+files, 52 root test files / 858 tests, devtools-panel verify with 2 tests,
+devtools-extension verify with 20 tests, basic starter verify with 2 tests,
+React starter verify with 3 tests, project-console packaging/typecheck/tests/
+build with 4 files / 27 tests, and leak scans.
 
 ## Review 99: Devtools Serialization Policy Contract Edge
 
