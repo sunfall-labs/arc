@@ -159,6 +159,13 @@ const ownerModule = (owner: string): string =>
 const asFacts = (value: unknown): Readonly<Record<string, unknown>> =>
   value as Readonly<Record<string, unknown>>;
 
+/**
+ * Projects Start app graph diagnostics into an agent-readable graph.
+ *
+ * The graph connects routes, endpoints, server functions, actions, resources,
+ * collections, modules, and diagnostics findings so CLI and repair agents can
+ * query ownership and impact without parsing raw manifests.
+ */
 export const createStartAgentGraph = (
   input: StartAgentGraphInput
 ): StartAgentGraph => {
@@ -395,6 +402,7 @@ export const createStartAgentGraph = (
   };
 };
 
+/** Effect wrapper for `createStartAgentGraph(...)`. */
 export const createStartAgentGraphEffect = (
   input: StartAgentGraphInput
 ): Effect.Effect<StartAgentGraph> =>

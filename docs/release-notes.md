@@ -160,6 +160,9 @@ Latest full gate on May 15, 2026:
   snapshot implementation through that Module, and incomplete markers fail as
   typed `CollectionSnapshotCodecError`s instead of silently using ambient
   snapshots.
+- Review 131 closed the post-Review130 public hover findings: Start agent graph
+  constructors, Core `Program.*` type aliases, and Start diagnostics loader
+  failure aliases now describe their purpose directly in LSP hovers.
 - Review 85 extracted the internal Solid Route Render Scope Controller:
   `RouterOutlet` now delegates route branch rendering, route-owned `UiScope`
   creation, Solid root cleanup, runtime-bound route finalizers, transition
@@ -789,11 +792,12 @@ Latest full gate on May 15, 2026:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 128 extracted the internal
-  DB Query Context Identity Module while keeping public package exports stable:
+- The latest full `pnpm verify` passed after Review 130 extracted the internal
+  DB Store-Explicit Collection Snapshot Interface while keeping public package
+  exports stable:
   11 package builds, workspace typecheck, public type tests, public API
-  inventory audit, Effect-first audit over 243 files, 53 root test
-  files / 872 tests,
+  inventory audit, Effect-first audit over 245 files, 53 root test
+  files / 873 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,
   project-console packaging/typecheck/tests/build with 4 files / 27 tests, and

@@ -109,31 +109,57 @@ export const startProgramWithRuntimeError = <Model, Message, E = never, R = neve
 };
 
 export namespace Program {
+  /** Definition for a headless model/message loop with Effect-owned work. */
   export type Definition<Model, Message, E = never, R = never> = ProgramDefinition<Model, Message, E, R>;
+  /** Running Program handle with model, dispatch, timeline, and disposal state. */
   export type Instance<Model, Message, E = never> = ProgramInstance<Model, Message, E>;
+  /** Captured update, command, or subscription failure with triggering message context. */
   export type Failure<Message, E> = ProgramFailure<Message, E>;
+  /** Program failure channel plus Runtime Spine provision/startup failures. */
   export type RuntimeError<E, ER = never> = ProgramRuntimeError<E, ER>;
+  /** Timeline retention settings for Program runtime events. */
   export type TimelineOptions = ProgramTimelineOptions;
+  /** Union of message, command, subscription, failure, and disposal timeline events. */
   export type Event<Model, Message, E = never> = ProgramEvent<Model, Message, E>;
+  /** Shared metadata carried by every Program timeline event. */
   export type EventBase = ProgramEventBase;
+  /** Timeline event recorded when a message is committed. */
   export type MessageEvent<Model, Message> = ProgramMessageEvent<Model, Message>;
+  /** Timeline event recorded before a command fiber starts. */
   export type CommandStartedEvent<Message> = ProgramCommandStartedEvent<Message>;
+  /** Timeline event recorded when a command emits a follow-up message or completes empty. */
   export type CommandCompletedEvent<Message> = ProgramCommandCompletedEvent<Message>;
+  /** Timeline event recorded when a command fails through the Program error channel. */
   export type CommandFailedEvent<Message, E> = ProgramCommandFailedEvent<Message, E>;
+  /** Timeline event recorded when an update callback fails. */
   export type UpdateFailedEvent<Message, E> = ProgramUpdateFailedEvent<Message, E>;
+  /** Timeline event recorded when a model-dependent subscription starts. */
   export type SubscriptionStartedEvent<Model> = ProgramSubscriptionStartedEvent<Model>;
+  /** Timeline event recorded when a subscription emits a message. */
   export type SubscriptionEmittedEvent<Message> = ProgramSubscriptionEmittedEvent<Message>;
+  /** Timeline event recorded when a subscription fails through the Program error channel. */
   export type SubscriptionFailedEvent<Message, E> = ProgramSubscriptionFailedEvent<Message, E>;
+  /** Timeline event recorded when a running Program is disposed. */
   export type DisposedEvent = ProgramDisposedEvent;
+  /** Visible runtime phase for a started Program. */
   export type Phase = ProgramPhase;
+  /** User update callback shape for model/message transitions. */
   export type Update<Model, Message, E = never, R = never> = ProgramUpdate<Model, Message, E, R>;
+  /** Pure model step plus commands returned by Program updates or stories. */
   export type Step<Model, Message, E = never, R = never> = ProgramStep<Model, Message, E, R>;
+  /** Effect-backed unit of Program work that may emit a message. */
   export type Command<Message, E = never, R = never> = ProgramCommand<Message, E, R>;
+  /** Accepted command input: no command, one command, many commands, or Effect command work. */
   export type CommandInput<Message, E = never, R = never> = ProgramCommandInput<Message, E, R>;
+  /** Stream-backed external input attached to a Program model generation. */
   export type Subscription<Message, E = never, R = never> = ProgramSubscription<Message, E, R>;
+  /** Accepted subscription input: none, one subscription, or many subscriptions. */
   export type SubscriptionInput<Message, E = never, R = never> = ProgramSubscriptionInput<Message, E, R>;
+  /** One deterministic story assertion step for Program tests and docs. */
   export type StoryEntry<Model, Message, E = never, R = never> = ProgramStoryEntry<Model, Message, E, R>;
+  /** Deterministic Program story runner that executes updates without live subscriptions. */
   export type Story<Model, Message, E = never, R = never> = ProgramStory<Model, Message, E, R>;
+  /** Options for deterministic story execution. */
   export type StoryOptions<Model> = ProgramStoryOptions<Model>;
 
   /**

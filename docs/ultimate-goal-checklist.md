@@ -178,8 +178,8 @@ Last evidence pass: May 15, 2026.
     display policy, text formatting, impact planning, and graph-kind
     vocabulary behind the stable `agent-graph.ts` facade. Start diagnostics
     DTO decoding now validates resource/tag/collection registry facts, and
-    Start graph/diagnostics plus Core `Program` namespace hovers have
-    declaration-site JSDoc.
+    Start agent graph constructors, diagnostics failures, and Core `Program`
+    namespace aliases have declaration-site JSDoc for LSP hovers.
 - [x] Core runtime service erasure is named at the runtime value boundary.
   - Evidence: `packages/core/src/runtime.ts` erases ManagedRuntime services at
     the `ManagedRuntime<any, ER>` value boundary, so runtime helpers no longer

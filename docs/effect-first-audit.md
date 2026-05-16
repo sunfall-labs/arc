@@ -1153,10 +1153,13 @@ interruption.
   the focused Effect-first audit green over 245 auditable
   package/example/script/type-test files. The Module centralizes snapshot
   dispatch and hydrate preflight without introducing Promise-shaped host work.
-- The latest full `pnpm verify` passed after the Review 128 DB Query Context
-  Identity Module slice: 11 package builds, workspace typecheck, type tests,
-  public API inventory audit, Effect-first audit over 243
-  package/example/script/type-test files, 53 root test files / 872 tests,
+- Review 131 added hover-only docs for public Program type aliases, Start agent
+  graph constructors, and Start diagnostics loader failures while keeping the
+  focused Effect-first audit green over the same 245 auditable files.
+- The latest full `pnpm verify` passed after the Review 130 DB Store-Explicit
+  Collection Snapshot Interface slice: 11 package builds, workspace typecheck,
+  type tests, public API inventory audit, Effect-first audit over 245
+  package/example/script/type-test files, 53 root test files / 873 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
   verify with 1 starter test file / 2 tests, React starter verify with 1
@@ -1169,8 +1172,9 @@ interruption.
   expanded it to 231 files, Review 123 expanded it to 232 files, Review
   124 expanded it to 233 files, Review 125 expanded it to 237 files, Review
   127 expanded it to 242 files, Review 128 expanded it to 243 files, Review
-  129 focused audit expanded it to 244 files, and Review 130 focused audit
-  expanded it to 245 files while keeping it green over that scope.
+  129 focused audit expanded it to 244 files, Review 130 focused audit
+  expanded it to 245 files, and Review 131 kept that 245-file scope green after
+  hover-only public docs changes.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

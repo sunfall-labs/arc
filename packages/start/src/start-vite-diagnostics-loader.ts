@@ -45,6 +45,7 @@ export class StartAppGraphDiagnosticsRunnerError extends Data.TaggedError(
   readonly cause?: unknown;
 }> {}
 
+/** Failure channel for loading resolved Start app graph diagnostics through Vite. */
 export type StartAppGraphDiagnosticsLoadError =
   | StartAppGraphDiagnosticsRunnerError
   | StartAppGraphDiagnosticsPolicyException;

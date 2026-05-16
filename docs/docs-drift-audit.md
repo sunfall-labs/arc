@@ -65,7 +65,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     127 start agent graph formatter and impact extraction, Review 128 db query
     context identity extraction, the Start/docs portion of the Review 129 graph
     vocabulary, diagnostics DTO, and LSP docs sweep, and Review 130 db
-    store-explicit collection snapshot Interface extraction.
+    store-explicit collection snapshot Interface extraction, and Review 131
+    public hover completion.
 
 ## Current Sweep Results
 
@@ -482,6 +483,9 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Added Review 130 DB evidence for Store-Explicit Collection Snapshot
   extraction, incomplete-marker validation, the `collection-definition-snapshot`
   source-surface inventory entry, and the 245-file Effect-first focused audit.
+- Added Review 131 public-hover evidence for Start agent graph constructors,
+  Program namespace type aliases, Start diagnostics loader failures, and the
+  focused Core/Start/type-test/public-audit/Effect-first verification.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are
   wrapped with `Effect.tryPromise(...)` at the Adapter seam.
 - Clarified that `virtual:effect-ui/routes` exposes runtime helpers while the

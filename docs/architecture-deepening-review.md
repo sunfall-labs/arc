@@ -11,15 +11,40 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 130, immediately after Review 129. Some older review
+The newest review is Review 131, immediately after Review 130. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 131: Public Hover Completion
+
+Status: fixed for the post-Review130 docs/LSP sweep and focused verification is
+green. The architecture and Effect/Promise sweeps found no source architecture
+or Promise-shaped blockers, but the Thirty-Sweep clean counter remains at 0
+until a fresh sweep after this hover patch finds no actionable work.
+
+- Start Agent Graph facade: `packages/start/src/agent-graph.ts` now documents
+  `createStartAgentGraph(...)` and `createStartAgentGraphEffect(...)`, the
+  public constructors that project Start app graph diagnostics into the
+  agent-readable graph used by CLI repair flows.
+- Program namespace aliases: `packages/core/src/program.ts` now has
+  declaration-site JSDoc on the public `Program.*` type aliases, including
+  runtime errors, timeline events, deterministic story entries, steps, commands,
+  and subscriptions.
+- Start Vite Diagnostics Loader: `packages/start/src/start-vite-diagnostics-loader.ts`
+  now documents the public `StartAppGraphDiagnosticsLoadError` union used by
+  Vite diagnostics loaders and build policy callers.
+
+Focused verification passed: `pnpm --filter @effect-ui/core typecheck`, `pnpm
+--filter @effect-ui/start typecheck`, `pnpm typecheck:types`, `pnpm
+audit:public-api`, and `pnpm audit:effect-first` over 245 files.
+Full `pnpm verify` is pending after this hover-only slice.
 
 ## Review 130: DB Store-Explicit Collection Snapshot Interface
 
 Status: fixed for the DB candidate found by the fresh Review 129 sweep and
-focused verification is green. The Thirty-Sweep clean counter remains at 0 until
-a fresh post-fix sweep finds no actionable work.
+fully verified. The post-fix architecture and Effect/Promise sweeps found no
+source architecture or Promise-shaped blockers, but the docs/LSP sweep found the
+hover gaps fixed in Review 131, so the Thirty-Sweep clean counter remains at 0.
 
 - Store-Explicit Collection Snapshot: added
   `packages/db/src/collection-definition-snapshot.ts` as the focused internal
@@ -45,7 +70,12 @@ packages/db/test/live-query-collection.test.ts packages/db/test/sync-adapter.tes
 packages/db/test/server-collection.test.ts packages/db/test/sqlite-persistence.test.ts`
 (5 files / 160 tests), `pnpm typecheck:types`, `pnpm audit:public-api`, and
 `pnpm audit:effect-first` over 245 files, and `git diff --check`.
-Full `pnpm verify` is pending after the slice.
+Full `pnpm verify` passed after the slice: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 245 files, 53 root test files / 873 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, project-console packaging/typecheck/
+tests/build with 4 files / 27 tests, and leak scans.
 
 ## Review 129: Start Graph Vocabulary, Diagnostics DTO Depth, and LSP Docs
 
