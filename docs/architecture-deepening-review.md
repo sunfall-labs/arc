@@ -12,9 +12,84 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review159, immediately after Review158. Some older review entries remain below
+Review160, immediately after Review159. Some older review entries remain below
 it from prior ledger merges; use this tip rather than file order alone when
 looking for the latest architecture sweep.
+
+## Review 160: Committed Program Startup, Durable Query Snapshots, And Hostile Diagnostics
+
+Review160 fixed fresh DB, React, and Start findings from the post-Review159
+subagent sweeps.
+
+1. Start Agent Graph Fact Rendering
+   - Status: fixed.
+   - Files: `packages/start/src/start-agent-graph-facts.ts`,
+     `packages/start/src/start-agent-graph-query.ts`,
+     `packages/start/src/start-agent-graph-formatter.ts`,
+     `packages/start/test/app-graph.test.ts`.
+   - Problem: agent graph query fact search still called
+     `Object.prototype.toString.call(...)` before the defensive inspection
+     block, so a hostile fact object with a throwing `Symbol.toStringTag`
+     getter could escape diagnostics. Verbose formatting also used raw
+     `JSON.stringify(...)`, so BigInt, circular, or hostile facts could crash
+     CLI output.
+   - Fix: bounded fact rendering now lives in one shared helper used by query
+     search and verbose formatting. Formatter fact reads catch per-property
+     access failures. Regressions cover BigInt, circular facts, and hostile
+     getter objects.
+   - Benefits: Start diagnostics stay total and bounded even when app metadata
+     contains unserializable or adversarial values.
+
+2. React Program Commit Lifecycle
+   - Status: fixed.
+   - Files: `packages/react/src/hooks.ts`, `packages/react/test/hooks.test.ts`.
+   - Problem: `useProgram(...)` called `Program.start(...)` during React render.
+     Because `Program.start(...)` immediately forks processors and
+     subscriptions, suspended or abandoned render work could leak running
+     fibers before React committed the component and registered cleanup.
+   - Fix: `useProgram(...)` now returns an inert bridge instance during render
+     and starts the real Program from `useLayoutEffect(...)` after commit. The
+     bridge mirrors model, failure, and timeline signals and delegates dispatch
+     once the committed instance exists. A Suspense regression proves suspended
+     render work does not start Program subscriptions.
+   - Benefits: React Program lifecycles are commit-owned while preserving the
+     existing hook surface and Effect-native dispatch semantics.
+
+3. DB Live Query Snapshots And Local Unsynced Rows
+   - Status: fixed.
+   - Files: `packages/db/src/live-query-collection-materialization.ts`,
+     `packages/db/src/collection-sync-load-policy.ts`,
+     `packages/db/test/live-query-collection.test.ts`,
+     `packages/db/test/collection.test.ts`.
+   - Problem: live-query collection snapshot Effects materialized source rows
+     without acquiring the source collections' durable commit permits, so a
+     concurrent failing direct write could be observed before rollback. Refetch
+     row replacement also dropped non-optimistic local direct-write rows marked
+     `synced: false` when the server omitted them.
+   - Fix: live-query collection snapshot Effects acquire durable permits for
+     their source collections before materialization, which also protects
+     persist/dehydrate Effect paths. Refetch replacement carries forward local
+     unsynced direct-write rows that are not represented by optimistic mutation
+     stacks.
+   - Benefits: derived collection snapshots observe committed source state, and
+     local direct-write drafts survive ordinary remote refreshes.
+
+Focused verification passed: Start package typecheck, focused Start agent graph
+tests 1 file / 2 tests, React package typecheck, React hook tests 1 file / 15
+tests, DB package typecheck, DB collection/live-query collection tests 2 files /
+158 tests, public API audit, Effect-first audit over 274 files, and
+`git diff --check`.
+
+Full `pnpm verify` passed after Review160: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 274 files, 53 root test files / 970 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, generated starter-suite
+packaging/verifies for basic/react/project-console at 19/24/30 app files with
+5/4/6 local packages, 16-target package dry-run gate, project-console
+typecheck, 4 project-console test files / 27 tests, project-console build, and
+leak scans. Fresh post-fix sweeps still need to run before the clean-sweep
+counter can start.
 
 ## Review 159: Action Response Resource Identity
 

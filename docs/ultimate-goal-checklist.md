@@ -796,13 +796,14 @@ Last evidence pass: May 16, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Start Action Response Codec
-    extraction.
+  - Evidence: no new ADR required for the Review 160 lifecycle, diagnostics,
+    and durable snapshot consistency fixes.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 159
-    Start action response resource identity slice: 11 package builds, workspace
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 160
+    committed Program startup, durable query snapshot, and hostile diagnostics
+    slice: 11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
-    273 files, 53 root test files / 966 tests, devtools-panel verify with 1
+    274 files, 53 root test files / 970 tests, devtools-panel verify with 1
     panel test file / 2 tests,
     devtools-extension verify with 1 extension test file / 20 tests, basic
     starter verify with 1 starter test file / 2 tests, React starter verify
@@ -811,11 +812,12 @@ Last evidence pass: May 16, 2026.
     dry-run gate, project-console typecheck, 4 project-console test files / 27
     tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 159 records Start package typecheck,
-    Start/app-graph/adapters plus Devtools tests 4 files / 268 tests, DB
-    reviewer verification 5 files / 190 tests, public API audit, Effect-first
-    audit over 273 files, and `git diff --check`. Full verification is
-    recorded in the Review159 full gate above.
+  - Evidence: Review 160 records Start package typecheck, focused Start agent
+    graph tests 1 file / 2 tests, React package typecheck, React hook tests 1
+    file / 15 tests, DB package typecheck, DB collection/live-query collection
+    tests 2 files / 158 tests, public API audit, Effect-first audit over 274
+    files, and `git diff --check`. Full verification is recorded in the
+    Review160 full gate above.
 
 ## Remaining Winning-Bar Items
 
