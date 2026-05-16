@@ -93,8 +93,17 @@ files including generated starter templates, Core router/route/resource tests
 3 files / 100 tests, DB/React-DB/Solid-DB tests 4 files / 150 tests, Start
 tests 2 files / 158 tests, generated starter packaging at 19/24/30 app files
 with 5/4/6 local packages, 16-target package dry-run gate, and `git diff
---check`. Fresh post-fix sweeps still need to run before the clean-sweep
-counter can start.
+--check`.
+
+Full `pnpm verify` passed after Review152: 11 package builds, workspace
+typecheck, public type tests, public API audit, Effect-first audit over 269
+files, 53 root test files / 919 tests, devtools-panel verify with 2 tests,
+devtools-extension verify with 20 tests, basic starter verify with 2 tests,
+React starter verify with 3 tests, generated starter-suite packaging/verifies
+for basic/react/project-console, 16-target package dry-run gate,
+project-console typecheck, 4 project-console test files / 27 tests,
+project-console build, and leak scans. Fresh post-fix sweeps still need to run
+before the clean-sweep counter can start.
 
 ## Review 150: Public Adapter Hovers And Package Payload Gates
 

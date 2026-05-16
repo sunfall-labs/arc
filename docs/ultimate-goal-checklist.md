@@ -791,10 +791,10 @@ Last evidence pass: May 16, 2026.
   - Evidence: no new ADR required for the Start Action Response Codec
     extraction.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 151
-    Core state presence, source package gate, and DB/Start seam slice: 11 package builds,
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 152
+    runtime seam, router module, and generated guardrail slice: 11 package builds,
     workspace typecheck, type tests, public API inventory audit, Effect-first
-    audit over 259 files, 53 root test files / 908 tests,
+    audit over 269 files, 53 root test files / 919 tests,
     devtools-panel verify with 1 panel test file / 2 tests, devtools-extension
     verify with 1 extension test file / 20 tests, basic starter verify with 1
     starter test file / 2 tests, React starter verify with 1 starter test file
