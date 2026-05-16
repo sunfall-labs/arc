@@ -18,8 +18,7 @@ rather than file order alone when looking for the latest architecture sweep.
 ## Review 154: Interruption Liveness And Guardrail Closure
 
 Review154 fixed fresh DB, Start, script, and LSP/type-surface findings from the
-post-Review153 sweeps. Latest full verification is still the Review153 gate
-until `pnpm verify` is rerun after this focused slice.
+post-Review153 sweeps.
 
 1. DB Active Attempt Interruption Liveness
    - Status: fixed.
@@ -79,7 +78,7 @@ until `pnpm verify` is rerun after this focused slice.
      repair guidance. Generated artifact verification reports missing declared
      artifacts even when both sides are absent. Workspace discovery rejects
      duplicate local adapter directory names. Effect-first and package hygiene
-     docs now point at the Review153 full gate.
+     docs now point at the Review154 full gate.
    - Benefits: copyability and Promise guardrails now fail at the source of the
      policy breach instead of relying on downstream packaging luck or stale
      docs.
@@ -105,9 +104,17 @@ tests, public API audit, Effect-first audit over 272 files, DB collection tests
 1 file / 113 tests, Start request/app-graph tests 2 files / 169 tests, script
 syntax checks, malformed manifest target check, the 16-target package dry-run
 gate, generated starter-suite packaging/verifies for basic/react/project-console
-at 19/24/30 app files with 5/4/6 local packages, and `git diff --check`. Full
-`pnpm verify` still needs to run before Review154 can become the latest full
-green checkpoint.
+at 19/24/30 app files with 5/4/6 local packages, and `git diff --check`.
+
+Full `pnpm verify` passed after Review154: 11 package builds, workspace
+typecheck, public type tests, public API audit, Effect-first audit over 272
+files, 53 root test files / 932 tests, devtools-panel verify with 2 tests,
+devtools-extension verify with 20 tests, basic starter verify with 2 tests,
+React starter verify with 3 tests, generated starter-suite packaging/verifies
+for basic/react/project-console, 16-target package dry-run gate,
+project-console typecheck, 4 project-console test files / 27 tests,
+project-console build, and leak scans. Fresh post-fix sweeps still need to run
+before the clean-sweep counter can start.
 
 ## Review 153: Runtime Bounds, Finalization Metrics, And Package Walls
 

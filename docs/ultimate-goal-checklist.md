@@ -654,8 +654,8 @@ Last evidence pass: May 16, 2026.
     / 169 tests, script syntax checks, malformed manifest target checks,
     generated starter-suite packaging/verifies, and the 16-target package
     dry-run gate. Latest full evidence:
-    `pnpm verify` ran all root package tests after Review 153: 53 test files /
-    929 tests.
+    `pnpm verify` ran all root package tests after Review 154: 53 test files /
+    932 tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.
@@ -797,11 +797,11 @@ Last evidence pass: May 16, 2026.
   - Evidence: no new ADR required for the Start Action Response Codec
     extraction.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 153
-    runtime-bound Program, request-finalization, DB generation, and package wall
-    slice: 11 package builds, workspace typecheck, type tests, public API
-    inventory audit, Effect-first audit over 272 files, 53 root test files /
-    929 tests, devtools-panel verify with 1 panel test file / 2 tests,
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 154
+    DB interruption-liveness, Start endpoint Effect seam, script guardrail, and
+    LSP-pin slice: 11 package builds, workspace typecheck, type tests, public
+    API inventory audit, Effect-first audit over 272 files, 53 root test files
+    / 932 tests, devtools-panel verify with 1 panel test file / 2 tests,
     devtools-extension verify with 1 extension test file / 20 tests, basic
     starter verify with 1 starter test file / 2 tests, React starter verify
     with 1 starter test file / 3 tests, generated starter-suite
@@ -814,8 +814,7 @@ Last evidence pass: May 16, 2026.
     collection tests, Start request/app-graph endpoint tests, script syntax
     checks, malformed manifest target checks, generated starter-suite
     packaging/verifies, 16-target package dry-run gate, and `git diff --check`.
-    Full verification is still recorded in the Review153 full gate above until
-    `pnpm verify` reruns after Review154.
+    Full verification is recorded in the Review154 full gate above.
 
 ## Remaining Winning-Bar Items
 
