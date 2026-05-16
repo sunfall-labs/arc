@@ -17,10 +17,22 @@ const shellArg = (
     ? value
     : `'${value.replace(/'/g, "'\\''")}'`;
 
-const rootCommandOption = (
-  root: string | undefined
+const shellFlag = (
+  name: string,
+  value: string | false | undefined
 ): string =>
-  root === undefined ? "" : ` --root ${shellArg(root)}`;
+  value === undefined
+    ? ""
+    : ` --${name} ${shellArg(value === false ? "false" : value)}`;
+
+const diagnosticsLoadCommandOptions = (
+  options: StartAgentGraphImpactOptions
+): string =>
+  [
+    shellFlag("root", options.root),
+    shellFlag("config", options.configFile),
+    shellFlag("mode", options.mode)
+  ].join("");
 
 const queryCommandArgs = (
   query: StartAgentGraphQuery
@@ -43,9 +55,9 @@ export const startDiagnosticsCliVerifyCommandsForQuery = (
   query: StartAgentGraphQuery,
   options: StartAgentGraphImpactOptions
 ): readonly string[] => {
-  const root = rootCommandOption(options.root);
+  const loadOptions = diagnosticsLoadCommandOptions(options);
   return [
-    `effect-ui-start diagnostics${root}`,
-    `effect-ui-start graph${queryCommandArgs(query)}${root}`
+    `effect-ui-start diagnostics${loadOptions}`,
+    `effect-ui-start graph${queryCommandArgs(query)}${loadOptions}`
   ];
 };

@@ -33,6 +33,14 @@ const diagnosticOptions = (
   ...(options.mode === undefined ? {} : { mode: options.mode })
 });
 
+const impactOptions = (
+  options: StartDiagnosticsCliOptions
+) => ({
+  ...(options.root === undefined ? {} : { root: options.root }),
+  ...(options.configFile === undefined ? {} : { configFile: options.configFile }),
+  ...(options.mode === undefined ? {} : { mode: options.mode })
+});
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
@@ -124,9 +132,7 @@ export const runStartDiagnosticsCliCommandEffect = (
           const impact = createStartAgentGraphImpact(
             agentGraph,
             command.options.query,
-            command.options.root === undefined
-              ? {}
-              : { root: command.options.root }
+            impactOptions(command.options)
           );
           if (command.options.json) {
             yield* writeStartDiagnosticsCliLineEffect(

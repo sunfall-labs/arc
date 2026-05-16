@@ -12,6 +12,7 @@ import type {
   CollectionWriteOptions
 } from "./collection-contract.js";
 import type { CollectionChangeFeedDispatchPolicy } from "./change-feed-dispatcher.js";
+import { cloneCollectionValue } from "./collection-value-detachment.js";
 
 /**
  * Insert payload delivered to a collection sync adapter.
@@ -234,6 +235,9 @@ const queryKeyName = (queryKey: CollectionQuerySyncKey): string => {
   return `query:${typeof first === "string" || typeof first === "number" ? String(first) : "collection"}`;
 };
 
+const detachQuerySyncKey = (queryKey: CollectionQuerySyncKey): CollectionQuerySyncKey =>
+  cloneCollectionValue(Array.from(queryKey)) as CollectionQuerySyncKey;
+
 /**
  * Convert a sync adapter into `Collection.define` options.
  *
@@ -350,15 +354,17 @@ export const collectionQuerySyncAdapter = <
 >(
   options: CollectionQuerySyncAdapterOptions<A, K, E, R>
 ): CollectionSyncAdapter<A, K, E | EffectInputCallbackError, R> => {
+  const queryKey = detachQuerySyncKey(options.queryKey);
+  const queryKeyInput = (): CollectionQuerySyncKey => detachQuerySyncKey(queryKey);
   const fetch = (): Effect.Effect<ReadonlyArray<A>, E | EffectInputCallbackError, R> =>
     runSyncCallback(() => options.queryClient.fetchQuery({
-      queryKey: options.queryKey,
+      queryKey: queryKeyInput(),
       queryFn: () => options.queryFn()
     }));
   const invalidate = (): Effect.Effect<void, E | EffectInputCallbackError, R> =>
     options.queryClient.invalidateQueries
       ? Effect.flatMap(
-          runSyncCallback(() => options.queryClient.invalidateQueries!({ queryKey: options.queryKey })),
+          runSyncCallback(() => options.queryClient.invalidateQueries!({ queryKey: queryKeyInput() })),
           () => Effect.void
         )
       : Effect.succeed(undefined);
@@ -368,7 +374,7 @@ export const collectionQuerySyncAdapter = <
       : invalidate().pipe(Effect.catch(() => Effect.void));
 
   return {
-    name: options.name ?? queryKeyName(options.queryKey),
+    name: options.name ?? queryKeyName(queryKey),
     load: fetch,
     refetch: (): Effect.Effect<ReadonlyArray<A>, E | EffectInputCallbackError, R> =>
       Effect.gen(function* () {

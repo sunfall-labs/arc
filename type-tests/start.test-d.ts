@@ -15,9 +15,11 @@ import {
   startRequestCountMetric,
   startRequestDurationMetric,
   startRequestStatusMetric,
+  resolveStartTransportEndpointsEffect,
   StartAppGraphDiagnosticsDtoError,
   StartAppGraphMissingWireSchemas,
   StartAppGraphParseError,
+  StartTransportEndpointConflictError,
   StartAppGraphUnknownActionBehavior,
   submitStartActionEffect,
   validateStartAppGraphActionBehaviorEffect,
@@ -37,6 +39,7 @@ import {
   type StartAppGraphDiagnosticsPolicyViolation,
   type StartAppGraphRoutePreloadCollectionsPolicy,
   type StartAppGraphRoutePreloadResourcesPolicy,
+  type StartEndpointConflictErrorInput,
   type StartFetch,
   type StartAppGraphWireSchemaPolicy,
   type HydrateStartPayloadOptions,
@@ -88,9 +91,11 @@ const startExports: Array<unknown> = [
   startRequestCountMetric,
   startRequestDurationMetric,
   startRequestStatusMetric,
+  resolveStartTransportEndpointsEffect,
   StartAppGraphDiagnosticsDtoError,
   StartAppGraphMissingWireSchemas,
   StartAppGraphParseError,
+  StartTransportEndpointConflictError,
   StartAppGraphUnknownActionBehavior,
   submitStartActionEffect,
   validateStartAppGraphActionBehaviorEffect,
@@ -112,6 +117,7 @@ type StartTypes =
   | StartAppGraphDiagnosticsPolicyViolation
   | StartAppGraphRoutePreloadCollectionsPolicy
   | StartAppGraphRoutePreloadResourcesPolicy
+  | StartEndpointConflictErrorInput
   | StartAppGraphWireSchemaPolicy
   | HydrateStartPayloadOptions
   | ServerFunctionManifest
@@ -182,6 +188,15 @@ void sortedHydrationChunks;
 void endpointPath;
 void procedureSchemaFlags;
 
+const endpointConflictInput: StartEndpointConflictErrorInput = {
+  rpcPath: "/same",
+  actionPath: "/same",
+  guidance: "Use distinct endpoint paths."
+};
+const endpointConflict = new StartTransportEndpointConflictError(endpointConflictInput);
+void endpointConflict;
+void resolveStartTransportEndpointsEffect;
+
 const traceHeader: StartRequestTraceHeader = { name: "x-effect-ui", value: "ok" };
 const traceCookie: StartRequestTraceCookie = { name: "session", value: "[redacted]" };
 const traceTransport: StartRequestTraceTransport = "ssr";
@@ -235,7 +250,11 @@ const traceTeardownSnapshot: StartRequestTraceTeardownSnapshot = {
 const traceTeardown: StartRequestTraceTeardown = {
   runtimeDisposed: true,
   beforeDispose: traceTeardownSnapshot,
-  afterDispose: traceTeardownSnapshot
+  afterDispose: traceTeardownSnapshot,
+  cleanupFailure: {
+    _tag: "Failure",
+    message: "cleanup failed"
+  }
 };
 const traceRoutePlan: StartRequestTraceRoutePlan = {
   _tag: "Matched",

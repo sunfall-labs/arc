@@ -182,7 +182,11 @@ export const useProgram = <Model, Message, E = never, R = never, ER = never>(
 ): ProgramHandle<Model, Message, Program.RuntimeError<E, ER>> => {
   const runtime = useRuntime<ER>();
   const instance = createComponentScope(() =>
-    runWithRuntime(runtime, () => Program.start<Model, Message, E, R, ER>(definition))
+    runWithRuntime(runtime, () =>
+      Program.start<Model, Message, E, R, ER>(definition, {
+        runtime: runtime as unknown as EffectUiRuntime<R, ER>
+      })
+    )
   );
   const model = useSignal(instance.model);
   const failures = useSignal(instance.failures);

@@ -182,4 +182,6 @@ export interface StartAgentGraphImpact {
 /** Options for impact reports that need root-aware verification commands. */
 export interface StartAgentGraphImpactOptions {
   readonly root?: string;
+  readonly configFile?: string | false;
+  readonly mode?: string;
 }

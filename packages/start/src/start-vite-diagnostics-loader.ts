@@ -22,6 +22,11 @@ import {
   loadStartVirtualModuleEffect,
   resolveStartVirtualModuleId
 } from "./start-virtual-modules.js";
+import {
+  resolveStartTransportEndpointsEffect,
+  type StartTransportEndpointConflictError,
+  type StartTransportEndpointPathError
+} from "./start-transport-endpoints.js";
 
 /** Options for loading resolved app graph diagnostics through Vite. */
 export interface LoadStartAppGraphDiagnosticsOptions {
@@ -50,7 +55,9 @@ export class StartAppGraphDiagnosticsRunnerError extends Data.TaggedError(
 /** Failure channel for loading resolved Start app graph diagnostics through Vite. */
 export type StartAppGraphDiagnosticsLoadError =
   | StartAppGraphDiagnosticsRunnerError
-  | StartAppGraphDiagnosticsPolicyException;
+  | StartAppGraphDiagnosticsPolicyException
+  | StartTransportEndpointPathError
+  | StartTransportEndpointConflictError;
 
 type StartDiagnosticsViteServer = Pick<
   Awaited<ReturnType<typeof createServer>>,
@@ -245,6 +252,12 @@ const loadStartAppGraphDiagnosticsRawEffect = (
 ): Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsLoadError> =>
   Effect.scoped(
     Effect.gen(function* () {
+      if (options.start !== undefined) {
+        yield* resolveStartTransportEndpointsEffect({
+          ...(options.start.rpcPath === undefined ? {} : { rpcPath: options.start.rpcPath }),
+          ...(options.start.actionPath === undefined ? {} : { actionPath: options.start.actionPath })
+        });
+      }
       const server = yield* acquireStartDiagnosticsViteServerEffect(options);
       const module = yield* Effect.tryPromise({
         try: () => server.ssrLoadModule(appGraphRuntimeDiagnosticsVirtualModuleId),

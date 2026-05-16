@@ -11,9 +11,127 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed review is Review 152, immediately after Review 151. Some older review
-entries remain below it from prior ledger merges; use this tip rather than file
-order alone when looking for the latest architecture sweep.
+The newest completed focused review is Review 153, immediately after Review
+152. Some older review entries remain below it from prior ledger merges; use
+this tip rather than file order alone when looking for the latest architecture
+sweep.
+
+## Review 153: Runtime Bounds, Finalization Metrics, And Package Walls
+
+Review153 fixed the fresh Core, DB, Start, LSP/type-surface, and
+package/starter findings from the post-Review152 sweep.
+
+1. Core Program Runtime And Link Preload Seams
+   - Status: fixed.
+   - Files: `packages/core/src/program.ts`,
+     `packages/core/src/browser-router-link.ts`,
+     `packages/react/src/hooks.ts`, `packages/solid/src/hooks.ts`,
+     `packages/core/test/program.test.ts`, `type-tests/core.test-d.ts`,
+     `type-tests/framework.test-d.ts`,
+     `docs/public-api-inventory.md`.
+   - Problem: serviceful Programs could start through the ambient runtime even
+     when TypeScript could not prove the Runtime Spine provided the Program's
+     command, update, and subscription requirements. Router link preloads also
+     accepted requirementful Effects at the Core preloader seam.
+   - Fix: `Program.start(definition, { runtime })` is now the explicit typed
+     runtime-bound Interface for serviceful Programs, and runtime
+     startup/provision errors flow into `Program.RuntimeError`. React and Solid
+     Program hooks pass their captured runtime through that seam. The Core link
+     preloader now accepts only already-provided, requirement-free preload
+     Effects.
+   - Benefits: service discharge has Locality at the Runtime Spine seam instead
+     of being implied by ambient context. Framework Adapters still hide the
+     common case, while type tests prove missing Program services and serviceful
+     Core preloads are rejected.
+
+2. DB Superseded Loads, Query Keys, And Materialization Errors
+   - Status: fixed.
+   - Files: `packages/db/src/collection-sync-load-policy.ts`,
+     `packages/db/src/sync-adapter.ts`,
+     `packages/db/src/live-query-collection-materialization.ts`,
+     `packages/db/test/collection.test.ts`,
+     `packages/db/test/sync-adapter.test.ts`,
+     `packages/db/test/live-query-collection.test.ts`.
+   - Problem: stale superseded load attempts still had ambiguous completion
+     semantics, query sync Adapters kept sharing a mutable caller-owned query
+     key, and raw live-query materialization throws could escape the collection
+     error Interface.
+   - Fix: superseded attempts now complete from a visible newer Ready state,
+     join an active newer generation, or fail from the visible Failure state.
+     Query sync Adapters detach the query key at construction and use owned
+     copies for fetch and invalidation. Live Query Collection materialization
+     normalizes unexpected load/snapshot throws into
+     `EffectInputCallbackError` while preserving codec/callback errors.
+   - Benefits: load generation, query Adapter identity, and materialization
+     failures each have one local policy. Callers get deeper behavior behind
+     the same collection Interfaces without needing generation or cloning
+     discipline.
+
+3. Start Request Finalization And Endpoint Collisions
+   - Status: fixed.
+   - Files: `packages/start/src/request-trace.ts`,
+     `packages/start/src/request-runtime-lifecycle.ts`,
+     `packages/start/src/request-runtime-response.ts`,
+     `packages/start/src/start-transport-endpoints.ts`,
+     `packages/start/src/app-graph.ts`,
+     `packages/start/src/start-manifest-wall.ts`,
+     `packages/start/src/start-vite-diagnostics-loader.ts`,
+     `packages/start/src/start-agent-graph-contract.ts`,
+     `packages/start/src/start-diagnostics-cli-contract.ts`,
+     `packages/start/src/start-diagnostics-cli-runner.ts`,
+     `packages/start/src/index.ts`, `packages/start/test/start.test.ts`,
+     `packages/start/test/app-graph.test.ts`, `type-tests/start.test-d.ts`.
+   - Problem: request duration/status metrics finalized before streaming
+     response lifecycles were done, runtime cleanup failures could obscure the
+     original response failure, RPC/action endpoint collisions were not rejected
+     at every graph/diagnostics seam, and Start impact verify commands dropped
+     diagnostics options.
+   - Fix: request count remains at entry, while status and duration finalize
+     from request runtime finalization events. Runtime disposal uses
+     `Effect.exit`, preserves the original request failure, and records cleanup
+     failure facts in teardown traces. Endpoint collision validation now flows
+     through typed Start transport endpoint Effects at handler, app graph,
+     manifest, and diagnostics seams. Impact verify commands include
+     shell-safe `--root`, `--config`, and `--mode` options.
+   - Benefits: observability now matches the real request lifetime, cleanup
+     failures are visible without stealing the failure channel, and graph/CLI
+     consumers get the same endpoint and verification policy as runtime
+     Adapters.
+
+4. Package, Starter, And Effect-First Guardrail Depth
+   - Status: fixed.
+   - Files: `scripts/audit-effect-first.mjs`,
+     `scripts/package-project-console-starter.mjs`,
+     `scripts/verify-package-dry-runs.mjs`,
+     `scripts/workspace-package-discovery.mjs`,
+     `scripts/package-manifest-targets.mjs`,
+     `scripts/generated-starter-artifacts.mjs`.
+   - Problem: workspace package discovery was duplicated, package dry-runs did
+     not prove manifest targets existed in payloads, starter generated-artifact
+     checks knew only one route file, leak-scan parity was too shallow, and the
+     Promise static guardrail relied on regexes for increasingly rich syntax.
+   - Fix: package/starter scripts now share Effect-backed workspace discovery,
+     validate `exports`, `bin`, `main`, and `types` targets against packed and
+     local Adapter payloads, use an explicit route/virtual generated artifact
+     registry, require source starter leak-scan parity, and audit Promise
+     statics through the TypeScript AST across direct, global, alias,
+     extraction, and `.call/.apply/.bind` forms.
+   - Benefits: package and starter copyability checks have stronger release
+     leverage, while the Effect-first policy is enforced by syntax-aware
+     analysis instead of fragile text matching.
+
+Focused verification passed: Core/React/Solid/DB/Start package typechecks,
+public type tests, public API audit, Effect-first audit over 272 files,
+script syntax checks, Core Program/router tests 2 files / 25 tests,
+React/Solid hook/router tests 4 files / 62 tests, DB collection/sync
+adapter/live-query/SQLite tests 4 files / 172 tests, Start start/RPC/app-graph
+tests 3 files / 182 tests, generated starter packaging at 19/24/30 app files
+with 5/4/6 local packages, the 16-target package dry-run gate, and `git diff
+--check`.
+
+Full `pnpm verify` is still last recorded after Review152. Run it after this
+focused Review153 slice before claiming a new full verification gate or
+starting the clean-sweep counter.
 
 ## Review 152: Runtime Seams, Router Modules, And Generated Guardrails
 

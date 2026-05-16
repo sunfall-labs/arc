@@ -1,4 +1,4 @@
-import { Effect, Schema, Stream } from "effect";
+import { Context, Effect, Schema, Stream } from "effect";
 import {
   Action,
   ActionResult,
@@ -36,6 +36,7 @@ import {
   makeMemoryBrowserHistoryAdapter,
   makeWindowBrowserHistoryAdapter,
   makeResourceStore,
+  makeBrowserRouterLinkPreloader,
   makeRuntime,
   makeRuntimeUiScope,
   matchRoutePath,
@@ -303,6 +304,21 @@ const preloadDecision: BrowserRouterLinkPreloadDecision = browserRouterLinkPrelo
   preload: true,
   canHandleRoute: true
 });
+interface CoreLinkPreloadApi {
+  readonly warm: () => void;
+}
+const CoreLinkPreloadApi = Context.Service<CoreLinkPreloadApi>("CoreLinkPreloadApi");
+const coreLinkPreloader = makeBrowserRouterLinkPreloader({
+  runtime,
+  enabled: () => true,
+  preloadEffect: () => Effect.void
+});
+makeBrowserRouterLinkPreloader({
+  runtime,
+  enabled: () => true,
+  // @ts-expect-error router link preloads must be provided before reaching the Core preloader
+  preloadEffect: () => CoreLinkPreloadApi.useSync((service) => service.warm())
+});
 const clickDecision: BrowserRouterLinkClickDecision = browserRouterLinkClickDecision({
   event: {
     button: 0,
@@ -357,6 +373,7 @@ void projectRouteParams;
 void renderKey;
 void renderDecision;
 void preloadDecision;
+void coreLinkPreloader;
 void clickDecision;
 type _RuntimeShape = RuntimeShape;
 type _AnyRuntimeShape = AnyRuntimeShape;

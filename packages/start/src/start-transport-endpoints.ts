@@ -19,8 +19,17 @@ export interface StartEndpointPathErrorInput {
   readonly guidance: string;
 }
 
+export interface StartEndpointConflictErrorInput {
+  readonly rpcPath: string;
+  readonly actionPath: string;
+  readonly guidance: string;
+}
+
 export const startEndpointPathGuidance =
   "Use an origin-form endpoint path such as `/__effect-ui/rpc`; full URLs, empty paths, and CR/LF characters are not allowed.";
+
+export const startEndpointConflictGuidance =
+  "Use distinct origin-form endpoint paths for RPC and action transports, such as `/__effect-ui/rpc` and `/__effect-ui/action`.";
 
 const urlSchemePattern = /^[A-Za-z][A-Za-z0-9+.-]*:/;
 
@@ -77,6 +86,10 @@ export const validateStartEndpointPathEffect = <Error>(
 export class StartTransportEndpointPathError extends Data.TaggedError(
   "StartTransportEndpointPathError"
 )<StartEndpointPathErrorInput> {}
+
+export class StartTransportEndpointConflictError extends Data.TaggedError(
+  "StartTransportEndpointConflictError"
+)<StartEndpointConflictErrorInput> {}
 
 /** Runtime endpoint paths used by Start RPC and action transports. */
 export interface StartTransportEndpoints {
@@ -169,23 +182,58 @@ const adapterTarget = (value: string | undefined): string | undefined => {
   return trimmed === "" ? undefined : trimmed;
 };
 
+const validateStartTransportEndpointConflict = (
+  endpoints: StartTransportEndpoints
+): StartTransportEndpoints => {
+  if (endpoints.rpcPath !== endpoints.actionPath) {
+    return endpoints;
+  }
+
+  throw new StartTransportEndpointConflictError({
+    rpcPath: endpoints.rpcPath,
+    actionPath: endpoints.actionPath,
+    guidance: startEndpointConflictGuidance
+  });
+};
+
 /** Resolves Start transport endpoint paths from explicit options, manifests, or defaults. */
 export const resolveStartTransportEndpoints = (
   source: StartTransportEndpointSource = {}
-): StartTransportEndpoints => ({
-  rpcPath:
-    endpointPath(source.endpoints?.rpcPath, "rpcPath") ??
-    endpointPath(source.rpcPath, "rpcPath") ??
-    endpointPath(source.serverFunctionManifest?.rpcPath, "rpcPath") ??
-    endpointPath(source.appGraph?.serverFunctions?.rpcPath, "rpcPath") ??
-    defaultStartTransportEndpoints.rpcPath,
-  actionPath:
-    endpointPath(source.endpoints?.actionPath, "actionPath") ??
-    endpointPath(source.actionPath, "actionPath") ??
-    endpointPath(source.actionManifest?.actionPath, "actionPath") ??
-    endpointPath(source.appGraph?.actions?.actionPath, "actionPath") ??
-    defaultStartTransportEndpoints.actionPath
-});
+): StartTransportEndpoints =>
+  validateStartTransportEndpointConflict({
+    rpcPath:
+      endpointPath(source.endpoints?.rpcPath, "rpcPath") ??
+      endpointPath(source.rpcPath, "rpcPath") ??
+      endpointPath(source.serverFunctionManifest?.rpcPath, "rpcPath") ??
+      endpointPath(source.appGraph?.serverFunctions?.rpcPath, "rpcPath") ??
+      defaultStartTransportEndpoints.rpcPath,
+    actionPath:
+      endpointPath(source.endpoints?.actionPath, "actionPath") ??
+      endpointPath(source.actionPath, "actionPath") ??
+      endpointPath(source.actionManifest?.actionPath, "actionPath") ??
+      endpointPath(source.appGraph?.actions?.actionPath, "actionPath") ??
+      defaultStartTransportEndpoints.actionPath
+  });
+
+export const resolveStartTransportEndpointsEffect = (
+  source: StartTransportEndpointSource = {}
+): Effect.Effect<
+  StartTransportEndpoints,
+  StartTransportEndpointPathError | StartTransportEndpointConflictError
+> =>
+  Effect.suspend(() => {
+    try {
+      return Effect.succeed(resolveStartTransportEndpoints(source));
+    } catch (error) {
+      if (
+        error instanceof StartTransportEndpointPathError ||
+        error instanceof StartTransportEndpointConflictError
+      ) {
+        return Effect.fail(error);
+      }
+      throw error;
+    }
+  });
 
 /** Resolves the RPC endpoint used by Start server-function clients. */
 export const resolveStartRpcEndpoint = (

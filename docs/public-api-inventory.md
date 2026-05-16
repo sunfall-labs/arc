@@ -181,10 +181,14 @@ Release decisions:
   centralized model/message
   state. `Program.define(...)` accepts a pure initial model, an
   Effect-returning `update(model, message)` callback, Effect commands, and
-  Stream subscriptions. `Program.start(...)` runs against the active Runtime
-  Spine and UI scope, reports typed update/command/subscription failures through
-  a signal, exposes a bounded `timeline` signal for message, command,
-  subscription, failure, and disposal events, and keeps `dispatchEffect(...)`
+  Stream subscriptions. `Program.start(...)` runs service-free Programs against
+  the active Runtime Spine and UI scope. Serviceful Programs must use
+  `Program.start(definition, { runtime })`, which adds runtime
+  startup/provision errors to the failure channel and rejects runtimes that do
+  not provide the Program's update, command, and subscription requirements.
+  Started Programs report typed update/command/subscription failures through a
+  signal, expose a bounded `timeline` signal for message, command,
+  subscription, failure, and disposal events, and keep `dispatchEffect(...)`
   composable for tests and workflows. Definitions may set `name` and
   `timeline.limit` for devtools-friendly retention. Runtime timeline retention
   and disabled timeline behavior are implemented by the internal Program

@@ -7,7 +7,7 @@ import {
   type Route
 } from "@effect-ui/core";
 import type { AnyCollection } from "@effect-ui/db";
-import { Cause, Clock, Effect, Exit, Metric, Redacted } from "effect";
+import { Cause, Clock, Duration, Effect, Exit, Metric, Redacted } from "effect";
 import {
   makeStartRequestIdEffect,
   startRequestIdHeader,
@@ -153,6 +153,14 @@ export interface StartRequestTraceStream {
 export interface StartRequestTraceTeardownSnapshot extends ResourceStoreDiagnosticsSnapshot {}
 
 /** Request runtime teardown summary captured before and after disposal. */
+interface StartRequestTraceCleanupFailure {
+  /** Best-effort cleanup failure category. */
+  readonly _tag: "Failure" | "Defect" | "Interruption";
+  /** Stringified cleanup failure safe for diagnostics logs. */
+  readonly message: string;
+}
+
+/** Request runtime teardown summary captured before and after disposal. */
 export interface StartRequestTraceTeardown {
   /** Whether the request runtime disposal path completed. */
   readonly runtimeDisposed: boolean;
@@ -170,6 +178,8 @@ export interface StartRequestTraceTeardown {
   readonly beforeDispose?: StartRequestTraceTeardownSnapshot;
   /** Resource Store diagnostics after disposal. */
   readonly afterDispose?: StartRequestTraceTeardownSnapshot;
+  /** Best-effort disposal failure summary when runtime cleanup failed. */
+  readonly cleanupFailure?: StartRequestTraceCleanupFailure;
 }
 
 /** Complete best-effort observability record emitted for a handled Start request. */
@@ -446,12 +456,38 @@ const requestSpanAttributes = (
   };
 };
 
-const exitStatus = <A, E>(exit: Exit.Exit<A, E>): StartRequestTraceStatus =>
-  Exit.isSuccess(exit)
-    ? "success"
-    : exit.cause.reasons.some(Cause.isInterruptReason)
-      ? "cancelled"
-      : "failure";
+export const startRequestFinalStatus = (
+  facts: StartRequestTraceFacts,
+  status: StartRequestTraceStatus
+): StartRequestTraceStatus =>
+  facts.failureKind === undefined || status === "cancelled"
+    ? status
+    : "failure";
+
+export const finalizeStartRequestMetricsEffect = (
+  request: Request,
+  facts: StartRequestTraceFacts,
+  options: {
+    readonly status: StartRequestTraceStatus;
+    readonly completedAt: number;
+  }
+): Effect.Effect<void> => {
+  const attributes = requestMetricAttributes(request, facts);
+  const status = startRequestFinalStatus(facts, options.status);
+  return Effect.gen(function* () {
+    yield* Metric.update(
+      Metric.withAttributes(startRequestDurationMetric, attributes),
+      Duration.millis(Math.max(0, options.completedAt - facts.startedAt))
+    );
+    yield* Metric.update(
+      Metric.withAttributes(startRequestStatusMetric, {
+        ...attributes,
+        status
+      }),
+      status
+    );
+  });
+};
 
 export const withStartRequestObservability = <A, E, R>(
   request: Request,
@@ -462,14 +498,6 @@ export const withStartRequestObservability = <A, E, R>(
   const observed = Effect.gen(function* () {
     yield* Metric.update(Metric.withAttributes(startRequestCountMetric, attributes), 1);
     const exit = yield* Effect.exit(effect);
-    const status = exitStatus(exit);
-    yield* Metric.update(
-      Metric.withAttributes(startRequestStatusMetric, {
-        ...attributes,
-        status
-      }),
-      status
-    );
     if (Exit.isSuccess(exit)) {
       return exit.value;
     }
@@ -477,7 +505,6 @@ export const withStartRequestObservability = <A, E, R>(
   });
 
   return observed.pipe(
-    Effect.trackDuration(Metric.withAttributes(startRequestDurationMetric, attributes)),
     Effect.annotateLogs(requestLogAnnotations(request, facts)),
     Effect.withSpan("effect-ui.start.request", {
       kind: "server",
@@ -626,9 +653,7 @@ export const buildStartRequestTrace = (
     readonly stream?: StartRequestTraceStream;
   }
 ): StartRequestTrace => {
-  const traceStatus = facts.failureKind === undefined || status === "cancelled"
-    ? status
-    : "failure";
+  const traceStatus = startRequestFinalStatus(facts, status);
   const fiberStatus: StartRequestTraceFiberStatus = traceStatus === "success"
     ? "done"
     : traceStatus === "cancelled" || facts.failureKind === "interruption"
@@ -665,21 +690,52 @@ export const requestRuntimeTeardownSnapshot = <RuntimeServices, RuntimeError>(
 export const requestRuntimeDisposeTraceEffect = <RuntimeServices, RuntimeError>(
   runtime: EffectUiRuntime<RuntimeServices, RuntimeError>
 ): Effect.Effect<{
+  readonly runtimeDisposed: boolean;
   readonly beforeDispose: StartRequestTraceTeardownSnapshot;
   readonly afterDispose: StartRequestTraceTeardownSnapshot;
   readonly completedAt: number;
+  readonly cleanupFailure?: StartRequestTraceCleanupFailure;
 }> =>
   Effect.gen(function* () {
     const beforeDispose = requestRuntimeTeardownSnapshot(runtime);
-    yield* runtime.disposeEffect;
+    const disposeExit = yield* Effect.exit(runtime.disposeEffect);
     const afterDispose = requestRuntimeTeardownSnapshot(runtime);
     const completedAt = yield* Clock.currentTimeMillis;
     return {
+      runtimeDisposed: Exit.isSuccess(disposeExit),
       beforeDispose,
       afterDispose,
-      completedAt
+      completedAt,
+      ...(Exit.isSuccess(disposeExit)
+        ? {}
+        : { cleanupFailure: startRequestTraceCleanupFailure(disposeExit.cause) })
     };
   });
+
+const startRequestTraceCleanupFailure = <E>(
+  cause: Cause.Cause<E>
+): StartRequestTraceCleanupFailure => {
+  const failReason = cause.reasons.find(Cause.isFailReason);
+  if (failReason !== undefined) {
+    return {
+      _tag: "Failure",
+      message: String(failReason.error)
+    };
+  }
+
+  if (cause.reasons.some(Cause.isInterruptReason)) {
+    return {
+      _tag: "Interruption",
+      message: "Runtime cleanup was interrupted."
+    };
+  }
+
+  const defect = cause.reasons.find(Cause.isDieReason)?.defect;
+  return {
+    _tag: "Defect",
+    message: defect instanceof Error ? defect.message : String(Cause.squash(cause))
+  };
+};
 
 export const startRequestTraceTeardown = (
   facts: StartRequestTraceFacts,
@@ -689,6 +745,7 @@ export const startRequestTraceTeardown = (
     readonly completedAt: number;
     readonly beforeDispose: StartRequestTraceTeardownSnapshot;
     readonly afterDispose: StartRequestTraceTeardownSnapshot;
+    readonly cleanupFailure?: StartRequestTraceCleanupFailure;
   }
 ): StartRequestTraceTeardown => ({
   runtimeDisposed: options.runtimeDisposed,
@@ -698,5 +755,6 @@ export const startRequestTraceTeardown = (
   completedAt: options.completedAt,
   durationMillis: Math.max(0, options.completedAt - facts.startedAt),
   beforeDispose: options.beforeDispose,
-  afterDispose: options.afterDispose
+  afterDispose: options.afterDispose,
+  ...(options.cleanupFailure === undefined ? {} : { cleanupFailure: options.cleanupFailure })
 });

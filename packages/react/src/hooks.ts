@@ -209,7 +209,11 @@ export const useProgram = <Model, Message, E = never, R = never, ER = never>(
       runtime,
       scope,
       instance: runWithRuntime(runtime, () =>
-        runWithScope(scope, () => Program.start<Model, Message, E, R, ER>(definition))
+        runWithScope(scope, () =>
+          Program.start<Model, Message, E, R, ER>(definition, {
+            runtime: runtime as unknown as EffectUiRuntime<R, ER>
+          })
+        )
       )
     };
   }

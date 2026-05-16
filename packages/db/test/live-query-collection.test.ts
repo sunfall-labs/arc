@@ -24,6 +24,12 @@ interface NestedProjectCard {
   };
 }
 
+interface FunctionProjectCard {
+  readonly id: string;
+  readonly name: string;
+  readonly render: () => string;
+}
+
 describe("Collection.liveQuery", () => {
   it("reports synchronous query callback throws as typed evaluation errors", () =>
     Effect.runPromise(
@@ -1009,6 +1015,57 @@ describe("Collection.liveQuery", () => {
             operation: "snapshot"
           });
         }
+      })
+    ));
+
+  it("normalizes unsupported live query collection projection fingerprints as EffectInput callback errors", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const Projects = Collection.define<Project>({
+          name: "Projects.live-query-collection.unsupported-projection-source",
+          getKey: (project) => project.id,
+          initialData: [
+            { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+          ]
+        });
+        const ProjectCards = Collection.liveQuery<FunctionProjectCard, string>({
+          name: "ProjectCards.live-query-collection.unsupported-projection",
+          getKey: (project) => project.id,
+          query: (query) =>
+            query
+              .from({ project: Projects })
+              .select(({ project }) => ({
+                id: project.id,
+                name: project.name,
+                render: () => project.name
+              }))
+        });
+
+        const state = ProjectCards.state().get();
+        expect(state).toMatchObject({
+          _tag: "Failure",
+          waiting: false,
+          error: {
+            _tag: "EffectInputCallbackError",
+            operation: "Collection.materialize(ProjectCards.live-query-collection.unsupported-projection).load",
+            cause: {
+              _tag: "StableStringifyUnsupportedValue",
+              valueType: "function"
+            }
+          }
+        });
+        expect(ProjectCards.rows()).toEqual([]);
+
+        const snapshotFailure = yield* Effect.flip(ProjectCards.snapshotEffect());
+        expect(snapshotFailure).toBeInstanceOf(EffectInputCallbackError);
+        expect(snapshotFailure).toMatchObject({
+          _tag: "EffectInputCallbackError",
+          operation: "Collection.materialize(ProjectCards.live-query-collection.unsupported-projection).snapshot",
+          cause: {
+            _tag: "StableStringifyUnsupportedValue",
+            valueType: "function"
+          }
+        });
       })
     ));
 

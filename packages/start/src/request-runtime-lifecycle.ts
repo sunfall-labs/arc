@@ -12,6 +12,7 @@ import {
 import {
   buildStartRequestTrace,
   emitStartRequestTraceEffect,
+  finalizeStartRequestMetricsEffect,
   requestRuntimeDisposeTraceEffect,
   startRequestTraceTeardown,
   withStartRequestObservability,
@@ -37,12 +38,15 @@ const emitRequestRuntimeFailureTraceEffect = <RuntimeServices, RuntimeError>(
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
     const teardown = yield* requestRuntimeDisposeTraceEffect(options.runtime);
+    yield* finalizeStartRequestMetricsEffect(options.request, options.traceFacts, {
+      status: interrupted ? "cancelled" : "failure",
+      completedAt: teardown.completedAt
+    });
     if (options.onRequestTrace !== undefined) {
       yield* emitStartRequestTraceEffect(
         options.onRequestTrace,
         buildStartRequestTrace(options.request, options.traceFacts, interrupted ? "cancelled" : "failure", {
           teardown: startRequestTraceTeardown(options.traceFacts, {
-            runtimeDisposed: true,
             reason: interrupted ? "interruption" : "request-failure",
             ...teardown
           })
@@ -58,25 +62,32 @@ const requestRuntimeFinalizeOptions = <RuntimeServices, RuntimeError>(
   >,
   response: Response
 ) =>
-  options.onRequestTrace === undefined
-    ? {}
-    : {
-        onFinalize: (state: RequestRuntimeFinalizeState) =>
-          emitStartRequestTraceEffect(
+  ({
+    onFinalize: (state: RequestRuntimeFinalizeState) =>
+      Effect.gen(function* () {
+        yield* finalizeStartRequestMetricsEffect(options.request, options.traceFacts, {
+          status: state.status,
+          completedAt: state.completedAt
+        });
+        if (options.onRequestTrace !== undefined) {
+          yield* emitStartRequestTraceEffect(
             options.onRequestTrace,
             buildStartRequestTrace(options.request, options.traceFacts, state.status, {
               response,
               teardown: startRequestTraceTeardown(options.traceFacts, {
-                runtimeDisposed: true,
                 reason: state.teardownReason,
+                runtimeDisposed: state.runtimeDisposed,
                 beforeDispose: state.beforeDispose,
                 afterDispose: state.afterDispose,
-                completedAt: state.completedAt
+                completedAt: state.completedAt,
+                ...(state.cleanupFailure === undefined ? {} : { cleanupFailure: state.cleanupFailure })
               }),
               ...(state.stream === undefined ? {} : { stream: state.stream })
             })
-          )
-      };
+          );
+        }
+      })
+  });
 
 /**
  * Runs a selected Start response Effect through Request Runtime lifecycle.

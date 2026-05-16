@@ -1,14 +1,14 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { readFile, readdir, stat } from "node:fs/promises";
-import { dirname, relative, resolve, sep } from "node:path";
+import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Data, Effect } from "effect";
+import { manifestTargetValidationFailures } from "./package-manifest-targets.mjs";
+import { collectWorkspacePackageManifests } from "./workspace-package-discovery.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = dirname(__dirname);
-const workspaceManifestPath = resolve(workspaceRoot, "pnpm-workspace.yaml");
 
 class PackageDryRunError extends Data.TaggedError("PackageDryRunError") {}
 
@@ -56,182 +56,7 @@ const forbiddenFileNames = new Set([
   "yarn.lock",
 ]);
 
-const toPosixPath = (filePath) => filePath.split(sep).join("/");
-
-const relativeToWorkspace = (filePath) =>
-  toPosixPath(relative(workspaceRoot, filePath));
-
-const fsEffect = (description, evaluate) =>
-  Effect.tryPromise({
-    try: evaluate,
-    catch: (cause) =>
-      fail(
-        `Failed to ${description}.`,
-        "Run from the repository root and check filesystem permissions.",
-        cause,
-      ),
-  });
-
-const parseJsonEffect = (filePath, text) =>
-  Effect.try({
-    try: () => JSON.parse(text),
-    catch: (cause) =>
-      fail(
-        `Failed to parse ${relativeToWorkspace(filePath)}.`,
-        "Keep package.json valid JSON.",
-        cause,
-      ),
-  });
-
-const isNodeNotFoundError = (cause) =>
-  cause &&
-  typeof cause === "object" &&
-  "code" in cause &&
-  cause.code === "ENOENT";
-
-const pathExists = (filePath) =>
-  Effect.tryPromise({
-    try: () => stat(filePath),
-    catch: (cause) => cause,
-  }).pipe(
-    Effect.as(true),
-    Effect.catch((cause) =>
-      isNodeNotFoundError(cause)
-        ? Effect.succeed(false)
-        : Effect.fail(
-            fail(
-              `Failed to check whether ${relativeToWorkspace(filePath)} exists.`,
-              "Run from the repository root and check filesystem permissions.",
-              cause,
-            ),
-          ),
-    ),
-  );
-
-const parseWorkspacePackageGlobs = (text) => {
-  const packageGlobs = [];
-  let inPackages = false;
-  for (const rawLine of text.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (line === "" || line.startsWith("#")) {
-      continue;
-    }
-    if (line === "packages:") {
-      inPackages = true;
-      continue;
-    }
-    if (!inPackages) {
-      continue;
-    }
-    if (!line.startsWith("- ")) {
-      break;
-    }
-    const workspaceGlob = line
-      .slice(2)
-      .trim()
-      .replace(/^['"]|['"]$/g, "");
-    if (workspaceGlob !== "") {
-      packageGlobs.push(workspaceGlob);
-    }
-  }
-  return packageGlobs;
-};
-
-const packageJsonPathsForWorkspaceGlob = (workspaceGlob) =>
-  Effect.gen(function* () {
-    if (
-      workspaceGlob.startsWith("!") ||
-      !workspaceGlob.endsWith("/*") ||
-      workspaceGlob.slice(0, -2).includes("*")
-    ) {
-      return yield* Effect.fail(
-        fail(
-          `Unsupported workspace package glob "${workspaceGlob}".`,
-          "Update package dry-run workspace discovery before changing pnpm-workspace.yaml glob shape.",
-        ),
-      );
-    }
-
-    const parentDirectory = resolve(workspaceRoot, workspaceGlob.slice(0, -2));
-    const entries = yield* fsEffect(
-      `read workspace package glob ${workspaceGlob}`,
-      () => readdir(parentDirectory, { withFileTypes: true }),
-    );
-    const packageJsonPaths = [];
-    for (const entry of entries) {
-      if (!entry.isDirectory()) {
-        continue;
-      }
-      const packageJsonPath = resolve(parentDirectory, entry.name, "package.json");
-      if (yield* pathExists(packageJsonPath)) {
-        packageJsonPaths.push(packageJsonPath);
-      }
-    }
-    return packageJsonPaths.sort((left, right) => left.localeCompare(right));
-  });
-
-const readPackageJson = (packageJsonPath) =>
-  Effect.gen(function* () {
-    const text = yield* fsEffect(
-      `read ${relativeToWorkspace(packageJsonPath)}`,
-      () => readFile(packageJsonPath, "utf8"),
-    );
-    const packageJson = yield* parseJsonEffect(packageJsonPath, text);
-    if (typeof packageJson.name !== "string") {
-      return yield* Effect.fail(
-        fail(
-          `${relativeToWorkspace(packageJsonPath)} must declare a string name field.`,
-          "Keep workspace package manifests package-manager addressable.",
-        ),
-      );
-    }
-    return { packageJsonPath, packageJson };
-  });
-
-const collectWorkspacePackageManifests = Effect.gen(function* () {
-  const workspaceManifest = yield* fsEffect(
-    `read ${relativeToWorkspace(workspaceManifestPath)}`,
-    () => readFile(workspaceManifestPath, "utf8"),
-  );
-  const workspaceGlobs = parseWorkspacePackageGlobs(workspaceManifest);
-  if (workspaceGlobs.length === 0) {
-    return yield* Effect.fail(
-      fail(
-        "pnpm-workspace.yaml does not declare any package globs.",
-        "Declare workspace packages before running package dry-run verification.",
-      ),
-    );
-  }
-
-  const packageJsonPaths = (yield* Effect.forEach(
-    workspaceGlobs,
-    packageJsonPathsForWorkspaceGlob,
-  )).flat();
-  const manifests = yield* Effect.forEach(packageJsonPaths, readPackageJson);
-  const names = new Set();
-  const duplicateNames = [];
-  for (const manifest of manifests) {
-    const name = manifest.packageJson.name;
-    if (names.has(name)) {
-      duplicateNames.push(name);
-    }
-    names.add(name);
-  }
-  if (duplicateNames.length > 0) {
-    return yield* Effect.fail(
-      fail(
-        "Workspace package manifests declare duplicate package names.",
-        `Make package names unique before package dry-run verification: ${duplicateNames.join(", ")}.`,
-      ),
-    );
-  }
-
-  return manifests.sort((left, right) =>
-    left.packageJson.name.localeCompare(right.packageJson.name)
-  );
-});
-
-const workspacePackageTargets = collectWorkspacePackageManifests.pipe(
+const workspacePackageTargets = collectWorkspacePackageManifests(workspaceRoot).pipe(
   Effect.flatMap((manifests) =>
     Effect.gen(function* () {
       const discoveredNames = new Set(manifests.map((manifest) => manifest.packageJson.name));
@@ -267,6 +92,7 @@ const workspacePackageTargets = collectWorkspacePackageManifests.pipe(
       return manifests.map((manifest) => ({
         label: manifest.packageJson.name,
         filter: manifest.packageJson.name,
+        packageJson: manifest.packageJson,
         ...packagePayloadPolicies.get(manifest.packageJson.name),
       }));
     }),
@@ -379,12 +205,29 @@ const verifyPackageTarget = (target) =>
     const pack = yield* parsePackOutput(target, stdout);
     const files = pack.files.map((file) => file.path).sort((left, right) => left.localeCompare(right));
     const forbidden = files.filter((file) => hasForbiddenPath(target, file));
+    const missingManifestTargets = manifestTargetValidationFailures({
+      packageName: target.label,
+      packageJson: target.packageJson,
+      files,
+      payloadLabel: `${target.label} package dry-run`,
+    });
 
     if (target.requiresGitignore && !files.includes(".gitignore")) {
       return yield* Effect.fail(
         fail(
           `${target.label} package dry-run is missing .gitignore.`,
           "Add .gitignore to the package files allowlist so copied examples keep local artifact hygiene.",
+        ),
+      );
+    }
+    if (missingManifestTargets.length > 0) {
+      return yield* Effect.fail(
+        fail(
+          `${target.label} package dry-run contains manifest targets that are missing from the payload.`,
+          [
+            "Build the package or fix package.json exports/bin/main/types targets before publishing.",
+            ...missingManifestTargets,
+          ].join(" "),
         ),
       );
     }

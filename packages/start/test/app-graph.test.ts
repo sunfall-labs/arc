@@ -43,6 +43,7 @@ import { startDiagnosticsCliVerifyCommandsForQuery } from "../src/start-diagnost
 import { makeActionManifest } from "../src/action-manifest.js";
 import { FileRouteManifestParseError, generateFileRouteManifestArtifact } from "../src/file-routes.js";
 import { makeServerFunctionManifest } from "../src/server-function-manifest.js";
+import { StartTransportEndpointConflictError } from "../src/start-transport-endpoints.js";
 
 describe("Start app graph", () => {
   it("combines route, server function, and action manifests into one deterministic artifact", () => {
@@ -1231,6 +1232,40 @@ describe("Start app graph", () => {
         yield* Effect.sync(() => {
           expect(firstFailure(invalidJson)).toBeInstanceOf(StartAppGraphParseError);
           expect(firstFailure(invalidVersion)).toBeInstanceOf(StartAppGraphParseError);
+        });
+      })
+    );
+  });
+
+  it("rejects app graphs whose RPC and action endpoints collide", () => {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const routes = generateFileRouteManifestArtifact([], {
+          routeDirectory: "src/routes"
+        });
+        const serverFunctions = yield* makeServerFunctionManifest([], {
+          rpcPath: "/same"
+        });
+        const actions = yield* makeActionManifest([], {
+          actionPath: "/same"
+        });
+        const serialized = JSON.stringify({
+          version: 1,
+          routes,
+          serverFunctions,
+          actions
+        });
+        const deserialized = yield* Effect.exit(deserializeStartAppGraph(serialized));
+
+        yield* Effect.sync(() => {
+          expect(() =>
+            createStartAppGraph({
+              routes,
+              serverFunctions,
+              actions
+            })
+          ).toThrow(StartTransportEndpointConflictError);
+          expect(firstFailure(deserialized)).toBeInstanceOf(StartTransportEndpointConflictError);
         });
       })
     );

@@ -271,6 +271,137 @@ describe("Collection", () => {
     }
   });
 
+  it("waits for a newer pending forced refetch before completing a superseded preload", async () => {
+    const runtime = makeRuntime();
+    const preloadStarted = Effect.runSync(Deferred.make<void>());
+    const releasePreload = Effect.runSync(Deferred.make<void>());
+    const refetchStarted = Effect.runSync(Deferred.make<void>());
+    const releaseRefetch = Effect.runSync(Deferred.make<void>());
+    const Projects = Collection.define<Project>({
+      name: "Projects.preload-refetch-pending-completion",
+      getKey: (project) => project.id,
+      load: () =>
+        Effect.gen(function* () {
+          yield* Deferred.succeed(preloadStarted, undefined).pipe(Effect.ignore);
+          yield* Deferred.await(releasePreload);
+          return [
+            { id: "atlas", name: "Atlas Slow", status: "active", progress: 10 }
+          ];
+        }),
+      refetch: () =>
+        Effect.gen(function* () {
+          yield* Deferred.succeed(refetchStarted, undefined).pipe(Effect.ignore);
+          yield* Deferred.await(releaseRefetch);
+          return [
+            { id: "atlas", name: "Atlas Fresh", status: "active", progress: 90 }
+          ];
+        })
+    });
+    let preload: Fiber.Fiber<unknown, unknown> | undefined;
+    let refetch: Fiber.Fiber<unknown, unknown> | undefined;
+
+    try {
+      preload = runtime.runFork(Projects.preloadEffect());
+      await Effect.runPromise(Deferred.await(preloadStarted));
+      refetch = runtime.runFork(Projects.refetchEffect());
+      await Effect.runPromise(Deferred.await(refetchStarted));
+
+      Effect.runSync(Deferred.succeed(releasePreload, undefined));
+      const staleCompletion = await Effect.runPromise(
+        Fiber.await(preload).pipe(Effect.timeoutOption("20 millis"))
+      );
+      expect(Option.isNone(staleCompletion)).toBe(true);
+
+      Effect.runSync(Deferred.succeed(releaseRefetch, undefined));
+      await Effect.runPromise(Fiber.join(preload));
+      await Effect.runPromise(Fiber.join(refetch));
+
+      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
+        name: "Atlas Fresh",
+        progress: 90,
+        $synced: true
+      });
+    } finally {
+      Effect.runSync(Deferred.succeed(releasePreload, undefined).pipe(Effect.ignore));
+      Effect.runSync(Deferred.succeed(releaseRefetch, undefined).pipe(Effect.ignore));
+      if (preload !== undefined) {
+        await Effect.runPromise(Fiber.await(preload));
+      }
+      if (refetch !== undefined) {
+        await Effect.runPromise(Fiber.await(refetch));
+      }
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("fails a superseded successful preload when the newer forced refetch fails", async () => {
+    const runtime = makeRuntime();
+    const preloadStarted = Effect.runSync(Deferred.make<void>());
+    const releasePreload = Effect.runSync(Deferred.make<void>());
+    const refetchStarted = Effect.runSync(Deferred.make<void>());
+    const releaseRefetch = Effect.runSync(Deferred.make<void, string>());
+    const refetchFailure = "fresh refetch failed" as const;
+    const Projects = Collection.define<Project, string, typeof refetchFailure>({
+      name: "Projects.preload-refetch-failure-completion",
+      getKey: (project) => project.id,
+      load: () =>
+        Effect.gen(function* () {
+          yield* Deferred.succeed(preloadStarted, undefined).pipe(Effect.ignore);
+          yield* Deferred.await(releasePreload);
+          return [
+            { id: "atlas", name: "Atlas Slow", status: "active", progress: 10 }
+          ];
+        }),
+      refetch: () =>
+        Effect.gen(function* () {
+          yield* Deferred.succeed(refetchStarted, undefined).pipe(Effect.ignore);
+          yield* Deferred.await(releaseRefetch);
+          return [
+            { id: "atlas", name: "Atlas Fresh", status: "active", progress: 90 }
+          ];
+        })
+    });
+    let preload: Fiber.Fiber<unknown, unknown> | undefined;
+    let refetch: Fiber.Fiber<unknown, unknown> | undefined;
+
+    try {
+      preload = runtime.runFork(Projects.preloadEffect());
+      await Effect.runPromise(Deferred.await(preloadStarted));
+      refetch = runtime.runFork(Projects.refetchEffect());
+      await Effect.runPromise(Deferred.await(refetchStarted));
+
+      Effect.runSync(Deferred.succeed(releasePreload, undefined));
+      const staleCompletion = await Effect.runPromise(
+        Fiber.await(preload).pipe(Effect.timeoutOption("20 millis"))
+      );
+      expect(Option.isNone(staleCompletion)).toBe(true);
+
+      Effect.runSync(Deferred.fail(releaseRefetch, refetchFailure));
+      const preloadExit = await Effect.runPromiseExit(Fiber.join(preload));
+      const refetchExit = await Effect.runPromiseExit(Fiber.join(refetch));
+      expect(Exit.isFailure(preloadExit)).toBe(true);
+      expect(Exit.isFailure(refetchExit)).toBe(true);
+      if (Exit.isFailure(preloadExit) && Exit.isFailure(refetchExit)) {
+        expect(preloadExit.cause.reasons.find(Cause.isFailReason)?.error).toBe(refetchFailure);
+        expect(refetchExit.cause.reasons.find(Cause.isFailReason)?.error).toBe(refetchFailure);
+      }
+      expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
+        _tag: "Failure",
+        error: refetchFailure
+      });
+    } finally {
+      Effect.runSync(Deferred.succeed(releasePreload, undefined).pipe(Effect.ignore));
+      Effect.runSync(Deferred.fail(releaseRefetch, "cleanup").pipe(Effect.ignore));
+      if (preload !== undefined) {
+        await Effect.runPromise(Fiber.await(preload));
+      }
+      if (refetch !== undefined) {
+        await Effect.runPromise(Fiber.await(refetch));
+      }
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
   it("uses Effect schedules for collection load retry policy", async () => {
     let attempts = 0;
     const Projects = Collection.define<Project, string, string>({

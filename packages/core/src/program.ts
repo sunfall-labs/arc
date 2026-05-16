@@ -87,30 +87,105 @@ export {
 import { makeProgramRuntimeInstance } from "./program-runtime.js";
 import { makeProgramStory } from "./program-story.js";
 export { makeProgramStory } from "./program-story.js";
-import { currentOrDefaultRuntime, type AnyEffectUiRuntime } from "./runtime.js";
+import type { ResourceStore as ResourceStoreState } from "./resource-store.js";
+import { currentOrDefaultRuntime, type AnyEffectUiRuntime, type EffectUiRuntime } from "./runtime.js";
 import { getCurrentScope } from "./scope.js";
 
-/** Starts a Program against the current Effect UI runtime and optional UI scope. */
-export const startProgram = <Model, Message, E = never, R = never>(
-  definition: ProgramDefinition<Model, Message, E, R>
-): ProgramInstance<Model, Message, ProgramRuntimeError<E>> =>
-  startProgramWithRuntimeError<Model, Message, E, R, never>(definition);
+type ProgramRuntimeProvidedRequirements<R> = R | ResourceStoreState;
+type ProgramRuntimeRemainingRequirements<RIn, RProvided> =
+  Exclude<RIn, ProgramRuntimeProvidedRequirements<RProvided>>;
+type ProgramRuntimeSatisfied<RIn, RProvided> =
+  [ProgramRuntimeRemainingRequirements<RIn, RProvided>] extends [never] ? unknown : never;
+
+/** Options for starting a Program on an explicit typed Runtime Spine. */
+export interface ProgramStartOptions<RRuntime = never, ER = never> {
+  /** Runtime whose services satisfy the Program's update, command, and subscription requirements. */
+  readonly runtime: EffectUiRuntime<RRuntime, ER>;
+}
+
+type ProgramRuntimeBoundStartOptions<R, RRuntime, ER> = {
+  readonly runtime: EffectUiRuntime<RRuntime, ER> & ProgramRuntimeSatisfied<R, RRuntime>;
+};
 
 /**
- * Starts a Program while preserving Runtime Spine startup/provision errors in
- * the returned failure channel.
+ * Starts a service-free Program against the current Effect UI runtime and optional UI scope.
+ *
+ * Programs whose update, command, or subscription Effects require services must
+ * use `Program.start(definition, { runtime })` so TypeScript can verify the
+ * Runtime Spine provides those services.
  */
-export const startProgramWithRuntimeError = <Model, Message, E = never, R = never, ER = never>(
-  definition: ProgramDefinition<Model, Message, E, R>
-): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>> => {
-  const runtime = currentOrDefaultRuntime() as AnyEffectUiRuntime<ER>;
+export function startProgram<Model, Message, E = never>(
+  definition: ProgramDefinition<Model, Message, E, never>
+): ProgramInstance<Model, Message, ProgramRuntimeError<E>>;
+/**
+ * Starts a Program on an explicit typed Runtime Spine.
+ *
+ * Runtime startup/provision errors are added to the Program failure channel,
+ * and only services supplied by the runtime are discharged from the Program
+ * definition requirements.
+ */
+export function startProgram<
+  Model,
+  Message,
+  E = never,
+  R = never,
+  ER = never,
+  RRuntime = R
+>(
+  definition: ProgramDefinition<Model, Message, E, R>,
+  options: ProgramRuntimeBoundStartOptions<R, RRuntime, ER>
+): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>>;
+export function startProgram<
+  Model,
+  Message,
+  E = never,
+  R = never,
+  ER = never,
+  RRuntime = R
+>(
+  definition: ProgramDefinition<Model, Message, E, R>,
+  options?: ProgramRuntimeBoundStartOptions<R, RRuntime, ER>
+): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>> {
+  const runtime = (options?.runtime ?? currentOrDefaultRuntime()) as AnyEffectUiRuntime<ER>;
   const scope = getCurrentScope();
   return makeProgramRuntimeInstance<Model, Message, E, R, ER>({
     definition,
     runtime,
     scope
   });
-};
+}
+
+/**
+ * Starts a Program while preserving Runtime Spine startup/provision errors in
+ * the returned failure channel.
+ */
+export function startProgramWithRuntimeError<Model, Message, E = never>(
+  definition: ProgramDefinition<Model, Message, E, never>
+): ProgramInstance<Model, Message, ProgramRuntimeError<E>>;
+export function startProgramWithRuntimeError<
+  Model,
+  Message,
+  E = never,
+  R = never,
+  ER = never,
+  RRuntime = R
+>(
+  definition: ProgramDefinition<Model, Message, E, R>,
+  options: ProgramRuntimeBoundStartOptions<R, RRuntime, ER>
+): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>>;
+export function startProgramWithRuntimeError<
+  Model,
+  Message,
+  E = never,
+  R = never,
+  ER = never,
+  RRuntime = R
+>(
+  definition: ProgramDefinition<Model, Message, E, R>,
+  options?: ProgramRuntimeBoundStartOptions<R, RRuntime, ER>
+): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>> {
+  return startProgram(definition, options as ProgramRuntimeBoundStartOptions<R, RRuntime, ER>);
+}
 
 /** Public namespace facade for defining, starting, testing, and typing Programs. */
 export namespace Program {
@@ -122,6 +197,10 @@ export namespace Program {
   export type Failure<Message, E> = ProgramFailure<Message, E>;
   /** Program failure channel plus Runtime Spine provision/startup failures. */
   export type RuntimeError<E, ER = never> = ProgramRuntimeError<E, ER>;
+  /** Options for starting a Program on an explicit typed Runtime Spine. */
+  export type StartOptions<RRuntime = never, ER = never> = ProgramStartOptions<RRuntime, ER>;
+  /** Services still required after applying a typed Runtime Spine to a Program. */
+  export type RuntimeRemainingRequirements<RIn, RProvided> = ProgramRuntimeRemainingRequirements<RIn, RProvided>;
   /** Timeline retention settings for Program runtime events. */
   export type TimelineOptions = ProgramTimelineOptions;
   /** Union of message, command, subscription, failure, and disposal timeline events. */
@@ -178,8 +257,8 @@ export namespace Program {
   export const step = programStepEffect;
   /** Creates a deterministic Program story for tests and examples. */
   export const story = makeProgramStory;
-  /** Starts a Program on the current Runtime Spine and UI scope. */
-  export const start = startProgramWithRuntimeError;
+  /** Starts a Program on the current or explicit Runtime Spine and UI scope. */
+  export const start = startProgram;
   /** Returns a pure model update step with no commands. */
   export const next = programNext;
   /** Creates a command that can emit a follow-up message through Effect. */

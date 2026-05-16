@@ -1,5 +1,4 @@
 import { Effect, Fiber } from "effect";
-import type { AnyEffectUiRuntime } from "./runtime.js";
 import type { BrowserNavigateOptions } from "./browser-router-history-adapter.js";
 
 /** Mouse event shape used to decide whether a router link should intercept a click. */
@@ -136,14 +135,23 @@ export interface BrowserRouterLinkPreloader {
   interrupt(): void;
 }
 
+/** Runtime capability required by the framework-neutral link preloader. */
+export interface BrowserRouterLinkPreloaderRuntime<ER = unknown> {
+  /** Forks already provided, requirement-free link preload work. */
+  runFork<A, E>(
+    effect: Effect.Effect<A, E, never>,
+    options?: Effect.RunOptions
+  ): Fiber.Fiber<A, E | ER>;
+}
+
 /** Options for the framework-neutral router link preload policy. */
 export interface BrowserRouterLinkPreloaderOptions<ER = unknown> {
   /** Runtime that owns route preload execution and interruption. */
-  readonly runtime: AnyEffectUiRuntime<ER>;
+  readonly runtime: BrowserRouterLinkPreloaderRuntime<ER>;
   /** Dynamic gate for disabled preloads or links outside this router. */
   readonly enabled: () => boolean;
-  /** Builds the current route preload Effect when hover starts. */
-  readonly preloadEffect: () => Effect.Effect<void, unknown, unknown>;
+  /** Builds the current route preload Effect after route services have already been provided. */
+  readonly preloadEffect: () => Effect.Effect<void, unknown, never>;
 }
 
 /**

@@ -37,6 +37,8 @@ export type LiveQueryCollectionMaterializationError =
   | CollectionSnapshotCodecError
   | EffectInputCallbackError;
 
+type LiveQueryCollectionMaterializationOperation = "load" | "snapshot";
+
 type LiveQueryCollectionError<E> =
   | E
   | QueryEvaluationError
@@ -118,6 +120,26 @@ export interface LiveQueryCollectionMaterializationOptions<
   readonly definition: () => LiveQueryCollectionDefinitionForMaterialization<A, K, E, R>;
   readonly snapshotKeyCallbackError: (cause: unknown) => EffectInputCallbackError;
 }
+
+const materializationCallbackError = (
+  collection: string,
+  operation: LiveQueryCollectionMaterializationOperation,
+  cause: unknown
+): EffectInputCallbackError =>
+  new EffectInputCallbackError({
+    operation: `Collection.materialize(${collection}).${operation}`,
+    cause,
+    guidance: "Live query collection materialization must produce collection rows with stable keys and stable-stringifiable values."
+  });
+
+const normalizeMaterializationError = (
+  collection: string,
+  operation: LiveQueryCollectionMaterializationOperation,
+  cause: unknown
+): LiveQueryCollectionMaterializationError =>
+  cause instanceof CollectionSnapshotCodecError || cause instanceof EffectInputCallbackError
+    ? cause
+    : materializationCallbackError(collection, operation, cause);
 
 /**
  * Builds the private Live Query Collection Materialization Module.
@@ -208,7 +230,7 @@ export const makeLiveQueryCollectionMaterialization = <
         materializationError = undefined;
         return replaceObservedProjection(next);
       } catch (error) {
-        materializationError = error as LiveQueryCollectionMaterializationError;
+        materializationError = normalizeMaterializationError(options.name, "load", error);
         return projection ?? replaceObservedProjection(emptyProjection());
       }
     };
@@ -318,12 +340,16 @@ export const makeLiveQueryCollectionMaterialization = <
         return entry === undefined ? undefined : row(entry);
       },
       snapshot: (updatedAt) => {
-        const next = materialize(options.live.state.get().data, "snapshot");
-        return snapshot({
-          ...next,
-          revision: revision + 1,
-          updatedAt
-        }, updatedAt);
+        try {
+          const next = materialize(options.live.state.get().data, "snapshot");
+          return snapshot({
+            ...next,
+            revision: revision + 1,
+            updatedAt
+          }, updatedAt);
+        } catch (error) {
+          throw normalizeMaterializationError(options.name, "snapshot", error);
+        }
       }
     };
     storeAdapters.set(store, adapter);
@@ -341,9 +367,7 @@ export const makeLiveQueryCollectionMaterialization = <
         return adapter.snapshot(updatedAt);
       }),
       catch: (cause) =>
-        cause instanceof CollectionSnapshotCodecError || cause instanceof EffectInputCallbackError
-          ? cause
-          : options.snapshotKeyCallbackError(cause)
+        normalizeMaterializationError(options.name, "snapshot", cause)
     });
   const snapshotWithStore = (
     store: RuntimeCollectionStore,

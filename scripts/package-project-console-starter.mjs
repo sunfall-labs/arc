@@ -5,6 +5,8 @@ import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promi
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Data, Effect } from "effect";
+import { generatedStarterArtifactsFor } from "./generated-starter-artifacts.mjs";
+import { manifestTargetValidationFailures } from "./package-manifest-targets.mjs";
 import {
   basicStarterReadme,
   projectConsoleStarterReadme,
@@ -14,10 +16,13 @@ import {
   solidStarterTsConfig,
   solidStarterViteConfig,
 } from "./starter-template-content.mjs";
+import {
+  collectWorkspacePackageManifests,
+  localPackageDirectoryName,
+} from "./workspace-package-discovery.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = resolve(__dirname, "..");
-const packagesDir = resolve(workspaceRoot, "packages");
 const startersOutputRoot = resolve(workspaceRoot, ".test-dist/starters");
 const localPackagesDirectoryName = ".effect-ui-packages";
 const localLockfileName = "pnpm-lock.yaml";
@@ -163,14 +168,9 @@ const forbiddenGeneratedReadmeFragments = [
   "pnpm starter:package",
   ".test-dist/starters",
 ];
-const generatedAppContentFiles = ["src/routeTree.gen.ts"];
-
 const toPosixPath = (filePath) => filePath.split(sep).join("/");
 
 const relativeTo = (from, to) => toPosixPath(relative(from, to));
-
-const localPackageDirectoryName = (packageName) =>
-  packageName.replace(/^@/, "").replace(/\//g, "-");
 
 const hasForbiddenSegment = (relativePath, forbiddenSegments) =>
   relativePath
@@ -212,14 +212,74 @@ const pathExists = (filePath) =>
     ),
   );
 
-const assertStarterLeakScansMatch = (starters) =>
+const verifyRunsLeakScan = (script) =>
+  /(?:^|&&|;)\s*pnpm\s+leak-scan(?:\s|$)/.test(script);
+
+const assertStarterLeakScanParity = (starters) =>
   Effect.gen(function* () {
     const leakScanRelativePath = "scripts/leak-scan.mjs";
     const leakScans = [];
     for (const starter of starters) {
+      const packageJson = yield* readPackageJson(resolve(starter.sourceDir, "package.json"));
+      const scripts = packageJson.scripts;
+      if (
+        typeof scripts !== "object" ||
+        scripts === null ||
+        typeof scripts["leak-scan"] !== "string" ||
+        scripts["leak-scan"].trim() === ""
+      ) {
+        return yield* Effect.fail(
+          fail(
+            `${starter.displayName} package.json must declare scripts.leak-scan.`,
+            "Every copyable starter must keep the production leak scan runnable.",
+          ),
+        );
+      }
+      if (
+        typeof scripts.verify !== "string" ||
+        !verifyRunsLeakScan(scripts.verify)
+      ) {
+        return yield* Effect.fail(
+          fail(
+            `${starter.displayName} package.json verify script must run pnpm leak-scan.`,
+            "Keep standalone starter verification aligned with the workspace leak-scan policy.",
+          ),
+        );
+      }
+
+      const patterns = packageJson.effectUiLeakScan?.patterns;
+      if (
+        !Array.isArray(patterns) ||
+        patterns.length === 0 ||
+        patterns.some((pattern) => typeof pattern !== "string" || pattern.trim() === "")
+      ) {
+        return yield* Effect.fail(
+          fail(
+            `${starter.displayName} package.json must declare nonempty effectUiLeakScan.patterns.`,
+            "Declare the server-only text patterns this starter must keep out of dist.",
+          ),
+        );
+      }
+      for (const pattern of patterns) {
+        yield* Effect.try({
+          try: () => new RegExp(pattern),
+          catch: (cause) =>
+            fail(
+              `${starter.displayName} effectUiLeakScan pattern is not a valid RegExp: ${pattern}.`,
+              "Keep leak-scan patterns valid so generated starters can verify themselves.",
+              cause,
+            ),
+        });
+      }
+
       const filePath = resolve(starter.sourceDir, leakScanRelativePath);
       if (!(yield* pathExists(filePath))) {
-        continue;
+        return yield* Effect.fail(
+          fail(
+            `${starter.displayName} is missing ${leakScanRelativePath}.`,
+            "Every copyable starter must include the shared leak-scan script.",
+          ),
+        );
       }
       const text = yield* fsEffect(
         `read ${starter.displayName} leak-scan script`,
@@ -283,43 +343,11 @@ const readPackageJson = (packageJsonPath) =>
     return yield* parseJsonEffect(packageJsonPath, text);
   });
 
-const collectWorkspacePackages = Effect.gen(function* () {
-  const entries = yield* fsEffect("read workspace package directories", () =>
-    readdir(packagesDir, { withFileTypes: true }),
-  );
-  const packages = new Map();
-  for (const entry of entries) {
-    if (!entry.isDirectory()) {
-      continue;
-    }
-
-    const directory = resolve(packagesDir, entry.name);
-    const packageJsonPath = resolve(directory, "package.json");
-    const exists = yield* pathExists(packageJsonPath);
-    if (!exists) {
-      continue;
-    }
-
-    const packageJson = yield* readPackageJson(packageJsonPath);
-    if (typeof packageJson.name !== "string" || typeof packageJson.version !== "string") {
-      return yield* Effect.fail(
-        fail(
-          `${relative(workspaceRoot, packageJsonPath)} must declare string name and version fields.`,
-          "Keep package manifests publish-ready before packaging starters.",
-        ),
-      );
-    }
-
-    packages.set(packageJson.name, {
-      directory,
-      packageJson,
-      packageJsonPath,
-      localDirectoryName: localPackageDirectoryName(packageJson.name),
-    });
-  }
-
-  return packages;
-});
+const collectWorkspacePackages = collectWorkspacePackageManifests(workspaceRoot).pipe(
+  Effect.map((manifests) =>
+    new Map(manifests.map((manifest) => [manifest.packageJson.name, manifest]))
+  ),
+);
 
 const workspaceDependencyNames = (packageJson, includeDevDependencies) => {
   const sections = [
@@ -468,6 +496,27 @@ const assertNoStalePackageDistArtifacts = (workspacePackage, sourceDist) =>
     }
   });
 
+const assertManifestTargetsInPayload = (label, packageJson, files) =>
+  Effect.gen(function* () {
+    const failures = manifestTargetValidationFailures({
+      packageName: packageJson.name,
+      packageJson,
+      files,
+      payloadLabel: label,
+    });
+    if (failures.length > 0) {
+      return yield* Effect.fail(
+        fail(
+          `${label} contains manifest targets that are missing from the payload.`,
+          [
+            "Build the package or fix package.json exports/bin/main/types targets before packaging starters.",
+            ...failures,
+          ].join(" "),
+        ),
+      );
+    }
+  });
+
 const ensureFreshWorkspacePackage = (builtPackageNames, workspacePackage) =>
   Effect.gen(function* () {
     const packageName = workspacePackage.packageJson.name;
@@ -531,6 +580,12 @@ const writeLocalWorkspacePackage = (starter, workspacePackages, builtPackageName
     yield* fsEffect(
       `write local ${workspacePackage.packageJson.name} package.json`,
       () => writeFile(resolve(localPackageDir, "package.json"), stringifyJson(localPackageJson)),
+    );
+    const localPackageFiles = yield* collectFiles(localPackageDir);
+    yield* assertManifestTargetsInPayload(
+      `${workspacePackage.packageJson.name} generated local package adapter`,
+      localPackageJson,
+      localPackageFiles,
     );
   });
 
@@ -603,10 +658,20 @@ const assertNoWorkspaceProtocol = (starter) =>
     }
   });
 
-const assertGeneratedAppContentMatchesSource = (starter) =>
+const assertGeneratedStarterArtifactsMatchSource = (starter) =>
   Effect.gen(function* () {
+    const artifacts = generatedStarterArtifactsFor(starter.id);
+    if (artifacts.length === 0) {
+      return yield* Effect.fail(
+        fail(
+          `Generated ${starter.displayName} has no declared route or virtual artifacts.`,
+          "Declare generated starter artifacts before packaging so standalone verify cannot silently repair them.",
+        ),
+      );
+    }
     const changed = [];
-    for (const file of generatedAppContentFiles) {
+    for (const artifact of artifacts) {
+      const file = artifact.file;
       const sourcePath = resolve(starter.sourceDir, file);
       const generatedPath = resolve(starter.outputDir, file);
       const sourceExists = yield* pathExists(sourcePath);
@@ -636,7 +701,7 @@ const assertGeneratedAppContentMatchesSource = (starter) =>
         fail(
           `Generated ${starter.displayName} app content drifted during standalone verify.`,
           [
-            `Changed generated files: ${changed.join(", ")}`,
+            `Changed route/virtual artifacts: ${changed.join(", ")}`,
             "Regenerate and commit these source starter artifacts before packaging so Vite does not silently repair the copied starter.",
           ].join(" "),
         ),
@@ -687,7 +752,7 @@ const parsePackDryRunOutput = (starter, stdout) =>
     return pack;
   });
 
-const assertGeneratedStarterPackageDryRun = (starter, internalPackageNames) =>
+const assertGeneratedStarterPackageDryRun = (starter, workspacePackages, internalPackageNames) =>
   Effect.gen(function* () {
     const packageJson = yield* readPackageJson(resolve(starter.outputDir, "package.json"));
     const { stdout } = yield* commandEffect(
@@ -743,6 +808,33 @@ const assertGeneratedStarterPackageDryRun = (starter, internalPackageNames) =>
     const unknownLocalPackageReferences = referencedLocalPackageDirectories.filter((directory) =>
       !expectedLocalPackageDirectorySet.has(directory)
     );
+    const localPackageManifestTargetFailures = [];
+    for (const packageName of internalPackageNames) {
+      const workspacePackage = workspacePackages.get(packageName);
+      if (workspacePackage === undefined) {
+        return yield* Effect.fail(
+          fail(
+            `Generated ${starter.displayName} references ${packageName}, but no workspace package manifest declares it.`,
+            "Keep generated local package adapter validation aligned with workspace package discovery.",
+          ),
+        );
+      }
+      const prefix = `${localPackagesDirectoryName}/${workspacePackage.localDirectoryName}/`;
+      const adapterFiles = files
+        .filter((file) => file.startsWith(prefix))
+        .map((file) => file.slice(prefix.length));
+      const localPackageJson = yield* readPackageJson(
+        resolve(starter.outputDir, prefix, "package.json"),
+      );
+      localPackageManifestTargetFailures.push(
+        ...manifestTargetValidationFailures({
+          packageName,
+          packageJson: localPackageJson,
+          files: adapterFiles,
+          payloadLabel: `generated ${starter.displayName} ${packageName} local package adapter`,
+        }),
+      );
+    }
 
     if (missingLocalPackages.length > 0 || unexpectedLocalPackages.length > 0) {
       return yield* Effect.fail(
@@ -773,6 +865,17 @@ const assertGeneratedStarterPackageDryRun = (starter, internalPackageNames) =>
             unreferencedLocalPackages.length > 0 ? `Unreferenced adapters: ${unreferencedLocalPackages.join(", ")}` : undefined,
             unknownLocalPackageReferences.length > 0 ? `Unknown references: ${unknownLocalPackageReferences.join(", ")}` : undefined,
           ].filter(Boolean).join(" "),
+        ),
+      );
+    }
+    if (localPackageManifestTargetFailures.length > 0) {
+      return yield* Effect.fail(
+        fail(
+          `Generated ${starter.displayName} package dry-run contains local package manifest targets missing from the tarball.`,
+          [
+            "Keep generated local package adapter exports/bin/main/types targets inside the packaged payload.",
+            ...localPackageManifestTargetFailures,
+          ].join(" "),
         ),
       );
     }
@@ -984,10 +1087,10 @@ const packageStarter = (workspacePackages, builtPackageNames, starter) =>
     const verifiedGeneratedAppFiles = yield* collectGeneratedAppFiles();
     yield* assertSameFileManifest(starter, expectedFiles, verifiedGeneratedAppFiles);
     yield* assertNoForbiddenGeneratedAppSegments(starter, verifiedGeneratedAppFiles);
-    yield* assertGeneratedAppContentMatchesSource(starter);
+    yield* assertGeneratedStarterArtifactsMatchSource(starter);
     yield* assertStandaloneReadme(starter);
     yield* assertNoWorkspaceProtocol(starter);
-    yield* assertGeneratedStarterPackageDryRun(starter, internalPackageNames);
+    yield* assertGeneratedStarterPackageDryRun(starter, workspacePackages, internalPackageNames);
 
     return {
       id: starter.id,
@@ -999,7 +1102,7 @@ const packageStarter = (workspacePackages, builtPackageNames, starter) =>
 
 const packageStarters = Effect.gen(function* () {
   const workspacePackages = yield* collectWorkspacePackages;
-  yield* assertStarterLeakScansMatch(starterDefinitions);
+  yield* assertStarterLeakScanParity(starterDefinitions);
   const builtPackageNames = new Set();
   const results = yield* Effect.forEach(starterDefinitions, (starter) =>
     packageStarter(workspacePackages, builtPackageNames, starter)

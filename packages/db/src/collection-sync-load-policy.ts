@@ -123,21 +123,6 @@ const isCurrentLoadAttempt = <E>(
 ): boolean =>
   state.loadGeneration === attempt.generation && state.activeLoad?.generation === attempt.generation;
 
-const SupersededLoadAttemptReadyTypeId: unique symbol = Symbol(
-  "@effect-ui/db/SupersededLoadAttemptReady"
-);
-
-interface SupersededLoadAttemptReady {
-  readonly [SupersededLoadAttemptReadyTypeId]: true;
-}
-
-const supersededLoadAttemptReady: SupersededLoadAttemptReady = {
-  [SupersededLoadAttemptReadyTypeId]: true
-};
-
-const isSupersededLoadAttemptReady = (error: unknown): error is SupersededLoadAttemptReady =>
-  typeof error === "object" && error !== null && SupersededLoadAttemptReadyTypeId in error;
-
 const completeCollectionLoadAttempt = <E>(
   state: CollectionState<any, any, E>,
   attempt: CollectionLoadAttempt,
@@ -152,6 +137,58 @@ const completeCollectionLoadAttempt = <E>(
       exit
     ).pipe(Effect.asVoid);
   });
+
+const effectFromLoadAttemptExit = <E>(
+  exit: Exit.Exit<void, CollectionRuntimeError<E>>
+): Effect.Effect<void, CollectionRuntimeError<E>> =>
+  Exit.isSuccess(exit) ? Effect.void : Effect.failCause(exit.cause);
+
+const supersededLoadAttemptWithoutActiveError = (
+  definition: AnyCollection,
+  state: CollectionState<any, any, any>,
+  attempt: CollectionLoadAttempt
+): EffectInputCallbackError =>
+  new EffectInputCallbackError({
+    operation: `Collection.load(${definition.name}).superseded`,
+    cause: {
+      attemptGeneration: attempt.generation,
+      currentGeneration: state.loadGeneration,
+      loadState: state.loadState.get()._tag
+    },
+    guidance: "A superseded collection load can only complete from a visible Ready or Failure state, or by joining the current active load generation."
+  });
+
+const waitForSupersedingLoadAttempt = <E>(
+  definition: AnyCollection,
+  state: CollectionState<any, any, E>,
+  attempt: CollectionLoadAttempt
+): Effect.Effect<void, CollectionRuntimeError<E>> =>
+  Effect.suspend(() => {
+    const current = state.loadState.get();
+    switch (current._tag) {
+      case "Ready":
+        return Effect.void;
+      case "Failure":
+        return Effect.fail(current.error);
+      case "Initial":
+      case "Pending": {
+        const active = state.activeLoad;
+        return active && active.generation !== attempt.generation
+          ? Deferred.await(active.deferred as Deferred.Deferred<void, CollectionRuntimeError<E>>)
+          : Effect.fail(supersededLoadAttemptWithoutActiveError(definition, state, attempt));
+      }
+    }
+  });
+
+const resolveLoadAttemptCompletion = <E>(
+  definition: AnyCollection,
+  state: CollectionState<any, any, E>,
+  attempt: CollectionLoadAttempt,
+  exit: Exit.Exit<void, CollectionRuntimeError<E>>
+): Effect.Effect<void, CollectionRuntimeError<E>> =>
+  state.loadGeneration === attempt.generation
+    ? effectFromLoadAttemptExit(exit)
+    : waitForSupersedingLoadAttempt(definition, state, attempt);
 
 const collectionLoadOperation = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
@@ -199,12 +236,10 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
     const attempt = ownership.attempt;
     const failCurrentLoad = <Cause>(
       error: Cause
-    ): Effect.Effect<never, Cause | SupersededLoadAttemptReady> =>
+    ): Effect.Effect<never, Cause> =>
       isCurrentLoadAttempt(state, attempt)
         ? failCollectionLoadEffect(store, definition, state, error)
-        : state.loadState.get()._tag === "Ready"
-          ? Effect.fail(supersededLoadAttemptReady)
-          : Effect.fail(error);
+        : Effect.fail(error);
 
     const exit = yield* Effect.exit(Effect.gen(function* () {
       const restored = yield* restoreBeforePreloadEffect(definition, state, store).pipe(
@@ -263,13 +298,8 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
         updatedAt
       });
       yield* persistLoadEffect(definition, store);
-    }).pipe(
-      Effect.catch((error) =>
-        isSupersededLoadAttemptReady(error)
-          ? Effect.void
-          : Effect.fail(error)
-      )
-    ));
-    yield* completeCollectionLoadAttempt(state, attempt, exit);
-    return yield* exit;
+    }));
+    const completionExit = yield* Effect.exit(resolveLoadAttemptCompletion(definition, state, attempt, exit));
+    yield* completeCollectionLoadAttempt(state, attempt, completionExit);
+    return yield* effectFromLoadAttemptExit(completionExit);
   });

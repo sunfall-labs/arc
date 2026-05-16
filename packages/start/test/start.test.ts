@@ -46,6 +46,7 @@ import {
   StartAction,
   StartActionFormEncodeError,
   StartActionDuplicateName,
+  StartTransportEndpointConflictError,
   StartTransportEndpointPathError,
   FileRoutePreloadError,
   type StartFetch,
@@ -1482,6 +1483,137 @@ describe("Effect UI Start", () => {
     );
   });
 
+  it("finalizes RPC failure request metrics from the request runtime finalization event", () => {
+    const FailsDomain = Server.contract<{ readonly value: string }, string, string>("Start.metrics.rpc.failure", {
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.String,
+      error: Schema.String
+    });
+    Server.implement(FailsDomain, () => Effect.fail("metrics-domain-failed"));
+    const app = defineApp({
+      routes: [route("/", {})] as const,
+      client: {}
+    });
+    const handler = createRequestHandler(app);
+    const attributes = {
+      transport: "rpc",
+      method: "POST",
+      path: serverRpcPath
+    };
+    const requestDuration = Metric.withAttributes(startRequestDurationMetric, attributes);
+    const requestSuccessStatus = Metric.withAttributes(startRequestStatusMetric, {
+      ...attributes,
+      status: "success"
+    });
+    const requestFailureStatus = Metric.withAttributes(startRequestStatusMetric, {
+      ...attributes,
+      status: "failure"
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const beforeDuration = yield* Metric.value(requestDuration);
+        const beforeSuccess = yield* Metric.value(requestSuccessStatus);
+        const beforeFailure = yield* Metric.value(requestFailureStatus);
+        const beforeSuccessCount = beforeSuccess.occurrences.get("success") ?? 0;
+        const beforeFailureCount = beforeFailure.occurrences.get("failure") ?? 0;
+
+        const response = yield* handler(
+          new Request(`https://example.com${serverRpcPath}`, {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              name: FailsDomain.name,
+              input: { value: "atlas" }
+            })
+          })
+        );
+        const body = yield* Effect.tryPromise(() => response.json());
+        const afterDuration = yield* Metric.value(requestDuration);
+        const afterSuccess = yield* Metric.value(requestSuccessStatus);
+        const afterFailure = yield* Metric.value(requestFailureStatus);
+
+        yield* Effect.sync(() => {
+          expect(body).toEqual({
+            _tag: "Failure",
+            error: "metrics-domain-failed"
+          });
+          expect(afterDuration.count).toBe(beforeDuration.count + 1);
+          expect(afterSuccess.occurrences.get("success") ?? 0).toBe(
+            beforeSuccessCount
+          );
+          expect(afterFailure.occurrences.get("failure")).toBe(
+            beforeFailureCount + 1
+          );
+        });
+      })
+    );
+  });
+
+  it("waits for streamed close, error, or cancel before finalizing request metrics", () => {
+    const CancelRoute = route("/metrics-cancel", {});
+    const app = defineApp({
+      routes: [CancelRoute] as const,
+      client: {}
+    });
+    const handler = createRequestHandler(app, {
+      render: () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            pull(controller) {
+              controller.enqueue(new TextEncoder().encode("chunk"));
+            }
+          }),
+          {
+            headers: {
+              "content-type": "text/html"
+            }
+          }
+        )
+    });
+    const attributes = {
+      transport: "ssr",
+      method: "GET",
+      path: "/metrics-cancel"
+    };
+    const requestCount = Metric.withAttributes(startRequestCountMetric, attributes);
+    const requestDuration = Metric.withAttributes(startRequestDurationMetric, attributes);
+    const requestCancelledStatus = Metric.withAttributes(startRequestStatusMetric, {
+      ...attributes,
+      status: "cancelled"
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const beforeCount = yield* Metric.value(requestCount);
+        const beforeDuration = yield* Metric.value(requestDuration);
+        const beforeCancelled = yield* Metric.value(requestCancelledStatus);
+        const beforeCancelledCount = beforeCancelled.occurrences.get("cancelled") ?? 0;
+
+        const response = yield* handler(new Request("https://example.com/metrics-cancel"));
+        const midCount = yield* Metric.value(requestCount);
+        const midDuration = yield* Metric.value(requestDuration);
+        const midCancelled = yield* Metric.value(requestCancelledStatus);
+        const midCancelledCount = midCancelled.occurrences.get("cancelled") ?? 0;
+        const reader = response.body!.getReader();
+        yield* Effect.tryPromise(() => reader.read());
+        yield* Effect.tryPromise(() => reader.cancel("metrics-client-left"));
+        const afterDuration = yield* Metric.value(requestDuration);
+        const afterCancelled = yield* Metric.value(requestCancelledStatus);
+
+        yield* Effect.sync(() => {
+          expect(midCount.count).toBe(beforeCount.count + 1);
+          expect(midDuration.count).toBe(beforeDuration.count);
+          expect(midCancelledCount).toBe(beforeCancelledCount);
+          expect(afterDuration.count).toBe(beforeDuration.count + 1);
+          expect(afterCancelled.occurrences.get("cancelled")).toBe(
+            beforeCancelledCount + 1
+          );
+        });
+      })
+    );
+  });
+
   it("emits request traces when request handlers fail", async () => {
     const traces: DevtoolsRequestTrace[] = [];
     const Home = route("/", {});
@@ -1535,6 +1667,58 @@ describe("Effect UI Start", () => {
           }),
           afterDispose: expect.objectContaining({
             fiberCount: 0
+          })
+        })
+      })
+    ]);
+  });
+
+  it("preserves the original handler failure when request runtime cleanup fails", async () => {
+    const traces: DevtoolsRequestTrace[] = [];
+    const Home = route("/", {});
+    const app = defineApp({
+      routes: [Home] as const,
+      client: {}
+    });
+    const handler = createRequestHandler(app, {
+      onRequestTrace: (trace) =>
+        Effect.sync(() => {
+          traces.push(trace);
+        }),
+      render: ({ runtime }) =>
+        Effect.gen(function* () {
+          runtime.resourceStore.moduleRegistry.register(Symbol("cleanup-failure"), {
+            disposeEffect: Effect.fail("cleanup-failed")
+          });
+          return yield* Effect.fail("render-failed");
+        })
+    });
+
+    await expect(
+      Effect.runPromise(
+        handler(
+          new Request("https://example.com/", {
+            headers: {
+              "x-effect-ui-request-id": "req-cleanup-failure"
+            }
+          })
+        )
+      )
+    ).rejects.toMatchObject({
+      _tag: "StartRequestHandlerError",
+      cause: "render-failed"
+    });
+
+    expect(traces).toEqual([
+      expect.objectContaining({
+        request: expect.objectContaining({
+          id: "req-cleanup-failure"
+        }),
+        status: "failure",
+        teardown: expect.objectContaining({
+          runtimeDisposed: false,
+          cleanupFailure: expect.objectContaining({
+            message: "cleanup-failed"
           })
         })
       })
@@ -2203,8 +2387,14 @@ describe("Effect UI Start", () => {
     expect(() => resolveStartTransportEndpoints({ actionPath: "https://example.com/action" })).toThrow(
       StartTransportEndpointPathError
     );
+    expect(() => resolveStartTransportEndpoints({ rpcPath: "/same", actionPath: "/same" })).toThrow(
+      StartTransportEndpointConflictError
+    );
     expect(() => createRequestHandler(app, { rpcPath: "/__effect-ui/rpc\nx" })).toThrow(
       StartTransportEndpointPathError
+    );
+    expect(() => createRequestHandler(app, { rpcPath: "/same", actionPath: "/same" })).toThrow(
+      StartTransportEndpointConflictError
     );
     expect(() =>
       shouldHandleSsrRequest(
@@ -2212,6 +2402,12 @@ describe("Effect UI Start", () => {
         { rpcPath: "https://example.com/rpc" }
       )
     ).toThrow(StartTransportEndpointPathError);
+    expect(() =>
+      shouldHandleSsrRequest(
+        { method: "POST", url: "/same", headers: {} },
+        { rpcPath: "/same", actionPath: "/same" }
+      )
+    ).toThrow(StartTransportEndpointConflictError);
     expect(resolveStartRpcEndpoint({ endpoint: "https://api.example.test/rpc" })).toBe(
       "https://api.example.test/rpc"
     );
@@ -2237,6 +2433,34 @@ describe("Effect UI Start", () => {
       value: { value: "ok" }
     });
     expect(calls).toEqual(["https://api.example.test/action"]);
+  });
+
+  it("rejects RPC/action endpoint collisions at graph and diagnostics seams", async () => {
+    const graphExit = await Effect.runPromiseExit(
+      makeStartBuildAppGraphEffect({
+        rpcPath: "/same",
+        actionPath: "/same"
+      })
+    );
+    const graphFailure = Exit.isFailure(graphExit) ? firstFailure(graphExit.cause) : undefined;
+
+    expect(graphFailure).toBeInstanceOf(StartTransportEndpointConflictError);
+
+    const diagnosticsExit = await Effect.runPromiseExit(
+      loadStartAppGraphDiagnosticsEffect({
+        configFile: false,
+        start: {
+          rpcPath: "/same",
+          actionPath: "/same"
+        },
+        vite: {
+          configFile: false
+        }
+      })
+    );
+    const diagnosticsFailure = Exit.isFailure(diagnosticsExit) ? firstFailure(diagnosticsExit.cause) : undefined;
+
+    expect(diagnosticsFailure).toBeInstanceOf(StartTransportEndpointConflictError);
   });
 
   it("classifies RPC and Start action request trace failures by layer", async () => {
@@ -6660,6 +6884,10 @@ describe("Effect UI Start", () => {
           startAgentGraphCliQueryTextByKind[kind],
           "--root",
           "examples/project-console",
+          "--config",
+          "vite.config.ts",
+          "--mode",
+          "ci",
           "--json"
         ], {
           stdout: (text) => impactStdout.push(text),
@@ -6682,10 +6910,111 @@ describe("Effect UI Start", () => {
       expect(impactPayload.query?.kind).toBe(kind);
       expect(impactPayload.matches).toBeGreaterThan(0);
       expect(impactPayload.items?.[0]?.verify).toEqual([
-        "effect-ui-start diagnostics --root examples/project-console",
-        `effect-ui-start graph ${kind} ${startAgentGraphCliQueryTextByKind[kind]} --root examples/project-console`
+        "effect-ui-start diagnostics --root examples/project-console --config vite.config.ts --mode ci",
+        `effect-ui-start graph ${kind} ${startAgentGraphCliQueryTextByKind[kind]} --root examples/project-console --config vite.config.ts --mode ci`
       ]);
     }
+  });
+
+  it("includes diagnostics load options in JSON impact verify commands", async () => {
+    const stdout: string[] = [];
+    const stderr: string[] = [];
+    const loadOptions: unknown[] = [];
+    const result = await Effect.runPromise(
+      runStartDiagnosticsCliEffect([
+        "impact",
+        "route",
+        "/project spaces/:id",
+        "--root",
+        "examples/project console",
+        "--config",
+        "vite config.ts",
+        "--mode",
+        "ci mode",
+        "--json"
+      ], {
+        stdout: (text) => stdout.push(text),
+        stderr: (text) => stderr.push(text),
+        loadDiagnosticsEffect: (options) => {
+          loadOptions.push(options);
+          return Effect.succeed({
+            graph: {
+              version: 1,
+              routes: { version: 1, entries: [], modules: [], routeDirectory: "src/routes" },
+              serverFunctions: { version: 1, rpcPath: "/__effect-ui/rpc", entries: [] },
+              actions: { version: 1, actionPath: "/__effect-ui/action", entries: [] }
+            },
+            diagnostics: {
+              version: 1,
+              routeCount: 1,
+              serverFunctionCount: 0,
+              actionCount: 0,
+              routePaths: ["/project spaces/:id"],
+              routeModules: [
+                {
+                  routeId: "route_project_spaces_$id",
+                  routePath: "/project spaces/:id",
+                  moduleId: "src/routes/project spaces/$id.tsx",
+                  filePath: "src/routes/project spaces/$id.tsx",
+                  pathParamCount: 1,
+                  hasPathParams: true,
+                  params: [{ name: "id", optional: false }],
+                  paramsSchema: "present",
+                  searchSchema: "absent",
+                  preload: "absent",
+                  preloadResources: {
+                    status: "none",
+                    families: []
+                  },
+                  preloadCollections: {
+                    status: "none",
+                    collections: []
+                  },
+                  component: "present"
+                }
+              ],
+              serverFunctionModules: [],
+              actionModules: [],
+              resourceFamilies: [],
+              resourceTags: [],
+              collectionDefinitions: [],
+              serverOnlyModules: [],
+              browserClientModules: [],
+              rpcPath: "/__effect-ui/rpc",
+              actionPath: "/__effect-ui/action",
+              schemaCoverage: {
+                serverFunctions: { total: 0, input: 0, output: 0, error: 0 },
+                actions: { total: 0, input: 0, output: 0, error: 0 }
+              },
+              missingSchemas: [],
+              unknownActionBehavior: [],
+              unknownRoutePreloadResources: [],
+              unknownRoutePreloadCollections: []
+            },
+            diagnosticsPolicyViolations: []
+          });
+        }
+      })
+    );
+    const payload = JSON.parse(stdout[0] ?? "{}") as {
+      readonly items?: readonly {
+        readonly verify?: readonly string[];
+      }[];
+    };
+
+    expect(result.exitCode).toBe(0);
+    expect(stderr).toEqual([]);
+    expect(loadOptions).toEqual([
+      {
+        root: "examples/project console",
+        configFile: "vite config.ts",
+        mode: "ci mode"
+      }
+    ]);
+    expect(payload.items?.[0]?.verify).toEqual([
+      "effect-ui-start diagnostics --root 'examples/project console' --config 'vite config.ts' --mode 'ci mode'",
+      "effect-ui-start graph route '/project spaces/:id' --root 'examples/project console' --config 'vite config.ts' --mode 'ci mode'"
+    ]);
   });
 
   it("prints a high-signal Start impact brief from the CLI", async () => {

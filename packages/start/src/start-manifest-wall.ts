@@ -48,6 +48,11 @@ import {
   type ServerFunctionManifestSource
 } from "./server-function-manifest.js";
 import type { StartNodeRequestOptions } from "./node-web-exchange.js";
+import {
+  resolveStartTransportEndpointsEffect,
+  type StartTransportEndpointConflictError,
+  type StartTransportEndpointPathError
+} from "./start-transport-endpoints.js";
 
 /** Options for generated file-route definition modules written by the plugin. */
 export interface FileRouteGenerationOptions
@@ -131,7 +136,9 @@ export type StartAppGraphError =
   | ServerFunctionManifestError
   | ActionManifestError
   | FileRouteManifestError
-  | StartManifestDirectReferenceError;
+  | StartManifestDirectReferenceError
+  | StartTransportEndpointPathError
+  | StartTransportEndpointConflictError;
 
 export type StartManifestDirectReferenceKind = "serverFunctions" | "actions";
 
@@ -513,6 +520,10 @@ export const makeStartAppGraphEffect = (
   Effect.gen(function* () {
     const serverFunctions = yield* makeStartServerFunctionManifestEffect(options);
     const actions = yield* makeStartActionManifestEffect(options);
+    yield* resolveStartTransportEndpointsEffect({
+      serverFunctionManifest: serverFunctions,
+      actionManifest: actions
+    });
     const routes = yield* makeStartFileRouteManifestEffect(options);
 
     return createStartAppGraph({

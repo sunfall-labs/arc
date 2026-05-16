@@ -13,6 +13,11 @@ import { deserializeServerFunctionManifest, serializeServerFunctionManifest } fr
 import type {
   StartAppGraphDiagnosticsPolicyViolation
 } from "./start-app-graph-diagnostics-policy.js";
+import {
+  resolveStartTransportEndpoints,
+  StartTransportEndpointConflictError,
+  type StartTransportEndpointPathError
+} from "./start-transport-endpoints.js";
 export {
   collectStartAppGraphDiagnosticsPolicyViolations,
   createStartAppGraphDiagnosticsPolicyException,
@@ -330,7 +335,9 @@ export type StartAppGraphDeserializeError =
   | ServerFunctionManifestParseError
   | ServerFunctionManifestError
   | ActionManifestParseError
-  | ActionManifestError;
+  | ActionManifestError
+  | StartTransportEndpointPathError
+  | StartTransportEndpointConflictError;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
@@ -710,12 +717,19 @@ export const decodeStartAppGraphDiagnosticsDtoEffect = (
 /** Creates a static Start app graph from route, server-function, and action manifests. */
 export const createStartAppGraph = (
   options: StartAppGraphOptions
-): StartAppGraph => ({
-  version: 1,
-  routes: options.routes,
-  serverFunctions: options.serverFunctions,
-  actions: options.actions
-});
+): StartAppGraph => {
+  resolveStartTransportEndpoints({
+    serverFunctionManifest: options.serverFunctions,
+    actionManifest: options.actions
+  });
+
+  return {
+    version: 1,
+    routes: options.routes,
+    serverFunctions: options.serverFunctions,
+    actions: options.actions
+  };
+};
 
 /** Serializes a Start app graph while preserving nested manifest validation shape. */
 export const serializeStartAppGraph = (graph: StartAppGraph): string =>
@@ -1170,10 +1184,20 @@ const decodeSerializedGraph = (
       Effect.flatMap(deserializeActionManifest)
     );
 
-    return createStartAppGraph({
-      routes,
-      serverFunctions,
-      actions
+    return yield* Effect.try({
+      try: () =>
+        createStartAppGraph({
+          routes,
+          serverFunctions,
+          actions
+        }),
+      catch: (cause) =>
+        cause instanceof StartTransportEndpointConflictError
+          ? cause
+          : new StartAppGraphParseError({
+              message: "Start app graph endpoint paths are invalid.",
+              cause
+            })
     });
   });
 

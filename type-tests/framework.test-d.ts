@@ -3002,6 +3002,12 @@ ProjectApi.layer({
 ProjectApi.use((api) => api.get("atlas"));
 ProjectApi.useEffect((api) => api.get("atlas"));
 ProjectApi.useEffect(() => ({ id: "atlas", name: "Pure Project" }));
+const projectProgramRuntime = makeRuntime(
+  ProjectApi.layer({
+    get: (id) => Effect.succeed({ id, name: "Runtime Project" }),
+    rename: (input) => Effect.succeed({ id: input.id, name: input.name })
+  })
+);
 const runUiEffect = useRuntimeEffect<RuntimeStartupError>();
 const uiEffectJoin: Effect.Effect<
   Project,
@@ -3047,7 +3053,9 @@ const ProjectProgram = Program.define<
     model.selected ? Stream.succeed<ProjectProgramMessage>({ _tag: "Refresh" }) : undefined
 });
 
-const projectProgram = Program.start(ProjectProgram);
+// @ts-expect-error serviceful Program.start requires an explicit runtime carrying Program services
+Program.start(ProjectProgram);
+const projectProgram = Program.start(ProjectProgram, { runtime: projectProgramRuntime });
 read(projectProgram.model).selected?.name.toUpperCase();
 const projectProgramTimeline: ReadonlyArray<
   Program.Event<
@@ -3066,6 +3074,39 @@ void projectProgramDispatchEffect;
 projectProgram.dispatch({ _tag: "Refresh" });
 // @ts-expect-error Program dispatch messages keep payloads typed
 projectProgram.dispatch({ _tag: "Load" });
+const ProjectProgramWithMissingService = Program.define<
+  ProjectProgramModel,
+  ProjectProgramMessage,
+  never,
+  ProjectApi | RuntimeMissingService
+>({
+  initial: { selected: undefined, loading: false },
+  update: (model) =>
+    Program.next(
+      model,
+      Program.effect(
+        RuntimeMissingService.useSync((service) => service.readMissing()).pipe(Effect.asVoid)
+      )
+    )
+});
+Program.start(ProjectProgramWithMissingService, {
+  // @ts-expect-error runtime-bound Program start cannot erase services the runtime does not provide
+  runtime: projectProgramRuntime
+});
+interface ProgramRuntimeStartupError {
+  readonly _tag: "ProgramRuntimeStartupError";
+}
+declare const projectProgramRuntimeWithStartupError: EffectUiRuntime<ProjectApi, ProgramRuntimeStartupError>;
+const projectProgramWithRuntimeError = Program.start(ProjectProgram, {
+  runtime: projectProgramRuntimeWithStartupError
+});
+const projectProgramRuntimeErrorDispatch: Effect.Effect<
+  void,
+  Program.Failure<
+    ProjectProgramMessage,
+    ProjectError | Server.ClientError | EffectInputCallbackError | ProgramRuntimeStartupError
+  >
+> = projectProgramWithRuntimeError.dispatchEffect({ _tag: "Load", id: "atlas" });
 const projectProgramStep: Effect.Effect<
   Program.Step<ProjectProgramModel, ProjectProgramMessage, ProjectError | Server.ClientError, ProjectApi>,
   Program.Failure<ProjectProgramMessage, ProjectError | Server.ClientError | EffectInputCallbackError>,
@@ -3084,6 +3125,7 @@ const projectProgramStoryEntry: Effect.Effect<
   ProjectApi
 > = projectProgramStory.send({ _tag: "Load", id: "atlas" });
 void projectProgramStoryEntry;
+void projectProgramRuntimeErrorDispatch;
 const solidProjectProgram: ProgramHandle<
   ProjectProgramModel,
   ProjectProgramMessage,

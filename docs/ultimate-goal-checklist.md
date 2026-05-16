@@ -648,11 +648,13 @@ Last evidence pass: May 16, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 152 ran Core router/route/resource tests
-    3 files / 100 tests, DB/React-DB/Solid-DB tests 4 files / 150 tests,
-    Start tests 2 files / 158 tests, generated starter packaging, and the
-    16-target package dry-run gate. Latest full evidence: `pnpm verify` ran
-    all root package tests after Review 152: 53 test files / 919 tests.
+  - Latest focused evidence: Review 153 ran Core Program/router tests 2 files
+    / 25 tests, React/Solid hook/router tests 4 files / 62 tests, DB
+    collection/sync adapter/live-query/SQLite tests 4 files / 172 tests, Start
+    start/RPC/app-graph tests 3 files / 182 tests, generated starter
+    packaging, and the 16-target package dry-run gate. Latest full evidence:
+    `pnpm verify` ran all root package tests after Review 152: 53 test files /
+    919 tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.
@@ -806,12 +808,12 @@ Last evidence pass: May 16, 2026.
     typecheck, 4 project-console test files / 27 tests, project-console build,
     and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 152 records focused Core/DB/Start/React-DB/Solid-DB
+  - Evidence: Review 153 records focused Core/React/Solid/DB/Start
     typechecks, public type tests, public API audit, Effect-first audit over
-    269 files including generated starter templates, Core router/route/resource
-    tests, DB/React-DB/Solid-DB tests, Start tests, generated starter
-    packaging, 16-target package dry-run gate, and `git diff --check`. Full
-    verification is still recorded in the latest full gate above.
+    272 files, script syntax checks, Core/React/Solid/DB/Start focused tests,
+    generated starter packaging, 16-target package dry-run gate, and
+    `git diff --check`. Full verification is still recorded in the latest full
+    gate above.
 
 ## Remaining Winning-Bar Items
 

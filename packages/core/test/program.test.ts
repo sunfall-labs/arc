@@ -24,8 +24,8 @@ describe("Program", () => {
           | { readonly _tag: "Load" }
           | { readonly _tag: "Loaded"; readonly amount: number };
 
-        const program = runWithRuntime(runtime, () =>
-          Program.start(Program.define<Model, Message, never, CounterApi>({
+        const program = Program.start(
+          Program.define<Model, Message, never, CounterApi>({
             initial: { count: 0, loading: false },
             update: (model, message) => {
               switch (message._tag) {
@@ -52,7 +52,8 @@ describe("Program", () => {
                   );
               }
             }
-          }))
+          }),
+          { runtime }
         );
 
         yield* program.dispatchEffect({ _tag: "Increment" });
@@ -141,11 +142,12 @@ describe("Program", () => {
         const runtime = makeRuntime<never, RuntimeUnavailable>(
           Layer.effectDiscard(Effect.fail({ _tag: "RuntimeUnavailable" } as const))
         );
-        const program = runWithRuntime(runtime, () =>
-          Program.start<number, "increment", never, never, RuntimeUnavailable>(Program.define({
+        const program = Program.start<number, "increment", never, never, RuntimeUnavailable>(
+          Program.define({
             initial: 0,
             update: (model) => model + 1
-          }))
+          }),
+          { runtime }
         );
 
         const failure = yield* Effect.flip(program.dispatchEffect("increment"));

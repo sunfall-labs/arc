@@ -398,6 +398,61 @@ describe("Collection.syncOptions", () => {
     );
   });
 
+  it("owns query sync keys after adapter construction", () => {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const filter = { archived: false };
+        const queryKey: Array<unknown> = ["projects", filter];
+        const fetches: Array<ReadonlyArray<unknown>> = [];
+        const invalidations: Array<ReadonlyArray<unknown>> = [];
+
+        const sync = Collection.querySyncAdapter<Project>({
+          queryKey,
+          queryFn: () => [{ id: "atlas", name: "Atlas", archived: false }],
+          queryClient: {
+            fetchQuery: ({ queryKey, queryFn }) => {
+              fetches.push(queryKey);
+              return queryFn();
+            },
+            invalidateQueries: ({ queryKey }) => {
+              invalidations.push(queryKey);
+            }
+          }
+        });
+
+        queryKey[0] = "mutated";
+        queryKey.push("later");
+        filter.archived = true;
+
+        const Projects = Collection.define(Collection.syncOptions<Project>({
+          name: "Projects.sync.query-key-owned",
+          getKey: (project) => project.id,
+          sync
+        }));
+
+        expect(Collection.diagnostics().collections).toEqual(
+          expect.arrayContaining([
+            expect.objectContaining({
+              name: "Projects.sync.query-key-owned",
+              sync: { adapter: "query:projects" }
+            })
+          ])
+        );
+
+        yield* Projects.preloadEffect();
+        yield* Projects.refetchEffect();
+
+        expect(fetches).toEqual([
+          ["projects", { archived: false }],
+          ["projects", { archived: false }]
+        ]);
+        expect(invalidations).toEqual([
+          ["projects", { archived: false }]
+        ]);
+      })
+    );
+  });
+
   it("preserves query sync receivers for method-style queryFn callbacks", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
