@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   StableStringifyCircularData,
+  StableStringifyEncodeFailure,
   StableStringifyInvalidDate,
   StableStringifyUnsupportedValue,
   stableStringify
@@ -82,5 +83,50 @@ describe("stableStringify", () => {
   it("throws typed errors for invalid dates and unsupported values", () => {
     expect(() => stableStringify(new Date(Number.NaN))).toThrow(StableStringifyInvalidDate);
     expect(() => stableStringify(() => undefined)).toThrow(StableStringifyUnsupportedValue);
+  });
+
+  it("wraps host object access failures in typed encode errors", () => {
+    const objectWithThrowingGetter: Record<string, unknown> = {};
+    const getterCause = new Error("getter failed");
+    Object.defineProperty(objectWithThrowingGetter, "boom", {
+      enumerable: true,
+      get: () => {
+        throw getterCause;
+      }
+    });
+
+    const arrayWithThrowingIndex: unknown[] = [];
+    const arrayCause = new Error("array index failed");
+    Object.defineProperty(arrayWithThrowingIndex, "0", {
+      enumerable: true,
+      get: () => {
+        throw arrayCause;
+      }
+    });
+
+    const ownKeysCause = new Error("own keys failed");
+    const objectWithThrowingOwnKeys = new Proxy({}, {
+      ownKeys: () => {
+        throw ownKeysCause;
+      }
+    });
+
+    for (const [value, path, cause] of [
+      [objectWithThrowingGetter, "$.boom", getterCause],
+      [arrayWithThrowingIndex, "$[0]", arrayCause],
+      [objectWithThrowingOwnKeys, "$", ownKeysCause]
+    ] as const) {
+      try {
+        stableStringify(value);
+        expect.fail("Expected stableStringify to wrap host access failures");
+      } catch (error) {
+        expect(error).toBeInstanceOf(StableStringifyEncodeFailure);
+        expect(error).toMatchObject({
+          _tag: "StableStringifyEncodeFailure",
+          path,
+          cause
+        });
+      }
+    }
   });
 });

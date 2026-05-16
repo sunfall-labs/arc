@@ -56,6 +56,30 @@ const pathSegment = (key: string): string =>
     ? `.${key}`
     : `[${JSON.stringify(key)}]`;
 
+const encodeFailure = (path: string, cause: unknown): StableStringifyEncodeFailure =>
+  new StableStringifyEncodeFailure({
+    path,
+    cause,
+    guidance: unsupportedValueGuidance
+  });
+
+const isStableStringifyError = (error: unknown): boolean =>
+  error instanceof StableStringifyCircularData ||
+  error instanceof StableStringifyUnsupportedValue ||
+  error instanceof StableStringifyInvalidDate ||
+  error instanceof StableStringifyEncodeFailure;
+
+const readHostValue = <A>(path: string, read: () => A): A => {
+  try {
+    return read();
+  } catch (cause) {
+    if (isStableStringifyError(cause)) {
+      throw cause;
+    }
+    throw encodeFailure(path, cause);
+  }
+};
+
 const bytesToHex = (bytes: Uint8Array): string =>
   Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 
@@ -64,14 +88,10 @@ const viewBytes = (view: ArrayBufferView): string => {
   return bytesToHex(bytes);
 };
 
-const stableSortKey = (value: unknown): string => {
-  const encoded = JSON.stringify(value);
+const stableSortKey = (value: unknown, path: string): string => {
+  const encoded = readHostValue(path, () => JSON.stringify(value));
   if (typeof encoded !== "string") {
-    throw new StableStringifyEncodeFailure({
-      path: "$",
-      cause: value,
-      guidance: unsupportedValueGuidance
-    });
+    throw encodeFailure(path, value);
   }
   return encoded;
 };
@@ -151,35 +171,52 @@ export const stableStringify = (value: unknown): string => {
       }
 
       if (input instanceof Map) {
-        const entries = Array.from(input.entries()).map(([key, entryValue], index) => {
+        const entries = readHostValue(path, () => Array.from(input.entries())).map(([key, entryValue], index) => {
+          const keyPath = `${path}.<key:${index}>`;
+          const valuePath = `${path}.<value:${index}>`;
           const normalizedKey = normalize(key, `${path}.<key:${index}>`);
           const normalizedValue = normalize(entryValue, `${path}.<value:${index}>`);
-          return [normalizedKey, normalizedValue] as const;
+          return {
+            key: normalizedKey,
+            keySort: stableSortKey(normalizedKey, keyPath),
+            value: normalizedValue,
+            valueSort: stableSortKey(normalizedValue, valuePath)
+          };
         });
         entries.sort((left, right) => {
-          const leftKey = stableSortKey(left[0]);
-          const rightKey = stableSortKey(right[0]);
-          return leftKey === rightKey
-            ? stableSortKey(left[1]).localeCompare(stableSortKey(right[1]))
-            : leftKey.localeCompare(rightKey);
+          return left.keySort === right.keySort
+            ? left.valueSort.localeCompare(right.valueSort)
+            : left.keySort.localeCompare(right.keySort);
         });
-        return tagged("Map", { entries });
+        return tagged("Map", {
+          entries: entries.map((entry) => [entry.key, entry.value])
+        });
       }
 
       if (input instanceof Set) {
-        const values = Array.from(input.values()).map((entryValue, index) =>
-          normalize(entryValue, `${path}.<value:${index}>`)
-        );
-        values.sort((left, right) => stableSortKey(left).localeCompare(stableSortKey(right)));
-        return tagged("Set", { values });
+        const values = readHostValue(path, () => Array.from(input.values())).map((entryValue, index) => {
+          const valuePath = `${path}.<value:${index}>`;
+          const normalizedValue = normalize(entryValue, valuePath);
+          return {
+            value: normalizedValue,
+            sort: stableSortKey(normalizedValue, valuePath)
+          };
+        });
+        values.sort((left, right) => left.sort.localeCompare(right.sort));
+        return tagged("Set", { values: values.map((entry) => entry.value) });
       }
 
       if (Array.isArray(input)) {
         const out: Array<unknown> = [];
-        for (let index = 0; index < input.length; index++) {
-          out.push(
+        const length = readHostValue(path, () => input.length);
+        for (let index = 0; index < length; index++) {
+          const itemPath = `${path}[${index}]`;
+          const hasIndex = readHostValue(itemPath, () =>
             Object.prototype.hasOwnProperty.call(input, index)
-              ? normalize(input[index], `${path}[${index}]`)
+          );
+          out.push(
+            hasIndex
+              ? normalize(readHostValue(itemPath, () => input[index]), itemPath)
               : tagged("SparseArrayHole")
           );
         }
@@ -187,34 +224,39 @@ export const stableStringify = (value: unknown): string => {
       }
 
       const object = input as Record<string, unknown>;
-      const sortedKeys = Object.keys(object).sort();
-      if (Object.prototype.hasOwnProperty.call(object, stableMarker)) {
+      const sortedKeys = readHostValue(path, () => Object.keys(object).sort());
+      if (readHostValue(path, () => Object.prototype.hasOwnProperty.call(object, stableMarker))) {
         return tagged("Object", {
           entries: sortedKeys.map((key) => [
             key,
-            normalize(object[key], `${path}${pathSegment(key)}`)
+            normalize(
+              readHostValue(`${path}${pathSegment(key)}`, () => object[key]),
+              `${path}${pathSegment(key)}`
+            )
           ])
         });
       }
 
       const out: Record<string, unknown> = {};
       for (const key of sortedKeys) {
-        out[key] = normalize(object[key], `${path}${pathSegment(key)}`);
+        const propertyPath = `${path}${pathSegment(key)}`;
+        out[key] = normalize(readHostValue(propertyPath, () => object[key]), propertyPath);
       }
       return out;
+    } catch (cause) {
+      if (isStableStringifyError(cause)) {
+        throw cause;
+      }
+      throw encodeFailure(path, cause);
     } finally {
       active.delete(input);
     }
   };
 
   const normalized = normalize(value, "$");
-  const encoded = JSON.stringify(normalized);
+  const encoded = readHostValue("$", () => JSON.stringify(normalized));
   if (typeof encoded !== "string") {
-    throw new StableStringifyEncodeFailure({
-      path: "$",
-      cause: normalized,
-      guidance: unsupportedValueGuidance
-    });
+    throw encodeFailure("$", normalized);
   }
   return encoded;
 };
