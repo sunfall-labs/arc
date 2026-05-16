@@ -45,8 +45,9 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     100 start default fetch abort signal, Review 101 start transport body
     reader, Review 102 start diagnostics vite server lifetime, and Review 103
     db sqlite statement contract ownership, Review 104 db persisted options
-    ownership, Review 105 start client transport status policy, and Review 106
-    core resource UI binding runtime locality sweeps.
+    ownership, Review 105 start client transport status policy, Review 106
+    core resource UI binding runtime locality, and Review 107 start diagnostics
+    CLI shared flags sweeps.
 
 ## Current Sweep Results
 
@@ -377,7 +378,11 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   Binding runtime locality cleanup. Current docs now record that the controller
   consumes Resource Runtime functions directly instead of calling back through
   the public `Resource` facade for sibling implementation work.
-- Updated current-facing verification snapshots after Review 106 full
+- Added Review 107 and progress entry 346 evidence for the Start diagnostics
+  CLI shared-flag cleanup. Current docs now record that `effect-ui-start`
+  common diagnostics flags live on the root Effect v4 command and are inherited
+  by subcommands.
+- Updated current-facing verification snapshots after Review 107 full
   verification so the latest gate points at the 225-file Effect-first audit and
   52 root test files / 859 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are

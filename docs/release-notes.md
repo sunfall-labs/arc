@@ -197,6 +197,9 @@ Latest full gate on May 15, 2026:
 - Review 106 made Core Resource UI Binding consume Resource Runtime functions
   directly instead of routing sibling implementation calls through the public
   `Resource` facade.
+- Review 107 moved shared `effect-ui-start` diagnostics flags onto the root
+  Effect v4 `Command.withSharedFlags(...)` grammar, so subcommands inherit
+  parent flags instead of repeating them.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime

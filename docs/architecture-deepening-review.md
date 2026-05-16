@@ -11,9 +11,38 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 106, immediately after Review 105. Some older review
+The newest review is Review 107, immediately after Review 106. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 107: Start Diagnostics CLI Shared Flags
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Start CLI grammar: `packages/start/src/cli.ts` now defines common
+  diagnostics options once on the root `effect-ui-start` command with Effect
+  v4 `Command.withSharedFlags(...)`.
+- Command context: `diagnostics`, `graph`, and `impact` handlers read the
+  shared parent config by yielding the root command service, so `--root`,
+  `--config`, `--mode`, `--json`, and `--pretty` are owned by the parent
+  command instead of being structurally repeated in every subcommand.
+- CLI behavior: the parser now supports the idiomatic inherited-flag form
+  `effect-ui-start --root app diagnostics` while preserving the existing
+  `effect-ui-start diagnostics --root app` form and unknown-command guidance.
+
+Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm exec
+vitest run packages/start/test/start.test.ts -t "Start diagnostics CLI"` (1 file
+/ 3 selected tests), `pnpm audit:effect-first` over 225 files, `pnpm --filter
+@effect-ui/start build`, `node packages/start/dist/cli.js --help`, `node
+packages/start/dist/cli.js --root examples/project-console diagnostics --json`,
+and `git diff --check` passed. Full `pnpm verify` passed: 11 package builds,
+workspace typecheck, public type tests, public API inventory audit, Effect-first
+audit over 225 files, 52 root test files / 859 tests, devtools-panel verify with
+2 tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, project-console packaging/typecheck/
+tests/build with 4 files / 27 tests, and leak scans.
 
 ## Review 106: Core Resource UI Binding Runtime Locality
 

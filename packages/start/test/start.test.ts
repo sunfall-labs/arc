@@ -5564,6 +5564,26 @@ describe("Effect UI Start", () => {
     });
     expect(
       parseStartDiagnosticsCliArgs([
+        "--root",
+        "app",
+        "--config=false",
+        "--mode",
+        "ci",
+        "diagnostics",
+        "--pretty"
+      ])
+    ).toEqual({
+      _tag: "Diagnostics",
+      options: {
+        root: "app",
+        configFile: false,
+        mode: "ci",
+        json: true,
+        pretty: true
+      }
+    });
+    expect(
+      parseStartDiagnosticsCliArgs([
         "graph",
         "route",
         "/projects/:id",

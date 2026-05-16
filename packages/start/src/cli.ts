@@ -293,6 +293,10 @@ const makeStartDiagnosticsCliCommand = (
     command: Exclude<StartCliCommand, { readonly _tag: "Help" }>
   ) => Effect.Effect<void, unknown>
 ) => {
+  const root = Command.make("effect-ui-start").pipe(
+    Command.withSharedFlags(commonStartDiagnosticsCliFlags)
+  );
+
   const emitCommand = (
     command: () => Exclude<StartCliCommand, { readonly _tag: "Help" }>
   ): Effect.Effect<void, unknown> =>
@@ -300,12 +304,15 @@ const makeStartDiagnosticsCliCommand = (
 
   const diagnostics = Command.make(
     "diagnostics",
-    commonStartDiagnosticsCliFlags,
-    (config) =>
-      emitCommand(() => ({
-        _tag: "Diagnostics",
-        options: commonOptionsFromCliConfig(config)
-      }))
+    {},
+    () =>
+      Effect.gen(function* () {
+        const common = yield* root;
+        yield* emitCommand(() => ({
+          _tag: "Diagnostics",
+          options: commonOptionsFromCliConfig(common)
+        }));
+      })
   ).pipe(
     Command.withDescription("Print app graph diagnostics and repair findings.")
   );
@@ -313,7 +320,6 @@ const makeStartDiagnosticsCliCommand = (
   const graph = Command.make(
     "graph",
     {
-      ...commonStartDiagnosticsCliFlags,
       positionals: Argument.string("query").pipe(
         Argument.variadic(),
         Argument.withDescription("Optional graph kind and query text.")
@@ -323,17 +329,20 @@ const makeStartDiagnosticsCliCommand = (
       )
     },
     (config) =>
-      emitCommand(() => {
-        const positionals = config.positionals as ReadonlyArray<string>;
-        const query = queryFromPositionals(positionals);
-        return {
-          _tag: "Graph",
-          options: {
-            ...commonOptionsFromCliConfig(config),
-            verbose: config.verbose,
-            ...(query === undefined ? {} : { query })
-          }
-        };
+      Effect.gen(function* () {
+        const common = yield* root;
+        yield* emitCommand(() => {
+          const positionals = config.positionals as ReadonlyArray<string>;
+          const query = queryFromPositionals(positionals);
+          return {
+            _tag: "Graph",
+            options: {
+              ...commonOptionsFromCliConfig(common),
+              verbose: config.verbose,
+              ...(query === undefined ? {} : { query })
+            }
+          };
+        });
       })
   ).pipe(
     Command.withDescription("Print the agent-readable semantic app graph.")
@@ -342,32 +351,34 @@ const makeStartDiagnosticsCliCommand = (
   const impact = Command.make(
     "impact",
     {
-      ...commonStartDiagnosticsCliFlags,
       positionals: Argument.string("query").pipe(
         Argument.variadic(),
         Argument.withDescription("Required impact kind and query text.")
       )
     },
     (config) =>
-      emitCommand(() => {
-        const positionals = config.positionals as ReadonlyArray<string>;
-        const query = queryFromPositionals(positionals);
-        if (query?.text === undefined || query.text.trim().length === 0) {
-          throw makeUsageError("Expected an impact query such as `impact route /projects/:id`.");
-        }
-        return {
-          _tag: "Impact",
-          options: {
-            ...commonOptionsFromCliConfig(config),
-            query
+      Effect.gen(function* () {
+        const common = yield* root;
+        yield* emitCommand(() => {
+          const positionals = config.positionals as ReadonlyArray<string>;
+          const query = queryFromPositionals(positionals);
+          if (query?.text === undefined || query.text.trim().length === 0) {
+            throw makeUsageError("Expected an impact query such as `impact route /projects/:id`.");
           }
-        };
+          return {
+            _tag: "Impact",
+            options: {
+              ...commonOptionsFromCliConfig(common),
+              query
+            }
+          };
+        });
       })
   ).pipe(
     Command.withDescription("Print edit impact for one route/action/resource/module.")
   );
 
-  return Command.make("effect-ui-start").pipe(
+  return root.pipe(
     Command.withDescription("Inspect Effect UI Start app graph diagnostics."),
     Command.withExamples([
       {
@@ -419,7 +430,7 @@ const rejectUnknownStartDiagnosticsCliCommandEffect = (
   args: readonly string[]
 ): Effect.Effect<void, StartDiagnosticsCliUsageError> => {
   const command = args[0];
-  if (command !== undefined && !isStartDiagnosticsCliCommandName(command)) {
+  if (command !== undefined && !command.startsWith("-") && !isStartDiagnosticsCliCommandName(command)) {
     return Effect.fail(makeUsageError(`Unknown command "${command}".`));
   }
 
