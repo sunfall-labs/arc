@@ -71,6 +71,10 @@ interruption.
     host objects such as `globalThis` and `window`, including aliased
     destructuring, so `const { Promise: P } = globalThis; new P(...)` cannot
     bypass the constructor guard.
+  - The Review 157 pass catches nested and computed global Promise extraction
+    such as `const { Promise: { all } } = globalThis` and
+    `const { ["Promise"]: P } = globalThis`, so extracted static calls cannot
+    bypass the Effect-first guardrail.
 - `packages/start/src/start-fetch.ts` and `packages/start/src/file-route.ts`
   - Custom Start fetchers and file-route preload helpers now reject
     Promise-shaped erased JavaScript values before they cross deeper runtime
@@ -1302,7 +1306,9 @@ interruption.
   Promise static extraction through assignment and destructuring, and Review
   149 expanded it to 259 files with the package dry-run script while catching
   static template-literal member keys, and Review 150 kept that 259-file scope
-  green while catching `Promise.try` and `Promise.withResolvers`.
+  green while catching `Promise.try` and `Promise.withResolvers`. Review157
+  kept the focused audit green over 273 files while catching nested and
+  computed global Promise extraction.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

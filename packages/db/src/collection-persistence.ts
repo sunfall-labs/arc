@@ -357,21 +357,43 @@ export const restoreCollectionBeforePreloadEffect = <A extends object, K extends
   definition: CollectionDefinition<A, K, E, R>,
   state: CollectionState<A, K, E>,
   store: CollectionPersistenceStore,
-  storeEffect: Effect.Effect<CollectionPersistenceStore>
+  storeEffect: Effect.Effect<CollectionPersistenceStore>,
+  shouldRestore: () => boolean = () => true
 ): Effect.Effect<boolean, E | CollectionSnapshotCodecError | EffectInputCallbackError, R> =>
   Effect.gen(function* () {
     const config = collectionPersistenceConfig(definition);
-    if (!config || config.restoreOnPreload === false || state.persistenceRestored) {
+    if (!config || config.restoreOnPreload === false || state.persistenceRestored || !shouldRestore()) {
       return false;
     }
 
-    const restored = yield* restoreCollectionSnapshotEffect(
-      definition,
-      config.storage,
-      collectionPersistenceRestoreOptions(config),
-      storeEffect,
-      store
-    );
+    const restoreOptions = collectionPersistenceRestoreOptions(config);
+    const restored = yield* Effect.gen(function* () {
+      const dbStore = store;
+      const key = collectionPersistenceKey(definition, restoreOptions);
+      const encoded = yield* storageInputCallbackEffect(() => config.storage.getItem(key));
+      if (encoded === null || !shouldRestore()) {
+        return false;
+      }
+
+      const snapshot = yield* decodeCollectionSnapshotEffect<A, K>(encoded);
+      if (!shouldRestore()) {
+        return false;
+      }
+      yield* hydrateCollectionEffect(
+        definition,
+        snapshot,
+        restoreOptions,
+        storeEffect,
+        dbStore
+      );
+      yield* dbStore.publish({
+        _tag: "CollectionRestored",
+        collection: definition.name,
+        key,
+        count: snapshot.rows.length
+      });
+      return true;
+    });
     if (restored) {
       state.persistenceRestored = true;
     }

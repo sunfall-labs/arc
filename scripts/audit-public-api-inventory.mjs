@@ -109,9 +109,18 @@ const publicHoverDocs = [
       "BrowserRouterLinkClickDecision",
       "browserRouterLinkClickDecision",
       "BrowserRouterLinkPreloader",
+      "BrowserRouterLinkPreloadIdentity",
       "BrowserRouterLinkPreloaderRuntime",
       "BrowserRouterLinkPreloaderOptions",
       "makeBrowserRouterLinkPreloader"
+    ]
+  },
+  {
+    file: "packages/devtools/src/serialization.ts",
+    declarations: [
+      "DevtoolsUnknownInvalidationTarget",
+      "describeInvalidationPlan",
+      "describeRoutePlan"
     ]
   },
   {

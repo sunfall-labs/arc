@@ -28,7 +28,8 @@ import {
 } from "./collection-state.js";
 import {
   restoreCollectionStateSnapshot,
-  snapshotCollectionState
+  snapshotCollectionState,
+  withCollectionDurableCommitPermit
 } from "./collection-write-commit.js";
 import {
   cloneFrozenCollectionTransaction,
@@ -163,21 +164,25 @@ const rollbackPendingMutation = <A extends object, K extends CollectionKey, E, R
   mutation: CollectionTransaction<A, K>,
   error: E | EffectInputCallbackError
 ): Effect.Effect<never, CollectionRuntimeError<E>, R> =>
-  Effect.gen(function* () {
-    if (!rollbackOptimisticTransaction(state, mutation)) {
-      restoreStoredRows(state, pending.rollbackRows);
-    }
-    dequeuePendingMutation(state, mutation.id);
-    yield* publishMutationDequeued(definition, state, store, mutation);
-    yield* publishStoreEvent(store, {
-      _tag: "CollectionMutateRolledBack",
-      collection: definition.name,
-      transaction: mutation.id,
-      error
-    });
-    yield* persistMutationEffect(definition, store);
-    return yield* Effect.fail(error as CollectionRuntimeError<E>);
-  });
+  withCollectionDurableCommitPermit(
+    state,
+    Effect.gen(function* () {
+      if (!rollbackOptimisticTransaction(state, mutation)) {
+        restoreStoredRows(state, pending.rollbackRows);
+      }
+      dequeuePendingMutation(state, mutation.id);
+      yield* persistMutationEffect(definition, store);
+      yield* publishMutationDequeued(definition, state, store, mutation);
+      yield* publishStoreEvent(store, {
+        _tag: "CollectionMutateRolledBack",
+        collection: definition.name,
+        transaction: mutation.id,
+        error
+      });
+    })
+  ).pipe(
+    Effect.flatMap(() => Effect.fail(error as CollectionRuntimeError<E>))
+  );
 
 const commitPendingMutation = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
@@ -186,21 +191,24 @@ const commitPendingMutation = <A extends object, K extends CollectionKey, E, R>(
   pending: PendingMutationEntry<A, K>,
   mutation: CollectionTransaction<A, K>
 ): Effect.Effect<CollectionTransaction<A, K>, CollectionRuntimeError<E>, R> =>
-  Effect.gen(function* () {
-    if (!commitOptimisticTransaction(state, mutation)) {
-      markStoredRowsSynced(state, Array.from(pending.rollbackRows.keys()));
-    }
-    dequeuePendingMutation(state, mutation.id);
-    yield* publishMutationDequeued(definition, state, store, mutation);
-    yield* publishStoreEvent(store, {
-      _tag: "CollectionMutateCommitted",
-      collection: definition.name,
-      transaction: mutation.id,
-      mutations: mutation.mutations.length
-    });
-    yield* persistMutationEffect(definition, store);
-    return mutation;
-  });
+  withCollectionDurableCommitPermit(
+    state,
+    Effect.gen(function* () {
+      if (!commitOptimisticTransaction(state, mutation)) {
+        markStoredRowsSynced(state, Array.from(pending.rollbackRows.keys()));
+      }
+      dequeuePendingMutation(state, mutation.id);
+      yield* persistMutationEffect(definition, store);
+      yield* publishMutationDequeued(definition, state, store, mutation);
+      yield* publishStoreEvent(store, {
+        _tag: "CollectionMutateCommitted",
+        collection: definition.name,
+        transaction: mutation.id,
+        mutations: mutation.mutations.length
+      });
+      return mutation;
+    })
+  );
 
 const runPendingMutation = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
@@ -268,22 +276,28 @@ const runCollectionMutationTransactionEffect = <A extends object, K extends Coll
   Effect.gen(function* () {
     const store = yield* collectionStoreEffect;
     const state = yield* collectionStateEffect(definition, store);
-    const previousState = snapshotCollectionState(state);
-    const createdAt = yield* Clock.currentTimeMillis;
-    applyOptimisticTransaction(state, mutation, snapshots);
-    const pending = enqueuePendingMutation(state, mutation, snapshots, createdAt);
-    const persistExit = yield* Effect.exit(persistMutationEffect(definition, store));
-    if (Exit.isFailure(persistExit)) {
-      restoreCollectionStateSnapshot(state, previousState);
-      return yield* Effect.failCause(persistExit.cause);
-    }
-    yield* publishStoreEvent(store, {
-      _tag: "CollectionMutationQueued",
-      collection: definition.name,
-      transaction: mutation.id,
-      mutations: mutation.mutations.length,
-      pending: state.pendingMutations.size
-    });
+    const pending = yield* withCollectionDurableCommitPermit(
+      state,
+      Effect.gen(function* () {
+        const previousState = snapshotCollectionState(state);
+        const createdAt = yield* Clock.currentTimeMillis;
+        applyOptimisticTransaction(state, mutation, snapshots);
+        const pending = enqueuePendingMutation(state, mutation, snapshots, createdAt);
+        const persistExit = yield* Effect.exit(persistMutationEffect(definition, store));
+        if (Exit.isFailure(persistExit)) {
+          restoreCollectionStateSnapshot(state, previousState);
+          return yield* Effect.failCause(persistExit.cause);
+        }
+        yield* publishStoreEvent(store, {
+          _tag: "CollectionMutationQueued",
+          collection: definition.name,
+          transaction: mutation.id,
+          mutations: mutation.mutations.length,
+          pending: state.pendingMutations.size
+        });
+        return pending;
+      })
+    );
     return yield* runPendingMutation(definition, state, store, pending, handler);
   });
 

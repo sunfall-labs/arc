@@ -2101,6 +2101,146 @@ describe("Collection", () => {
     );
   });
 
+  it("does not let a stale preload restore overwrite a newer forced refetch", async () => {
+    const runtime = makeRuntime();
+    const key = "projects-stale-restore-race-cache";
+    const firstRestoreStarted = Effect.runSync(Deferred.make<void>());
+    const releaseFirstRestore = Effect.runSync(Deferred.make<void>());
+    const persisted = new Map<string, string>([[
+      key,
+      JSON.stringify({
+        name: "Projects.stale-restore-race",
+        rows: [
+          {
+            key: "atlas",
+            value: { id: "atlas", name: "Restored Old", status: "blocked", progress: 1 },
+            synced: true,
+            origin: "remote"
+          }
+        ],
+        pendingMutations: [],
+        updatedAt: 1
+      })
+    ]]);
+    let gets = 0;
+    const storage: Collection.PersistenceStorage = {
+      getItem: (storageKey) => {
+        gets++;
+        if (gets === 1) {
+          return Effect.gen(function* () {
+            yield* Deferred.succeed(firstRestoreStarted, undefined).pipe(Effect.ignore);
+            yield* Deferred.await(releaseFirstRestore);
+            return persisted.get(storageKey) ?? null;
+          });
+        }
+        return null;
+      },
+      setItem: (storageKey, value) =>
+        Effect.sync(() => {
+          persisted.set(storageKey, value);
+        })
+    };
+    const Projects = Collection.define<Project>({
+      name: "Projects.stale-restore-race",
+      getKey: (project) => project.id,
+      load: () => Effect.succeed([{ id: "atlas", name: "Loaded", status: "active", progress: 2 }]),
+      refetch: () => Effect.succeed([{ id: "atlas", name: "Refetched Fresh", status: "active", progress: 99 }]),
+      persistence: {
+        storage,
+        key,
+        restoreOnPreload: true,
+        persistOnLoad: true
+      }
+    });
+    let preload: Fiber.Fiber<unknown, unknown> | undefined;
+
+    try {
+      preload = runtime.runFork(Projects.preloadEffect());
+      await Effect.runPromise(Deferred.await(firstRestoreStarted));
+      await Effect.runPromise(runtime.provide(Projects.refetchEffect()));
+
+      Effect.runSync(Deferred.succeed(releaseFirstRestore, undefined));
+      await Effect.runPromise(Fiber.join(preload));
+
+      const snapshot = JSON.parse(persisted.get(key) ?? "{}") as Collection.Snapshot<Project, string>;
+      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
+        name: "Refetched Fresh",
+        progress: 99
+      });
+      expect(snapshot.rows.map((row) => row.value.name)).toEqual(["Refetched Fresh"]);
+    } finally {
+      Effect.runSync(Deferred.succeed(releaseFirstRestore, undefined).pipe(Effect.ignore));
+      if (preload !== undefined) {
+        await Effect.runPromise(Fiber.await(preload).pipe(Effect.timeoutOption("100 millis")));
+      }
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("serializes durable direct write commits so older storage writes cannot overwrite newer snapshots", async () => {
+    const runtime = makeRuntime();
+    const key = "projects-direct-write-serialization-cache";
+    const firstPersistStarted = Effect.runSync(Deferred.make<void>());
+    const releaseFirstPersist = Effect.runSync(Deferred.make<void>());
+    const persisted = new Map<string, string>();
+    let writes = 0;
+    const storage: Collection.PersistenceStorage = {
+      getItem: () => persisted.get(key) ?? null,
+      setItem: (storageKey, value) => {
+        writes++;
+        if (writes === 1) {
+          return Effect.gen(function* () {
+            yield* Deferred.succeed(firstPersistStarted, undefined).pipe(Effect.ignore);
+            yield* Deferred.await(releaseFirstPersist);
+            persisted.set(storageKey, value);
+          });
+        }
+        return Effect.sync(() => {
+          persisted.set(storageKey, value);
+        });
+      }
+    };
+    const Projects = Collection.define<Project>({
+      name: "Projects.direct-write-serialization",
+      getKey: (project) => project.id,
+      persistence: {
+        storage,
+        key,
+        persistOnWrite: true
+      }
+    });
+    let first: Fiber.Fiber<unknown, unknown> | undefined;
+    let second: Fiber.Fiber<unknown, unknown> | undefined;
+
+    try {
+      first = runtime.runFork(Projects.writeInsertEffect({
+        id: "atlas",
+        name: "Atlas",
+        status: "active",
+        progress: 1
+      }));
+      await Effect.runPromise(Deferred.await(firstPersistStarted));
+      second = runtime.runFork(Projects.writeUpdateEffect("atlas", { progress: 2 }));
+      await Effect.runPromise(Effect.sleep("10 millis"));
+
+      Effect.runSync(Deferred.succeed(releaseFirstPersist, undefined));
+      await Effect.runPromise(Fiber.join(first));
+      await Effect.runPromise(Fiber.join(second));
+
+      const snapshot = JSON.parse(persisted.get(key) ?? "{}") as Collection.Snapshot<Project, string>;
+      expect(snapshot.rows.map((row) => row.value.progress)).toEqual([2]);
+    } finally {
+      Effect.runSync(Deferred.succeed(releaseFirstPersist, undefined).pipe(Effect.ignore));
+      if (first !== undefined) {
+        await Effect.runPromise(Fiber.await(first).pipe(Effect.timeoutOption("100 millis")));
+      }
+      if (second !== undefined) {
+        await Effect.runPromise(Fiber.await(second).pipe(Effect.timeoutOption("100 millis")));
+      }
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
   it("does not mark missing preload storage as restored", () => {
     const runtime = makeRuntime();
     const key = "projects-missing-restore-cache";
@@ -3839,6 +3979,61 @@ describe("Collection", () => {
         });
       }).pipe(
         Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
+  it("does not publish mutation success or dequeue events before post-commit persistence succeeds", () => {
+    const runtime = makeRuntime();
+    let writes = 0;
+    const storage: Collection.PersistenceStorage<"persist-failed"> = {
+      getItem: () => null,
+      setItem: () => {
+        writes += 1;
+        return writes === 2 ? Effect.fail("persist-failed" as const) : Effect.void;
+      }
+    };
+    const Projects = Collection.define<Project, string, "persist-failed">({
+      name: "Projects.persist-post-commit-events",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+      ],
+      persistence: {
+        storage
+      },
+      onUpdate: () => Effect.void
+    });
+
+    return Effect.runPromise(
+      runtime.provide(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const subscription = yield* Collection.subscribeEventsEffect();
+            const failure = yield* Effect.flip(Projects.updateEffect("atlas", { progress: 90 }));
+            const events: Array<Collection.StoreEvent> = [];
+            for (let index = 0; index < 5; index++) {
+              const event = yield* PubSub.take(subscription).pipe(
+                Effect.timeoutOption("20 millis")
+              );
+              if (Option.isNone(event)) {
+                break;
+              }
+              events.push(event.value);
+            }
+
+            expect(failure).toBe("persist-failed");
+            expect(events.map((event) => event._tag)).toEqual([
+              "CollectionPersisted",
+              "CollectionMutationQueued",
+              "CollectionMutateStarted"
+            ]);
+            expect(events.some((event) => event._tag === "CollectionMutationDequeued")).toBe(false);
+            expect(events.some((event) => event._tag === "CollectionMutateCommitted")).toBe(false);
+          })
+        ).pipe(
+          Effect.ensuring(runtime.disposeEffect)
+        )
       )
     );
   });

@@ -1,5 +1,5 @@
 import { EffectInputCallbackError, type EffectInput } from "@effect-ui/core";
-import { Cause, Clock, Deferred, Effect, Exit, Semaphore, type Schedule } from "effect";
+import { Cause, Clock, Deferred, Effect, Exit, type Schedule } from "effect";
 import type {
   AnyCollection,
   CollectionDefinition,
@@ -34,7 +34,8 @@ import {
 } from "./collection-projection-callback-policy.js";
 import {
   restoreCollectionStateSnapshot,
-  snapshotCollectionState
+  snapshotCollectionState,
+  withCollectionDurableCommitPermit
 } from "./collection-write-commit.js";
 import {
   collectionSnapshotFromState
@@ -84,19 +85,6 @@ const withCollectionLoadRetry = <A, E, R>(
 ): Effect.Effect<A, E, R> => {
   const retry = definition.options.policy?.retry;
   return retry ? Effect.retry(effect, retry as Schedule.Schedule<unknown, E>) : effect;
-};
-
-const loadCommitSemaphores = new WeakMap<object, Semaphore.Semaphore>();
-
-const loadCommitSemaphore = (state: CollectionState<any, any, any>): Semaphore.Semaphore => {
-  const existing = loadCommitSemaphores.get(state);
-  if (existing) {
-    return existing;
-  }
-
-  const semaphore = Semaphore.makeUnsafe(1);
-  loadCommitSemaphores.set(state, semaphore);
-  return semaphore;
 };
 
 const isInterruptedCause = <E>(cause: Cause.Cause<E>): boolean =>
@@ -228,9 +216,16 @@ const collectionLoadOperation = <A extends object, K extends CollectionKey, E, R
 const restoreBeforePreloadEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   state: CollectionState<A, K, E>,
-  store: RuntimeCollectionStore
+  store: RuntimeCollectionStore,
+  attempt: CollectionLoadAttempt
 ): Effect.Effect<boolean, CollectionRuntimeError<E>, R> =>
-  restoreCollectionBeforePreloadEffect(definition, state, store, collectionStoreEffect);
+  restoreCollectionBeforePreloadEffect(
+    definition,
+    state,
+    store,
+    collectionStoreEffect,
+    () => isCurrentLoadAttempt(state, attempt)
+  );
 
 const shouldPersistLoad = (definition: AnyCollection): boolean => {
   const config = collectionPersistenceConfig(definition);
@@ -298,8 +293,8 @@ const commitLoadedCollectionRowsEffect = <A extends object, K extends Collection
   previousLoadState: CollectionLoadState<CollectionRuntimeError<E>>,
   updatedAt: number
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
-  Semaphore.withPermit(
-    loadCommitSemaphore(state),
+  withCollectionDurableCommitPermit(
+    state,
     Effect.uninterruptibleMask((restore) =>
       Effect.gen(function* () {
         if (!isCurrentLoadAttempt(state, attempt)) {
@@ -385,9 +380,12 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
         : Effect.fail(error);
 
     const runOwnerLoad = Effect.gen(function* () {
-      const restored = yield* restoreBeforePreloadEffect(definition, state, store).pipe(
+      const restored = yield* restoreBeforePreloadEffect(definition, state, store, attempt).pipe(
         Effect.catch((error: CollectionRuntimeError<E>) => failCurrentLoad(error))
       );
+      if (!isCurrentLoadAttempt(state, attempt)) {
+        return;
+      }
       const current = state.loadState.get();
       const operation = collectionLoadOperation(definition, options.force);
       const shouldLoadAfterRestore =

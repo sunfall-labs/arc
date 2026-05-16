@@ -14,6 +14,7 @@ import type {
   DevtoolsInvalidationTarget,
   DevtoolsRequestTrace,
   DevtoolsRequestTraceCookie,
+  DevtoolsRequestTraceCleanupFailure,
   DevtoolsRequestTraceHeader,
   DevtoolsRequestTraceRequest,
   DevtoolsRequestTraceResponse,
@@ -29,6 +30,7 @@ import { normalizeDevtoolsAppGraphDiagnostics } from "./app-graph-normalizer.js"
 
 export type { DevtoolsSerializationPolicy } from "./devtools-contract.js";
 
+/** Error raised when a live invalidation plan contains a non-serializable target shape. */
 export class DevtoolsUnknownInvalidationTarget extends Data.TaggedError(
   "DevtoolsUnknownInvalidationTarget"
 )<{
@@ -1092,6 +1094,19 @@ const redactTraceUrlQuery = (
   return `${value.slice(0, queryIndex + 1)}${redactedSearch}${value.slice(searchEnd)}`;
 };
 
+const copyRequestTraceCleanupFailure = (
+  cleanupFailure: DevtoolsRequestTraceCleanupFailure,
+  policy: DevtoolsSerializationPolicy | undefined
+): DevtoolsRequestTraceCleanupFailure => {
+  const normalizedPolicy = normalizeSerializationPolicy(policy);
+  return {
+    _tag: cleanupFailure._tag,
+    message: cleanupFailure.message.length <= normalizedPolicy.maxStringLength
+      ? cleanupFailure.message
+      : cleanupFailure.message.slice(0, normalizedPolicy.maxStringLength)
+  };
+};
+
 /** Deep-copies a Devtools route plan, including params/search/resource inputs. */
 export const copyDevtoolsRoutePlan = (
   plan: DevtoolsRoutePlan,
@@ -1100,12 +1115,12 @@ export const copyDevtoolsRoutePlan = (
   const state = initialDetachedCopyState(policy);
   return {
     _tag: plan._tag,
-    href: plan.href,
+    href: redactTraceUrlQuery(plan.href, state.policy),
     match: plan.match === undefined
       ? undefined
       : {
           path: plan.match.path,
-          href: plan.match.href,
+          href: redactTraceUrlQuery(plan.match.href, state.policy),
           params: copyDetachedValue(plan.match.params, state),
           search: copyDetachedValue(plan.match.search, state)
         },
@@ -1123,7 +1138,8 @@ export const copyDevtoolsRoutePlan = (
 };
 
 const copyRequestTraceTeardown = (
-  teardown: DevtoolsRequestTraceTeardown
+  teardown: DevtoolsRequestTraceTeardown,
+  policy?: DevtoolsSerializationPolicy
 ): DevtoolsRequestTraceTeardown => ({
   runtimeDisposed: teardown.runtimeDisposed,
   ...(teardown.reason === undefined ? {} : { reason: teardown.reason }),
@@ -1132,7 +1148,10 @@ const copyRequestTraceTeardown = (
   ...(teardown.completedAt === undefined ? {} : { completedAt: teardown.completedAt }),
   ...(teardown.durationMillis === undefined ? {} : { durationMillis: teardown.durationMillis }),
   ...(teardown.beforeDispose === undefined ? {} : { beforeDispose: { ...teardown.beforeDispose } }),
-  ...(teardown.afterDispose === undefined ? {} : { afterDispose: { ...teardown.afterDispose } })
+  ...(teardown.afterDispose === undefined ? {} : { afterDispose: { ...teardown.afterDispose } }),
+  ...(teardown.cleanupFailure === undefined
+    ? {}
+    : { cleanupFailure: copyRequestTraceCleanupFailure(teardown.cleanupFailure, policy) })
 });
 
 /** Deep-copies a request trace and sorts copied header/cookie collections for stable panels. */
@@ -1179,7 +1198,7 @@ export const copyRequestTrace = (
     streams: trace.streams.map((stream) => ({ ...stream })),
     status: trace.status,
     ...(trace.failureKind === undefined ? {} : { failureKind: trace.failureKind }),
-    ...(trace.teardown === undefined ? {} : { teardown: copyRequestTraceTeardown(trace.teardown) })
+    ...(trace.teardown === undefined ? {} : { teardown: copyRequestTraceTeardown(trace.teardown, policy) })
   };
 };
 

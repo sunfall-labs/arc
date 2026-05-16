@@ -194,6 +194,7 @@ export const summarizeRequestTrace = (
   afterDispose: summarizeTeardownSnapshot(trace.teardown?.afterDispose),
   beforeDisposeFiberCount: trace.teardown?.beforeDispose?.fiberCount ?? null,
   afterDisposeFiberCount: trace.teardown?.afterDispose?.fiberCount ?? null,
+  cleanupFailure: trace.teardown?.cleanupFailure ?? null,
   serverFunctions: trace.serverFunctions.map(summarizeTraceServerFunction),
   actions: trace.actions.map(summarizeTraceAction),
   routeHref: trace.routePlan?.href ?? null

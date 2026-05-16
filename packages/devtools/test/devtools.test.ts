@@ -3230,6 +3230,23 @@ describe("devtools invalidation plans", () => {
       actions: [],
       fibers: [],
       streams: [],
+      routePlan: {
+        _tag: "Matched",
+        href: "/projects/secret?accessToken=raw-route-token&tenantPrivate=raw-route-tenant",
+        match: {
+          path: "/projects/:id",
+          href: "/projects/secret?password=raw-route-password&tenantPrivate=raw-route-tenant",
+          params: { id: "secret" },
+          search: {
+            accessToken: "raw-search-token",
+            tab: "activity"
+          }
+        },
+        resources: [],
+        hydration: {
+          resourceCount: 0
+        }
+      },
       status: "success"
     };
 
@@ -3281,7 +3298,6 @@ describe("devtools invalidation plans", () => {
         "raw-response-key",
         "raw-session",
         "raw-csrf",
-        "accesstoken",
         "raw-url-token",
         "tenantprivate",
         "raw-url-tenant",
@@ -3289,7 +3305,11 @@ describe("devtools invalidation plans", () => {
         "raw-url-api-key",
         "password",
         "raw-path-password",
-        "raw-path-tenant"
+        "raw-path-tenant",
+        "raw-route-token",
+        "raw-route-password",
+        "raw-route-tenant",
+        "raw-search-token"
       ]) {
         expect(projected).not.toContain(raw);
       }
@@ -3464,6 +3484,7 @@ describe("devtools invalidation plans", () => {
         },
         beforeDisposeFiberCount: 2,
         afterDisposeFiberCount: 0,
+        cleanupFailure: null,
         serverFunctions: [
           {
             name: "Project.load",
@@ -3647,6 +3668,56 @@ describe("devtools invalidation plans", () => {
       })
     ]));
     expect(JSON.parse(JSON.stringify(summary))).toEqual(summary);
+  });
+
+  it("preserves bounded request runtime cleanup failures in snapshots, summaries, and panels", () => {
+    const store = makeDevtoolsStore();
+    const trace: DevtoolsRequestTrace = {
+      request: {
+        id: "req-cleanup-failure",
+        method: "GET",
+        url: "https://example.test/projects/cleanup",
+        path: "/projects/cleanup",
+        transport: "ssr"
+      },
+      services: [],
+      resources: [],
+      collections: [],
+      serverFunctions: [],
+      actions: [],
+      fibers: [],
+      streams: [],
+      status: "failure",
+      teardown: {
+        runtimeDisposed: false,
+        reason: "cleanup-failed",
+        cleanupFailure: {
+          _tag: "Failure",
+          message: "cleanup-failed"
+        }
+      }
+    };
+
+    store.recordRequestTrace(trace);
+
+    expect(store.getSnapshot().requestTraces?.[0]?.teardown?.cleanupFailure).toEqual({
+      _tag: "Failure",
+      message: "cleanup-failed"
+    });
+    expect(store.getSummary().requests.traces[0]?.cleanupFailure).toEqual({
+      _tag: "Failure",
+      message: "cleanup-failed"
+    });
+    expect(
+      store.getPanels().panels
+        .find((panel) => panel.id === "requests")
+        ?.items[0]?.data
+    ).toMatchObject({
+      cleanupFailure: {
+        _tag: "Failure",
+        message: "cleanup-failed"
+      }
+    });
   });
 
   it("projects runtime-only request trace events into request facts and causal records", () => {

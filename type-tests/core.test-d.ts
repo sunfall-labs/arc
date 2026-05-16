@@ -71,6 +71,7 @@ import {
   type BrowserRouterHostController,
   type BrowserRouterLinkClickDecision,
   type BrowserRouterLinkPreloader,
+  type BrowserRouterLinkPreloadIdentity,
   type BrowserRouterLinkPreloaderOptions,
   type BrowserRouterLinkPreloaderRuntime,
   type BrowserRouterLinkPreloadDecision,
@@ -317,6 +318,11 @@ const coreLinkPreloader = makeBrowserRouterLinkPreloader({
   preloadEffect: () => Effect.void
 });
 const coreLinkPreloaderShape: BrowserRouterLinkPreloader = coreLinkPreloader;
+const coreLinkPreloadIdentity: BrowserRouterLinkPreloadIdentity = {
+  key: "/projects/atlas\u0000true\u0000true\u0000\u0000",
+  enabled: true
+};
+coreLinkPreloaderShape.bindPreloadIdentity(coreLinkPreloadIdentity);
 const coreLinkPreloaderRuntime: BrowserRouterLinkPreloaderRuntime = runtime;
 const coreLinkPreloaderOptions: BrowserRouterLinkPreloaderOptions = {
   runtime: coreLinkPreloaderRuntime,

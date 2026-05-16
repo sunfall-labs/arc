@@ -134,8 +134,9 @@ Last evidence pass: May 16, 2026.
 - [x] Every async public API in the current surface is Effect-native.
   - Evidence: `prefetchEffect`, `refreshEffect`, `submitEffect`,
     `createRequestHandlerEffect`/`createRequestHandler`, collection `*Effect`
-    APIs, adapter `*Effect` APIs, and the Start diagnostics CLI's
-    `runStartDiagnosticsCliEffect` are covered by source exports and tests.
+    APIs, adapter `*Effect` APIs, and the Start diagnostics CLI's public
+    `@effect-ui/start/cli` `runStartDiagnosticsCliEffect` export are covered by
+    source exports and tests.
 - [x] Promise boundaries are documented as host/platform adapters.
   - Evidence: `docs/effect-style.md` and `docs/architecture.md`.
 - [x] Resource public preload/refresh APIs are Effect-native and track
@@ -811,12 +812,13 @@ Last evidence pass: May 16, 2026.
     dry-run gate, project-console typecheck, 4 project-console test files / 27
     tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 156 records focused Core/React/Solid/DB/Devtools/Start
-    package typechecks, public type tests, public API audit, Effect-first audit
-    over 272 files, DB/Devtools/Start/Core/React/Solid focused tests, script
+  - Evidence: Review 157 records focused DB/React/Devtools/Start package
+    typechecks, public type tests, public API audit, Effect-first audit over
+    273 files, DB collection tests 1 file / 122 tests, React router tests 1
+    file / 11 tests, Devtools tests 1 file / 76 tests, package build, script
     syntax checks, the 16-target package dry-run metadata/payload gate, and
-    `git diff --check`. Full verification is recorded in the Review156 full
-    gate above.
+    `git diff --check`. Full verification is still recorded in the Review156
+    full gate above until a fresh full `pnpm verify` runs after Review157.
 
 ## Remaining Winning-Bar Items
 

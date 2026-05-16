@@ -271,6 +271,12 @@ export interface DevtoolsRequestTraceTeardownSnapshot {
   readonly tagCount: number;
 }
 
+/** Best-effort request-runtime cleanup failure summary emitted by Start traces. */
+export interface DevtoolsRequestTraceCleanupFailure {
+  readonly _tag: "Failure" | "Defect" | "Interruption";
+  readonly message: string;
+}
+
 /** Request-runtime disposal facts used to detect leaks after streamed responses close. */
 export interface DevtoolsRequestTraceTeardown {
   readonly runtimeDisposed: boolean;
@@ -281,6 +287,7 @@ export interface DevtoolsRequestTraceTeardown {
   readonly durationMillis?: number;
   readonly beforeDispose?: DevtoolsRequestTraceTeardownSnapshot;
   readonly afterDispose?: DevtoolsRequestTraceTeardownSnapshot;
+  readonly cleanupFailure?: DevtoolsRequestTraceCleanupFailure;
 }
 
 /**
@@ -908,6 +915,8 @@ export interface DevtoolsSummaryRequestTrace {
   readonly beforeDisposeFiberCount: number | null;
   /** Back-compat shortcut for `afterDispose.fiberCount`. */
   readonly afterDisposeFiberCount: number | null;
+  /** Bounded cleanup failure summary when request-runtime disposal failed. */
+  readonly cleanupFailure: DevtoolsRequestTraceCleanupFailure | null;
   /** Per-server-function request activity, including owner failure kind. */
   readonly serverFunctions: ReadonlyArray<DevtoolsSummaryRequestTraceServerFunction>;
   /** Per-action request activity, including owner failure kind and invalidations. */

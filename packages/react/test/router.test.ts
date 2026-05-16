@@ -342,6 +342,84 @@ describe("react router", () => {
     }
   });
 
+  it("interrupts RouterLink hover preloads when the router instance is replaced", async () => {
+    const runtime = makeRuntime();
+    const started: string[] = [];
+    const finalized: string[] = [];
+    const OldProject = route("/hover-router-replace/:id", {
+      preload: () =>
+        Effect.sync(() => {
+          started.push("old");
+        }).pipe(
+          Effect.andThen(Effect.never),
+          Effect.ensuring(Effect.sync(() => {
+            finalized.push("old");
+          }))
+        )
+    });
+    const NewProject = route("/hover-router-replace/:id", {
+      preload: () =>
+        Effect.sync(() => {
+          started.push("new");
+        }).pipe(
+          Effect.andThen(Effect.never),
+          Effect.ensuring(Effect.sync(() => {
+            finalized.push("new");
+          }))
+        )
+    });
+
+    try {
+      await withReactRoot(async (root, container) => {
+        let replaceRoute: (() => void) | undefined;
+        function App() {
+          const [projectRoute, setProjectRoute] = useState<typeof OldProject | typeof NewProject>(OldProject);
+          replaceRoute = () => setProjectRoute(NewProject);
+          return createElement(
+            RouterProvider,
+            {
+              routes: [projectRoute] as readonly [typeof OldProject | typeof NewProject],
+              initialHref: "/missing",
+              runtime
+            },
+            createElement(RouterLink, {
+              route: projectRoute,
+              options: { params: { id: "atlas" } },
+              children: "Atlas"
+            })
+          );
+        }
+
+        await act(async () => {
+          root.render(createElement(App));
+        });
+        await flushReact();
+
+        const anchor = () => container.querySelector("a")!;
+        await act(async () => {
+          anchor().dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+        });
+        await flushReact();
+        expect(started).toEqual(["old"]);
+
+        await act(async () => {
+          replaceRoute?.();
+        });
+        await flushReact();
+        expect(anchor().getAttribute("href")).toBe("/hover-router-replace/atlas");
+        await vi.waitFor(() => expect(finalized).toEqual(["old"]));
+
+        await act(async () => {
+          anchor().dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+        });
+        await flushReact();
+        expect(started).toEqual(["old", "new"]);
+      });
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
   it("preloads shadowed hrefs with the same route match as navigation", async () => {
     const preloaded: string[] = [];
     let router: BrowserRouter<typeof routes> | undefined;

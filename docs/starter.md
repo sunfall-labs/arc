@@ -81,8 +81,9 @@ pnpm example:pack-dry-run
 That gate checks all 11 framework packages plus the basic starter, React
 starter, project console, devtools panel, and devtools extension. Framework
 packages must contain only `package.json` and `dist/*`; source packages must
-contain their required source/config files and directories, local `.gitignore`
-coverage, and no generated output or dependency artifacts. The basic, React,
-and generated project-console starters are the standalone copyable paths; the
-devtools panel and extension packages are workspace examples with source-only
-package payload gates.
+contain their required source/config entrypoints, including app, server, route,
+virtual-module, leak-scan, panel, extension, and Vite/TypeScript config files
+where applicable, local `.gitignore` coverage, and no generated output or
+dependency artifacts. The basic, React, and generated project-console starters
+are the standalone copyable paths; the devtools panel and extension packages
+are workspace examples with source-only package payload gates.

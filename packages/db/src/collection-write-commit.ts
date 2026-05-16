@@ -1,4 +1,4 @@
-import { Effect, Exit } from "effect";
+import { Effect, Exit, Semaphore } from "effect";
 import type {
   CollectionKey,
   CollectionRuntimeError,
@@ -53,6 +53,27 @@ interface CollectionWriteCommitOptions<A extends object, K extends CollectionKey
   readonly publishEffect: (event: CollectionStoreEvent) => Effect.Effect<void>;
 }
 
+const durableCommitSemaphores = new WeakMap<object, Semaphore.Semaphore>();
+
+const durableCommitSemaphore = (
+  state: CollectionState<any, any, any>
+): Semaphore.Semaphore => {
+  const existing = durableCommitSemaphores.get(state);
+  if (existing) {
+    return existing;
+  }
+
+  const semaphore = Semaphore.makeUnsafe(1);
+  durableCommitSemaphores.set(state, semaphore);
+  return semaphore;
+};
+
+export const withCollectionDurableCommitPermit = <A, E, R>(
+  state: CollectionState<any, any, any>,
+  effect: Effect.Effect<A, E, R>
+): Effect.Effect<A, E, R> =>
+  Semaphore.withPermit(durableCommitSemaphore(state), effect);
+
 /**
  * Atomically apply a direct collection write around persistence and event
  * publication.
@@ -65,17 +86,20 @@ interface CollectionWriteCommitOptions<A extends object, K extends CollectionKey
 export const commitCollectionWriteEffect = <A extends object, K extends CollectionKey, E, R>(
   options: CollectionWriteCommitOptions<A, K, E, R>
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
-  Effect.gen(function* () {
-    const previousState = snapshotCollectionState(options.state);
-    options.apply();
-    const persistExit = yield* Effect.exit(options.persistEffect);
-    if (Exit.isFailure(persistExit)) {
-      restoreCollectionStateSnapshot(options.state, previousState);
-      return yield* Effect.failCause(persistExit.cause);
-    }
-    yield* options.publishEffect({
-      _tag: "CollectionWritten",
-      collection: options.collection,
-      mutations: options.mutations
-    });
-  });
+  withCollectionDurableCommitPermit(
+    options.state,
+    Effect.gen(function* () {
+      const previousState = snapshotCollectionState(options.state);
+      options.apply();
+      const persistExit = yield* Effect.exit(options.persistEffect);
+      if (Exit.isFailure(persistExit)) {
+        restoreCollectionStateSnapshot(options.state, previousState);
+        return yield* Effect.failCause(persistExit.cause);
+      }
+      yield* options.publishEffect({
+        _tag: "CollectionWritten",
+        collection: options.collection,
+        mutations: options.mutations
+      });
+    })
+  );

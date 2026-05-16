@@ -343,6 +343,9 @@ const bindingNameText = (name) => {
   if (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name)) {
     return name.text;
   }
+  if (ts.isComputedPropertyName(name)) {
+    return literalPropertyName(name.expression);
+  }
   return undefined;
 };
 
@@ -466,6 +469,17 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
       }
       if (ts.isIdentifier(element.name)) {
         setBinding(element.name.text, true);
+      } else if (ts.isObjectBindingPattern(element.name)) {
+        for (const nestedElement of element.name.elements) {
+          if (!ts.isBindingElement(nestedElement)) {
+            continue;
+          }
+          const nestedPropertyName = bindingNameText(nestedElement.propertyName ?? nestedElement.name);
+          if (nestedPropertyName !== undefined && promiseStaticMemberSet.has(nestedPropertyName)) {
+            addFinding(nestedElement, promiseStaticExtractionName(nestedPropertyName));
+          }
+        }
+        declareBindingPattern(element.name, false);
       } else {
         declareBindingPattern(element.name, false);
       }
@@ -818,6 +832,8 @@ assertPromiseStaticBans("new (Promise)(() => undefined);", ["new Promise"]);
 assertPromiseStaticBans("const P = Promise; new P(() => undefined);", ["new Promise"]);
 assertPromiseStaticBans("const { Promise: P } = globalThis; P.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("const { Promise } = window; new Promise(() => undefined);", ["new Promise"]);
+assertPromiseStaticBans("const { Promise: { all } } = globalThis; all([]);", ["Promise.all.extraction"]);
+assertPromiseStaticBans("const { [\"Promise\"]: P } = globalThis; P.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("const Promise = class {}; new Promise(() => undefined);", []);
 assertBannedPattern(".then(...)", "client.then<string>(() => undefined);", 1);
 assertBannedPattern(".then(...)", "client[\"then\"](() => undefined);", 1);

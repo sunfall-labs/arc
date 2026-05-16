@@ -476,6 +476,7 @@ export const describeDevtoolsPanels = (
               durationMillis: trace.durationMillis,
               beforeDispose: trace.beforeDispose,
               afterDispose: trace.afterDispose,
+              cleanupFailure: trace.cleanupFailure,
               serverFunctions: trace.serverFunctions,
               actions: trace.actions
             })

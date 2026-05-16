@@ -22,6 +22,7 @@
       "@effect-ui/tsrx": ["./packages/tsrx/src/index.ts"],
       "@effect-ui/start": ["./packages/start/src/index.ts"],
       "@effect-ui/start/adapters": ["./packages/start/src/adapters.ts"],
+      "@effect-ui/start/cli": ["./packages/start/src/cli.ts"],
       "@effect-ui/start/fetch-adapter": ["./packages/start/src/fetch-adapter.ts"],
       "@effect-ui/start/node-adapter": ["./packages/start/src/node-adapter.ts"],
       "@effect-ui/start/diagnostics-report": ["./packages/start/src/diagnostics-report.ts"],

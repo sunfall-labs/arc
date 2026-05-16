@@ -87,6 +87,14 @@
     },
     {
       "package": "@effect-ui/start",
+      "export": "./cli",
+      "import": "@effect-ui/start/cli",
+      "source": "packages/start/src/cli.ts",
+      "docs": "docs/public-api-inventory.md",
+      "typeTest": "type-tests/start-cli.test-d.ts"
+    },
+    {
+      "package": "@effect-ui/start",
       "export": "./fetch-adapter",
       "import": "@effect-ui/start/fetch-adapter",
       "source": "packages/start/src/fetch-adapter.ts",

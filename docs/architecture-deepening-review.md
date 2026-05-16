@@ -11,10 +11,105 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review and full verification checkpoint is Review
-156, immediately after Review 155. Some older review entries remain below it
-from prior ledger merges; use this tip rather than file order alone when
-looking for the latest architecture sweep.
+The newest completed focused review is Review157, immediately after Review156.
+The newest full verification checkpoint is still Review156 until a fresh full
+`pnpm verify` run is recorded after Review157. Some older review entries remain
+below it from prior ledger merges; use this tip rather than file order alone
+when looking for the latest architecture sweep.
+
+## Review 157: Durable Commit Locality, Devtools Secrets, And Public CLI Surface
+
+Review157 fixed fresh DB, React/Core, Devtools, Start, public API, and script
+guardrail findings from the post-Review156 sweeps.
+
+1. DB Durable Restore And Mutation Commit Locality
+   - Status: fixed.
+   - Files: `packages/db/src/collection-write-commit.ts`,
+     `packages/db/src/collection-sync-load-policy.ts`,
+     `packages/db/src/collection-persistence.ts`,
+     `packages/db/src/collection-mutation-workflow.ts`,
+     `packages/db/test/collection.test.ts`.
+   - Problem: restore-before-preload could hydrate a stale persisted snapshot
+     after a newer forced refetch had already committed. Direct writes,
+     mutation persistence, and load persistence also used separate durable
+     ordering paths, allowing an older blocked storage write to overwrite a
+     newer snapshot. Mutation success/dequeue events could publish before the
+     post-handler persistence step completed.
+   - Fix: Collection State now uses one shared durable commit permit across
+     load restores, load commits, direct writes, and mutation workflow commits.
+     Restore-before-preload is gated by the active load attempt before and
+     after decoding. Mutation dequeue/commit/rollback events now publish only
+     after the matching durable persistence succeeds.
+   - Benefits: DB commit Locality now covers stale restore, direct write,
+     mutation, persistence, and event publication ordering through one
+     Effect-owned path.
+
+2. Router Public Adapter Lifecycle
+   - Status: fixed.
+   - Files: `packages/react/src/link.ts`,
+     `packages/react/test/router.test.ts`, `type-tests/core.test-d.ts`,
+     `scripts/audit-public-api-inventory.mjs`.
+   - Problem: React hover preloads could outlive a replaced router when the new
+     router reused the same runtime, because the preloader memo keyed only on
+     `router.runtime`. The public `BrowserRouterLinkPreloadIdentity` type was
+     exported but not pinned by hover docs/type tests.
+   - Fix: React now keys the Core preloader by router instance so provider
+     replacement interrupts stale hover work. Core link preload identity is
+     pinned by the public API inventory and public type tests.
+   - Benefits: adapter lifecycle ownership now follows the router object that
+     owns the active route graph, and LSP-facing Core link identity docs cannot
+     silently drift.
+
+3. Devtools Route-Plan Redaction And Cleanup Failure Serialization
+   - Status: fixed.
+   - Files: `packages/devtools/src/devtools-contract.ts`,
+     `packages/devtools/src/serialization.ts`,
+     `packages/devtools/src/summary-facts.ts`,
+     `packages/devtools/src/panels.ts`,
+     `packages/devtools/test/devtools.test.ts`,
+     `scripts/audit-public-api-inventory.mjs`.
+   - Problem: `DevtoolsRoutePlan.href` and `match.href` preserved sensitive
+     query strings even after request URL redaction, including embedded request
+     trace route plans. Start teardown `cleanupFailure` facts were also dropped
+     before snapshot, summary, and panel projection.
+   - Fix: route-plan serialization now redacts sensitive query parameters in
+     both plan and match hrefs. Request trace teardown serialization preserves a
+     bounded cleanup-failure object through snapshots, summaries, and panels.
+     `DevtoolsUnknownInvalidationTarget` now has public hover documentation.
+   - Benefits: Devtools owns sensitive trace redaction at the serialization
+     Seam and preserves teardown truth instead of making callers infer cleanup
+     failures from missing data.
+
+4. Effect-First, Package Payload, And Start CLI Guardrails
+   - Status: fixed.
+   - Files: `scripts/audit-effect-first.mjs`,
+     `scripts/verify-package-dry-runs.mjs`, `packages/start/package.json`,
+     `tsconfig.base.json`, `docs/public-api-inventory.md`,
+     `type-tests/public-api.manifest.json`,
+     `type-tests/start-cli.test-d.ts`.
+   - Problem: the Effect-first audit missed nested and computed
+     `globalThis.Promise` extraction forms. Source package dry-runs checked
+     directories but not required entrypoint files. The Start diagnostics CLI
+     runner was documented as a public source surface but exported only through
+     bin/private paths.
+   - Fix: the Effect-first audit catches nested and computed global Promise
+     extraction. Source package dry-runs now require concrete app, server,
+     route, virtual-module, script, panel, extension, and config entrypoints.
+     `@effect-ui/start/cli` is an explicit public subpath with type-test
+     coverage for the Effect-native CLI commands and runner helpers.
+   - Benefits: Effect-first, copyability, and LSP-facing public CLI contracts
+     now fail at the guardrail where drift would enter.
+
+Focused verification passed: DB/React/Devtools/Start package typechecks,
+public type tests, public API audit, Effect-first audit over 273 files,
+16-target package dry-run metadata/payload gate, DB collection tests 1 file /
+122 tests, React router tests 1 file / 11 tests, Devtools tests 1 file / 76
+tests, package build, script syntax checks, and `git diff --check`.
+
+Full `pnpm verify` still needs to be rerun after Review157 before this slice
+can replace Review156 as the newest full verification checkpoint. Fresh
+post-fix sweeps still need to complete before the clean-sweep counter can
+start.
 
 ## Review 156: Durable Commit Races, Query Redaction, And Guardrail Pins
 

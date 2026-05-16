@@ -27,6 +27,10 @@
       "types": "./dist/diagnostics-report.d.ts",
       "default": "./dist/diagnostics-report.js"
     },
+    "./cli": {
+      "types": "./dist/cli.d.ts",
+      "default": "./dist/cli.js"
+    },
     "./adapters": {
       "types": "./dist/adapters.d.ts",
       "default": "./dist/adapters.js"

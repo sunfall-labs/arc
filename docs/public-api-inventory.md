@@ -25,6 +25,7 @@ unless this document explicitly promotes them.
 | `@effect-ui/start` | `.` | `packages/start/src/index.ts` | Public | Keep as the full-stack runtime surface. |
 | `@effect-ui/start` | `./vite` | `packages/start/src/vite.ts` | Public | Keep as the build-plugin and diagnostics runner surface. |
 | `@effect-ui/start` | `./diagnostics-report` | `packages/start/src/diagnostics-report.ts` | Public | Keep as CI/agent repair report surface. |
+| `@effect-ui/start` | `./cli` | `packages/start/src/cli.ts` | Expert public | Keep as the Effect-native diagnostics CLI runner surface for tests and embedding. |
 | `@effect-ui/start` | `./adapters` | `packages/start/src/adapters.ts` | Public | Keep as the compatibility facade for Node/fetch host integration. |
 | `@effect-ui/start` | `./fetch-adapter` | `packages/start/src/fetch-adapter.ts` | Expert public | Keep as the fetch-only host adapter surface for bundle-sensitive hosts. |
 | `@effect-ui/start` | `./node-adapter` | `packages/start/src/node-adapter.ts` | Expert public | Keep as the Node HTTP host adapter surface for server integrations. |
@@ -362,6 +363,13 @@ The root export includes:
 - Effect-native observability metrics:
   `startRequestCountMetric`, `startRequestDurationMetric`, and
   `startRequestStatusMetric`.
+- The `@effect-ui/start/cli` subpath exposes the Effect-native diagnostics CLI
+  parser and runner for tests, agents, and embedding: `parseStartDiagnosticsCliArgsEffect(...)`,
+  `parseStartDiagnosticsCliArgs(...)`, `runStartDiagnosticsCliEffect(...)`,
+  `runStartDiagnosticsCli(...)`, `runStartDiagnosticsCliMainEffect(...)`, and
+  `runStartDiagnosticsCliMain(...)`. The package bin remains the normal app
+  entrypoint; embedders should use this subpath instead of private source
+  imports or process spawning.
 - Effect RPC compatibility descriptors:
   `serverFunctionToEffectRpc`, `makeStartEffectRpcGroup`,
   `startEffectRpcEndpointDescriptor`, and

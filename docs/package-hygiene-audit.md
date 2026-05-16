@@ -58,6 +58,10 @@ exports. It supports the release-engineering charter workstream.
   devtools extension, project console, basic starter, and React starter dry-runs
   now require their concrete copyable source files and directories instead of
   passing when only `.gitignore` is present.
+- Review157 tightened the source-package payload gate from broad directories to
+  concrete entrypoint files: app/server/route/virtual-module/leak-scan files for
+  starters, panel/extension runtime files for devtools examples, and the config
+  files required to copy and verify each source package.
 
 ## Verification Evidence
 
@@ -117,6 +121,11 @@ exports. It supports the release-engineering charter workstream.
 - Review156 focused `pnpm example:pack-dry-run` passed across all 16 package
   payloads after adding concrete source payload file/directory requirements to
   the dry-run gate.
+- Review157 focused `pnpm example:pack-dry-run` passed across all 16 package
+  payloads after requiring concrete source entrypoints: core 201 files, db 145,
+  devtools 65, devtools-extension 15, devtools-panel 10, project-console 30,
+  react 25, react-db 17, solid 25, solid-db 17, start 256, start-fetch 5,
+  start-node 5, starter-basic 19, starter-react 24, and tsrx 5.
 - `pnpm verify` passed after adding the Node and Fetch adapter facade packages:
   9 package builds, workspace typecheck, type tests, 35 package test files /
   308 tests, example typecheck, 4 example test files / 23 tests, example build,

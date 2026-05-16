@@ -102,7 +102,7 @@ export const RouterLink = <R extends AnyRoute>(
       enabled: () => preloadConfig.current?.enabled() ?? false,
       preloadEffect: () => preloadConfig.current!.preloadEffect()
     }),
-    [router.runtime]
+    [router]
   );
 
   useEffect(() => {
