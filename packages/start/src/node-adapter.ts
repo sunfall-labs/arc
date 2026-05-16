@@ -8,6 +8,7 @@ import {
   type StartRequestHandlerRequirements
 } from "./start-host-adapter.js";
 import {
+  nodeRequestLifecycle,
   nodeRequestToWebRequestEffect,
   writeNodeExchangeResponseEffect,
   type StartNodeAdapterError,
@@ -15,6 +16,7 @@ import {
 } from "./node-web-exchange.js";
 import {
   forkStartHostEffect,
+  interruptStartHostFiberOnSignal,
   type StartForkRuntime,
   type StartHostForkRunnerOptions
 } from "./start-host-runtime-runner.js";
@@ -201,8 +203,12 @@ export function createNodeServerHandler<Handler extends StartRequestHandlerInput
   ...args: StartNodeServerHandlerOptionsArgs<StartRequestHandlerRequirements<Handler>, RuntimeError>
 ): StartNodeServerHandler {
   const options = args[0] ?? {};
-  const effectHandler = createNodeHandlerEffect(handler, options);
   return (request, response) => {
+    const lifecycle = nodeRequestLifecycle(request, response);
+    const effectHandler = createNodeHandlerEffect(handler, {
+      ...options,
+      signal: lifecycle.signal
+    });
     const reportError = (error: unknown): void => {
       try {
         void defaultRuntime.runFork(
@@ -219,7 +225,7 @@ export function createNodeServerHandler<Handler extends StartRequestHandlerInput
     };
 
     try {
-      void forkStartHostEffect(
+      const fiber = forkStartHostEffect(
         effectHandler(request, response).pipe(
           Effect.asVoid,
           Effect.catchCause((cause) =>
@@ -228,7 +234,13 @@ export function createNodeServerHandler<Handler extends StartRequestHandlerInput
         ),
         options
       );
+      const disposeInterrupt = interruptStartHostFiberOnSignal(fiber, lifecycle.signal, options);
+      fiber.addObserver(() => {
+        disposeInterrupt();
+        lifecycle.dispose();
+      });
     } catch (error) {
+      lifecycle.dispose();
       reportError(error);
     }
   };

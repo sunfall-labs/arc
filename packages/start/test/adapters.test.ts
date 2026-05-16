@@ -1,9 +1,9 @@
 import { Buffer } from "node:buffer";
 import { readFileSync } from "node:fs";
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { createServer, request as httpRequest, type IncomingMessage, type ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import { Readable } from "node:stream";
-import { Deferred, Effect } from "effect";
+import { Deferred, Effect, Option } from "effect";
 import { describe, expect, it } from "vitest";
 import { defineApp, makeRuntime, route } from "@effect-ui/core";
 import {
@@ -301,6 +301,43 @@ describe("Start deployment adapters", () => {
       expect(response.status).toBe(503);
       await expect(response.text()).resolves.toBe("runtime failure");
       expect(observed).toBe(cause);
+    } finally {
+      await close(server);
+    }
+  });
+
+  it("interrupts Node server handler Effects when the client disconnects before a response", async () => {
+    const started = Effect.runSync(Deferred.make<void>());
+    const interrupted = Effect.runSync(Deferred.make<void>());
+    const nodeHandler = createNodeServerHandler((request) =>
+      Effect.gen(function* () {
+        expect(request.signal.aborted).toBe(false);
+        yield* Deferred.succeed(started, undefined).pipe(Effect.ignore);
+        return yield* Effect.never.pipe(
+          Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined))
+        );
+      })
+    );
+    const server = createServer(nodeHandler);
+    const port = await listen(server);
+
+    try {
+      const client = httpRequest({
+        host: "127.0.0.1",
+        port,
+        path: "/disconnect",
+        method: "GET"
+      });
+      client.on("error", () => {});
+      client.end();
+
+      await Effect.runPromise(Deferred.await(started));
+      client.destroy();
+
+      const interruptedResult = await Effect.runPromise(
+        Deferred.await(interrupted).pipe(Effect.timeoutOption("1 second"))
+      );
+      expect(Option.isSome(interruptedResult)).toBe(true);
     } finally {
       await close(server);
     }

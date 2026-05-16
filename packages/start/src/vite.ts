@@ -1,9 +1,11 @@
 import { Data, Effect } from "effect";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { resolve as resolvePath } from "node:path";
+import { isAbsolute, relative, resolve as resolvePath } from "node:path";
 import type { UserConfig } from "vite";
 import {
+  absoluteFileRouteDirectory,
   createStartManifestWallDefineValues,
+  defaultFileRouteDirectory,
   defaultServerEntry,
   makeStartBuildAppGraphEffect,
   makeStartFileRouteManifestEffect,
@@ -13,6 +15,10 @@ import {
   type EffectUiStartOptions
 } from "./start-manifest-wall.js";
 import {
+  appGraphRuntimeDiagnosticsVirtualModuleId,
+  appGraphVirtualModuleId,
+  fileRouteDefinitionsVirtualModuleId,
+  fileRouteManifestVirtualModuleId,
   loadStartVirtualModuleEffect,
   resolveStartVirtualModuleId
 } from "./start-virtual-modules.js";
@@ -33,9 +39,12 @@ import {
 } from "./start-vite-dev-ssr.js";
 import {
   forkStartHostEffect,
+  interruptStartHostFiberOnSignal,
   runStartHostPromise
 } from "./start-host-runtime-runner.js";
 import { isStartManifestServerOnlyModule } from "./manifest-entry-core.js";
+import { defaultFileRouteExtensions } from "./file-routes.js";
+import { nodeRequestLifecycle } from "./node-web-exchange.js";
 
 export {
   defaultFileRouteDirectory,
@@ -166,6 +175,15 @@ export interface EffectUiStartPlugin {
       };
     }
   ) => () => void;
+  readonly handleHotUpdate?: (context: {
+    readonly file: string;
+    readonly server: {
+      readonly moduleGraph: {
+        getModuleById(id: string): unknown;
+        invalidateModule(module: unknown): void;
+      };
+    };
+  }) => void;
 }
 
 /** Error thrown when a browser build imports a `.server.*` module. */
@@ -228,6 +246,61 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
       activeOptions.fileRouteGeneration
     );
   };
+  const fileRouteVirtualModuleIds = [
+    fileRouteManifestVirtualModuleId,
+    fileRouteDefinitionsVirtualModuleId,
+    appGraphVirtualModuleId,
+    appGraphRuntimeDiagnosticsVirtualModuleId
+  ] as const;
+  const invalidateFileRouteVirtualModules = (server: {
+    readonly moduleGraph: {
+      getModuleById(id: string): unknown;
+      invalidateModule(module: unknown): void;
+    };
+  }): void => {
+    for (const id of fileRouteVirtualModuleIds) {
+      const resolved = resolveStartVirtualModuleId(id);
+      if (resolved === null) {
+        continue;
+      }
+      const module = server.moduleGraph.getModuleById(resolved);
+      if (module !== undefined) {
+        server.moduleGraph.invalidateModule(module);
+      }
+    }
+  };
+  const isFileRouteUpdate = (file: string): boolean => {
+    const activeOptions = currentOptions();
+    const routeDirectory = absoluteFileRouteDirectory(
+      viteRoot,
+      activeOptions.fileRouteOptions?.routeDirectory ?? defaultFileRouteDirectory
+    );
+    const relativeRouteFile = relative(routeDirectory, resolvePath(file));
+    if (
+      relativeRouteFile === "" ||
+      relativeRouteFile.startsWith("..") ||
+      isAbsolute(relativeRouteFile) ||
+      relativeRouteFile.endsWith(".d.ts") ||
+      relativeRouteFile.endsWith(".d.mts") ||
+      relativeRouteFile.endsWith(".d.cts")
+    ) {
+      return false;
+    }
+
+    const extensions = activeOptions.fileRouteOptions?.extensions ?? defaultFileRouteExtensions;
+    return extensions.some((extension) => relativeRouteFile.endsWith(extension));
+  };
+  const refreshFileRouteArtifacts = (server?: {
+    readonly moduleGraph: {
+      getModuleById(id: string): unknown;
+      invalidateModule(module: unknown): void;
+    };
+  }): void => {
+    writeCurrentFileRouteDefinitions();
+    if (server !== undefined) {
+      invalidateFileRouteVirtualModules(server);
+    }
+  };
 
   return {
     name: "effect-ui-start",
@@ -246,10 +319,10 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
       viteRoot = config.root;
       viteCommand = config.command;
       viteMode = config.mode;
-      writeCurrentFileRouteDefinitions();
+      refreshFileRouteArtifacts();
     },
     buildStart() {
-      writeCurrentFileRouteDefinitions();
+      refreshFileRouteArtifacts();
       if (shouldRunDiagnosticsGate()) {
         return runCurrentDiagnosticsGate();
       }
@@ -272,7 +345,8 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
       return () => {
         server.middlewares.use((request, response, next) => {
           const activeOptions = currentOptions();
-          void forkStartHostEffect(
+          const lifecycle = nodeRequestLifecycle(request, response);
+          const fiber = forkStartHostEffect(
             handleSsrDevMiddlewareEffect(
               startServer,
               request,
@@ -289,14 +363,25 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
                 ...(normalizedOptions.handlerExport === undefined
                   ? {}
                   : { handlerExport: normalizedOptions.handlerExport }),
-                ...(normalizedOptions.nodeRequest === undefined
-                  ? {}
-                  : { nodeRequest: normalizedOptions.nodeRequest })
+                nodeRequest: {
+                  ...normalizedOptions.nodeRequest,
+                  signal: lifecycle.signal
+                }
               }
             )
           );
+          const disposeInterrupt = interruptStartHostFiberOnSignal(fiber, lifecycle.signal);
+          fiber.addObserver(() => {
+            disposeInterrupt();
+            lifecycle.dispose();
+          });
         });
       };
+    },
+    handleHotUpdate(context) {
+      if (isFileRouteUpdate(context.file)) {
+        refreshFileRouteArtifacts(context.server);
+      }
     }
   };
 };

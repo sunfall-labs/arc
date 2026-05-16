@@ -6234,6 +6234,55 @@ describe("Effect UI Start", () => {
     }
   });
 
+  it("refreshes generated route artifacts and virtual modules on route hot updates", async () => {
+    const root = mkdtempSync(join(tmpdir(), "effect-ui-generated-routes-hot-"));
+
+    try {
+      mkdirSync(join(root, "src/routes/projects"), { recursive: true });
+      writeFileSync(join(root, "src/routes/index.tsx"), "export default null;\n");
+
+      const plugin = effectUiStart();
+      plugin.configResolved({ root, command: "serve" });
+
+      const generatedPath = join(root, defaultFileRouteGeneratedFile);
+      expect(readFileSync(generatedPath, "utf8")).not.toContain('import { Route as route_projects_$id }');
+
+      const virtualIds = [
+        fileRouteManifestVirtualModuleId,
+        fileRouteDefinitionsVirtualModuleId,
+        appGraphVirtualModuleId,
+        appGraphRuntimeDiagnosticsVirtualModuleId
+      ];
+      const resolvedIds = virtualIds.map((id) => plugin.resolveId(id)).filter((id): id is string => id !== null);
+      const modules = new Map(resolvedIds.map((id) => [id, { id }]));
+      const invalidated: Array<{ readonly id: string }> = [];
+
+      writeFileSync(join(root, "src/routes/projects/$id.tsx"), "export default null;\n");
+      plugin.handleHotUpdate?.({
+        file: join(root, "src/routes/projects/$id.tsx"),
+        server: {
+          moduleGraph: {
+            getModuleById: (id) => modules.get(id),
+            invalidateModule: (module) => {
+              invalidated.push(module as { readonly id: string });
+            }
+          }
+        }
+      });
+
+      const generated = readFileSync(generatedPath, "utf8");
+      expect(generated).toContain('import { Route as route_projects_$id } from "./routes/projects/$id.js";');
+      expect(generated).toContain('  "/projects/:id": route_projects_$id');
+      expect(invalidated.map((module) => module.id)).toEqual(resolvedIds);
+
+      const resolved = plugin.resolveId(fileRouteDefinitionsVirtualModuleId);
+      const loaded = resolved === null ? undefined : plugin.load(resolved);
+      expect(String(loaded)).toContain("route_projects_$id");
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("can disable generated file route definition writes", async () => {
     const root = mkdtempSync(join(tmpdir(), "effect-ui-generated-routes-disabled-"));
 

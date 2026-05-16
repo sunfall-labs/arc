@@ -24,6 +24,8 @@ export interface StartNodeOriginPolicy {
 export interface StartNodeRequestOptions extends StartNodeOriginPolicy {
   /** Public origin used to resolve relative Node request URLs. */
   readonly origin?: string | ((request: IncomingMessage) => string);
+  /** Abort signal attached to the created Web Request. */
+  readonly signal?: AbortSignal;
 }
 
 /** Options for writing a web `Response` to Node's `ServerResponse`. */
@@ -87,7 +89,8 @@ export const nodeRequestToWebRequest = (
   const method = request.method ?? "GET";
   const init: RequestInit & { duplex?: "half" } = {
     method,
-    headers
+    headers,
+    ...(options.signal === undefined ? {} : { signal: options.signal })
   };
 
   if (method !== "GET" && method !== "HEAD") {
@@ -96,6 +99,43 @@ export const nodeRequestToWebRequest = (
   }
 
   return new Request(url, init);
+};
+
+export interface StartNodeRequestLifecycle {
+  readonly signal: AbortSignal;
+  dispose(): void;
+}
+
+/** Creates a per-request AbortSignal from Node request/response disconnects. */
+export const nodeRequestLifecycle = (
+  request: IncomingMessage,
+  response?: ServerResponse
+): StartNodeRequestLifecycle => {
+  const controller = new AbortController();
+  const abort = (): void => {
+    if (!controller.signal.aborted) {
+      controller.abort();
+    }
+  };
+  const abortOnResponseClose = (): void => {
+    if (response !== undefined && !response.writableEnded) {
+      abort();
+    }
+  };
+  const dispose = (): void => {
+    request.off("aborted", abort);
+    response?.off("close", abortOnResponseClose);
+    response?.off("finish", dispose);
+  };
+
+  request.once("aborted", abort);
+  response?.once("close", abortOnResponseClose);
+  response?.once("finish", dispose);
+
+  return {
+    signal: controller.signal,
+    dispose
+  };
 };
 
 /** Effect wrapper for `nodeRequestToWebRequest` with adapter errors. */

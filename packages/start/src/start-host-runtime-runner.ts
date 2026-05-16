@@ -1,5 +1,5 @@
 import { defaultRuntime, type AnyEffectUiRuntime, type EffectUiRuntime } from "@effect-ui/core";
-import { Effect, Scope } from "effect";
+import { Effect, Fiber, Scope } from "effect";
 import { responseWithScopeLifetimeEffect } from "./response-lifetime.js";
 
 /** Options shared by host facades that resolve an Effect to a platform Promise. */
@@ -11,17 +11,17 @@ export interface StartHostPromiseRunnerOptions<RuntimeError = never> {
 }
 
 /** Erased Runtime Runner seam used by callback-shaped host adapter facades. */
-export interface StartForkRuntime {
+export interface StartForkRuntime<RuntimeError = never> {
   readonly runFork: <A, E, R>(
     effect: Effect.Effect<A, E, R>,
     options?: Effect.RunOptions
-  ) => unknown;
+  ) => Fiber.Fiber<A, E | RuntimeError>;
 }
 
 /** Options shared by host facades that fork an Effect from a callback. */
 export interface StartHostForkRunnerOptions<RuntimeError = never> {
   /** Runtime runner used to launch the callback-owned Effect. */
-  readonly runtime?: StartForkRuntime | EffectUiRuntime<any, RuntimeError>;
+  readonly runtime?: StartForkRuntime<RuntimeError> | EffectUiRuntime<any, RuntimeError>;
   /** Effect runtime options passed to the host callback fork seam. */
   readonly runOptions?: Effect.RunOptions;
 }
@@ -33,8 +33,8 @@ const hostPromiseRuntime = <RuntimeError>(
 
 const hostForkRuntime = <RuntimeError>(
   runtime: StartHostForkRunnerOptions<RuntimeError>["runtime"] | undefined
-): StartForkRuntime =>
-  runtime ?? (defaultRuntime as unknown as StartForkRuntime);
+): StartForkRuntime<RuntimeError> =>
+  runtime ?? (defaultRuntime as unknown as StartForkRuntime<RuntimeError>);
 
 /** Runs a host facade Effect to the platform Promise required by the host. */
 export const runStartHostPromise = <A, E, R, RuntimeError = never>(
@@ -57,8 +57,37 @@ export const runStartHostResponsePromise = <E, R, RuntimeError = never>(
 export const forkStartHostEffect = <A, E, R, RuntimeError = never>(
   effect: Effect.Effect<A, E, R>,
   options: StartHostForkRunnerOptions<RuntimeError> = {}
-): unknown =>
+): Fiber.Fiber<A, E | RuntimeError> =>
   hostForkRuntime(options.runtime).runFork(
     Effect.scoped(effect),
     options.runOptions
-  );
+  ) as Fiber.Fiber<A, E | RuntimeError>;
+
+/** Interrupts a forked host Effect from an AbortSignal and removes listeners on completion. */
+export const interruptStartHostFiberOnSignal = <A, E>(
+  fiber: Fiber.Fiber<A, E>,
+  signal: AbortSignal,
+  options: Pick<StartHostForkRunnerOptions, "runOptions"> = {}
+): (() => void) => {
+  const interrupt = (): void => {
+    void defaultRuntime.runFork(
+      Fiber.interrupt(fiber).pipe(Effect.catchCause(() => Effect.void)),
+      options.runOptions
+    );
+  };
+  const dispose = (): void => {
+    signal.removeEventListener("abort", interrupt);
+  };
+
+  if (signal.aborted) {
+    interrupt();
+    return dispose;
+  }
+
+  signal.addEventListener("abort", interrupt, { once: true });
+  const removeObserver = fiber.addObserver(dispose);
+  return () => {
+    dispose();
+    removeObserver();
+  };
+};
