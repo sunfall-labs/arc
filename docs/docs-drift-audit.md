@@ -453,9 +453,13 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Added Review 125 evidence for the Core Program Runtime Coordinator cleanup.
   Current docs now record that Program contracts, primitives, story execution,
   and live Queue/Fiber/Scope runtime execution live in focused internal Modules.
-- Updated current-facing verification snapshots after Review 125 full
+- Added Review 126 evidence for Core Program Runtime lifecycle hardening.
+  Current docs now record that Program dispatch acknowledgements, subscription
+  restart ownership, subscription generations, and post-dispose update guards
+  live inside the Runtime Coordinator.
+- Updated current-facing verification snapshots after Review 126 full
   verification so the latest gate points at the 237-file Effect-first audit and
-  52 root test files / 863 tests.
+  52 root test files / 867 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are
   wrapped with `Effect.tryPromise(...)` at the Adapter seam.
 - Clarified that `virtual:effect-ui/routes` exposes runtime helpers while the

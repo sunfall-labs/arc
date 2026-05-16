@@ -134,6 +134,12 @@ Latest full gate on May 15, 2026:
   `program.ts` facade still preserves the exported surface and `Program`
   namespace, while live Queue/Fiber/Scope execution and deterministic story
   execution now have separate locality.
+- Review 126 hardened the Core Program Runtime Coordinator lifecycle:
+  `dispatchEffect(...)` acknowledgements complete during disposal races,
+  subscription restarts are owned by committed model changes rather than hidden
+  signal observers, stale subscription generations cannot emit follow-up
+  messages or timeline facts, and post-dispose update continuations cannot
+  mutate model state or run commands.
 - Review 85 extracted the internal Solid Route Render Scope Controller:
   `RouterOutlet` now delegates route branch rendering, route-owned `UiScope`
   creation, Solid root cleanup, runtime-bound route finalizers, transition
@@ -763,11 +769,12 @@ Latest full gate on May 15, 2026:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 125 extracted the internal
-  Core Program Runtime Coordinator while keeping public package exports stable:
+- The latest full `pnpm verify` passed after Review 126 hardened the internal
+  Core Program Runtime Coordinator lifecycle while keeping public package
+  exports stable:
   11 package builds, workspace typecheck, public type tests, public API
   inventory audit, Effect-first audit over 237 files, 52 root test
-  files / 863 tests,
+  files / 867 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,
   project-console packaging/typecheck/tests/build with 4 files / 27 tests, and

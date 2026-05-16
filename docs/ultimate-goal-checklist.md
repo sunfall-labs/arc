@@ -165,6 +165,11 @@ Last evidence pass: May 15, 2026.
   - Evidence: `packages/core/src/program.ts` preserves public exports while
     `program-contract.ts`, `program-primitives.ts`, `program-story.ts`, and
     `program-runtime.ts` own focused internal Modules.
+- [x] Program dispatch and subscription lifecycle is Effect-owned.
+  - Evidence: `packages/core/src/program-runtime.ts` tracks pending
+    `dispatchEffect(...)` acknowledgements with `Deferred`, completes them
+    during disposal, restarts subscriptions from committed model changes, and
+    uses subscription generations to drop stale emissions.
 - [x] Core runtime service erasure is named at the runtime value boundary.
   - Evidence: `packages/core/src/runtime.ts` erases ManagedRuntime services at
     the `ManagedRuntime<any, ER>` value boundary, so runtime helpers no longer

@@ -1,4 +1,4 @@
-import { Context, Deferred, Effect, Layer, Stream } from "effect";
+import { Context, Deferred, Effect, Exit, Layer, Option, Queue, Stream } from "effect";
 import { describe, expect, it } from "vitest";
 import { makeRuntime, Program, read, runWithRuntime } from "../src/index.js";
 
@@ -309,6 +309,184 @@ describe("Program", () => {
         yield* Deferred.await(interrupted);
 
         expect(read(program.model)).toEqual({ ticks: 1 });
+        yield* program.disposeEffect;
+      })
+    ));
+
+  it("completes dispatchEffect when disposal races an in-flight update", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const started = yield* Deferred.make<void>();
+        const program = Program.start(Program.define<number, "block">({
+          initial: 0,
+          update: () =>
+            Deferred.succeed(started, undefined).pipe(
+              Effect.flatMap(() => Effect.never)
+            )
+        }));
+
+        const result = yield* Effect.all(
+          [
+            program.dispatchEffect("block").pipe(Effect.exit),
+            Effect.gen(function* () {
+              const startedOption = yield* Deferred.await(started).pipe(Effect.timeoutOption("1 second"));
+              expect(Option.isSome(startedOption)).toBe(true);
+              const disposedOption = yield* program.disposeEffect.pipe(Effect.timeoutOption("1 second"));
+              expect(Option.isSome(disposedOption)).toBe(true);
+            })
+          ] as const,
+          { concurrency: "unbounded" }
+        ).pipe(Effect.timeoutOption("2 seconds"));
+
+        expect(Option.isSome(result)).toBe(true);
+        if (Option.isSome(result)) {
+          expect(Exit.isSuccess(result.value[0])).toBe(true);
+        }
+        expect(read(program.model)).toBe(0);
+      })
+    ));
+
+  it("completes queued dispatch acknowledgements during disposal", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const firstStarted = yield* Deferred.make<void>();
+        const releaseFirst = yield* Deferred.make<void>();
+        const program = Program.start(Program.define<number, "first" | "second">({
+          initial: 0,
+          update: (model, message) =>
+            message === "first"
+              ? Deferred.succeed(firstStarted, undefined).pipe(
+                  Effect.flatMap(() => Deferred.await(releaseFirst)),
+                  Effect.as(model + 1)
+                )
+              : model + 100
+        }));
+
+        const result = yield* Effect.all(
+          [
+            program.dispatchEffect("first").pipe(Effect.exit),
+            Effect.gen(function* () {
+              yield* Deferred.await(firstStarted);
+              return yield* program.dispatchEffect("second").pipe(Effect.exit);
+            }),
+            Effect.gen(function* () {
+              const firstStartedOption = yield* Deferred.await(firstStarted).pipe(Effect.timeoutOption("1 second"));
+              expect(Option.isSome(firstStartedOption)).toBe(true);
+              yield* Effect.sleep("10 millis");
+              const disposedOption = yield* program.disposeEffect.pipe(Effect.timeoutOption("1 second"));
+              expect(Option.isSome(disposedOption)).toBe(true);
+            })
+          ] as const,
+          { concurrency: "unbounded" }
+        ).pipe(Effect.timeoutOption("2 seconds"));
+
+        expect(Option.isSome(result)).toBe(true);
+        if (Option.isSome(result)) {
+          expect(Exit.isSuccess(result.value[0])).toBe(true);
+          expect(Exit.isSuccess(result.value[1])).toBe(true);
+        }
+
+        yield* Deferred.succeed(releaseFirst, undefined).pipe(Effect.ignore);
+        yield* Effect.sleep("10 millis");
+        expect(read(program.model)).toBe(0);
+      })
+    ));
+
+  it("restarts subscriptions only from committed model changes", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const initialStarted = yield* Deferred.make<void>();
+        const changedStarted = yield* Deferred.make<void>();
+        const startedModels: Array<number> = [];
+        type Model = { readonly count: number };
+        type Message = "same" | "change";
+
+        const program = Program.start(Program.define<Model, Message>({
+          initial: { count: 0 },
+          update: (model, message) =>
+            message === "same" ? model : { count: model.count + 1 },
+          subscriptions: (model) =>
+            Effect.gen(function* () {
+              startedModels.push(model.count);
+              if (startedModels.length === 1) {
+                yield* Deferred.succeed(initialStarted, undefined);
+              }
+              if (startedModels.length === 2) {
+                yield* Deferred.succeed(changedStarted, undefined);
+              }
+              return Stream.never;
+            })
+        }));
+
+        yield* Deferred.await(initialStarted);
+        yield* program.dispatchEffect("same");
+        yield* Effect.sleep("10 millis");
+
+        expect(startedModels).toEqual([0]);
+
+        yield* program.dispatchEffect("change");
+        yield* Deferred.await(changedStarted);
+
+        expect(startedModels).toEqual([0, 1]);
+        expect(read(program.timeline).filter((event) => event._tag === "SubscriptionStarted")).toHaveLength(2);
+        yield* program.disposeEffect;
+      })
+    ));
+
+  it("drops stale subscription emissions after restart", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const oldSubscriptionReady = yield* Deferred.make<void>();
+        const releaseOldSubscription = yield* Deferred.make<void>();
+        const newSubscriptionReady = yield* Deferred.make<void>();
+        let emitOldMessage: (() => boolean) | undefined;
+        type Model = { readonly version: number };
+        type Message =
+          | { readonly _tag: "Advance" }
+          | { readonly _tag: "Stale" };
+
+        const program = Program.start(Program.define<Model, Message>({
+          initial: { version: 0 },
+          update: (model, message) =>
+            message._tag === "Advance"
+              ? { version: model.version + 1 }
+              : { version: model.version + 100 },
+          subscriptions: (model) =>
+            model.version === 0
+              ? Stream.callback<Message>((queue) =>
+                  Effect.uninterruptible(
+                    Effect.gen(function* () {
+                      yield* Effect.sync(() => {
+                        emitOldMessage = () => Queue.offerUnsafe(queue, { _tag: "Stale" });
+                      });
+                      yield* Deferred.succeed(oldSubscriptionReady, undefined);
+                      yield* Deferred.await(releaseOldSubscription);
+                    })
+                  )
+                )
+              : Effect.gen(function* () {
+                  yield* Deferred.succeed(newSubscriptionReady, undefined);
+                  return Stream.never;
+                })
+        }));
+
+        yield* Deferred.await(oldSubscriptionReady);
+        yield* program.dispatchEffect({ _tag: "Advance" });
+        yield* Deferred.await(newSubscriptionReady);
+
+        expect(emitOldMessage?.()).toBe(true);
+        yield* Effect.sleep("10 millis");
+
+        expect(read(program.model)).toEqual({ version: 1 });
+        expect(
+          read(program.timeline).filter(
+            (event) =>
+              event._tag === "SubscriptionEmitted" &&
+              event.message._tag === "Stale"
+          )
+        ).toEqual([]);
+
+        yield* Deferred.succeed(releaseOldSubscription, undefined).pipe(Effect.ignore);
         yield* program.disposeEffect;
       })
     ));

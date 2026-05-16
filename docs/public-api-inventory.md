@@ -173,7 +173,11 @@ Release decisions:
   `timeline.limit` for devtools-friendly retention. Runtime timeline retention
   and disabled timeline behavior are implemented by the internal Program
   Runtime Timeline Module, while the public Program facade keeps queue,
-  command, subscription, failure, and disposal orchestration.
+  command, subscription, failure, and disposal orchestration. Runtime
+  lifecycle policy also stays internal: disposal completes pending
+  `dispatchEffect(...)` acknowledgements, committed model changes own
+  subscription restarts, and stale subscription generations cannot emit
+  follow-up messages or timeline facts.
   Internally, Program Contract, Program Primitives, Program Story Harness, and
   Program Runtime Coordinator Modules separate public data Interfaces, pure
   constructors/normalizers, deterministic story execution, and live

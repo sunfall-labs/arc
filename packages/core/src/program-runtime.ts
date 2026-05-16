@@ -57,8 +57,9 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
   let disposed = false;
   let processorFiber: Fiber.Fiber<void, unknown> | undefined;
   let subscriptionFiber: Fiber.Fiber<void, unknown> | undefined;
-  let unsubscribeModel: (() => void) | undefined;
   let commandSequence = 0;
+  let subscriptionGeneration = 0;
+  const pendingDispatchAcks = new Set<Deferred.Deferred<void, ProgramFailure<Message, ProgramRuntimeError<E, ER>>>>();
 
   type RuntimeFailure = ProgramRuntimeError<E, ER>;
   type RuntimeProgramEvent = ProgramEvent<Model, Message, RuntimeFailure>;
@@ -80,6 +81,16 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
     disposed
       ? Effect.void
       : Queue.offer(queue, { message }).pipe(Effect.asVoid);
+
+  const completePendingDispatches = (): Effect.Effect<void> => {
+    const pending = Array.from(pendingDispatchAcks);
+    pendingDispatchAcks.clear();
+    return Effect.forEach(
+      pending,
+      (ack) => Deferred.succeed(ack, undefined),
+      { discard: true }
+    ).pipe(Effect.asVoid);
+  };
 
   const runWithProgramRuntime = <A, E2, R2>(
     effect: Effect.Effect<A, E2, R2>
@@ -138,11 +149,15 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
         onFailure: (error) =>
           Effect.gen(function* () {
             const failure = makeProgramFailure("Update", error, queued.message);
-            yield* Effect.sync(() => {
+            const reportFailure = yield* Effect.sync(() => {
+              if (disposed) {
+                return false;
+              }
               appendFailure(failure);
               recordTimeline({ _tag: "UpdateFailed", failure });
+              return true;
             });
-            yield* completeAck(queued, failure);
+            yield* completeAck(queued, reportFailure ? failure : undefined);
           }),
         onSuccess: (update) =>
           Effect.gen(function* () {
@@ -151,7 +166,10 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
               ? update
               : programNext<Model, Message, E, R>(update);
 
-            yield* Effect.sync(() => {
+            const committed = yield* Effect.sync(() => {
+              if (disposed) {
+                return false;
+              }
               recordTimeline({
                 _tag: "Message",
                 message: queued.message,
@@ -160,7 +178,17 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
                 commandCount: step.commands.length
               });
               model.set(step.model);
+              if (!Object.is(before, step.model)) {
+                restartSubscriptions(step.model);
+              }
+              return true;
             });
+
+            if (!committed || disposed) {
+              yield* completeAck(queued);
+              return;
+            }
+
             yield* runCommands(step.commands, queued.message);
             yield* completeAck(queued);
           })
@@ -173,11 +201,15 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
   ): Effect.Effect<void> =>
     Effect.gen(function* () {
       const failure = makeProgramFailure("Update", error, queued.message);
-      yield* Effect.sync(() => {
+      const reportFailure = yield* Effect.sync(() => {
+        if (disposed) {
+          return false;
+        }
         appendFailure(failure);
         recordTimeline({ _tag: "UpdateFailed", failure });
+        return true;
       });
-      yield* completeAck(queued, failure);
+      yield* completeAck(queued, reportFailure ? failure : undefined);
     });
 
   const processor = Effect.scoped(
@@ -193,6 +225,8 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
   );
 
   const restartSubscriptions = (nextModel: Model): void => {
+    const generation = ++subscriptionGeneration;
+
     if (subscriptionFiber) {
       const fiber = subscriptionFiber;
       subscriptionFiber = undefined;
@@ -207,24 +241,39 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
     const runSubscriptions = Effect.gen(function* () {
       const input = yield* invokeEffectInput("Program.subscriptions", subscriptionsForModel, nextModel);
       const subscriptions = normalizeProgramSubscriptions(input);
-      yield* Effect.sync(() =>
+      yield* Effect.sync(() => {
+        if (disposed || generation !== subscriptionGeneration) {
+          return;
+        }
         recordTimeline({
           _tag: "SubscriptionStarted",
           model: nextModel,
           count: subscriptions.length
-        })
-      );
+        });
+      });
       yield* Effect.all(
         subscriptions.map((entry) =>
           entry.stream.pipe(
             Stream.runForEach((message) =>
-              Effect.sync(() =>
-                recordTimeline({ _tag: "SubscriptionEmitted", message })
-              ).pipe(Effect.flatMap(() => enqueue(message)))
+              Effect.gen(function* () {
+                const current = yield* Effect.sync(() => {
+                  if (disposed || generation !== subscriptionGeneration) {
+                    return false;
+                  }
+                  recordTimeline({ _tag: "SubscriptionEmitted", message });
+                  return true;
+                });
+                if (current) {
+                  yield* enqueue(message);
+                }
+              })
             ),
             Effect.catch((error: RuntimeFailure) => {
               const failure = makeProgramFailure<Message, RuntimeFailure>("Subscription", error);
               return Effect.sync(() => {
+                if (disposed || generation !== subscriptionGeneration) {
+                  return;
+                }
                 appendFailure(failure);
                 recordTimeline({ _tag: "SubscriptionFailed", failure });
               });
@@ -241,6 +290,9 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
         Effect.catch((error: RuntimeFailure) => {
           const failure = makeProgramFailure<Message, RuntimeFailure>("Subscription", error);
           return Effect.sync(() => {
+            if (disposed || generation !== subscriptionGeneration) {
+              return;
+            }
             appendFailure(failure);
             recordTimeline({ _tag: "SubscriptionFailed", failure });
           });
@@ -251,7 +303,6 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
 
   processorFiber = Effect.runFork(processor);
   restartSubscriptions(Signal.peek(model));
-  unsubscribeModel = model.subscribe(() => restartSubscriptions(Signal.peek(model)));
 
   const disposeEffect = Effect.gen(function* () {
     if (disposed) {
@@ -259,8 +310,8 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
     }
 
     disposed = true;
-    unsubscribeModel?.();
-    unsubscribeModel = undefined;
+    subscriptionGeneration++;
+    yield* completePendingDispatches();
     const currentSubscriptionFiber = subscriptionFiber;
     const currentProcessorFiber = processorFiber;
     subscriptionFiber = undefined;
@@ -299,8 +350,24 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
 
     return Effect.gen(function* () {
       const ack = yield* Deferred.make<void, ProgramFailure<Message, ProgramRuntimeError<E, ER>>>();
-      yield* Queue.offer(queue, { message, ack });
-      yield* Deferred.await(ack);
+      const registered = yield* Effect.sync(() => {
+        if (disposed) {
+          return false;
+        }
+        pendingDispatchAcks.add(ack);
+        return true;
+      });
+
+      if (!registered) {
+        return;
+      }
+
+      yield* Queue.offer(queue, { message, ack }).pipe(
+        Effect.flatMap((offered) => offered ? Deferred.await(ack) : Effect.void),
+        Effect.ensuring(Effect.sync(() => {
+          pendingDispatchAcks.delete(ack);
+        }))
+      );
     });
   }
 };

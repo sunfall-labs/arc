@@ -11,9 +11,40 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 125, immediately after Review 124. Some older review
+The newest review is Review 126, immediately after Review 125. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 126: Core Program Runtime Lifecycle Hardening
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Program dispatch acknowledgement locality: `packages/core/src/program-runtime.ts`
+  now tracks pending `dispatchEffect(...)` acknowledgements and completes them
+  during disposal before interrupting runtime fibers and shutting down the
+  queue. Dispatch after disposal remains a no-op success.
+- Program subscription commit ownership: subscription restarts now happen in
+  the message commit path after a successful model write, preserving the
+  `Object.is` restart behavior without routing lifecycle work through a hidden
+  `Signal.subscribe(...)` observer.
+- Program subscription generation policy: each restart and disposal advances a
+  generation token so stale subscription emissions or failures cannot enqueue
+  messages or record timeline facts after a newer model generation exists.
+- Program disposal race guard: post-dispose update continuations no longer write
+  model state, run commands, or record stale update failures after disposal has
+  already completed pending acknowledgements.
+
+Focused verification passed: `pnpm --filter @effect-ui/core typecheck`, `pnpm
+exec vitest run packages/core/test/program.test.ts` (1 file / 12 tests), `pnpm
+exec vitest run packages/devtools/test/devtools.test.ts -t 'Program'` (1 file
+/ 3 selected tests), `pnpm exec vitest run packages/react/test/hooks.test.ts -t
+'Program'` (1 file / 1 selected test), `pnpm exec vitest run
+packages/solid/test/hooks.test.ts -t 'Program'` (1 file / 1 selected test),
+`pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first` over
+237 files, and `git diff --check`.
+Full `pnpm verify` also passed after the slice.
 
 ## Review 125: Core Program Runtime Coordinator Module
 
