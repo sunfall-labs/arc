@@ -12,9 +12,67 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review170, immediately after Review169. Some older review entries remain below
+Review171, immediately after Review170. Some older review entries remain below
 it from prior ledger merges; use this tip rather than file order alone when
 looking for the latest architecture sweep.
+
+## Review 171: Public API Symbol Policy Module
+
+Review171 fixed the declaration-level public symbol policy Seam that remained
+after Review170. The compiled Query Execution Plan candidate was re-reviewed
+and closed as already handled by the existing Query Execution Plan Module.
+
+1. Public API Symbol Policy Module
+   - Status: fixed.
+   - Files: `scripts/public-api-symbol-policy.mjs`,
+     `scripts/audit-public-api-inventory.mjs`,
+     `docs/public-api-inventory.md`, `CONTEXT.md`.
+   - Problem: declaration-level public surface policy was split across
+     hard-coded hover-doc groups in the audit script, namespace-backed
+     source-module allowances in the same script, manifest-local direct
+     type-test import pins, and narrative docs. Package export paths and source
+     modules were guarded, but the curated public symbol policy had no single
+     Module and could point at an internal orphan file without a dedicated
+     failure.
+   - Fix: added the Public API Symbol Policy Module. It owns curated LSP hover
+     declaration groups and namespace-backed source-module allowances. The
+     Public API Inventory Audit now imports that policy, enforces the existing
+     JSDoc/type-test rules through it, and rejects hover policy files that are
+     not reachable from a package export or re-exported public source Module.
+   - Benefits: public symbol policy has better Locality and more Depth. Adding
+     or promoting a public hover pin now changes one policy Module, and the
+     audit proves those pins still describe exported source rather than internal
+     implementation files.
+
+2. Compiled Query Execution Plan Candidate
+   - Status: closed as no-op.
+   - Files reviewed: `packages/db/src/query-execution-plan.ts`,
+     `packages/db/src/query-builder.ts`,
+     `packages/db/src/live-query-runtime.ts`,
+     `packages/db/src/live-query-state.ts`, `packages/db/test/collection.test.ts`,
+     `docs/public-api-inventory.md`, `CONTEXT.md`.
+   - Decision: the existing Query Execution Plan Module already owns source
+     Adapter selection, validation, source preload/refetch, snapshot execution,
+     diagnostics, stable equal-order tie-break identity, and final projection
+     stages. Live Query Runtime still compiles the IVM graph, but that is a
+     different runtime mechanics Seam rather than duplicated query execution
+     policy. A new compiled immutable plan type would mostly wrap the already
+     immutable Query Builder plus cached derived facts, so it would add
+     interface cost without enough Leverage right now.
+
+Focused verification passed for Review171: `pnpm audit:public-api` and
+`pnpm audit:effect-first` over 402 files.
+
+Full `pnpm verify` passed after Review171 through the Effect-driven runner: 11
+package builds, workspace typecheck, public type tests, public API inventory
+audit, Effect-first audit over 402 physical/virtual
+package/example/config/script/type-test/generated/docs files, 53 root test
+files / 1028 tests, devtools-panel verify with 2 tests, devtools-extension
+verify with 20 tests, basic starter verify with 2 tests, React starter verify
+with 3 tests, starter package generation for basic/react/project-console at
+19/24/30 app files with 5/4/6 local packages, 16-target package dry-run gate,
+project-console typecheck, 4 project-console test files / 27 tests,
+project-console build, and leak scans.
 
 ## Review 170: Starter Catalog Manifest And Effect Verify Runner
 

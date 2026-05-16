@@ -62,10 +62,13 @@ not directly imported and exercised outside import declarations. It also checks
 that every package root
 barrel's local re-exported modules are named in that package's Source Surface
 section, and that Source Surface local-module lists do not name modules the root
-barrel does not export. Curated namespace-backed source modules must have an
-explicit audit allowance and a root-barrel import. Together these checks keep
-hover/LSP docs from drifting away from exported source files. The audit also
-enforces JSDoc on curated public hover declarations for the Core Program,
+barrel does not export. Declaration-level symbol policy lives in
+`scripts/public-api-symbol-policy.mjs`: curated namespace-backed source modules
+must have an explicit audit allowance and a root-barrel import, curated hover
+declaration groups must be reachable from a package export or re-exported
+source module, and those declarations must keep JSDoc for LSP hovers. Together
+these checks keep hover/LSP docs from drifting away from exported source files.
+The curated hover declarations currently cover the Core Program,
 browser-router/router Adapter, Start diagnostics surfaces, and every curated
 Start fetch/Node Adapter overload/implementation declaration. The broad
 `type-tests/framework.test-d.ts` file remains as cross-package integration

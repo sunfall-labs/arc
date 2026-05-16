@@ -1,6 +1,10 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { basename, join, relative } from "node:path";
+import { basename, dirname, join, relative } from "node:path";
 import ts from "typescript";
+import {
+  namespaceBackedSurfaceModules,
+  publicHoverDocGroups
+} from "./public-api-symbol-policy.mjs";
 
 const root = process.cwd();
 const packagesDirectory = join(root, "packages");
@@ -18,306 +22,6 @@ const failSelfTest = (message) => {
   console.error(message);
   process.exit(1);
 };
-
-const publicHoverDocs = [
-  {
-    file: "packages/core/src/program.ts",
-    declarations: [
-      "Program",
-      "ProgramStartOptions",
-      "startProgram",
-      "startProgramWithRuntimeError"
-    ],
-    namespaceDeclarations: {
-      Program: [
-        "Definition",
-        "Instance",
-        "Failure",
-        "RuntimeError",
-        "StartOptions",
-        "RuntimeRemainingRequirements",
-        "TimelineOptions",
-        "Event",
-        "EventBase",
-        "MessageEvent",
-        "CommandStartedEvent",
-        "CommandCompletedEvent",
-        "CommandFailedEvent",
-        "UpdateFailedEvent",
-        "SubscriptionStartedEvent",
-        "SubscriptionEmittedEvent",
-        "SubscriptionFailedEvent",
-        "DisposedEvent",
-        "Phase",
-        "Update",
-        "Step",
-        "Command",
-        "CommandInput",
-        "Subscription",
-        "SubscriptionInput",
-        "StoryEntry",
-        "Story",
-        "StoryOptions"
-      ]
-    }
-  },
-  {
-    file: "packages/core/src/program-contract.ts",
-    declarations: [
-      "ProgramStepTypeId",
-      "ProgramCommandTypeId",
-      "ProgramSubscriptionTypeId",
-      "ProgramPhase",
-      "ProgramFailure",
-      "ProgramCommand",
-      "ProgramCommandInput",
-      "ProgramStep",
-      "ProgramUpdate",
-      "ProgramSubscription",
-      "ProgramSubscriptionInput",
-      "ProgramUpdateError",
-      "ProgramUpdateRequirements",
-      "ProgramSubscriptionError",
-      "ProgramSubscriptionRequirements",
-      "ProgramDefinition",
-      "ProgramRuntimeError",
-      "ProgramTimelineOptions",
-      "ProgramEventBase",
-      "ProgramMessageEvent",
-      "ProgramCommandStartedEvent",
-      "ProgramCommandCompletedEvent",
-      "ProgramCommandFailedEvent",
-      "ProgramUpdateFailedEvent",
-      "ProgramSubscriptionStartedEvent",
-      "ProgramSubscriptionEmittedEvent",
-      "ProgramSubscriptionFailedEvent",
-      "ProgramDisposedEvent",
-      "ProgramEvent",
-      "ProgramStoryEntry",
-      "ProgramStory",
-      "ProgramStoryOptions",
-      "ProgramInstance"
-    ]
-  },
-  {
-    file: "packages/core/src/browser-router-link.ts",
-    declarations: [
-      "BrowserRouterClickEvent",
-      "isPlainLeftClick",
-      "opensOutsideRouter",
-      "BrowserRouterLinkIgnoreReason",
-      "BrowserRouterLinkTarget",
-      "BrowserRouterLinkPreloadDecisionOptions",
-      "BrowserRouterLinkPreloadDecision",
-      "browserRouterLinkPreloadDecision",
-      "BrowserRouterLinkClickDecisionOptions",
-      "BrowserRouterLinkClickDecision",
-      "browserRouterLinkClickDecision",
-      "BrowserRouterLinkPreloader",
-      "BrowserRouterLinkPreloadIdentity",
-      "BrowserRouterLinkPreloaderRuntime",
-      "BrowserRouterLinkPreloaderOptions",
-      "makeBrowserRouterLinkPreloader"
-    ]
-  },
-  {
-    file: "packages/devtools/src/serialization.ts",
-    declarations: [
-      "DevtoolsUnknownInvalidationTarget",
-      "describeInvalidationPlan",
-      "describeRoutePlan"
-    ]
-  },
-  {
-    file: "packages/core/src/browser-router-history-adapter.ts",
-    declarations: [
-      "BrowserNavigateOptions",
-      "BrowserHistoryWindow",
-      "BrowserHistoryAdapter",
-      "MemoryBrowserHistoryAdapter",
-      "makeWindowBrowserHistoryAdapter",
-      "makeMemoryBrowserHistoryAdapter"
-    ]
-  },
-  {
-    file: "packages/core/src/browser-router-kernel.ts",
-    declarations: [
-      "BrowserRouterKernelOptions",
-      "BrowserRouterKernel",
-      "createBrowserRouterKernel",
-      "RouterRouteNotRegistered"
-    ]
-  },
-  {
-    file: "packages/core/src/browser-router-host-controller.ts",
-    declarations: [
-      "BrowserRouterHostController",
-      "createBrowserRouterHostController"
-    ]
-  },
-  {
-    file: "packages/react/src/router.ts",
-    declarations: [
-      "BrowserRouterOptions",
-      "RouterProviderProps"
-    ]
-  },
-  {
-    file: "packages/solid/src/router.ts",
-    declarations: [
-      "BrowserRouterOptions",
-      "RouterProviderProps"
-    ]
-  },
-  {
-    file: "packages/start/src/agent-graph.ts",
-    declarations: [
-      "createStartAgentGraph",
-      "createStartAgentGraphEffect"
-    ]
-  },
-  {
-    file: "packages/start/src/app-graph.ts",
-    declarations: [
-      "StartAppGraphDiagnosticsRuntimeCandidates",
-      "StartAppGraphWireSchemaPolicy",
-      "StartAppGraphActionBehaviorPolicy",
-      "StartAppGraphParseError",
-      "StartAppGraphMissingWireSchemas",
-      "StartAppGraphUnknownActionBehavior",
-      "StartAppGraphDiagnosticsDtoError",
-      "StartAppGraphDiagnosticsDtoInput",
-      "StartAppGraphDiagnosticsDto",
-      "StartAppGraphDeserializeError",
-      "decodeStartAppGraphDiagnosticsEffect",
-      "decodeStartAppGraphDiagnosticsPolicyViolationsEffect",
-      "decodeStartAppGraphDiagnosticsDtoEffect",
-      "createStartAppGraph",
-      "serializeStartAppGraph",
-      "describeFileRouteManifestEntry",
-      "describeStartAppGraphRouteDiagnosticsRuntimeCandidate",
-      "describeServerFunctionManifestEntry",
-      "describeActionManifestEntry",
-      "unknownRoutePreloadResourcesForDiagnostics",
-      "unknownRoutePreloadCollectionsForDiagnostics",
-      "describeStartAppGraph",
-      "describeStartAppGraphRuntimeDiagnostics",
-      "describeStartAppGraphEffect",
-      "validateStartAppGraphWireSchemasEffect",
-      "validateStartAppGraphActionBehaviorEffect",
-      "deserializeStartAppGraph"
-    ]
-  },
-  {
-    file: "packages/start/src/start-app-graph-diagnostics-policy.ts",
-    declarations: [
-      "StartAppGraphRoutePreloadResourcesPolicy",
-      "StartAppGraphRoutePreloadCollectionsPolicy",
-      "StartAppGraphDiagnosticsPolicy",
-      "StartAppGraphUnknownRoutePreloadResources",
-      "StartAppGraphUnknownRoutePreloadCollections",
-      "StartAppGraphDiagnosticsPolicyError",
-      "StartAppGraphDiagnosticsPolicyViolation",
-      "StartAppGraphDiagnosticsPolicyException",
-      "validateStartAppGraphRoutePreloadResourcesDiagnosticsEffect",
-      "collectStartAppGraphDiagnosticsPolicyViolations",
-      "formatStartAppGraphDiagnosticsPolicyViolation",
-      "createStartAppGraphDiagnosticsPolicyException",
-      "enforceStartAppGraphDiagnosticsPolicy",
-      "validateStartAppGraphDiagnosticsPolicyExceptionEffect",
-      "validateStartAppGraphRoutePreloadCollectionsDiagnosticsEffect",
-      "validateStartAppGraphDiagnosticsPolicyEffect"
-    ]
-  },
-  {
-    file: "packages/start/src/start-manifest-wall.ts",
-    declarations: [
-      "StartBuildPolicy",
-      "StartBuildPolicyError"
-    ]
-  },
-  {
-    file: "packages/start/src/start-vite-diagnostics-loader.ts",
-    declarations: [
-      "StartAppGraphDiagnosticsLoadError"
-    ]
-  },
-  {
-    file: "packages/start/src/start-transport-endpoints.ts",
-    declarations: [
-      "StartEndpointPathInvalidReason",
-      "StartEndpointPathErrorInput",
-      "StartEndpointConflictErrorInput",
-      "startEndpointPathGuidance",
-      "startEndpointConflictGuidance",
-      "startEndpointPathInvalidReason",
-      "normalizeStartEndpointPath",
-      "validateStartEndpointPathEffect",
-      "StartTransportEndpointPathError",
-      "StartTransportEndpointConflictError",
-      "StartTransportEndpoints",
-      "StartTransportEndpointOverrides",
-      "StartServerFunctionEndpointManifest",
-      "StartActionEndpointManifest",
-      "StartTransportEndpointManifestSource",
-      "StartTransportEndpointSource",
-      "StartRpcEndpointSource",
-      "StartActionEndpointSource",
-      "defaultStartTransportEndpoints",
-      "resolveStartTransportEndpoints",
-      "resolveStartTransportEndpointsEffect",
-      "resolveStartRpcEndpoint",
-      "resolveStartActionEndpoint",
-      "isStartRpcEndpointRequest",
-      "isStartActionEndpointRequest"
-    ]
-  },
-  {
-    file: "packages/start/src/request-trace.ts",
-    declarations: [
-      "StartRequestTraceTransport",
-      "StartRequestTraceStatus",
-      "StartRequestTraceFailureKind",
-      "StartRequestTraceStreamState",
-      "StartRequestTraceFiberStatus",
-      "StartRequestTraceHeader",
-      "StartRequestTraceCookie",
-      "StartRequestTraceRequest",
-      "StartRequestTraceResponse",
-      "StartRequestTraceResource",
-      "StartRequestTraceCollection",
-      "StartRequestTraceServerFunction",
-      "StartRequestTraceAction",
-      "StartRequestTraceFiber",
-      "StartRequestTraceStream",
-      "StartRequestTraceTeardownSnapshot",
-      "StartRequestTraceCleanupFailure",
-      "StartRequestTraceTeardown",
-      "StartRequestTrace",
-      "StartRequestTraceRoutePlan",
-      "StartRequestTraceHandler",
-      "startRequestCountMetric",
-      "startRequestDurationMetric",
-      "startRequestStatusMetric"
-    ]
-  },
-  {
-    file: "packages/start/src/fetch-adapter.ts",
-    allDeclarations: [
-      "toFetchHandlerEffect",
-      "toFetchHandler",
-      "createFetchHandler"
-    ]
-  },
-  {
-    file: "packages/start/src/node-adapter.ts",
-    allDeclarations: [
-      "createNodeHandlerEffect",
-      "createNodeHandler",
-      "createNodeServerHandler"
-    ]
-  }
-];
 
 const hasJsDoc = (node) =>
   ts.getJSDocCommentsAndTags(node).some((entry) =>
@@ -385,7 +89,7 @@ const namespaceStatements = (sourceFile, namespaceName) => {
 };
 
 const auditPublicHoverDocs = () => {
-  for (const group of publicHoverDocs) {
+  for (const group of publicHoverDocGroups) {
     const file = join(root, group.file);
     if (!existsSync(file)) {
       failures.push(`public hover docs audit points at missing file ${group.file}`);
@@ -846,13 +550,72 @@ const sectionForPackage = (packageName) => {
   return inventory.match(pattern)?.[1] ?? "";
 };
 
-const exportedModules = (entrypoint) => {
-  const source = readText(entrypoint);
+const exportedModuleNames = (source) => {
   const modules = [];
   for (const match of source.matchAll(/export\s+(?:type\s+)?(?:\*\s+|\{[\s\S]*?\}\s+)from\s+"\.\/([^"]+)\.js";/g)) {
     modules.push(match[1]);
   }
+  return modules;
+};
+
+const exportedModules = (entrypoint) => {
+  const source = readText(entrypoint);
+  const modules = exportedModuleNames(source);
   return [...new Set(modules)].sort();
+};
+
+const toRelativeSourceFile = (file) => relative(root, file).split("\\").join("/");
+
+const exportedSourceModuleFile = (fromFile, moduleName) => {
+  const base = join(dirname(fromFile), moduleName);
+  for (const extension of [".ts", ".tsx", ".d.ts"]) {
+    const candidate = `${base}${extension}`;
+    if (existsSync(candidate)) {
+      return candidate;
+    }
+  }
+  return undefined;
+};
+
+const collectPublicExportedSourceFiles = (entrySource) => {
+  const visited = new Set();
+  const stack = [join(root, entrySource)];
+
+  while (stack.length > 0) {
+    const file = stack.pop();
+    if (file === undefined || visited.has(file) || !existsSync(file)) {
+      continue;
+    }
+    visited.add(file);
+
+    for (const moduleName of exportedModuleNames(readText(file))) {
+      const target = exportedSourceModuleFile(file, moduleName);
+      if (target !== undefined) {
+        stack.push(target);
+      }
+    }
+  }
+
+  return visited;
+};
+
+const publicApiReachableSourceFiles = () => {
+  const reachable = new Set();
+  for (const entry of expectedEntrypoints.values()) {
+    for (const file of collectPublicExportedSourceFiles(entry.source)) {
+      reachable.add(toRelativeSourceFile(file));
+    }
+  }
+  return reachable;
+};
+
+const assertPublicSymbolPolicyReachability = () => {
+  const reachable = publicApiReachableSourceFiles();
+  for (const group of publicHoverDocGroups) {
+    if (!reachable.has(group.file)) {
+      failures.push(`${group.file} has public hover symbol policy but is not reachable from a public package export or re-exported source module`);
+    }
+  }
 };
 
 const localDependencyModules = (entrypoint) => {
@@ -866,10 +629,6 @@ const localDependencyModules = (entrypoint) => {
 
 const backtickNames = (source) =>
   [...source.matchAll(/`([^`]+)`/g)].map((match) => match[1]);
-
-const namespaceBackedSurfaceModules = new Map([
-  ["@effect-ui/db", new Set(["sync-adapter"])]
-]);
 
 const documentedSourceSurface = (packageSection) => {
   const directModules = [];
@@ -943,6 +702,7 @@ for (const [key, entry] of expectedEntrypoints) {
   }
 }
 
+assertPublicSymbolPolicyReachability();
 auditPublicHoverDocs();
 
 if (failures.length > 0) {
