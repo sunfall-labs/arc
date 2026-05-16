@@ -11,9 +11,39 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 121, immediately after Review 120. Some older review
+The newest review is Review 122, immediately after Review 121. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 122: Browser Router Link Decision Module
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Browser Router Link Decision: `packages/core/src/browser-router.ts` now owns
+  adapter-neutral hover preload and click navigation decisions for RouterLink.
+  The policy maps user-handled event facts, modified clicks, target/download
+  browser-handled links, outside-router routes, resolved hrefs, and replace
+  navigation into `Preload`, `Navigate`, or `Ignore` decisions.
+- Adapter locality: `packages/react/src/link.ts` and `packages/solid/src/link.ts`
+  consume the Core decisions while keeping DOM event handler invocation,
+  framework prop wiring, dynamic href construction, and owner cleanup local.
+- LSP surface: Core exports `browserRouterLinkPreloadDecision(...)`,
+  `browserRouterLinkClickDecision(...)`,
+  `BrowserRouterLinkPreloadDecision`, `BrowserRouterLinkClickDecision`, and
+  `BrowserRouterLinkIgnoreReason` with hover docs for future adapters.
+- Regression coverage: Core browser-router tests now pin preload-disabled,
+  default-prevented, browser-handled, outside-router, modified-click, and
+  replace-navigation decisions, while React/Solid router tests continue to pin
+  framework RouterLink wiring.
+
+Focused verification passed: `pnpm --filter @effect-ui/core typecheck`, `pnpm
+--filter @effect-ui/react typecheck`, `pnpm --filter @effect-ui/solid
+typecheck`, and `pnpm exec vitest run packages/core/test/browser-router.test.ts
+packages/react/test/router.test.ts packages/solid/test/router.test.ts` (3 files
+/ 44 tests).
+Full `pnpm verify` also passed after the slice.
 
 ## Review 121: DB Collection Mutation Workflow Module
 

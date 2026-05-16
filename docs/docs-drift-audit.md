@@ -441,7 +441,10 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   Mutation Workflow extraction. Current docs now record that optimistic
   insert/update/delete and pending flush orchestration live in
   `collection-mutation-workflow.ts`.
-- Updated current-facing verification snapshots after Review 121 full
+- Added Review 122 evidence for the Browser Router Link Decision cleanup.
+  Current docs now record that Core owns RouterLink hover/click intent while
+  React and Solid keep DOM event wiring local.
+- Updated current-facing verification snapshots after Review 122 full
   verification so the latest gate points at the 231-file Effect-first audit and
   52 root test files / 861 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are

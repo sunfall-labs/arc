@@ -114,6 +114,11 @@ Latest full gate on May 15, 2026:
   pending flush replay now live behind one Effect v4 workflow while Collection
   Runtime keeps the public facade, direct writes, change-feed application,
   hydration, and persistence facades.
+- Review 122 deepened the Core Browser Router Link Decision policy: React and
+  Solid RouterLink adapters now share one Core decision for hover preloading,
+  default-prevented events, modified clicks, browser-handled targets/downloads,
+  outside-router routes, and replace navigation while keeping DOM event wiring
+  local.
 - Review 85 extracted the internal Solid Route Render Scope Controller:
   `RouterOutlet` now delegates route branch rendering, route-owned `UiScope`
   creation, Solid root cleanup, runtime-bound route finalizers, transition
@@ -743,8 +748,8 @@ Latest full gate on May 15, 2026:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 121 extracted the DB
-  Collection Mutation Workflow while keeping public package exports stable:
+- The latest full `pnpm verify` passed after Review 122 deepened the Core
+  Browser Router Link Decision while keeping public package exports stable:
   11 package builds, workspace typecheck, public type tests, public API
   inventory audit, Effect-first audit over 231 files, 52 root test
   files / 861 tests,

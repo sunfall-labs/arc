@@ -241,6 +241,10 @@ Last evidence pass: May 15, 2026.
 - [x] Runtime lifecycle guarantees have behavioral tests.
   - Evidence: core runtime/resource/action/scope/server/route tests in
     `packages/core/test`.
+- [x] Browser router link policy is shared across framework adapters.
+  - Evidence: `packages/core/src/browser-router.ts` owns RouterLink hover/click
+    decisions, React/Solid link adapters consume it, and Core/React/Solid router
+    tests cover the shared policy and host wiring.
 - [x] Package-source validation failures use typed errors instead of raw
   `Error`/`TypeError` throws.
   - Evidence: `docs/error-message-audit.md`,

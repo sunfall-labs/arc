@@ -134,6 +134,12 @@ Release decisions:
   `createBrowserRouterHostController(...)`,
   `makeMemoryBrowserHistoryAdapter(...)`,
   `makeWindowBrowserHistoryAdapter(...)`, and the browser-router types directly.
+- Browser router link decisions live in Core so framework adapters share the
+  same hover/click meaning. `browserRouterLinkPreloadDecision(...)`,
+  `browserRouterLinkClickDecision(...)`, `BrowserRouterLinkPreloadDecision`,
+  `BrowserRouterLinkClickDecision`, and `BrowserRouterLinkIgnoreReason` are
+  expert-public for React, Solid, tests, and future adapters; app code should
+  normally keep using framework `RouterLink` components.
 - Browser route render decisions live in Core so framework adapters share the
   same outlet state meaning. `browserRouteRenderDecision(...)`,
   `browserRouteRenderKey(...)`, `BrowserRouteOutletRenderers`,
@@ -875,8 +881,10 @@ Release decisions:
   pending and failure renderers. The older `RouterOutletProps<ER>` form remains
   usable for broad route-agnostic renderers.
 - `RouterLink` is the typed anchor path: it builds `Route.href(...)`, preloads on
-  hover through the router runtime, preserves modified-click/browser behavior,
-  and navigates only plain left clicks.
+  hover through the router runtime, preserves modified-click/browser-handled
+  behavior, and navigates only plain left clicks. React and Solid delegate
+  hover/click intent to the Core Browser Router Link Decision policy while
+  keeping DOM event wiring local.
 - `BrowserRouter` mirrors generated route path ergonomics with
   `hrefByPath(...)`, `navigateByPath(...)`, `matchByPath(...)`, and
   `preloadByPathEffect(...)`; route-object helpers remain available for callers

@@ -1,6 +1,8 @@
 import { Cause, Context, Deferred, Effect, Layer } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import {
+  browserRouterLinkClickDecision,
+  browserRouterLinkPreloadDecision,
   browserRouteRenderDecision,
   browserRouteRenderKey,
   createBrowserRouterHostController,
@@ -26,14 +28,16 @@ describe("browser router kernel", () => {
 
   const ProjectApi = Context.Service<ProjectApi>("@effect-ui/core/test/BrowserRouterProjectApi");
 
-  it("shares router link click policy across framework adapters", () => {
-    expect(isPlainLeftClick({
+  it("shares router link click and preload decisions across framework adapters", () => {
+    const plainClick = {
       button: 0,
       metaKey: false,
       altKey: false,
       ctrlKey: false,
       shiftKey: false
-    })).toBe(true);
+    } as const;
+
+    expect(isPlainLeftClick(plainClick)).toBe(true);
     expect(isPlainLeftClick({
       button: 0,
       metaKey: true,
@@ -44,6 +48,64 @@ describe("browser router kernel", () => {
     expect(opensOutsideRouter("_blank", undefined)).toBe(true);
     expect(opensOutsideRouter("_self", undefined)).toBe(false);
     expect(opensOutsideRouter(undefined, "")).toBe(true);
+    expect(browserRouterLinkPreloadDecision({
+      defaultPrevented: false,
+      preload: true,
+      canHandleRoute: true
+    })).toEqual({ _tag: "Preload" });
+    expect(browserRouterLinkPreloadDecision({
+      defaultPrevented: false,
+      preload: false,
+      canHandleRoute: true
+    })).toEqual({ _tag: "Ignore", reason: "preload-disabled" });
+    expect(browserRouterLinkPreloadDecision({
+      defaultPrevented: true,
+      preload: true,
+      canHandleRoute: true
+    })).toEqual({ _tag: "Ignore", reason: "default-prevented" });
+    expect(browserRouterLinkPreloadDecision({
+      defaultPrevented: false,
+      preload: true,
+      canHandleRoute: true,
+      target: "_blank"
+    })).toEqual({ _tag: "Ignore", reason: "browser-handled" });
+    expect(browserRouterLinkPreloadDecision({
+      defaultPrevented: false,
+      preload: true,
+      canHandleRoute: false
+    })).toEqual({ _tag: "Ignore", reason: "outside-router" });
+    expect(browserRouterLinkClickDecision({
+      event: plainClick,
+      href: "/projects/atlas",
+      canHandleRoute: true
+    })).toEqual({ _tag: "Navigate", href: "/projects/atlas" });
+    expect(browserRouterLinkClickDecision({
+      event: plainClick,
+      href: "/projects/atlas",
+      replace: true,
+      canHandleRoute: true
+    })).toEqual({ _tag: "Navigate", href: "/projects/atlas", options: { replace: true } });
+    expect(browserRouterLinkClickDecision({
+      event: { ...plainClick, defaultPrevented: true },
+      href: "/projects/atlas",
+      canHandleRoute: true
+    })).toEqual({ _tag: "Ignore", reason: "default-prevented" });
+    expect(browserRouterLinkClickDecision({
+      event: { ...plainClick, metaKey: true },
+      href: "/projects/atlas",
+      canHandleRoute: true
+    })).toEqual({ _tag: "Ignore", reason: "non-plain-click" });
+    expect(browserRouterLinkClickDecision({
+      event: plainClick,
+      href: "/projects/atlas",
+      canHandleRoute: true,
+      download: ""
+    })).toEqual({ _tag: "Ignore", reason: "browser-handled" });
+    expect(browserRouterLinkClickDecision({
+      event: plainClick,
+      href: "/projects/atlas",
+      canHandleRoute: false
+    })).toEqual({ _tag: "Ignore", reason: "outside-router" });
   });
 
   it("shares route render decisions across framework adapters", () => {

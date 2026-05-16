@@ -1112,14 +1112,18 @@ interruption.
 - Browser Route Render Decision now lives in Core browser-router, so React and
   Solid route outlets share one adapter-neutral decision for pending, failure,
   not-found, ready component props, empty ready routes, and stable render keys.
+- Browser Router Link Decision now lives in Core browser-router, so React and
+  Solid RouterLink adapters share one adapter-neutral decision for hover
+  preloading, modified clicks, browser-handled targets/downloads, outside-router
+  routes, and replace navigation.
 - Devtools Fact Identity now owns first-match fact index helpers for Store and
   Summary matching. The cleanup is pure identity policy, so no Promise-shaped
   host boundary or Effect runtime seam was added.
 - Devtools Panels and Store no longer expose internal single-adapter runtime
   injection seams. Effect wrappers and store Effect methods stay intact while
   pure projection dependencies live in the owning Modules.
-- The latest full `pnpm verify` passed after the Review 121 DB Collection
-  Mutation Workflow slice: 11 package builds, workspace typecheck, type tests,
+- The latest full `pnpm verify` passed after the Review 122 Browser Router Link
+  Decision slice: 11 package builds, workspace typecheck, type tests,
   public API inventory audit, Effect-first audit over 231
   package/example/script/type-test files, 52 root test files / 861 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
@@ -1131,7 +1135,7 @@ interruption.
   scanner green over the expanded public type-test scope, Review 113 expanded
   the scanner to 226 files, Review 115 expanded it to 227 files, Review 116
   expanded it to 228 files, Review 120 expanded it to 230 files, and Review
-  121 expanded it to 231 files while keeping it green over that scope.
+  121 expanded it to 231 files while Review 122 kept it green over that scope.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

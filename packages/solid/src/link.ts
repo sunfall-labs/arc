@@ -1,8 +1,9 @@
 import {
   Route,
+  browserRouterLinkClickDecision,
+  browserRouterLinkPreloadDecision,
   isPlainLeftClick as coreIsPlainLeftClick,
-  makeBrowserRouterLinkPreloader,
-  opensOutsideRouter
+  makeBrowserRouterLinkPreloader
 } from "@effect-ui/core";
 import { onCleanup, splitProps, type JSX } from "solid-js";
 import { createComponent, Dynamic, type DynamicProps } from "solid-js/web";
@@ -79,7 +80,14 @@ export const RouterLink = <R extends AnyRoute>(
   const href = () => Route.href<R>(route(), ...currentHrefArgs());
   const preloader = makeBrowserRouterLinkPreloader({
     runtime: router.runtime,
-    enabled: () => local.preload !== false && router.canHandleRoute(route()),
+    enabled: () =>
+      browserRouterLinkPreloadDecision({
+        defaultPrevented: false,
+        preload: local.preload !== false,
+        canHandleRoute: router.canHandleRoute(route()),
+        target: anchorProps.target,
+        download: anchorProps.download
+      })._tag === "Preload",
     preloadEffect: () => router.preloadEffect<R>(route(), ...currentHrefArgs())
   });
 
@@ -87,23 +95,33 @@ export const RouterLink = <R extends AnyRoute>(
 
   const onMouseEnter: JSX.EventHandler<HTMLAnchorElement, MouseEvent> = (event) => {
     callAnchorMouseHandler(local.onMouseEnter, event);
-    if (!event.defaultPrevented) {
+    const preloadDecision = browserRouterLinkPreloadDecision({
+      defaultPrevented: event.defaultPrevented,
+      preload: local.preload !== false,
+      canHandleRoute: router.canHandleRoute(route()),
+      target: anchorProps.target,
+      download: anchorProps.download
+    });
+    if (preloadDecision._tag === "Preload") {
       preloader.preload();
     }
   };
   const onClick: JSX.EventHandler<HTMLAnchorElement, MouseEvent> = (event) => {
     callAnchorMouseHandler(local.onClick, event);
-    if (
-      event.defaultPrevented ||
-      !isPlainLeftClick(event) ||
-      opensOutsideRouter(anchorProps.target, anchorProps.download) ||
-      !router.canHandleRoute(route())
-    ) {
+    const clickDecision = browserRouterLinkClickDecision({
+      event,
+      href: href(),
+      replace: local.replace === true,
+      canHandleRoute: router.canHandleRoute(route()),
+      target: anchorProps.target,
+      download: anchorProps.download
+    });
+    if (clickDecision._tag === "Ignore") {
       return;
     }
 
     event.preventDefault();
-    router.navigateHref(href(), local.replace ? { replace: true } : undefined);
+    router.navigateHref(clickDecision.href, clickDecision.options);
   };
 
   const dynamicProps = {

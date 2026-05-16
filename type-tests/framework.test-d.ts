@@ -16,6 +16,8 @@ import {
   Route,
   Server,
   Signal,
+  browserRouterLinkClickDecision,
+  browserRouterLinkPreloadDecision,
   buildRoutePath,
   cloneResourceSnapshotValue,
   defineApp,
@@ -45,6 +47,9 @@ import {
   type AnyEffectUiRuntime,
   type BrowserHistoryAdapter,
   type BrowserHistoryWindow,
+  type BrowserRouterLinkClickDecision,
+  type BrowserRouterLinkIgnoreReason,
+  type BrowserRouterLinkPreloadDecision,
   type EffectUiRuntime,
   type EffectInput,
   type MemoryBrowserHistoryAdapter,
@@ -672,6 +677,37 @@ const projectBrowserRouterPreload: Effect.Effect<void, Route.NavigationError> =
     params: { id: "atlas" },
     search: {}
   });
+const coreRouterLinkPreloadDecision: BrowserRouterLinkPreloadDecision =
+  browserRouterLinkPreloadDecision({
+    defaultPrevented: false,
+    preload: true,
+    canHandleRoute: true,
+    target: "_self"
+  });
+const coreRouterLinkClickDecision: BrowserRouterLinkClickDecision =
+  browserRouterLinkClickDecision({
+    event: {
+      button: 0,
+      metaKey: false,
+      altKey: false,
+      ctrlKey: false,
+      shiftKey: false,
+      defaultPrevented: false
+    },
+    href: "/projects/atlas",
+    replace: true,
+    canHandleRoute: true
+  });
+if (coreRouterLinkPreloadDecision._tag === "Ignore") {
+  const reason: BrowserRouterLinkIgnoreReason = coreRouterLinkPreloadDecision.reason;
+  void reason;
+}
+if (coreRouterLinkClickDecision._tag === "Navigate") {
+  const href: string = coreRouterLinkClickDecision.href;
+  const replace: boolean | undefined = coreRouterLinkClickDecision.options?.replace;
+  void href;
+  void replace;
+}
 const mixedProjectBrowserRouter = createBrowserRouter([StaticProjectRoute, ProjectRoute] as const, {
   initialHref: "/projects/atlas"
 });

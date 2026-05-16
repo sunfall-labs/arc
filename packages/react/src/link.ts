@@ -1,8 +1,9 @@
 import {
   Route,
+  browserRouterLinkClickDecision,
+  browserRouterLinkPreloadDecision,
   isPlainLeftClick as coreIsPlainLeftClick,
-  makeBrowserRouterLinkPreloader,
-  opensOutsideRouter
+  makeBrowserRouterLinkPreloader
 } from "@effect-ui/core";
 import {
   createElement,
@@ -65,7 +66,14 @@ export const RouterLink = <R extends AnyRoute>(
     readonly preloadEffect: () => ReturnType<typeof router.preloadEffect<R>>;
   } | undefined>(undefined);
   preloadConfig.current = {
-    enabled: () => preloadOption !== false && router.canHandleRoute(routeValue),
+    enabled: () =>
+      browserRouterLinkPreloadDecision({
+        defaultPrevented: false,
+        preload: preloadOption !== false,
+        canHandleRoute: router.canHandleRoute(routeValue),
+        target: anchorProps.target,
+        download: anchorProps.download
+      })._tag === "Preload",
     preloadEffect: () => router.preloadEffect<R>(routeValue, ...currentHrefArgs())
   };
   const preloader = useMemo(() =>
@@ -84,23 +92,33 @@ export const RouterLink = <R extends AnyRoute>(
     href,
     onMouseEnter: (event: MouseEvent<HTMLAnchorElement>) => {
       onMouseEnter?.(event);
-      if (!event.defaultPrevented) {
+      const preloadDecision = browserRouterLinkPreloadDecision({
+        defaultPrevented: event.defaultPrevented,
+        preload: preloadOption !== false,
+        canHandleRoute: router.canHandleRoute(routeValue),
+        target: anchorProps.target,
+        download: anchorProps.download
+      });
+      if (preloadDecision._tag === "Preload") {
         preloader.preload();
       }
     },
     onClick: (event: MouseEvent<HTMLAnchorElement>) => {
       onClick?.(event);
-      if (
-        event.defaultPrevented ||
-        !isPlainLeftClick(event) ||
-        opensOutsideRouter(anchorProps.target, anchorProps.download) ||
-        !router.canHandleRoute(routeValue)
-      ) {
+      const clickDecision = browserRouterLinkClickDecision({
+        event,
+        href,
+        replace: replace === true,
+        canHandleRoute: router.canHandleRoute(routeValue),
+        target: anchorProps.target,
+        download: anchorProps.download
+      });
+      if (clickDecision._tag === "Ignore") {
         return;
       }
 
       event.preventDefault();
-      router.navigateHref(href, replace ? { replace: true } : undefined);
+      router.navigateHref(clickDecision.href, clickDecision.options);
     }
   });
 };
