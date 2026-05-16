@@ -65,7 +65,7 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 184:
+Latest full gate on May 16, 2026 after Review 185:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
@@ -148,6 +148,11 @@ Latest full gate on May 16, 2026 after Review 184:
 - Review 184 closed current-status docs drift found by the fresh post-Review182
   sweep: older Review166/165/163 and Review167 evidence now reads as historical
   evidence instead of competing with the current Review182/184 readiness story.
+- Review 185 closed the next fresh script/docs drift: starter catalog validation
+  now fails through typed Effect seams instead of an import-time raw
+  `Error`, and Effect-first, sharp-cast, and package-hygiene docs now point
+  current full-gate wording at Review185 while keeping Review165/179 as
+  historical focused evidence.
 - Review 167 closed shared Core route render identity for React/Solid route
   `UiScope` lifetimes, same-ref Resource preload failure cleanup after manual
   prefetch/refresh retry, detached Start agent graph facts, and React/Solid DB
@@ -981,8 +986,8 @@ Latest full gate on May 16, 2026 after Review 184:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 184 closed the
-  current-status docs drift found by the fresh post-Review182 sweep. A fresh
+- The latest full `pnpm verify` passed after Review 185 closed the starter
+  catalog typed-error and audit-doc current-gate cleanup. A fresh
   no-actionable-findings sweep still needs to run before any clean-sweep count
   can start.
   Verification covered 11 package builds, workspace

@@ -528,12 +528,13 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The latest full gate is the Review 165 `pnpm verify` run recorded in
-  `docs/architecture-deepening-review.md`: 11 package builds,
-  workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 274 files, 53 root test files / 1010 tests,
-  devtools-panel/devtools-extension/starter-suite/16-target package-dry-run/
-  project-console gates, and leak scans.
+- The current full gate is the Review 185 `pnpm verify` run recorded in
+  `docs/architecture-deepening-review.md`: 11 package builds, workspace
+  typecheck, public type tests, public API inventory audit, Effect-first audit
+  over 404 files, 53 root test files / 1033 tests, package-level verifies,
+  generated starter packaging, 16-target package dry-run gate, project-console
+  checks, and leak scans. Review 165 remains historical evidence for the
+  expression-position Promise static cleanup slice.
 - `pnpm exec vitest run packages/core/test/runtime.test.ts packages/start/test/start.test.ts`
   passed after the first cleanup pass.
 - `pnpm exec vitest run packages/db/test/live-query-collection.test.ts packages/solid-db/test/solid-db.test.ts`
@@ -1328,17 +1329,16 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The latest full `pnpm verify` passed after the Review 165 Effect-First
-  Seams, Atomic Hydration, Route Identity, And Guardrail Closure slice: 11 package builds,
-  workspace typecheck, type tests, public API inventory audit,
-  Effect-first audit over 274 package/example/config/script/type-test/generated
-  template files, 53 root test files / 1010 tests,
-  devtools-panel verify with 1 panel test file / 2 tests,
-  devtools-extension verify with 1 extension test file / 20 tests, basic starter
-  verify with 1 starter test file / 2 tests, React starter verify with 1
-  starter test file / 3 tests, generated starter-suite packaging/verifies for
-  basic/react/project-console, 16-target package dry-run gate, project-console
-  typecheck, 4 project-console test files / 27 tests, build, and leak scans.
+- The current full `pnpm verify` passed after the Review 185 starter catalog
+  typed-error and audit-doc current-gate cleanup: 11 package builds, workspace
+  typecheck, type tests, public API inventory audit, Effect-first audit over 404
+  package/example/config/script/type-test/generated/docs files, 53 root test
+  files / 1033 tests, package-level verifies for copyable/source packages,
+  generated starter-suite packaging/verifies for basic/react/project-console,
+  16-target package dry-run gate, project-console typecheck, 4 project-console
+  test files / 27 tests, build, and leak scans. Review 165 remains historical
+  evidence for the Effect-first seams, atomic hydration, route identity, and
+  guardrail closure slice.
   Review 75
   added the public API inventory audit to the full gate, Review 86 kept the
   scanner green over the expanded public type-test scope, Review 113 expanded

@@ -9,6 +9,7 @@ import { manifestTargetValidationFailures } from "./package-manifest-targets.mjs
 import {
   copyableStarterEntries,
   generatedStarterArtifactsFor,
+  starterCatalogConsistencyEffect,
 } from "./starter-catalog.mjs";
 import {
   collectWorkspacePackageManifests,
@@ -1132,6 +1133,7 @@ const packageStarter = (workspacePackages, builtPackageNames, starter) =>
   });
 
 const packageStarters = Effect.gen(function* () {
+  yield* starterCatalogConsistencyEffect();
   const workspacePackages = yield* collectWorkspacePackages;
   yield* assertStarterLeakScanParity(starterDefinitions);
   const builtPackageNames = new Set();

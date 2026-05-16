@@ -6,7 +6,10 @@ import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Data, Effect } from "effect";
 import { manifestTargetValidationFailures } from "./package-manifest-targets.mjs";
-import { starterSourcePackagePayloadPolicies } from "./starter-catalog.mjs";
+import {
+  starterCatalogConsistencyEffect,
+  starterSourcePackagePayloadPolicies,
+} from "./starter-catalog.mjs";
 import { collectWorkspacePackageManifests } from "./workspace-package-discovery.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -961,7 +964,8 @@ const verifyPackageTarget = (target) =>
     };
   });
 
-const verifyPackageDryRuns = workspacePackageTargets.pipe(
+const verifyPackageDryRuns = starterCatalogConsistencyEffect().pipe(
+  Effect.flatMap(() => workspacePackageTargets),
   Effect.flatMap((packageTargets) => Effect.forEach(packageTargets, verifyPackageTarget)),
 );
 

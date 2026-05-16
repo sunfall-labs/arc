@@ -3,10 +3,20 @@ import { join, relative } from "node:path";
 import ts from "typescript";
 import {
   generatedStarterEffectFirstTemplates,
-  generatedStarterReadmeTemplates
+  generatedStarterReadmeTemplates,
+  starterCatalogConsistencyFailures
 } from "./starter-catalog.mjs";
 
 const root = process.cwd();
+const starterCatalogFailures = starterCatalogConsistencyFailures();
+
+if (starterCatalogFailures.length > 0) {
+  console.error("Effect-first audit failed:");
+  for (const failure of starterCatalogFailures) {
+    console.error(`- Starter catalog manifest is invalid: ${failure}`);
+  }
+  process.exit(1);
+}
 
 const typeScriptSourceExtensions = new Set([".ts", ".tsx"]);
 const typeScriptDeclarationExtensions = new Set([".ts", ".tsx", ".d.ts"]);

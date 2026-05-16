@@ -1,5 +1,6 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { Data, Effect } from "effect";
 import {
   basicStarterReadme,
   projectConsoleStarterReadme,
@@ -13,6 +14,8 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const workspaceRoot = resolve(__dirname, "..");
 export const startersOutputRoot = resolve(workspaceRoot, ".test-dist/starters");
+
+export class StarterCatalogError extends Data.TaggedError("StarterCatalogError") {}
 
 const routeArtifact = (file) => ({ kind: "route", file });
 const virtualArtifact = (file) => ({ kind: "virtual", file });
@@ -208,14 +211,25 @@ const catalogFailures = (catalog) => {
   return failures;
 };
 
-export const assertStarterCatalogConsistency = (catalog = starterCatalog) => {
-  const failures = catalogFailures(catalog);
-  if (failures.length > 0) {
-    throw new Error(`Starter catalog manifest is invalid: ${failures.join(" ")}`);
-  }
-};
+export const starterCatalogConsistencyFailures = (catalog = starterCatalog) =>
+  catalogFailures(catalog);
 
-assertStarterCatalogConsistency();
+export const starterCatalogConsistencyEffect = (catalog = starterCatalog) =>
+  Effect.suspend(() => {
+    const failures = starterCatalogConsistencyFailures(catalog);
+    return failures.length === 0
+      ? Effect.void
+      : Effect.fail(
+          new StarterCatalogError({
+            message: "Starter catalog manifest is invalid.",
+            repair: "Keep starter ids, package names, generated artifacts, and source-package payload policies unique and complete.",
+            failures,
+          }),
+        );
+  });
+
+export const assertStarterCatalogConsistency = (catalog = starterCatalog) =>
+  starterCatalogConsistencyEffect(catalog);
 
 export const copyableStarterEntries = starterCatalog.map((starter) => ({
   id: starter.id,

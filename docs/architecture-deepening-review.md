@@ -12,17 +12,63 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review184, the current-status docs drift cleanup found by the fresh
-post-Review182 sweep. Some older review entries remain below this tip from
-prior ledger merges; use this tip rather than file order alone when looking for
-the latest architecture sweep.
+Review185, the starter catalog typed-error and audit-doc current-gate cleanup
+found by the fresh post-Review184 sweep. Some older review entries remain below
+this tip from prior ledger merges; use this tip rather than file order alone
+when looking for the latest architecture sweep.
 
-The fresh post-Review182 subagent sweep reported no actionable Core/React/Solid
+The fresh post-Review184 subagent sweep reported no actionable Core/React/Solid
 or DB/public API findings after focused verification. The Start/devtools/scripts
-pass found only the Review184 docs wording drift below. Do not start the
-clean-sweep counter until a fresh full sweep after Review184 finds no
-actionable Module, Interface, Seam, Adapter, Locality, Depth, Leverage, or docs
-drift work.
+pass found the Review185 script-error and audit-doc drift below. Do not start
+the clean-sweep counter until a fresh full sweep after Review185 finds no
+actionable Module, Interface, Seam, Adapter, Locality, Depth, Leverage, typed
+error, or docs drift work.
+
+## Review 185: Starter Catalog Typed Error And Audit Docs Current Gate
+
+Review185 fixed the two actionable findings from the fresh post-Review184
+subagent sweep.
+
+1. Starter Catalog Typed Error Seam
+   - Status: fixed.
+   - Files: `scripts/starter-catalog.mjs`,
+     `scripts/package-project-console-starter.mjs`,
+     `scripts/verify-package-dry-runs.mjs`,
+     `scripts/audit-effect-first.mjs`, `docs/perfection-progress.md`.
+   - Problem: `assertStarterCatalogConsistency(...)` ran at module import and
+     threw a raw `Error`. That was in the starter packaging and package dry-run
+     verification path, while the current ledger claimed package/example/script
+     raw throws were clean.
+   - Fix: added `StarterCatalogError`, `starterCatalogConsistencyEffect(...)`,
+     and `starterCatalogConsistencyFailures(...)`. The Effect-driven starter
+     packaging and package dry-run scripts now validate the catalog through the
+     typed Effect seam, while the synchronous Effect-first audit reports
+     catalog failures without throwing.
+   - Benefits: starter catalog validation now has typed error Locality in the
+     script Adapter seam, and the raw-throw documentation matches the actual
+     source grep.
+
+2. Audit Docs Current-Gate Wording
+   - Status: fixed.
+   - Files: `docs/effect-first-audit.md`, `docs/sharp-cast-audit.md`,
+     `docs/package-hygiene-audit.md`.
+   - Problem: current-facing audit docs still called older Review165 and
+     Review179 gates "latest" even though Review184 was the current full gate.
+     That recreated the docs drift pattern fixed in Review184.
+   - Fix: changed those audit docs to name Review184 as the current full gate
+     and demoted Review165/179 to historical focused evidence for their slices.
+   - Benefits: audit docs now have one current verification story, so future
+     sweeps do not need to reconcile competing "latest full gate" claims.
+
+Focused verification after the patch: script syntax checks, raw
+package/example/script throw grep, stale "latest" wording grep, `pnpm
+starter:package`, `pnpm example:pack-dry-run`, `pnpm audit:effect-first`, and
+`git diff --check` passed. Full `pnpm verify` passed after Review185 through
+the Effect-driven runner: 11 package builds, workspace typecheck, public type
+tests, public API inventory audit, Effect-first audit over 404
+physical/virtual files, 53 root test files / 1033 tests, package-level
+verifies, generated starter packaging, 16-target package dry-run gate,
+project-console checks, and leak scans.
 
 ## Review 184: Current Status Docs Drift
 

@@ -41,12 +41,12 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest focused Review184 slice is green for current-status docs drift
-  cleanup found by the fresh post-Review182 subagent sweep. Core/React/Solid and
-  DB/public API subagents reported no actionable findings in that sweep; the
-  Start/devtools/scripts subagent found the Review184 docs wording issue now
-  fixed.
-- The latest recorded full verification gate is green after Review184:
+- The latest focused Review185 slice is green for the starter catalog typed
+  error seam and audit-doc current-gate wording found by the fresh
+  post-Review184 subagent sweep. Core/React/Solid and DB/public API subagents
+  reported no actionable findings in that sweep; the Start/devtools/scripts
+  subagent found the Review185 script/docs issues now fixed.
+- The latest recorded full verification gate is green after Review185:
   `pnpm verify` completed with 53 root test files / 1033 tests, public API
   inventory audit, Effect-first audit over 404 physical/virtual files,
   package-level verifies, parallel example package verifies and leak scans,
@@ -55,8 +55,9 @@ or command result that proves it.
   for mounted Resource UI retention, Program dispatch disposal semantics,
   payload-atomic DB hydration, Start CLI EffectInput writers, dev SSR
   cancellation, public adapter pins, and Effect-first Promise alias scanning.
-- The latest completed sweep through Review184 still found actionable docs drift
-  work, so the Thirty-Sweep clean counter has not started.
+- The latest completed sweep through Review185 still found actionable
+  typed-error and docs drift work, so the Thirty-Sweep clean counter has not
+  started.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
   example, script, and type-test sources while keeping negative runtime
   validation tests explicit.
@@ -607,6 +608,7 @@ or command result that proves it.
 | 421 | Review 181 adapter runtime locality | `docs/architecture-deepening-review.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md`; `packages/react/src/runtime.ts`; `packages/react/test/hooks.test.ts`; `packages/solid/src/router.ts`; `packages/solid/test/router.test.ts` | Fixed the two Core/React/Solid blockers found by the post-Review180 subagent sweep. React `useScoped(...)` now runs construction inside the active Runtime Spine as well as the `UiScope`; Solid `createBrowserRouter(...)` no longer starts browser navigation/preload work during non-browser construction. | Focused verification passed: `pnpm exec vitest run packages/react/test/hooks.test.ts packages/solid/test/router.test.ts`, `pnpm typecheck:types`, React/Solid package typechecks, and `pnpm audit:effect-first`. Full `pnpm verify` passed with 53 root test files / 1033 tests and all package/source/starter gates. |
 | 422 | Review 182 DB hover docs | `docs/architecture-deepening-review.md`; `docs/perfection-progress.md`; `docs/public-api-inventory.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md`; `packages/db/src/collection-contract.ts`; `packages/db/src/flush-policy.ts`; `packages/db/src/query-plan.ts`; `packages/db/src/sqlite-persistence.ts`; `scripts/public-api-symbol-policy.mjs`; `type-tests/db.test-d.ts`; `type-tests/public-api.manifest.json` | Added LSP-facing JSDoc and executable hover-doc policy coverage for DB Collection contract types, Query plan diagnostics, flush/background-sync results, reactive binding helpers, server collection adapters, and SQLite persistence helpers. Expanded focused DB type tests and manifest pins for expert-public reactive/server/flush/SQLite adapter seams. | Focused verification passed: `pnpm audit:public-api`, `pnpm typecheck:types`, `pnpm --filter @effect-ui/db typecheck`, and `pnpm audit:effect-first`. Full `pnpm verify` passed: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 404 files, 53 root test files / 1033 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console typecheck/tests/build, and leak scans. |
 | 423 | Review 184 current-status docs drift | `docs/architecture-deepening-review.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md` | Fixed the only actionable finding from the fresh post-Review182 subagent sweep: stale current-status bullets still called older Review166/165/163 and Review167 evidence "latest" or "previous." Those bullets now read as historical evidence, so Review182/Review184 and the clean-sweep state are the only current readiness narrative. | Focused verification passed: stale Review16 wording grep, `pnpm audit:effect-first`, and `git diff --check`. Full `pnpm verify` passed after Review184: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 404 files, 53 root test files / 1033 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. Core/React/Solid and DB/public API subagents reported no actionable findings and ran focused typechecks/tests; Start/devtools/scripts confirmed Review173/179 remain closed and package dry-runs pass. |
+| 424 | Review 185 starter catalog typed error and audit docs gate | `docs/architecture-deepening-review.md`; `docs/effect-first-audit.md`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/ultimate-goal-checklist.md`; `scripts/audit-effect-first.mjs`; `scripts/package-project-console-starter.mjs`; `scripts/starter-catalog.mjs`; `scripts/verify-package-dry-runs.mjs` | Replaced the starter catalog import-time raw `Error` with `StarterCatalogError`, `starterCatalogConsistencyEffect(...)`, and `starterCatalogConsistencyFailures(...)`. Starter packaging and package dry-run scripts now validate the catalog through typed Effect seams; the synchronous Effect-first audit reports catalog failures without throwing. Effect-first, sharp-cast, and package-hygiene docs now point current full-gate wording at Review185 while preserving Review165/179 as historical focused evidence. | Focused verification passed: script syntax checks, raw package/example/script throw grep, stale current-gate wording grep, `pnpm starter:package`, `pnpm example:pack-dry-run`, `pnpm audit:effect-first`, and `git diff --check`. Full `pnpm verify` passed after Review185: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 404 files, 53 root test files / 1033 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. |
 
 ## Thirty-Sweep Gate
 
