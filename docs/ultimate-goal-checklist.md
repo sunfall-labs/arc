@@ -185,7 +185,9 @@ Last evidence pass: May 15, 2026.
     Start agent graph constructors, diagnostics failures, and Core `Program`
     namespace aliases/direct contracts plus app graph DTO/errors/deserializer
     declarations and exported app-graph helper projectors have declaration-site
-    JSDoc pinned by the public API audit for LSP hovers.
+    JSDoc pinned by the public API audit for LSP hovers. The same audit now
+    checks public Source Surface local-module docs bidirectionally against root
+    barrel re-exports and explicit namespace-backed source-module allowances.
 - [x] Core runtime service erasure is named at the runtime value boundary.
   - Evidence: `packages/core/src/runtime.ts` erases ManagedRuntime services at
     the `ManagedRuntime<any, ER>` value boundary, so runtime helpers no longer

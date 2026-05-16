@@ -11,15 +11,39 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 136, immediately after Review 135. Some older review
+The newest review is Review 137, immediately after Review 136. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 137: Bidirectional Public Source Surface Audit
+
+Status: fixed for the fresh post-Review136 verification-gap sweep. Focused
+verification is green. Full verification is still inherited from Review 135
+until the next single-command gate runs.
+
+- Public inventory exactness: `scripts/audit-public-api-inventory.mjs` now
+  checks the Source Surface local-module lists in both directions. Root barrel
+  re-exported modules must be documented, documented local source modules must
+  actually be re-exported by the package root barrel, and namespace-backed
+  source modules require an explicit audit allowance plus a root-barrel import.
+- Public API drift guard: the audit now fails if an internal implementation
+  module is accidentally listed as part of a root package surface again, closing
+  the gap exposed by the Review 136 DB inventory cleanup while preserving the
+  public DB `sync-adapter` surface exposed through `Collection.*`.
+- LSP docs contract: `docs/public-api-inventory.md` now documents the
+  bidirectional source-surface audit so future hover/docs updates have the same
+  machine-checked boundary as the public import-path manifest.
+
+Focused verification passed: `pnpm audit:public-api`, `pnpm typecheck:types`,
+`pnpm audit:effect-first`, and `git diff --check`.
 
 ## Review 136: Exact Effect Audit and Public Inventory Drift
 
 Status: fixed for the fresh post-Review135 test-gap and docs/LSP findings.
-Focused verification is green. Full verification is still inherited from
-Review 135 until the next single-command gate runs.
+Focused verification is green, but a fresh post-fix verification-gap sweep
+found the bidirectional source-surface audit gap fixed in Review 137. Full
+verification is still inherited from Review 135 until the next single-command
+gate runs.
 
 - Effect-first audit exactness: approved host seams in
   `scripts/audit-effect-first.mjs` now require an exact occurrence count and

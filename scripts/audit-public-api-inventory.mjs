@@ -416,6 +416,51 @@ const exportedModules = (entrypoint) => {
   return [...new Set(modules)].sort();
 };
 
+const localDependencyModules = (entrypoint) => {
+  const source = readText(entrypoint);
+  const modules = [];
+  for (const match of source.matchAll(/from\s+"\.\/([^"]+)\.js";/g)) {
+    modules.push(match[1]);
+  }
+  return [...new Set(modules)].sort();
+};
+
+const backtickNames = (source) =>
+  [...source.matchAll(/`([^`]+)`/g)].map((match) => match[1]);
+
+const namespaceBackedSurfaceModules = new Map([
+  ["@effect-ui/db", new Set(["sync-adapter"])]
+]);
+
+const documentedSourceSurface = (packageSection) => {
+  const directModules = [];
+  const namespaceModules = [];
+  const coreStarExports = packageSection.match(
+    /The root export star-exports these modules:\n\n([\s\S]*?)(?=\n\n)/
+  );
+  const localSourceModules = packageSection.match(
+    /- Local source modules: ([\s\S]*?)(?=\n- |\n\n)/
+  );
+  const namespaceSourceModules = packageSection.match(
+    /- Namespace-backed source modules: ([\s\S]*?)(?=\n- |\n\n)/
+  );
+
+  if (coreStarExports !== null) {
+    directModules.push(...backtickNames(coreStarExports[1]));
+  }
+  if (localSourceModules !== null) {
+    directModules.push(...backtickNames(localSourceModules[1]));
+  }
+  if (namespaceSourceModules !== null) {
+    namespaceModules.push(...backtickNames(namespaceSourceModules[1]));
+  }
+
+  return {
+    directModules: [...new Set(directModules)].sort(),
+    namespaceModules: [...new Set(namespaceModules)].sort()
+  };
+};
+
 for (const [key, entry] of expectedEntrypoints) {
   const [packageName, exportPath] = key.split("\0");
   if (exportPath !== "." || !existsSync(join(root, entry.source))) {
@@ -433,9 +478,28 @@ for (const [key, entry] of expectedEntrypoints) {
     continue;
   }
 
+  const documentedSurface = documentedSourceSurface(packageSection);
+  const documentedDirectModuleSet = new Set(documentedSurface.directModules);
   for (const moduleName of rootExportedModules) {
-    if (!packageSection.includes(`\`${moduleName}\``)) {
+    if (!documentedDirectModuleSet.has(moduleName)) {
       failures.push(`${packageName} root export ${moduleName} is not classified in its Source Surface section`);
+    }
+  }
+
+  const rootExportedModuleSet = new Set(rootExportedModules);
+  for (const moduleName of documentedSurface.directModules) {
+    if (!rootExportedModuleSet.has(moduleName)) {
+      failures.push(`${packageName} Source Surface lists ${moduleName}, but ${basename(entry.source)} does not re-export it`);
+    }
+  }
+
+  const allowedNamespaceModules = namespaceBackedSurfaceModules.get(packageName) ?? new Set();
+  const localDependencyModuleSet = new Set(localDependencyModules(join(root, entry.source)));
+  for (const moduleName of documentedSurface.namespaceModules) {
+    if (!allowedNamespaceModules.has(moduleName)) {
+      failures.push(`${packageName} Source Surface lists ${moduleName} as namespace-backed without an audit allowance`);
+    } else if (!localDependencyModuleSet.has(moduleName)) {
+      failures.push(`${packageName} Source Surface lists ${moduleName} as namespace-backed, but ${basename(entry.source)} does not import it`);
     }
   }
 }

@@ -188,6 +188,10 @@ Latest full gate on May 15, 2026:
   Effect-first audit now require exact counts, DB public inventory no longer
   lists internal store modules as root exports, and exported Start app-graph
   helper hovers are audit-pinned.
+- Review 137 closed the fresh source-surface verification gap: the public API
+  inventory audit now checks root barrel Source Surface docs in both directions,
+  with explicit namespace-backed source-module allowances, so docs cannot list
+  internal local modules unless they are part of a checked public surface.
 - Review 85 extracted the internal Solid Route Render Scope Controller:
   `RouterOutlet` now delegates route branch rendering, route-owned `UiScope`
   creation, Solid root cleanup, runtime-bound route finalizers, transition

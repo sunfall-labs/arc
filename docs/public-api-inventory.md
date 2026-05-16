@@ -49,11 +49,14 @@ bins may omit an import-shaped type test only with an explicit reason. The
 public API inventory audit verifies the manifest against package
 `exports`/`bin` maps and checks that each focused type-test file imports the
 entrypoint it claims to cover. It also checks that every package root barrel's
-local re-exported modules are named in that package's Source Surface section so
-hover/LSP docs cannot drift from exported source files, and it enforces JSDoc
-on selected public hover declarations for the Core Program and Start diagnostics
-surfaces. The broad `type-tests/framework.test-d.ts` file remains as
-cross-package integration coverage.
+local re-exported modules are named in that package's Source Surface section,
+and that Source Surface local-module lists do not name modules the root barrel
+does not export. Curated namespace-backed source modules must have an explicit
+audit allowance and a root-barrel import. Together these checks keep hover/LSP
+docs from drifting away from exported source files. The audit also enforces
+JSDoc on selected public hover declarations for the Core Program and Start
+diagnostics surfaces. The broad `type-tests/framework.test-d.ts` file remains
+as cross-package integration coverage.
 
 ## Source Surface By Package
 
@@ -521,7 +524,9 @@ The root export includes:
   `collection-persistence`, `collection-preload`, `collection-reactive-binding`,
   `collection-registry`, `collection-snapshot-codec`, `flush-policy`,
   `live-query-collection`, `query-builder`, `query-plan`, `server-collection`,
-  `sync-adapter`, and `sqlite-persistence`.
+  and `sqlite-persistence`.
+- Namespace-backed source modules: `sync-adapter` owns the generic sync adapter
+  contracts and helpers exposed through the Collection namespace.
 - `Collection`, `Query`, live query types, collection snapshots, hydration, and
   persistence configuration;
 - sync adapters, server collection helpers, SQLite persistence helpers, and
