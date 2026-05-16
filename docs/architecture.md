@@ -586,8 +586,9 @@ second runtime link abstraction. Apps can disable or move the generated file wit
 `outputFile`.
 
 Apps that import these virtual modules should opt into their ambient types with
-`"types": ["vite/client", "@effect-ui/start/virtual"]` or an equivalent
-triple-slash reference.
+a checked declaration file such as `src/effect-ui-start-virtual.d.ts` containing
+`import "@effect-ui/start/virtual";`, alongside the usual `"types":
+["vite/client"]` Vite setting.
 
 ## SSR Hydration
 

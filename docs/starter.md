@@ -60,5 +60,5 @@ and `.test-dist/starters/project-console` from their example sources. Each
 generated starter rewrites workspace protocol dependencies to local
 `.effect-ui-packages/*` file dependencies, removes monorepo Vite aliases, writes
 a standalone `tsconfig.json`, verifies the app file manifest against the
-copyable source manifest, and dry-runs package installation outside the
-workspace.
+copyable source manifest, installs outside the workspace, runs the generated
+starter's own `verify` script, and removes generated install/build artifacts.

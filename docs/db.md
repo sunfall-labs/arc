@@ -633,7 +633,9 @@ Flush uses the pending transaction facts already in collection state. On
 success, touched rows are marked `$synced: true` and the transaction is removed
 from the queue. If a handler fails, the saved rollback rows are restored, the
 transaction is removed from the queue, rollback events are published, and the
-Effect fails with the handler error.
+Effect fails with the handler error unless rollback persistence fails; in that
+case the rollback persistence error is returned so storage repair remains
+visible to callers.
 Mutation handlers receive cloned/frozen transaction facts, not the store-owned
 pending queue records, so adapters cannot mutate rollback rows or persisted
 mutation facts by changing handler context objects.

@@ -11,9 +11,54 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 145, immediately after Review 144. Some older review
+The newest review is Review 146, immediately after Review 145. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 146: Runtime Store Override And Generated Starter Verification
+
+Status: fixed for the fresh post-Review145 runtime/locality, docs/LSP,
+Effect-first guardrail, DB docs, and starter-copyability sweeps. Focused and
+full verification are green. Fresh post-fix sweeps still found actionable work,
+so the clean-sweep counter has not started.
+
+- Runtime Store override locality: `EffectUiRuntime.provide(..., {
+  resourceStore })` now installs an ambient runtime Adapter whose
+  `resourceStore`, nested `provide(...)`, `runFork(...)`, and `runSync(...)`
+  preserve the override. A Core regression prefetches a Resource into an
+  override store and proves `Resource.read(...)` inside the same provided Effect
+  reads that store rather than the base runtime store.
+- Generated starter verification: `pnpm starter:package` now installs each
+  generated starter outside the workspace with `--ignore-workspace`, runs that
+  starter's own `verify` script, rejects workspace protocols outside
+  `node_modules`/build output, and removes generated install/build artifacts.
+  The generated gate now verifies basic, React, and project-console payloads at
+  18, 23, and 29 app files.
+- Starter leak scans: basic, React, and project-console starters now ship a
+  bundled Effect-backed Node leak scanner instead of relying on user-global
+  `rg`. The Effect-first audit includes these copyable starter scripts.
+- Public type/docs drift: focused Start fetch/node subpath type tests now pin
+  runtime-required host facades and low-level adapter aliases. Current docs
+  explain virtual module type opt-in through a checked declaration import and DB
+  mutation flush docs name rollback persistence failure precedence.
+- Promise fixture cleanup: Start negative tests now use explicit
+  `Effect.runPromise(...)` host-boundary fixtures instead of `Promise.resolve`
+  or `new Promise` conveniences.
+
+Focused verification passed: Core/Start package typechecks, public type tests,
+public API audit, Effect-first audit over 258 files, Core runtime tests
+1 file / 8 tests, Start tests 2 files / 151 tests, DB collection tests
+1 file / 105 tests, source starter verifies, generated starter packaging, and
+direct Promise fixture grep.
+
+Full `pnpm verify` passed after Review 146: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 258 files, 53 root test files / 894 tests, devtools-panel verify with
+2 tests, devtools-extension verify with 20 tests, basic starter verify with
+2 tests, React starter verify with 3 tests, starter-suite packaging for basic
+(18 app files / 5 local packages), React (23 app files / 4 local packages), and
+project-console (29 app files / 6 local packages), project-console typecheck,
+4 project-console test files / 27 tests, project-console build, and leak scan.
 
 ## Review 145: Effect Guardrails, Ambient Runtime, And Starter Copyability
 

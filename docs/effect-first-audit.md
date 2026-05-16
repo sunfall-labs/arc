@@ -337,9 +337,9 @@ interruption.
   - The CLI entrypoint now reports success and failure from inside the Effect
     pipeline instead of using a top-level `try`/`catch` around
     `Effect.runPromise(...)`.
-  - Starter install dry-runs now use `Effect.callback(...)` around the Node
-    child-process host seam, keeping command success and failure inside the
-    Effect error channel.
+  - Starter non-workspace installs and generated `verify` runs now use
+    `Effect.callback(...)` around the Node child-process host seam, keeping
+    command success and failure inside the Effect error channel.
 - `examples/project-console/src/App.tsx`
   - UI fire-and-forget effects now use a generic runtime helper and
     `Effect.catch(...)` directly instead of erasing Effect errors and
@@ -423,12 +423,15 @@ interruption.
 - Review 145 focused verification kept `pnpm audit:effect-first` green over 255
   files after adding example Vite configs to scope and catching parenthesized or
   extracted Promise statics/member calls.
+- Review 146 focused verification kept `pnpm audit:effect-first` green over 258
+  files after adding copyable starter leak-scan scripts to scope and anchoring
+  their top-level Node host runners.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The latest full gate is the Review 145 `pnpm verify` run: 11 package builds,
+- The latest full gate is the Review 146 `pnpm verify` run: 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 255 files, 53 root test files / 893 tests,
+  Effect-first audit over 258 files, 53 root test files / 894 tests,
   devtools-panel/devtools-extension/starter-suite/project-console gates, and
   leak scans.
 - `pnpm exec vitest run packages/core/test/runtime.test.ts packages/start/test/start.test.ts`
@@ -1225,14 +1228,15 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The latest full `pnpm verify` passed after the Review 145 Effect Guardrails,
-  Ambient Runtime, and Starter Copyability slice: 11 package builds, workspace
-  typecheck, type tests, public API inventory audit, Effect-first audit over 255
-  package/example/config/script/type-test files, 53 root test files / 893 tests,
+- The latest full `pnpm verify` passed after the Review 146 Runtime Store
+  Override and Generated Starter Verification slice: 11 package builds,
+  workspace typecheck, type tests, public API inventory audit, Effect-first
+  audit over 258 package/example/config/script/type-test files, 53 root test
+  files / 894 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
   verify with 1 starter test file / 2 tests, React starter verify with 1
-  starter test file / 3 tests, starter-suite packaging for
+  starter test file / 3 tests, generated starter-suite packaging/verifies for
   basic/react/project-console, project-console typecheck, 4 project-console test
   files / 27 tests, build, and leak scans. Review 75
   added the public API inventory audit to the full gate, Review 86 kept the

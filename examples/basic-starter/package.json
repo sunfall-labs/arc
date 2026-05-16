@@ -7,6 +7,7 @@
   "files": [
     "README.md",
     "index.html",
+    "scripts",
     "src",
     "tsconfig.json",
     "vite.config.ts"
@@ -16,8 +17,15 @@
     "build": "tsrx-tsc -p tsconfig.json --noEmit && vite build",
     "typecheck": "tsrx-tsc -p tsconfig.json --noEmit",
     "test": "vitest run src/*.test.ts",
-    "leak-scan": "! rg \"starter\\.server|/src/starter\\.server\\.ts\" dist -n",
+    "leak-scan": "node scripts/leak-scan.mjs",
     "verify": "pnpm typecheck && pnpm test && pnpm build && pnpm leak-scan"
+  },
+  "effectUiLeakScan": {
+    "dist": "dist",
+    "patterns": [
+      "starter\\.server",
+      "/src/starter\\.server\\.ts"
+    ]
   },
   "dependencies": {
     "@effect-ui/core": "workspace:*",

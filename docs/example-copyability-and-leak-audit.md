@@ -27,7 +27,8 @@ copied as starters and whether browser/server boundaries remain explicit.
   `.test-dist/starters/project-console`. Generated starters rewrite workspace
   protocol dependencies to local `.effect-ui-packages/*` file dependencies,
   remove monorepo Vite aliases, write standalone `tsconfig.json` files, verify
-  source app manifests, and dry-run package installation outside the workspace.
+  source app manifests, install outside the workspace, and run each generated
+  starter's own `verify` script before cleaning install/build artifacts.
 
 ## Verification Evidence
 
@@ -44,8 +45,10 @@ copied as starters and whether browser/server boundaries remain explicit.
 - `pnpm starter:verify` passed for `@effect-ui/starter-basic`: typecheck, 1
   starter test, production build, and leak scan.
 - `pnpm starter:package` passed and verified generated basic, React, and
-  project-console starter manifests: 16, 21, and 27 app files respectively,
-  with 5, 4, and 6 local `@effect-ui/*` file packages.
+  project-console starter manifests: 18, 23, and 29 app files respectively,
+  with 5, 4, and 6 local `@effect-ui/*` file packages; each generated starter
+  completed typecheck, tests, production build, and leak scan after an isolated
+  non-workspace install.
 - `pnpm --filter @effect-ui/starter-basic pack --dry-run`,
   `pnpm --filter @effect-ui/starter-react pack --dry-run`,
   `pnpm --filter @effect-ui/example-project-console pack --dry-run`,

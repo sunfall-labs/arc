@@ -122,6 +122,37 @@ const fromManagedRuntime = <R, ER>(
   ): Effect.Effect<A, E, Exclude<RIn, ResourceStoreState>> =>
     Effect.provideService(effect, ResourceStore, store);
 
+  const runtimeForResourceStore = (store: MutableResourceStore): AnyEffectUiRuntime<ER> => {
+    if (store === resourceStore) {
+      return runtime as AnyEffectUiRuntime<ER>;
+    }
+
+    let scopedRuntime: AnyEffectUiRuntime<ER>;
+    scopedRuntime = {
+      [RuntimeTypeId]: RuntimeTypeId,
+      managed: managedRuntime,
+      resourceStore: store,
+      provide: (effect, options) =>
+        provideRuntimeServices(effect, {
+          ...options,
+          resourceStore: options?.resourceStore ?? store
+        }) as Effect.Effect<any, any>,
+      runFork: (effect, options) =>
+        managedRuntime.runFork(
+          provideRuntimeServices(effect, { resourceStore: store }) as Effect.Effect<any, any>,
+          options
+        ),
+      runSync: (effect) =>
+        runWithRuntime(scopedRuntime, () =>
+          managedRuntime.runSync(
+            provideRuntimeServices(effect, { resourceStore: store }) as Effect.Effect<any, any>
+          )
+        ),
+      disposeEffect
+    };
+    return scopedRuntime;
+  };
+
   const provideManagedServices = <A, E, RIn>(
     effect: Effect.Effect<A, E, RIn>
   ): Effect.Effect<A, E, unknown> =>
@@ -130,19 +161,19 @@ const fromManagedRuntime = <R, ER>(
   const provideRuntimeServices = <A, E, RIn>(
     effect: Effect.Effect<A, E, RIn>,
     provideOptions?: RuntimeProvideOptions
-  ): Effect.Effect<A, E | ER, RuntimeRemainingRequirements<RIn, R>> =>
-    Effect.flatMap(managedRuntime.contextEffect, (context) =>
+  ): Effect.Effect<A, E | ER, RuntimeRemainingRequirements<RIn, R>> => {
+    const store = provideOptions?.resourceStore === undefined
+      ? resourceStore
+      : unsafeMutableResourceStore(provideOptions.resourceStore);
+    const ambientRuntime = runtimeForResourceStore(store);
+    return Effect.flatMap(managedRuntime.contextEffect, (context) =>
       Effect.provideService(
-        provideStore(
-          Effect.provideContext(effect, context),
-          provideOptions?.resourceStore === undefined
-            ? undefined
-            : unsafeMutableResourceStore(provideOptions.resourceStore)
-        ),
+        provideStore(Effect.provideContext(effect, context), store),
         AmbientRuntime,
-        runtime as AnyEffectUiRuntime<any>
+        ambientRuntime
       )
     ) as Effect.Effect<A, E | ER, RuntimeRemainingRequirements<RIn, R>>;
+  };
 
   const disposeStore = disposeResourceStoreEffect(resourceStore);
   const disposeEffect = options.disposeManaged

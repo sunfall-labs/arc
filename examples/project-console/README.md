@@ -35,8 +35,8 @@ pnpm verify
   generated payloads rewrite workspace protocol dependencies to local
   `.effect-ui-packages/*` file dependencies, remove monorepo Vite aliases,
   write standalone `tsconfig.json` files, verify app manifests against their
-  copyable source manifests, and dry-run package installation outside the
-  workspace.
+  copyable source manifests, install outside the workspace, run each generated
+  starter's own `verify` script, and clean generated install/build artifacts.
 - Keep `src/domain.contract.ts` browser-safe. Put server implementations and
   seed data in `src/domain.server.ts`.
 - Keep `src/start-options.ts` explicit. It is the app graph source for server

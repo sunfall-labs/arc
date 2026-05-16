@@ -1,6 +1,16 @@
 import { Context, Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
-import { Action, makeRuntime, Resource, runWithRuntime, Server, ServerClient } from "../src/index.js";
+import {
+  Action,
+  disposeResourceStoreEffect,
+  makeResourceStore,
+  makeRuntime,
+  Resource,
+  ResourcePending,
+  runWithRuntime,
+  Server,
+  ServerClient
+} from "../src/index.js";
 
 describe("Effect UI runtime", () => {
   interface Numbers {
@@ -101,6 +111,33 @@ describe("Effect UI runtime", () => {
         Effect.asVoid,
         Effect.ensuring(runtime.disposeEffect)
       )
+    ));
+  });
+
+  it("keeps provided Resource Store overrides visible to synchronous Resource reads", () => {
+    const runtime = makeRuntime(NumbersLive);
+    const overrideStore = makeResourceStore();
+    const NumberById = Resource.family<string, number, never, Numbers>({
+      name: "Runtime.Number.override.byId",
+      load: (id) => Numbers.use((numbers) => numbers.get(id))
+    });
+    const ref = NumberById("atlas");
+
+    return Effect.runPromise(runtime.provide(
+      Effect.gen(function* () {
+        yield* Resource.prefetchEffect(ref);
+        const value = yield* Effect.sync(() => Resource.read(ref));
+        yield* Effect.sync(() => {
+          expect(value).toBe(5);
+          expect(() => runWithRuntime(runtime, () => Resource.read(ref))).toThrow(ResourcePending);
+        });
+      }).pipe(
+        Effect.ensuring(Effect.gen(function* () {
+          yield* disposeResourceStoreEffect(overrideStore);
+          yield* runtime.disposeEffect;
+        }))
+      ),
+      { resourceStore: overrideStore }
     ));
   });
 

@@ -150,6 +150,10 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Updated current-facing verification snapshots after the Review145 full
   `pnpm verify` gate: 53 root test files / 893 tests and the 255-file
   Effect-first audit.
+- Recorded Review146 docs drift fixes: virtual-module ambient type guidance now
+  uses a checked side-effect declaration import, DB flush docs name rollback
+  persistence failure precedence, and current verification snapshots use the
+  894-test root suite plus 258-file Effect-first audit.
 - Updated the cleanup backlog so the generated artifact determinism audit points
   at the completed audit artifact instead of remaining unchecked.
 - Updated final handoff evidence to point at the latest full `pnpm verify`

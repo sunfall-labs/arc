@@ -1001,7 +1001,7 @@ describe("Effect UI Start", () => {
     const ProjectRoute = ProjectRouteBuilder({
       ...ProjectRouteBuilder.preload(
         {},
-        (() => Promise.resolve()) as never
+        (() => Effect.runPromise(Effect.void)) as never
       )
     });
     const app = defineApp({

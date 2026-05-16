@@ -65,19 +65,19 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 145:
+Latest full gate on May 16, 2026 after Review 146:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 255 package/example-config/script/type-test files;
-- 53 root test files / 893 tests;
+- Effect-first audit over 258 package/example/config/script/type-test files;
+- 53 root test files / 894 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
 - basic starter verify with 1 starter test file / 2 tests;
 - React starter verify with 1 starter test file / 3 tests;
-- starter-suite packaging for basic (16 app files / 5 local packages), React
-  (21 app files / 4 local packages), and project console (27 app files / 6
+- starter-suite packaging for basic (18 app files / 5 local packages), React
+  (23 app files / 4 local packages), and project console (29 app files / 6
   local packages);
 - project console typecheck;
 - 4 project console test files / 27 tests;
@@ -864,16 +864,17 @@ Latest full gate on May 16, 2026 after Review 145:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 145 closed the
-  Effect-first guardrail, ambient runtime, public type-pin, and starter
-  copyability tranche:
+- The latest full `pnpm verify` passed after Review 146 closed the runtime
+  store override, generated starter verification, public type-pin, and docs
+  drift tranche:
   11 package builds, workspace typecheck, public type tests, public API
-  inventory audit, Effect-first audit over 255 files, 53 root test
-  files / 893 tests,
+  inventory audit, Effect-first audit over 258 files, 53 root test
+  files / 894 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,
-  starter-suite packaging for basic/react/project-console, project-console
-  typecheck, 4 project-console test files / 27 tests, build, and leak scans.
+  generated starter-suite packaging/verifies for basic/react/project-console,
+  project-console typecheck, 4 project-console test files / 27 tests, build,
+  and leak scans.
 - The previous full `pnpm verify` passed after Review 64 store-owned Resource
   load ownership, Start stream/manifest walls, DB hydration/dehydrate preflight,
   Devtools runtime-only causal facts, and panel row identity fixes: 9 package

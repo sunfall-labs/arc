@@ -468,11 +468,11 @@ describe("Start RPC transport", () => {
         const fetchRuntime = Layer.succeed(ServerClient)(
           makeRpcClient({
             fetch: (() =>
-              Promise.resolve(
+              Effect.runPromise(Effect.succeed(
                 new Response(JSON.stringify({ _tag: "Success", value: "ok" }), {
                   headers: { "content-type": startJsonMediaType }
                 })
-              )) as unknown as StartFetch
+              ))) as unknown as StartFetch
           })
         );
 
@@ -508,19 +508,21 @@ describe("Start RPC transport", () => {
         globalThis.fetch = ((_input, init) => {
           const signal = init?.signal;
           if (signal === undefined) {
-            return Promise.reject(new Error("missing fetch abort signal"));
+            return Effect.runPromise(Effect.fail(new Error("missing fetch abort signal")));
           }
           Effect.runFork(Deferred.succeed(started, signal));
-          return new Promise<Response>((_resolve, reject) => {
-            signal.addEventListener(
-              "abort",
-              () => {
-                Effect.runFork(Deferred.succeed(aborted, undefined));
-                reject(signal.reason);
-              },
-              { once: true }
-            );
-          });
+          return Effect.runPromise(
+            Effect.callback<Response, unknown>((resume) => {
+              signal.addEventListener(
+                "abort",
+                () => {
+                  Effect.runFork(Deferred.succeed(aborted, undefined));
+                  resume(Effect.fail(signal.reason));
+                },
+                { once: true }
+              );
+            })
+          );
         }) as typeof globalThis.fetch;
 
         const runtime = Layer.succeed(ServerClient)(

@@ -46,6 +46,14 @@ const auditableRoots = [
       /^examples\/[^/]+\/vite\.config\.ts$/.test(relativeFile)
   },
   {
+    name: "example scripts",
+    directory: join(root, "examples"),
+    description: "examples/*/scripts/*.mjs copyable starter tools",
+    include: (relativeFile, entry) =>
+      entry.isFile() &&
+      /^examples\/[^/]+\/scripts\/[^/]+\.mjs$/.test(relativeFile)
+  },
+  {
     name: "workspace scripts",
     directory: join(root, "scripts"),
     description: "scripts/*.mjs release and audit entrypoints",
@@ -139,7 +147,10 @@ const allowed = [
       seam("packages/start/src/streaming.ts", "ReadableStream finalizer host runner", /const runResponseStreamEffect:\s*StartResponseStreamRunner\s*=\s*\(effect\)\s*=>\s*Effect\.runPromise\(effect\);/),
       seam("packages/start/src/start-host-runtime-runner.ts", "Start host Promise runtime runner", /export const runStartHostPromise[\s\S]*?Effect\.runPromise\(/),
       seam("packages/start/src/cli.ts", "Start diagnostics CLI bin runner", /void Effect\.runPromise\(runStartDiagnosticsCliMainEffect\(\)\);/),
-      seam("scripts/package-project-console-starter.mjs", "Project console starter packaging script runner", /await Effect\.runPromise\(/)
+      seam("scripts/package-project-console-starter.mjs", "Project console starter packaging script runner", /await Effect\.runPromise\(/),
+      seam("examples/basic-starter/scripts/leak-scan.mjs", "Basic starter leak-scan script runner", /await Effect\.runPromise\(/),
+      seam("examples/react-starter/scripts/leak-scan.mjs", "React starter leak-scan script runner", /await Effect\.runPromise\(/),
+      seam("examples/project-console/scripts/leak-scan.mjs", "Project console leak-scan script runner", /await Effect\.runPromise\(/)
     ]
   },
   {
@@ -239,7 +250,10 @@ const banned = [
     pattern: /(?<!\.)\bawait\b/g,
     name: "await keyword",
     seams: [
-      seam("scripts/package-project-console-starter.mjs", "Project console starter packaging script runner", /await Effect\.runPromise\(/)
+      seam("scripts/package-project-console-starter.mjs", "Project console starter packaging script runner", /await Effect\.runPromise\(/),
+      seam("examples/basic-starter/scripts/leak-scan.mjs", "Basic starter leak-scan script runner", /await Effect\.runPromise\(/),
+      seam("examples/react-starter/scripts/leak-scan.mjs", "React starter leak-scan script runner", /await Effect\.runPromise\(/),
+      seam("examples/project-console/scripts/leak-scan.mjs", "Project console leak-scan script runner", /await Effect\.runPromise\(/)
     ]
   },
   {

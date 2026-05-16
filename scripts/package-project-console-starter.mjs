@@ -70,6 +70,7 @@ const commandEffect = (description, command, args, options = {}) =>
             [
               `Command: ${command} ${args.join(" ")}`,
               `Exit code: ${code}`,
+              stdout.trim() === "" ? undefined : `stdout: ${stdout.trim()}`,
               stderr.trim() === "" ? undefined : `stderr: ${stderr.trim()}`,
             ].filter(Boolean).join(" "),
             { code, stdout, stderr },
@@ -113,7 +114,7 @@ const solidStarterTsConfig = {
     jsxImportSource: "solid-js",
     noEmit: true,
     plugins: [{ name: "@tsrx/typescript-plugin" }],
-    types: ["vite/client", "@effect-ui/start/virtual"],
+    types: ["vite/client"],
   },
   include: ["src", "vite.config.ts"],
 };
@@ -135,7 +136,7 @@ const reactStarterTsConfig = {
     paths: {
       "@/*": ["./src/*"],
     },
-    types: ["vite/client", "@effect-ui/start/virtual"],
+    types: ["vite/client"],
   },
   include: ["src", "vite.config.ts"],
 };
@@ -509,7 +510,12 @@ const assertNoForbiddenGeneratedAppSegments = (starter, files) =>
 
 const assertNoWorkspaceProtocol = (starter) =>
   Effect.gen(function* () {
-    const generatedFiles = yield* collectFiles(starter.outputDir);
+    const generatedFiles = yield* collectFiles(starter.outputDir, {
+      filter: (filePath) => {
+        const relativePath = relativeTo(starter.outputDir, filePath);
+        return !relativePath.startsWith("node_modules/") && !relativePath.startsWith("dist/");
+      },
+    });
     const offenders = [];
     for (const file of generatedFiles) {
       if (!file.endsWith("package.json") && file !== localLockfileName) {
@@ -567,19 +573,40 @@ const verifyStandaloneConfigs = (starter) =>
     }
   });
 
-const verifyInstallableStarter = (starter) =>
+const cleanupGeneratedInstallArtifacts = (starter) =>
   Effect.gen(function* () {
-    yield* commandEffect(
-      `${starter.displayName} standalone install dry-run`,
-      "pnpm",
-      ["install", "--lockfile-only", "--ignore-scripts"],
-      { cwd: starter.outputDir },
+    yield* fsEffect(
+      `remove generated ${starter.displayName} install dependencies`,
+      () => rm(resolve(starter.outputDir, "node_modules"), { force: true, recursive: true }),
     );
-    yield* assertNoWorkspaceProtocol(starter);
+    yield* fsEffect(
+      `remove generated ${starter.displayName} build output`,
+      () => rm(resolve(starter.outputDir, "dist"), { force: true, recursive: true }),
+    );
     yield* fsEffect(
       `remove generated ${starter.displayName} install lockfile`,
       () => rm(resolve(starter.outputDir, localLockfileName), { force: true }),
     );
+  });
+
+const verifyInstallableStarter = (starter) =>
+  Effect.gen(function* () {
+    yield* Effect.gen(function* () {
+      yield* commandEffect(
+        `${starter.displayName} standalone install`,
+        "pnpm",
+        ["--ignore-workspace", "install", "--ignore-scripts"],
+        { cwd: starter.outputDir },
+      );
+      yield* assertNoWorkspaceProtocol(starter);
+      yield* commandEffect(
+        `${starter.displayName} generated starter verify`,
+        "pnpm",
+        ["--ignore-workspace", "verify"],
+        { cwd: starter.outputDir },
+      );
+      yield* assertNoWorkspaceProtocol(starter);
+    }).pipe(Effect.ensuring(cleanupGeneratedInstallArtifacts(starter)));
   });
 
 const rewriteStarterPackageJson = (starter, workspacePackages, packageJson, internalPackageNames) =>
