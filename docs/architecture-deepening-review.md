@@ -11,15 +11,37 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 137, immediately after Review 136. Some older review
+The newest review is Review 138, immediately after Review 137. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 138: Effect Audit Wording Exactness
+
+Status: fixed for the fresh post-Review137 Effect/Promise wording sweep.
+Full verification is green.
+
+- Effect-first audit wording: `scripts/audit-effect-first.mjs` now describes
+  allowlisted matches as exact allowed occurrence counts rather than all of them
+  as host seams, since public type-test Promise fixtures are intentional
+  negative assertions rather than runtime host boundaries.
+- Exactness claim: the Review 136 docs now say the audit catches deleted
+  occurrences or cross-file moves, matching the file/count mechanism instead of
+  implying line-level movement anchors inside an allowed file.
+
+Focused verification passed: `pnpm audit:effect-first` and `git diff --check`.
+Full `pnpm verify` passed after the slice: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 246 files, 53 root test files / 882 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, project-console packaging/typecheck/
+tests/build with 4 files / 27 tests, and leak scans.
 
 ## Review 137: Bidirectional Public Source Surface Audit
 
 Status: fixed for the fresh post-Review136 verification-gap sweep. Focused
-verification is green. Full verification is still inherited from Review 135
-until the next single-command gate runs.
+verification is green, but a fresh post-fix Effect/Promise wording sweep found
+the audit wording exactness gap fixed in Review 138. Full verification passed
+after the Review 138 follow-up.
 
 - Public inventory exactness: `scripts/audit-public-api-inventory.mjs` now
   checks the Source Surface local-module lists in both directions. Root barrel
@@ -42,13 +64,12 @@ Focused verification passed: `pnpm audit:public-api`, `pnpm typecheck:types`,
 Status: fixed for the fresh post-Review135 test-gap and docs/LSP findings.
 Focused verification is green, but a fresh post-fix verification-gap sweep
 found the bidirectional source-surface audit gap fixed in Review 137. Full
-verification is still inherited from Review 135 until the next single-command
-gate runs.
+verification passed after the Review 138 follow-up.
 
-- Effect-first audit exactness: approved host seams in
-  `scripts/audit-effect-first.mjs` now require an exact occurrence count and
-  print `= N`, so a moved or deleted host seam cannot pass under an old
-  at-most allowance. Banned-pattern exceptions still use upper-bound counts.
+- Effect-first audit exactness: approved Effect-first occurrences in
+  `scripts/audit-effect-first.mjs` now require an exact per-file count and
+  print `= N`, so deleted occurrences or cross-file moves cannot pass under an
+  old at-most allowance. Banned-pattern exceptions still use upper-bound counts.
 - DB public inventory: `docs/public-api-inventory.md` no longer claims
   internal `collection-definition-snapshot` or `collection-state` modules are
   part of the `@effect-ui/db` root export surface.

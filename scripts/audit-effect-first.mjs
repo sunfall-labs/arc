@@ -99,18 +99,19 @@ const printScopeSummary = () => {
     );
   }
   console.log(`- total auditable files: ${sourceFiles.length}`);
-  console.log("Effect-first host-seam allowances:");
+  console.log("Effect-first allowed occurrence counts:");
   for (const check of allowed) {
-    console.log(`- ${check.name}: ${check.seams.size} explicit file seams`);
+    console.log(`- ${check.name}: ${check.seams.size} explicit file allowances`);
     for (const [file, expected] of check.seams) {
       console.log(`  - ${file}: = ${expected}`);
     }
   }
+  console.log("Effect-first banned-pattern exception limits:");
   for (const check of banned) {
     if (check.seams === undefined) {
       continue;
     }
-    console.log(`- ${check.name}: ${check.seams.size} explicit file seams`);
+    console.log(`- ${check.name}: ${check.seams.size} explicit file exceptions`);
     for (const [file, maximum] of check.seams) {
       console.log(`  - ${file}: <= ${maximum}`);
     }

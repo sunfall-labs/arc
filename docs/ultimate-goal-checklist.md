@@ -789,8 +789,8 @@ Last evidence pass: May 15, 2026.
   - Evidence: no new ADR required for the Start Action Response Codec
     extraction.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 15, 2026 after the Review 135
-    store-explicit hydrate apply and strict diagnostics DTO slice: 11 package builds, workspace
+  - Evidence: root `pnpm verify` passed on May 15, 2026 after the Review 138
+    Effect audit wording exactness slice: 11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
     246 files, 53 root test files / 882 tests,
     devtools-panel verify with 1 panel test file / 2 tests, devtools-extension

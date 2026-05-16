@@ -64,7 +64,7 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 15, 2026:
+Latest full gate on May 15, 2026 after Review 138:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
@@ -184,14 +184,18 @@ Latest full gate on May 15, 2026:
   type test pins diagnostics/build-policy exports and static-only
   `StartBuildPolicyError`, `StartBuildPolicyError` hovers are audit-pinned, and
   the Start fetch Promise-return allowance is exact.
-- Review 136 closed fresh docs/test drift: approved host seams in the
-  Effect-first audit now require exact counts, DB public inventory no longer
-  lists internal store modules as root exports, and exported Start app-graph
-  helper hovers are audit-pinned.
+- Review 136 closed fresh docs/test drift: approved Effect-first occurrences
+  now require exact per-file counts, DB public inventory no longer lists
+  internal store modules as root exports, and exported Start app-graph helper
+  hovers are audit-pinned.
 - Review 137 closed the fresh source-surface verification gap: the public API
   inventory audit now checks root barrel Source Surface docs in both directions,
   with explicit namespace-backed source-module allowances, so docs cannot list
   internal local modules unless they are part of a checked public surface.
+- Review 138 closed the fresh Effect-first wording gap: exact audit allowances
+  are now reported as allowed occurrence counts, and docs describe the guarantee
+  as deleted-occurrence/cross-file-move detection rather than line-level seam
+  anchoring.
 - Review 85 extracted the internal Solid Route Render Scope Controller:
   `RouterOutlet` now delegates route branch rendering, route-owned `UiScope`
   creation, Solid root cleanup, runtime-bound route finalizers, transition
@@ -821,9 +825,8 @@ Latest full gate on May 15, 2026:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 135 tightened
-  store-explicit hydrate apply, strict diagnostics DTO decoding, and the Vite
-  diagnostics/build-policy public type surface:
+- The latest full `pnpm verify` passed after Review 138 tightened Effect-first
+  audit wording around exact allowed occurrence counts:
   11 package builds, workspace typecheck, public type tests, public API
   inventory audit, Effect-first audit over 246 files, 53 root test
   files / 882 tests,

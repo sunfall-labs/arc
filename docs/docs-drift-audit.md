@@ -70,8 +70,9 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     regression hooks, Review 133 app graph public hover and CLI vocabulary
     seams, Review 134 runtime diagnostics policy and audit drift closure,
     Review 135 store-explicit hydrate apply and strict diagnostics DTOs,
-    Review 136 exact Effect audit and public inventory drift, and Review 137
-    bidirectional public source surface audit.
+    Review 136 exact Effect audit and public inventory drift, Review 137
+    bidirectional public source surface audit, and Review 138 Effect audit
+    wording exactness.
 
 ## Current Sweep Results
 
@@ -101,6 +102,11 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   are checked bidirectionally against package root barrels, with explicit
   namespace-backed source-module allowances, after the fresh Review137
   verification-gap sweep.
+- Tightened the Effect-first audit and docs wording so exact allowances are
+  described as per-file occurrence counts, with type-test Promise fixtures
+  separated from runtime host-seam language after the fresh Review138 sweep.
+- Updated current-facing verification snapshots after the Review138 full
+  `pnpm verify` gate.
 - Updated the cleanup backlog so the generated artifact determinism audit points
   at the completed audit artifact instead of remaining unchecked.
 - Updated final handoff evidence to point at the latest full `pnpm verify`

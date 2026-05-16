@@ -35,8 +35,9 @@ interruption.
     `request-runtime-response.ts` to the single remaining host seam.
   - The Review 135 pass tightened the Start fetch adapter `Promise<Response>`
     return-type allowance to the single public host facade.
-  - The Review 136 pass made approved host seams exact-count checks, so moved
-    or deleted seams fail until the audit contract is updated.
+  - The Review 136 pass made approved Effect-first occurrences exact per-file
+    count checks, so deleted occurrences or cross-file moves fail until the
+    audit contract is updated.
 - `packages/start/src/start-fetch.ts` and `packages/start/src/file-route.ts`
   - Custom Start fetchers and file-route preload helpers now reject
     Promise-shaped erased JavaScript values before they cross deeper runtime
@@ -381,10 +382,10 @@ interruption.
 
 ## Verification Evidence
 
-- Review 135 focused verification passed `pnpm audit:effect-first` over 246
-  package/example/script/type-test files after tightening exact
-  `Effect.runPromise` and Start fetch Promise-return seam allowances.
-- The latest full gate is the Review 135 `pnpm verify` run: 11 package builds,
+- Review 138 focused verification passed `pnpm audit:effect-first` over 246
+  package/example/script/type-test files after tightening the audit output to
+  exact allowed occurrence counts.
+- The latest full gate is the Review 138 `pnpm verify` run: 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
   Effect-first audit over 246 files, 53 root test files / 882 tests,
   devtools-panel/devtools-extension/starter/project-console gates, and leak
@@ -1183,8 +1184,8 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The latest full `pnpm verify` passed after the Review 135 Store-Explicit
-  Hydration Apply and Strict Diagnostics DTOs slice: 11 package builds, workspace typecheck,
+- The latest full `pnpm verify` passed after the Review 138 Effect Audit
+  Wording Exactness slice: 11 package builds, workspace typecheck,
   type tests, public API inventory audit, Effect-first audit over 246
   package/example/script/type-test files, 53 root test files / 882 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
