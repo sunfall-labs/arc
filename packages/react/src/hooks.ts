@@ -14,8 +14,10 @@ import {
   resourceUiRefValue,
   resourceUiStateHasValue,
   Signal,
+  type ActionState,
   type ActionInstance,
   type ActionResultInvalidationRequirements,
+  type EffectInputCallbackError,
   type EffectUiRuntime,
   type ForkScopedOptions,
   type ProgramEvent,
@@ -26,6 +28,7 @@ import {
   type ResourceUiMatch,
   type ResourceUiPreloadFailure,
   type ResourceUiSuccessMeta,
+  type ResourceInvalidationPlan,
   type ResourceRef,
   type ResourceState,
   type ResourceStore,
@@ -124,6 +127,51 @@ export interface ProgramHandle<Model, Message, E = never> {
   dispatchEffect(message: Message): Effect.Effect<void, ProgramFailure<Message, E>>;
   /** Clears accumulated failures. */
   clearFailures(): void;
+}
+
+type ReactActionInvalidationRequirements<A, R> =
+  R | ActionResultInvalidationRequirements<A>;
+
+type ReactActionRemainingRequirements<A, R> =
+  Exclude<ReactActionInvalidationRequirements<A, R>, R | ResourceStore>;
+
+type ReactActionInstance<I, A, E, R, ER> = ActionInstance<
+  I,
+  A,
+  E | ER,
+  ReactActionRemainingRequirements<A, R>,
+  E,
+  R,
+  ReactActionInvalidationRequirements<A, R>
+>;
+
+/**
+ * React-facing handle for an Effect UI Action.
+ *
+ * `state` and `invalidationPlan` are React values subscribed through
+ * `useSyncExternalStore`; `instance` keeps the underlying Core controller
+ * available for lower-level integrations.
+ */
+export interface ActionHandle<I, A, E = never, R = never, ER = never> {
+  /** Underlying Core action instance for advanced integrations. */
+  readonly instance: ReactActionInstance<I, A, E, R, ER>;
+  /** Action definition used to create this instance. */
+  readonly definition: Action.Definition<I, A, E, R>;
+  /** Current action submission state as a React value. */
+  readonly state: ActionState<
+    I,
+    A,
+    E | ER | EffectInputCallbackError,
+    ResourceInvalidationPlan<ReactActionInvalidationRequirements<A, R>>
+  >;
+  /** Latest successful invalidation plan as a React value. */
+  readonly invalidationPlan: ResourceInvalidationPlan<ReactActionInvalidationRequirements<A, R>> | undefined;
+  /** Runs the action workflow as an Effect bound to the nearest React runtime. */
+  readonly submitEffect: ReactActionInstance<I, A, E, R, ER>["submitEffect"];
+  /** Resets the action state as an Effect. */
+  readonly resetEffect: ReactActionInstance<I, A, E, R, ER>["resetEffect"];
+  /** Synchronously resets the action state. */
+  readonly reset: ReactActionInstance<I, A, E, R, ER>["reset"];
 }
 
 type ReactProgramRuntimeError<E, ER> = Program.RuntimeError<E, ER>;
@@ -465,28 +513,12 @@ export const useResourceSuspense = <I, A, E, R = unknown>(
  */
 export const useAction = <I, A, E, R, ER = never>(
   definition: Action.Definition<I, A, E, R>
-): ActionInstance<
-  I,
-  A,
-  E | ER,
-  Exclude<R | ActionResultInvalidationRequirements<A>, R | ResourceStore>,
-  E,
-  R,
-  R | ActionResultInvalidationRequirements<A>
-> => {
+): ActionHandle<I, A, E, R, ER> => {
   const runtime = useRuntime<ER>() as EffectUiRuntime<R, ER>;
   const instanceRef = useRef<{
     readonly definition: Action.Definition<I, A, E, R>;
     readonly runtime: EffectUiRuntime<R, ER>;
-    readonly instance: ActionInstance<
-      I,
-      A,
-      E | ER,
-      Exclude<R | ActionResultInvalidationRequirements<A>, R | ResourceStore>,
-      E,
-      R,
-      R | ActionResultInvalidationRequirements<A>
-    >;
+    readonly instance: ReactActionInstance<I, A, E, R, ER>;
   } | undefined>(undefined);
 
   if (
@@ -502,6 +534,8 @@ export const useAction = <I, A, E, R, ER = never>(
   }
 
   const instance = instanceRef.current.instance;
+  const state = useSignal(instance.state);
+  const invalidationPlan = useSignal(instance.invalidationPlan);
 
   useEffect(() => {
     return () => {
@@ -509,5 +543,16 @@ export const useAction = <I, A, E, R, ER = never>(
     };
   }, [runtime, instance]);
 
-  return instance;
+  return useMemo(
+    () => ({
+      instance,
+      definition: instance.definition,
+      state,
+      invalidationPlan,
+      submitEffect: instance.submitEffect,
+      resetEffect: instance.resetEffect,
+      reset: instance.reset
+    }),
+    [instance, state, invalidationPlan]
+  );
 };

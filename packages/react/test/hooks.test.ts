@@ -328,6 +328,71 @@ describe("react hooks", () => {
     }
   });
 
+  it("bridges React action state and invalidation plans through React values", async () => {
+    const runtime = makeRuntime();
+    const started = await Effect.runPromise(Deferred.make<void>());
+    const release = await Effect.runPromise(Deferred.make<void>());
+    const ProjectById = Resource.family<string, Project>({
+      name: "ReactHooks.action-state-project",
+      load: (id) => Effect.succeed({ id, name: id })
+    });
+    const Save = Action.define<string, string>({
+      name: "ReactHooks.action-state-values",
+      run: (value) =>
+        Effect.gen(function* () {
+          yield* Deferred.succeed(started, undefined);
+          yield* Deferred.await(release);
+          return value.toUpperCase();
+        }),
+      invalidates: (value) => [ProjectById(value)]
+    });
+    let action: ReturnType<typeof useAction<string, string, never, never>> | undefined;
+
+    try {
+      await Effect.runPromise(runtime.provide(Resource.prefetchEffect(ProjectById("ATLAS"))));
+
+      await withReactRoot(async (root, container) => {
+        function Capture() {
+          action = useAction(Save);
+          return createElement(
+            "span",
+            null,
+            `${action.state._tag}:${action.invalidationPlan?.entries.length ?? 0}`
+          );
+        }
+
+        await act(async () => {
+          root.render(
+            createElement(
+              RuntimeProvider,
+              { runtime },
+              createElement(Capture)
+            )
+          );
+        });
+        expect(container.textContent).toBe("Idle:0");
+
+        let fiber: Fiber.Fiber<unknown, unknown> | undefined;
+        await act(async () => {
+          fiber = runtime.runFork(action!.submitEffect("ATLAS").pipe(Effect.exit));
+          await Effect.runPromise(Deferred.await(started));
+        });
+        expect(container.textContent).toBe("Pending:0");
+
+        await act(async () => {
+          await Effect.runPromise(Deferred.succeed(release, undefined));
+          await Effect.runPromise(Fiber.join(fiber!));
+        });
+
+        expect(action?.state._tag).toBe("Success");
+        expect(action?.invalidationPlan?.entries).toHaveLength(1);
+        expect(container.textContent).toBe("Success:1");
+      });
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
   it("resets active React action submissions on unmount", async () => {
     const runtime = makeRuntime();
     const started = await Effect.runPromise(Deferred.make<void>());
