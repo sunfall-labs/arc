@@ -12,10 +12,49 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review175, after the Review174 Collection Policy cleanup.
+Review176, after the Review175 Browser Router Link Preload Identity cleanup.
 Some older review entries remain below
 it from prior ledger merges; use this tip rather than file order alone when
 looking for the latest architecture sweep.
+
+## Review 176: Public Hover Symbol Coverage
+
+Review176 fixed the remaining public-symbol/LSP finding from the fresh
+post-Review173 architecture sweep.
+
+1. Public Hover Symbol Policy Coverage
+   - Status: fixed.
+   - Files: `scripts/public-api-symbol-policy.mjs`,
+     `packages/core/src/resource-ui-binding.ts`,
+     `packages/core/src/browser-router-render-decision.ts`,
+     `packages/react/src/runtime.ts`, `packages/solid/src/runtime.ts`.
+   - Problem: several expert-public Adapter seams were exported and documented
+     in prose, but not listed in the executable hover-doc policy. That left
+     Resource UI Binding, Browser Route Render Decision, and React/Solid
+     Runtime Adapter declarations dependent on convention instead of the LSP
+     audit.
+   - Fix: added hover-doc policy groups for those Modules and filled the
+     missing declaration-site JSDoc. The public API audit now pins the helper
+     functions, controller types, runtime contexts, provider props, and
+     route-render identity declarations.
+   - Benefits: LSP-facing documentation has stronger Locality. Expert-public
+     Adapter authors can discover what each Interface is for directly from
+     declarations, and future edits cannot silently drop those hover docs.
+
+Focused verification passed for Review176: Core, React, and Solid typechecks;
+public type tests; public API inventory audit; Effect-first audit over 403
+physical/virtual files; and `git diff --check`.
+
+Full `pnpm verify` passed after Review176 through the Effect-driven runner: 11
+package builds, workspace typecheck, public type tests, public API inventory
+audit, Effect-first audit over 403 physical/virtual
+package/example/config/script/type-test/generated/docs files, 53 root test
+files / 1028 tests, devtools-panel verify with 2 tests, devtools-extension
+verify with 20 tests, basic starter verify with 2 tests, React starter verify
+with 3 tests, starter package generation for basic/react/project-console at
+19/24/30 app files with 5/4/6 local packages, 16-target package dry-run gate,
+project-console typecheck, 4 project-console test files / 27 tests,
+project-console build, and leak scans.
 
 ## Review 175: Browser Router Link Preload Identity
 

@@ -102,6 +102,46 @@ export const publicHoverDocGroups = [
     ]
   },
   {
+    file: "packages/core/src/browser-router-render-decision.ts",
+    declarations: [
+      "BrowserRouteOutletRenderers",
+      "BrowserRouteOutletDefaultRenderers",
+      "BrowserRouteRenderIdentityInput",
+      "BrowserRouteReadyRenderProps",
+      "BrowserRouteRenderDecision",
+      "browserRouteRenderKey",
+      "browserRouteRenderDecision",
+      "browserRouteActiveRenderer",
+      "browserRouteRenderIdentity"
+    ]
+  },
+  {
+    file: "packages/core/src/resource-ui-binding.ts",
+    declarations: [
+      "ResourceUiInput",
+      "ResourceUiSuccessMeta",
+      "ResourceUiPendingMeta",
+      "ResourceUiFailureMeta",
+      "ResourceUiMatch",
+      "ResourceUiPreloadFailure",
+      "ResourceUiAutoPreloadOptions",
+      "ResourceUiBindingControllerOptions",
+      "ResourceUiBindingController",
+      "ResourceUiSuspensePreloadFiber",
+      "ResourceUiSuspensePreloadOptions",
+      "ResourceUiSuspensePreloadController",
+      "resourceUiRefValue",
+      "resourceUiRefAccessor",
+      "resourceUiSameRef",
+      "resourceUiStateHasValue",
+      "resourceUiPreloadFailureFor",
+      "resourceUiMatchState",
+      "resourceUiBindRuntimeEffect",
+      "makeResourceUiBindingController",
+      "makeResourceUiSuspensePreloadController"
+    ]
+  },
+  {
     file: "packages/devtools/src/serialization.ts",
     declarations: [
       "DevtoolsUnknownInvalidationTarget",
@@ -144,10 +184,33 @@ export const publicHoverDocGroups = [
     ]
   },
   {
+    file: "packages/react/src/runtime.ts",
+    declarations: [
+      "RuntimeContext",
+      "RuntimeProviderProps",
+      "createEffectRuntime",
+      "useRuntime",
+      "RuntimeProvider",
+      "useComponentScope",
+      "useScoped"
+    ]
+  },
+  {
     file: "packages/solid/src/router.ts",
     declarations: [
       "BrowserRouterOptions",
       "RouterProviderProps"
+    ]
+  },
+  {
+    file: "packages/solid/src/runtime.ts",
+    declarations: [
+      "RuntimeContext",
+      "RuntimeProviderProps",
+      "createEffectRuntime",
+      "useRuntime",
+      "RuntimeProvider",
+      "createComponentScope"
     ]
   },
   {

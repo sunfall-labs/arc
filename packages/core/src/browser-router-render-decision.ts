@@ -21,18 +21,25 @@ export interface BrowserRouteOutletDefaultRenderers<
   ER,
   Out
 > {
+  /** Default pending renderer supplied by the framework adapter. */
   readonly pending: (state: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Pending" }>) => Out;
+  /** Default failure renderer supplied by the framework adapter. */
   readonly failure: (state: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Failure" }>) => Out;
+  /** Default not-found renderer supplied by the framework adapter. */
   readonly notFound: (state: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "NotFound" }>) => Out;
 }
 
+/** Facts used to compute route-render identity across router state and renderers. */
 export interface BrowserRouteRenderIdentityInput<
   Routes extends readonly AnyBrowserRoute[],
   ER,
   Out
 > {
+  /** Current browser router state. */
   readonly state: BrowserRouterState<Routes, ER>;
+  /** Adapter/user renderers participating in route scope identity. */
   readonly renderers: BrowserRouteOutletRenderers<Routes, ER, Out>;
+  /** Adapter defaults used when a renderer override is absent. */
   readonly defaults: BrowserRouteOutletDefaultRenderers<Routes, ER, Out>;
 }
 

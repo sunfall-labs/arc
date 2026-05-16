@@ -13,6 +13,7 @@ import {
 } from "./resource-runtime.js";
 import type { ReadableSignal } from "./signal.js";
 
+/** Resource ref input accepted by framework Resource UI adapters. */
 export type ResourceUiInput<I, A, E, R = unknown> =
   | ResourceRef<I, A, E, R>
   | (() => ResourceRef<I, A, E, R>);
@@ -99,8 +100,10 @@ export interface ResourceUiBindingController<I, A, E, R, ER> {
   preloadFailureFor(ref: ResourceRef<I, A, E, R>): ResourceLoadError<E> | ER | undefined;
 }
 
+/** Fiber joined by UI Suspense adapters while a Resource preload is pending. */
 export type ResourceUiSuspensePreloadFiber<A, E, ER> = Fiber.Fiber<A, ResourceLoadError<E> | ER>;
 
+/** Options for converting a Resource preload fiber to a host Suspense token. */
 export interface ResourceUiSuspensePreloadOptions<I, A, E, R, ER, Token> {
   /** Optional adapter fork hook, used when a UI scope should own the waiting fiber. */
   readonly fork?: (effect: Effect.Effect<A, ResourceLoadError<E>, R>) => ResourceUiSuspensePreloadFiber<A, E, ER>;
@@ -120,22 +123,26 @@ export interface ResourceUiSuspensePreloadController<I, A, E, R, ER, Token> {
   dispose(): void;
 }
 
+/** Resolves a Resource UI ref input to the current Resource ref. */
 export const resourceUiRefValue = <I, A, E, R>(
   ref: ResourceUiInput<I, A, E, R>
 ): ResourceRef<I, A, E, R> =>
   typeof ref === "function" ? (ref as () => ResourceRef<I, A, E, R>)() : ref;
 
+/** Converts a Resource UI ref input to a stable accessor shape. */
 export const resourceUiRefAccessor = <I, A, E, R>(
   ref: ResourceUiInput<I, A, E, R>
 ): (() => ResourceRef<I, A, E, R>) =>
   typeof ref === "function" ? (ref as () => ResourceRef<I, A, E, R>) : () => ref;
 
+/** Returns true when two Resource refs target the same family entry. */
 export const resourceUiSameRef = <I, A, E, R>(
   left: ResourceRef<I, A, E, R>,
   right: ResourceRef<I, A, E, R>
 ): boolean =>
   left.family === right.family && left.key === right.key;
 
+/** Returns true when a Resource state contains a current or previous value. */
 export const resourceUiStateHasValue = <A, E>(state: ResourceState<A, E>): boolean => {
   switch (state._tag) {
     case "Success":
@@ -148,6 +155,7 @@ export const resourceUiStateHasValue = <A, E>(state: ResourceState<A, E>): boole
   }
 };
 
+/** Returns a preload failure only when it still belongs to the supplied Resource ref. */
 export const resourceUiPreloadFailureFor = <I, A, E, R, ER>(
   failure: ResourceUiPreloadFailure<I, A, E, R, ER> | undefined,
   ref: ResourceRef<I, A, E, R>
@@ -156,6 +164,7 @@ export const resourceUiPreloadFailureFor = <I, A, E, R, ER>(
     ? failure.error
     : undefined;
 
+/** Folds one Resource state through exhaustive Resource UI render cases. */
 export const resourceUiMatchState = <A, E, B>(
   state: ResourceState<A, E>,
   cases: ResourceUiMatch<A, E, B>
@@ -176,12 +185,14 @@ export const resourceUiMatchState = <A, E, B>(
   }
 };
 
+/** Binds a Resource Effect to the adapter runtime that owns Resource Store state. */
 export const resourceUiBindRuntimeEffect = <A, E, R, ER>(
   runtime: AnyEffectUiRuntime<ER>,
   effect: Effect.Effect<A, E, R>
 ): Effect.Effect<A, E | ER> =>
   Effect.scoped(runtime.provide(effect));
 
+/** Creates the adapter-neutral Resource UI binding controller. */
 export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never>(
   options: ResourceUiBindingControllerOptions<I, A, E, R, ER>
 ): ResourceUiBindingController<I, A, E, R, ER> => {
@@ -328,6 +339,7 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
   };
 };
 
+/** Creates the adapter-neutral Resource Suspense preload controller. */
 export const makeResourceUiSuspensePreloadController = <I, A, E, R = unknown, ER = never, Token = unknown>(
   runtime: AnyEffectUiRuntime<ER>
 ): ResourceUiSuspensePreloadController<I, A, E, R, ER, Token> => {

@@ -19,6 +19,7 @@ import {
   type ReactNode
 } from "react";
 
+/** React context carrying the active Effect UI Runtime Spine. */
 export const RuntimeContext = createContext<AnyEffectUiRuntime<never> | undefined>(undefined);
 
 /** Props for providing an Effect UI runtime to React descendants. */
@@ -58,6 +59,7 @@ interface RuntimeProviderDefaultProps extends RuntimeProviderChildren {
   readonly onDisposeFailure?: (error: unknown) => EffectInput<void, unknown>;
 }
 
+/** Props accepted by React `RuntimeProvider` for host-owned or provider-owned runtimes. */
 export type RuntimeProviderProps<RuntimeServices = never, ER = never> =
   | RuntimeProviderRuntimeProps<RuntimeServices, ER>
   | RuntimeProviderSourceProps<RuntimeServices, ER>

@@ -14,6 +14,7 @@ import { Effect, Layer, ManagedRuntime } from "effect";
 import { createContext, createMemo, createRenderEffect, createRoot, createSignal, onCleanup, useContext, type JSX } from "solid-js";
 import { createComponent } from "solid-js/web";
 
+/** Solid context carrying the active Effect UI Runtime Spine. */
 export const RuntimeContext = createContext<AnyEffectUiRuntime<never>>();
 
 /** Props for providing an Effect UI runtime to Solid descendants. */
@@ -53,6 +54,7 @@ interface RuntimeProviderDefaultProps extends RuntimeProviderChildren {
   readonly onDisposeFailure?: (error: unknown) => EffectInput<void, unknown>;
 }
 
+/** Props accepted by Solid `RuntimeProvider` for host-owned or provider-owned runtimes. */
 export type RuntimeProviderProps<RuntimeServices = never, ER = never> =
   | RuntimeProviderRuntimeProps<RuntimeServices, ER>
   | RuntimeProviderSourceProps<RuntimeServices, ER>
