@@ -1,5 +1,5 @@
 import { Data, Effect, Schema } from "effect";
-import type { EffectInput, EffectInputRequirements, EnsureEffectInput } from "./effect-like.js";
+import type { EffectInputRequirements, EnsureEffectInput } from "./effect-like.js";
 import { toEffect } from "./effect-like.js";
 import {
   isResourceRef,
@@ -65,8 +65,17 @@ export interface RoutePreloadCollectionDiagnostics {
   readonly collections: readonly string[];
 }
 
-/** Value accepted from a route preload callback. */
-export type RoutePreloadResult<Requirements = never> = EffectInput<unknown, never, Requirements>;
+/**
+ * Value accepted from a route preload callback.
+ *
+ * Route preload return values are ignored, so plain preload callbacks should
+ * return `void`. Use an Effect when preload work needs services, failures, or
+ * interruption. Promise-shaped returns are rejected at the type and runtime
+ * EffectInput seam.
+ */
+export type RoutePreloadResult<Requirements = never> =
+  | void
+  | Effect.Effect<unknown, unknown, Requirements>;
 
 /**
  * Route configuration with optional schema decoding and Effect-first preload work.
@@ -495,7 +504,7 @@ export namespace Route {
     route(definition.path, {
       ...definition.options,
       component
-    }) as Definition<R["path"], Params<R>, Search<R>, PreloadRequirements<R>>;
+    }) as unknown as Definition<R["path"], Params<R>, Search<R>, PreloadRequirements<R>>;
 
   /**
    * Returns the first matching route for a URL, or undefined when none match.
@@ -541,7 +550,7 @@ export namespace Route {
     match: Match<R>
   ): Effect.Effect<void, RoutePreloadError, PreloadRequirements<R>> =>
     Effect.try({
-      try: (): EffectInput<unknown, never, PreloadRequirements<R>> | undefined => {
+      try: (): RoutePreloadResult<PreloadRequirements<R>> | undefined => {
         const preload = match.route.options.preload;
         return preload?.(match);
       },

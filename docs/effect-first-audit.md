@@ -538,10 +538,10 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 191 `pnpm verify` run recorded in
+- The current full gate is the Review 193 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
-  over 404 files, 53 root test files / 1035 tests, package-level verifies,
+  over 404 files, 53 root test files / 1037 tests, package-level verifies,
   generated starter packaging, 16-target package dry-run gate, project-console
   checks, and leak scans. Review 185 remains historical focused evidence for
   the starter catalog typed-error seam, and Review 165 remains historical
@@ -1343,16 +1343,18 @@ interruption.
   files.
 - The current full `pnpm verify` passed after the Review 191 shared EffectInput
   Promise-union, Start host invalid-return, DB reserved-alias, and public LSP
-  docs gate refresh: 11 package
+  docs gate refresh, with Review193 adding the sync capability runtime
+  Promise-like guard: 11 package
   builds, workspace typecheck, type tests,
   public API inventory audit, Effect-first audit over 404
   package/example/config/script/type-test/generated/docs files, 53 root test
-  files / 1035 tests, package-level verifies for copyable/source packages,
+  files / 1037 tests, package-level verifies for copyable/source packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console
   test files / 27 tests, build, and leak scans. The Effect-first audit now
-  anchors 7 `PromiseLike` occurrences after replacing older local parameter
-  checks with the shared `RejectPromiseLikeValue` helper. Review 185 remains historical
+  anchors 6 `PromiseLike` occurrences after replacing older local parameter
+  checks with the shared `RejectPromiseLikeValue` helper and adding the
+  `Capability.useSync(...)` erased-JS runtime guard. Review 185 remains historical
   evidence for starter catalog typed-error validation, and Review 165 remains
   historical evidence for the Effect-first seams, atomic hydration, route
   identity, and guardrail closure slice.

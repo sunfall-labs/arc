@@ -73,6 +73,7 @@ export interface ActionManifestSource {
   readonly clientExportName?: string;
 }
 
+/** Options that control action manifest endpoint generation and decoding. */
 export interface ActionManifestOptions {
   /** Action endpoint path used by generated POST client references. */
   readonly actionPath?: string;
@@ -146,6 +147,7 @@ export interface ActionManifest {
   readonly entries: readonly ActionManifestEntry[];
 }
 
+/** Validation error for a raw action manifest definition with missing identity fields. */
 export class ActionManifestInvalidEntry extends Data.TaggedError(
   "ActionManifestInvalidEntry"
 )<{
@@ -154,6 +156,7 @@ export class ActionManifestInvalidEntry extends Data.TaggedError(
   readonly entry: unknown;
 }> {}
 
+/** Error raised when two action definitions use the same public action name. */
 export class ActionManifestDuplicateName extends Data.TaggedError(
   "ActionManifestDuplicateName"
 )<{
@@ -162,6 +165,7 @@ export class ActionManifestDuplicateName extends Data.TaggedError(
   readonly secondModule: string;
 }> {}
 
+/** Error raised when two action definitions point at the same module export. */
 export class ActionManifestDuplicateExport extends Data.TaggedError(
   "ActionManifestDuplicateExport"
 )<{
@@ -171,6 +175,7 @@ export class ActionManifestDuplicateExport extends Data.TaggedError(
   readonly secondName: string;
 }> {}
 
+/** Error raised when two action names produce the same stable generated id. */
 export class ActionManifestDuplicateId extends Data.TaggedError(
   "ActionManifestDuplicateId"
 )<{
@@ -179,6 +184,7 @@ export class ActionManifestDuplicateId extends Data.TaggedError(
   readonly secondName: string;
 }> {}
 
+/** Error raised when an action declares a browser import from a server-only module. */
 export class ActionManifestUnsafeClientReference extends Data.TaggedError(
   "ActionManifestUnsafeClientReference"
 )<{
@@ -186,6 +192,7 @@ export class ActionManifestUnsafeClientReference extends Data.TaggedError(
   readonly clientModule: string;
 }> {}
 
+/** Error raised when the action transport endpoint is not an origin-form path. */
 export class ActionManifestInvalidEndpointPath extends Data.TaggedError(
   "ActionManifestInvalidEndpointPath"
 )<{
@@ -195,6 +202,7 @@ export class ActionManifestInvalidEndpointPath extends Data.TaggedError(
   readonly guidance: string;
 }> {}
 
+/** Error raised while decoding a serialized action manifest artifact. */
 export class ActionManifestParseError extends Data.TaggedError(
   "ActionManifestParseError"
 )<{
@@ -202,6 +210,7 @@ export class ActionManifestParseError extends Data.TaggedError(
   readonly cause?: unknown;
 }> {}
 
+/** All validation errors that can occur while building an action manifest. */
 export type ActionManifestError =
   | ActionManifestInvalidEntry
   | ActionManifestDuplicateName
@@ -215,9 +224,11 @@ const compareEntries = (
   right: ActionManifestEntry
 ): number => compareManifestEntries(left, right);
 
+/** Build the deterministic branded id used for one action manifest entry. */
 export const stableActionId = (name: string): ActionId =>
   Schema.decodeUnknownSync(ActionId)(stableManifestEntryId("act", "action", name));
 
+/** Convert a registered Action plus module metadata into a raw manifest definition. */
 export const actionManifestDefinition = (
   action: AnyActionDefinition,
   source: Omit<ActionManifestSource, "action">
@@ -301,6 +312,7 @@ const normalizeActionManifestPathEffect = (
     invalidPath: actionManifestInvalidEndpointPath
   });
 
+/** Validate one raw action definition and convert it into a manifest entry. */
 export const makeActionManifestEntry = (
   definition: ActionManifestDefinition,
   options: ActionManifestOptions = {},
@@ -356,6 +368,7 @@ export const makeActionManifestEntry = (
     })
   );
 
+/** Build and validate a complete action manifest from raw definitions. */
 export const makeActionManifest = (
   definitions: Iterable<ActionManifestDefinition>,
   options: ActionManifestOptions = {}
@@ -382,14 +395,17 @@ export const makeActionManifest = (
     };
   });
 
+/** Return the client reference entries generated from an action manifest. */
 export const clientReferencesForActionManifest = (
   manifest: ActionManifest
 ): readonly ActionClientReference[] => manifest.entries.map((entry) => entry.client);
 
+/** Check whether an action client reference can be imported in browser code. */
 export const isBrowserSafeActionClientReference = (
   reference: ActionClientReference
 ): boolean => reference._tag === "Post" || !isStartManifestServerOnlyModule(reference.module);
 
+/** Serialize an action manifest into the virtual-module JSON payload. */
 export const serializeActionManifest = (manifest: ActionManifest): string =>
   JSON.stringify({
     version: 1,
@@ -504,6 +520,7 @@ const decodeSerializedManifest = (
     })
   );
 
+/** Decode and validate a serialized action manifest artifact. */
 export const deserializeActionManifest = (
   serialized: string,
   options: ActionManifestOptions = {}

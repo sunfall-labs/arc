@@ -16,13 +16,46 @@ import {
   formatStartAppGraphDiagnosticsPolicyViolation,
   hydrateStartHydrationChunks,
   isFileRouteDefinitionsModuleError,
+  actionManifestDefinition,
+  clientReferencesForActionManifest,
+  deserializeActionManifest,
+  isBrowserSafeActionClientReference,
+  makeActionManifest,
+  makeActionManifestEntry,
+  serializeActionManifest,
+  stableActionId,
+  ActionManifestDuplicateExport,
+  ActionManifestDuplicateId,
+  ActionManifestDuplicateName,
+  ActionManifestInvalidEndpointPath,
+  ActionManifestInvalidEntry,
+  ActionManifestParseError,
+  ActionManifestUnsafeClientReference,
+  classifyServerFunctionModule,
+  clientReferencesForServerFunctionManifest,
+  deserializeServerFunctionManifest,
+  isBrowserSafeServerFunctionClientReference,
+  isServerFunctionContractModule,
+  isServerFunctionServerOnlyModule,
+  makeServerFunctionManifest,
+  makeServerFunctionManifestEntry,
   preloadRequestEffect,
+  serializeServerFunctionManifest,
+  serverFunctionManifestDefinition,
   startEffectRpcEndpointDescriptor,
   startRequestCountMetric,
   startRequestDurationMetric,
   startRequestStatusMetric,
   resolveStartTransportEndpointsEffect,
+  stableServerFunctionId,
   validateStartEndpointPathEffect,
+  ServerFunctionManifestDuplicateExport,
+  ServerFunctionManifestDuplicateId,
+  ServerFunctionManifestDuplicateName,
+  ServerFunctionManifestInvalidEndpointPath,
+  ServerFunctionManifestInvalidEntry,
+  ServerFunctionManifestParseError,
+  ServerFunctionManifestUnsafeClientReference,
   StartAppGraphDiagnosticsDtoError,
   FileRouteDefinitionsModuleInvalidExportName,
   FileRouteDefinitionsModuleInvalidIdentifier,
@@ -52,6 +85,19 @@ import {
   type StartEndpointConflictErrorInput,
   type StartEndpointPathErrorInput,
   type StartFetch,
+  type ActionBehaviorMetadata,
+  type ActionBehaviorPresence,
+  type ActionClientReference,
+  type ActionManifest,
+  type ActionManifestConcurrency,
+  type ActionManifestDefinition,
+  type ActionManifestEntry,
+  type ActionManifestError,
+  type ActionManifestOptions,
+  type ActionManifestSource,
+  type ActionModuleKind,
+  type ActionServerReference,
+  type ActionWireContract,
   type FileRouteCompanionModuleReference,
   type FileRouteDefinitionsModuleError,
   type FileRouteDefinitionsModuleOptions,
@@ -60,7 +106,16 @@ import {
   type GeneratedFileRouteDefinitionsModuleOptions,
   type StartAppGraphWireSchemaPolicy,
   type HydrateStartPayloadOptions,
+  type ServerFunctionClientReference,
   type ServerFunctionManifest,
+  type ServerFunctionManifestDefinition,
+  type ServerFunctionManifestEntry,
+  type ServerFunctionManifestError,
+  type ServerFunctionManifestOptions,
+  type ServerFunctionManifestSource,
+  type ServerFunctionModuleKind,
+  type ServerFunctionServerReference,
+  type ServerFunctionWireContract,
   type StartEffectRpcCompatibilityArtifact,
   type StartEffectRpcEndpointDescriptor,
   type StartEffectRpcProcedureDescriptor,
@@ -110,13 +165,46 @@ const startExports: Array<unknown> = [
   formatStartAppGraphDiagnosticsPolicyViolation,
   hydrateStartHydrationChunks,
   isFileRouteDefinitionsModuleError,
+  actionManifestDefinition,
+  clientReferencesForActionManifest,
+  deserializeActionManifest,
+  isBrowserSafeActionClientReference,
+  makeActionManifest,
+  makeActionManifestEntry,
+  serializeActionManifest,
+  stableActionId,
+  ActionManifestDuplicateExport,
+  ActionManifestDuplicateId,
+  ActionManifestDuplicateName,
+  ActionManifestInvalidEndpointPath,
+  ActionManifestInvalidEntry,
+  ActionManifestParseError,
+  ActionManifestUnsafeClientReference,
+  classifyServerFunctionModule,
+  clientReferencesForServerFunctionManifest,
+  deserializeServerFunctionManifest,
+  isBrowserSafeServerFunctionClientReference,
+  isServerFunctionContractModule,
+  isServerFunctionServerOnlyModule,
+  makeServerFunctionManifest,
+  makeServerFunctionManifestEntry,
   preloadRequestEffect,
+  serializeServerFunctionManifest,
+  serverFunctionManifestDefinition,
   startEffectRpcEndpointDescriptor,
   startRequestCountMetric,
   startRequestDurationMetric,
   startRequestStatusMetric,
   resolveStartTransportEndpointsEffect,
+  stableServerFunctionId,
   validateStartEndpointPathEffect,
+  ServerFunctionManifestDuplicateExport,
+  ServerFunctionManifestDuplicateId,
+  ServerFunctionManifestDuplicateName,
+  ServerFunctionManifestInvalidEndpointPath,
+  ServerFunctionManifestInvalidEntry,
+  ServerFunctionManifestParseError,
+  ServerFunctionManifestUnsafeClientReference,
   StartAppGraphDiagnosticsDtoError,
   FileRouteDefinitionsModuleInvalidExportName,
   FileRouteDefinitionsModuleInvalidIdentifier,
@@ -147,6 +235,19 @@ type StartTypes =
   | StartAppGraphRoutePreloadResourcesPolicy
   | StartEndpointConflictErrorInput
   | StartEndpointPathErrorInput
+  | ActionBehaviorMetadata
+  | ActionBehaviorPresence
+  | ActionClientReference
+  | ActionManifest
+  | ActionManifestConcurrency
+  | ActionManifestDefinition
+  | ActionManifestEntry
+  | ActionManifestError
+  | ActionManifestOptions
+  | ActionManifestSource
+  | ActionModuleKind
+  | ActionServerReference
+  | ActionWireContract
   | FileRouteCompanionModuleReference
   | FileRouteDefinitionsModuleError
   | FileRouteDefinitionsModuleOptions
@@ -155,7 +256,16 @@ type StartTypes =
   | GeneratedFileRouteDefinitionsModuleOptions
   | StartAppGraphWireSchemaPolicy
   | HydrateStartPayloadOptions
+  | ServerFunctionClientReference
   | ServerFunctionManifest
+  | ServerFunctionManifestDefinition
+  | ServerFunctionManifestEntry
+  | ServerFunctionManifestError
+  | ServerFunctionManifestOptions
+  | ServerFunctionManifestSource
+  | ServerFunctionModuleKind
+  | ServerFunctionServerReference
+  | ServerFunctionWireContract
   | StartEffectRpcCompatibilityArtifact
   | StartEffectRpcEndpointDescriptor
   | StartEffectRpcProcedureDescriptor

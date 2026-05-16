@@ -1,6 +1,11 @@
 import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
-import { Capability, EffectInputCallbackError, makeRuntime } from "../src/index.js";
+import {
+  Capability,
+  EffectInputCallbackError,
+  EffectInputPromiseRejected,
+  makeRuntime
+} from "../src/index.js";
 
 describe("Capability", () => {
   interface Numbers {
@@ -66,6 +71,30 @@ describe("Capability", () => {
             if (exit._tag === "Failure") {
               const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
               expect(failure?.error).toBeInstanceOf(EffectInputCallbackError);
+            }
+          })
+        ),
+        Effect.asVoid
+      )
+    ));
+
+  it("rejects Promise-shaped useSync return values as EffectInput defects", () =>
+    Effect.runPromise(
+      Effect.exit(
+        Numbers.provide(
+          Numbers.useSync((numbers) => Effect.runPromise(numbers.get("kepler")) as never),
+          {
+            get: (id) => Effect.succeed(id.length),
+            save: (value) => Effect.succeed(value + 1)
+          }
+        )
+      ).pipe(
+        Effect.tap((exit) =>
+          Effect.sync(() => {
+            expect(exit._tag).toBe("Failure");
+            if (exit._tag === "Failure") {
+              const defect = exit.cause.reasons.find((reason) => reason._tag === "Die");
+              expect(defect?.defect).toBeInstanceOf(EffectInputPromiseRejected);
             }
           })
         ),

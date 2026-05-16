@@ -1210,6 +1210,43 @@ describe("Effect UI Start", () => {
     expect((routeFailure.cause as FileRoutePreloadError).guidance).toContain("Effect.tryPromise");
   });
 
+  it("rejects Promise-shaped file route resource selector output as typed preload failure", async () => {
+    const ProjectById = Resource.family<string, { readonly id: string }>({
+      name: "Start.FileRoutePreloadHelper.promise-selector.projectById",
+      load: (id) => Effect.succeed({ id })
+    });
+    const ProjectRouteBuilder = defineFileRoute("/file-helper-promise-selector");
+    const ProjectRoute = ProjectRouteBuilder({
+      ...ProjectRouteBuilder.preload({
+        resources: [
+          ProjectRouteBuilder.resource(
+            ProjectById,
+            (() => Effect.runPromise(Effect.succeed("atlas"))) as never
+          )
+        ]
+      })
+    });
+    const app = defineApp({
+      routes: [ProjectRoute] as const,
+      client: {}
+    });
+
+    const failure = await Effect.runPromise(
+      Effect.flip(preloadRequest(app, new Request("https://example.com/file-helper-promise-selector")))
+    );
+
+    expect(failure).toBeInstanceOf(StartPreloadError);
+    expect(failure.operation).toBe("route-navigation");
+    expect(failure.cause).toBeInstanceOf(RoutePreloadError);
+    const routeFailure = failure.cause as RoutePreloadError;
+    expect(routeFailure.cause).toBeInstanceOf(FileRoutePreloadError);
+    expect(routeFailure.cause).toMatchObject({
+      operation: "resource-selector",
+      path: "/file-helper-promise-selector"
+    });
+    expect((routeFailure.cause as FileRoutePreloadError).guidance).toContain("Effect.tryPromise");
+  });
+
   it("captures thrown file route resource selectors as typed preload failure", async () => {
     const thrown = new Error("bad resource selector");
     const ProjectById = Resource.family<string, { readonly id: string }>({

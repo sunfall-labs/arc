@@ -141,12 +141,14 @@ const resourcePreloadEffect = <Path extends string>(
     Effect.try({
       try: () => resource.refs(context),
       catch: (cause) =>
-        fileRoutePreloadError(
-          path,
-          "resource-selector",
-          cause,
-          "File route resource selectors must be synchronous and return Resource refs. Move async work into the resource loader with Effect.tryPromise(...)."
-        )
+        cause instanceof FileRoutePreloadError
+          ? cause
+          : fileRoutePreloadError(
+              path,
+              "resource-selector",
+              cause,
+              "File route resource selectors must be synchronous and return Resource refs. Move async work into the resource loader with Effect.tryPromise(...)."
+            )
     }),
     (refs) =>
       Effect.all(refs.map((ref) => Resource.prefetchEffect(ref))).pipe(Effect.asVoid)
@@ -331,7 +333,19 @@ const makeDefineFileRouteBuilder = <const Path extends string>(
     ) => ResourceInput<Family>
   ): FileRoutePreloadResource<Path, ResourceRefFromFactory<Family>, unknown, unknown> => ({
     family: { name: family.family.options.name },
-    refs: (context) => [family(input(context)) as ResourceRefFromFactory<Family>]
+    refs: (context) => {
+      const selectedInput = input(context);
+      if (isPromiseLike(selectedInput)) {
+        throw fileRoutePreloadError(
+          path,
+          "resource-selector",
+          undefined,
+          "File route resource selectors must return resource input synchronously, not a Promise. Move async work into the resource loader with Effect.tryPromise(...)."
+        );
+      }
+
+      return [family(selectedInput) as ResourceRefFromFactory<Family>];
+    }
   });
 
   Object.defineProperties(builder, {

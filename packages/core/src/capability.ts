@@ -1,6 +1,10 @@
 import { Context, Effect, Layer } from "effect";
-import type { EffectInput } from "./effect-like.js";
-import { EffectInputCallbackError, invokeEffectInput } from "./effect-like.js";
+import type { EffectInput, RejectPromiseLikeValue } from "./effect-like.js";
+import {
+  EffectInputCallbackError,
+  EffectInputPromiseRejected,
+  invokeEffectInput
+} from "./effect-like.js";
 
 export const CapabilityTypeId: unique symbol = Symbol.for("@effect-ui/core/Capability") as typeof CapabilityTypeId;
 
@@ -26,11 +30,13 @@ export interface Capability<Identifier, Shape> {
       f: (service: Shape) => Effect.Effect<A, E, R>
     ): Effect.Effect<A, E | EffectInputCallbackError, R | Identifier>;
     <A>(
-      f: (service: Shape) => A extends PromiseLike<unknown> ? never : A
+      f: (service: Shape) => A & RejectPromiseLikeValue<A>
     ): Effect.Effect<A, EffectInputCallbackError, Identifier>;
   };
   /** Synchronously reads the provided service and returns the callback value. */
-  readonly useSync: <A>(f: (service: Shape) => A) => Effect.Effect<A, never, Identifier>;
+  readonly useSync: <A>(
+    f: (service: Shape) => A & RejectPromiseLikeValue<A>
+  ) => Effect.Effect<A, never, Identifier>;
   readonly provide: <A, E, R>(
     effect: Effect.Effect<A, E, R>,
     service: Shape
@@ -41,6 +47,11 @@ export const isCapability = (value: unknown): value is Capability<unknown, unkno
   typeof value === "object" &&
   value !== null &&
   (value as { readonly [CapabilityTypeId]?: unknown })[CapabilityTypeId] === CapabilityTypeId;
+
+const isPromiseLike = (value: unknown): value is PromiseLike<unknown> =>
+  value !== null &&
+  (typeof value === "object" || typeof value === "function") &&
+  typeof (value as { readonly then?: unknown }).then === "function";
 
 /** Helpers for defining, providing, and using typed UI capabilities. */
 export namespace Capability {
@@ -69,7 +80,7 @@ export namespace Capability {
       f: (service: Shape) => Effect.Effect<A, E, R>
     ): Effect.Effect<A, E | EffectInputCallbackError, R | Shape>;
     function useEffect<A>(
-      f: (service: Shape) => A extends PromiseLike<unknown> ? never : A
+      f: (service: Shape) => A & RejectPromiseLikeValue<A>
     ): Effect.Effect<A, EffectInputCallbackError, Shape>;
     function useEffect<A, E, R>(
       f: (service: Shape) => Effect.Effect<A, E, R> | A
@@ -91,7 +102,16 @@ export namespace Capability {
       mock: (service) => Layer.succeed(tag)(service),
       use: (f) => tag.use(f),
       useEffect,
-      useSync: (f) => tag.useSync(f),
+      useSync: (f) =>
+        tag.use((service) =>
+          Effect.flatMap(Effect.sync(() => f(service)), (value) =>
+            isPromiseLike(value)
+              ? Effect.die(new EffectInputPromiseRejected({
+                  guidance: `Capability.useSync(${key}) callbacks must return synchronous values, not Promises. Use Capability.useEffect(...) with Effect.tryPromise(...) at the host adapter seam.`
+                }))
+              : Effect.succeed(value)
+          )
+        ),
       provide: (effect, service) =>
         Effect.provideService(effect, tag, service)
     };

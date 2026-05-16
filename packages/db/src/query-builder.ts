@@ -532,7 +532,9 @@ export namespace Query {
    * Synchronous factory throws are normalized and thrown as
    * `QueryEvaluationError` with operation `"evaluate"`.
    */
-  export const diagnostics = <T>(factory: QueryFactory<T>): QueryPlanDiagnostics => {
+  export const diagnostics = <T, E = never, R = never>(
+    factory: QueryFactory<T, E, R>
+  ): QueryPlanDiagnostics => {
     const builder = buildOrThrowQueryEvaluationError(factory);
     return queryExecutionPlanDiagnostics(builder);
   };

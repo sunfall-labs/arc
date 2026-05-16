@@ -41,11 +41,13 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest focused/docs Review192 slice is green for stale current-gate docs
-  wording found during the first post-Review191 sweep.
+- The latest focused Review193 slice is green for route preload Promise
+  annotations, sync capability Promise escapes, file-route selector Promise
+  guards, serviceful query diagnostics, Start manifest LSP docs, and remaining
+  current-gate audit docs drift found during the first post-Review192 sweep.
 - The latest implementation and full verification gate is green after
-  Review191:
-  `pnpm verify` completed with 53 root test files / 1035 tests, public API
+  Review193:
+  `pnpm verify` completed with 53 root test files / 1037 tests, public API
   inventory audit, Effect-first audit over 404 physical/virtual files,
   package-level verifies, parallel example package verifies and leak scans,
   generated starter packaging, and the 16-target package dry-run gate.
@@ -56,8 +58,9 @@ or command result that proves it.
 - Clean Sweep 1 after Review190 found no actionable Core/React/Solid,
   DB/public API, Start/devtools/examples/docs/scripts, or guardrail work, but
   Clean Sweep 2 found Review191 work and the first post-Review191 sweep found
-  Review192 docs drift. The active Thirty-Sweep clean counter is reset to 0/30
-  until a fresh post-Review192 sweep is clean.
+  Review192 docs drift. The first post-Review192 sweep found Review193
+  Core/Start/DB/public docs work. The active Thirty-Sweep clean counter is
+  reset to 0/30 until a fresh post-Review193 sweep is clean.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
   example, script, and type-test sources while keeping negative runtime
   validation tests explicit.
@@ -620,6 +623,7 @@ or command result that proves it.
 | 430 | Clean Sweep 1 after Review190 | `docs/architecture-deepening-review.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md` | Recorded the first post-fix no-actionable sweep in this run. Core/React/Solid, DB/public API, and Start/devtools/examples/docs/scripts reviewers reported no actionable implementation, public API, Effect-first, LSP/JSDoc, package, or docs-honesty findings after Review190. | Historical clean counter reached 1/30 at that point. Evidence included focused package typechecks, public type tests, public API audit, Effect-first audit over 404 files, Core/React/Solid tests, DB-family tests, Start/devtools/example verifies, package dry-runs, and Review190 full `pnpm verify`. |
 | 431 | Review 191 EffectInput, Start host, DB aliases, and LSP gates | `CONTEXT.md`; `docs/architecture-deepening-review.md`; `docs/effect-first-audit.md`; `docs/perfection-progress.md`; `docs/public-api-inventory.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md`; `packages/core/src/action-result.ts`; `packages/core/src/effect-like.ts`; `packages/db/src/index.ts`; `packages/db/src/query-builder.ts`; `packages/db/src/query-plan.ts`; `packages/db/test/collection.test.ts`; `packages/devtools/src/app-graph-normalizer.ts`; `packages/devtools/src/devtools-contract.ts`; `packages/devtools/src/panel-contract.ts`; `packages/devtools/src/panel-renderer.ts`; `packages/devtools/src/summary.ts`; `packages/start/src/file-route-modules.ts`; `packages/start/src/start-host-adapter.ts`; `packages/start/src/start-request-handler-error.ts`; `packages/start/test/adapters.test.ts`; `scripts/audit-effect-first.mjs`; `scripts/public-api-symbol-policy.mjs`; `type-tests/devtools.test-d.ts`; `type-tests/framework.test-d.ts`; `type-tests/public-api.manifest.json`; `type-tests/start.test-d.ts` | Fixed Clean Sweep 2 findings. `EffectInput` now rejects plain union success values containing Promise members, ActionResult helpers reuse that gate, Start host handlers that return non-Effects fail as typed `StartRequestHandlerError` values, Query validation rejects reserved source aliases consistently, and Start/Devtools/DB public LSP docs are backed by source-surface, type-test, and hover-doc policy gates. | Focused verification passed: Core/Start/DB/Devtools typechecks, public type tests, public API audit, Effect-first audit, Core effect/action-result tests, Start adapter tests, DB reserved-alias/duplicate/zero-source query tests, and Devtools tests. Full `pnpm verify` passed after Review191: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 404 files, 53 root test files / 1035 tests, devtools-panel verify with 2 tests, devtools-extension verify with 20 tests, basic starter verify with 2 tests, React starter verify with 3 tests, starter-suite packaging, 16-target package dry-run gate, project-console checks, and leak scans. Clean Sweep 2 found this work, so the active clean counter resets to 0/30. |
 | 432 | Review 192 current-gate docs drift | `docs/architecture-deepening-review.md`; `docs/effect-first-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md` | Fixed stale current-facing docs wording found during the first post-Review191 sweep. The docs now name Review191 as the latest full verification gate, keep Clean Sweep 1 after Review190 as historical 1/30 evidence, and state that the active clean counter is 0/30 until a fresh post-Review192 sweep is clean. | Focused verification passed: stale current-gate wording grep, public API audit, Effect-first audit, and `git diff --check`. This sweep found docs drift, so the active clean counter remains 0/30. |
+| 433 | Review 193 post-Review192 Effect and LSP holes | `docs/architecture-deepening-review.md`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/ultimate-goal-checklist.md`; `packages/core/src/capability.ts`; `packages/core/src/route.ts`; `packages/core/test/capability.test.ts`; `packages/db/src/query-builder.ts`; `packages/start/src/action-manifest.ts`; `packages/start/src/file-route.ts`; `packages/start/src/server-function-manifest.ts`; `packages/start/test/start.test.ts`; `scripts/public-api-symbol-policy.mjs`; `type-tests/framework.test-d.ts`; `type-tests/public-api.manifest.json`; `type-tests/start.test-d.ts` | Fixed post-Review192 findings. Route preload annotations no longer widen to Promise-accepting `unknown`, `Capability.useSync(...)` rejects Promise-shaped sync returns, file-route helper resource selectors reject Promise-shaped selected input, `Query.diagnostics(...)` accepts serviceful factory channels, Start action/server-function manifest APIs have JSDoc plus public API/type-test pins, and the remaining Review190 current-gate audit docs were refreshed. | Focused verification passed: Core/DB/Start typechecks, public type tests, focused Core/Start regressions, public API audit, Effect-first audit, and `git diff --check`. Full `pnpm verify` passed after Review193: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 404 files, 53 root test files / 1037 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. This sweep found work, so the active clean counter remains 0/30. |
 
 ## Thirty-Sweep Gate
 
@@ -627,8 +631,9 @@ The final goal requires 30 full code sweeps without finding more improvements.
 This ledger records implementation/audit sweeps, but it does not satisfy the
 final no-new-improvements gate yet. Clean Sweep 1 after Review190 reached 1/30,
 then Clean Sweep 2 found Review191 work and the first post-Review191 sweep
-found Review192 docs drift. The active counter is therefore 0/30 until a fresh
-post-Review192 sweep reports no actionable findings.
+found Review192 docs drift. The first post-Review192 sweep found Review193
+Core/Start/DB/public docs work. The active counter is therefore 0/30 until a
+fresh post-Review193 sweep reports no actionable findings.
 
 - Re-run the Promise and docs drift audits after each single-command full
   verification.

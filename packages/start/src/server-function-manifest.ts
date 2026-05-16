@@ -66,6 +66,7 @@ export interface ServerFunctionManifestSource {
   readonly clientExportName?: string;
 }
 
+/** Options that control server-function manifest endpoint generation and decoding. */
 export interface ServerFunctionManifestOptions {
   /** RPC endpoint path used by generated client references. */
   readonly rpcPath?: string;
@@ -126,6 +127,7 @@ export interface ServerFunctionManifest {
   readonly entries: readonly ServerFunctionManifestEntry[];
 }
 
+/** Validation error for a raw server-function definition with missing identity fields. */
 export class ServerFunctionManifestInvalidEntry extends Data.TaggedError(
   "ServerFunctionManifestInvalidEntry"
 )<{
@@ -134,6 +136,7 @@ export class ServerFunctionManifestInvalidEntry extends Data.TaggedError(
   readonly entry: unknown;
 }> {}
 
+/** Error raised when two server functions use the same public function name. */
 export class ServerFunctionManifestDuplicateName extends Data.TaggedError(
   "ServerFunctionManifestDuplicateName"
 )<{
@@ -142,6 +145,7 @@ export class ServerFunctionManifestDuplicateName extends Data.TaggedError(
   readonly secondModule: string;
 }> {}
 
+/** Error raised when two server functions point at the same module export. */
 export class ServerFunctionManifestDuplicateExport extends Data.TaggedError(
   "ServerFunctionManifestDuplicateExport"
 )<{
@@ -151,6 +155,7 @@ export class ServerFunctionManifestDuplicateExport extends Data.TaggedError(
   readonly secondName: string;
 }> {}
 
+/** Error raised when two server-function names produce the same stable id. */
 export class ServerFunctionManifestDuplicateId extends Data.TaggedError(
   "ServerFunctionManifestDuplicateId"
 )<{
@@ -159,6 +164,7 @@ export class ServerFunctionManifestDuplicateId extends Data.TaggedError(
   readonly secondName: string;
 }> {}
 
+/** Error raised when a server function declares a browser import from a server-only module. */
 export class ServerFunctionManifestUnsafeClientReference extends Data.TaggedError(
   "ServerFunctionManifestUnsafeClientReference"
 )<{
@@ -166,6 +172,7 @@ export class ServerFunctionManifestUnsafeClientReference extends Data.TaggedErro
   readonly clientModule: string;
 }> {}
 
+/** Error raised when the server-function RPC endpoint is not an origin-form path. */
 export class ServerFunctionManifestInvalidEndpointPath extends Data.TaggedError(
   "ServerFunctionManifestInvalidEndpointPath"
 )<{
@@ -175,6 +182,7 @@ export class ServerFunctionManifestInvalidEndpointPath extends Data.TaggedError(
   readonly guidance: string;
 }> {}
 
+/** Error raised while decoding a serialized server-function manifest artifact. */
 export class ServerFunctionManifestParseError extends Data.TaggedError(
   "ServerFunctionManifestParseError"
 )<{
@@ -182,6 +190,7 @@ export class ServerFunctionManifestParseError extends Data.TaggedError(
   readonly cause?: unknown;
 }> {}
 
+/** All validation errors that can occur while building a server-function manifest. */
 export type ServerFunctionManifestError =
   | ServerFunctionManifestInvalidEntry
   | ServerFunctionManifestDuplicateName
@@ -197,15 +206,19 @@ const compareEntries = (
 
 export { normalizeManifestModuleId } from "./manifest-entry-core.js";
 
+/** Return true when a module id is classified as server-only. */
 export const isServerFunctionServerOnlyModule = (id: string): boolean =>
   isStartManifestServerOnlyModule(id);
 
+/** Return true when a module id is classified as a shared contract module. */
 export const isServerFunctionContractModule = (id: string): boolean =>
   isStartManifestContractModule(id);
 
+/** Classify a server-function module id for generated client/server references. */
 export const classifyServerFunctionModule = (id: string): ServerFunctionModuleKind =>
   classifyStartManifestModule(id);
 
+/** Build the deterministic branded id used for one server-function manifest entry. */
 export const stableServerFunctionId = (name: string): ServerFunctionId =>
   Schema.decodeUnknownSync(ServerFunctionId)(stableManifestEntryId("sf", "function", name));
 
@@ -227,6 +240,7 @@ const normalizeServerFunctionManifestPathEffect = (
     invalidPath: serverFunctionManifestInvalidEndpointPath
   });
 
+/** Convert a registered ServerFunction plus module metadata into a raw manifest definition. */
 export const serverFunctionManifestDefinition = (
   fn: ServerFunction<any, any, any, any>,
   source: Omit<ServerFunctionManifestSource, "fn">
@@ -271,6 +285,7 @@ const sortManifestEntries = (
   entries: readonly ServerFunctionManifestEntry[]
 ): readonly ServerFunctionManifestEntry[] => [...entries].sort(compareEntries);
 
+/** Validate one raw server-function definition and convert it into a manifest entry. */
 export const makeServerFunctionManifestEntry = (
   definition: ServerFunctionManifestDefinition,
   options: ServerFunctionManifestOptions = {},
@@ -327,6 +342,7 @@ export const makeServerFunctionManifestEntry = (
     })
   );
 
+/** Build and validate a complete server-function manifest from raw definitions. */
 export const makeServerFunctionManifest = (
   definitions: Iterable<ServerFunctionManifestDefinition>,
   options: ServerFunctionManifestOptions = {}
@@ -353,14 +369,17 @@ export const makeServerFunctionManifest = (
     };
   });
 
+/** Return the client reference entries generated from a server-function manifest. */
 export const clientReferencesForServerFunctionManifest = (
   manifest: ServerFunctionManifest
 ): readonly ServerFunctionClientReference[] => manifest.entries.map((entry) => entry.client);
 
+/** Check whether a server-function client reference can be imported in browser code. */
 export const isBrowserSafeServerFunctionClientReference = (
   reference: ServerFunctionClientReference
 ): boolean => reference._tag === "Rpc" || !isServerFunctionServerOnlyModule(reference.module);
 
+/** Serialize a server-function manifest into the virtual-module JSON payload. */
 export const serializeServerFunctionManifest = (manifest: ServerFunctionManifest): string =>
   JSON.stringify({
     version: 1,
@@ -433,6 +452,7 @@ const decodeSerializedManifest = (
     })
   );
 
+/** Decode and validate a serialized server-function manifest artifact. */
 export const deserializeServerFunctionManifest = (
   serialized: string,
   options: ServerFunctionManifestOptions = {}

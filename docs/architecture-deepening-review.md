@@ -11,14 +11,14 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused/docs review is Review192, the stale current-gate
-wording cleanup found during the first post-Review191 sweep. The newest full
-verification checkpoint is still Review191, the shared EffectInput
-Promise-union, Start host invalid-return, DB reserved-alias, and public LSP docs
-gate refresh found by Clean Sweep 2 after Review190. Clean Sweep 1 after
-Review190 remains historical evidence, but later sweeps found Review191 and
-Review192 work, so the active Thirty-Sweep clean counter is 0/30 until a fresh
-post-Review192 sweep reports no actionable findings. Some older review entries
+The newest completed focused review is Review193, the post-Review192 sweep
+fixing route preload Promise annotations, sync capability Promise escapes,
+file-route resource selector Promise escapes, serviceful query diagnostics,
+Start manifest LSP docs, and remaining current-gate docs drift. The newest full
+verification checkpoint is Review193. Clean Sweep 1 after Review190 remains
+historical evidence, but later sweeps found Review191, Review192, and Review193
+work, so the active Thirty-Sweep clean counter is 0/30 until a fresh
+post-Review193 sweep reports no actionable findings. Some older review entries
 remain below this tip from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
 
@@ -34,8 +34,86 @@ fresh post-Review190 Core/React/Solid, DB/public API, and
 Start/devtools/examples/docs/scripts sweeps found no actionable Module,
 Interface, Seam, Adapter, Locality, Depth, Leverage, typed error, or docs drift
 work, creating Clean Sweep 1. The next Clean Sweep 2 candidate found Review191
-work. The first post-Review191 sweep found Review192 docs drift, so the counter
-is no longer active until the post-Review192 sweep is clean.
+work. The first post-Review191 sweep found Review192 docs drift, and the first
+post-Review192 sweep found Review193 Core/Start/DB/public docs work, so the
+counter is no longer active until the post-Review193 sweep is clean.
+
+## Review 193: Post-Review192 Effect And LSP Holes
+
+Review193 fixed actionable findings from the fresh post-Review192 subagent
+sweep.
+
+1. Route Preload And Capability Promise Holes
+   - Status: fixed.
+   - Files: `packages/core/src/route.ts`,
+     `packages/core/src/capability.ts`, `packages/core/test/capability.test.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: an explicitly annotated `RoutePreloadResult` widened through
+     `EffectInput<unknown, ...>` and could admit Promise-shaped work, while
+     `Capability.useSync(...)` allowed Promise-shaped callback values despite
+     being the synchronous capability accessor.
+   - Fix: `RoutePreloadResult` now accepts only ignored `void` values or
+     Effects, `Route.withComponent(...)` keeps its intentional cast explicit,
+     `Capability.useSync(...)` rejects Promise-shaped values at the public type
+     surface and runtime erased-JS seam, and public type/runtime regressions pin
+     both cases.
+   - Benefits: route preloads and sync capability reads now match the
+     Effect-first contract even when users add broad annotations or erase types.
+
+2. File-Route Resource Selector Promise Guard
+   - Status: fixed.
+   - Files: `packages/start/src/file-route.ts`,
+     `packages/start/test/start.test.ts`.
+   - Problem: `defineFileRoute(...).resource(...)` checked thrown selectors but
+     did not reject Promise-shaped resource selector output before passing it to
+     the Resource family.
+   - Fix: helper resource selectors now reject Promise-shaped selected inputs
+     with `FileRoutePreloadError` guidance to move async work into
+     `Effect.tryPromise(...)`, and a Start preload regression pins the typed
+     route preload failure.
+   - Benefits: custom preload callbacks and helper resource selectors now share
+     the same erased-JS Promise boundary.
+
+3. Serviceful Query Diagnostics
+   - Status: fixed.
+   - Files: `packages/db/src/query-builder.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: `Query.diagnostics(...)` accepted only default-channel
+     `QueryFactory<T>` values, so serviceful factories such as
+     `Query.Factory<string, unknown, ProjectApi>` were rejected despite
+     `Query.onceEffect(...)` and `Query.live(...)` preserving those channels.
+   - Fix: `Query.diagnostics(...)` now preserves the factory `E`/`R` type
+     parameters while still returning synchronous plan diagnostics, and the
+     public type test pins serviceful factory diagnostics.
+   - Benefits: build/diagnostics/live/once query seams now agree on the public
+     query factory contract.
+
+4. Start Manifest LSP Docs And Current-Gate Docs
+   - Status: fixed.
+   - Files: `packages/start/src/action-manifest.ts`,
+     `packages/start/src/server-function-manifest.ts`,
+     `scripts/public-api-symbol-policy.mjs`,
+     `type-tests/public-api.manifest.json`, `type-tests/start.test-d.ts`,
+     `docs/package-hygiene-audit.md`, `docs/sharp-cast-audit.md`.
+   - Problem: root-exported action/server-function manifest helpers and errors
+     were not covered by the hover-doc policy or direct Start type-test pins,
+     and two audit docs still named Review190 as the current full gate.
+   - Fix: added JSDoc to the manifest public declarations, pinned them in the
+     public hover-doc policy and Start type tests, expanded the public API
+     manifest requirements, and refreshed the remaining current-gate audit
+     wording.
+   - Benefits: LSP hover docs now explain the manifest surfaces that generated
+     modules and diagnostics expose, and release-candidate docs no longer
+     overstate stale verification history.
+
+Focused evidence for this pass: Core, DB, and Start package typechecks passed,
+public type tests passed, focused Core/Start regressions passed, and public API
+plus Effect-first audits passed. Full `pnpm verify` passed after Review193 with
+11 package builds, workspace typecheck, public type tests, public API audit,
+Effect-first audit over 404 files, 53 root test files / 1037 tests,
+package-level verifies, generated starter packaging, the 16-target package
+dry-run gate, project-console checks, and leak scans. Because this sweep found
+work, the active clean counter remains 0/30.
 
 ## Review 192: Review191 Current-Gate Docs Drift
 

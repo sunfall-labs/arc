@@ -58,6 +58,7 @@ import {
   type EffectInput,
   type MemoryBrowserHistoryAdapter,
   type ParamsForPath,
+  type RoutePreloadResult,
   type ResourceSnapshotCodecOperation,
   type ResourceStore,
   type RuntimeUiScopeFrame,
@@ -2476,8 +2477,11 @@ const servicefulProjectNameFactory: Query.Factory<string, unknown, ProjectApi> =
   query
     .from({ project: ProjectsCollection })
     .select(({ project }) => project.name);
+const servicefulProjectNameDiagnostics: Query.PlanDiagnostics =
+  Query.diagnostics(servicefulProjectNameFactory);
 void defaultTypedProjectNameFactory;
 void servicefulProjectNameFactory;
+void servicefulProjectNameDiagnostics;
 
 const ProjectNameCards = Collection.liveQuery<
   { readonly id: string; readonly name: string },
@@ -3290,6 +3294,8 @@ ProjectApi.use((api) => api.rename({ id: "atlas" }));
 
 // @ts-expect-error capability callbacks must return Effect or a pure value, not Promise
 ProjectApi.useEffect(() => promisedProject);
+// @ts-expect-error synchronous capability callbacks must not smuggle Promise work
+ProjectApi.useSync(() => promisedProject);
 
 Resource.family<string, Project>({
   name: "Project.bad",
@@ -3301,6 +3307,8 @@ route("/promise-preload", {
   // @ts-expect-error route preload must return Effect or a pure value, not Promise
   preload: () => promisedVoid
 });
+// @ts-expect-error annotated route preload results still reject Promise-shaped values
+const annotatedPromiseRoutePreloadResult: RoutePreloadResult = promisedVoid;
 
 defineFileRoute("/promise-file-preload")({
   // @ts-expect-error file route preload must return Effect or a pure value, not Promise

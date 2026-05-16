@@ -311,8 +311,7 @@ const allowed = [
       seam("packages/core/src/effect-like.ts", "EffectInput value Promise rejection conditional", /export type EffectInputValue[\s\S]*?Out extends PromiseLike<unknown>/),
       seam("packages/core/src/effect-like.ts", "EffectInput union Promise rejection helper", /type HasPromiseLike[\s\S]*?Extract<Out,\s*PromiseLike<unknown>>/),
       seam("packages/core/src/effect-like.ts", "EffectInput runtime Promise-like guard", /const isPromiseLike\s*=\s*\(value:\s*unknown\):\s*value is PromiseLike<unknown>/),
-      seam("packages/core/src/capability.ts", "Capability public useEffect Promise rejection overload", /export interface Capability[\s\S]*?readonly useEffect:[\s\S]*?f:\s*\(service:\s*Shape\)\s*=>\s*A extends PromiseLike<unknown> \? never : A/),
-      seam("packages/core/src/capability.ts", "Capability namespace useEffect Promise rejection overload", /function useEffect<A>\(\s*\n\s*f:\s*\(service:\s*Shape\)\s*=>\s*A extends PromiseLike<unknown> \? never : A/),
+      seam("packages/core/src/capability.ts", "Capability useSync runtime Promise-like guard", /const isPromiseLike\s*=\s*\(value:\s*unknown\):\s*value is PromiseLike<unknown>/),
       seam("packages/start/src/file-route.ts", "File route preload runtime Promise-like guard", /const isPromiseLike\s*=\s*\(value:\s*unknown\):\s*value is PromiseLike<unknown>/),
       seam("packages/start/src/streaming.ts", "ReadableStream finalizer host return contract", /export type StartResponseStreamRunner[\s\S]*?PromiseLike<A>;/)
     ]
@@ -322,6 +321,7 @@ const allowed = [
     name: "structural thenable type surface",
     seams: [
       seam("packages/core/src/effect-like.ts", "EffectInput runtime thenable guard property", /value as \{ readonly then\?: unknown \}/),
+      seam("packages/core/src/capability.ts", "Capability useSync runtime thenable guard property", /value as \{ readonly then\?: unknown \}/),
       seam("packages/start/src/file-route.ts", "File route preload runtime thenable guard property", /value as \{ readonly then\?: unknown \}/)
     ]
   }
