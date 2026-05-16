@@ -5442,6 +5442,46 @@ describe("Collection", () => {
     }
   });
 
+  it("preserves unsynced direct-write rows across refetches that omit them", async () => {
+    const runtime = makeRuntime();
+    const Projects = Collection.define<Project>({
+      name: "Projects.direct-write-refetch-local-unsynced",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+      ],
+      refetch: () => Effect.succeed([
+        { id: "atlas", name: "Atlas Remote", status: "active", progress: 88 }
+      ])
+    });
+
+    try {
+      await Effect.runPromise(runtime.provide(Projects.writeInsertEffect({
+        id: "local-draft",
+        name: "Local Draft",
+        status: "blocked",
+        progress: 12
+      }, { origin: "local", synced: false })));
+
+      await Effect.runPromise(runtime.provide(Projects.refetchEffect()));
+
+      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
+        name: "Atlas Remote",
+        progress: 88,
+        $synced: true,
+        $origin: "remote"
+      });
+      expect(runWithRuntime(runtime, () => Projects.get("local-draft"))).toMatchObject({
+        name: "Local Draft",
+        progress: 12,
+        $synced: false,
+        $origin: "local"
+      });
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
   it("rejects merge hydration that collides with existing pending transaction ids", async () => {
     const runtime = makeRuntime();
     const started = Effect.runSync(Deferred.make<void>());

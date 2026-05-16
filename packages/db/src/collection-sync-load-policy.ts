@@ -62,6 +62,11 @@ const replaceLoadedCollectionRows = <A extends object, K extends CollectionKey, 
   for (const row of rows) {
     nextRows.set(row.key, row);
   }
+  for (const row of state.rows.values()) {
+    if (!row.synced && !nextRows.has(row.key) && !state.optimisticRows.has(row.key)) {
+      nextRows.set(row.key, row);
+    }
+  }
 
   state.rows.clear();
   const rebaseKeys = new Set<K>();
