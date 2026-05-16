@@ -111,7 +111,11 @@
       "import": "@effect-ui/start/adapters",
       "source": "packages/start/src/adapters.ts",
       "docs": "docs/public-api-inventory.md",
-      "typeTest": "type-tests/start-adapters.test-d.ts"
+      "typeTest": "type-tests/start-adapters.test-d.ts",
+      "requiredTypeTestImports": [
+        "StartNodeAdapterError",
+        "StartRequestHandlerError"
+      ]
     },
     {
       "package": "@effect-ui/start",
@@ -127,7 +131,10 @@
       "import": "@effect-ui/start/cli",
       "source": "packages/start/src/cli.ts",
       "docs": "docs/public-api-inventory.md",
-      "typeTest": "type-tests/start-cli.test-d.ts"
+      "typeTest": "type-tests/start-cli.test-d.ts",
+      "requiredTypeTestImports": [
+        "StartDiagnosticsCliWriteError"
+      ]
     },
     {
       "package": "@effect-ui/start",
@@ -135,7 +142,10 @@
       "import": "@effect-ui/start/fetch-adapter",
       "source": "packages/start/src/fetch-adapter.ts",
       "docs": "docs/public-api-inventory.md",
-      "typeTest": "type-tests/start-fetch-adapter.test-d.ts"
+      "typeTest": "type-tests/start-fetch-adapter.test-d.ts",
+      "requiredTypeTestImports": [
+        "StartRequestHandlerError"
+      ]
     },
     {
       "package": "@effect-ui/start",
@@ -143,7 +153,11 @@
       "import": "@effect-ui/start/node-adapter",
       "source": "packages/start/src/node-adapter.ts",
       "docs": "docs/public-api-inventory.md",
-      "typeTest": "type-tests/start-node-adapter.test-d.ts"
+      "typeTest": "type-tests/start-node-adapter.test-d.ts",
+      "requiredTypeTestImports": [
+        "StartNodeAdapterError",
+        "StartRequestHandlerError"
+      ]
     },
     {
       "package": "@effect-ui/start",
@@ -251,7 +265,10 @@
       "import": "@effect-ui/start-fetch",
       "source": "packages/start-fetch/src/index.ts",
       "docs": "docs/public-api-inventory.md",
-      "typeTest": "type-tests/start-fetch.test-d.ts"
+      "typeTest": "type-tests/start-fetch.test-d.ts",
+      "requiredTypeTestImports": [
+        "StartRequestHandlerError"
+      ]
     },
     {
       "package": "@effect-ui/start-node",
@@ -259,7 +276,11 @@
       "import": "@effect-ui/start-node",
       "source": "packages/start-node/src/index.ts",
       "docs": "docs/public-api-inventory.md",
-      "typeTest": "type-tests/start-node.test-d.ts"
+      "typeTest": "type-tests/start-node.test-d.ts",
+      "requiredTypeTestImports": [
+        "StartNodeAdapterError",
+        "StartRequestHandlerError"
+      ]
     },
     {
       "package": "@effect-ui/tsrx",

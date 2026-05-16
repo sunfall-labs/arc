@@ -655,6 +655,49 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
     visit(node.right);
   };
 
+  const isAccountedPromiseStaticMemberAccess = (node) => {
+    let current = node;
+    let parent = current.parent;
+    while (
+      parent !== undefined &&
+      (
+        ts.isParenthesizedExpression(parent) ||
+        ts.isAsExpression(parent) ||
+        ts.isSatisfiesExpression(parent) ||
+        ts.isNonNullExpression(parent)
+      ) &&
+      parent.expression === current
+    ) {
+      current = parent;
+      parent = current.parent;
+    }
+
+    if (parent === undefined) {
+      return false;
+    }
+    if (isCallExpressionLike(parent) && parent.expression === current) {
+      return true;
+    }
+    if (
+      (ts.isPropertyAccessExpression(parent) || ts.isElementAccessExpression(parent)) &&
+      parent.expression === current &&
+      promiseStaticForwarderNames.has(memberNameOfAccess(parent) ?? "")
+    ) {
+      return true;
+    }
+    if (ts.isVariableDeclaration(parent) && parent.initializer === current) {
+      return true;
+    }
+    if (
+      ts.isBinaryExpression(parent) &&
+      parent.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      parent.right === current
+    ) {
+      return true;
+    }
+    return false;
+  };
+
   const visitImportDeclaration = (node) => {
     const importClause = node.importClause;
     if (importClause?.name !== undefined) {
@@ -708,6 +751,10 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
       if (member !== undefined) {
         addFinding(node.expression, promiseStaticCallName(member));
       }
+    }
+    const member = promiseStaticMemberAccess(node);
+    if (member !== undefined && !isAccountedPromiseStaticMemberAccess(node)) {
+      addFinding(node, promiseStaticExtractionName(member));
     }
     ts.forEachChild(node, visit);
   };
@@ -961,6 +1008,10 @@ assertPromiseStaticBans("const resolve = window.Promise.resolve; resolve(value);
 assertPromiseStaticBans("const resolve = self.Promise.resolve; resolve(value);", ["Promise.resolve.extraction"]);
 assertPromiseStaticBans("const promiseTry = Promise.try; promiseTry(() => value);", ["Promise.try.extraction"]);
 assertPromiseStaticBans("const withResolvers = Promise[`withResolvers`]; withResolvers();", ["Promise.withResolvers.extraction"]);
+assertPromiseStaticBans("Reflect.apply(Promise.all, Promise, [[]]);", ["Promise.all.extraction"]);
+assertPromiseStaticBans("[Promise.resolve];", ["Promise.resolve.extraction"]);
+assertPromiseStaticBans("const table = { run: Promise.withResolvers };", ["Promise.withResolvers.extraction"]);
+assertPromiseStaticBans("Reflect.apply(globalThis.Promise.race, Promise, [[]]);", ["Promise.race.extraction"]);
 assertPromiseStaticBans("new Promise(() => undefined);", ["new Promise"]);
 assertPromiseStaticBans("new globalThis.Promise(() => undefined);", ["new Promise"]);
 assertPromiseStaticBans("new self.Promise(() => undefined);", ["new Promise"]);

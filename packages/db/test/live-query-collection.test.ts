@@ -1337,6 +1337,61 @@ describe("Collection.liveQuery", () => {
       })
     ));
 
+  it("does not snapshot or persist retained last-good live query rows while failed", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const storage = Collection.memoryStorage();
+        const key = "live-query-collection-failed-last-good";
+        const Projects = Collection.define<Project>({
+          name: "Projects.live-query-collection.failed-snapshot-source",
+          getKey: (project) => project.id,
+          initialData: [
+            { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+          ]
+        });
+        const ProjectCards = Collection.liveQuery<ProjectCard, string>({
+          name: "ProjectCards.live-query-collection.failed-snapshot",
+          getKey: (project) => project.id,
+          query: (query) =>
+            query
+              .from({ project: Projects })
+              .select(({ project }) => {
+                if (project.name === "Broken") {
+                  throw new Error("projection failed");
+                }
+                return {
+                  id: project.id,
+                  name: project.name,
+                  progress: project.progress
+                };
+              })
+        });
+
+        yield* ProjectCards.persistEffect(storage, { key });
+        const firstPersisted = storage.values.get(key);
+        expect(firstPersisted).toBeDefined();
+
+        yield* Projects.writeUpdateEffect("atlas", { name: "Broken" });
+        expect(ProjectCards.state().get()).toMatchObject({
+          _tag: "Failure",
+          waiting: false
+        });
+        expect(ProjectCards.rows().map((project) => project.name)).toEqual(["Atlas"]);
+
+        const snapshotFailure = yield* Effect.flip(ProjectCards.snapshotEffect());
+        const persistFailure = yield* Effect.flip(ProjectCards.persistEffect(storage, { key }));
+
+        expect(snapshotFailure).toBeInstanceOf(CollectionSnapshotCodecError);
+        expect(snapshotFailure).toMatchObject({
+          _tag: "CollectionSnapshotCodecError",
+          operation: "snapshot",
+          path: "$"
+        });
+        expect(persistFailure).toBeInstanceOf(CollectionSnapshotCodecError);
+        expect(storage.values.get(key)).toBe(firstPersisted);
+      })
+    ));
+
   it("fails live query collection hydrate and restore with typed snapshot codec errors", () =>
     Effect.runPromise(
       Effect.gen(function* () {

@@ -135,9 +135,9 @@ zero hits.
 
 ## Verification Evidence
 
-The latest full verification gate is recorded in the Review 163 ledgers: 11
+The latest full verification gate is recorded in the Review 165 ledgers: 11
 package builds, workspace typecheck, type tests, public API inventory audit,
-Effect-first audit over 274 files, 53 root test files / 991 tests,
+Effect-first audit over 274 files, 53 root test files / 1010 tests,
 devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
 basic starter verify with 2 tests, React starter verify with 3 tests,
 generated starter-suite packaging/verifies for basic/react/project-console,
@@ -145,9 +145,10 @@ generated starter-suite packaging/verifies for basic/react/project-console,
 files / 27 tests, build, and leak scans. The remaining command-result bullets
 in this section are historical evidence for the individual cleanup slices that
 produced this audit.
-Review 163 kept the sharp-edge docs current while tightening Solid action
-handles, Resource observer EffectInput, Start dev cancellation, package dry-run
-manifest comparison, public API pins, and Promise assignment-alias guardrails.
+Review 165 kept the sharp-edge docs current while tightening committed Program
+dispatch acknowledgement races, DB hydration/snapshot correctness, Start host
+EffectInput/abort seams, generated route identity, public API pins, and Promise
+static extraction guardrails.
 
 - Sharp grep:
   - `rg -n "as Effect\\.Effect|as unknown as |as never|as any|@ts-ignore" packages/*/src examples/*/src scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`

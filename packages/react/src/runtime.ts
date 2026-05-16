@@ -98,6 +98,8 @@ export const RuntimeProvider = <RuntimeServices = never, ER = never>(
   }
 
   const runtime = (props.runtime ?? ownedRuntimeRef.current?.runtime) as AnyEffectUiRuntime<ER>;
+  const onDisposeFailureRef = useRef(props.onDisposeFailure);
+  onDisposeFailureRef.current = props.onDisposeFailure;
 
   useEffect(() => {
     if (!ownsRuntime) {
@@ -108,9 +110,9 @@ export const RuntimeProvider = <RuntimeServices = never, ER = never>(
       void Effect.runFork(
         runtime.disposeEffect.pipe(
           Effect.catch((error) =>
-            props.onDisposeFailure === undefined
+            onDisposeFailureRef.current === undefined
               ? Effect.void
-              : invokeEffectInput("ReactRuntimeProvider.onDisposeFailure", props.onDisposeFailure, error).pipe(
+              : invokeEffectInput("ReactRuntimeProvider.onDisposeFailure", onDisposeFailureRef.current, error).pipe(
                   Effect.catchCause(() => Effect.void),
                   Effect.asVoid
                 )
@@ -118,7 +120,7 @@ export const RuntimeProvider = <RuntimeServices = never, ER = never>(
         )
       );
     };
-  }, [ownsRuntime, runtime, props.onDisposeFailure]);
+  }, [ownsRuntime, runtime]);
 
   return createElement(RuntimeContext.Provider, {
     value: runtime as AnyEffectUiRuntime<never>,

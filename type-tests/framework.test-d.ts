@@ -266,6 +266,7 @@ import {
   type StartDiagnosticsReportStatus as SubpathStartDiagnosticsReportStatus,
   type StartDiagnosticsReportSummary as SubpathStartDiagnosticsReportSummary
 } from "@effect-ui/start/diagnostics-report";
+import type { StartDiagnosticsCliIo as FrameworkStartDiagnosticsCliIo } from "@effect-ui/start/cli";
 import "@effect-ui/start/virtual";
 	import {
 	  createNodeHandler,
@@ -2014,6 +2015,10 @@ createRequestHandler(StartApp, {
   // @ts-expect-error request trace handlers must return Effect or a pure value, not Promise
   onRequestTrace: () => promisedVoid
 });
+const promiseStartDiagnosticsCliIo: FrameworkStartDiagnosticsCliIo = {
+  // @ts-expect-error diagnostics CLI writers must return EffectInput, not host async work
+  stdout: () => promisedVoid
+};
 declare const startResponsePromise: Promise<Response>;
 // @ts-expect-error root Start request handlers must return Effect, not Promise
 const promiseStartRequestHandler: StartRequestHandler = () => startResponsePromise;

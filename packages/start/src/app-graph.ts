@@ -665,6 +665,71 @@ const isStartAppGraphDiagnostics = (
   Array.isArray(value.unknownRoutePreloadCollections) &&
   value.unknownRoutePreloadCollections.every(isUnknownRoutePreloadCollectionsDiagnostics);
 
+const isSafeNonNegativeInteger = (value: number): boolean =>
+  Number.isSafeInteger(value) && value >= 0;
+
+const validateSchemaCoverageSemantics = (
+  label: string,
+  coverage: StartAppGraphSchemaCoverage,
+  expectedTotal: number
+): string | undefined => {
+  for (const field of ["total", "input", "output", "error"] as const) {
+    if (!isSafeNonNegativeInteger(coverage[field])) {
+      return `${label}.${field} must be a non-negative safe integer.`;
+    }
+  }
+  if (coverage.total !== expectedTotal) {
+    return `${label}.total must match the number of diagnostics entries.`;
+  }
+  if (coverage.input > coverage.total || coverage.output > coverage.total || coverage.error > coverage.total) {
+    return `${label} schema counts cannot exceed total.`;
+  }
+  return undefined;
+};
+
+const validateStartAppGraphDiagnosticsSemantics = (
+  value: StartAppGraphDiagnostics
+): string | undefined => {
+  for (const [name, count] of [
+    ["routeCount", value.routeCount],
+    ["serverFunctionCount", value.serverFunctionCount],
+    ["actionCount", value.actionCount]
+  ] as const) {
+    if (!isSafeNonNegativeInteger(count)) {
+      return `${name} must be a non-negative safe integer.`;
+    }
+  }
+  if (value.routeCount !== value.routeModules.length || value.routeCount !== value.routePaths.length) {
+    return "routeCount must match routeModules and routePaths.";
+  }
+  if (value.serverFunctionCount !== value.serverFunctionModules.length) {
+    return "serverFunctionCount must match serverFunctionModules.";
+  }
+  if (value.actionCount !== value.actionModules.length) {
+    return "actionCount must match actionModules.";
+  }
+  for (const route of value.routeModules) {
+    if (!isSafeNonNegativeInteger(route.pathParamCount)) {
+      return `Route ${route.routeId} pathParamCount must be a non-negative safe integer.`;
+    }
+    if (route.pathParamCount !== route.params.length) {
+      return `Route ${route.routeId} pathParamCount must match params.`;
+    }
+    if (route.hasPathParams !== (route.pathParamCount > 0)) {
+      return `Route ${route.routeId} hasPathParams must match pathParamCount.`;
+    }
+  }
+  return validateSchemaCoverageSemantics(
+    "schemaCoverage.serverFunctions",
+    value.schemaCoverage.serverFunctions,
+    value.serverFunctionModules.length
+  ) ?? validateSchemaCoverageSemantics(
+    "schemaCoverage.actions",
+    value.schemaCoverage.actions,
+    value.actionModules.length
+  );
+};
+
 const isStartAppGraphDiagnosticsPolicyViolation = (
   value: unknown
 ): value is StartAppGraphDiagnosticsPolicyViolation =>
@@ -684,18 +749,24 @@ export const decodeStartAppGraphDiagnosticsEffect = (
   value: unknown
 ): Effect.Effect<StartAppGraphDiagnostics, StartAppGraphDiagnosticsDtoError> =>
   isStartAppGraphDiagnostics(value)
-    ? resolveStartTransportEndpointsEffect({
-        rpcPath: value.rpcPath,
-        actionPath: value.actionPath
-      }).pipe(
-        Effect.as(value),
-        Effect.mapError((error) =>
-          diagnosticsDtoError(
-            "Start app graph diagnostics endpoint paths are invalid.",
-            error
+    ? Effect.gen(function* () {
+        const semanticError = validateStartAppGraphDiagnosticsSemantics(value);
+        if (semanticError !== undefined) {
+          return yield* Effect.fail(diagnosticsDtoError(semanticError, value));
+        }
+        yield* resolveStartTransportEndpointsEffect({
+          rpcPath: value.rpcPath,
+          actionPath: value.actionPath
+        }).pipe(
+          Effect.mapError((error) =>
+            diagnosticsDtoError(
+              "Start app graph diagnostics endpoint paths are invalid.",
+              error
+            )
           )
-        )
-      )
+        );
+        return value;
+      })
     : Effect.fail(
         diagnosticsDtoError(
           "Expected a Start app graph diagnostics DTO.",

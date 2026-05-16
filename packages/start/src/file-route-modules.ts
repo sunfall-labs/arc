@@ -71,6 +71,17 @@ const asRouteIdentifier = (entry: FileRouteManifestEntry): string => {
   return routeId;
 };
 
+const identifierSegment = (value: string): string => {
+  const segment = value
+    .replace(/[^A-Za-z0-9_$]+/g, "_")
+    .replace(/_+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  if (segment.length === 0) {
+    return "module";
+  }
+  return /^[A-Za-z_$]/.test(segment) ? segment : `_${segment}`;
+};
+
 const companionModuleIdentifierPrefix = (
   module: FileRouteManifestModule
 ): string => {
@@ -87,10 +98,13 @@ const companionModuleIdentifierPrefix = (
 };
 
 const asCompanionModuleIdentifier = (
-  module: FileRouteManifestModule
+  module: FileRouteManifestModule,
+  sourceScoped: boolean = false
 ): string => {
   const routeId = String(module.routeId);
-  const identifier = `${companionModuleIdentifierPrefix(module)}_${routeId}`;
+  const identifier = sourceScoped
+    ? `${companionModuleIdentifierPrefix(module)}_${identifierSegment(routeId)}_${identifierSegment(module.id)}`
+    : `${companionModuleIdentifierPrefix(module)}_${routeId}`;
   if (!identifierPattern.test(identifier)) {
     throw new FileRouteDefinitionsModuleInvalidIdentifier({
       routeId,
@@ -249,8 +263,14 @@ const uniqueCompanionModules = (
 export const createFileRouteCompanionModuleReferences = (
   manifest: FileRouteManifest,
   options: FileRouteDefinitionsModuleOptions = {}
-): readonly FileRouteCompanionModuleReference[] =>
-  uniqueCompanionModules(manifest).map((module) => {
+): readonly FileRouteCompanionModuleReference[] => {
+  const modules = uniqueCompanionModules(manifest);
+  const baseCounts = new Map<string, number>();
+  for (const module of modules) {
+    const base = asCompanionModuleIdentifier(module);
+    baseCounts.set(base, (baseCounts.get(base) ?? 0) + 1);
+  }
+  return modules.map((module) => {
     if (!identifierPattern.test(module.exportName)) {
       throw new FileRouteDefinitionsModuleInvalidExportName({
         exportName: module.exportName
@@ -260,10 +280,11 @@ export const createFileRouteCompanionModuleReferences = (
     return {
       module,
       importName: module.exportName,
-      identifier: asCompanionModuleIdentifier(module),
+      identifier: asCompanionModuleIdentifier(module, (baseCounts.get(asCompanionModuleIdentifier(module)) ?? 0) > 1),
       importSpecifier: routeModuleImportSpecifier(module, options)
     };
   });
+};
 
 export const createFileRouteDefinitionsModule = (
   manifest: FileRouteManifest,

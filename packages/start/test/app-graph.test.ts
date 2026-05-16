@@ -375,6 +375,47 @@ describe("Start app graph", () => {
             diagnosticsPolicyViolations: []
           })
         );
+        const invalidSemanticExits = yield* Effect.all([
+          Effect.exit(
+            decodeStartAppGraphDiagnosticsDtoEffect({
+              diagnostics: {
+                ...diagnostics,
+                routeCount: diagnostics.routeCount + 1
+              },
+              diagnosticsPolicyViolations: []
+            })
+          ),
+          Effect.exit(
+            decodeStartAppGraphDiagnosticsDtoEffect({
+              diagnostics: {
+                ...diagnostics,
+                routeModules: [
+                  {
+                    ...diagnostics.routeModules[0]!,
+                    pathParamCount: 99
+                  },
+                  ...diagnostics.routeModules.slice(1)
+                ]
+              },
+              diagnosticsPolicyViolations: []
+            })
+          ),
+          Effect.exit(
+            decodeStartAppGraphDiagnosticsDtoEffect({
+              diagnostics: {
+                ...diagnostics,
+                schemaCoverage: {
+                  ...diagnostics.schemaCoverage,
+                  serverFunctions: {
+                    ...diagnostics.schemaCoverage.serverFunctions,
+                    input: diagnostics.schemaCoverage.serverFunctions.total + 1
+                  }
+                }
+              },
+              diagnosticsPolicyViolations: []
+            })
+          )
+        ]);
         const invalidEnumExits = yield* Effect.all([
           Effect.exit(
             decodeStartAppGraphDiagnosticsDtoEffect({
@@ -468,6 +509,11 @@ describe("Start app graph", () => {
           expect(firstFailure(invalidEndpointExit)).toBeInstanceOf(
             StartAppGraphDiagnosticsDtoError
           );
+          for (const exit of invalidSemanticExits) {
+            expect(firstFailure(exit)).toBeInstanceOf(
+              StartAppGraphDiagnosticsDtoError
+            );
+          }
           for (const exit of invalidEnumExits) {
             expect(firstFailure(exit)).toBeInstanceOf(
               StartAppGraphDiagnosticsDtoError

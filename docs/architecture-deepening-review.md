@@ -12,9 +12,128 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review164, immediately after Review163. Some older review entries remain below
+Review165, immediately after Review164. Some older review entries remain below
 it from prior ledger merges; use this tip rather than file order alone when
 looking for the latest architecture sweep.
+
+## Review 165: Effect-First Seams, Atomic Hydration, Route Identity, And Guardrails
+
+Review165 fixed fresh findings from the post-Review164 clean-sweep subagents
+across Core/React, DB, Start, public API pins, and docs guardrails.
+
+1. Program And React Runtime Race Semantics
+   - Status: fixed.
+   - Files: `packages/core/src/program-runtime.ts`,
+     `packages/core/test/program.test.ts`, `packages/react/src/runtime.ts`,
+     `packages/react/src/hooks.ts`, `packages/react/test/hooks.test.ts`.
+   - Problem: a model subscriber could dispose a Program after the model commit
+     but before the `dispatchEffect(...)` acknowledgement completed, and React
+     provider-owned runtimes could be disposed when only the disposal observer
+     identity changed. Resource preload failure observers could also become
+     stale during an in-flight preload.
+   - Fix: Program dispatch acknowledgements now distinguish committed from
+     uncommitted queued dispatches during disposal. React runtime disposal reads
+     the latest observer from a ref without making observer identity a provider
+     ownership dependency, and Resource preload reporting uses a stable callback
+     that reads the latest observer.
+   - Benefits: committed Effect work acknowledges correctly, runtime ownership
+     is stable across observer changes, and in-flight preload failures report to
+     the current observer without restarting host preload work.
+
+2. DB Snapshot And Hydration Atomicity
+   - Status: fixed.
+   - Files: `packages/db/src/collection-persistence.ts`,
+     `packages/db/src/live-query-collection-materialization.ts`,
+     `packages/db/test/collection.test.ts`,
+     `packages/db/test/live-query-collection.test.ts`.
+   - Problem: multi-collection hydration acquired durable permits one
+     collection at a time, and failed live queries could still snapshot or
+     persist the last-good materialized rows.
+   - Fix: hydration now acquires durable snapshot permits for the full payload
+     before applying any collection mutation, and live-query collection
+     snapshots fail while the current live state is failed rather than
+     serializing retained last-good rows.
+   - Benefits: SSR/restore hydration is payload-atomic, and persisted snapshots
+     cannot silently turn a failed live projection into stale success data.
+
+3. Start Effect-First CLI And Host Abort Seams
+   - Status: fixed.
+   - Files: `packages/start/src/cli.ts`,
+     `packages/start/src/start-diagnostics-cli-runner.ts`,
+     `packages/start/src/start-fetch.ts`,
+     `packages/start/src/start-vite-dev-ssr.ts`,
+     `packages/start/test/rpc.test.ts`,
+     `type-tests/start-cli.test-d.ts`, `type-tests/framework.test-d.ts`.
+   - Problem: Start diagnostics CLI output writers were typed as void callbacks
+     that could accept ignored async work, default Start fetch fallback abort
+     listeners were not cleaned up when `AbortSignal.any` was unavailable, and
+     dev SSR abort cancellation still called `reader.cancel(...)` directly.
+   - Fix: CLI output writers are `EffectInput` callbacks with typed
+     `StartDiagnosticsCliWriteError` failures, fallback abort listeners are
+     removed in an `Effect.ensuring(...)` finalizer, and dev SSR reader
+     cancellation runs through an Effect-owned forked cancellation program.
+   - Benefits: CLI embedding, fetch abort cleanup, and dev SSR cancellation all
+     stay inside Effect v4 semantics except at explicit host Promise facades.
+
+4. Start Generated Route And App-Graph Semantics
+   - Status: fixed.
+   - Files: `packages/start/src/file-route-modules.ts`,
+     `packages/start/src/app-graph.ts`,
+     `packages/start/test/file-route-modules.test.ts`,
+     `packages/start/test/app-graph.test.ts`,
+     `docs/generated-artifact-audit.md`.
+   - Problem: generated companion module identifiers could collide for sibling
+     route groups, and app graph DTO decoding validated only shape while
+     trusting semantically impossible counts and coverage numbers.
+   - Fix: companion identifiers remain source-compatible by default but gain a
+     source-scoped suffix only when route-id-derived names collide. App graph
+     diagnostics DTO decoding now rejects mismatched route/server/action counts,
+     invalid path-param facts, and impossible schema coverage totals.
+   - Benefits: generated modules stay deterministic and readable while sibling
+     route groups remain distinguishable, and diagnostics payloads cannot carry
+     contradictory topology facts.
+
+5. Public Guardrail And Docs Hardening
+   - Status: fixed.
+   - Files: `scripts/audit-effect-first.mjs`,
+     `type-tests/public-api.manifest.json`,
+     `type-tests/start-adapters.test-d.ts`,
+     `type-tests/start-fetch-adapter.test-d.ts`,
+     `type-tests/start-fetch.test-d.ts`,
+     `type-tests/start-node-adapter.test-d.ts`,
+     `type-tests/start-node.test-d.ts`,
+     `docs/effect-first-audit.md`, `docs/public-api-inventory.md`.
+   - Problem: the Effect-first audit could miss expression-position Promise
+     static extraction, host adapter error exports were under-pinned by public
+     type tests, and the Effect-first audit docs still referenced stale module
+     seams.
+   - Fix: the audit now catches expression-position Promise static access such
+     as `Reflect.apply(Promise.all, ...)`, array/object extraction, and
+     host-global static access. Public type tests now directly import and use
+     `StartRequestHandlerError`, `StartNodeAdapterError`, and the CLI writer
+     error. The audit docs now list the actual Start/React/Solid host seams.
+   - Benefits: Promise-first drift, public error export drift, and stale
+     Effect-first docs are caught by executable checks rather than memory.
+
+Focused verification passed across the Review165 slices: Core, React, DB, and
+Start package typechecks; public type tests; public API inventory audit;
+Effect-first audit over 274 files; Core Program focused tests 1 file / 14
+tests; React hook/runtime focused tests 1 file / 4 selected tests; DB
+collection/live-query focused tests 2 files / 4 selected tests; Start
+file-route/app-graph focused tests 2 files / 2 selected tests; Start RPC abort
+focused tests 1 file / 2 selected tests; Start dev SSR abort focused tests 1
+file / 3 selected tests; and focused Start CLI/type guard checks.
+
+Full `pnpm verify` passed after Review165: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 274 files, 53 root test files / 1010 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, generated starter-suite
+packaging/verifies for basic/react/project-console at 19/24/30 app files with
+5/4/6 local packages, 16-target package dry-run gate, project-console
+typecheck, 4 project-console test files / 27 tests, project-console build, and
+leak scans. Fresh post-fix sweeps still need to run before the clean-sweep
+counter can start.
 
 ## Review 164: Program Disposal, DB Diagnostics, Start Abort Semantics, And Guardrails
 

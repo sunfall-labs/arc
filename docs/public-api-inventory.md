@@ -377,9 +377,11 @@ The root export includes:
   parser and runner for tests, agents, and embedding: `parseStartDiagnosticsCliArgsEffect(...)`,
   `parseStartDiagnosticsCliArgs(...)`, `runStartDiagnosticsCliEffect(...)`,
   `runStartDiagnosticsCli(...)`, `runStartDiagnosticsCliMainEffect(...)`, and
-  `runStartDiagnosticsCliMain(...)`. The package bin remains the normal app
-  entrypoint; embedders should use this subpath instead of private source
-  imports or process spawning.
+  `runStartDiagnosticsCliMain(...)`. Injected output writers are `EffectInput`
+  callbacks, and writer failures surface as `StartDiagnosticsCliWriteError`
+  values instead of Promise-shaped or untyped side effects. The package bin
+  remains the normal app entrypoint; embedders should use this subpath instead
+  of private source imports or process spawning.
 - Effect RPC compatibility descriptors:
   `serverFunctionToEffectRpc`, `makeStartEffectRpcGroup`,
   `startEffectRpcEndpointDescriptor`, and
@@ -442,20 +444,24 @@ Subpath exports:
   concise text by default, raw graph detail behind `--verbose`, and complete
   machine payloads behind `--json`.
 - `./adapters` is a compatibility facade that re-exports the host-specific
-  fetch and Node adapter Modules.
+  fetch and Node adapter Modules, including `StartRequestHandlerError` and
+  `StartNodeAdapterError` for host-facing failure handling.
 - `./fetch-adapter` owns fetch-only request handler conversion and carries no
   Node imports. `toFetchHandlerEffect(...)` is the canonical Effect v4 adapter
   and preserves handler service requirements. `createFetchHandler(...)` remains
   a compatibility host facade for Fetch-style platforms that require
   `(request) => Promise<Response>`; it wires the incoming `Request.signal` into
   Effect run options so host aborts interrupt request Effects instead of
-  leaving detached work behind.
+  leaving detached work behind. `StartRequestHandlerError` is re-exported from
+  this subpath and from `@effect-ui/start-fetch`.
 - `./node-adapter` owns Start Node handler invocation and Node HTTP server
   callback wiring. It re-exports expert-public Node Web Exchange helpers for
   compatibility: Node request origin reconstruction, Web Request conversion,
   Web Response writing, and `StartNodeAdapterError` values. Effect-first Node
   handlers preserve Start handler service requirements, and Node server error
   hooks accept pure values or Effects, not Promise-shaped callbacks.
+  `StartRequestHandlerError` and `StartNodeAdapterError` are also re-exported
+  from `@effect-ui/start-node`.
 - `./virtual` owns virtual module typings only.
 - `effect-ui-start` owns diagnostics and agent graph CLI execution. Its
   bin/host wrapper defines the command tree with Effect v4 `Command`, `Flag`,

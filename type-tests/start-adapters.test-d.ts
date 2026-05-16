@@ -4,6 +4,8 @@ import {
   createNodeHandler,
   createNodeServerHandler,
   nodeRequestToWebRequestEffect,
+  StartNodeAdapterError,
+  StartRequestHandlerError,
   toFetchHandlerEffect,
   writeNodeResponseEffect,
   type StartFetchHandlerEffect,
@@ -27,6 +29,8 @@ const startAdapterExports: Array<unknown> = [
   createNodeHandler,
   createNodeServerHandler,
   nodeRequestToWebRequestEffect,
+  StartNodeAdapterError,
+  StartRequestHandlerError,
   toFetchHandlerEffect,
   writeNodeResponseEffect
 ];

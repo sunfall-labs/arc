@@ -139,7 +139,7 @@ const installRequestAbortReaderCancel = (
   Effect.acquireRelease(
     Effect.sync(() => {
       const cancel = (): void => {
-        void reader.cancel(signal.reason ?? "request-aborted");
+        void Effect.runFork(cancelResponseReaderEffect(reader, signal.reason ?? "request-aborted"));
       };
       if (signal.aborted) {
         cancel();

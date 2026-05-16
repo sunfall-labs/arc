@@ -105,22 +105,23 @@ export const callStartFetchEffect = <FetchError, FetchRequirements>(
 
 const mergeAbortSignals = (
   signals: ReadonlyArray<AbortSignal>
-): AbortSignal => {
+): { readonly signal: AbortSignal; readonly cleanup: () => void } => {
   const uniqueSignals = signals.filter((signal, index, all) =>
     all.indexOf(signal) === index
   );
   if (uniqueSignals.length === 1) {
-    return uniqueSignals[0]!;
+    return { signal: uniqueSignals[0]!, cleanup: () => undefined };
   }
 
   const abortSignalAny = (AbortSignal as typeof AbortSignal & {
     any?: (signals: Iterable<AbortSignal>) => AbortSignal;
   }).any;
   if (typeof abortSignalAny === "function") {
-    return abortSignalAny(uniqueSignals);
+    return { signal: abortSignalAny(uniqueSignals), cleanup: () => undefined };
   }
 
   const controller = new AbortController();
+  const cleanupHandlers: Array<() => void> = [];
   const abortFrom = (source: AbortSignal): void => {
     if (controller.signal.aborted) {
       return;
@@ -133,17 +134,28 @@ const mergeAbortSignals = (
       abortFrom(signal);
       break;
     }
-    signal.addEventListener("abort", () => abortFrom(signal), { once: true });
+    const abort = (): void => abortFrom(signal);
+    signal.addEventListener("abort", abort, { once: true });
+    cleanupHandlers.push(() => {
+      signal.removeEventListener("abort", abort);
+    });
   }
 
-  return controller.signal;
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      for (const cleanup of cleanupHandlers.splice(0)) {
+        cleanup();
+      }
+    }
+  };
 };
 
 const withStartFetchAbortSignal = (
   input: StartFetchInput,
   init: StartFetchInit,
   effectSignal: AbortSignal
-): StartFetchInit => {
+): { readonly init: StartFetchInit; readonly cleanup: () => void } => {
   const signals = [effectSignal];
   if (init?.signal) {
     signals.push(init.signal);
@@ -151,9 +163,13 @@ const withStartFetchAbortSignal = (
   if (typeof Request === "function" && input instanceof Request) {
     signals.push(input.signal);
   }
+  const merged = mergeAbortSignals(signals);
   return {
-    ...init,
-    signal: mergeAbortSignals(signals)
+    init: {
+      ...init,
+      signal: merged.signal
+    },
+    cleanup: merged.cleanup
   };
 };
 
@@ -175,14 +191,23 @@ export const resolveStartFetchEffect = <FetchError = never, FetchRequirements = 
   }
 
   return Effect.succeed(((input, init) =>
-    Effect.tryPromise({
-      try: (signal) => globalThis.fetch(input, withStartFetchAbortSignal(input, init, signal)),
-      catch: (cause) =>
-        new ServerTransportError({
-          reason: "Network",
-          message: "Global fetch request failed.",
-          cause
-        })
+    Effect.suspend(() => {
+      let cleanup = (): void => undefined;
+      return Effect.tryPromise({
+        try: (signal) => {
+          const merged = withStartFetchAbortSignal(input, init, signal);
+          cleanup = merged.cleanup;
+          return globalThis.fetch(input, merged.init);
+        },
+        catch: (cause) =>
+          new ServerTransportError({
+            reason: "Network",
+            message: "Global fetch request failed.",
+            cause
+          })
+      }).pipe(
+        Effect.ensuring(Effect.sync(() => cleanup()))
+      );
     })
   ) as StartFetch<FetchError | ServerTransportError, FetchRequirements>);
 };

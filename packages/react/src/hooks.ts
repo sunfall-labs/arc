@@ -370,6 +370,13 @@ const useResourceBinding = <I, A, E, R = unknown, ER = never>(
   const [preloadFailure, setPreloadFailure] = useState<ResourceUiPreloadFailure<I, A, E, R, ER> | undefined>(undefined);
   const preloadFailureObserver = useRef(options.onPreloadFailure);
   preloadFailureObserver.current = options.onPreloadFailure;
+  const notifyLatestPreloadFailure = useCallback(
+    (error: Resource.LoadError<E> | ER): EffectInput<void, unknown> =>
+      preloadFailureObserver.current === undefined
+        ? undefined
+        : preloadFailureObserver.current(error),
+    []
+  );
   const controller = useMemo(
     () =>
       makeResourceUiBindingController<I, A, E, R, ER>({
@@ -393,14 +400,12 @@ const useResourceBinding = <I, A, E, R = unknown, ER = never>(
   useEffect(() => {
     controller.startInitialPreload(currentRef, {
       ...(options.preload === undefined ? {} : { preload: options.preload }),
-      ...(preloadFailureObserver.current === undefined
-        ? {}
-        : { onPreloadFailure: preloadFailureObserver.current })
+      onPreloadFailure: notifyLatestPreloadFailure
     });
     return () => {
       controller.interruptPreload();
     };
-  }, [controller, result, currentRef.family, currentRef.key, options.preload]);
+  }, [controller, result, currentRef.family, currentRef.key, options.preload, notifyLatestPreloadFailure]);
 
   return {
     state,

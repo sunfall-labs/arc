@@ -8,6 +8,7 @@ import {
   runStartDiagnosticsCliMainEffect,
   startDiagnosticsCliUsage,
   StartDiagnosticsCliUsageError,
+  StartDiagnosticsCliWriteError,
   type StartCliCommand,
   type StartDiagnosticsCliIo,
   type StartDiagnosticsCliOptions,
@@ -20,21 +21,26 @@ const cliIo: StartDiagnosticsCliIo = {
   stdout: (line) => {
     void line;
   },
-  stderr: (line) => {
+  stderr: (line) => Effect.sync(() => {
     void line;
-  }
+  })
 };
 const parsedStartCliCommand: StartCliCommand = parseStartDiagnosticsCliArgs(["--help"]);
 const parsedStartCliCommandEffect: Effect.Effect<StartCliCommand, StartDiagnosticsCliUsageError> =
   parseStartDiagnosticsCliArgsEffect(["graph", "--query=/projects/:id"]);
-const startDiagnosticsCliResultEffect: Effect.Effect<StartDiagnosticsCliResult> =
+const startDiagnosticsCliResultEffect: Effect.Effect<StartDiagnosticsCliResult, StartDiagnosticsCliWriteError> =
   runStartDiagnosticsCliEffect(["--help"], cliIo);
-const startDiagnosticsCliResultAliasEffect: Effect.Effect<StartDiagnosticsCliResult> =
+const startDiagnosticsCliResultAliasEffect: Effect.Effect<StartDiagnosticsCliResult, StartDiagnosticsCliWriteError> =
   runStartDiagnosticsCli(["--help"], cliIo);
-const startDiagnosticsCliMainEffect: Effect.Effect<void> =
+const startDiagnosticsCliMainEffect: Effect.Effect<void, StartDiagnosticsCliWriteError> =
   runStartDiagnosticsCliMainEffect(["--help"]);
-const startDiagnosticsCliMainAliasEffect: Effect.Effect<void> =
+const startDiagnosticsCliMainAliasEffect: Effect.Effect<void, StartDiagnosticsCliWriteError> =
   runStartDiagnosticsCliMain(["--help"]);
+const startDiagnosticsCliWriteError = new StartDiagnosticsCliWriteError({
+  stream: "stdout",
+  cause: "boom",
+  guidance: "test"
+});
 const startDiagnosticsCliOptions: StartDiagnosticsCliOptions = {
   json: false,
   pretty: true
@@ -56,6 +62,7 @@ void startDiagnosticsCliResultEffect;
 void startDiagnosticsCliResultAliasEffect;
 void startDiagnosticsCliMainEffect;
 void startDiagnosticsCliMainAliasEffect;
+void startDiagnosticsCliWriteError;
 void startGraphCliOptions;
 void startImpactCliOptions;
 void startDiagnosticsCliUsageText;

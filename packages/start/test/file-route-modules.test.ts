@@ -929,6 +929,25 @@ describe("file route definition module generation", () => {
     ).toContain('import { Route as route_projects_$id } from "../routes/projects/$id.js";');
   });
 
+  it("emits source-scoped companion identifiers for sibling route groups", () => {
+    const manifest = generateFileRouteManifestArtifact(
+      [
+        "src/routes/(admin)/_layout.tsx",
+        "src/routes/(admin)/dashboard.tsx",
+        "src/routes/(marketing)/_layout.tsx",
+        "src/routes/(marketing)/about.tsx"
+      ],
+      { routeDirectory: "src/routes" }
+    );
+    const generated = createFileRouteDefinitionsModule(manifest);
+
+    expect(generated).toContain("layout_route_root_admin_layout");
+    expect(generated).toContain("layout_route_root_marketing_layout");
+    expect(generated).not.toContain("Layout as layout_route_root }");
+    expect(generated).toContain('"route_dashboard": [layout_route_root_admin_layout]');
+    expect(generated).toContain('"route_about": [layout_route_root_marketing_layout]');
+  });
+
   it("rejects route ids that cannot be emitted as named TypeScript exports", () => {
     expect(() =>
       createFileRouteDefinitionsModule(

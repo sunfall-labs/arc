@@ -341,7 +341,15 @@ export const makeLiveQueryCollectionMaterialization = <
       },
       snapshot: (updatedAt) => {
         try {
-          const next = materialize(options.live.state.get().data, "snapshot");
+          const state = options.live.state.get();
+          if (state._tag === "Failure") {
+            throw new CollectionSnapshotCodecError({
+              operation: "snapshot",
+              path: "$",
+              reason: `Live query collection "${options.name}" is failed; resolve the live query failure before snapshotting or persisting it.`
+            });
+          }
+          const next = materialize(state.data, "snapshot");
           return snapshot({
             ...next,
             revision: revision + 1,

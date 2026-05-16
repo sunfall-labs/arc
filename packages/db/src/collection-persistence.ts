@@ -558,9 +558,16 @@ export const hydrateCollectionsEffect = (
 ): Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError> =>
   Effect.gen(function* () {
     const plan = yield* planCollectionsHydrationEffect(collections, payload, options, storeEffect);
-    for (const { collection, snapshot } of plan.entries) {
-      yield* hydrateCollectionEffect(collection, snapshot, options, storeEffect, plan.store);
-    }
+    yield* withCollectionDurableSnapshotPermits(
+      plan.store,
+      plan.entries.map((entry) => entry.collection),
+      Effect.forEach(
+        plan.entries,
+        ({ collection, snapshot }) =>
+          hydrateCollectionEffectUnsafe(collection, snapshot, options, storeEffect, plan.store),
+        { discard: true }
+      )
+    );
   });
 
 export const validateCollectionsHydrationEffect = (

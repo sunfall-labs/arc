@@ -10,7 +10,8 @@ import {
   collectionStoreEffect,
   runWithCollectionStore
 } from "../src/collection-runtime.js";
-import { CollectionSnapshotCodecError } from "../src/collection-snapshot-codec.js";
+import { advanceCollectionTransactionIdentity } from "../src/collection-mutation-queue.js";
+import { CollectionSnapshotCodecError, hydrateCollectionSnapshotStateEffect } from "../src/collection-snapshot-codec.js";
 
 interface Project {
   readonly id: string;
@@ -3051,6 +3052,117 @@ describe("Collection", () => {
         ]);
         expect(runWithRuntime(runtime, () => Tasks.rows().map((taskRow) => taskRow.id))).toEqual([
           "existing-task"
+        ]);
+      }).pipe(
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
+  it("holds durable permits for a full multi-collection hydration payload", () => {
+    const runtime = makeRuntime();
+    const storeExplicitHydrateStarted = Effect.runSync(Deferred.make<void>());
+    const releaseStoreExplicitHydrate = Effect.runSync(Deferred.make<void>());
+    const Projects = Collection.define<Project>({
+      name: "Projects.snapshot-codec-payload-atomic-projects",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "existing-project", name: "Existing", status: "active", progress: 1 }
+      ]
+    });
+    const Tasks = Collection.define<Task>({
+      name: "Tasks.snapshot-codec-payload-atomic-tasks",
+      getKey: (task) => task.id,
+      initialData: [
+        { id: "existing-task", projectId: "existing-project", title: "Existing", done: false }
+      ]
+    });
+    const snapshotFromStore: StoreExplicitCollectionSnapshotImplementation<Task, string>["snapshotWithStore"] = (
+      store,
+      updatedAt
+    ) => ({
+      name: Tasks.name,
+      rows: Array.from(store.state(Tasks).rows.values()).map((row) => ({
+        key: row.key,
+        value: row.value,
+        synced: row.synced,
+        origin: row.origin
+      })),
+      pendingMutations: [],
+      updatedAt
+    });
+    Object.assign(Tasks, {
+      snapshotWithStore: snapshotFromStore,
+      snapshotWithStoreEffect: (store, updatedAt) => Effect.succeed(snapshotFromStore(store, updatedAt)),
+      hydratePreflightEffect: () => Effect.void,
+      hydrateWithStoreEffect: (store, snapshot, options) =>
+        Deferred.succeed(storeExplicitHydrateStarted, undefined).pipe(
+          Effect.flatMap(() => Deferred.await(releaseStoreExplicitHydrate)),
+          Effect.flatMap(() => {
+            const state = store.state(Tasks);
+            return hydrateCollectionSnapshotStateEffect(
+              state,
+              snapshot,
+              options,
+              (id) => advanceCollectionTransactionIdentity(state, id)
+            );
+          }),
+          Effect.asVoid
+        ),
+      durableSnapshotSources: () => [Tasks]
+    } satisfies StoreExplicitCollectionSnapshotImplementation<Task, string>);
+    markStoreExplicitCollectionSnapshotDefinition(Tasks);
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const payload = {
+          collections: [
+            {
+              name: Projects.name,
+              rows: [
+                {
+                  key: "atlas",
+                  value: { id: "atlas", name: "Atlas", status: "active", progress: 72 },
+                  synced: true,
+                  origin: "remote" as const
+                }
+              ],
+              pendingMutations: [],
+              updatedAt: 1
+            },
+            {
+              name: Tasks.name,
+              rows: [
+                {
+                  key: "task-1",
+                  value: { id: "task-1", projectId: "atlas", title: "Plan", done: false },
+                  synced: true,
+                  origin: "remote" as const
+                }
+              ],
+              pendingMutations: [],
+              updatedAt: 1
+            }
+          ]
+        };
+
+        const hydrate = runtime.runFork(Collection.hydratePayloadEffect([Projects, Tasks], payload));
+        yield* Deferred.await(storeExplicitHydrateStarted);
+
+        const dehydrate = runtime.runFork(Collection.dehydrateEffect([Projects, Tasks]).pipe(Effect.exit));
+        const earlyDehydrate = yield* Fiber.await(dehydrate).pipe(Effect.timeoutOption("20 millis"));
+        expect(Option.isNone(earlyDehydrate)).toBe(true);
+
+        yield* Deferred.succeed(releaseStoreExplicitHydrate, undefined).pipe(Effect.ignore);
+        yield* Fiber.join(hydrate);
+        const dehydrateExit = yield* Fiber.join(dehydrate);
+
+        if (Exit.isFailure(dehydrateExit)) {
+          expect.fail("Expected dehydrate to succeed after payload hydration completed.");
+        }
+        expect(dehydrateExit.value.collections.map((snapshot) => snapshot.rows.map((row) => row.key))).toEqual([
+          ["atlas"],
+          ["task-1"]
         ]);
       }).pipe(
         Effect.ensuring(runtime.disposeEffect)

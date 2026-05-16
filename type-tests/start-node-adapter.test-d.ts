@@ -5,6 +5,8 @@ import {
   nodeRequestOrigin,
   nodeRequestToWebRequest,
   nodeRequestToWebRequestEffect,
+  StartNodeAdapterError,
+  StartRequestHandlerError,
   writeNodeResponse,
   writeNodeResponseEffect,
   type StartForkRuntime,
@@ -30,6 +32,8 @@ const nodeAdapterExports: Array<unknown> = [
   nodeRequestOrigin,
   nodeRequestToWebRequest,
   nodeRequestToWebRequestEffect,
+  StartNodeAdapterError,
+  StartRequestHandlerError,
   writeNodeResponse,
   writeNodeResponseEffect
 ];

@@ -27,6 +27,9 @@ import {
   executeStartClientTransportEffect
 } from "../src/start-client-transport.js";
 import {
+  resolveStartFetchEffect
+} from "../src/start-fetch.js";
+import {
   parseRpcResponse,
   parseStartActionResponse
 } from "../src/start-transport-protocol.js";
@@ -546,6 +549,68 @@ describe("Start RPC transport", () => {
       }).pipe(
         Effect.ensuring(Effect.sync(() => {
           globalThis.fetch = previousFetch;
+        }))
+      )
+    );
+  });
+
+  it("removes fallback abort listeners after default global fetch completes", () => {
+    const previousFetch = globalThis.fetch;
+    const abortSignalAnyDescriptor = Object.getOwnPropertyDescriptor(AbortSignal, "any");
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const externalAbort = new AbortController();
+        const addEventListener = externalAbort.signal.addEventListener.bind(externalAbort.signal);
+        const removeEventListener = externalAbort.signal.removeEventListener.bind(externalAbort.signal);
+        let abortListenersAdded = 0;
+        let abortListenersRemoved = 0;
+        let observedSignal: AbortSignal | undefined;
+
+        Object.defineProperty(AbortSignal, "any", {
+          configurable: true,
+          value: undefined
+        });
+        externalAbort.signal.addEventListener = ((type, listener, options) => {
+          if (type === "abort") {
+            abortListenersAdded += 1;
+          }
+          addEventListener(type, listener, options);
+        }) as AbortSignal["addEventListener"];
+        externalAbort.signal.removeEventListener = ((type, listener, options) => {
+          if (type === "abort") {
+            abortListenersRemoved += 1;
+          }
+          removeEventListener(type, listener, options);
+        }) as AbortSignal["removeEventListener"];
+        globalThis.fetch = ((_input, init) => {
+          observedSignal = init?.signal;
+          return Effect.runPromise(Effect.succeed(new Response("ok")));
+        }) as typeof globalThis.fetch;
+
+        const fetcher = yield* resolveStartFetchEffect(
+          undefined,
+          "No fetch implementation is available for server functions."
+        );
+        const response = yield* fetcher("https://example.com/rpc", {
+          signal: externalAbort.signal
+        });
+
+        yield* Effect.sync(() => {
+          expect(response.status).toBe(200);
+          expect(observedSignal).toBeDefined();
+          expect(observedSignal).not.toBe(externalAbort.signal);
+          expect(abortListenersAdded).toBe(1);
+          expect(abortListenersRemoved).toBe(1);
+        });
+      }).pipe(
+        Effect.ensuring(Effect.sync(() => {
+          globalThis.fetch = previousFetch;
+          if (abortSignalAnyDescriptor) {
+            Object.defineProperty(AbortSignal, "any", abortSignalAnyDescriptor);
+          } else {
+            Reflect.deleteProperty(AbortSignal, "any");
+          }
         }))
       )
     );

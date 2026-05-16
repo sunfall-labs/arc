@@ -55,6 +55,11 @@ repeating stale package/test totals.
     modules by source module id rather than URL prefix alone. Pathless and
     grouped sibling routes can share a URL scope while generated support maps
     still follow file ownership.
+  - Review165 extends that source-scope policy to generated companion module
+    identifiers. Route-id-derived identifiers remain stable by default, but
+    sibling route-group collisions gain a sanitized source-module suffix so
+    generated imports stay distinct without noisy churn for non-colliding
+    routes.
 - Package dist artifact drift
   - Review164 extends `pnpm example:pack-dry-run` so framework dist packages
     compare packed JS/declaration/map stems to source stems. Generated or stale
@@ -74,7 +79,11 @@ repeating stale package/test totals.
   `packages/start/test/file-routes.test.ts`; Start adapters/file-routes focused
   tests passed at 2 files / 39 tests, and `pnpm example:pack-dry-run` passed
   with dist artifact/source-stem validation.
-- Review164 full `pnpm verify` passed with 53 root test files / 1003 tests,
+- Review165 focused Start artifact verification covered source-scoped companion
+  identifiers for sibling route groups in
+  `packages/start/test/file-route-modules.test.ts` and semantic app-graph DTO
+  validation in `packages/start/test/app-graph.test.ts`.
+- Review165 full `pnpm verify` passed with 53 root test files / 1010 tests,
   generated starter-suite packaging/verifies at 19/24/30 app files, and the
   16-target package dry-run gate.
 

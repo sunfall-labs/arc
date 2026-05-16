@@ -393,6 +393,28 @@ describe("Program", () => {
       })
     ));
 
+  it("acknowledges dispatchEffect when disposal happens from a model subscriber after commit", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const program = Program.start(Program.define<number, "commit">({
+          initial: 0,
+          update: (model) => model + 1
+        }));
+
+        const unsubscribe = program.model.subscribe(() => {
+          if (read(program.model) === 1) {
+            Effect.runSync(program.disposeEffect.pipe(Effect.catch(() => Effect.void)));
+          }
+        });
+
+        const exit = yield* program.dispatchEffect("commit").pipe(Effect.exit);
+        unsubscribe();
+
+        expect(Exit.isSuccess(exit)).toBe(true);
+        expect(read(program.model)).toBe(1);
+      })
+    ));
+
   it("completes queued dispatch acknowledgements during disposal", () =>
     Effect.runPromise(
       Effect.gen(function* () {

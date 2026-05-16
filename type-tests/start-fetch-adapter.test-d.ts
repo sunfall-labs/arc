@@ -1,5 +1,6 @@
 import {
   createFetchHandler,
+  StartRequestHandlerError,
   toFetchHandler,
   toFetchHandlerEffect,
   type StartFetchHandler,
@@ -12,7 +13,7 @@ import type { EffectUiRuntime } from "@effect-ui/core";
 import type { StartRequestHandlerEffect } from "@effect-ui/start";
 import { Scope } from "effect";
 
-const fetchAdapterExports: Array<unknown> = [createFetchHandler, toFetchHandler, toFetchHandlerEffect];
+const fetchAdapterExports: Array<unknown> = [createFetchHandler, StartRequestHandlerError, toFetchHandler, toFetchHandlerEffect];
 type FetchAdapter =
   | StartFetchHandler
   | StartFetchHandlerEffect

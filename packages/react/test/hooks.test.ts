@@ -277,6 +277,64 @@ describe("react hooks", () => {
     }
   });
 
+  it("uses the latest resource preload failure observer for in-flight preloads", async () => {
+    const runtime = makeRuntime();
+    const started = await Effect.runPromise(Deferred.make<void>());
+    const release = await Effect.runPromise(Deferred.make<void>());
+    const failure = { _tag: "ReactHooksPreloadObserverChanged" } as const;
+    const observed: Array<"first" | "second"> = [];
+    let setObserverVersion: ((version: "first" | "second") => void) | undefined;
+    const ProjectById = Resource.family<string, Project, typeof failure>({
+      name: "ReactHooks.resource-preload-latest-observer",
+      load: () =>
+        Deferred.succeed(started, undefined).pipe(
+          Effect.flatMap(() => Deferred.await(release)),
+          Effect.flatMap(() => Effect.fail(failure))
+        )
+    });
+
+    try {
+      await withReactRoot(async (root) => {
+        function Capture() {
+          const [version, setVersion] = useState<"first" | "second">("first");
+          setObserverVersion = setVersion;
+          useResource(ProjectById("atlas"), {
+            onPreloadFailure: () => {
+              observed.push(version);
+            }
+          });
+          return null;
+        }
+
+        await act(async () => {
+          root.render(
+            createElement(
+              RuntimeProvider,
+              { runtime },
+              createElement(Capture)
+            )
+          );
+        });
+
+        await Effect.runPromise(Deferred.await(started).pipe(Effect.timeout("1 second")));
+
+        await act(async () => {
+          setObserverVersion?.("second");
+        });
+        await flushReact();
+
+        await act(async () => {
+          await Effect.runPromise(Deferred.succeed(release, undefined));
+          await Effect.runPromise(Effect.sleep("20 millis"));
+        });
+
+        expect(observed).toEqual(["second"]);
+      });
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
   it("keys automatic resource preload failures to the current ref", async () => {
     const runtime = makeRuntime();
     const failure = { _tag: "ReactHooksPreloadFailedForRef" } as const;
@@ -1033,5 +1091,53 @@ describe("react hooks", () => {
     } finally {
       cleanupDom();
     }
+  });
+
+  it("does not dispose a provider-owned React runtime when only the disposal observer changes", async () => {
+    let setObserverVersion: ((version: number) => void) | undefined;
+    let disposeCount = 0;
+
+    function Worker() {
+      const runtime = useRuntime();
+      useEffect(() => {
+        runtime.resourceStore.moduleRegistry.register(Symbol("react-provider-dispose-count"), {
+          disposeEffect: Effect.sync(() => {
+            disposeCount++;
+          })
+        });
+      }, [runtime]);
+      return null;
+    }
+
+    function App() {
+      const [version, setVersion] = useState(0);
+      setObserverVersion = setVersion;
+      return createElement(
+        RuntimeProvider,
+        {
+          onDisposeFailure: () => Effect.sync(() => {
+            void version;
+          })
+        },
+        createElement(Worker)
+      );
+    }
+
+    await withReactRoot(async (root) => {
+      await act(async () => {
+        root.render(createElement(App));
+      });
+      await flushReact();
+
+      await act(async () => {
+        setObserverVersion?.(1);
+      });
+      await flushReact();
+
+      expect(disposeCount).toBe(0);
+    });
+
+    await Effect.runPromise(Effect.sleep("20 millis"));
+    expect(disposeCount).toBe(1);
   });
 });

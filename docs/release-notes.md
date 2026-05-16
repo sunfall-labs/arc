@@ -65,14 +65,14 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 164:
+Latest full gate on May 16, 2026 after Review 165:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
 - Effect-first audit over 274 package/example/config/script/type-test/generated
   template files;
-- 53 root test files / 1003 tests;
+- 53 root test files / 1010 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
 - basic starter verify with 1 starter test file / 2 tests;
@@ -87,6 +87,13 @@ Latest full gate on May 16, 2026 after Review 164:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 165 closed committed Program dispatch acknowledgement races,
+  React runtime/preload observer stability, payload-atomic DB hydration,
+  failed live-query snapshot rejection, Start diagnostics CLI EffectInput
+  writers, default fetch fallback abort-listener cleanup, dev SSR Effect-owned
+  reader cancellation, source-scoped generated companion identifiers, semantic
+  app-graph DTO validation, public Start adapter error pins, and
+  expression-position Promise static guardrails.
 - Review 164 closed Program dispatch disposal semantics via
   `Program.DispatchError` and adapter
   `clearTimeline()` handles, provider-owned runtime disposal observers, DB
@@ -900,15 +907,15 @@ Latest full gate on May 16, 2026 after Review 164:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 164 closed Program
-  dispatch disposal semantics via `Program.DispatchError`, provider-owned
-  runtime disposal observers, DB collection preload/query diagnostics and
-  read-only collection facts, Fetch host abort wiring, dev SSR read-abort trace
-  classification, source-scoped file-route support modules, virtual route type
-  pins, public API target/source checks, dist artifact dry-run validation, and
-  destructuring-assignment Promise guardrails: 11 package builds, workspace
+- The latest full `pnpm verify` passed after Review 165 closed committed
+  Program dispatch acknowledgement races, React runtime/preload observer
+  stability, payload-atomic DB hydration, failed live-query snapshot rejection,
+  Start diagnostics CLI EffectInput writers, fallback abort-listener cleanup,
+  dev SSR Effect-owned reader cancellation, source-scoped generated companion
+  identifiers, semantic app-graph DTO validation, public Start adapter error
+  pins, and expression-position Promise static guardrails: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 274 files, 53 root test files / 1003 tests,
+  Effect-first audit over 274 files, 53 root test files / 1010 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,
   generated starter-suite packaging/verifies for basic/react/project-console,

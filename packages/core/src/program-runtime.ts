@@ -63,6 +63,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
   let commandSequence = 0;
   let subscriptionGeneration = 0;
   const pendingDispatches = new Set<QueuedMessage<Message, ProgramDispatchError<E, ER>>>();
+  const committedDispatches = new Set<QueuedMessage<Message, ProgramDispatchError<E, ER>>>();
 
   type RuntimeFailure = ProgramRuntimeError<E, ER>;
   type DispatchFailure = ProgramDispatchError<E, ER>;
@@ -97,9 +98,17 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
     pendingDispatches.clear();
     return Effect.forEach(
       pending,
-      (queued) => completeAck(queued, disposedFailure(queued.message)),
+      (queued) =>
+        committedDispatches.has(queued)
+          ? completeAck(queued)
+          : completeAck(queued, disposedFailure(queued.message)),
       { discard: true }
-    ).pipe(Effect.asVoid);
+    ).pipe(
+      Effect.ensuring(Effect.sync(() => {
+        committedDispatches.clear();
+      })),
+      Effect.asVoid
+    );
   };
 
   const runWithProgramRuntime = <A, E2, R2>(
@@ -187,6 +196,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
                 after: step.model,
                 commandCount: step.commands.length
               });
+              committedDispatches.add(queued);
               model.set(step.model);
               if (!Object.is(before, step.model)) {
                 restartSubscriptions(step.model);
@@ -386,6 +396,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
         ),
         Effect.ensuring(Effect.sync(() => {
           pendingDispatches.delete(queued);
+          committedDispatches.delete(queued);
         }))
       );
     });

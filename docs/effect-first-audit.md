@@ -85,6 +85,11 @@ interruption.
     assignment aliases and nested/computed Promise extraction, so
     `({ all } = Promise)`, `({ Promise: P } = globalThis)`, and
     `({ ["Promise"]: P } = self)` cannot bypass the Effect-first guardrail.
+  - The Review 165 pass catches expression-position Promise static extraction,
+    including `Reflect.apply(Promise.all, ...)`, array/object literal
+    extraction, and `globalThis.Promise.race` style host-global member access,
+    so Promise statics cannot move into non-call expressions and bypass the
+    guardrail.
 - `packages/start/src/start-fetch.ts` and `packages/start/src/file-route.ts`
   - Custom Start fetchers and file-route preload helpers now reject
     Promise-shaped erased JavaScript values before they cross deeper runtime
@@ -178,13 +183,23 @@ interruption.
     `onDisposeFailure(...)`, an `EffectInput<void, unknown>` callback that is
     unavailable for host-owned runtimes and ignores observer failures after the
     disposal failure is reported.
+- `packages/start/src/cli.ts` and
+  `packages/start/src/start-diagnostics-cli-runner.ts`
+  - Start diagnostics CLI embedding now accepts output writers as
+    `EffectInput<void, unknown>` and reports writer failures as
+    `StartDiagnosticsCliWriteError`, so async host output work must be adapted
+    explicitly and cannot be silently ignored.
 - `vitest.config.ts` and `examples/react-starter`
   - The workspace Vitest runner now isolates the React starter behind the React
     JSX transform and starter `@` alias instead of sending React components
     through the Solid JSX transform. The root verification gate also includes
     the React starter package verify, keeping its typecheck/test/build/leak scan
     in the main Effect-first release gate.
-- `packages/start/src/index.ts`
+- `packages/start/src/streaming.ts`,
+  `packages/start/src/request-runtime-response.ts`,
+  `packages/start/src/start-host-runtime-runner.ts`,
+  `packages/start/src/fetch-adapter.ts`, and
+  `packages/start/src/start-vite-dev-ssr.ts`
   - Kept Web Stream `pull` and `cancel` as host-boundary async callbacks.
   - Moved response stream pull, cancel, error, and finalization lifecycle into
     Effect programs that the Web Stream host callbacks run through the request
@@ -409,16 +424,18 @@ interruption.
 
 ## Remaining Promise Sites To Review
 
-- `packages/solid/src/index.ts`
-  - Uses Promises at Solid/browser boundaries for preload, suspense throws, and
-    ignored background prefetches. Keep only where Solid expects a Promise.
+- `packages/solid/src/hooks.ts` and `packages/react/src/hooks.ts`
+  - Use host thenables only at Suspense token Adapter seams. Resource preload,
+    refresh, observer, and Program work remain Effect-first behind the hooks.
 - `packages/db/src/index.ts`
   - Collection load, refetch, flush, persistence, restore, live-query preload,
     and mutations expose `*Effect` APIs so callers keep error observation and
     runtime selection in Effect.
-- `packages/start/src/vite.ts` and `packages/start/src/adapters.ts`
-  - Promise use is Vite, Node, and fetch host-boundary work. Keep any future
-    helper as an Effect program before it crosses the host boundary.
+- `packages/start/src/vite.ts`, `packages/start/src/start-vite-dev-ssr.ts`,
+  `packages/start/src/fetch-adapter.ts`, `packages/start/src/node-adapter.ts`,
+  and `packages/start/src/start-fetch.ts`
+  - Promise use is Vite, Node, fetch, or Web Stream host-boundary work. Keep
+    any future helper as an Effect program before it crosses the host boundary.
 - `packages/start/src/cli.ts`
   - The bin entry runs the Effect-native CLI program at the process boundary:
     `runStartDiagnosticsCliEffect` and `runStartDiagnosticsCliMainEffect`.
@@ -502,10 +519,10 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The latest full gate is the Review 164 `pnpm verify` run recorded in
+- The latest full gate is the Review 165 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 274 files, 53 root test files / 1003 tests,
+  Effect-first audit over 274 files, 53 root test files / 1010 tests,
   devtools-panel/devtools-extension/starter-suite/16-target package-dry-run/
   project-console gates, and leak scans.
 - `pnpm exec vitest run packages/core/test/runtime.test.ts packages/start/test/start.test.ts`
@@ -1302,11 +1319,11 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The latest full `pnpm verify` passed after the Review 164 Program Disposal,
-  DB Diagnostics, Start Aborts, And Guardrail Closure slice: 11 package builds,
+- The latest full `pnpm verify` passed after the Review 165 Effect-First
+  Seams, Atomic Hydration, Route Identity, And Guardrail Closure slice: 11 package builds,
   workspace typecheck, type tests, public API inventory audit,
   Effect-first audit over 274 package/example/config/script/type-test/generated
-  template files, 53 root test files / 1003 tests,
+  template files, 53 root test files / 1010 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
   verify with 1 starter test file / 2 tests, React starter verify with 1
@@ -1345,6 +1362,9 @@ interruption.
   and static assignment aliases. Review164 kept the focused audit green over
   274 files while catching destructuring assignment aliases and replacing the
   remaining DB preload success observer void callback with an EffectInput seam.
+  Review165 kept the focused audit green over 274 files while catching
+  expression-position Promise static extraction and converting Start
+  diagnostics CLI output writers to an EffectInput seam.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,
