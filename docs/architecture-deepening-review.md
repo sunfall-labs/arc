@@ -11,9 +11,47 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 112, immediately after Review 111. Some older review
+The newest review is Review 113, immediately after Review 112. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 113: Start Action Request Codec Module
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Start: added `packages/start/src/start-action-request-codec.ts` as the
+  focused Start Action Request Codec Module. It owns the action request DTO,
+  progressive form field contracts, `StartActionFormEncodeError`, schema-backed
+  full/partial input encoding, form hidden-field generation, JSON request
+  decoding, form-data request decoding, and hidden-JSON plus visible-field merge
+  policy.
+- Transport protocol locality: `packages/start/src/start-transport-protocol.ts`
+  now keeps response DTOs, response encoding/decoding, invalidation metadata,
+  failure classification, status parsing, action maps, and RPC helpers while
+  re-exporting the request codec names for compatibility.
+- Caller locality: `start-action-client.ts` imports request encoding/form
+  helpers from the codec Module, and `start-request-endpoints.ts` imports
+  `readStartActionRequestEffect(...)` from the codec Module.
+- Public surface: the Start root now re-exports request codec names directly
+  from the codec Module, and `docs/public-api-inventory.md` classifies
+  `start-action-request-codec` in the Start source surface.
+
+Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm
+--filter @effect-ui/start build`, `pnpm exec vitest run
+packages/start/test/start.test.ts -t "same schema action request
+codec|progressive form default encoding|runs Start actions from JSON and form
+posts"` (1 file / 3 selected tests), `pnpm exec vitest run
+packages/start/test/start.test.ts` (1 file / 130 tests), `pnpm exec vitest run
+packages/start/test/rpc.test.ts` (1 file / 13 tests), `pnpm typecheck:types`,
+`pnpm audit:public-api`, `pnpm audit:effect-first` over 226 files, and `git diff
+--check` passed. Full `pnpm verify` passed: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 226 files, 52 root test files / 860 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, project-console packaging/typecheck/
+tests/build with 4 files / 27 tests, and leak scans.
 
 ## Review 112: Core Action Workflow Resource Runtime Locality
 

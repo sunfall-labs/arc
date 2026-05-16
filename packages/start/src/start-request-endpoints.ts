@@ -51,12 +51,12 @@ import {
   makeActionMap,
   protocolFailureResponse,
   readJsonEffect,
-  readStartActionRequestEffect,
   rpcFailureKindEffect,
   rpcRuntimeFailureResponse,
   rpcTransportRequestFailureResponse,
   type StartActionDefinition
 } from "./start-transport-protocol.js";
+import { readStartActionRequestEffect } from "./start-action-request-codec.js";
 
 export const createServerRpcResponseEffectWithRuntime = <
   const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],

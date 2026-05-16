@@ -138,30 +138,33 @@ export type {
 } from "./request-trace.js";
 
 export {
-  describeStartActionInvalidationPlan,
-  isServerActionRequest,
-  isServerRpcRequest,
   encodeStartActionFormInputEffect,
   encodeStartActionInputEffect,
   encodeStartActionPartialInputEffect,
   encodeStartActionRequestEffect,
-  StartActionDuplicateName,
   StartActionFormEncodeError,
   startActionForm,
   startActionInputField,
   startActionNameField,
-  type ActionDefinitionErrorValue,
-  type ActionDefinitionInputValue,
-  type ActionDefinitionOutputValue,
-  type StartActionClientOptions,
   type StartActionDefinition,
   type StartActionForm,
   type StartActionFormField,
   type StartActionFormOptions,
+  type StartActionRequest
+} from "./start-action-request-codec.js";
+
+export {
+  describeStartActionInvalidationPlan,
+  isServerActionRequest,
+  isServerRpcRequest,
+  StartActionDuplicateName,
+  type ActionDefinitionErrorValue,
+  type ActionDefinitionInputValue,
+  type ActionDefinitionOutputValue,
+  type StartActionClientOptions,
   type StartActionInvalidationCause,
   type StartActionInvalidationPlan,
   type StartActionInvalidationTarget,
-  type StartActionRequest,
   type StartActionResponseBody,
   type StartActionResponseMeta,
   type StartActionResult,

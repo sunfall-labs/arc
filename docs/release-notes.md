@@ -69,7 +69,7 @@ Latest full gate on May 15, 2026:
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 225 package/example/script/type-test files;
+- Effect-first audit over 226 package/example/script/type-test files;
 - 52 root test files / 860 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
@@ -203,6 +203,10 @@ Latest full gate on May 15, 2026:
 - Review 112 applied the same locality rule to Core Action Execution Workflow:
   action invalidation planning/execution now calls Resource Runtime directly
   while the public `Resource` facade remains the app-facing Interface.
+- Review 113 extracted the Start Action Request Codec Module: JSON action
+  request bodies, progressive form hidden fields, schema-backed input encoding,
+  and server JSON/form decoding now live together while Start Transport Protocol
+  keeps response/status/failure policy.
 - Review 107 moved shared `effect-ui-start` diagnostics flags onto the root
   Effect v4 `Command.withSharedFlags(...)` grammar, so subcommands inherit
   parent flags instead of repeating them.

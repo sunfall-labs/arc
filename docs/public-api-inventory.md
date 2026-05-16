@@ -217,7 +217,8 @@ The root export includes:
 - Local source modules: `action-manifest`, `agent-graph`, `app-graph`,
   `diagnostics-report`, `effect-rpc-compat`, `file-route`,
   `file-route-modules`, `file-routes`, `hydration`, `render-hydration-plan`,
-  `request-trace`, `rpc`, `server-function-manifest`, `start-action-client`,
+  `request-trace`, `rpc`, `server-function-manifest`,
+  `start-action-client`, `start-action-request-codec`,
   `start-collection-resolution`, `start-fetch`, `start-request-handler`,
   `start-rpc-client`, `start-transport-endpoints`,
   `start-transport-protocol`, and `streaming`.
