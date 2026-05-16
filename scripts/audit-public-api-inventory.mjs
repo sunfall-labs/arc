@@ -14,6 +14,11 @@ const inventory = readText(inventoryFile);
 const publicApiManifest = readJson(publicApiManifestFile);
 const failures = [];
 
+const failSelfTest = (message) => {
+  console.error(message);
+  process.exit(1);
+};
+
 const publicHoverDocs = [
   {
     file: "packages/core/src/program.ts",
@@ -566,6 +571,16 @@ const importDeclarationsFor = (sourceFile, specifier) =>
     statement.moduleSpecifier.text === specifier
   );
 
+const importModuleSpecifiers = (sourceFile) =>
+  new Set(
+    sourceFile.statements.flatMap((statement) =>
+      ts.isImportDeclaration(statement) &&
+      ts.isStringLiteral(statement.moduleSpecifier)
+        ? [statement.moduleSpecifier.text]
+        : []
+    )
+  );
+
 const importedBindingNames = (declaration) => {
   const importClause = declaration.importClause;
   if (importClause === undefined) {
@@ -590,6 +605,28 @@ const importedBindingNames = (declaration) => {
   }
 
   return names;
+};
+
+const typeTestReferenceCoverageFailures = (entry, sourceFile) => {
+  const moduleSpecifiers = importModuleSpecifiers(sourceFile);
+  const usedIdentifiers = nonImportIdentifierNames(sourceFile);
+  const referenceFailures = [];
+
+  for (const reference of entry.typeTestReferences ?? []) {
+    if (typeof reference !== "string" || reference.length === 0) {
+      referenceFailures.push(`${entry.package} export ${entry.export} typeTestReferences entries must be non-empty strings`);
+    } else if (reference.startsWith("virtual:")) {
+      if (!moduleSpecifiers.has(reference)) {
+        referenceFailures.push(`${entry.package} export ${entry.export} type test ${entry.typeTest} must import virtual module ${reference}`);
+      }
+    } else if (!ts.isIdentifierText(reference, ts.ScriptTarget.Latest)) {
+      referenceFailures.push(`${entry.package} export ${entry.export} typeTestReferences entry ${reference} must be either a virtual:* module specifier or a TypeScript identifier`);
+    } else if (!usedIdentifiers.has(reference)) {
+      referenceFailures.push(`${entry.package} export ${entry.export} type test ${entry.typeTest} is missing required symbol reference ${reference}`);
+    }
+  }
+
+  return referenceFailures;
 };
 
 const nonImportIdentifierNames = (sourceFile) => {
@@ -645,14 +682,56 @@ const assertTypeTestCoverage = (entry, typeTestPath, typeTest) => {
     }
   }
 
-  for (const reference of entry.typeTestReferences ?? []) {
-    if (typeof reference !== "string" || reference.length === 0) {
-      failures.push(`${entry.package} export ${entry.export} typeTestReferences entries must be non-empty strings`);
-    } else if (!typeTest.includes(reference)) {
-      failures.push(`${entry.package} export ${entry.export} type test ${entry.typeTest} is missing required reference ${reference}`);
+  failures.push(...typeTestReferenceCoverageFailures(entry, sourceFile));
+};
+
+const assertTypeTestReferenceSelfTest = (name, source, references, expectedFragments) => {
+  const sourceFile = ts.createSourceFile(
+    `${name}.test-d.ts`,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  );
+  const entry = {
+    package: "@effect-ui/self-test",
+    export: "./virtual",
+    typeTest: `${name}.test-d.ts`,
+    typeTestReferences: references
+  };
+  const referenceFailures = typeTestReferenceCoverageFailures(entry, sourceFile);
+  if (referenceFailures.length !== expectedFragments.length) {
+    failSelfTest(
+      `${name} typeTestReferences self-test expected ${expectedFragments.length} failures but found ${referenceFailures.length}: ${referenceFailures.join(" ")}`
+    );
+  }
+  for (const expectedFragment of expectedFragments) {
+    if (!referenceFailures.some((failure) => failure.includes(expectedFragment))) {
+      failSelfTest(
+        `${name} typeTestReferences self-test did not find expected failure fragment ${expectedFragment}: ${referenceFailures.join(" ")}`
+      );
     }
   }
 };
+
+assertTypeTestReferenceSelfTest(
+  "valid structural references",
+  `import actionManifest, { type ActionManifestEntry } from "virtual:effect-ui/actions";
+const values: Array<unknown> = [actionManifest];
+type Entry = ActionManifestEntry;
+`,
+  ["virtual:effect-ui/actions", "actionManifest", "ActionManifestEntry"],
+  []
+);
+assertTypeTestReferenceSelfTest(
+  "substring references rejected",
+  `import { type ActionManifestEntry } from "virtual:effect-ui/actions";
+const text = "virtual:effect-ui/server-functions actionManifest ActionManifestEntry";
+void text;
+`,
+  ["virtual:effect-ui/server-functions", "actionManifest", "ActionManifestEntry"],
+  ["virtual module virtual:effect-ui/server-functions", "symbol reference actionManifest", "symbol reference ActionManifestEntry"]
+);
 
 for (const entry of publicApiManifest.entrypoints ?? []) {
   const key = `${entry.package}\0${entry.export}`;

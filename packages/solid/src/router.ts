@@ -26,7 +26,10 @@ import {
   type JSX
 } from "solid-js";
 import { createComponent, isServer } from "solid-js/web";
-import { makeSolidRouteRenderScopeController } from "./route-render-scope.js";
+import {
+  makeSolidRouteRenderScopeController,
+  type SolidRouteOutletRenderers
+} from "./route-render-scope.js";
 import { RuntimeContext, useRuntime } from "./runtime.js";
 
 type AnyRoute = Route.Definition<string, unknown, unknown, any>;
@@ -175,6 +178,17 @@ const isHydratingExistingDom = (): boolean =>
 
 const RouterContext = createContext<BrowserRouter<readonly AnyRoute[], unknown>>();
 
+const routerOutletRenderers = <Routes extends readonly AnyRoute[], ER>(
+  props: TypedRouterOutletProps<Routes, ER>
+): SolidRouteOutletRenderers<Routes, ER> => {
+  const renderers = {
+    ...(props.pending === undefined ? {} : { pending: props.pending }),
+    ...(props.failure === undefined ? {} : { failure: props.failure }),
+    ...(props.notFound === undefined ? {} : { notFound: props.notFound })
+  };
+  return renderers;
+};
+
 /** Error thrown when router hooks are used outside `RouterProvider`. */
 export class RouterContextMissing extends Data.TaggedError("RouterContextMissing")<{
   readonly hook: string;
@@ -271,18 +285,24 @@ export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
   const typedProps = props as TypedRouterOutletProps<Routes, Error>;
   const router = useRouter<Routes, Error>();
   const runtime = router.runtime as AnyEffectUiRuntime<Error>;
+  const renderers = createMemo(() => routerOutletRenderers(typedProps));
   const [node, setNode] = createSignal<JSX.Element>();
   const [renderError, setRenderError] = createSignal<unknown>();
   const routeRenderScope = makeSolidRouteRenderScopeController({
-    initialState: router.state(),
-    renderers: typedProps,
+    initialInput: {
+      state: router.state(),
+      renderers: renderers()
+    },
     runtime,
     setNode,
     setRenderError
   });
 
   createRenderEffect(() => {
-    routeRenderScope.update(router.state());
+    routeRenderScope.update({
+      state: router.state(),
+      renderers: renderers()
+    });
   });
 
   onCleanup(() => {

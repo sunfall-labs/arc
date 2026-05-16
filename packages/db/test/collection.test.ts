@@ -1389,6 +1389,56 @@ describe("Collection", () => {
     }
   });
 
+  it("does not persist, publish, or tick versions for empty and missing collection writes", async () => {
+    const runtime = makeRuntime();
+    const setItem = vi.fn((_key: string, _value: string) => Effect.void);
+    const storage: Collection.PersistenceStorage = {
+      getItem: () => null,
+      setItem
+    };
+    const Projects = Collection.define<Project>({
+      name: "Projects.no-op-writes",
+      getKey: (project) => project.id,
+      persistence: {
+        storage,
+        persistOnMutation: true,
+        persistOnWrite: true
+      }
+    });
+
+    try {
+      await Effect.runPromise(runtime.provide(
+        Effect.scoped(
+          Effect.gen(function* () {
+            const beforeVersion = Projects.version().get();
+            const subscription = yield* Collection.subscribeEventsEffect();
+
+            yield* Projects.writeInsertEffect([]);
+            yield* Collection.applyChangesEffect(Projects, []);
+            yield* Projects.writeDeleteEffect("missing");
+            const transaction = yield* Projects.insertEffect([]);
+
+            const event = yield* PubSub.take(subscription).pipe(
+              Effect.timeoutOption("20 millis")
+            );
+
+            expect(transaction).toMatchObject({
+              collection: "Projects.no-op-writes",
+              mutations: []
+            });
+            expect(Option.isNone(event)).toBe(true);
+            expect(setItem).not.toHaveBeenCalled();
+            expect(Projects.version().get()).toBe(beforeVersion);
+            expect(Projects.pendingMutations()).toEqual([]);
+            expect(Projects.rows()).toEqual([]);
+          })
+        )
+      ));
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
   it("keeps collection rows isolated by Effect UI runtime", async () => {
     const first = makeRuntime();
     const second = makeRuntime();
@@ -1723,6 +1773,48 @@ describe("Collection", () => {
     } finally {
       await Effect.runPromise(first.disposeEffect);
       await Effect.runPromise(second.disposeEffect);
+    }
+  });
+
+  it("ticks collection version once when hydrating a snapshot", async () => {
+    const runtime = makeRuntime();
+    const Projects = Collection.define<Project>({
+      name: "Projects.hydrate-version-once",
+      getKey: (project) => project.id
+    });
+    const snapshot: Collection.Snapshot<Project, string> = {
+      name: "Projects.hydrate-version-once",
+      rows: [
+        {
+          key: "atlas",
+          value: { id: "atlas", name: "Atlas", status: "active", progress: 72 },
+          synced: true,
+          origin: "remote"
+        }
+      ],
+      pendingMutations: [],
+      updatedAt: 1
+    };
+
+    try {
+      await runInRuntime(runtime, Effect.gen(function* () {
+        const version = Projects.version();
+        const beforeVersion = version.get();
+        let ticks = 0;
+        const unsubscribe = version.subscribe(() => {
+          ticks++;
+        });
+        try {
+          yield* Projects.hydrateEffect(snapshot);
+        } finally {
+          unsubscribe();
+        }
+
+        expect(version.get()).toBe(beforeVersion + 1);
+        expect(ticks).toBe(1);
+      }));
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
     }
   });
 

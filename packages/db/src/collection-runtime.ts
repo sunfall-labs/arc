@@ -257,9 +257,14 @@ const writeRows = <A extends object, K extends CollectionKey, E, R>(
   options: CollectionWriteOptions = {}
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
   Effect.gen(function* () {
+    const values = toArray(input);
+    if (values.length === 0) {
+      return;
+    }
+
     const dbStore = yield* collectionStoreEffect;
     const state = yield* collectionStateEffect(definition, dbStore);
-    const rows = yield* ingestCollectionMutationRowsEffect(definition, toArray(input), {
+    const rows = yield* ingestCollectionMutationRowsEffect(definition, values, {
       operation: "write",
       path: `$.collections[${definition.name}].rows`,
       synced: options.synced ?? true,
@@ -326,6 +331,12 @@ const writeDeleteRow = <A extends object, K extends CollectionKey, E, R>(
   Effect.gen(function* () {
     const dbStore = yield* collectionStoreEffect;
     const state = yield* collectionStateEffect(definition, dbStore);
+    const optimistic = state.optimisticRows.get(key);
+    const hasBaseRow = optimistic ? optimistic.base !== undefined : state.rows.has(key);
+    if (!hasBaseRow) {
+      return;
+    }
+
     yield* commitCollectionWriteEffect({
       collection: definition.name,
       state,
@@ -347,6 +358,10 @@ const applyCollectionChangesWithStoreEffect = <A extends object, K extends Colle
   options: CollectionWriteOptions = {}
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
   Effect.gen(function* () {
+    if (changes.length === 0) {
+      return;
+    }
+
     if (definition.readOnly === true) {
       return yield* Effect.fail(new ReadonlyCollectionMutation({
         collection: definition.name,

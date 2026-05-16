@@ -175,6 +175,55 @@ const rememberResourceRef = <I, A, E, R>(
   resourceInputs(ref.family, store).set(ref.key, ref.input);
 };
 
+const resourceRetentionKey = (ref: AnyResourceRef): string =>
+  resourceRefStoreKey(ref);
+
+const isResourceRefRetained = (
+  ref: AnyResourceRef,
+  store: ResourceStoreState
+): boolean =>
+  (store.retainedRefs.get(resourceRetentionKey(ref)) ?? 0) > 0;
+
+export const retainResourceRefEffect = <I, A, E, R>(
+  ref: ResourceRef<I, A, E, R>
+): Effect.Effect<void> =>
+  Effect.gen(function* () {
+    const store = yield* resourceStoreEffect;
+    rememberResourceRef(ref, store);
+    const key = resourceRetentionKey(ref as AnyResourceRef);
+    store.retainedRefs.set(key, (store.retainedRefs.get(key) ?? 0) + 1);
+    const entry = peekResourceEntry(ref, store);
+    if (entry !== undefined) {
+      yield* interruptResourceGc(entry, store).pipe(Effect.asVoid);
+    }
+  });
+
+export const releaseResourceRefEffect = <I, A, E, R>(
+  ref: ResourceRef<I, A, E, R>
+): Effect.Effect<void> =>
+  Effect.gen(function* () {
+    const store = yield* resourceStoreEffect;
+    const key = resourceRetentionKey(ref as AnyResourceRef);
+    const current = store.retainedRefs.get(key) ?? 0;
+    if (current <= 1) {
+      store.retainedRefs.delete(key);
+    } else {
+      store.retainedRefs.set(key, current - 1);
+      return;
+    }
+
+    const entry = peekResourceEntry(ref, store);
+    if (entry?.state.get()._tag === "Success") {
+      yield* scheduleResourceGc(
+        ref,
+        entry,
+        store,
+        deleteResourceFromStoreEffect,
+        () => isResourceRefRetained(ref as AnyResourceRef, store)
+      );
+    }
+  });
+
 export const resourceEntry = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   store: ResourceStoreState = currentResourceStore()
@@ -297,7 +346,8 @@ export const runResourceEffect = <I, A, E, R>(
         ref as ResourceRef<unknown, A, E, unknown>,
         current,
         options.force,
-        pendingNow
+        pendingNow,
+        isResourceRefRetained(ref as AnyResourceRef, store)
       );
 
       if (shouldShowPending) {
@@ -322,7 +372,13 @@ export const runResourceEffect = <I, A, E, R>(
       recordResourceProvidedTags(ref, tags, store);
       setResourceSuccess(entry, value, updatedAt);
 
-      yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStoreEffect);
+      yield* scheduleResourceGc(
+        ref,
+        entry,
+        store,
+        deleteResourceFromStoreEffect,
+        () => isResourceRefRetained(ref as AnyResourceRef, store)
+      );
       yield* publishResourceStoreEvent(store, {
         _tag: "ResourceSuccess",
         name: ref.family.options.name,
@@ -419,7 +475,8 @@ type ResourceReadDecision<I, A, E, R> =
 const resourceReadDecision = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   entry: ResourceEntry<A, ResourceLoadError<E>> | undefined,
-  now: number
+  now: number,
+  retained = false
 ): ResourceReadDecision<I, A, E, R> => {
   if (entry === undefined) {
     return { _tag: "Pending", pending: resourcePending(ref, "Initial", undefined) };
@@ -449,7 +506,7 @@ const resourceReadDecision = <I, A, E, R>(
     };
   }
 
-  if (isResourceStateCollected(ref as ResourceRef<unknown, A, E, unknown>, state, now)) {
+  if (!retained && isResourceStateCollected(ref as ResourceRef<unknown, A, E, unknown>, state, now)) {
     return {
       _tag: "Pending",
       pending: resourcePending(ref, "Collected", state.value, true),
@@ -466,9 +523,10 @@ const resourceReadDecision = <I, A, E, R>(
 
 export const readResource = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): A => {
   const runtime = currentOrDefaultRuntime();
-  const entry = peekResourceEntry(ref, unsafeMutableResourceStore(runtime.resourceStore));
+  const store = unsafeMutableResourceStore(runtime.resourceStore);
+  const entry = peekResourceEntry(ref, store);
   const now = runtimeCurrentTimeMillis(runtime);
-  const decision = resourceReadDecision(ref, entry, now);
+  const decision = resourceReadDecision(ref, entry, now, isResourceRefRetained(ref as AnyResourceRef, store));
   switch (decision._tag) {
     case "Pending":
       if (decision.resetEntry !== undefined) {
@@ -501,7 +559,7 @@ export const readResourceEffect = <I, A, E, R>(
     yield* recordTouched(ref as AnyResourceRef);
     const entry = peekResourceEntry(ref, store);
     const now = yield* Clock.currentTimeMillis;
-    const decision = resourceReadDecision(ref, entry, now);
+    const decision = resourceReadDecision(ref, entry, now, isResourceRefRetained(ref as AnyResourceRef, store));
     switch (decision._tag) {
       case "Pending":
         if (decision.resetEntry !== undefined) {
@@ -651,7 +709,13 @@ const applyHydratedResourceRefEffect = <I, A, E, R>(
     recordResourceProvidedTags(ref, tags, store);
     setResourceSuccess(entry, state.value, state.updatedAt);
     yield* Cache.set(resourceCache(ref.family, store), ref.key, state.value);
-    yield* scheduleResourceGc(ref, entry, store, deleteResourceFromStoreEffect);
+    yield* scheduleResourceGc(
+      ref,
+      entry,
+      store,
+      deleteResourceFromStoreEffect,
+      () => isResourceRefRetained(ref as AnyResourceRef, store)
+    );
     yield* publishResourceStoreEvent(store, {
       _tag: "ResourceHydrated",
       name: ref.family.options.name,

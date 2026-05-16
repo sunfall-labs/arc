@@ -182,6 +182,8 @@ export interface MutableResourceStore extends ResourceStore {
   readonly tagIndex: Map<string, Map<string, unknown>>;
   /** Tags currently provided by each resource ref key. */
   readonly refTags: Map<string, Set<string>>;
+  /** Mounted UI/resource bindings retaining a resource ref from gc collection. */
+  readonly retainedRefs: Map<string, number>;
   /** @internal Use `eventBus` or `Resource.subscribeEventsEffect`. */
   readonly events: PubSub.PubSub<ResourceStoreEvent>;
   /** @internal Use `fiberRegistry` for tracked background work. */
@@ -199,6 +201,7 @@ export const makeMutableResourceStore = (): MutableResourceStore => {
   const families = new Map<string, unknown>();
   const tagIndex = new Map<string, Map<string, unknown>>();
   const refTags = new Map<string, Set<string>>();
+  const retainedRefs = new Map<string, number>();
   const modules = new Map<symbol, ResourceStoreModule>();
   const events = Effect.runSync(PubSub.sliding<ResourceStoreEvent>(1024));
   const fibers = new Set<ResourceStoreFiber>();
@@ -267,6 +270,7 @@ export const makeMutableResourceStore = (): MutableResourceStore => {
     modules,
     tagIndex,
     refTags,
+    retainedRefs,
     events,
     fibers
   };

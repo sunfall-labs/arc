@@ -6,6 +6,8 @@ import { invokeEffectInput } from "./effect-like.js";
 import type { ResourceLoadError, ResourceRef, ResourceState } from "./resource.js";
 import {
   prefetchResourceEffect,
+  releaseResourceRefEffect,
+  retainResourceRefEffect,
   refreshResourceEffect,
   resourceResult
 } from "./resource-runtime.js";
@@ -191,6 +193,8 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
         readonly fiber: Fiber.Fiber<unknown, unknown>;
       }
     | undefined;
+  let retainedRef: ResourceRef<I, A, E, R> | undefined;
+  let retentionFiber: Fiber.Fiber<void, unknown> | undefined;
 
   const setPreloadFailure = (failure: ResourceUiPreloadFailure<I, A, E, R, ER> | undefined): void => {
     preloadFailure = failure;
@@ -207,12 +211,39 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
     }
   };
 
+  const forkRetentionEffect = (effect: Effect.Effect<void, unknown, R>): void => {
+    const previous = retentionFiber;
+    retentionFiber = options.runtime.runFork(
+      Effect.gen(function* () {
+        if (previous !== undefined) {
+          yield* Fiber.join(previous).pipe(Effect.catch(() => Effect.void));
+        }
+        yield* resourceUiBindRuntimeEffect(options.runtime, effect);
+      }).pipe(Effect.catch(() => Effect.void))
+    );
+  };
+
+  const releaseRetainedRef = (): void => {
+    const current = retainedRef;
+    retainedRef = undefined;
+    if (current !== undefined) {
+      forkRetentionEffect(releaseResourceRefEffect(current));
+    }
+  };
+
+  const retainRef = (ref: ResourceRef<I, A, E, R>): void => {
+    retainedRef = ref;
+    forkRetentionEffect(retainResourceRefEffect(ref));
+  };
+
   const bindRef = (ref: ResourceRef<I, A, E, R>): void => {
     if (currentRef !== undefined && resourceUiSameRef(currentRef, ref)) {
       return;
     }
 
+    releaseRetainedRef();
     currentRef = ref;
+    retainRef(ref);
     interruptPreload();
     setPreloadFailure(undefined);
   };
@@ -279,7 +310,10 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
     bindRef,
     startInitialPreload,
     interruptPreload,
-    dispose: interruptPreload,
+    dispose: () => {
+      interruptPreload();
+      releaseRetainedRef();
+    },
     preloadFailureFor: (ref) => resourceUiPreloadFailureFor(preloadFailure, ref)
   };
 };

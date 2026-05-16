@@ -266,8 +266,10 @@ const promiseStaticMembers = [
   "withResolvers"
 ];
 const promiseStaticMemberSet = new Set(promiseStaticMembers);
-const promiseStaticReceiverNames = new Set(["globalThis", "window", "self"]);
+const hostGlobalReceiverNames = new Set(["globalThis", "window", "self"]);
 const promiseStaticForwarderNames = new Set(["call", "apply", "bind"]);
+const promiseConstructorBinding = "promise-constructor";
+const hostGlobalBinding = "host-global";
 
 const promiseStaticCallName = (member) => ["Promise", member].join(".");
 const promiseStaticExtractionName = (member) => ["Promise", member, "extraction"].join(".");
@@ -334,11 +336,6 @@ const receiverOfAccess = (node) => {
     : undefined;
 };
 
-const isGlobalReceiver = (node) => {
-  const expression = unwrapExpression(node);
-  return ts.isIdentifier(expression) && promiseStaticReceiverNames.has(expression.text);
-};
-
 const bindingNameText = (name) => {
   if (ts.isIdentifier(name) || ts.isStringLiteral(name) || ts.isNumericLiteral(name)) {
     return name.text;
@@ -369,7 +366,12 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
     true,
     scriptKindForFile(fileName)
   );
-  const scopes = [new Map([["Promise", true]])];
+  const scopes = [
+    new Map([
+      ["Promise", promiseConstructorBinding],
+      ...[...hostGlobalReceiverNames].map((name) => [name, hostGlobalBinding])
+    ])
+  ];
   const findings = [];
 
   const currentScope = () => scopes[scopes.length - 1];
@@ -382,8 +384,8 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
     }
     return false;
   };
-  const setBinding = (name, isPromiseConstructorAlias) => {
-    currentScope().set(name, isPromiseConstructorAlias);
+  const setBinding = (name, binding) => {
+    currentScope().set(name, binding);
   };
   const enterScope = (visitChildren) => {
     scopes.push(new Map());
@@ -396,14 +398,29 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
     findings.push({ line: lineOf(node), name });
   };
 
+  const isHostGlobalExpression = (node) => {
+    const expression = unwrapExpression(node);
+    return ts.isIdentifier(expression) && lookupBinding(expression.text) === hostGlobalBinding;
+  };
+
   const isPromiseConstructorExpression = (node) => {
     const expression = unwrapExpression(node);
     if (ts.isIdentifier(expression)) {
-      return lookupBinding(expression.text);
+      return lookupBinding(expression.text) === promiseConstructorBinding;
     }
     const memberName = memberNameOfAccess(expression);
     const receiver = receiverOfAccess(expression);
-    return memberName === "Promise" && receiver !== undefined && isGlobalReceiver(receiver);
+    return memberName === "Promise" && receiver !== undefined && isHostGlobalExpression(receiver);
+  };
+
+  const bindingKindForInitializer = (initializer) => {
+    if (isPromiseConstructorExpression(initializer)) {
+      return promiseConstructorBinding;
+    }
+    if (isHostGlobalExpression(initializer)) {
+      return hostGlobalBinding;
+    }
+    return false;
   };
 
   const promiseStaticMemberAccess = (node) => {
@@ -432,9 +449,9 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
     return receiver === undefined ? undefined : promiseStaticMemberAccess(receiver);
   };
 
-  const declareBindingPattern = (name, isPromiseConstructorAlias = false) => {
-    for (const binding of bindingNames(name)) {
-      setBinding(binding, isPromiseConstructorAlias);
+  const declareBindingPattern = (name, binding = false) => {
+    for (const bindingName of bindingNames(name)) {
+      setBinding(bindingName, binding);
     }
   };
 
@@ -506,9 +523,9 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
     return true;
   };
 
-  const assignsPromiseConstructorFromGlobalObject = (target, initializer) => {
+  const assignsPromiseConstructorFromHostGlobalObject = (target, initializer) => {
     const expression = unwrapExpression(target);
-    if (!ts.isObjectLiteralExpression(expression) || !isGlobalReceiver(initializer)) {
+    if (!ts.isObjectLiteralExpression(expression) || !isHostGlobalExpression(initializer)) {
       return false;
     }
     let found = false;
@@ -530,7 +547,7 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
       }
       const unwrappedTarget = unwrapExpression(targetExpression);
       if (ts.isIdentifier(unwrappedTarget)) {
-        setBinding(unwrappedTarget.text, true);
+        setBinding(unwrappedTarget.text, promiseConstructorBinding);
       } else if (ts.isObjectLiteralExpression(unwrappedTarget)) {
         for (const nestedProperty of unwrappedTarget.properties) {
           if (!ts.isShorthandPropertyAssignment(nestedProperty) && !ts.isPropertyAssignment(nestedProperty)) {
@@ -550,8 +567,8 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
     return found;
   };
 
-  const declaresPromiseConstructorFromGlobalObject = (name, initializer) => {
-    if (!ts.isObjectBindingPattern(name) || !isGlobalReceiver(initializer)) {
+  const declaresPromiseConstructorFromHostGlobalObject = (name, initializer) => {
+    if (!ts.isObjectBindingPattern(name) || !isHostGlobalExpression(initializer)) {
       return false;
     }
     let found = false;
@@ -565,7 +582,7 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
         continue;
       }
       if (ts.isIdentifier(element.name)) {
-        setBinding(element.name.text, true);
+        setBinding(element.name.text, promiseConstructorBinding);
       } else if (ts.isObjectBindingPattern(element.name)) {
         for (const nestedElement of element.name.elements) {
           if (!ts.isBindingElement(nestedElement)) {
@@ -613,13 +630,10 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
     }
 
     if (ts.isIdentifier(node.name)) {
-      setBinding(
-        node.name.text,
-        initializer !== undefined && isPromiseConstructorExpression(initializer)
-      );
+      setBinding(node.name.text, initializer === undefined ? false : bindingKindForInitializer(initializer));
     } else if (
       initializer !== undefined &&
-      declaresPromiseConstructorFromGlobalObject(node.name, initializer)
+      declaresPromiseConstructorFromHostGlobalObject(node.name, initializer)
     ) {
       // Binding state was recorded while walking the object pattern above.
     } else {
@@ -643,10 +657,10 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
     }
 
     if (ts.isIdentifier(node.left)) {
-      setBinding(node.left.text, isPromiseConstructorExpression(node.right));
+      setBinding(node.left.text, bindingKindForInitializer(node.right));
     } else if (checkObjectAssignmentExtraction(node.left, node.right)) {
       // Assignment state was cleared while walking the object pattern above.
-    } else if (assignsPromiseConstructorFromGlobalObject(node.left, node.right)) {
+    } else if (assignsPromiseConstructorFromHostGlobalObject(node.left, node.right)) {
       // Binding state was recorded while walking the object pattern above.
     } else {
       clearAssignmentTargets(node.left);
@@ -971,6 +985,15 @@ assertPromiseStaticBans("window.Promise.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("self.Promise.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("globalThis[\"Promise\"][\"all\"]([]);", ["Promise.all"]);
 assertPromiseStaticBans("self[\"Promise\"][\"all\"]([]);", ["Promise.all"]);
+assertPromiseStaticBans("const host = globalThis; host.Promise.all([]);", ["Promise.all"]);
+assertPromiseStaticBans("const host = window; host.Promise.all([]);", ["Promise.all"]);
+assertPromiseStaticBans("const host = self; host.Promise.all([]);", ["Promise.all"]);
+assertPromiseStaticBans("let host; host = globalThis; host.Promise.all([]);", ["Promise.all"]);
+assertPromiseStaticBans("let host; host = self; new host.Promise(() => undefined);", ["new Promise"]);
+assertPromiseStaticBans("const host = globalThis; const P = host.Promise; P.resolve(value);", ["Promise.resolve"]);
+assertPromiseStaticBans("const host = globalThis; let P; P = host.Promise; P.all([]);", ["Promise.all"]);
+assertPromiseStaticBans("const host = globalThis; const all = host.Promise.all; all([]);", ["Promise.all.extraction"]);
+assertPromiseStaticBans("const host = globalThis; let all; all = host.Promise.all; all([]);", ["Promise.all.extraction"]);
 assertPromiseStaticBans("const P = Promise; P.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("const P = globalThis.Promise; P.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("const P = window.Promise; const Q = P; Q.all([]);", ["Promise.all"]);
@@ -1022,12 +1045,17 @@ assertPromiseStaticBans("const { Promise } = window; new Promise(() => undefined
 assertPromiseStaticBans("const { Promise } = self; new Promise(() => undefined);", ["new Promise"]);
 assertPromiseStaticBans("const { Promise: { all } } = globalThis; all([]);", ["Promise.all.extraction"]);
 assertPromiseStaticBans("const { Promise: { resolve } } = self; resolve(value);", ["Promise.resolve.extraction"]);
+assertPromiseStaticBans("const host = globalThis; const { Promise: P } = host; P.all([]);", ["Promise.all"]);
+assertPromiseStaticBans("const host = window; const { Promise } = host; new Promise(() => undefined);", ["new Promise"]);
+assertPromiseStaticBans("const host = self; const { Promise: { all } } = host; all([]);", ["Promise.all.extraction"]);
 assertPromiseStaticBans("const { [\"Promise\"]: P } = globalThis; P.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("const { [\"Promise\"]: P } = self; P.resolve(value);", ["Promise.resolve"]);
 assertPromiseStaticBans("let P; ({ Promise: P } = globalThis); P.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("let P; ({ Promise: P } = window); new P(() => undefined);", ["new Promise"]);
 assertPromiseStaticBans("let all; ({ Promise: { all } } = globalThis); all([]);", ["Promise.all.extraction"]);
 assertPromiseStaticBans("let resolve; ({ [\"Promise\"]: { resolve } } = self); resolve(value);", ["Promise.resolve.extraction"]);
+assertPromiseStaticBans("let host; host = globalThis; let P; ({ Promise: P } = host); P.all([]);", ["Promise.all"]);
+assertPromiseStaticBans("let host; host = self; let all; ({ Promise: { all } } = host); all([]);", ["Promise.all.extraction"]);
 assertPromiseStaticBans("const Promise = class {}; new Promise(() => undefined);", []);
 assertBannedPattern(".then(...)", "client.then<string>(() => undefined);", 1);
 assertBannedPattern(".then(...)", "client[\"then\"](() => undefined);", 1);

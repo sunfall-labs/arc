@@ -90,6 +90,10 @@ interruption.
     extraction, and `globalThis.Promise.race` style host-global member access,
     so Promise statics cannot move into non-call expressions and bypass the
     guardrail.
+  - The Review 166 pass tracks aliases to host-global objects themselves, so
+    `const host = globalThis; host.Promise.all(...)`, `host = self`, and
+    destructuring through those aliases cannot bypass the Promise static and
+    constructor guard.
 - `packages/start/src/start-fetch.ts` and `packages/start/src/file-route.ts`
   - Custom Start fetchers and file-route preload helpers now reject
     Promise-shaped erased JavaScript values before they cross deeper runtime

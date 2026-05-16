@@ -753,7 +753,12 @@ const parsePackDryRunOutput = (starter, stdout) =>
     return pack;
   });
 
-const assertGeneratedStarterPackageDryRun = (starter, workspacePackages, internalPackageNames) =>
+const assertGeneratedStarterPackageDryRun = (
+  starter,
+  workspacePackages,
+  internalPackageNames,
+  verifiedGeneratedAppFiles,
+) =>
   Effect.gen(function* () {
     const packageJson = yield* readPackageJson(resolve(starter.outputDir, "package.json"));
     const { stdout } = yield* commandEffect(
@@ -763,7 +768,12 @@ const assertGeneratedStarterPackageDryRun = (starter, workspacePackages, interna
       { cwd: starter.outputDir },
     );
     const pack = yield* parsePackDryRunOutput(starter, stdout);
-    const files = pack.files.map((file) => file.path);
+    const files = pack.files
+      .map((file) => file.path)
+      .sort((left, right) => left.localeCompare(right));
+    const packedAppFiles = files.filter((file) =>
+      !file.startsWith(`${localPackagesDirectoryName}/`)
+    );
     const forbidden = files.filter((file) =>
       !file.startsWith(`${localPackagesDirectoryName}/`) &&
       hasForbiddenSegment(file, forbiddenGeneratedAppSegments)
@@ -808,6 +818,14 @@ const assertGeneratedStarterPackageDryRun = (starter, workspacePackages, interna
     );
     const unknownLocalPackageReferences = referencedLocalPackageDirectories.filter((directory) =>
       !expectedLocalPackageDirectorySet.has(directory)
+    );
+    const verifiedAppFileSet = new Set(verifiedGeneratedAppFiles);
+    const packedAppFileSet = new Set(packedAppFiles);
+    const missingPackedAppFiles = verifiedGeneratedAppFiles.filter((file) =>
+      !packedAppFileSet.has(file)
+    );
+    const extraPackedAppFiles = packedAppFiles.filter((file) =>
+      !verifiedAppFileSet.has(file)
     );
     const localPackageManifestTargetFailures = [];
     for (const packageName of internalPackageNames) {
@@ -865,6 +883,18 @@ const assertGeneratedStarterPackageDryRun = (starter, workspacePackages, interna
             "Keep dependencies and pnpm overrides aligned with the generated local package payload.",
             unreferencedLocalPackages.length > 0 ? `Unreferenced adapters: ${unreferencedLocalPackages.join(", ")}` : undefined,
             unknownLocalPackageReferences.length > 0 ? `Unknown references: ${unknownLocalPackageReferences.join(", ")}` : undefined,
+          ].filter(Boolean).join(" "),
+        ),
+      );
+    }
+    if (missingPackedAppFiles.length > 0 || extraPackedAppFiles.length > 0) {
+      return yield* Effect.fail(
+        fail(
+          `Generated ${starter.displayName} package dry-run app file manifest does not match the verified generated app tree.`,
+          [
+            "Keep the generated starter tarball payload aligned with the post-verify app files.",
+            missingPackedAppFiles.length > 0 ? `Missing from tarball: ${missingPackedAppFiles.join(", ")}` : undefined,
+            extraPackedAppFiles.length > 0 ? `Extra in tarball: ${extraPackedAppFiles.join(", ")}` : undefined,
           ].filter(Boolean).join(" "),
         ),
       );
@@ -1091,7 +1121,12 @@ const packageStarter = (workspacePackages, builtPackageNames, starter) =>
     yield* assertGeneratedStarterArtifactsMatchSource(starter);
     yield* assertStandaloneReadme(starter);
     yield* assertNoWorkspaceProtocol(starter);
-    yield* assertGeneratedStarterPackageDryRun(starter, workspacePackages, internalPackageNames);
+    yield* assertGeneratedStarterPackageDryRun(
+      starter,
+      workspacePackages,
+      internalPackageNames,
+      verifiedGeneratedAppFiles,
+    );
 
     return {
       id: starter.id,

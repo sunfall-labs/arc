@@ -7,6 +7,7 @@ import {
   createStartManifestWallDefineValues,
   defaultFileRouteDirectory,
   defaultServerEntry,
+  isGeneratedFileRouteDefinitionsOutputFile,
   makeStartBuildAppGraphEffect,
   makeStartFileRouteManifestEffect,
   normalizeStartManifestIterableOptions,
@@ -281,6 +282,10 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
   };
   const isFileRouteUpdate = (file: string): boolean => {
     const activeOptions = currentOptions();
+    if (isGeneratedFileRouteDefinitionsOutputFile(viteRoot, activeOptions, file)) {
+      return false;
+    }
+
     const routeDirectory = absoluteFileRouteDirectory(
       viteRoot,
       activeOptions.fileRouteOptions?.routeDirectory ?? defaultFileRouteDirectory

@@ -117,7 +117,11 @@ export const subscribeCollectionChangeFeedRuntimeEffect = <
       (subscription) => {
         const unsubscribe = changeFeedUnsubscribe(subscription);
         return unsubscribe
-          ? collectionChangeFeedInputCallbackEffect(() => unsubscribe()).pipe(Effect.catch(() => Effect.void))
+          ? collectionChangeFeedInputCallbackEffect(() => unsubscribe()).pipe(
+              Effect.catch((error) =>
+                runtime.publishFailure(error).pipe(Effect.catch(() => Effect.void))
+              )
+            )
           : Effect.void;
       }
     );

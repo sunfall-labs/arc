@@ -2,7 +2,8 @@
 
 import { Cause, Context, Deferred, Effect, Layer, Schema } from "effect";
 import { describe, expect, it, vi } from "vitest";
-import { makeMemoryBrowserHistoryAdapter, makeRuntime, onDispose, Resource, route, RouteNavigationError, RoutePreloadError, runWithRuntime } from "@effect-ui/core";
+import { makeMemoryBrowserHistoryAdapter, makeRuntime, onDispose, Resource, route, Route, RouteNavigationError, RoutePreloadError, runWithRuntime } from "@effect-ui/core";
+import type { JSX } from "solid-js";
 import type { BrowserRouter, BrowserRouterState } from "../src/index.js";
 
 vi.doMock("solid-js", () => import("solid-js/dist/solid.js"));
@@ -11,6 +12,7 @@ vi.doMock("solid-js/web", () => import("solid-js/web/dist/web.js"));
 const { ErrorBoundary, Show, createRoot, createSignal, onCleanup, sharedConfig } = await import("solid-js");
 const { createComponent, render } = await import("solid-js/web");
 const { createBrowserRouter, RouterLink, RouterOutlet, RouterProvider, RouterRouteNotRegistered, RuntimeProvider, useRouter } = await import("../src/index.js");
+const { makeSolidRouteRenderScopeController } = await import("../src/route-render-scope.js");
 
 describe("createBrowserRouter", () => {
   interface ProjectApi {
@@ -988,6 +990,56 @@ describe("createBrowserRouter", () => {
       )
     ));
 
+  it("rerenders pending outlet renderers without navigation", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+
+          const ProjectRoute = route("/renderer-pending/:id", {
+            component: () => "project"
+          });
+          const routes = [ProjectRoute] as const;
+          const match = Route.match(routes, "/renderer-pending/atlas");
+          expect(match).toBeDefined();
+          const state: Extract<BrowserRouterState<typeof routes>, { readonly _tag: "Pending" }> = {
+            _tag: "Pending",
+            href: "/renderer-pending/atlas",
+            match: match!
+          };
+
+          let node: (() => JSX.Element) | undefined;
+          let update: ((renderer: () => JSX.Element) => void) | undefined;
+          let dispose: () => void = () => undefined;
+          createRoot((rootDispose) => {
+            dispose = rootDispose;
+            const [currentNode, setNode] = createSignal<JSX.Element>();
+            const [, setRenderError] = createSignal<unknown>();
+            const controller = makeSolidRouteRenderScopeController({
+              initialInput: {
+                state,
+                renderers: { pending: () => "pending-one" }
+              },
+              runtime,
+              setNode,
+              setRenderError
+            });
+            node = currentNode;
+            update = (pending) => controller.update({
+              state,
+              renderers: { pending }
+            });
+          });
+          yield* Effect.addFinalizer(() => Effect.sync(dispose));
+
+          expect(node?.()).toBe("pending-one");
+          update?.(() => "pending-two");
+          expect(node?.()).toBe("pending-two");
+        })
+      )
+    ));
+
   it("starts matched routes ready while Solid hydrates existing DOM", () =>
     Effect.runPromise(
       Effect.scoped(
@@ -1315,6 +1367,57 @@ describe("createBrowserRouter", () => {
               );
             })
           );
+        })
+      )
+    ));
+
+  it("rerenders failure outlet renderers without navigation", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+
+          const FailingRoute = route("/renderer-failure", {
+            preload: () => Effect.fail("offline" as const),
+            component: () => "never"
+          });
+          const routes = [FailingRoute] as const;
+          type FailureState = Extract<BrowserRouterState<typeof routes, "offline">, { readonly _tag: "Failure" }>;
+          const state: FailureState = {
+            _tag: "Failure",
+            href: "/renderer-failure",
+            cause: Cause.fail("offline" as const),
+            error: "offline"
+          };
+
+          let node: (() => JSX.Element) | undefined;
+          let update: ((renderer: (state: FailureState) => JSX.Element) => void) | undefined;
+          let dispose: () => void = () => undefined;
+          createRoot((rootDispose) => {
+            dispose = rootDispose;
+            const [currentNode, setNode] = createSignal<JSX.Element>();
+            const [, setRenderError] = createSignal<unknown>();
+            const controller = makeSolidRouteRenderScopeController({
+              initialInput: {
+                state,
+                renderers: { failure: () => "failure-one" }
+              },
+              runtime,
+              setNode,
+              setRenderError
+            });
+            node = currentNode;
+            update = (failure) => controller.update({
+              state,
+              renderers: { failure }
+            });
+          });
+          yield* Effect.addFinalizer(() => Effect.sync(dispose));
+
+          expect(node?.()).toBe("failure-one");
+          update?.(() => "failure-two");
+          expect(node?.()).toBe("failure-two");
         })
       )
     ));

@@ -52,7 +52,10 @@ public API inventory audit verifies the manifest against package
 manifest source paths, and checks that each focused type-test file imports the
 entrypoint it claims to cover, exercises imported bindings as AST identifiers
 outside import declarations, and includes any manifest-listed
-`typeTestReferences` for virtual or side-effect declaration surfaces. Manifest
+`typeTestReferences` for virtual or side-effect declaration surfaces. The
+audit checks those references structurally: `virtual:*` entries must appear as
+import module specifiers, and symbol entries must be used as identifiers
+outside import declarations. Manifest
 entries may also list `requiredTypeTestImports` when a public symbol is
 important enough to pin as a direct import; the audit rejects entries that are
 not directly imported and exercised outside import declarations. It also checks

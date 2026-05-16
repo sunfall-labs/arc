@@ -22,8 +22,13 @@ type AnyRoute = AnyBrowserRoute;
 export type SolidRouteOutletRenderers<Routes extends readonly AnyRoute[], ER> =
   BrowserRouteOutletRenderers<Routes, ER, JSX.Element>;
 
+export interface SolidRouteRenderInput<Routes extends readonly AnyRoute[], ER> {
+  readonly state: BrowserRouterState<Routes, ER>;
+  readonly renderers: SolidRouteOutletRenderers<Routes, ER>;
+}
+
 export interface SolidRouteRenderScopeController<Routes extends readonly AnyRoute[], ER> {
-  update(state: BrowserRouterState<Routes, ER>): void;
+  update(input: SolidRouteRenderInput<Routes, ER>): void;
   dispose(): void;
 }
 
@@ -41,6 +46,25 @@ const defaultFailure = <ER>(
 };
 
 const defaultNotFound = (): JSX.Element => undefined;
+
+const activeRouteRenderer = <Routes extends readonly AnyRoute[], ER>(
+  state: BrowserRouterState<Routes, ER>,
+  renderers: SolidRouteOutletRenderers<Routes, ER>
+): unknown => {
+  const decision = browserRouteRenderDecision(state);
+  switch (decision._tag) {
+    case "Pending":
+      return renderers.pending ?? defaultPending;
+    case "Failure":
+      return renderers.failure ?? defaultFailure;
+    case "NotFound":
+      return renderers.notFound ?? defaultNotFound;
+    case "Ready":
+      return decision.component;
+    case "Empty":
+      return undefined;
+  }
+};
 
 const renderInRouteScope = <ER>(
   runtime: AnyEffectUiRuntime<ER>,
@@ -143,14 +167,14 @@ const scheduleRouteRenderError = (
 };
 
 export const makeSolidRouteRenderScopeController = <Routes extends readonly AnyRoute[], ER>(options: {
-  readonly initialState: BrowserRouterState<Routes, ER>;
-  readonly renderers: SolidRouteOutletRenderers<Routes, ER>;
+  readonly initialInput: SolidRouteRenderInput<Routes, ER>;
   readonly runtime: AnyEffectUiRuntime<ER>;
   readonly setNode: Setter<JSX.Element>;
   readonly setRenderError: Setter<unknown>;
 }): SolidRouteRenderScopeController<Routes, ER> => {
-  let renderedState = options.initialState;
-  const initial = renderRouteState(renderedState, options.renderers, options.runtime);
+  let renderedState = options.initialInput.state;
+  let renderedRenderer = activeRouteRenderer(options.initialInput.state, options.initialInput.renderers);
+  const initial = renderRouteState(renderedState, options.initialInput.renderers, options.runtime);
   options.setNode(() => initial.node);
   let disposeRoute: Effect.Effect<void, never, never> | undefined = initial.dispose;
   let transitionVersion = 0;
@@ -177,16 +201,36 @@ export const makeSolidRouteRenderScopeController = <Routes extends readonly AnyR
   };
 
   return {
-    update: (state) => {
-      if (state === renderedState) {
+    update: (input) => {
+      const nextRenderer = activeRouteRenderer(input.state, input.renderers);
+      const sameState = input.state === renderedState;
+      if (sameState && nextRenderer === renderedRenderer) {
         return;
       }
 
-      renderedState = state;
+      renderedState = input.state;
+      renderedRenderer = nextRenderer;
       const transition = ++transitionVersion;
       options.setNode(() => undefined);
       options.setRenderError(() => undefined);
       disposeCurrentRoute();
+      if (sameState) {
+        try {
+          const next = renderRouteState(input.state, input.renderers, options.runtime);
+          disposeRoute = next.dispose;
+          options.setRenderError(() => undefined);
+          options.setNode(() => next.node);
+        } catch (error) {
+          options.setNode(() => undefined);
+          scheduleRouteRenderError(
+            () => transition === transitionVersion,
+            options.setRenderError,
+            error
+          );
+        }
+        return;
+      }
+
       const transitionDisposalFiber = disposalFiber;
       void options.runtime.runFork(
         Effect.gen(function* () {
@@ -199,7 +243,7 @@ export const makeSolidRouteRenderScopeController = <Routes extends readonly AnyR
 
           let next: RenderedRouteScope;
           try {
-            next = renderRouteState(state, options.renderers, options.runtime);
+            next = renderRouteState(input.state, input.renderers, options.runtime);
           } catch (error) {
             if (transition === transitionVersion) {
               options.setNode(() => undefined);

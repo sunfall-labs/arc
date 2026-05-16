@@ -83,7 +83,11 @@ repeating stale package/test totals.
   identifiers for sibling route groups in
   `packages/start/test/file-route-modules.test.ts` and semantic app-graph DTO
   validation in `packages/start/test/app-graph.test.ts`.
-- Review165 full `pnpm verify` passed with 53 root test files / 1010 tests,
+- Review166 focused Start artifact verification covered generated route
+  definition output exclusion from file-route discovery and Vite hot-update
+  handling, plus diagnostics/graph coherence validation in
+  `packages/start/test/start.test.ts`.
+- Review166 full `pnpm verify` passed with 53 root test files / 1021 tests,
   generated starter-suite packaging/verifies at 19/24/30 app files, and the
   16-target package dry-run gate.
 

@@ -112,6 +112,51 @@ describe("solid hooks", () => {
     );
   });
 
+  it("retains mounted resource values through gcFor", async () => {
+    vi.useFakeTimers();
+    let dispose: (() => void) | undefined;
+    let value: (() => Project | undefined) | undefined;
+    const runtime = makeRuntime();
+    const ProjectById = Resource.family<string, Project>({
+      name: "SolidHooks.resource-mounted-gc-retention",
+      load: (id) => Effect.succeed({ id, name: "Atlas" }),
+      policy: {
+        gcFor: 10
+      }
+    });
+    const ref = ProjectById("atlas");
+
+    try {
+      await Effect.runPromise(runtime.provide(Resource.prefetchEffect(ref)));
+
+      runWithRuntime(runtime, () =>
+        createRoot((rootDispose) => {
+          dispose = rootDispose;
+          const project = useResource(ref, { preload: false });
+          value = project.value;
+        })
+      );
+
+      expect(value?.()).toEqual({ id: "atlas", name: "Atlas" });
+
+      await vi.advanceTimersByTimeAsync(11);
+
+      expect(value?.()).toEqual({ id: "atlas", name: "Atlas" });
+      expect((await Effect.runPromise(runtime.provide(Resource.statusEffect(ref))))._tag).toBe("Success");
+
+      dispose?.();
+      dispose = undefined;
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(11);
+
+      expect((await Effect.runPromise(runtime.provide(Resource.statusEffect(ref))))._tag).toBe("Initial");
+    } finally {
+      dispose?.();
+      vi.useRealTimers();
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
   it("surfaces automatic resource preload failures", () => {
     let dispose: (() => void) | undefined;
     const runtime = makeRuntime();

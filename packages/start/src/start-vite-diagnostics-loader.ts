@@ -6,7 +6,12 @@ import type {
 } from "./app-graph.js";
 import {
   decodeStartAppGraphDiagnosticsDtoEffect,
+  describeStartAppGraph,
   deserializeStartAppGraph
+} from "./app-graph.js";
+import {
+  unknownRoutePreloadCollectionsForDiagnostics,
+  unknownRoutePreloadResourcesForDiagnostics
 } from "./app-graph.js";
 import type {
   StartAppGraphDiagnosticsPolicyException,
@@ -149,7 +154,11 @@ const startDiagnosticsViteServerEffect = (
   options: LoadStartAppGraphDiagnosticsOptions
 ): Effect.Effect<StartDiagnosticsViteServer, StartAppGraphDiagnosticsLoadError> => {
   const inlineConfig = options.vite ?? {};
-  const inlinePlugins = removeStartPlugins(inlineConfig.plugins) as InlineConfig["plugins"] | undefined;
+  const inlinePlugins = (
+    options.start === undefined
+      ? inlineConfig.plugins
+      : removeStartPlugins(inlineConfig.plugins)
+  ) as InlineConfig["plugins"] | undefined;
   const plugins = [
     ...pluginOptionArray(inlinePlugins),
     ...(options.start === undefined ? [] : [effectUiStartVirtualModules(options.start)])
@@ -223,6 +232,112 @@ const decodeStartAppGraphFromModuleEffect = (
     )
   );
 
+const sameJson = (left: unknown, right: unknown): boolean =>
+  JSON.stringify(left) === JSON.stringify(right);
+
+const sameStringArray = (
+  left: readonly string[],
+  right: readonly string[]
+): boolean =>
+  left.length === right.length &&
+  left.every((value, index) => value === right[index]);
+
+const validateLoadedStartAppGraphDiagnosticsCoherence = (
+  graph: StartAppGraph,
+  diagnostics: StartAppGraphDiagnostics
+): string | undefined => {
+  const expected = describeStartAppGraph(graph);
+
+  if (diagnostics.routeCount !== graph.routes.entries.length) {
+    return "routeCount must match graph.routes.entries.";
+  }
+  if (diagnostics.serverFunctionCount !== graph.serverFunctions.entries.length) {
+    return "serverFunctionCount must match graph.serverFunctions.entries.";
+  }
+  if (diagnostics.actionCount !== graph.actions.entries.length) {
+    return "actionCount must match graph.actions.entries.";
+  }
+  if (!sameStringArray(diagnostics.routePaths, expected.routePaths)) {
+    return "routePaths must match graph.routes.entries.";
+  }
+  if (diagnostics.rpcPath !== expected.rpcPath || diagnostics.actionPath !== expected.actionPath) {
+    return "transport paths must match the graph manifests.";
+  }
+
+  for (const [index, routeModule] of diagnostics.routeModules.entries()) {
+    const expectedRouteModule = expected.routeModules[index];
+    if (expectedRouteModule === undefined) {
+      return "routeModules must match graph.routes.entries.";
+    }
+    for (const key of [
+      "routeId",
+      "routePath",
+      "moduleId",
+      "filePath",
+      "pathParamCount",
+      "hasPathParams"
+    ] as const) {
+      if (routeModule[key] !== expectedRouteModule[key]) {
+        return `routeModules[${index}].${key} must match graph.routes.entries.`;
+      }
+    }
+    if (!sameJson(routeModule.params, expectedRouteModule.params)) {
+      return `routeModules[${index}].params must match graph.routes.entries.`;
+    }
+  }
+
+  if (!sameJson(diagnostics.serverFunctionModules, expected.serverFunctionModules)) {
+    return "serverFunctionModules must match graph.serverFunctions.entries.";
+  }
+  if (!sameJson(diagnostics.actionModules, expected.actionModules)) {
+    return "actionModules must match graph.actions.entries.";
+  }
+  if (!sameJson(diagnostics.schemaCoverage, expected.schemaCoverage)) {
+    return "schemaCoverage must match the graph manifests.";
+  }
+  if (!sameJson(diagnostics.missingSchemas, expected.missingSchemas)) {
+    return "missingSchemas must match the graph manifests.";
+  }
+  if (!sameJson(diagnostics.unknownActionBehavior, expected.unknownActionBehavior)) {
+    return "unknownActionBehavior must match graph.actions.entries.";
+  }
+  if (!sameStringArray(diagnostics.serverOnlyModules, expected.serverOnlyModules)) {
+    return "serverOnlyModules must match the graph manifests.";
+  }
+  if (!sameStringArray(diagnostics.browserClientModules, expected.browserClientModules)) {
+    return "browserClientModules must match the graph manifests.";
+  }
+  if (!sameJson(
+    diagnostics.unknownRoutePreloadResources,
+    unknownRoutePreloadResourcesForDiagnostics(diagnostics)
+  )) {
+    return "unknownRoutePreloadResources must match routeModules.";
+  }
+  if (!sameJson(
+    diagnostics.unknownRoutePreloadCollections,
+    unknownRoutePreloadCollectionsForDiagnostics(diagnostics)
+  )) {
+    return "unknownRoutePreloadCollections must match routeModules.";
+  }
+
+  return undefined;
+};
+
+const validateLoadedStartAppGraphDiagnosticsCoherenceEffect = (
+  graph: StartAppGraph,
+  diagnostics: StartAppGraphDiagnostics
+): Effect.Effect<void, StartAppGraphDiagnosticsLoadError> => {
+  const reason = validateLoadedStartAppGraphDiagnosticsCoherence(graph, diagnostics);
+  return reason === undefined
+    ? Effect.void
+    : Effect.fail(
+        new StartAppGraphDiagnosticsRunnerError({
+          message: `The loaded Effect UI app graph diagnostics are not coherent with the loaded graph: ${reason}`,
+          cause: { reason }
+        })
+      );
+};
+
 const startAppGraphDiagnosticsFromModuleEffect = (
   module: Record<string, unknown>
 ): Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsLoadError> =>
@@ -239,6 +354,7 @@ const startAppGraphDiagnosticsFromModuleEffect = (
         )
       )
     );
+    yield* validateLoadedStartAppGraphDiagnosticsCoherenceEffect(graph, dto.diagnostics);
 
     return {
       graph,

@@ -248,7 +248,8 @@ export const scheduleResourceGc = <I, A, E, R, RefError = E>(
   deleteEntryEffect: (
     ref: ResourceRef<I, A, RefError, R>,
     store: ResourceStoreState
-  ) => Effect.Effect<void>
+  ) => Effect.Effect<void>,
+  isRetained: () => boolean = () => false
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
     const interrupted = yield* interruptResourceGc(entry, store);
@@ -264,12 +265,18 @@ export const scheduleResourceGc = <I, A, E, R, RefError = E>(
     if (gcFor <= 0) {
       return;
     }
+    if (isRetained()) {
+      return;
+    }
 
     const fiber = yield* Effect.forkDetach(
       Effect.gen(function* () {
         yield* Effect.sleep(gcFor);
         entry.gcFiber = undefined;
         store.fiberRegistry.untrack(resourceStoreFiber(fiber));
+        if (isRetained()) {
+          return;
+        }
         yield* deleteEntryEffect(ref, store);
       }),
       { startImmediately: true }
@@ -327,9 +334,10 @@ export const shouldShowResourcePending = <A, E, RefError>(
   ref: ResourceRef<unknown, A, RefError, unknown>,
   state: ResourceState<A, E>,
   force: boolean,
-  now: number
+  now: number,
+  retained = false
 ): boolean =>
   force ||
   state._tag === "Initial" ||
   state._tag === "Failure" ||
-  isResourceStateCollected(ref, state, now);
+  (!retained && isResourceStateCollected(ref, state, now));

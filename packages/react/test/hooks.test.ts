@@ -3,7 +3,7 @@ import { Window } from "happy-dom";
 import { Context, Deferred, Effect, Fiber, Layer, Scope, Stream } from "effect";
 import { Suspense, act, createElement, useEffect, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   RuntimeProvider,
   useAction,
@@ -230,6 +230,61 @@ describe("react hooks", () => {
         expect(loads).toBe(2);
       });
     } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("retains mounted resource values through gcFor", async () => {
+    vi.useFakeTimers();
+    let project: ResourceHandle<string, Project, never> | undefined;
+    const runtime = makeRuntime();
+    const ProjectById = Resource.family<string, Project>({
+      name: "ReactHooks.resource-mounted-gc-retention",
+      load: (id) => Effect.succeed({ id, name: "Atlas" }),
+      policy: {
+        gcFor: 10
+      }
+    });
+    const ref = ProjectById("atlas");
+
+    try {
+      await Effect.runPromise(runtime.provide(Resource.prefetchEffect(ref)));
+
+      await withReactRoot(async (root) => {
+        function Capture() {
+          project = useResource(ref, { preload: false });
+          return null;
+        }
+
+        await act(async () => {
+          root.render(
+            createElement(
+              RuntimeProvider,
+              { runtime },
+              createElement(Capture)
+            )
+          );
+        });
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(0);
+        });
+
+        expect(project?.value).toEqual({ id: "atlas", name: "Atlas" });
+
+        await act(async () => {
+          await vi.advanceTimersByTimeAsync(11);
+        });
+
+        expect(project?.value).toEqual({ id: "atlas", name: "Atlas" });
+        expect((await Effect.runPromise(runtime.provide(Resource.statusEffect(ref))))._tag).toBe("Success");
+      });
+
+      await vi.advanceTimersByTimeAsync(0);
+      await vi.advanceTimersByTimeAsync(11);
+
+      expect((await Effect.runPromise(runtime.provide(Resource.statusEffect(ref))))._tag).toBe("Initial");
+    } finally {
+      vi.useRealTimers();
       await Effect.runPromise(runtime.disposeEffect);
     }
   });

@@ -7,6 +7,8 @@ import {
   Resource,
   resourceUiMatchState
 } from "../src/index.js";
+import { resourceRefStoreKey } from "../src/resource-dependency-graph.js";
+import { unsafeMutableResourceStore } from "../src/resource-store.js";
 
 interface Project {
   readonly id: string;
@@ -127,6 +129,35 @@ describe("Resource UI Binding Controller", () => {
 
         expect(controller.preloadFailureFor(failedRef)).toBe(failure);
         expect(observedThroughEffect).toEqual([failure]);
+      }).pipe(
+        Effect.ensuring(Effect.sync(() => controller.dispose())),
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
+  it("serializes retained refs across rapid ref changes", () => {
+    const runtime = makeRuntime();
+    const ProjectById = Resource.family<string, Project>({
+      name: "ResourceUiBinding.retention-order",
+      load: (id) => Effect.succeed({ id, name: id })
+    });
+    const firstRef = ProjectById("first");
+    const secondRef = ProjectById("second");
+    const controller = makeResourceUiBindingController<string, Project, never, never, never>({
+      runtime
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        controller.bindRef(firstRef);
+        controller.bindRef(secondRef);
+        yield* Effect.sleep("20 millis");
+
+        const store = unsafeMutableResourceStore(runtime.resourceStore);
+        expect([...store.retainedRefs.entries()]).toEqual([
+          [resourceRefStoreKey(secondRef), 1]
+        ]);
       }).pipe(
         Effect.ensuring(Effect.sync(() => controller.dispose())),
         Effect.ensuring(runtime.disposeEffect)

@@ -71,7 +71,8 @@ The generated artifact drift check covers `src/routeTree.gen.ts` and
 virtual-module, and manifest editor contracts stay source-attributed.
 The generated package manifests include `.effect-ui-packages`, and the packager
 dry-runs each generated starter tarball to prove those local file-package
-Adapters are actually included while generated app artifacts stay out.
+Adapters are actually included while the non-local tarball app files exactly
+match the post-verify generated app file manifest.
 
 Verify package payloads for source examples and starter packages:
 

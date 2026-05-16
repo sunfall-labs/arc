@@ -88,6 +88,9 @@ import {
   startDiagnosticsCliVerifyCommandsForQuery
 } from "../src/start-diagnostics-cli-contract.js";
 import {
+  describeStartAppGraph
+} from "../src/app-graph.js";
+import {
   actionManifestVirtualModuleId,
   appGraphRuntimeDiagnosticsVirtualModuleId,
   appGraphVirtualModuleId,
@@ -6271,6 +6274,57 @@ describe("Effect UI Start", () => {
     }
   });
 
+  it("does not rediscover generated route definitions written under the route directory", async () => {
+    const root = mkdtempSync(join(tmpdir(), "effect-ui-generated-routes-under-routes-"));
+
+    try {
+      mkdirSync(join(root, "src/routes"), { recursive: true });
+      writeFileSync(join(root, "src/routes/index.tsx"), "export default null;\n");
+
+      const plugin = effectUiStart({
+        fileRouteGeneration: {
+          outputFile: "src/routes/routeTree.gen.ts"
+        }
+      });
+      plugin.configResolved({ root, command: "serve" });
+
+      const generatedPath = join(root, "src/routes/routeTree.gen.ts");
+      expect(existsSync(generatedPath)).toBe(true);
+
+      const config = plugin.config({ root });
+      const serializedFileRoutes = config.define?.__EFFECT_UI_FILE_ROUTES__;
+      const manifest = JSON.parse(String(serializedFileRoutes));
+      expect(manifest.entries).toEqual([
+        expect.objectContaining({
+          routeId: "route_root",
+          moduleId: "src/routes/index.tsx"
+        })
+      ]);
+      expect(JSON.stringify(manifest)).not.toContain("routeTree.gen");
+
+      const resolved = plugin.resolveId(fileRouteDefinitionsVirtualModuleId);
+      const loaded = resolved === null ? undefined : plugin.load(resolved);
+      expect(String(loaded)).not.toContain("routeTree.gen");
+
+      const invalidated: Array<{ readonly id: string }> = [];
+      plugin.hotUpdate?.({
+        type: "update",
+        file: generatedPath,
+        server: {
+          moduleGraph: {
+            getModuleById: (id) => ({ id }),
+            invalidateModule: (module) => {
+              invalidated.push(module as { readonly id: string });
+            }
+          }
+        }
+      });
+      expect(invalidated).toEqual([]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
   it("refreshes generated route artifacts and virtual modules on route hot updates", async () => {
     const root = mkdtempSync(join(tmpdir(), "effect-ui-generated-routes-hot-"));
 
@@ -6757,6 +6811,104 @@ describe("Effect UI Start", () => {
       expect(result.diagnosticsPolicyViolations).toEqual([]);
       expect(result.diagnostics.unknownRoutePreloadResources).toHaveLength(1);
       expect(result.diagnostics.unknownRoutePreloadCollections).toHaveLength(1);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 20000);
+
+  it("loads diagnostics from an inline Start Vite plugin without separate Start options", async () => {
+    const root = mkdtempSync(join(tmpdir(), "effect-ui-diagnostics-inline-start-"));
+
+    try {
+      mkdirSync(join(root, "src/routes"), { recursive: true });
+      writeFileSync(
+        join(root, "src/routes/index.ts"),
+        [
+          "import { route } from \"@effect-ui/core\";",
+          "export const Route = route(\"/\", {});"
+        ].join("\n")
+      );
+
+      const result = await Effect.runPromise(
+        loadStartAppGraphDiagnosticsEffect({
+          root,
+          configFile: false,
+          vite: {
+            ...startDiagnosticsRunnerViteConfig(),
+            plugins: [
+              effectUiStart({
+                fileRoutes: ["src/routes/index.ts"],
+                fileRouteOptions: {
+                  routeDirectory: "src/routes"
+                }
+              })
+            ]
+          }
+        })
+      );
+
+      expect(result.diagnostics.routePaths).toEqual(["/"]);
+      expect(result.graph.routes.entries).toEqual([
+        expect.objectContaining({
+          routePath: "/",
+          moduleId: "src/routes/index.ts"
+        })
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 20000);
+
+  it("rejects loaded diagnostics that are not coherent with their graph", async () => {
+    const root = mkdtempSync(join(tmpdir(), "effect-ui-diagnostics-incoherent-"));
+
+    try {
+      const startOptions = {
+        fileRoutes: ["src/routes/index.ts"],
+        fileRouteOptions: {
+          routeDirectory: "src/routes"
+        }
+      };
+      const graph = await Effect.runPromise(makeStartBuildAppGraphEffect(startOptions));
+      const diagnostics = {
+        ...describeStartAppGraph(graph),
+        routePaths: ["/wrong"]
+      };
+      const resolvedDiagnosticsId = `\0${appGraphRuntimeDiagnosticsVirtualModuleId}`;
+
+      await expect(
+        Effect.runPromise(
+          loadStartAppGraphDiagnosticsEffect({
+            root,
+            configFile: false,
+            vite: {
+              plugins: [
+                {
+                  name: "effect-ui-start-test-incoherent-diagnostics",
+                  resolveId(id) {
+                    return id === appGraphRuntimeDiagnosticsVirtualModuleId
+                      ? resolvedDiagnosticsId
+                      : null;
+                  },
+                  load(id) {
+                    return id === resolvedDiagnosticsId
+                      ? [
+                          `export const graph = ${serializeStartAppGraph(startOptions)};`,
+                          `export const diagnostics = ${JSON.stringify(diagnostics)};`,
+                          "export const diagnosticsPolicyViolations = [];",
+                          "export default graph;"
+                        ].join("\n")
+                      : null;
+                  }
+                }
+              ]
+            }
+          })
+        )
+      ).rejects.toMatchObject({
+        _tag: "StartAppGraphDiagnosticsRunnerError",
+        message: expect.stringContaining("coherent")
+      });
     } finally {
       rmSync(root, { recursive: true, force: true });
     }

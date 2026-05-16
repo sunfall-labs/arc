@@ -1,7 +1,6 @@
 import { EffectInputCallbackError, invokeEffectInput, type EffectInput } from "@effect-ui/core";
 import { Clock, Data, Effect } from "effect";
 import {
-  bumpCollectionState,
   type CollectionState
 } from "./collection-state.js";
 import {
@@ -221,7 +220,6 @@ const hydrateCollectionEffectUnsafe = (
       options,
       (id) => advanceCollectionTransactionIdentity(state, id)
     );
-    bumpCollectionState(state);
     yield* dbStore.publish({
       _tag: "CollectionHydrated",
       collection: definition.name,

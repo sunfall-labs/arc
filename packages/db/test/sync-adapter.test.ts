@@ -1,6 +1,6 @@
 import { EffectInputCallbackError, Resource, Server, makeRuntime, toEffect } from "@effect-ui/core";
 import { Collection } from "@effect-ui/db";
-import { Effect } from "effect";
+import { Effect, Option, PubSub } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import { makeCollectionChangeFeedDispatcherEffect } from "../src/change-feed-dispatcher.js";
 import { subscribeCollectionChangeFeedRuntimeEffect } from "../src/collection-change-feed-runtime.js";
@@ -609,6 +609,40 @@ describe("Collection.syncOptions", () => {
       })
     );
   });
+
+  it("publishes change-feed unsubscribe failures before swallowing them", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const unsubscribeFailure = new Error("unsubscribe exploded");
+          const Projects = Collection.define<Project>({
+            name: "Projects.sync.feed-unsubscribe-failure",
+            getKey: (project) => project.id
+          });
+          const feed: Collection.ChangeFeedAdapter<Project> = {
+            name: "projects-unsubscribe-failure-feed",
+            subscribe: () => () => {
+              throw unsubscribeFailure;
+            }
+          };
+
+          const subscription = yield* Collection.subscribeEventsEffect();
+          yield* Effect.scoped(Collection.subscribeChangesEffect(Projects, feed));
+
+          const event = yield* PubSub.take(subscription).pipe(
+            Effect.timeoutOption("20 millis")
+          );
+
+          expect(Option.isSome(event)).toBe(true);
+          expect(event.value).toMatchObject({
+            _tag: "CollectionChangeFeedFailure",
+            collection: "Projects.sync.feed-unsubscribe-failure"
+          });
+          expect(event.value.error).toBeInstanceOf(EffectInputCallbackError);
+          expect((event.value.error as EffectInputCallbackError).cause).toBe(unsubscribeFailure);
+        })
+      )
+    ));
 
   it("binds Effect change-feed emitters to the subscribed Collection store", () => {
     const first = makeRuntime();

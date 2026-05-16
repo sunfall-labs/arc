@@ -12,9 +12,117 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review165, immediately after Review164. Some older review entries remain below
+Review166, immediately after Review165. Some older review entries remain below
 it from prior ledger merges; use this tip rather than file order alone when
 looking for the latest architecture sweep.
+
+## Review 166: UI Resource Retention, Collection No-Ops, Start Diagnostics, And Guardrails
+
+Review166 fixed fresh findings from the post-Review165 subagents across
+Core/UI, DB, Start, starter packaging, public API audit, and Effect-first
+guardrails.
+
+1. Resource UI Retention And Solid Route Render Inputs
+   - Status: fixed.
+   - Files: `packages/core/src/resource-store.ts`,
+     `packages/core/src/resource-lifetime.ts`,
+     `packages/core/src/resource-runtime.ts`,
+     `packages/core/src/resource-ui-binding.ts`,
+     `packages/react/test/hooks.test.ts`,
+     `packages/solid/src/route-render-scope.ts`,
+     `packages/solid/src/router.ts`,
+     `packages/solid/test/hooks.test.ts`,
+     `packages/solid/test/router.test.ts`.
+   - Problem: `gcFor` could collect a successful Resource while a mounted UI
+     binding was still visibly reading it, and Solid route render scopes only
+     updated on router-state identity, so same-state pending/failure renderer
+     changes did not rerender.
+   - Fix: Core Resource Store now tracks retained UI refs. The Resource UI
+     Binding Controller retains the current ref on bind, releases it on ref
+     change/dispose, interrupts active GC while retained, and re-arms GC after
+     release. Solid route render updates now carry both state and renderers,
+     compare the active renderer identity, and rerender same-state renderer
+     swaps synchronously after starting old scope disposal.
+   - Benefits: Resource lifetime Locality is owned by the Core binding Module,
+     and Solid outlet fallback rendering is a real state-plus-renderer
+     Interface instead of constructor-only props.
+
+2. Collection Write No-Ops, Hydration Versioning, And Change-Feed Failures
+   - Status: fixed.
+   - Files: `packages/db/src/collection-runtime.ts`,
+     `packages/db/src/collection-mutation-workflow.ts`,
+     `packages/db/src/collection-persistence.ts`,
+     `packages/db/src/collection-change-feed-runtime.ts`,
+     `packages/db/test/collection.test.ts`,
+     `packages/db/test/sync-adapter.test.ts`.
+   - Problem: empty inserts/change batches and missing-base deletes could still
+     publish, persist, invalidate, or bump versions. Snapshot hydration bumped
+     collection version twice, and change-feed unsubscribe failures disappeared
+     during finalization.
+   - Fix: DB write and mutation workflows now return before commit work for
+     no-op inputs, hydration relies on the snapshot application tick exactly
+     once, and unsubscribe failures publish a typed
+     `CollectionChangeFeedFailure` before being swallowed by the finalizer.
+   - Benefits: Collection Write Commit and Mutation Workflow semantics now
+     match visible data changes, and Adapter finalizer failures stay observable
+     without making cleanup unsafe.
+
+3. Start Generated Routes And Diagnostics Coherence
+   - Status: fixed.
+   - Files: `packages/start/src/start-manifest-wall.ts`,
+     `packages/start/src/vite.ts`,
+     `packages/start/src/start-vite-diagnostics-loader.ts`,
+     `packages/start/test/start.test.ts`.
+   - Problem: generated route-definition output could re-enter file-route
+     discovery when written under the route directory. Diagnostics loading
+     could also strip an inline `effectUiStart(...)` Adapter when no separate
+     `start` options were supplied, and decoded diagnostics were not proven
+     coherent with the decoded app graph.
+   - Fix: Start now computes and ignores the generated route output artifact in
+     discovery and Vite hot-update checks. The diagnostics loader preserves an
+     inline Start Vite plugin when it is the configured Adapter, then validates
+     route paths/modules, action/server function facts, schemas, policy facts,
+     and unknown preload facts against the decoded graph.
+   - Benefits: generated artifacts stay outside their own source discovery
+     loop, and agent-facing diagnostics cannot drift from the graph they claim
+     to describe.
+
+4. Public And Starter Guardrails
+   - Status: fixed.
+   - Files: `scripts/package-project-console-starter.mjs`,
+     `scripts/audit-public-api-inventory.mjs`,
+     `scripts/audit-effect-first.mjs`,
+     `docs/starter.md`, `docs/public-api-inventory.md`,
+     `docs/effect-first-audit.md`.
+   - Problem: starter package dry-runs proved local packages were present but
+     did not prove non-local tarball app files exactly matched the verified
+     generated app tree. Public API type-test references were substring-based,
+     and the Effect-first audit still missed Promise constructor/statics through
+     host-global aliases.
+   - Fix: starter packaging compares dry-run app files exactly against
+     `verifiedGeneratedAppFiles`; public API type-test references are now
+     AST-structural imports or identifier uses with self-tests; and the
+     Effect-first scanner tracks host-global aliases, assignment aliases, and
+     destructuring through `globalThis`, `window`, and `self`.
+   - Benefits: packaging, type-test, and Promise guardrails now enforce the
+     intended Interface structurally instead of trusting text adjacency.
+
+Focused verification passed across the Review166 slices: Core, React, Solid,
+DB, and Start package typechecks; public API inventory audit; Effect-first
+audit over 274 files; Core/React/Solid resource and router tests 5 files / 136
+tests; DB collection/sync tests; Start file-route/diagnostics tests; starter
+packaging; 16-target dry-run checks; and `git diff --check`.
+
+Full `pnpm verify` passed after Review166: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 274 files, 53 root test files / 1021 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, generated starter-suite
+packaging/verifies for basic/react/project-console at 19/24/30 app files with
+5/4/6 local packages, 16-target package dry-run gate, project-console
+typecheck, 4 project-console test files / 27 tests, project-console build, and
+leak scans. Fresh sweeps still found actionable Module, Interface, Seam,
+Adapter, and Locality work, so the Thirty-Sweep clean counter remains unstarted.
 
 ## Review 165: Effect-First Seams, Atomic Hydration, Route Identity, And Guardrails
 

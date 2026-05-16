@@ -356,6 +356,10 @@ export const insertCollectionMutationEffect = <A extends object, K extends Colle
       synced: false,
       origin: "local"
     });
+    if (rows.length === 0) {
+      return createCollectionTransaction(state, definition.name, []);
+    }
+
     const snapshots = new Map<K, StoredRow<A, K> | undefined>();
     const mutations: Array<CollectionMutation<A, K>> = [];
 

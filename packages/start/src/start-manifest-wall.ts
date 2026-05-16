@@ -196,6 +196,49 @@ const normalizeDiscoveredFileRoutePath = (path: string): string =>
     .replace(/\/+/g, "/")
     .replace(/\/$/, "");
 
+export const absoluteFileRouteGeneratedFile = (
+  root: string,
+  options: FileRouteGenerationOptions = {}
+): string | undefined => {
+  if (options.outputFile === false) {
+    return undefined;
+  }
+
+  const outputFile = options.outputFile ?? defaultFileRouteGeneratedFile;
+  return isAbsolute(outputFile)
+    ? outputFile
+    : resolvePath(root, outputFile);
+};
+
+export const isGeneratedFileRouteDefinitionsOutputFile = (
+  root: string,
+  options: EffectUiStartOptions,
+  filePath: string
+): boolean => {
+  const generated = absoluteFileRouteGeneratedFile(root, options.fileRouteGeneration);
+  if (generated === undefined) {
+    return false;
+  }
+
+  const absolutePath = isAbsolute(filePath) ? filePath : resolvePath(root, filePath);
+  return normalizeDiscoveredFileRoutePath(absolutePath) === normalizeDiscoveredFileRoutePath(generated);
+};
+
+const generatedFileRouteDefinitionsDiscoveryPath = (
+  root: string,
+  routeDirectory: string,
+  options: FileRouteGenerationOptions = {}
+): string | undefined => {
+  const generated = absoluteFileRouteGeneratedFile(root, options);
+  if (generated === undefined) {
+    return undefined;
+  }
+
+  return normalizeDiscoveredFileRoutePath(
+    isAbsolute(routeDirectory) ? generated : relativePath(root, generated)
+  );
+};
+
 const isRouteFileName = (
   fileName: string,
   extensions: readonly string[]
@@ -455,19 +498,27 @@ export const withDiscoveredFileRoutesEffect = (
   }
 
   const fileRouteOptions = next.fileRouteOptions;
+  const routeDirectory = fileRouteOptions?.routeDirectory ?? defaultFileRouteDirectory;
+  const ignoredGeneratedFile = generatedFileRouteDefinitionsDiscoveryPath(
+    root,
+    routeDirectory,
+    next.fileRouteGeneration
+  );
   return Effect.map(
     discoverFileRoutesEffect({
       root,
-      ...(fileRouteOptions?.routeDirectory === undefined
-        ? {}
-        : { routeDirectory: fileRouteOptions.routeDirectory }),
+      routeDirectory,
       ...(fileRouteOptions?.extensions === undefined
         ? {}
         : { extensions: fileRouteOptions.extensions })
     }),
     (fileRoutes) => ({
       ...next,
-      fileRoutes
+      fileRoutes: ignoredGeneratedFile === undefined
+        ? fileRoutes
+        : fileRoutes.filter((fileRoute) =>
+            normalizeDiscoveredFileRoutePath(fileRoute) !== ignoredGeneratedFile
+          )
     })
   );
 };
