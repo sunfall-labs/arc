@@ -11,15 +11,59 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 141, immediately after Review 140. Some older review
+The newest review is Review 142, immediately after Review 141. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 142: Runtime Locality And Verification Pin Closure
+
+Status: fixed for the fresh post-Review141 runtime, React DB parity, public
+hover/type, Effect-first scanner, and docs-drift sweep. Focused verification is
+green. Full verification passed after this review.
+
+- StartAction runtime locality: `StartAction.use(...)` now mirrors Core
+  `Action.use(...)` runtime capture policy. It captures explicit or ambient
+  runtimes only; an instance created outside a runtime leaves response
+  hydration/invalidation inside the returned Effect so the caller runtime's
+  Resource Store owns the update. Start coverage proves uncaptured action
+  metadata applies to the caller runtime and not the default runtime.
+- React DB parity coverage: React DB now has the same runtime-ownership
+  regressions as Solid DB for returned collection/live-query Effects, mutation
+  handler/pending-mutation state, and live-query collection subscriptions
+  scoped to the explicit `RuntimeProvider` runtime.
+- Public browser-history seam pins: the public hover-doc audit and Core type
+  tests now name the Browser History Adapter seam (`BrowserHistoryAdapter`,
+  `MemoryBrowserHistoryAdapter`, and the window/memory adapter factories) so
+  Review 140's provider history projection cannot lose LSP docs or public type
+  coverage silently.
+- Effect-first scanner hardening: `scripts/audit-effect-first.mjs` now bans
+  `Promise.allSettled(...)`, `Promise.any(...)`, and typed member chains such
+  as `.then<T>(...)`, `.catch<T>(...)`, and `.finally<T>(...)`, with self-tests
+  for those holes and the `Effect.catch<T>(...)` exemption.
+- Starter docs drift: release, copyability, and checklist docs now describe
+  the 27-file exact project-console starter manifest and workspace
+  package-manifest dependency rewrite policy, and release notes include the
+  checked React starter path.
+
+Focused verification passed: `pnpm --filter @effect-ui/start typecheck`, `pnpm
+--filter @effect-ui/react-db typecheck`, `pnpm typecheck:types`, `pnpm
+audit:public-api`, `pnpm audit:effect-first`, `pnpm exec vitest run
+packages/start/test/start.test.ts` (1 file / 136 tests), and `pnpm exec vitest
+run packages/react-db/test/react-db.test.ts` (1 file / 10 tests).
+
+Full `pnpm verify` passed after Review 142: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 249 files, 53 root test files / 891 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, project-console starter packaging
+with 27 files verified, project-console typecheck, 4 project-console test files
+/ 27 tests, project-console build, and leak scan.
 
 ## Review 141: Project Console Runtime Store and Starter Manifest Gate
 
 Status: fixed for the fresh post-Review140 Project Console and starter tooling
-sweep. Focused verification is green. Full verification is still inherited from
-Review 139 until the next single-command gate runs.
+sweep. Focused verification is green. Full verification passed after this
+review and before Review 142.
 
 - Project Demo Store: project-console seed state now lives behind the
   server-only `ProjectDemoStore` Effect service, backed by an Effect `Ref` and
@@ -46,6 +90,14 @@ files / 27 tests), `pnpm example:build`, `pnpm example:leak-scan`, `pnpm
 starter:project-console:package` (27 files verified), generated package
 dependency inspection, generated forbidden-token grep, `pnpm typecheck:types`,
 `pnpm audit:public-api`, `pnpm audit:effect-first`, and `git diff --check`.
+
+Full `pnpm verify` passed after Review 141: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 249 files, 53 root test files / 887 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, project-console starter packaging
+with 27 files verified, project-console typecheck, 4 project-console test files
+/ 27 tests, project-console build, and leak scan.
 
 ## Review 140: Router History Projection and Program Runtime Scheduling
 

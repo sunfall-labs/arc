@@ -42,13 +42,12 @@ starter and whether browser/server boundaries remain explicit.
   moving UI event handlers onto Effect-native APIs.
 - `pnpm starter:verify` passed for `@effect-ui/starter-basic`: typecheck, 1
   starter test, production build, and leak scan.
-- `pnpm starter:project-console:package` passed and verified 17 required
-  project-console starter files.
+- `pnpm starter:project-console:package` passed and verified the exact
+  generated project-console starter manifest: 27 files, with workspace protocol
+  dependencies rewritten from workspace package manifest versions.
 
 ## Follow-Up
 
-- Replace the generated rich starter's pre-release package placeholders with
-  exact published package versions when the first npm release candidate exists.
 - If additional `.server.ts` modules are added, extend the leak scan with
   module-specific sentinel strings that prove private server data stayed out of
   the browser bundle.

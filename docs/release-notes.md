@@ -33,6 +33,7 @@ yet.
 - React adapters: runtime provider, component scopes, Signal/Stream/Program/
   Resource/Action hooks, Suspense read adapters, and React DB hooks.
 - Starter paths: `examples/basic-starter` for the smallest full-stack shell,
+  `examples/react-starter` for the React-focused starter,
   `examples/project-console` for the golden-path app, and
   `pnpm starter:project-console:package` for a generated rich starter payload.
 
@@ -64,18 +65,18 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 139:
+Latest full gate on May 16, 2026 after Review 142:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 248 package/example/script/type-test files;
-- 53 root test files / 884 tests;
+- Effect-first audit over 249 package/example/script/type-test files;
+- 53 root test files / 891 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
 - basic starter verify with 1 starter test file / 2 tests;
 - React starter verify with 1 starter test file / 3 tests;
-- project console starter packaging;
+- project console starter packaging with 27 files verified;
 - project console typecheck;
 - 4 project console test files / 27 tests;
 - project console production build;
@@ -209,6 +210,12 @@ Latest full gate on May 16, 2026 after Review 139:
   lives in a server Runtime Spine-provided Effect `Ref` store, and starter
   packaging verifies the full generated file manifest while resolving
   workspace protocol dependencies from package manifests.
+- Review 142 closed fresh runtime/test/tooling/docs gaps: uncaptured
+  `StartAction.use(...)` response metadata now stays local to the caller
+  runtime, React DB has runtime-ownership parity coverage, Browser History
+  Adapter declarations are LSP/type pinned, the Effect-first scanner catches
+  typed Promise member chains plus `Promise.allSettled`/`Promise.any`, and
+  stale starter docs now describe the 27-file manifest policy.
 - Review 85 extracted the internal Solid Route Render Scope Controller:
   `RouterOutlet` now delegates route branch rendering, route-owned `UiScope`
   creation, Solid root cleanup, runtime-bound route finalizers, transition
@@ -838,15 +845,15 @@ Latest full gate on May 16, 2026 after Review 139:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 139 closed the endpoint
-  runner, query seam, and audit-anchor tranche:
+- The latest full `pnpm verify` passed after Review 142 closed the runtime
+  locality and verification pin tranche:
   11 package builds, workspace typecheck, public type tests, public API
-  inventory audit, Effect-first audit over 248 files, 53 root test
-  files / 884 tests,
+  inventory audit, Effect-first audit over 249 files, 53 root test
+  files / 891 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,
-  project-console packaging/typecheck/tests/build with 4 files / 27 tests, and
-  leak scans.
+  project-console starter packaging with 27 files verified, project-console
+  typecheck, 4 project-console test files / 27 tests, build, and leak scans.
 - The previous full `pnpm verify` passed after Review 64 store-owned Resource
   load ownership, Start stream/manifest walls, DB hydration/dehydrate preflight,
   Devtools runtime-only causal facts, and panel row identity fixes: 9 package
@@ -934,7 +941,8 @@ Latest full gate on May 16, 2026 after Review 139:
 - The browser extension live bridge expects the inspected app to expose
   `globalThis.__EFFECT_UI_DEVTOOLS__`; automatic injection is not part of the
   checked shell.
-- The generated rich starter still uses pre-release `0.0.0-alpha.0`
-  `@effect-ui/*` package placeholders until package publication is finalized.
+- The generated rich starter rewrites workspace protocol dependencies from the
+  workspace package manifest versions; final public npm repository/license
+  decisions are still tracked separately from starter generation.
 - Cloudflare, Vercel, Netlify, Bun, and static deployment currently use recipes
   over Node/fetch facades rather than dedicated packages.

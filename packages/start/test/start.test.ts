@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { build } from "vite";
 import { describe, expect, it } from "vitest";
-import { Action, ActionResult, defineApp, EffectInputCallbackError, makeRuntime, read, Resource, RequestContext, ResponseContext, route, Route, RoutePreloadError, runWithRuntime, Server, ServerClient, ServerTransportError, type EffectUiRuntime } from "@effect-ui/core";
+import { Action, ActionResult, defaultRuntime, defineApp, EffectInputCallbackError, makeRuntime, read, Resource, RequestContext, ResponseContext, route, Route, RoutePreloadError, runWithRuntime, Server, ServerClient, ServerTransportError, type EffectUiRuntime } from "@effect-ui/core";
 import { Collection, CollectionSnapshotCodecError } from "@effect-ui/db";
 import type { DevtoolsRequestTrace } from "@effect-ui/devtools";
 import {
@@ -2955,6 +2955,76 @@ describe("Effect UI Start", () => {
       });
     } finally {
       await Effect.runPromise(clientRuntime.disposeEffect);
+    }
+  });
+
+  it("applies uncaptured StartAction response metadata to the caller runtime", async () => {
+    const ProjectSchema = Schema.Struct({
+      id: Schema.String,
+      name: Schema.String
+    });
+    let project = {
+      id: "atlas",
+      name: "Initial"
+    };
+    const Project = Resource.family({
+      name: "Start.action.client.caller-runtime",
+      input: Schema.String,
+      output: ProjectSchema,
+      load: () => Effect.succeed(project)
+    });
+    const RenameProject = Action.define<
+      { readonly id: string; readonly name: string },
+      typeof ProjectSchema.Type
+    >({
+      name: "Start.action.client.caller-runtime.rename",
+      input: Schema.Struct({ id: Schema.String, name: Schema.String }),
+      output: ProjectSchema,
+      run: ({ id, name }) =>
+        Effect.sync(() => {
+          project = { id, name };
+          return project;
+        }),
+      invalidates: (_project, input) => [Project(input.id)]
+    });
+    const app = defineApp({
+      routes: [route("/", {})] as const,
+      client: {}
+    });
+    const handler = createRequestHandler(app, {
+      actions: [RenameProject]
+    });
+    const runtime = makeRuntime();
+    const ref = Project("atlas");
+    const fetcher: StartFetch = (input, init) => {
+      const url = input instanceof Request
+        ? input.url
+        : new URL(String(input), "https://example.com").href;
+      return handler(new Request(url, init));
+    };
+    const action = StartAction.use(RenameProject, { fetch: fetcher });
+
+    try {
+      await runInRuntime(runtime, Resource.prefetchEffect(ref));
+      expect(runWithRuntime(defaultRuntime, () => Resource.status(ref)._tag)).toBe("Initial");
+
+      await expect(
+        runInRuntime(runtime, action.submitEffect({ id: "atlas", name: "Caller Runtime" }))
+      ).resolves.toMatchObject({
+        _tag: "Success",
+        value: {
+          id: "atlas",
+          name: "Caller Runtime"
+        }
+      });
+
+      expect(runWithRuntime(runtime, () => Resource.status(ref).value)).toEqual({
+        id: "atlas",
+        name: "Caller Runtime"
+      });
+      expect(runWithRuntime(defaultRuntime, () => Resource.status(ref)._tag)).toBe("Initial");
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
     }
   });
 

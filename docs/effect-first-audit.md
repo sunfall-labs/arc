@@ -1,6 +1,6 @@
 # Effect-First Audit
 
-Last updated: 2026-05-15.
+Last updated: 2026-05-16.
 
 This audit supports the charter rule: push async lifecycle, teardown, tracing,
 retry, streaming, and adapter work down into Effect primitives wherever
@@ -42,6 +42,10 @@ interruption.
     local seams with context matchers, so deleting an approved occurrence and
     adding a different same-pattern occurrence in the same file no longer
     preserves the audit.
+  - The Review 142 pass bans `Promise.allSettled(...)`, `Promise.any(...)`,
+    and typed Promise member chains such as `.then<T>(...)`, `.catch<T>(...)`,
+    and `.finally<T>(...)`, with self-tests proving those holes stay closed
+    while `Effect.catch<T>(...)` remains allowed.
 - `packages/start/src/start-fetch.ts` and `packages/start/src/file-route.ts`
   - Custom Start fetchers and file-route preload helpers now reject
     Promise-shaped erased JavaScript values before they cross deeper runtime
@@ -392,12 +396,15 @@ interruption.
 - Review 141 focused verification kept `pnpm audit:effect-first` green over 249
   files after moving Project Console demo state behind an Effect `Ref` service
   and expanding the starter packaging script's Effect-driven manifest checks.
+- Review 142 focused verification kept `pnpm audit:effect-first` green over 249
+  files after tightening the scanner for `Promise.allSettled`,
+  `Promise.any`, and typed Promise member chains.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The latest full gate is the Review 139 `pnpm verify` run: 11 package builds,
+- The latest full gate is the Review 142 `pnpm verify` run: 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 248 files, 53 root test files / 884 tests,
+  Effect-first audit over 249 files, 53 root test files / 891 tests,
   devtools-panel/devtools-extension/starter/project-console gates, and leak
   scans.
 - `pnpm exec vitest run packages/core/test/runtime.test.ts packages/start/test/start.test.ts`
@@ -1194,15 +1201,16 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The latest full `pnpm verify` passed after the Review 139 Endpoint Runner,
-  Query Seams, and Audit Anchors slice: 11 package builds, workspace typecheck,
-  type tests, public API inventory audit, Effect-first audit over 248
-  package/example/script/type-test files, 53 root test files / 884 tests,
+- The latest full `pnpm verify` passed after the Review 142 Runtime Locality
+  and Verification Pin Closure slice: 11 package builds, workspace
+  typecheck, type tests, public API inventory audit, Effect-first audit over 249
+  package/example/script/type-test files, 53 root test files / 891 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
   verify with 1 starter test file / 2 tests, React starter verify with 1
-  starter test file / 3 tests, project-console starter packaging, typecheck,
-  4 project-console test files / 27 tests, build, and leak scans. Review 75
+  starter test file / 3 tests, project-console starter packaging with 27 files
+  verified, typecheck, 4 project-console test files / 27 tests, build, and leak
+  scans. Review 75
   added the public API inventory audit to the full gate, Review 86 kept the
   scanner green over the expanded public type-test scope, Review 113 expanded
   the scanner to 226 files, Review 115 expanded it to 227 files, Review 116
@@ -1214,8 +1222,9 @@ interruption.
   expanded it to 245 files, Review 131 kept that 245-file scope green after
   hover-only public docs changes, Review 132 expanded it to 246 files while
   keeping the scope green, Review 133 kept that 246-file scope green, Review
-  139 expanded it to 248 files with exact seam anchors, and Review 140 expanded
-  it to 249 files with the Program Runtime Scheduler Module.
+  139 expanded it to 248 files with exact seam anchors, Review 140 expanded it
+  to 249 files with the Program Runtime Scheduler Module, and Review 142 kept
+  that 249-file scope green while tightening Promise member-pattern detection.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

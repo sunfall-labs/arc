@@ -1,6 +1,6 @@
 # Docs Drift Audit
 
-Last updated: 2026-05-15.
+Last updated: 2026-05-16.
 
 This audit checks release-tracking docs for claims that no longer match the
 implementation after the request trace, Effect-first, typed-error, package
@@ -73,8 +73,9 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     Review 136 exact Effect audit and public inventory drift, Review 137
     bidirectional public source surface audit, Review 138 Effect audit wording
     exactness, Review 139 endpoint runner, query seams, and audit anchors, and
-    Review 140 router history projection and Program runtime scheduling, and
-    Review 141 Project Console runtime store and starter manifest gate.
+    Review 140 router history projection and Program runtime scheduling,
+    Review 141 Project Console runtime store and starter manifest gate, and
+    Review 142 runtime locality and verification pin closure.
 
 ## Current Sweep Results
 
@@ -115,6 +116,13 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Recorded the Review139 Start Transport Endpoint Runner extraction, DB query
   validation seam cleanup, Collection Projection Callback Policy Module,
   non-vacuous public type-test references, and anchored Effect-first allowances.
+- Recorded Review142 docs drift fixes: release notes now include the checked
+  React starter path, starter copyability/checklist docs describe the exact
+  27-file project-console manifest, and generated starter dependency wording
+  points at workspace package manifest versions instead of old placeholders.
+- Updated current-facing verification snapshots after the Review142 full
+  `pnpm verify` gate: 53 root test files / 891 tests and the 249-file
+  Effect-first audit.
 - Updated the cleanup backlog so the generated artifact determinism audit points
   at the completed audit artifact instead of remaining unchecked.
 - Updated final handoff evidence to point at the latest full `pnpm verify`

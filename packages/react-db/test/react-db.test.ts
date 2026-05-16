@@ -1,7 +1,8 @@
 import { makeRuntime, type ReadableSignal } from "@effect-ui/core";
 import { Collection, type CollectionLoadState, type CollectionRuntimeError } from "@effect-ui/db";
+import { RuntimeProvider } from "@effect-ui/react";
 import { Window } from "happy-dom";
-import { Deferred, Effect } from "effect";
+import { Context, Deferred, Effect, Fiber, Layer } from "effect";
 import { act, createElement, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { describe, expect, it } from "vitest";
@@ -112,6 +113,20 @@ const makeDelayedCleanupRuntime = () => {
 };
 
 describe("react-db", () => {
+  interface ProjectApi {
+    readonly list: () => Effect.Effect<ReadonlyArray<Project>>;
+  }
+
+  const ProjectApi = Context.Service<ProjectApi>("@effect-ui/react-db/test/ProjectApi");
+
+  interface ProjectMutationApi {
+    readonly insert: (projects: ReadonlyArray<Project>) => Effect.Effect<void>;
+    readonly update: (projects: ReadonlyArray<{ readonly key: string; readonly value: Project }>) => Effect.Effect<void>;
+    readonly delete: (projects: ReadonlyArray<{ readonly key: string }>) => Effect.Effect<void>;
+  }
+
+  const ProjectMutationApi = Context.Service<ProjectMutationApi>("@effect-ui/react-db/test/ProjectMutationApi");
+
   it("adapts collections and live queries to React values", async () => {
     let projects: CollectionHandle<Project, string> | undefined;
     let activeNames: LiveQueryHandle<string> | undefined;
@@ -348,6 +363,248 @@ describe("react-db", () => {
       });
     } finally {
       await Effect.runPromise(delayed.disposeEffect);
+    }
+  });
+
+  it("binds returned collection and live-query Effects to the React runtime", async () => {
+    let handles: {
+      readonly projects: CollectionHandle<Project, string>;
+      readonly names: LiveQueryHandle<string>;
+    } | undefined;
+    let loads = 0;
+    const runtime = makeRuntime(
+      Layer.succeed(ProjectApi)({
+        list: () =>
+          Effect.sync(() => {
+            loads++;
+            return [
+              { id: "atlas", name: "Atlas", active: true },
+              { id: "lumen", name: "Lumen", active: true }
+            ];
+          })
+      })
+    );
+    const Projects = Collection.define<Project, string, never, ProjectApi>({
+      name: "ReactDb.runtime-bound-effects.projects",
+      getKey: (project) => project.id,
+      load: () => ProjectApi.use((api) => api.list())
+    });
+
+    function Capture() {
+      handles = {
+        projects: useCollection(Projects, { preload: false }),
+        names: useLiveQuery((query) =>
+          query
+            .from({ project: Projects })
+            .select(({ project }) => project.name)
+            .orderBy(({ project }) => project.name),
+          { preload: false }
+        )
+      };
+      return null;
+    }
+
+    try {
+      await withReactRoot(async (root) => {
+        await act(async () => {
+          root.render(
+            createElement(
+              RuntimeProvider,
+              { runtime },
+              createElement(Capture)
+            )
+          );
+        });
+
+        await act(async () => {
+          await Effect.runPromise(handles!.projects.preloadEffect());
+          await Effect.runPromise(handles!.names.refetchEffect());
+        });
+        await flushReact();
+
+        expect(loads).toBe(2);
+        expect(handles!.projects.rows.map((project) => project.name)).toEqual(["Atlas", "Lumen"]);
+        expect(handles!.names.data).toEqual(["Atlas", "Lumen"]);
+      });
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("adapts collection mutations and pending mutations to the React runtime", async () => {
+    let projects: CollectionHandle<Project, string> | undefined;
+    const releaseInsert = Effect.runSync(Deferred.make<void>());
+    const calls: Array<string> = [];
+    const runtime = makeRuntime(
+      Layer.succeed(ProjectMutationApi)({
+        insert: (inserted) =>
+          Effect.sync(() => {
+            calls.push(`insert:${inserted.map((project) => project.id).join(",")}`);
+          }).pipe(Effect.andThen(Deferred.await(releaseInsert))),
+        update: (updated) =>
+          Effect.sync(() => {
+            calls.push(`update:${updated.map((project) => project.key).join(",")}`);
+          }),
+        delete: (deleted) =>
+          Effect.sync(() => {
+            calls.push(`delete:${deleted.map((project) => project.key).join(",")}`);
+          })
+      })
+    );
+    const Projects = Collection.define<Project, string, never, ProjectMutationApi>({
+      name: "ReactDb.collection-adapter.projects",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", active: true }
+      ],
+      onInsert: (inserted) => ProjectMutationApi.use((api) => api.insert(inserted)),
+      onUpdate: (updated) => ProjectMutationApi.use((api) => api.update(updated)),
+      onDelete: (deleted) => ProjectMutationApi.use((api) => api.delete(deleted))
+    });
+
+    function Capture() {
+      projects = useCollection(Projects, { preload: false });
+      return null;
+    }
+
+    try {
+      await withReactRoot(async (root) => {
+        await act(async () => {
+          root.render(
+            createElement(
+              RuntimeProvider,
+              { runtime },
+              createElement(Capture)
+            )
+          );
+        });
+
+        const insert = await act(async () => {
+          const fiber = Effect.runFork(projects!.insertEffect({
+            id: "lumen",
+            name: "Lumen",
+            active: false
+          }));
+          await Effect.runPromise(Effect.sleep(0));
+          return fiber;
+        });
+
+        expect(projects!.pendingMutations).toHaveLength(1);
+        expect(projects!.rows.map((project) => project.id)).toEqual(["atlas", "lumen"]);
+
+        await act(async () => {
+          Effect.runSync(Deferred.succeed(releaseInsert, undefined));
+          await Effect.runPromise(Fiber.join(insert));
+        });
+        await flushReact();
+
+        expect(projects!.pendingMutations).toEqual([]);
+
+        await act(async () => {
+          await Effect.runPromise(projects!.updateEffect("atlas", { name: "Atlas Prime" }));
+          await Effect.runPromise(projects!.deleteEffect("lumen"));
+          await Effect.runPromise(projects!.writeInsertEffect({ id: "orion", name: "Orion", active: true }));
+          await Effect.runPromise(projects!.writeUpdateEffect("orion", { active: false }));
+          await Effect.runPromise(projects!.writeDeleteEffect("orion"));
+          await expect(Effect.runPromise(projects!.flushPendingMutationsEffect())).resolves.toEqual([]);
+        });
+        await flushReact();
+
+        expect(calls).toEqual(["insert:lumen", "update:atlas", "delete:lumen"]);
+        expect(projects!.rows.map((project) => project.name)).toEqual(["Atlas Prime"]);
+      });
+    } finally {
+      Effect.runSync(Deferred.succeed(releaseInsert, undefined));
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("subscribes live query collections inside the explicit React runtime", async () => {
+    let cards: CollectionHandle<Project, string> | undefined;
+    const firstRuntime = makeRuntime();
+    const secondRuntime = makeRuntime();
+    let notifications = 0;
+    const Projects = Collection.define<Project>({
+      name: "ReactDb.live-query-collection-runtime.projects",
+      getKey: (project) => project.id
+    });
+    const ProjectCards = Collection.liveQuery<Project, string>({
+      name: "ReactDb.live-query-collection-runtime.cards",
+      getKey: (project) => project.id,
+      query: (query) =>
+        query
+          .from({ project: Projects })
+          .select(({ project }) => project)
+    });
+    const trackSignalNotifications = <A>(signal: ReadableSignal<A>): ReadableSignal<A> => ({
+      ...signal,
+      get: () => signal.get(),
+      subscribe: (listener) =>
+        signal.subscribe(() => {
+          notifications++;
+          listener();
+        })
+    });
+    const originalVersion = ProjectCards.version;
+    const originalState = ProjectCards.state;
+    ProjectCards.version = () => trackSignalNotifications(originalVersion());
+    ProjectCards.state = () => trackSignalNotifications(originalState());
+
+    function Capture() {
+      cards = useCollection(ProjectCards, { preload: false });
+      return null;
+    }
+
+    try {
+      await Effect.runPromise(firstRuntime.provide(Projects.writeInsertEffect({
+        id: "atlas",
+        name: "Atlas",
+        active: true
+      })));
+      await Effect.runPromise(secondRuntime.provide(Projects.writeInsertEffect({
+        id: "lumen",
+        name: "Lumen",
+        active: true
+      })));
+
+      await withReactRoot(async (root) => {
+        await act(async () => {
+          root.render(
+            createElement(
+              RuntimeProvider,
+              { runtime: firstRuntime },
+              createElement(Capture)
+            )
+          );
+        });
+        await flushReact();
+
+        expect(cards!.rows.map((project) => project.name)).toEqual(["Atlas"]);
+        notifications = 0;
+
+        await act(async () => {
+          await Effect.runPromise(secondRuntime.provide(
+            Projects.writeUpdateEffect("lumen", { name: "Lumen Prime" })
+          ));
+        });
+        await flushReact();
+
+        expect(notifications).toBe(0);
+        expect(cards!.rows.map((project) => project.name)).toEqual(["Atlas"]);
+
+        await act(async () => {
+          await Effect.runPromise(firstRuntime.provide(
+            Projects.writeUpdateEffect("atlas", { name: "Atlas Prime" })
+          ));
+        });
+        await flushReact();
+
+        expect(notifications).toBeGreaterThan(0);
+        expect(cards!.rows.map((project) => project.name)).toEqual(["Atlas Prime"]);
+      });
+    } finally {
+      await Effect.runPromise(firstRuntime.disposeEffect);
+      await Effect.runPromise(secondRuntime.disposeEffect);
     }
   });
 

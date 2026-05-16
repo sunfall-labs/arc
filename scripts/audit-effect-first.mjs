@@ -190,11 +190,13 @@ const isEffectStaticMemberAccess = (line, memberIndex) =>
 const banned = [
   { pattern: new RegExp("\\b" + "async\\b", "g"), name: "async function syntax" },
   { pattern: new RegExp("Promise" + "\\.all\\b", "g"), name: ["Promise", "all"].join(".") },
+  { pattern: new RegExp("Promise" + "\\.allSettled\\b", "g"), name: ["Promise", "allSettled"].join(".") },
+  { pattern: new RegExp("Promise" + "\\.any\\b", "g"), name: ["Promise", "any"].join(".") },
   { pattern: new RegExp("Promise" + "\\.race\\b", "g"), name: ["Promise", "race"].join(".") },
   { pattern: new RegExp("Promise" + "\\.resolve\\b", "g"), name: ["Promise", "resolve"].join(".") },
   { pattern: new RegExp("Promise" + "\\.reject\\b", "g"), name: ["Promise", "reject"].join(".") },
   { pattern: new RegExp("new\\s+" + "Promise\\b", "g"), name: ["new", "Promise"].join(" ") },
-  { pattern: new RegExp("\\." + "then\\s*\\(", "g"), name: "." + "then(...)" },
+  { pattern: new RegExp("\\." + "then\\s*(?:<[^>]+>\\s*)?\\(", "g"), name: "." + "then(...)" },
   {
     pattern: /(?<!\.)\bawait\b/g,
     name: "await keyword",
@@ -203,11 +205,11 @@ const banned = [
     ]
   },
   {
-    pattern: new RegExp("\\." + "catch\\s*\\(", "g"),
+    pattern: new RegExp("\\." + "catch\\s*(?:<[^>]+>\\s*)?\\(", "g"),
     name: "non-Effect ." + "catch(...)",
     allow: isEffectStaticMemberAccess
   },
-  { pattern: new RegExp("\\." + "finally\\s*\\(", "g"), name: "." + "finally(...)" }
+  { pattern: new RegExp("\\." + "finally\\s*(?:<[^>]+>\\s*)?\\(", "g"), name: "." + "finally(...)" }
 ];
 
 const codeLines = (source) => {
@@ -357,9 +359,15 @@ const assertBannedPattern = (checkName, source, expectedMatches) => {
 assertAuditPattern("Promise return type", "const value: Promise <string> = promised;", 1);
 assertAuditPattern("Promise return type", "const value: Promise\n<string> = promised;", 1);
 assertAuditPattern("PromiseLike return type", ") => void | PromiseLike <string>;", 1);
+assertBannedPattern("Promise.allSettled", "Promise.allSettled([]);", 1);
+assertBannedPattern("Promise.any", "Promise.any([]);", 1);
+assertBannedPattern(".then(...)", "client.then<string>(() => undefined);", 1);
 assertBannedPattern("non-Effect .catch(...)", "Effect.catch(() => Effect.void);", 0);
+assertBannedPattern("non-Effect .catch(...)", "Effect.catch<Error>(() => Effect.void);", 0);
 assertBannedPattern("non-Effect .catch(...)", "client.catch(() => undefined);", 1);
+assertBannedPattern("non-Effect .catch(...)", "client.catch<Error>(() => undefined);", 1);
 assertBannedPattern("non-Effect .catch(...)", codeLines("`${client.catch(() => undefined)}`;")[0], 1);
+assertBannedPattern(".finally(...)", "client.finally<void>(() => undefined);", 1);
 assertBannedPattern("async function syntax", "async function run() {}", 1);
 assertBannedPattern("await keyword", "await run();", 1);
 assertBannedPattern("await keyword", "Deferred.await(done);", 0);

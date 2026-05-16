@@ -1,6 +1,6 @@
 import {
   ActionInterrupted,
-  currentOrDefaultRuntime,
+  getCurrentRuntime,
   makeActionSubmissionController,
   Server,
   Signal,
@@ -247,8 +247,8 @@ export namespace StartAction {
     definition: D,
     options: StartActionClientOptions<FetchError, FetchRequirements, RuntimeError> = {}
   ): Instance<D, RuntimeError, FetchRequirements> {
-    const runtime =
-      options.runtime ?? (currentOrDefaultRuntime() as AnyEffectUiRuntime<RuntimeError>);
+    const ambientRuntime = getCurrentRuntime() as AnyEffectUiRuntime<RuntimeError> | undefined;
+    const responseRuntime = options.runtime ?? ambientRuntime;
     const transportRuntime = options.transportRuntime ?? options.runtime;
     const hydration = Signal.make<StartHydrationPayload | undefined>(undefined);
     const submissions = makeActionSubmissionController<
@@ -283,7 +283,7 @@ export namespace StartAction {
         if (submissions.acceptsStateUpdate(submission)) {
           yield* applyStartActionResponseEffect(submitted.response, {
             ...options,
-            runtime
+            ...(responseRuntime === undefined ? {} : { runtime: responseRuntime })
           });
         }
 

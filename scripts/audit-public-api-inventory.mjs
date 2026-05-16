@@ -91,6 +91,17 @@ const publicHoverDocs = [
     ]
   },
   {
+    file: "packages/core/src/browser-router.ts",
+    declarations: [
+      "BrowserHistoryAdapter",
+      "MemoryBrowserHistoryAdapter",
+      "BrowserRouterHostController",
+      "makeWindowBrowserHistoryAdapter",
+      "makeMemoryBrowserHistoryAdapter",
+      "createBrowserRouterHostController"
+    ]
+  },
+  {
     file: "packages/start/src/agent-graph.ts",
     declarations: [
       "createStartAgentGraph",

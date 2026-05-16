@@ -790,16 +790,16 @@ Last evidence pass: May 16, 2026.
   - Evidence: no new ADR required for the Start Action Response Codec
     extraction.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 139
-    Endpoint Runner, Query Seams, and Audit Anchors slice: 11 package builds,
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 142
+    runtime locality and verification pin closure slice: 11 package builds,
     workspace typecheck, type tests, public API inventory audit, Effect-first
-    audit over 248 files, 53 root test files / 884 tests,
+    audit over 249 files, 53 root test files / 891 tests,
     devtools-panel verify with 1 panel test file / 2 tests, devtools-extension
     verify with 1 extension test file / 20 tests, basic starter verify with 1
     starter test file / 2 tests, React starter verify with 1 starter test file
-    / 3 tests, project-console starter packaging, project-console typecheck, 4
-    project-console test files / 27 tests, project-console build, and leak
-    scans.
+    / 3 tests, project-console starter packaging with 27 files verified,
+    project-console typecheck, 4 project-console test files / 27 tests,
+    project-console build, and leak scans.
 - [x] Latest focused post-verify sweep recorded.
   - Evidence: Review 140 records focused Core, React, Solid, public API,
     Effect-first, type-test, and whitespace verification after the fresh
@@ -823,9 +823,9 @@ Last evidence pass: May 16, 2026.
 - [x] Add richer starter packaging for the project console.
   - Evidence: `scripts/package-project-console-starter.mjs` generates
     `.test-dist/starters/project-console`, rewrites workspace protocol
-    dependencies to pre-release package placeholders, removes monorepo Vite
-    aliases, writes a standalone `tsconfig.json`, and verifies the starter
-    payload through `pnpm starter:project-console:package`.
+    dependencies from workspace package manifest versions, removes monorepo
+    Vite aliases, writes a standalone `tsconfig.json`, and verifies the exact
+    27-file starter payload through `pnpm starter:project-console:package`.
 - [ ] Add broader host-specific adapter packages when real host behavior is
   needed beyond the generic Node/fetch facades.
   - Evidence: current Node/fetch deployment guidance exists in
