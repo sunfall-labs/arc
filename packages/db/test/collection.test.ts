@@ -4821,6 +4821,46 @@ describe("Query", () => {
     ]);
   });
 
+  it("normalizes indexed join index selector throws as join evaluation errors", async () => {
+    const Projects = Collection.define<Project>({
+      name: "Projects.indexed-join-selector-error",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+      ]
+    });
+    const Tasks = Collection.define<Task>({
+      name: "Tasks.indexed-join-selector-error",
+      getKey: (task) => task.id,
+      indexes: {
+        byProject: () => {
+          throw "index failed";
+        }
+      },
+      initialData: [
+        { id: "t1", projectId: "atlas", title: "Retry workflow", done: false }
+      ]
+    });
+    const factory = (query: Query.Root) =>
+      query
+        .from({ project: Projects })
+        .joinIndexed("task", Tasks, ({ project }) => project.id, "byProject")
+        .select(({ project, task }) => `${project.name}:${task.title}`);
+
+    expect(() => Query.diagnostics(factory)).toThrow(QueryEvaluationError);
+
+    const onceExit = await Effect.runPromiseExit(Query.onceEffect(factory));
+    expect(Exit.isFailure(onceExit)).toBe(true);
+    if (Exit.isFailure(onceExit)) {
+      const error = onceExit.cause.reasons.find(Cause.isFailReason)?.error;
+      expect(error).toBeInstanceOf(QueryEvaluationError);
+      expect(error).toMatchObject({
+        operation: "join",
+        cause: "index failed"
+      });
+    }
+  });
+
   it("rejects indexed joins that name an undeclared collection index before live preload loads sources", async () => {
     const projectLoad = vi.fn(() =>
       Effect.succeed<ReadonlyArray<Project>>([

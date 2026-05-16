@@ -575,6 +575,11 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   undefined-previous Resource state, root Resource Store export hygiene, typed
   Start fetch invalid-return failures, root Start adapter type pins, clean
   package builds, and generated starter `.gitignore`/post-verify cleanup.
+- Added Review 148 evidence for opaque public Resource Store diagnostics,
+  `ResourcePending`/`ResourceFailure.hasPrevious` LSP hovers, indexed join
+  error-operation locality, React/Solid DB adapter wording, Promise static
+  extraction guardrails, Start virtual declaration-map cleanup, and devtools
+  example `.gitignore` package hygiene.
 - Left older checkpoint counts in place only where they explicitly describe
   historical evidence from that checkpoint; current verification counts are
   recorded in the verification gate and progress ledger.

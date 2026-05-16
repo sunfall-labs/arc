@@ -55,12 +55,15 @@ import {
   type MemoryBrowserHistoryAdapter,
   type ParamsForPath,
   type ResourceSnapshotCodecOperation,
+  type ResourceStore,
   type UiScope
 } from "@effect-ui/core";
 // @ts-expect-error MutableResourceStore is an internal store implementation, not a root export.
 import type { MutableResourceStore } from "@effect-ui/core";
 // @ts-expect-error unsafeMutableResourceStore is an internal store implementation escape hatch, not a root export.
 import { unsafeMutableResourceStore } from "@effect-ui/core";
+// @ts-expect-error makeMutableResourceStore is an internal store constructor, not a root export.
+import { makeMutableResourceStore } from "@effect-ui/core";
 import {
   Collection,
   CollectionRowKeyChanged,
@@ -1320,6 +1323,7 @@ const resourceDefinitionDiagnostics = resourceDefinitionRegistry.diagnostics();
 const resourceDefinitionDuplicatePolicy: "keep-first" | "replace" =
   resourceDefinitionDiagnostics.duplicates[0]?.policy ?? "replace";
 const adapterResourceStore = makeResourceStore();
+const typedAdapterResourceStore: ResourceStore = adapterResourceStore;
 adapterResourceStore.moduleRegistry.register(Symbol("adapter-module"), {
   disposeEffect: Effect.void
 });
@@ -1357,6 +1361,7 @@ void resourceDefinitionDiagnostics;
 void resourceDefinitionDuplicatePolicy;
 void adapterResourceStoreModuleCount;
 void adapterResourceStoreEventBusShutdown;
+void typedAdapterResourceStore;
 void validatedResourceSnapshotsEffect;
 
 Resource.prefetchEffect(ProjectById("atlas"));
@@ -1373,22 +1378,28 @@ const projectResourcePending = new ResourcePending({
   ref: ProjectById("atlas"),
   state: "Pending",
   previous: undefined as Project | undefined,
+  hasPrevious: true,
   guidance: "Preload before reading."
 });
 const projectResourcePendingState: "Initial" | "Pending" | "Collected" = projectResourcePending.state;
 const projectResourcePendingPrevious: Project | undefined = projectResourcePending.previous;
+const projectResourcePendingHasPrevious: boolean = projectResourcePending.hasPrevious;
 const projectResourceFailure = new ResourceFailure({
   ref: ProjectById("atlas"),
   error: { _tag: "ProjectError", message: "not found" } as ProjectError | Server.ClientError,
-  previous: undefined as Project | undefined
+  previous: undefined as Project | undefined,
+  hasPrevious: true
 });
 const projectResourceFailureError: ProjectError | Server.ClientError = projectResourceFailure.error;
+const projectResourceFailureHasPrevious: boolean = projectResourceFailure.hasPrevious;
 void projectRead;
 void projectReadViaHelper;
 void projectSuspenseRead;
 void projectResourcePendingState;
 void projectResourcePendingPrevious;
+void projectResourcePendingHasPrevious;
 void projectResourceFailureError;
+void projectResourceFailureHasPrevious;
 void deleteProjectEffect;
 
 Resource.family<string, Project>({

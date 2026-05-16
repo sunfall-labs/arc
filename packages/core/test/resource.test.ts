@@ -774,6 +774,15 @@ describe("Resource", () => {
       hasPrevious: true
     });
     expect("previous" in failed.state).toBe(true);
+
+    try {
+      read(ref);
+      expect.fail("expected ResourceFailure");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ResourceFailure);
+      expect((error as ResourceFailure<void, undefined, Error>).previous).toBeUndefined();
+      expect((error as ResourceFailure<void, undefined, Error>).hasPrevious).toBe(true);
+    }
   });
 
   it("dedupes Effect prefetch through one in-flight fiber", async () => {

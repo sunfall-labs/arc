@@ -109,7 +109,8 @@ without choosing between correctness, inspectability, and ergonomics.
   differential-dataflow / incremental-view-maintenance engine.
 - Grouped aggregate ordering plus `limit` / `offset` windows are maintained
   inside the D2 graph.
-- `@effect-ui/solid-db` adapts collections and live queries to Solid accessors.
+- `@effect-ui/react-db` and `@effect-ui/solid-db` adapt collections and live
+  queries to framework-local state/accessors.
 
 ## Query Engine Shape
 
@@ -714,8 +715,8 @@ Explicit `collections` are still supported as a hydration registry and override.
 They are always dehydrated, even when a route preload does not touch them.
 Live query preload and refetch validate the query plan before source collection
 loads run. Invalid aliases, indexes, or unsupported plan shapes fail with
-`QueryEvaluationError`, and Solid DB automatic preload records that failure
-without causing source side effects.
+`QueryEvaluationError`, and React DB / Solid DB automatic preload records that
+failure without causing source side effects.
 Matched routes can also declare concrete Collection Definitions with
 `preloadCollections`; concrete definitions need no lookup. String declarations
 must resolve through the request/app-local `collections`, `collectionRegistry`,

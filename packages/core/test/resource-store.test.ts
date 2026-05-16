@@ -4,7 +4,8 @@ import {
   disposeResourceStoreEffect,
   makeResourceStore,
   makeRuntime,
-  Resource
+  Resource,
+  ResourceStoreTypeId
 } from "../src/index.js";
 
 describe("Resource Store disposal", () => {
@@ -77,6 +78,64 @@ describe("Resource Store disposal", () => {
         expect(snapshot).not.toHaveProperty("families");
         expect(snapshot).not.toHaveProperty("tagIndex");
       }).pipe(Effect.ensuring(runtime.disposeEffect))
+    );
+  });
+
+  it("ignores deletes for refs that were never present in the store", () => {
+    const runtime = makeRuntime();
+    const Project = Resource.family({
+      name: "ResourceStore.delete-absent",
+      load: (id: string) => Effect.succeed({ id })
+    });
+    const ref = Project("atlas");
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const before = yield* runtime.resourceStore.diagnostics.snapshotEffect;
+        yield* runtime.provide(Resource.deleteEffect(ref));
+        const after = yield* runtime.resourceStore.diagnostics.snapshotEffect;
+        expect(after).toEqual(before);
+      }).pipe(Effect.ensuring(runtime.disposeEffect))
+    );
+  });
+
+  it("rejects structural ResourceStore adapters instead of raw mutable-map failures", () => {
+    const runtime = makeRuntime();
+    const store = makeResourceStore();
+    const fakeStore = {
+      [ResourceStoreTypeId]: ResourceStoreTypeId,
+      eventBus: store.eventBus,
+      moduleRegistry: store.moduleRegistry,
+      fiberRegistry: store.fiberRegistry,
+      diagnostics: store.diagnostics
+    };
+    const Project = Resource.family({
+      name: "ResourceStore.fake-adapter",
+      load: (id: string) => Effect.succeed({ id })
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* Effect.try({
+          try: () =>
+            runtime.provide(Resource.prefetchEffect(Project("atlas")), {
+              // @ts-expect-error structural ResourceStore adapters are intentionally rejected at runtime.
+              resourceStore: fakeStore
+            }),
+          catch: (error) => error
+        }).pipe(
+          Effect.match({
+            onFailure: (error) =>
+              expect(error).toMatchObject({
+                _tag: "InvalidResourceStore"
+              }),
+            onSuccess: () => expect.fail("expected fake ResourceStore to be rejected")
+          })
+        );
+      }).pipe(
+        Effect.ensuring(disposeResourceStoreEffect(store)),
+        Effect.ensuring(runtime.disposeEffect)
+      )
     );
   });
 

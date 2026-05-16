@@ -56,6 +56,10 @@ interruption.
   - The Review 145 pass added example Vite configs to scope and catches
     parenthesized/extracted Promise choreography such as `(Promise.all)(...)`,
     `(client.then)(...)`, and `client.then.call(...)`.
+  - The Review 148 pass catches Promise static extraction through assignments
+    and destructuring, including aliased destructuring such as
+    `const { all: promiseAll } = Promise`, so extracted combinators cannot
+    bypass the Effect-first guardrail.
 - `packages/start/src/start-fetch.ts` and `packages/start/src/file-route.ts`
   - Custom Start fetchers and file-route preload helpers now reject
     Promise-shaped erased JavaScript values before they cross deeper runtime
@@ -430,12 +434,15 @@ interruption.
   files after replacing the remaining Start fetch raw invalid-return throw with
   a typed Effect failure and replacing raw audit self-test throws with explicit
   process-failure reporting.
+- Review 148 focused verification kept `pnpm audit:effect-first` green over 258
+  files after adding Promise static extraction bans for direct assignment,
+  bracket assignment, destructuring, and aliased destructuring.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The latest full gate is the Review 147 `pnpm verify` run: 11 package builds,
+- The latest full gate is the Review 148 `pnpm verify` run: 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 258 files, 53 root test files / 897 tests,
+  Effect-first audit over 258 files, 53 root test files / 900 tests,
   devtools-panel/devtools-extension/starter-suite/project-console gates, and
   leak scans.
 - `pnpm exec vitest run packages/core/test/runtime.test.ts packages/start/test/start.test.ts`
@@ -1232,11 +1239,11 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The latest full `pnpm verify` passed after the Review 147 Resource Runtime
-  Cleanup and Starter Package Hygiene slice: 11 package builds,
+- The latest full `pnpm verify` passed after the Review 148 Resource Store
+  Opacity and Effect Guardrail Hardening slice: 11 package builds,
   workspace typecheck, type tests, public API inventory audit, Effect-first
   audit over 258 package/example/config/script/type-test files, 53 root test
-  files / 897 tests,
+  files / 900 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
   verify with 1 starter test file / 2 tests, React starter verify with 1
@@ -1261,8 +1268,9 @@ interruption.
   bracket/multiline Promise detection, and Review 144 expanded it to 250 files
   by adding package-source declaration files while catching optional Promise
   calls and structural thenable type surfaces, and Review 145 expanded it to
-  255 files by adding example Vite configs while catching parenthesized and
-  extracted Promise choreography.
+  255 files by adding example Vite configs while catching parenthesized
+  Promise choreography, and Review 148 kept the 258-file scope green while
+  catching Promise static extraction through assignment and destructuring.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

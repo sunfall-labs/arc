@@ -11,9 +11,73 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 147, immediately after Review 146. Some older review
+The newest review is Review 148, immediately after Review 147. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 148: Resource Store Opacity, Query Error Locality, And Audit Guardrails
+
+Status: fixed for the fresh post-Review147 runtime-spine, DB, docs/LSP,
+Effect-first guardrail, and starter/devtools sweeps. Focused and full
+verification are green. Fresh post-fix sweeps still need to run before the
+clean-sweep counter can start.
+
+- Public Resource Store opacity: `ResourceStore` remains an expert-public
+  diagnostic Interface, but now carries an internal implementation marker so
+  structural external Adapters cannot masquerade as the mutable store
+  Implementation. `EffectUiRuntime.provide(..., { resourceStore })` rejects
+  fake structural stores with a typed `InvalidResourceStore` defect instead of
+  drifting into raw mutable-map failures. Type tests pin that mutable store
+  constructors and unsafe accessors stay out of the root public surface.
+- Resource deletion no-op locality: `Resource.deleteEffect(ref)` now peeks at
+  existing Resource Store entries, inputs, and tag facts before mutating. A
+  never-present ref leaves diagnostics unchanged and does not create empty
+  family maps or publish misleading deletion events.
+- Resource previous-value read contract: `ResourcePending` and
+  `ResourceFailure` now expose `hasPrevious` separately from `previous`, so a
+  successful `undefined` value remains distinguishable from no previous value in
+  synchronous render reads and LSP hovers.
+- DB query error locality: indexed join probes now run inside the Query
+  Evaluation Module's `join` operation wrapper. `Query.diagnostics(...)` and
+  `Query.onceEffect(...)` report selector failures as `QueryEvaluationError`
+  values with `operation: "join"` instead of surfacing raw selector throws or
+  misclassifying them as whole-plan evaluation failures.
+- React/Solid DB docs drift: DB docs now name both `@effect-ui/react-db` and
+  `@effect-ui/solid-db` as framework-local collection/live-query Adapters and
+  describe automatic preload failure recording for both packages.
+- Effect-first guardrail depth: the audit now rejects Promise static extraction
+  through direct assignments and destructuring, including aliased destructuring
+  such as `const { all: promiseAll } = Promise`, so Promise combinators cannot
+  be smuggled past member-call scans.
+- Public API inventory drift: the Core Source Surface docs and audit now agree
+  that `resource-store` is selected from the root barrel rather than
+  star-exported, preserving the public diagnostic Interface without exposing
+  mutable internals.
+- Starter/devtools package hygiene: `@effect-ui/start` removes the stale
+  `dist/virtual.d.ts.map` after replacing the built virtual declaration with
+  `src/virtual-modules.d.ts`, generated starters prove that stale map is absent,
+  and devtools panel/extension examples now package local `.gitignore` files
+  while their dry-runs stay source-only.
+
+Focused verification passed: Core/DB/project-console typechecks, public type
+tests, public API audit, Effect-first audit over 258 files, Core Resource/
+ResourceStore/runtime plus DB collection tests 4 files / 179 tests, Start clean
+build with no stale `virtual.d.ts.map`, generated starter-suite packaging/
+verifies for basic (19 app files / 5 local packages), React (24 app files /
+4 local packages), and project-console (30 app files / 6 local packages),
+devtools panel/extension verifies and package dry-runs including `.gitignore`,
+generated-output cleanup checks, raw throw/subclass grep, direct Promise
+fixture grep, and broad `as any`/`@ts-ignore` grep.
+
+Full `pnpm verify` passed after Review 148: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 258 files, 53 root test files / 900 tests, devtools-panel verify with
+2 tests, devtools-extension verify with 20 tests, basic starter verify with
+2 tests, React starter verify with 3 tests, generated starter-suite packaging/
+verifies for basic (19 app files / 5 local packages), React (24 app files /
+4 local packages), and project-console (30 app files / 6 local packages),
+project-console typecheck, 4 project-console test files / 27 tests,
+project-console build, and leak scan.
 
 ## Review 147: Resource Runtime Cleanup And Starter Package Hygiene
 
@@ -35,7 +99,8 @@ the clean-sweep counter has not started.
 - Public Resource Store surface: the Core root barrel now explicitly exports
   supported Resource Store Interfaces and constructors instead of wildcard
   re-exporting mutable internals. Type tests reject root imports of
-  `MutableResourceStore` and `unsafeMutableResourceStore(...)`.
+  `MutableResourceStore`, `makeMutableResourceStore(...)`, and
+  `unsafeMutableResourceStore(...)`.
 - Start fetch guardrail: invalid custom Start fetch hooks now fail with a typed
   `Data.TaggedError` value mapped into `ServerTransportError`, avoiding a raw
   `TypeError` throw inside package source while preserving the Effect-first

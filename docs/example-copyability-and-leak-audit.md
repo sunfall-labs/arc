@@ -35,6 +35,14 @@ copied as starters and whether browser/server boundaries remain explicit.
 - Workspace package builds clean both `dist` and `.tsbuildinfo` before
   compiling, and starter packaging rejects copied local package `dist` files
   that no longer have a source module.
+- The Start package build removes the stale `dist/virtual.d.ts.map` after
+  copying `src/virtual-modules.d.ts` over `dist/virtual.d.ts`, so generated
+  starters do not ship a declaration map pointing at the wrong virtual-module
+  implementation.
+- Devtools panel and extension examples now carry package-local `.gitignore`
+  files and include them in their package allowlists, keeping copied shells
+  source-only while excluding `node_modules`, `dist`, `.test-dist`, build info,
+  and local metadata.
 
 ## Verification Evidence
 
@@ -60,7 +68,13 @@ copied as starters and whether browser/server boundaries remain explicit.
   `pnpm --filter @effect-ui/example-project-console pack --dry-run`,
   `pnpm --filter @effect-ui/example-devtools-panel pack --dry-run`, and
   `pnpm --filter @effect-ui/example-devtools-extension pack --dry-run` showed
-  only source/config/README assets, with no `dist` or `.test-dist` artifacts.
+  only source/config/README assets and local `.gitignore` files where
+  applicable, with no `dist` or `.test-dist` artifacts.
+- `pnpm --filter @effect-ui/start build` passed and
+  `test ! -e packages/start/dist/virtual.d.ts.map` confirmed the replacement
+  virtual declaration no longer leaves a stale source map.
+- `pnpm starter:package` passed and generated starter checks confirmed no
+  copied `@effect-ui/start` package contains `dist/virtual.d.ts.map`.
 - `find .test-dist/starters -maxdepth 2 \( -name node_modules -o -name dist
   -o -name pnpm-lock.yaml -o -name .test-dist \) -print` returned no output,
   and `find .test-dist/starters -maxdepth 2 -name .gitignore -print` listed all

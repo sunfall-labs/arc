@@ -65,7 +65,7 @@ coverage.
 
 ### `@effect-ui/core`
 
-The root export star-exports these modules:
+The root export re-exports these local modules:
 
 - `action`, `action-result`, `action-submission`, `app`, `capability`
 - `browser-router`, `definition-registry`, `effect-like`, `form`, `program`, `read`,
@@ -73,6 +73,10 @@ The root export star-exports these modules:
 - `resource`, `resource-registry`, `resource-snapshot-codec`,
   `resource-store`, `resource-ui-binding`, `route`, `route-grammar`
 - `runtime`, `scope`, `server`, `signal`, `stable-stringify`
+
+`resource-store` is intentionally selected rather than star-exported so the
+public root exposes `ResourceStore`, `makeResourceStore(...)`, diagnostics, and
+event/fiber/module seams without exposing mutable cache internals.
 
 Golden-path public groups:
 
@@ -119,11 +123,12 @@ Release decisions:
   adding Promise runners to the Runtime Spine.
 - `ResourceStore` is an expert-public runtime diagnostic Interface. Use its
   `eventBus`, `moduleRegistry`, `fiberRegistry`, and `diagnostics` seams for
-  tests, adapters, and devtools-style inspection. Raw entry, input, cache,
-  module, tag index, event queue, and fiber collections are intentionally
-  internal implementation state; the Core root barrel intentionally does not
-  export `MutableResourceStore`, `makeMutableResourceStore(...)`, or
-  `unsafeMutableResourceStore(...)`.
+  tests, adapters, and devtools-style inspection. It is intentionally opaque to
+  external structural Adapters; construct stores with `makeResourceStore(...)`
+  instead of object literals. Raw entry, input, cache, module, tag index, event
+  queue, and fiber collections are intentionally internal implementation state;
+  the Core root barrel intentionally does not export `MutableResourceStore`,
+  `makeMutableResourceStore(...)`, or `unsafeMutableResourceStore(...)`.
 - `Route.preloadEffect(...)`, `Route.planPreloadEffect(...)`, and
   `Route.planNavigationEffect(...)` preserve the service requirements declared
   by route preload Effects. Planning Effects also expose

@@ -34,6 +34,12 @@ are easiest to regress while refactoring internals toward Effect primitives.
   dehydrate failures in typed error channels, and Review 68 keeps the
   `Resource.readEffect(...)` public type pinned while runtime tests prove it
   participates in Resource touch collection.
+- Core Resource Store type tests pin that the public `ResourceStore` Interface
+  can be consumed for diagnostics but not structurally implemented as a fake
+  root-exported store, and that mutable store constructors/unsafe accessors stay
+  out of the root export. Resource read-boundary type tests also pin
+  `ResourcePending.hasPrevious` and `ResourceFailure.hasPrevious` so LSP hovers
+  distinguish a successful `undefined` previous value from no previous value.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them

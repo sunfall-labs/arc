@@ -57,7 +57,8 @@ describe("project console domain", () => {
     const failure = new ResourceFailure({
       ref: {} as never,
       error: new ProjectNotFound({ id: makeProjectId("kepler") }),
-      previous: undefined
+      previous: undefined,
+      hasPrevious: false
     });
 
     expect(formatProjectError(failure)).toBe('Project "kepler" was not found.');

@@ -18,7 +18,6 @@ export {
   makeResourceStore,
   ResourceStore,
   ResourceStoreTypeId,
-  type ResourceStore as ResourceStoreState,
   type ResourceStoreDiagnostics,
   type ResourceStoreDiagnosticsSnapshot,
   type ResourceStoreEvent,

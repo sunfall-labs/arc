@@ -3,6 +3,7 @@ import {
   planResourceInvalidationTargets,
   removeResourceRefFromTagIndex,
   recordResourceProvidedTags,
+  resourceRefStoreKey,
   resourceProvidedTagsEffect,
   resourceRefsForTag
 } from "./resource-dependency-graph.js";
@@ -384,12 +385,14 @@ export const collectResourceEffect = <A, E, R>(
 const resourcePending = <I, A, E, R>(
   ref: ResourceRef<I, A, E, R>,
   state: "Initial" | "Pending" | "Collected",
-  previous: A | undefined
+  previous: A | undefined,
+  hasPrevious = false
 ): ResourcePending<I, A, E, R> =>
   new ResourcePending({
     ref,
     state,
     previous,
+    hasPrevious,
     guidance: "Resource.read(...) is a synchronous render/host-adapter seam. Run Resource.prefetchEffect(...) before reading, use Resource.readEffect(...) inside Effect code, or use a UI adapter such as Solid useResourceSuspense(...) for Suspense."
   });
 
@@ -426,16 +429,18 @@ const resourceReadDecision = <I, A, E, R>(
   if (state._tag === "Pending") {
     return "previous" in state
       ? { _tag: "Value", value: state.previous as A, refresh: false }
-      : { _tag: "Pending", pending: resourcePending(ref, "Pending", undefined) };
+      : { _tag: "Pending", pending: resourcePending(ref, "Pending", undefined, false) };
   }
 
   if (state._tag === "Failure") {
+    const hasPrevious = "previous" in state;
     return {
       _tag: "Failure",
       failure: new ResourceFailure({
         ref: ref as ResourceRef<unknown, A, E, unknown>,
         error: state.error,
-        previous: state.previous
+        previous: hasPrevious ? state.previous : undefined,
+        hasPrevious
       })
     };
   }
@@ -443,7 +448,7 @@ const resourceReadDecision = <I, A, E, R>(
   if (isResourceStateCollected(ref as ResourceRef<unknown, A, E, unknown>, state, now)) {
     return {
       _tag: "Pending",
-      pending: resourcePending(ref, "Collected", state.value),
+      pending: resourcePending(ref, "Collected", state.value, true),
       resetEntry: entry
     };
   }
@@ -674,18 +679,29 @@ export const deleteResourceFromStoreEffect = <I, A, E, R>(
   store: ResourceStoreState
 ): Effect.Effect<void> =>
   Effect.gen(function* () {
-    const entries = resourceEntries(ref.family, store);
-    const entry = entries.get(ref.key);
+    const entries = store.entries.get(ref.family) as Map<string, ResourceEntry<A, ResourceLoadError<E>>> | undefined;
+    const inputs = store.inputs.get(ref.family) as Map<string, I> | undefined;
+    const cache = store.caches.get(ref.family) as Cache.Cache<string, A, ResourceLoadError<E>, R> | undefined;
+    const hadInput = inputs?.has(ref.key) === true;
+    const entry = entries?.get(ref.key);
+    const hadEntry = entry !== undefined;
+    const hadTags = store.refTags.has(resourceRefStoreKey(ref as AnyResourceRef));
+    if (!hadEntry && !hadInput && !hadTags) {
+      return;
+    }
+
     if (entry) {
       yield* interruptResourceGc(entry, store);
       yield* interruptResourceInFlight(entry, store);
       resetResourceEntry(entry);
     }
 
-    entries.delete(ref.key);
+    entries?.delete(ref.key);
     removeResourceRefFromTagIndex(ref, store);
-    yield* invalidateResourceCacheEntryEffect(ref, store);
-    store.inputs.get(ref.family)?.delete(ref.key);
+    if (cache !== undefined) {
+      yield* Cache.invalidate(cache, ref.key);
+    }
+    inputs?.delete(ref.key);
     yield* publishResourceStoreEvent(store, {
       _tag: "ResourceDeleted",
       name: ref.family.options.name,

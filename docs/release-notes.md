@@ -65,13 +65,13 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 147:
+Latest full gate on May 16, 2026 after Review 148:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
 - Effect-first audit over 258 package/example/config/script/type-test files;
-- 53 root test files / 897 tests;
+- 53 root test files / 900 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
 - basic starter verify with 1 starter test file / 2 tests;
@@ -83,9 +83,9 @@ Latest full gate on May 16, 2026 after Review 147:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
-- Review 147 closed Resource runtime cleanup, Start fetch invalid-return typed
-  failures, root adapter type pins, clean package builds, and generated starter
-  post-verify cleanup.
+- Review 148 closed public Resource Store opacity, `hasPrevious` read hovers,
+  indexed join error locality, Promise static extraction guardrails, Start
+  virtual declaration-map cleanup, and devtools example package hygiene.
 - `pnpm benchmark` refreshed the SSR, route preload, Resource, live query, and
   RPC transport baselines.
 - The latest `pnpm verify` includes the starter-suite packaging gate and the
@@ -867,12 +867,12 @@ Latest full gate on May 16, 2026 after Review 147:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 147 closed Resource
-  runtime cleanup, generated starter hygiene, package build cleanliness,
-  public type-pin, and docs drift tranche:
+- The latest full `pnpm verify` passed after Review 148 closed Resource Store
+  opacity, indexed join error locality, Promise static extraction guardrails,
+  Start virtual declaration-map cleanup, and devtools package hygiene:
   11 package builds, workspace typecheck, public type tests, public API
   inventory audit, Effect-first audit over 258 files, 53 root test
-  files / 897 tests,
+  files / 900 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,
   generated starter-suite packaging/verifies for basic/react/project-console,

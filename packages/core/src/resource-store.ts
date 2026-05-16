@@ -1,7 +1,8 @@
-import { Context, Effect, Exit, Fiber, PubSub, Scope } from "effect";
+import { Context, Data, Effect, Exit, Fiber, PubSub, Scope } from "effect";
 
 /** Runtime marker for the Resource Store service. */
 export const ResourceStoreTypeId: unique symbol = Symbol.for("@effect-ui/core/ResourceStore") as typeof ResourceStoreTypeId;
+const ResourceStoreImplementationTypeId: unique symbol = Symbol.for("@effect-ui/core/ResourceStoreImplementation") as typeof ResourceStoreImplementationTypeId;
 
 /** Erased fiber tracked by a Resource Store for interruption on disposal. */
 export type ResourceStoreFiber = Fiber.Fiber<unknown, never>;
@@ -149,6 +150,7 @@ export interface ResourceStoreDiagnostics {
  */
 export interface ResourceStore {
   readonly [ResourceStoreTypeId]: typeof ResourceStoreTypeId;
+  readonly [ResourceStoreImplementationTypeId]: typeof ResourceStoreImplementationTypeId;
   /** Effect-first event API for adapters and diagnostics. */
   readonly eventBus: ResourceStoreEventBus;
   /** Effect-first module API for adapter-owned store-local state. */
@@ -158,6 +160,11 @@ export interface ResourceStore {
   /** Public diagnostics that avoid direct access to store internals. */
   readonly diagnostics: ResourceStoreDiagnostics;
 }
+
+class InvalidResourceStore extends Data.TaggedError("InvalidResourceStore")<{
+  readonly message: string;
+  readonly received: unknown;
+}> {}
 
 /** @internal Mutable runtime state shared by Resources inside one Effect UI runtime. */
 export interface MutableResourceStore extends ResourceStore {
@@ -248,6 +255,7 @@ export const makeMutableResourceStore = (): MutableResourceStore => {
 
   return {
     [ResourceStoreTypeId]: ResourceStoreTypeId,
+    [ResourceStoreImplementationTypeId]: ResourceStoreImplementationTypeId,
     eventBus,
     moduleRegistry,
     fiberRegistry,
@@ -269,8 +277,20 @@ export const makeResourceStore = (): ResourceStore =>
   makeMutableResourceStore();
 
 /** @internal Narrows a public Resource Store to the mutable implementation used by core internals. */
-export const unsafeMutableResourceStore = (store: ResourceStore): MutableResourceStore =>
-  store as MutableResourceStore;
+export const unsafeMutableResourceStore = (store: ResourceStore): MutableResourceStore => {
+  if (
+    typeof store !== "object" ||
+    store === null ||
+    (store as { [ResourceStoreImplementationTypeId]?: unknown })[ResourceStoreImplementationTypeId] !==
+      ResourceStoreImplementationTypeId
+  ) {
+    throw new InvalidResourceStore({
+      message: "Resource Store values must come from makeResourceStore(). Custom ResourceStore adapters cannot provide the mutable runtime cache internals required by Resource operations.",
+      received: store
+    });
+  }
+  return store as MutableResourceStore;
+};
 
 /** Interrupts tracked fibers, runs module finalizers, and shuts down store events. */
 export const disposeResourceStoreEffect = (store: ResourceStore): Effect.Effect<void> =>

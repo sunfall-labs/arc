@@ -316,7 +316,7 @@ export const buildQueryExecution = <TContext extends AnyQueryContext>(
       const leftValue = evaluateQueryOperation("join", () => join.leftKey(context));
       const left = joinKey(leftValue);
       const rows = join.rightIndex
-        ? source.indexRows(join.rightIndex, leftValue)
+        ? evaluateQueryOperation("join", () => source.indexRows(join.rightIndex!, leftValue))
         : source.rows();
       for (const row of rows) {
         const rightKeys = evaluateQueryOperation("join", () => join.rightKeys(row));

@@ -5,7 +5,9 @@ import type { ResourceRef } from "./resource.js";
  * Error thrown by synchronous Resource reads when the latest load failed.
  *
  * `previous` is the stale value, when one exists, so UI adapters can decide
- * whether to render stale content or surface the failure.
+ * whether to render stale content or surface the failure. Use `hasPrevious`
+ * rather than `previous !== undefined` because `undefined` is a valid Resource
+ * value.
  */
 export class ResourceFailure<
   I = unknown,
@@ -20,6 +22,8 @@ export class ResourceFailure<
   readonly error: E;
   /** Last successful value, when stale data exists. */
   readonly previous: A | undefined;
+  /** Whether `previous` is present, even when the value itself is `undefined`. */
+  readonly hasPrevious: boolean;
 }> {}
 
 /**
@@ -36,6 +40,8 @@ export class ResourcePending<I = unknown, A = unknown, E = never, R = unknown> e
   readonly state: "Initial" | "Pending" | "Collected";
   /** Last successful value, when stale data exists. */
   readonly previous: A | undefined;
+  /** Whether `previous` is present, even when the value itself is `undefined`. */
+  readonly hasPrevious: boolean;
   /** Human-readable repair hint suitable for diagnostics and tests. */
   readonly guidance: string;
 }> {}

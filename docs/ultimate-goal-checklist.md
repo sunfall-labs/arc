@@ -791,10 +791,10 @@ Last evidence pass: May 16, 2026.
   - Evidence: no new ADR required for the Start Action Response Codec
     extraction.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 147
-    Resource runtime cleanup and starter package hygiene slice: 11 package builds,
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 148
+    Resource Store opacity and Effect guardrail hardening slice: 11 package builds,
     workspace typecheck, type tests, public API inventory audit, Effect-first
-    audit over 258 files, 53 root test files / 897 tests,
+    audit over 258 files, 53 root test files / 900 tests,
     devtools-panel verify with 1 panel test file / 2 tests, devtools-extension
     verify with 1 extension test file / 20 tests, basic starter verify with 1
     starter test file / 2 tests, React starter verify with 1 starter test file
@@ -802,11 +802,11 @@ Last evidence pass: May 16, 2026.
     basic/react/project-console, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 147 records focused Core/Start, public API,
-    Effect-first, type-test, generated starter packaging, Resource runtime,
-    package-build, Start fetch guardrail, and docs drift verification after
-    the fresh runtime and copyability sweep. Full verification is now recorded
-    in the latest gate above.
+  - Evidence: Review 148 records focused Core/DB/project-console typechecks,
+    public API, Effect-first, type-test, generated starter packaging,
+    Resource Store opacity, indexed join error locality, Start package-build,
+    devtools package hygiene, and docs drift verification. Full verification is
+    now recorded in the latest gate above.
 
 ## Remaining Winning-Bar Items
 

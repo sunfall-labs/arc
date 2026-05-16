@@ -539,8 +539,8 @@ const namespaceBackedSurfaceModules = new Map([
 const documentedSourceSurface = (packageSection) => {
   const directModules = [];
   const namespaceModules = [];
-  const coreStarExports = packageSection.match(
-    /The root export star-exports these modules:\n\n([\s\S]*?)(?=\n\n)/
+  const coreRootExports = packageSection.match(
+    /The root export (?:star-exports|re-exports) these (?:local )?modules:\n\n([\s\S]*?)(?=\n\n)/
   );
   const localSourceModules = packageSection.match(
     /- Local source modules: ([\s\S]*?)(?=\n- |\n\n)/
@@ -549,8 +549,8 @@ const documentedSourceSurface = (packageSection) => {
     /- Namespace-backed source modules: ([\s\S]*?)(?=\n- |\n\n)/
   );
 
-  if (coreStarExports !== null) {
-    directModules.push(...backtickNames(coreStarExports[1]));
+  if (coreRootExports !== null) {
+    directModules.push(...backtickNames(coreRootExports[1]));
   }
   if (localSourceModules !== null) {
     directModules.push(...backtickNames(localSourceModules[1]));
