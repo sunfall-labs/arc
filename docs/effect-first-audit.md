@@ -1156,8 +1156,12 @@ interruption.
 - Review 131 added hover-only docs for public Program type aliases, Start agent
   graph constructors, and Start diagnostics loader failures while keeping the
   focused Effect-first audit green over the same 245 auditable files.
-- The latest full `pnpm verify` passed after the Review 130 DB Store-Explicit
-  Collection Snapshot Interface slice: 11 package builds, workspace typecheck,
+- Review 132 extracted the Start App Graph Diagnostics Policy Module and kept
+  the focused Effect-first audit green over 246 auditable
+  package/example/script/type-test files. The Module owns typed policy errors
+  and validation Effects without adding Promise-shaped host work.
+- The latest full `pnpm verify` passed after the Review 131 public hover
+  completion slice: 11 package builds, workspace typecheck,
   type tests, public API inventory audit, Effect-first audit over 245
   package/example/script/type-test files, 53 root test files / 873 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
@@ -1173,8 +1177,9 @@ interruption.
   124 expanded it to 233 files, Review 125 expanded it to 237 files, Review
   127 expanded it to 242 files, Review 128 expanded it to 243 files, Review
   129 focused audit expanded it to 244 files, Review 130 focused audit
-  expanded it to 245 files, and Review 131 kept that 245-file scope green after
-  hover-only public docs changes.
+  expanded it to 245 files, Review 131 kept that 245-file scope green after
+  hover-only public docs changes, and Review 132 expanded it to 246 files while
+  keeping the scope green.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

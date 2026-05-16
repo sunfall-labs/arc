@@ -7,10 +7,14 @@ import type {
 } from "./effect-like.js";
 import type { ReadableSignal } from "./signal.js";
 
+/** Runtime marker for values created by `Program.next(...)` or `Program.commands(...)`. */
 export const ProgramStepTypeId: unique symbol = Symbol.for("@effect-ui/core/ProgramStep") as typeof ProgramStepTypeId;
+/** Runtime marker for Effect-backed Program commands. */
 export const ProgramCommandTypeId: unique symbol = Symbol.for("@effect-ui/core/ProgramCommand") as typeof ProgramCommandTypeId;
+/** Runtime marker for Stream-backed Program subscriptions. */
 export const ProgramSubscriptionTypeId: unique symbol = Symbol.for("@effect-ui/core/ProgramSubscription") as typeof ProgramSubscriptionTypeId;
 
+/** Runtime phase that produced a Program failure or timeline event. */
 export type ProgramPhase = "Update" | "Command" | "Subscription";
 
 /** Failure reported by a running Program without tearing down the UI loop. */
@@ -27,6 +31,7 @@ export interface ProgramCommand<Message, E = never, R = never> {
   readonly effect: Effect.Effect<Message | void, E, R>;
 }
 
+/** Accepted command input: none, one command, several commands, or no-op sentinels. */
 export type ProgramCommandInput<Message, E = never, R = never> =
   | ProgramCommand<Message, E, R>
   | ReadonlyArray<ProgramCommand<Message, E, R>>
@@ -41,6 +46,7 @@ export interface ProgramStep<Model, Message, E = never, R = never> {
   readonly commands: ReadonlyArray<ProgramCommand<Message, E, R>>;
 }
 
+/** Value returned by an update callback: a model or a model plus commands. */
 export type ProgramUpdate<Model, Message, E = never, R = never> =
   | Model
   | ProgramStep<Model, Message, E, R>;
@@ -51,6 +57,7 @@ export interface ProgramSubscription<Message, E = never, R = never> {
   readonly stream: Stream.Stream<Message, E, R>;
 }
 
+/** Accepted subscription input: none, one stream/subscription, or nested groups. */
 export type ProgramSubscriptionInput<Message, E = never, R = never> =
   | Stream.Stream<Message, E, R>
   | ProgramSubscription<Message, E, R>
@@ -59,11 +66,16 @@ export type ProgramSubscriptionInput<Message, E = never, R = never> =
   | null
   | undefined;
 
+/** Extracts the error channel from a Program update EffectInput. */
 export type ProgramUpdateError<Out> = EffectInputError<Out>;
+/** Extracts the requirement channel from a Program update EffectInput. */
 export type ProgramUpdateRequirements<Out> = EffectInputRequirements<Out>;
+/** Extracts the error channel from a Program subscription EffectInput. */
 export type ProgramSubscriptionError<Out> = EffectInputError<Out>;
+/** Extracts the requirement channel from a Program subscription EffectInput. */
 export type ProgramSubscriptionRequirements<Out> = EffectInputRequirements<Out>;
 
+/** Definition for a headless model/message loop with Effect-owned work. */
 export interface ProgramDefinition<Model, Message, E = never, R = never> {
   /** Optional stable name used by timeline/devtools events. */
   readonly name?: string;
@@ -79,18 +91,22 @@ export interface ProgramDefinition<Model, Message, E = never, R = never> {
   readonly timeline?: false | ProgramTimelineOptions;
 }
 
+/** Program error channel plus callback and Runtime Spine startup/provision errors. */
 export type ProgramRuntimeError<E, ER = never> = E | EffectInputCallbackError | ER;
 
+/** Bounded retention options for Program timeline events. */
 export interface ProgramTimelineOptions {
   /** Maximum retained timeline events. Defaults to 200. */
   readonly limit?: number;
 }
 
+/** Shared metadata carried by every Program timeline event. */
 export interface ProgramEventBase {
   readonly sequence: number;
   readonly program?: string;
 }
 
+/** Timeline event recorded when a message is committed. */
 export interface ProgramMessageEvent<Model, Message> extends ProgramEventBase {
   readonly _tag: "Message";
   readonly message: Message;
@@ -99,12 +115,14 @@ export interface ProgramMessageEvent<Model, Message> extends ProgramEventBase {
   readonly commandCount: number;
 }
 
+/** Timeline event recorded before a command fiber starts. */
 export interface ProgramCommandStartedEvent<Message> extends ProgramEventBase {
   readonly _tag: "CommandStarted";
   readonly commandId: number;
   readonly source?: Message;
 }
 
+/** Timeline event recorded when a command emits a message or completes empty. */
 export interface ProgramCommandCompletedEvent<Message> extends ProgramEventBase {
   readonly _tag: "CommandCompleted";
   readonly commandId: number;
@@ -112,6 +130,7 @@ export interface ProgramCommandCompletedEvent<Message> extends ProgramEventBase 
   readonly emitted?: Message;
 }
 
+/** Timeline event recorded when a command fails through the Program error channel. */
 export interface ProgramCommandFailedEvent<Message, E> extends ProgramEventBase {
   readonly _tag: "CommandFailed";
   readonly commandId: number;
@@ -119,31 +138,37 @@ export interface ProgramCommandFailedEvent<Message, E> extends ProgramEventBase 
   readonly failure: ProgramFailure<Message, E>;
 }
 
+/** Timeline event recorded when the update callback fails. */
 export interface ProgramUpdateFailedEvent<Message, E> extends ProgramEventBase {
   readonly _tag: "UpdateFailed";
   readonly failure: ProgramFailure<Message, E>;
 }
 
+/** Timeline event recorded when model-dependent subscriptions start. */
 export interface ProgramSubscriptionStartedEvent<Model> extends ProgramEventBase {
   readonly _tag: "SubscriptionStarted";
   readonly model: Model;
   readonly count: number;
 }
 
+/** Timeline event recorded when a subscription emits a message. */
 export interface ProgramSubscriptionEmittedEvent<Message> extends ProgramEventBase {
   readonly _tag: "SubscriptionEmitted";
   readonly message: Message;
 }
 
+/** Timeline event recorded when a subscription fails through the Program error channel. */
 export interface ProgramSubscriptionFailedEvent<Message, E> extends ProgramEventBase {
   readonly _tag: "SubscriptionFailed";
   readonly failure: ProgramFailure<Message, E>;
 }
 
+/** Timeline event recorded when a Program runtime is disposed. */
 export interface ProgramDisposedEvent extends ProgramEventBase {
   readonly _tag: "Disposed";
 }
 
+/** Union of all Program runtime timeline event shapes. */
 export type ProgramEvent<Model, Message, E = never> =
   | ProgramMessageEvent<Model, Message>
   | ProgramCommandStartedEvent<Message>
@@ -163,6 +188,7 @@ export interface ProgramStoryEntry<Model, Message, E = never, R = never> {
   readonly commands: ReadonlyArray<ProgramCommand<Message, E, R>>;
 }
 
+/** Deterministic Program runner for docs, tests, and reducer-style examples. */
 export interface ProgramStory<Model, Message, E = never, R = never> {
   /** Current model after all story messages that have been applied. */
   readonly model: ReadableSignal<Model>;
@@ -192,10 +218,12 @@ export interface ProgramStory<Model, Message, E = never, R = never> {
   reset(model?: Model): void;
 }
 
+/** Options for creating a deterministic Program story. */
 export interface ProgramStoryOptions<Model> {
   readonly initial?: Model;
 }
 
+/** Running Program handle with model state, dispatch, failure, timeline, and disposal APIs. */
 export interface ProgramInstance<Model, Message, E = never> {
   /** Centralized model signal for adapter-neutral reads and derived state. */
   readonly model: ReadableSignal<Model>;

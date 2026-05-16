@@ -163,6 +163,10 @@ Latest full gate on May 15, 2026:
 - Review 131 closed the post-Review130 public hover findings: Start agent graph
   constructors, Core `Program.*` type aliases, and Start diagnostics loader
   failure aliases now describe their purpose directly in LSP hovers.
+- Review 132 extracted Start app graph diagnostics policy into a focused
+  internal Module, added a public hover-doc audit hook, documented the direct
+  Core Program contracts, and pinned DB hydrate preflight plus Start graph query
+  vocabulary regressions.
 - Review 85 extracted the internal Solid Route Render Scope Controller:
   `RouterOutlet` now delegates route branch rendering, route-owned `UiScope`
   creation, Solid root cleanup, runtime-bound route finalizers, transition
@@ -792,9 +796,8 @@ Latest full gate on May 15, 2026:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 130 extracted the internal
-  DB Store-Explicit Collection Snapshot Interface while keeping public package
-  exports stable:
+- The latest full `pnpm verify` passed after Review 131 completed the public
+  hover-doc slice while keeping public package exports stable:
   11 package builds, workspace typecheck, public type tests, public API
   inventory audit, Effect-first audit over 245 files, 53 root test
   files / 873 tests,

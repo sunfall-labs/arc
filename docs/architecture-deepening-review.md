@@ -11,16 +11,51 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 131, immediately after Review 130. Some older review
+The newest review is Review 132, immediately after Review 131. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 132: Start Diagnostics Policy Module and Regression Hooks
+
+Status: fixed for the fresh post-Review131 architecture, docs/LSP, and test-gap
+sweeps. Focused verification is green, but the Thirty-Sweep clean counter
+remains at 0 until a fresh sweep after this slice finds no actionable work.
+
+- Start App Graph Diagnostics Policy: added
+  `packages/start/src/start-app-graph-diagnostics-policy.ts` as the focused
+  internal Module for route preload diagnostics policy, typed policy errors,
+  violation collection/formatting, synchronous enforcement, and validation
+  Effects. `app-graph.ts` preserves the public compatibility facade while
+  Start Manifest Wall, diagnostics/agent graph contracts, Vite exports, and the
+  Vite diagnostics loader consume the named policy Seam.
+- Public hover regression hook: `scripts/audit-public-api-inventory.mjs` now
+  parses selected public declaration surfaces with TypeScript and fails when
+  important LSP hover declarations lack JSDoc. `packages/core/src/program.ts`
+  documents `startProgramWithRuntimeError(...)`, and
+  `packages/core/src/program-contract.ts` documents the direct public Program
+  contract symbols, aliases, event DTOs, story types, and runtime handle.
+- Store-explicit hydrate regression: `packages/db/test/live-query-collection.test.ts`
+  now pins that incomplete store-explicit snapshot markers fail during hydrate
+  preflight with `operation: "hydrate"` and do not mutate collection rows.
+- Start agent graph vocabulary regression:
+  `packages/start/test/app-graph.test.ts` now table-tests every
+  `startAgentGraphQueryKinds` value against node-kind filtering and shared
+  impact verify command generation.
+
+Focused verification passed: `pnpm audit:public-api`, `pnpm --filter
+@effect-ui/core typecheck`, `pnpm --filter @effect-ui/start typecheck`, `pnpm
+typecheck:types`, `pnpm audit:effect-first` over 246 files, `pnpm exec vitest
+run packages/db/test/live-query-collection.test.ts` (1 file / 29 tests), and
+`pnpm exec vitest run packages/start/test/app-graph.test.ts` (1 file / 17
+tests), and `git diff --check`. Full `pnpm verify` is pending after this
+architecture/test slice.
 
 ## Review 131: Public Hover Completion
 
 Status: fixed for the post-Review130 docs/LSP sweep and focused verification is
-green. The architecture and Effect/Promise sweeps found no source architecture
-or Promise-shaped blockers, but the Thirty-Sweep clean counter remains at 0
-until a fresh sweep after this hover patch finds no actionable work.
+green. Full verification passed, but the fresh post-hover sweeps found the
+Start diagnostics policy Module, hover regression hook, and test gaps fixed in
+Review 132, so the Thirty-Sweep clean counter remains at 0.
 
 - Start Agent Graph facade: `packages/start/src/agent-graph.ts` now documents
   `createStartAgentGraph(...)` and `createStartAgentGraphEffect(...)`, the
@@ -37,7 +72,12 @@ until a fresh sweep after this hover patch finds no actionable work.
 Focused verification passed: `pnpm --filter @effect-ui/core typecheck`, `pnpm
 --filter @effect-ui/start typecheck`, `pnpm typecheck:types`, `pnpm
 audit:public-api`, and `pnpm audit:effect-first` over 245 files.
-Full `pnpm verify` is pending after this hover-only slice.
+Full `pnpm verify` passed after the hover-only slice: 11 package builds,
+workspace typecheck, public type tests, public API inventory audit, Effect-first
+audit over 245 files, 53 root test files / 873 tests, devtools-panel verify with
+2 tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, project-console packaging/typecheck/
+tests/build with 4 files / 27 tests, and leak scans.
 
 ## Review 130: DB Store-Explicit Collection Snapshot Interface
 

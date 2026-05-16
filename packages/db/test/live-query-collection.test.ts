@@ -803,6 +803,45 @@ describe("Collection.liveQuery", () => {
       })
     ));
 
+  it("rejects incomplete store-explicit snapshot markers during hydrate preflight without mutating rows", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const Projects = Collection.define<Project>({
+          name: "Projects.live-query-collection.incomplete-store-explicit-hydrate",
+          getKey: (project) => project.id,
+          initialData: [
+            { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+          ]
+        });
+        markStoreExplicitCollectionSnapshotDefinition(Projects);
+
+        const snapshot: Collection.Snapshot<Project, string> = {
+          name: Projects.name,
+          rows: [
+            {
+              key: "lumen",
+              value: { id: "lumen", name: "Lumen", status: "blocked", progress: 34 },
+              synced: true,
+              origin: "remote"
+            }
+          ],
+          pendingMutations: [],
+          updatedAt: 1
+        };
+        const failure = yield* Effect.flip(Projects.hydrateEffect(snapshot));
+
+        expect(failure).toBeInstanceOf(CollectionSnapshotCodecError);
+        expect(failure).toMatchObject({
+          operation: "hydrate",
+          path: "$"
+        });
+        expect((failure as CollectionSnapshotCodecError).reason).toContain("snapshotWithStore");
+        expect((failure as CollectionSnapshotCodecError).reason).toContain("snapshotWithStoreEffect");
+        expect((failure as CollectionSnapshotCodecError).reason).toContain("hydratePreflightEffect");
+        expect(Projects.rows().map((project) => project.id)).toEqual(["atlas"]);
+      })
+    ));
+
   it("publishes CollectionPersisted when persisting live query collections", () =>
     Effect.runPromise(
       Effect.scoped(

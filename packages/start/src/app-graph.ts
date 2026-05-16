@@ -10,6 +10,29 @@ import type {
   ServerFunctionManifestParseError
 } from "./server-function-manifest.js";
 import { deserializeServerFunctionManifest, serializeServerFunctionManifest } from "./server-function-manifest.js";
+import type {
+  StartAppGraphDiagnosticsPolicyViolation
+} from "./start-app-graph-diagnostics-policy.js";
+export {
+  collectStartAppGraphDiagnosticsPolicyViolations,
+  createStartAppGraphDiagnosticsPolicyException,
+  enforceStartAppGraphDiagnosticsPolicy,
+  formatStartAppGraphDiagnosticsPolicyViolation,
+  StartAppGraphDiagnosticsPolicyException,
+  StartAppGraphUnknownRoutePreloadCollections,
+  StartAppGraphUnknownRoutePreloadResources,
+  validateStartAppGraphDiagnosticsPolicyEffect,
+  validateStartAppGraphDiagnosticsPolicyExceptionEffect,
+  validateStartAppGraphRoutePreloadCollectionsDiagnosticsEffect,
+  validateStartAppGraphRoutePreloadResourcesDiagnosticsEffect
+} from "./start-app-graph-diagnostics-policy.js";
+export type {
+  StartAppGraphDiagnosticsPolicy,
+  StartAppGraphDiagnosticsPolicyError,
+  StartAppGraphDiagnosticsPolicyViolation,
+  StartAppGraphRoutePreloadCollectionsPolicy,
+  StartAppGraphRoutePreloadResourcesPolicy
+} from "./start-app-graph-diagnostics-policy.js";
 
 /** Static Start app graph artifact combining route, server function, and action manifests. */
 export interface StartAppGraph {
@@ -254,19 +277,6 @@ export interface StartAppGraphActionBehaviorPolicy {
   readonly requireConcurrency?: boolean;
 }
 
-export interface StartAppGraphRoutePreloadResourcesPolicy {
-  readonly requireDeclaredForPreload?: boolean;
-}
-
-export interface StartAppGraphRoutePreloadCollectionsPolicy {
-  readonly requireDeclaredForPreload?: boolean;
-}
-
-export interface StartAppGraphDiagnosticsPolicy {
-  readonly routePreloadResources?: StartAppGraphRoutePreloadResourcesPolicy | false;
-  readonly routePreloadCollections?: StartAppGraphRoutePreloadCollectionsPolicy | false;
-}
-
 export class StartAppGraphParseError extends Data.TaggedError(
   "StartAppGraphParseError"
 )<{
@@ -284,42 +294,6 @@ export class StartAppGraphUnknownActionBehavior extends Data.TaggedError(
   "StartAppGraphUnknownActionBehavior"
 )<{
   readonly unknown: readonly StartAppGraphUnknownActionBehaviorEntry[];
-}> {}
-
-export class StartAppGraphUnknownRoutePreloadResources extends Data.TaggedError(
-  "StartAppGraphUnknownRoutePreloadResources"
-)<{
-  readonly unknown: readonly StartAppGraphUnknownRoutePreloadResourcesEntry[];
-}> {}
-
-export class StartAppGraphUnknownRoutePreloadCollections extends Data.TaggedError(
-  "StartAppGraphUnknownRoutePreloadCollections"
-)<{
-  readonly unknown: readonly StartAppGraphUnknownRoutePreloadCollectionsEntry[];
-}> {}
-
-export type StartAppGraphDiagnosticsPolicyError =
-  | StartAppGraphUnknownRoutePreloadResources
-  | StartAppGraphUnknownRoutePreloadCollections;
-
-export type StartAppGraphDiagnosticsPolicyViolation =
-  | {
-      readonly _tag: "UnknownRoutePreloadResources";
-      readonly message: string;
-      readonly routes: readonly StartAppGraphUnknownRoutePreloadResourcesEntry[];
-    }
-  | {
-      readonly _tag: "UnknownRoutePreloadCollections";
-      readonly message: string;
-      readonly routes: readonly StartAppGraphUnknownRoutePreloadCollectionsEntry[];
-    };
-
-export class StartAppGraphDiagnosticsPolicyException extends Data.TaggedError(
-  "StartAppGraphDiagnosticsPolicyError"
-)<{
-  readonly message: string;
-  readonly violations: readonly StartAppGraphDiagnosticsPolicyViolation[];
-  readonly diagnostics: StartAppGraphDiagnostics;
 }> {}
 
 export class StartAppGraphDiagnosticsDtoError extends Data.TaggedError(
@@ -1102,173 +1076,6 @@ export const validateStartAppGraphActionBehaviorEffect = (
     ? Effect.void
     : Effect.fail(new StartAppGraphUnknownActionBehavior({ unknown }));
 };
-
-const shouldReportUnknownRoutePreloadResources = (
-  entry: StartAppGraphUnknownRoutePreloadResourcesEntry,
-  policy: Required<StartAppGraphRoutePreloadResourcesPolicy>
-): boolean =>
-  policy.requireDeclaredForPreload &&
-  entry.preload === "present" &&
-  entry.preloadResources.status === "unknown";
-
-export const validateStartAppGraphRoutePreloadResourcesDiagnosticsEffect = (
-  diagnostics: StartAppGraphDiagnostics,
-  policy: StartAppGraphRoutePreloadResourcesPolicy = {}
-): Effect.Effect<void, StartAppGraphUnknownRoutePreloadResources> => {
-  const requiredPolicy: Required<StartAppGraphRoutePreloadResourcesPolicy> = {
-    requireDeclaredForPreload: policy.requireDeclaredForPreload ?? true
-  };
-  const unknown = diagnostics.unknownRoutePreloadResources.filter((entry) =>
-    shouldReportUnknownRoutePreloadResources(entry, requiredPolicy)
-  );
-
-  return unknown.length === 0
-    ? Effect.void
-    : Effect.fail(new StartAppGraphUnknownRoutePreloadResources({ unknown }));
-};
-
-const shouldReportUnknownRoutePreloadCollections = (
-  entry: StartAppGraphUnknownRoutePreloadCollectionsEntry,
-  policy: Required<StartAppGraphRoutePreloadCollectionsPolicy>
-): boolean =>
-  policy.requireDeclaredForPreload &&
-  entry.preload === "present" &&
-  entry.preloadCollections.status === "unknown";
-
-const isEnabledDiagnosticsPolicy = <A>(value: A | false | null | undefined): value is A =>
-  value !== undefined && value !== null && value !== false;
-
-export const collectStartAppGraphDiagnosticsPolicyViolations = (
-  diagnostics: StartAppGraphDiagnostics,
-  policy: StartAppGraphDiagnosticsPolicy | false | null | undefined
-): readonly StartAppGraphDiagnosticsPolicyViolation[] => {
-  if (!isEnabledDiagnosticsPolicy(policy)) {
-    return [];
-  }
-
-  const violations: StartAppGraphDiagnosticsPolicyViolation[] = [];
-  const routePreloadResources = policy.routePreloadResources;
-  if (isEnabledDiagnosticsPolicy(routePreloadResources)) {
-    const requiredPolicy: Required<StartAppGraphRoutePreloadResourcesPolicy> = {
-      requireDeclaredForPreload: routePreloadResources.requireDeclaredForPreload ?? true
-    };
-    const routes = diagnostics.unknownRoutePreloadResources.filter((entry) =>
-      shouldReportUnknownRoutePreloadResources(entry, requiredPolicy)
-    );
-    if (routes.length > 0) {
-      violations.push({
-        _tag: "UnknownRoutePreloadResources",
-        message: "Routes with preload must declare preloadResources.",
-        routes
-      });
-    }
-  }
-
-  const routePreloadCollections = policy.routePreloadCollections;
-  if (isEnabledDiagnosticsPolicy(routePreloadCollections)) {
-    const requiredPolicy: Required<StartAppGraphRoutePreloadCollectionsPolicy> = {
-      requireDeclaredForPreload: routePreloadCollections.requireDeclaredForPreload ?? true
-    };
-    const routes = diagnostics.unknownRoutePreloadCollections.filter((entry) =>
-      shouldReportUnknownRoutePreloadCollections(entry, requiredPolicy)
-    );
-    if (routes.length > 0) {
-      violations.push({
-        _tag: "UnknownRoutePreloadCollections",
-        message: "Routes with preload must declare preloadCollections.",
-        routes
-      });
-    }
-  }
-
-  return violations;
-};
-
-export const formatStartAppGraphDiagnosticsPolicyViolation = (
-  violation: StartAppGraphDiagnosticsPolicyViolation
-): string => {
-  const routes = violation.routes
-    .map((route) => `${route.routePath} (${route.filePath})`)
-    .join(", ");
-  return `${violation.message} ${routes}`;
-};
-
-export const createStartAppGraphDiagnosticsPolicyException = (
-  diagnostics: StartAppGraphDiagnostics,
-  violations: readonly StartAppGraphDiagnosticsPolicyViolation[]
-): StartAppGraphDiagnosticsPolicyException =>
-  new StartAppGraphDiagnosticsPolicyException({
-    message: `Effect UI app graph diagnostics policy failed: ${violations
-      .map(formatStartAppGraphDiagnosticsPolicyViolation)
-      .join("; ")}`,
-    violations,
-    diagnostics
-  });
-
-export const enforceStartAppGraphDiagnosticsPolicy = (
-  diagnostics: StartAppGraphDiagnostics,
-  policy: StartAppGraphDiagnosticsPolicy | false | null | undefined
-): readonly StartAppGraphDiagnosticsPolicyViolation[] => {
-  const violations = collectStartAppGraphDiagnosticsPolicyViolations(
-    diagnostics,
-    policy
-  );
-  if (violations.length > 0) {
-    throw createStartAppGraphDiagnosticsPolicyException(diagnostics, violations);
-  }
-
-  return violations;
-};
-
-export const validateStartAppGraphDiagnosticsPolicyExceptionEffect = (
-  diagnostics: StartAppGraphDiagnostics,
-  policy: StartAppGraphDiagnosticsPolicy | false | null | undefined
-): Effect.Effect<readonly StartAppGraphDiagnosticsPolicyViolation[], StartAppGraphDiagnosticsPolicyException> => {
-  const violations = collectStartAppGraphDiagnosticsPolicyViolations(
-    diagnostics,
-    policy
-  );
-  return violations.length > 0
-    ? Effect.fail(createStartAppGraphDiagnosticsPolicyException(diagnostics, violations))
-    : Effect.succeed(violations);
-};
-
-export const validateStartAppGraphRoutePreloadCollectionsDiagnosticsEffect = (
-  diagnostics: StartAppGraphDiagnostics,
-  policy: StartAppGraphRoutePreloadCollectionsPolicy = {}
-): Effect.Effect<void, StartAppGraphUnknownRoutePreloadCollections> => {
-  const requiredPolicy: Required<StartAppGraphRoutePreloadCollectionsPolicy> = {
-    requireDeclaredForPreload: policy.requireDeclaredForPreload ?? true
-  };
-  const unknown = diagnostics.unknownRoutePreloadCollections.filter((entry) =>
-    shouldReportUnknownRoutePreloadCollections(entry, requiredPolicy)
-  );
-
-  return unknown.length === 0
-    ? Effect.void
-    : Effect.fail(new StartAppGraphUnknownRoutePreloadCollections({ unknown }));
-};
-
-export const validateStartAppGraphDiagnosticsPolicyEffect = (
-  diagnostics: StartAppGraphDiagnostics,
-  policy: StartAppGraphDiagnosticsPolicy = {}
-): Effect.Effect<void, StartAppGraphDiagnosticsPolicyError> =>
-  Effect.gen(function* () {
-    const violation = collectStartAppGraphDiagnosticsPolicyViolations(diagnostics, policy)[0];
-    if (violation === undefined) {
-      return;
-    }
-    switch (violation._tag) {
-      case "UnknownRoutePreloadResources":
-        return yield* Effect.fail(new StartAppGraphUnknownRoutePreloadResources({
-          unknown: violation.routes
-        }));
-      case "UnknownRoutePreloadCollections":
-        return yield* Effect.fail(new StartAppGraphUnknownRoutePreloadCollections({
-          unknown: violation.routes
-        }));
-    }
-  });
 
 const serializeSection = (
   section: unknown,

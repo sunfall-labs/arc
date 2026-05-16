@@ -2,14 +2,16 @@ import { Data, Effect } from "effect";
 import { createServer, type InlineConfig, type UserConfig } from "vite";
 import type {
   StartAppGraph,
-  StartAppGraphDiagnostics,
-  StartAppGraphDiagnosticsPolicyException,
-  StartAppGraphDiagnosticsPolicyViolation
+  StartAppGraphDiagnostics
 } from "./app-graph.js";
 import {
   decodeStartAppGraphDiagnosticsDtoEffect,
   deserializeStartAppGraph
 } from "./app-graph.js";
+import type {
+  StartAppGraphDiagnosticsPolicyException,
+  StartAppGraphDiagnosticsPolicyViolation
+} from "./start-app-graph-diagnostics-policy.js";
 import {
   defaultServerEntry,
   withDiscoveredFileRoutes,

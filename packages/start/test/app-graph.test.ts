@@ -31,6 +31,13 @@ import {
   formatStartAgentGraphImpact,
   queryStartAgentGraph
 } from "../src/agent-graph.js";
+import type {
+  StartAgentGraphNodeKind,
+  StartAgentGraphQueryKind
+} from "../src/start-agent-graph-contract.js";
+import {
+  startAgentGraphQueryKinds
+} from "../src/start-agent-graph-vocabulary.js";
 import { startDiagnosticsCliVerifyCommandsForQuery } from "../src/start-diagnostics-cli-contract.js";
 import { makeActionManifest } from "../src/action-manifest.js";
 import { FileRouteManifestParseError, generateFileRouteManifestArtifact } from "../src/file-routes.js";
@@ -916,6 +923,139 @@ describe("Start app graph", () => {
           expect(text).toContain("Depends on");
           expect(text).toContain("- effect-ui-start diagnostics --root examples/project-console");
           expect(text).not.toContain("route:route_projects_$id");
+        });
+      })
+    );
+  });
+
+  it("pins Start agent graph query vocabulary to node filtering and impact commands", () => {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const graph = yield* makeGraphEffect();
+        const projectEntry = graph.routes.entries.find((entry) =>
+          entry.routePath === "/projects/:id"
+        );
+
+        if (projectEntry === undefined) {
+          throw new Error("Expected project route entry.");
+        }
+
+        const diagnostics = describeStartAppGraphRuntimeDiagnostics(graph, {
+          routeModules: [
+            {
+              entry: projectEntry,
+              route: {
+                options: {
+                  params: {},
+                  preload: () => undefined,
+                  component: () => null
+                }
+              },
+              preloadResources: {
+                status: "declared" as const,
+                families: ["Project.byId"]
+              },
+              preloadCollections: {
+                status: "declared" as const,
+                collections: ["ProjectRows"]
+              }
+            }
+          ],
+          resourceFamilies: [
+            {
+              name: "Project.byId",
+              inputSchema: true,
+              outputSchema: true,
+              errorSchema: false,
+              providesTags: true,
+              policy: {
+                retry: false
+              }
+            }
+          ],
+          resourceTags: [
+            {
+              name: "Project.updated",
+              keyed: true
+            }
+          ],
+          collectionDefinitions: [
+            {
+              name: "ProjectRows",
+              inputSchema: false,
+              outputSchema: false,
+              initialData: false,
+              indexes: [],
+              load: false,
+              handlers: {
+                insert: false,
+                update: false,
+                delete: false
+              },
+              policy: {
+                retry: false
+              },
+              persistence: {
+                enabled: false,
+                hydrate: false,
+                restoreOnPreload: false,
+                loadAfterRestore: false,
+                persistOnLoad: false,
+                persistOnMutation: false,
+                persistOnWrite: false
+              }
+            }
+          ]
+        });
+        const agentGraph = createStartAgentGraph({ graph, diagnostics });
+        const expectedNodeKind = {
+          action: "Action",
+          collection: "Collection",
+          endpoint: "Endpoint",
+          finding: "Finding",
+          module: "Module",
+          node: undefined,
+          resource: "ResourceFamily",
+          "resource-tag": "ResourceTag",
+          route: "Route",
+          "server-function": "ServerFunction"
+        } satisfies Record<StartAgentGraphQueryKind, StartAgentGraphNodeKind | undefined>;
+        const queryText = {
+          action: "Project.rename",
+          collection: "ProjectRows",
+          endpoint: "rpc",
+          finding: "wire-schema",
+          module: "project.server",
+          node: "Project",
+          resource: "Project.byId",
+          "resource-tag": "Project.updated",
+          route: "/projects/:id",
+          "server-function": "Project.load"
+        } satisfies Record<StartAgentGraphQueryKind, string>;
+        const root = "examples/project-console";
+
+        yield* Effect.sync(() => {
+          expect(new Set(startAgentGraphQueryKinds)).toEqual(
+            new Set(Object.keys(expectedNodeKind))
+          );
+
+          for (const kind of startAgentGraphQueryKinds) {
+            const query = { kind, text: queryText[kind] };
+            const result = queryStartAgentGraph(agentGraph, query);
+            const impact = createStartAgentGraphImpact(agentGraph, query, { root });
+            const expected = expectedNodeKind[kind];
+
+            expect(result.nodes.length).toBeGreaterThan(0);
+            expect(impact.matches).toBe(result.nodes.length);
+            expect(impact.items[0]?.verify).toEqual(
+              startDiagnosticsCliVerifyCommandsForQuery(query, { root })
+            );
+            if (expected === undefined) {
+              expect(new Set(result.nodes.map((node) => node.kind)).size).toBeGreaterThan(1);
+            } else {
+              expect(result.nodes.every((node) => node.kind === expected)).toBe(true);
+            }
+          }
         });
       })
     );

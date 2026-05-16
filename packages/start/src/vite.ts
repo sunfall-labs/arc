@@ -91,13 +91,15 @@ export type {
 } from "./generated-route-definitions.js";
 export {
   StartAppGraphMissingWireSchemas,
-  StartAppGraphUnknownActionBehavior,
+  StartAppGraphUnknownActionBehavior
+} from "./app-graph.js";
+export {
   StartAppGraphUnknownRoutePreloadCollections,
   StartAppGraphUnknownRoutePreloadResources,
   validateStartAppGraphDiagnosticsPolicyEffect,
   validateStartAppGraphRoutePreloadCollectionsDiagnosticsEffect,
   validateStartAppGraphRoutePreloadResourcesDiagnosticsEffect
-} from "./app-graph.js";
+} from "./start-app-graph-diagnostics-policy.js";
 export {
   StartDevServerError,
   StartHandlerNotFound,

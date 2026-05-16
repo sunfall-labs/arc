@@ -7,12 +7,9 @@ import {
   describeStartAppGraph,
   serializeStartAppGraph as serializeStartAppGraphArtifact,
   validateStartAppGraphActionBehaviorEffect,
-  validateStartAppGraphDiagnosticsPolicyEffect,
   validateStartAppGraphWireSchemasEffect,
   type StartAppGraph,
   type StartAppGraphActionBehaviorPolicy,
-  type StartAppGraphDiagnosticsPolicy,
-  type StartAppGraphDiagnosticsPolicyError,
   type StartAppGraphMissingWireSchemas as StartAppGraphMissingWireSchemasError,
   type StartAppGraphUnknownActionBehavior as StartAppGraphUnknownActionBehaviorError,
   type StartAppGraphWireSchemaPolicy
@@ -38,6 +35,11 @@ import {
   type FileRouteManifestOptions
 } from "./file-routes.js";
 import type { GeneratedFileRouteDefinitionsModuleOptions } from "./file-route-modules.js";
+import {
+  validateStartAppGraphDiagnosticsPolicyEffect,
+  type StartAppGraphDiagnosticsPolicy,
+  type StartAppGraphDiagnosticsPolicyError
+} from "./start-app-graph-diagnostics-policy.js";
 import {
   makeServerFunctionManifest,
   serializeServerFunctionManifest,

@@ -1,10 +1,12 @@
 import type {
   StartAppGraphActionDiagnostics,
   StartAppGraphDiagnostics,
-  StartAppGraphDiagnosticsPolicyViolation,
   StartAppGraphServerFunctionDiagnostics,
   StartAppGraphWireSchemaField
 } from "./app-graph.js";
+import type {
+  StartAppGraphDiagnosticsPolicyViolation
+} from "./start-app-graph-diagnostics-policy.js";
 
 /** Overall Start diagnostics status used by CI, CLI, and agent repair reports. */
 export type StartDiagnosticsReportStatus = "pass" | "needs-attention";

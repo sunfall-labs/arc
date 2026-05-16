@@ -1,8 +1,10 @@
 import type {
   StartAppGraph,
-  StartAppGraphDiagnostics,
-  StartAppGraphDiagnosticsPolicyViolation
+  StartAppGraphDiagnostics
 } from "./app-graph.js";
+import type {
+  StartAppGraphDiagnosticsPolicyViolation
+} from "./start-app-graph-diagnostics-policy.js";
 import type {
   StartDiagnosticsReport,
   StartDiagnosticsReportFinding

@@ -1,5 +1,6 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
+import ts from "typescript";
 
 const root = process.cwd();
 const packagesDirectory = join(root, "packages");
@@ -12,6 +13,195 @@ const readText = (file) => readFileSync(file, "utf8");
 const inventory = readText(inventoryFile);
 const publicApiManifest = readJson(publicApiManifestFile);
 const failures = [];
+
+const publicHoverDocs = [
+  {
+    file: "packages/core/src/program.ts",
+    declarations: [
+      "startProgramWithRuntimeError"
+    ],
+    namespaceDeclarations: {
+      Program: [
+        "Definition",
+        "Instance",
+        "Failure",
+        "RuntimeError",
+        "TimelineOptions",
+        "Event",
+        "EventBase",
+        "MessageEvent",
+        "CommandStartedEvent",
+        "CommandCompletedEvent",
+        "CommandFailedEvent",
+        "UpdateFailedEvent",
+        "SubscriptionStartedEvent",
+        "SubscriptionEmittedEvent",
+        "SubscriptionFailedEvent",
+        "DisposedEvent",
+        "Phase",
+        "Update",
+        "Step",
+        "Command",
+        "CommandInput",
+        "Subscription",
+        "SubscriptionInput",
+        "StoryEntry",
+        "Story",
+        "StoryOptions"
+      ]
+    }
+  },
+  {
+    file: "packages/core/src/program-contract.ts",
+    declarations: [
+      "ProgramStepTypeId",
+      "ProgramCommandTypeId",
+      "ProgramSubscriptionTypeId",
+      "ProgramPhase",
+      "ProgramFailure",
+      "ProgramCommand",
+      "ProgramCommandInput",
+      "ProgramStep",
+      "ProgramUpdate",
+      "ProgramSubscription",
+      "ProgramSubscriptionInput",
+      "ProgramUpdateError",
+      "ProgramUpdateRequirements",
+      "ProgramSubscriptionError",
+      "ProgramSubscriptionRequirements",
+      "ProgramDefinition",
+      "ProgramRuntimeError",
+      "ProgramTimelineOptions",
+      "ProgramEventBase",
+      "ProgramMessageEvent",
+      "ProgramCommandStartedEvent",
+      "ProgramCommandCompletedEvent",
+      "ProgramCommandFailedEvent",
+      "ProgramUpdateFailedEvent",
+      "ProgramSubscriptionStartedEvent",
+      "ProgramSubscriptionEmittedEvent",
+      "ProgramSubscriptionFailedEvent",
+      "ProgramDisposedEvent",
+      "ProgramEvent",
+      "ProgramStoryEntry",
+      "ProgramStory",
+      "ProgramStoryOptions",
+      "ProgramInstance"
+    ]
+  },
+  {
+    file: "packages/start/src/agent-graph.ts",
+    declarations: [
+      "createStartAgentGraph",
+      "createStartAgentGraphEffect"
+    ]
+  },
+  {
+    file: "packages/start/src/start-vite-diagnostics-loader.ts",
+    declarations: [
+      "StartAppGraphDiagnosticsLoadError"
+    ]
+  }
+];
+
+const hasJsDoc = (node) =>
+  ts.getJSDocCommentsAndTags(node).some((entry) =>
+    entry.kind === ts.SyntaxKind.JSDocComment
+  );
+
+const declarationName = (node) => {
+  if (
+    (
+      ts.isInterfaceDeclaration(node) ||
+      ts.isTypeAliasDeclaration(node) ||
+      ts.isClassDeclaration(node) ||
+      ts.isFunctionDeclaration(node) ||
+      ts.isModuleDeclaration(node)
+    ) &&
+    node.name
+  ) {
+    return node.name.text;
+  }
+
+  return undefined;
+};
+
+const variableStatementDeclarationNames = (statement) =>
+  ts.isVariableStatement(statement)
+    ? statement.declarationList.declarations.flatMap((declaration) =>
+        ts.isIdentifier(declaration.name) ? [declaration.name.text] : []
+      )
+    : [];
+
+const findDeclarationNode = (statements, name) => {
+  for (const statement of statements) {
+    if (declarationName(statement) === name) {
+      return statement;
+    }
+    if (variableStatementDeclarationNames(statement).includes(name)) {
+      return statement;
+    }
+  }
+
+  return undefined;
+};
+
+const namespaceStatements = (sourceFile, namespaceName) => {
+  const namespace = sourceFile.statements.find((statement) =>
+    ts.isModuleDeclaration(statement) &&
+    ts.isIdentifier(statement.name) &&
+    statement.name.text === namespaceName &&
+    statement.body !== undefined &&
+    ts.isModuleBlock(statement.body)
+  );
+  return namespace?.body && ts.isModuleBlock(namespace.body)
+    ? namespace.body.statements
+    : undefined;
+};
+
+const auditPublicHoverDocs = () => {
+  for (const group of publicHoverDocs) {
+    const file = join(root, group.file);
+    if (!existsSync(file)) {
+      failures.push(`public hover docs audit points at missing file ${group.file}`);
+      continue;
+    }
+
+    const source = readText(file);
+    const sourceFile = ts.createSourceFile(
+      group.file,
+      source,
+      ts.ScriptTarget.Latest,
+      true,
+      ts.ScriptKind.TS
+    );
+
+    for (const name of group.declarations ?? []) {
+      const declaration = findDeclarationNode(sourceFile.statements, name);
+      if (declaration === undefined) {
+        failures.push(`${group.file} is missing public hover declaration ${name}`);
+      } else if (!hasJsDoc(declaration)) {
+        failures.push(`${group.file} public hover declaration ${name} is missing JSDoc`);
+      }
+    }
+
+    for (const [namespaceName, names] of Object.entries(group.namespaceDeclarations ?? {})) {
+      const statements = namespaceStatements(sourceFile, namespaceName);
+      if (statements === undefined) {
+        failures.push(`${group.file} is missing public hover namespace ${namespaceName}`);
+        continue;
+      }
+      for (const name of names) {
+        const declaration = findDeclarationNode(statements, name);
+        if (declaration === undefined) {
+          failures.push(`${group.file} namespace ${namespaceName} is missing public hover declaration ${name}`);
+        } else if (!hasJsDoc(declaration)) {
+          failures.push(`${group.file} namespace ${namespaceName}.${name} is missing JSDoc`);
+        }
+      }
+    }
+  }
+};
 
 const inventoryRows = new Set();
 for (const line of inventory.split(/\r?\n/)) {
@@ -188,6 +378,8 @@ for (const [key, entry] of expectedEntrypoints) {
     }
   }
 }
+
+auditPublicHoverDocs();
 
 if (failures.length > 0) {
   console.error("Public API inventory audit failed:");

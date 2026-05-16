@@ -66,7 +66,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     context identity extraction, the Start/docs portion of the Review 129 graph
     vocabulary, diagnostics DTO, and LSP docs sweep, and Review 130 db
     store-explicit collection snapshot Interface extraction, and Review 131
-    public hover completion.
+    public hover completion, and Review 132 start diagnostics policy Module and
+    regression hooks.
 
 ## Current Sweep Results
 
@@ -474,9 +475,9 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   docs now record that source alias/key identity, merged context identity,
   ordered tie-break identity, IVM metadata, and collection row delta identity
   live in one DB-local Module.
-- Updated current-facing verification snapshots after Review 128 full
-  verification so the latest gate points at the 243-file Effect-first audit and
-  53 root test files / 872 tests.
+- Updated current-facing verification snapshots after Review 131 full
+  verification so the latest full gate points at the 245-file Effect-first audit
+  and 53 root test files / 873 tests.
 - Added Review 129 Start/docs evidence for Start Agent Graph Vocabulary,
   registry diagnostics DTO validation, public hover JSDoc, the DB `sync-adapter`
   source-surface inventory entry, and the 244-file Effect-first focused audit.
@@ -486,6 +487,10 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Added Review 131 public-hover evidence for Start agent graph constructors,
   Program namespace type aliases, Start diagnostics loader failures, and the
   focused Core/Start/type-test/public-audit/Effect-first verification.
+- Added Review 132 evidence for Start diagnostics policy extraction, the
+  public hover-doc audit hook, direct Program contract JSDoc, DB hydrate
+  preflight coverage, Start graph query vocabulary coverage, and the 246-file
+  Effect-first focused audit.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are
   wrapped with `Effect.tryPromise(...)` at the Adapter seam.
 - Clarified that `virtual:effect-ui/routes` exposes runtime helpers while the

@@ -96,6 +96,10 @@ export const startProgram = <Model, Message, E = never, R = never>(
 ): ProgramInstance<Model, Message, ProgramRuntimeError<E>> =>
   startProgramWithRuntimeError<Model, Message, E, R, never>(definition);
 
+/**
+ * Starts a Program while preserving Runtime Spine startup/provision errors in
+ * the returned failure channel.
+ */
 export const startProgramWithRuntimeError = <Model, Message, E = never, R = never, ER = never>(
   definition: ProgramDefinition<Model, Message, E, R>
 ): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>> => {
