@@ -111,8 +111,9 @@ Latest full gate on May 16, 2026 after Review 171:
 - Review 167 closed shared Core route render identity for React/Solid route
   `UiScope` lifetimes, same-ref Resource preload failure cleanup after manual
   prefetch/refresh retry, detached Start agent graph facts, and React/Solid DB
-  adapter re-export type-test pins. Broader Review167 module-depth candidates
-  remain carried forward for the next architecture lap.
+  adapter re-export type-test pins. Follow-up Reviews 168 through 171 closed the
+  broader Review167 candidates, so no old Review167 item remains carried
+  forward.
 - Review 166 closed mounted Resource UI retention through `gcFor`, Solid route
   render updates keyed by state plus active renderer identity, DB no-op write
   side effects, single-tick DB hydration, observable change-feed unsubscribe

@@ -324,7 +324,7 @@ as clean-sweep evidence.
      so accidental removal of the ergonomic DB re-exports fails the audit.
 
 5. Larger Review167 Candidates
-   - Status: carried forward.
+   - Status: closed by follow-up Reviews168-171.
    - Files: `scripts/package-project-console-starter.mjs`,
      `scripts/verify-package-dry-runs.mjs`,
      `scripts/generated-starter-artifacts.mjs`,
@@ -341,9 +341,12 @@ as clean-sweep evidence.
      snippet Effect-first scanning, shared Start abort lifecycle policy,
      Devtools app graph count normalization, and a deeper DB Query Execution
      Plan Module.
-   - Next step: handle these as follow-up Review167/168 slices because they are
-     cross-cutting refactors rather than the small correctness/API guardrail
-     batch fixed here.
+   - Follow-up closure: Review168 closed Markdown snippet Effect-first scanning
+     and Devtools app graph normalization; Review169 closed the Start abort
+     lifecycle policy; Review170 closed the starter/catalog manifest; and
+     Review171 closed declaration-level public symbol policy while re-reviewing
+     the compiled Query Execution Plan candidate as already handled by the
+     existing DB Query Execution Plan Module.
 
 Focused verification passed across the Review167 slices: Core Resource UI
 Binding tests 1 file / 2 selected tests; Core/React/Solid router tests 3 files
