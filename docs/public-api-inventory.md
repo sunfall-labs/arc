@@ -906,6 +906,11 @@ Release decisions:
   Suspense preload-token dedupe. React remains responsible for
   `useSyncExternalStore(...)`, direct-value handles, and the React Suspense
   thenable throw seam.
+- `useAction(...)` returns a React `ActionHandle`: `state` and
+  `invalidationPlan` are current React values, while `submitEffect(...)` and
+  `resetEffect(...)` stay runtime-bound Effect methods. The underlying Core
+  `ActionInstance` remains available at `handle.instance` for advanced
+  integration work.
 
 ### `@effect-ui/react-db`
 

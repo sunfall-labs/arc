@@ -35,7 +35,11 @@
       "import": "@effect-ui/react",
       "source": "packages/react/src/index.ts",
       "docs": "docs/public-api-inventory.md",
-      "typeTest": "type-tests/react.test-d.ts"
+      "typeTest": "type-tests/react.test-d.ts",
+      "requiredTypeTestImports": [
+        "ActionHandle",
+        "useAction"
+      ]
     },
     {
       "package": "@effect-ui/react-db",

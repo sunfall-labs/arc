@@ -1,9 +1,14 @@
 # Generated Artifact Audit
 
-Last updated: 2026-05-14.
+Last updated: 2026-05-16.
 
 This audit checks generated Start artifacts for deterministic ordering, stable
 serialization, source attribution, and browser-safe references.
+
+The current full verification checkpoint lives in
+`docs/architecture-deepening-review.md`. This file records the generated
+artifact slice and should point at the latest completed review gate rather than
+repeating stale package/test totals.
 
 ## Current Sweep Results
 
@@ -32,15 +37,24 @@ serialization, source attribution, and browser-safe references.
   - Added inline golden snapshots for Start app-graph virtual modules with the
     runtime diagnostics imports, route-module candidates, and diagnostics
     policy guard.
+- Generated starter artifacts
+  - Package dry-runs require each Start starter and the project-console example
+    to ship `src/routeTree.gen.ts` and `src/effect-ui-start-virtual.d.ts`.
+  - The project-console source payload also pins the generated manifest support
+    module `src/virtual-manifest-types.ts` plus the Start/domain files that make
+    those generated artifacts meaningful to editors and starter consumers.
 
 ## Verification Evidence
 
 - `pnpm exec vitest run packages/start/test/file-routes.test.ts packages/start/test/file-route-modules.test.ts packages/start/test/server-function-manifest.test.ts packages/start/test/action-manifest.test.ts packages/start/test/app-graph.test.ts`
   passed after the audit.
 - `pnpm --filter @effect-ui/start typecheck` passed after the audit.
-- `pnpm verify` passed after the generated artifact audit: package build,
-  workspace typecheck, type tests, 34 package test files / 300 tests, example
-  typecheck, 4 example test files / 23 tests, example build, and leak scan.
+- Review161 full `pnpm verify` passed after the latest generated-artifact
+  guardrail refresh: 11 package builds, workspace typecheck, public type tests,
+  public API inventory audit, Effect-first audit over 274 files, 53 root test
+  files / 977 tests, devtools-panel and devtools-extension verifies, starter
+  verifies, generated starter-suite packaging/verifies, 16-target package
+  dry-run gate, project-console typecheck/tests/build, and leak scans.
 
 ## Follow-Up
 
