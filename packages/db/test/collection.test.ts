@@ -157,6 +157,60 @@ describe("Collection", () => {
     }
   });
 
+  it("clears interrupted in-flight load ownership so later preloads can retry", async () => {
+    const runtime = makeRuntime();
+    const started = Effect.runSync(Deferred.make<void>());
+    const interrupted = Effect.runSync(Deferred.make<void>());
+    let attempts = 0;
+    const load = vi.fn(() => {
+      const attempt = ++attempts;
+      return Effect.gen(function* () {
+        if (attempt === 1) {
+          yield* Deferred.succeed(started, undefined).pipe(Effect.ignore);
+          yield* Effect.never.pipe(
+            Effect.onInterrupt(() =>
+              Deferred.succeed(interrupted, undefined).pipe(Effect.asVoid)
+            )
+          );
+        }
+        return [
+          { id: "atlas", name: "Atlas Retry", status: "active", progress: 88 }
+        ] satisfies ReadonlyArray<Project>;
+      });
+    });
+    const Projects = Collection.define<Project>({
+      name: "Projects.interrupted-preload-retry",
+      getKey: (project) => project.id,
+      load
+    });
+    let preload: Fiber.Fiber<unknown, unknown> | undefined;
+
+    try {
+      preload = runtime.runFork(Projects.preloadEffect());
+      await Effect.runPromise(Deferred.await(started));
+      await Effect.runPromise(Fiber.interrupt(preload));
+      await Effect.runPromise(Deferred.await(interrupted));
+
+      const retry = await Effect.runPromise(
+        runtime.provide(Projects.preloadEffect().pipe(Effect.timeoutOption("1 second")))
+      );
+
+      if (Option.isNone(retry)) {
+        expect.fail("Expected later preload to retry after interrupted load owner.");
+      }
+      expect(load).toHaveBeenCalledTimes(2);
+      expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.id))).toEqual(["atlas"]);
+      expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
+        _tag: "Ready"
+      });
+    } finally {
+      if (preload !== undefined) {
+        await Effect.runPromise(Fiber.await(preload));
+      }
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
   it("does not let a slow preload overwrite a newer forced refetch", async () => {
     const runtime = makeRuntime();
     const preloadStarted = Effect.runSync(Deferred.make<void>());
@@ -3368,6 +3422,61 @@ describe("Collection", () => {
       }
       if (flush !== undefined) {
         await Effect.runPromise(Fiber.await(flush).pipe(Effect.timeoutOption("100 millis")));
+      }
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("clears interrupted active mutation attempts so pending flush can retry", async () => {
+    const runtime = makeRuntime();
+    const entered = Effect.runSync(Deferred.make<void>());
+    const interrupted = Effect.runSync(Deferred.make<void>());
+    let attempts = 0;
+    const Projects = Collection.define<Project>({
+      name: "Projects.interrupted-mutation-flush-retry",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+      ],
+      onUpdate: () => {
+        const attempt = ++attempts;
+        return Effect.gen(function* () {
+          if (attempt === 1) {
+            yield* Deferred.succeed(entered, undefined).pipe(Effect.ignore);
+            yield* Effect.never.pipe(
+              Effect.onInterrupt(() =>
+                Deferred.succeed(interrupted, undefined).pipe(Effect.asVoid)
+              )
+            );
+          }
+        });
+      }
+    });
+    let update: Fiber.Fiber<unknown, unknown> | undefined;
+
+    try {
+      update = runtime.runFork(Projects.updateEffect("atlas", { progress: 90 }));
+      await Effect.runPromise(Deferred.await(entered));
+      await Effect.runPromise(Fiber.interrupt(update));
+      await Effect.runPromise(Deferred.await(interrupted));
+
+      const flush = await Effect.runPromise(
+        runtime.provide(Projects.flushPendingMutationsEffect().pipe(Effect.timeoutOption("1 second")))
+      );
+
+      if (Option.isNone(flush)) {
+        expect.fail("Expected flush to retry after interrupted mutation owner.");
+      }
+      expect(attempts).toBe(2);
+      expect(flush.value).toHaveLength(1);
+      expect(runWithRuntime(runtime, () => Projects.pendingMutations())).toEqual([]);
+      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
+        progress: 90,
+        $synced: true
+      });
+    } finally {
+      if (update !== undefined) {
+        await Effect.runPromise(Fiber.await(update).pipe(Effect.timeoutOption("100 millis")));
       }
       await Effect.runPromise(runtime.disposeEffect);
     }

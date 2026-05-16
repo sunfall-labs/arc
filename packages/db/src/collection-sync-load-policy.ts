@@ -241,7 +241,7 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
         ? failCollectionLoadEffect(store, definition, state, error)
         : Effect.fail(error);
 
-    const exit = yield* Effect.exit(Effect.gen(function* () {
+    const runOwnerLoad = Effect.gen(function* () {
       const restored = yield* restoreBeforePreloadEffect(definition, state, store).pipe(
         Effect.catch((error: CollectionRuntimeError<E>) => failCurrentLoad(error))
       );
@@ -298,8 +298,26 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
         updatedAt
       });
       yield* persistLoadEffect(definition, store);
-    }));
-    const completionExit = yield* Effect.exit(resolveLoadAttemptCompletion(definition, state, attempt, exit));
-    yield* completeCollectionLoadAttempt(state, attempt, completionExit);
-    return yield* effectFromLoadAttemptExit(completionExit);
+    }).pipe(
+      Effect.exit,
+      Effect.flatMap((exit) =>
+        Effect.gen(function* () {
+          const completionExit = yield* Effect.exit(resolveLoadAttemptCompletion(definition, state, attempt, exit));
+          yield* completeCollectionLoadAttempt(state, attempt, completionExit);
+          return yield* effectFromLoadAttemptExit(completionExit);
+        })
+      )
+    );
+
+    return yield* runOwnerLoad.pipe(
+      Effect.onExit((exit) =>
+        Exit.isFailure(exit)
+          ? completeCollectionLoadAttempt(
+              state,
+              attempt,
+              exit as Exit.Exit<void, CollectionRuntimeError<E>>
+            )
+          : Effect.void
+      )
+    );
   });

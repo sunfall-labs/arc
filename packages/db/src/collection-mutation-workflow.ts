@@ -222,27 +222,41 @@ const runPendingMutation = <A extends object, K extends CollectionKey, E, R>(
       deferred: yield* Deferred.make<CollectionTransaction<A, K>, CollectionRuntimeError<E>>()
     };
     pending.activeAttempt = attempt;
-    const mutation = recordPendingMutationAttempt(pending);
-    bumpCollectionState(state);
-    yield* publishStoreEvent(store, {
-      _tag: "CollectionMutateStarted",
-      collection: definition.name,
-      transaction: mutation.id,
-      mutations: mutation.mutations.length
+    const runOwnerMutation = Effect.gen(function* () {
+      const mutation = recordPendingMutationAttempt(pending);
+      bumpCollectionState(state);
+      yield* publishStoreEvent(store, {
+        _tag: "CollectionMutateStarted",
+        collection: definition.name,
+        transaction: mutation.id,
+        mutations: mutation.mutations.length
+      });
+
+      const exit = yield* Effect.exit(
+        withCollectionMutationRetry(definition, handler).pipe(
+          Effect.matchEffect({
+            onFailure: (error: E | EffectInputCallbackError) =>
+              rollbackPendingMutation(definition, state, store, pending, mutation, error),
+            onSuccess: () =>
+              commitPendingMutation(definition, state, store, pending, mutation)
+          })
+        )
+      );
+      yield* completePendingMutationAttempt(pending, attempt, exit);
+      return yield* exit;
     });
 
-    const exit = yield* Effect.exit(
-      withCollectionMutationRetry(definition, handler).pipe(
-        Effect.matchEffect({
-          onFailure: (error: E | EffectInputCallbackError) =>
-            rollbackPendingMutation(definition, state, store, pending, mutation, error),
-          onSuccess: () =>
-            commitPendingMutation(definition, state, store, pending, mutation)
-        })
+    return yield* runOwnerMutation.pipe(
+      Effect.onExit((exit) =>
+        Exit.isFailure(exit)
+          ? completePendingMutationAttempt(
+              pending,
+              attempt,
+              exit as Exit.Exit<CollectionTransaction<A, K>, CollectionRuntimeError<E>>
+            )
+          : Effect.void
       )
     );
-    yield* completePendingMutationAttempt(pending, attempt, exit);
-    return yield* exit;
   });
 
 const runCollectionMutationTransactionEffect = <A extends object, K extends CollectionKey, E, R>(
