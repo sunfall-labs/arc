@@ -1,7 +1,10 @@
 import { Effect } from "effect";
 import type {
   StartAppGraphActionDiagnostics,
+  StartAppGraphCollectionDiagnostics,
   StartAppGraphRouteDiagnostics,
+  StartAppGraphResourceFamilyDiagnostics,
+  StartAppGraphResourceTagDiagnostics,
   StartAppGraphServerFunctionDiagnostics
 } from "./app-graph.js";
 import { createStartDiagnosticsReport } from "./diagnostics-report.js";
@@ -95,9 +98,50 @@ const routeNeedsAttention = (
     route.preloadCollections.status === "unknown"
   );
 
+type StartAgentGraphFactRecord = Readonly<Record<string, unknown>>;
+
+const detachFactValue = (
+  value: unknown,
+  seen: WeakMap<object, unknown> = new WeakMap()
+): unknown => {
+  if (Array.isArray(value)) {
+    const existing = seen.get(value);
+    if (existing !== undefined) {
+      return existing;
+    }
+    const clone: unknown[] = [];
+    seen.set(value, clone);
+    for (const item of value) {
+      clone.push(detachFactValue(item, seen));
+    }
+    return clone;
+  }
+
+  if (typeof value !== "object" || value === null) {
+    return value;
+  }
+
+  const existing = seen.get(value);
+  if (existing !== undefined) {
+    return existing;
+  }
+
+  const clone: Record<string, unknown> = {};
+  seen.set(value, clone);
+  for (const [key, child] of Object.entries(value)) {
+    clone[key] = detachFactValue(child, seen);
+  }
+  return clone;
+};
+
+const startAgentGraphFacts = (
+  facts: Readonly<Record<string, unknown>>
+): StartAgentGraphFactRecord =>
+  detachFactValue(facts) as StartAgentGraphFactRecord;
+
 const routeFacts = (
   route: StartAppGraphRouteDiagnostics
-): Readonly<Record<string, unknown>> => ({
+): StartAgentGraphFactRecord => startAgentGraphFacts({
   routeId: route.routeId,
   routePath: route.routePath,
   moduleId: route.moduleId,
@@ -113,7 +157,7 @@ const routeFacts = (
 
 const serverFunctionFacts = (
   serverFunction: StartAppGraphServerFunctionDiagnostics
-): Readonly<Record<string, unknown>> => ({
+): StartAgentGraphFactRecord => startAgentGraphFacts({
   id: serverFunction.id,
   name: serverFunction.name,
   server: serverFunction.server,
@@ -123,13 +167,58 @@ const serverFunctionFacts = (
 
 const actionFacts = (
   action: StartAppGraphActionDiagnostics
-): Readonly<Record<string, unknown>> => ({
+): StartAgentGraphFactRecord => startAgentGraphFacts({
   id: action.id,
   name: action.name,
   server: action.server,
   client: action.client,
   wire: action.wire,
   behavior: action.behavior
+});
+
+const resourceFamilyFacts = (
+  family: StartAppGraphResourceFamilyDiagnostics
+): StartAgentGraphFactRecord => startAgentGraphFacts({
+  name: family.name,
+  inputSchema: family.inputSchema,
+  outputSchema: family.outputSchema,
+  errorSchema: family.errorSchema,
+  providesTags: family.providesTags,
+  policy: family.policy
+});
+
+const resourceTagFacts = (
+  tag: StartAppGraphResourceTagDiagnostics
+): StartAgentGraphFactRecord => startAgentGraphFacts({
+  name: tag.name,
+  keyed: tag.keyed
+});
+
+const collectionFacts = (
+  collection: StartAppGraphCollectionDiagnostics
+): StartAgentGraphFactRecord => startAgentGraphFacts({
+  name: collection.name,
+  readOnly: collection.readOnly,
+  inputSchema: collection.inputSchema,
+  outputSchema: collection.outputSchema,
+  initialData: collection.initialData,
+  indexes: collection.indexes,
+  load: collection.load,
+  handlers: collection.handlers,
+  policy: collection.policy,
+  ...(collection.sync === undefined ? {} : { sync: collection.sync }),
+  persistence: collection.persistence
+});
+
+const findingFacts = (
+  finding: ReturnType<typeof createStartDiagnosticsReport>["findings"][number]
+): StartAgentGraphFactRecord => startAgentGraphFacts({
+  kind: finding.kind,
+  owner: finding.owner,
+  subject: finding.subject,
+  issue: finding.issue,
+  edit: finding.edit,
+  details: finding.details
 });
 
 const moduleNode = (
@@ -139,7 +228,7 @@ const moduleNode = (
   kind: "Module",
   label: module,
   status: "known",
-  facts: { module }
+  facts: startAgentGraphFacts({ module })
 });
 
 const endpointNode = (
@@ -150,14 +239,11 @@ const endpointNode = (
   kind: "Endpoint",
   label: `${kind} ${path}`,
   status: "known",
-  facts: { kind, path }
+  facts: startAgentGraphFacts({ kind, path })
 });
 
 const ownerModule = (owner: string): string =>
   owner.split("#", 1)[0] ?? owner;
-
-const asFacts = (value: unknown): Readonly<Record<string, unknown>> =>
-  value as Readonly<Record<string, unknown>>;
 
 /**
  * Projects Start app graph diagnostics into an agent-readable graph.
@@ -207,7 +293,10 @@ export const createStartAgentGraph = (
             kind: "ResourceFamily",
             label: family,
             status: "known",
-            facts: { name: family, source: "route preload declaration" }
+            facts: startAgentGraphFacts({
+              name: family,
+              source: "route preload declaration"
+            })
           });
         }
         addEdge(edges, {
@@ -228,7 +317,10 @@ export const createStartAgentGraph = (
             kind: "Collection",
             label: collection,
             status: "known",
-            facts: { name: collection, source: "route preload declaration" }
+            facts: startAgentGraphFacts({
+              name: collection,
+              source: "route preload declaration"
+            })
           });
         }
         addEdge(edges, {
@@ -319,7 +411,7 @@ export const createStartAgentGraph = (
       kind: "ResourceFamily",
       label: family.name,
       status: "known",
-      facts: asFacts(family)
+      facts: resourceFamilyFacts(family)
     });
   }
 
@@ -329,7 +421,7 @@ export const createStartAgentGraph = (
       kind: "ResourceTag",
       label: tag.name,
       status: "known",
-      facts: asFacts(tag)
+      facts: resourceTagFacts(tag)
     });
   }
 
@@ -339,7 +431,7 @@ export const createStartAgentGraph = (
       kind: "Collection",
       label: collection.name,
       status: "known",
-      facts: asFacts(collection)
+      facts: collectionFacts(collection)
     });
   }
 
@@ -351,7 +443,7 @@ export const createStartAgentGraph = (
       label: `${finding.kind}: ${finding.subject}`,
       status: "needs-attention",
       owner: finding.owner,
-      facts: finding as unknown as Readonly<Record<string, unknown>>
+      facts: findingFacts(finding)
     });
     const moduleId = nodeId("module", ownerModule(finding.owner));
     if (!nodes.has(moduleId)) {

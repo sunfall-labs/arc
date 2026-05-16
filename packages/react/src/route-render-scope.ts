@@ -1,6 +1,6 @@
 import {
   browserRouteRenderDecision,
-  browserRouteRenderKey,
+  browserRouteRenderIdentity,
   makeRuntimeUiScope,
   runWithRuntime,
   runWithScope,
@@ -33,6 +33,12 @@ const defaultFailure = <ER>(
 };
 
 const defaultNotFound = (): ReactNode => undefined;
+
+const routeRenderDefaults = {
+  pending: defaultPending,
+  failure: defaultFailure,
+  notFound: defaultNotFound
+};
 
 interface RouteRenderFrameProps<ER> {
   readonly runtime: AnyEffectUiRuntime<ER>;
@@ -82,12 +88,17 @@ const RouteRenderFrame = <ER,>(props: RouteRenderFrameProps<ER>): ReactNode => {
 const renderInRouteScope = <Routes extends readonly AnyRoute[], ER>(
   runtime: AnyEffectUiRuntime<ER>,
   routeState: BrowserRouterState<Routes, ER>,
+  renderers: ReactRouteOutletRenderers<Routes, ER>,
   render: () => ReactNode
 ): ReactNode =>
   createElement(RuntimeContext.Provider, {
     value: runtime as AnyEffectUiRuntime<never>,
     children: createElement(RouteRenderFrame, {
-      key: browserRouteRenderKey(routeState),
+      key: browserRouteRenderIdentity({
+        state: routeState,
+        renderers,
+        defaults: routeRenderDefaults
+      }),
       runtime,
       render
     })
@@ -101,22 +112,22 @@ export const renderReactRouteState = <Routes extends readonly AnyRoute[], ER>(
   const decision = browserRouteRenderDecision(routeState);
   switch (decision._tag) {
     case "Pending":
-      return renderInRouteScope(runtime, decision.state, () =>
+      return renderInRouteScope(runtime, decision.state, renderers, () =>
         (renderers.pending ?? defaultPending)(decision.state)
       );
     case "Failure":
-      return renderInRouteScope(runtime, decision.state, () =>
+      return renderInRouteScope(runtime, decision.state, renderers, () =>
         (renderers.failure ?? defaultFailure)(decision.state)
       );
     case "NotFound":
-      return renderInRouteScope(runtime, decision.state, () =>
+      return renderInRouteScope(runtime, decision.state, renderers, () =>
         (renderers.notFound ?? defaultNotFound)(decision.state)
       );
     case "Empty":
       return undefined;
     case "Ready": {
       const component = decision.component as (props: Record<string, unknown>) => ReactNode;
-      return renderInRouteScope(runtime, decision.state, () =>
+      return renderInRouteScope(runtime, decision.state, renderers, () =>
         component(decision.props as unknown as Record<string, unknown>)
       );
     }

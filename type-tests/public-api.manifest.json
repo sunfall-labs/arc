@@ -61,7 +61,15 @@
       "import": "@effect-ui/react-db",
       "source": "packages/react-db/src/index.ts",
       "docs": "docs/public-api-inventory.md",
-      "typeTest": "type-tests/react-db.test-d.ts"
+      "typeTest": "type-tests/react-db.test-d.ts",
+      "requiredTypeTestImports": [
+        "Collection",
+        "CollectionHandle",
+        "LiveQueryHandle",
+        "Query",
+        "useCollection",
+        "useLiveQuery"
+      ]
     },
     {
       "package": "@effect-ui/solid",
@@ -95,7 +103,15 @@
       "import": "@effect-ui/solid-db",
       "source": "packages/solid-db/src/index.ts",
       "docs": "docs/public-api-inventory.md",
-      "typeTest": "type-tests/solid-db.test-d.ts"
+      "typeTest": "type-tests/solid-db.test-d.ts",
+      "requiredTypeTestImports": [
+        "Collection",
+        "CollectionHandle",
+        "LiveQueryHandle",
+        "Query",
+        "useCollection",
+        "useLiveQuery"
+      ]
     },
     {
       "package": "@effect-ui/start",

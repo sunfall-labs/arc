@@ -15,6 +15,27 @@ export interface BrowserRouteOutletRenderers<
   readonly notFound?: (state: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "NotFound" }>) => Out;
 }
 
+/** Adapter defaults used when computing route-render identity. */
+export interface BrowserRouteOutletDefaultRenderers<
+  Routes extends readonly AnyBrowserRoute[],
+  ER,
+  Out
+> {
+  readonly pending: (state: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Pending" }>) => Out;
+  readonly failure: (state: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Failure" }>) => Out;
+  readonly notFound: (state: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "NotFound" }>) => Out;
+}
+
+export interface BrowserRouteRenderIdentityInput<
+  Routes extends readonly AnyBrowserRoute[],
+  ER,
+  Out
+> {
+  readonly state: BrowserRouterState<Routes, ER>;
+  readonly renderers: BrowserRouteOutletRenderers<Routes, ER, Out>;
+  readonly defaults: BrowserRouteOutletDefaultRenderers<Routes, ER, Out>;
+}
+
 /** Props passed to a route component when a router state is ready to render. */
 export interface BrowserRouteReadyRenderProps<R extends AnyBrowserRoute = AnyBrowserRoute> {
   /** Decoded path params for the matched route. */
@@ -75,6 +96,28 @@ export const browserRouteRenderKey = <Routes extends readonly AnyBrowserRoute[],
   }
 };
 
+const routeRendererIdentityIds = new WeakMap<object, number>();
+let routeRendererIdentitySequence = 0;
+
+const routeRendererIdentityToken = (renderer: unknown): string => {
+  if (renderer === undefined || renderer === null) {
+    return "none";
+  }
+  if (typeof renderer !== "object" && typeof renderer !== "function") {
+    return `value:${String(renderer)}`;
+  }
+
+  const key = renderer as object;
+  const existing = routeRendererIdentityIds.get(key);
+  if (existing !== undefined) {
+    return `ref:${existing}`;
+  }
+
+  const next = ++routeRendererIdentitySequence;
+  routeRendererIdentityIds.set(key, next);
+  return `ref:${next}`;
+};
+
 /** Builds the adapter-neutral render decision for one router state. */
 export const browserRouteRenderDecision = <Routes extends readonly AnyBrowserRoute[], ER>(
   state: BrowserRouterState<Routes, ER>
@@ -103,3 +146,34 @@ export const browserRouteRenderDecision = <Routes extends readonly AnyBrowserRou
     }
   }
 };
+
+/** Active renderer participating in the route `UiScope` lifetime identity. */
+export const browserRouteActiveRenderer = <Routes extends readonly AnyBrowserRoute[], ER, Out>(
+  input: BrowserRouteRenderIdentityInput<Routes, ER, Out>
+): unknown => {
+  const decision = browserRouteRenderDecision(input.state);
+  switch (decision._tag) {
+    case "Pending":
+      return input.renderers.pending ?? input.defaults.pending;
+    case "Failure":
+      return input.renderers.failure ?? input.defaults.failure;
+    case "NotFound":
+      return input.renderers.notFound ?? input.defaults.notFound;
+    case "Ready":
+      return decision.component;
+    case "Empty":
+      return undefined;
+  }
+};
+
+/**
+ * Stable identity for route-render scopes.
+ *
+ * The state key owns navigation identity. The renderer token owns same-state
+ * fallback/component swaps so adapters dispose stale `UiScope` lifetimes
+ * consistently.
+ */
+export const browserRouteRenderIdentity = <Routes extends readonly AnyBrowserRoute[], ER, Out>(
+  input: BrowserRouteRenderIdentityInput<Routes, ER, Out>
+): string =>
+  `${browserRouteRenderKey(input.state)}:renderer:${routeRendererIdentityToken(browserRouteActiveRenderer(input))}`;

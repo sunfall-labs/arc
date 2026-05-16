@@ -970,6 +970,10 @@ Release decisions:
 - Keep `Collection` and `Query` re-exports because `@effect-ui/react-db` is the
   React DB entrypoint. Domain modules should still import from `@effect-ui/db`
   when they are adapter-independent.
+- The focused React DB type test and public API manifest pin `Collection`,
+  `Query`, `useCollection`, `useLiveQuery`, `CollectionHandle`, and
+  `LiveQueryHandle` as direct imports so this Adapter re-export Interface cannot
+  drift silently.
 - React DB handles expose current values directly, such as `projects.rows` and
   `query.data`, while returned mutation, preload, and refetch methods remain
   Effect-returning and runtime-bound.
@@ -1072,6 +1076,10 @@ Release decisions:
 - Keep `Collection` and `Query` re-exports because `@effect-ui/solid-db` is the
   Solid DB entrypoint. Docs should present direct `@effect-ui/db` imports for
   adapter-independent domain modules.
+- The focused Solid DB type test and public API manifest pin `Collection`,
+  `Query`, `useCollection`, `useLiveQuery`, `CollectionHandle`, and
+  `LiveQueryHandle` as direct imports so this Adapter re-export Interface cannot
+  drift silently.
 - `useCollection(...)` and `useLiveQuery(...)` share one internal Solid DB
   Reactive Binding Module for runtime capture, source subscriptions, cleanup,
   automatic preload, and runtime-bound returned Effects. The public handles

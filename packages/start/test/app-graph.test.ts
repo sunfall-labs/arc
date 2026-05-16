@@ -1060,6 +1060,205 @@ describe("Start app graph", () => {
     );
   });
 
+  it("detaches Start agent graph facts from diagnostics records", () => {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const graph = yield* makeGraphEffect();
+        const projectEntry = graph.routes.entries.find((entry) =>
+          entry.routePath === "/projects/:id"
+        );
+
+        if (projectEntry === undefined) {
+          throw new Error("Expected project route entry.");
+        }
+
+        const diagnostics = describeStartAppGraphRuntimeDiagnostics(graph, {
+          routeModules: [
+            {
+              entry: projectEntry,
+              route: {
+                options: {
+                  params: {},
+                  preload: () => undefined,
+                  component: () => null
+                }
+              },
+              preloadResources: {
+                status: "declared" as const,
+                families: ["Project.byId"]
+              },
+              preloadCollections: {
+                status: "declared" as const,
+                collections: ["ProjectRows"]
+              }
+            }
+          ],
+          resourceFamilies: [
+            {
+              name: "Project.byId",
+              inputSchema: true,
+              outputSchema: true,
+              errorSchema: false,
+              providesTags: true,
+              policy: {
+                retry: false
+              }
+            }
+          ],
+          collectionDefinitions: [
+            {
+              name: "ProjectRows",
+              readOnly: false,
+              inputSchema: false,
+              outputSchema: false,
+              initialData: false,
+              indexes: [
+                {
+                  name: "byProjectId",
+                  unique: false
+                }
+              ],
+              load: false,
+              handlers: {
+                insert: false,
+                update: false,
+                delete: false
+              },
+              policy: {
+                retry: false
+              },
+              persistence: {
+                enabled: false,
+                hydrate: false,
+                restoreOnPreload: false,
+                loadAfterRestore: false,
+                persistOnLoad: false,
+                persistOnMutation: false,
+                persistOnWrite: false
+              }
+            }
+          ]
+        });
+        const agentGraph = createStartAgentGraph({ graph, diagnostics });
+        const factRecord = (
+          kind: StartAgentGraphNodeKind,
+          label: string
+        ): Record<string, unknown> => {
+          const node = agentGraph.nodes.find((candidate) =>
+            candidate.kind === kind && candidate.label === label
+          );
+          if (node === undefined) {
+            throw new Error(`Expected ${kind} node ${label}.`);
+          }
+          return node.facts as Record<string, unknown>;
+        };
+        const routeFacts = factRecord("Route", "/projects/:id");
+        const actionFacts = factRecord("Action", "Project.rename");
+        const serverFunctionFacts = factRecord("ServerFunction", "Project.load");
+        const resourceFacts = factRecord("ResourceFamily", "Project.byId");
+        const collectionFacts = factRecord("Collection", "ProjectRows");
+        const findingFacts = factRecord(
+          "Finding",
+          "wire-schema: serverFunction: Project.load"
+        );
+
+        (routeFacts.params as Record<string, unknown>[])[0]!.name = "mutated";
+        ((routeFacts.preloadResources as Record<string, unknown>).families as string[]).push(
+          "Mutated.family"
+        );
+        (actionFacts.wire as Record<string, unknown>).missing = ["mutated"];
+        (actionFacts.behavior as Record<string, unknown>).retry = "unknown";
+        (serverFunctionFacts.wire as Record<string, unknown>).missing = ["mutated"];
+        (resourceFacts.policy as Record<string, unknown>).retry = true;
+        ((collectionFacts.indexes as Record<string, unknown>[])[0]!).name = "mutated";
+        (collectionFacts.handlers as Record<string, unknown>).insert = true;
+        (findingFacts.details as string[])[0] = "mutated detail";
+        findingFacts.issue = "mutated issue";
+
+        const nextGraph = createStartAgentGraph({ graph, diagnostics });
+        const nextRoute = queryStartAgentGraph(nextGraph, {
+          kind: "route",
+          text: "/projects/:id"
+        }).nodes[0];
+        const nextFinding = queryStartAgentGraph(nextGraph, {
+          kind: "finding",
+          text: "serverFunction: Project.load"
+        }).nodes[0];
+        const nextImpact = createStartAgentGraphImpact(nextGraph, {
+          kind: "action",
+          text: "Project.rename"
+        });
+
+        yield* Effect.sync(() => {
+          expect(diagnostics.routeModules.find((route) =>
+            route.routeId === "route_projects_$id"
+          )).toMatchObject({
+            params: [
+              {
+                name: "id",
+                optional: false
+              }
+            ],
+            preloadResources: {
+              status: "declared",
+              families: ["Project.byId"]
+            }
+          });
+          expect(diagnostics.actionModules[0]).toMatchObject({
+            wire: {
+              missing: ["error"]
+            },
+            behavior: {
+              retry: "present"
+            }
+          });
+          expect(diagnostics.serverFunctionModules[0]).toMatchObject({
+            wire: {
+              missing: ["error"]
+            }
+          });
+          expect(diagnostics.resourceFamilies[0]?.policy.retry).toBe(false);
+          expect(diagnostics.collectionDefinitions[0]).toMatchObject({
+            indexes: [
+              {
+                name: "byProjectId"
+              }
+            ],
+            handlers: {
+              insert: false
+            }
+          });
+
+          expect(nextRoute?.facts).toMatchObject({
+            params: [
+              {
+                name: "id"
+              }
+            ],
+            preloadResources: {
+              families: ["Project.byId"]
+            }
+          });
+          expect(nextFinding?.facts).toMatchObject({
+            issue: "serverFunction: Project.load is missing `error` wire schema.",
+            details: [
+              "input schema: present",
+              "output schema: present",
+              "error schema: missing"
+            ]
+          });
+          expect(nextImpact.items[0]).toMatchObject({
+            contracts: [
+              "wire schemas: input present, output present, error missing",
+              "behavior: invalidates present, optimistic absent, retry present, concurrency latest"
+            ],
+            warnings: ["missing wire schema: error"]
+          });
+        });
+      })
+    );
+  });
+
   it("queries agent graph nodes whose facts contain BigInt and circular values", async () => {
     const circularFacts: Record<string, unknown> = {
       reason: "cycle"

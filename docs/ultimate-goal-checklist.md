@@ -649,12 +649,12 @@ Last evidence pass: May 16, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 166 ran Core, React, Solid, DB, and Start
-    package typechecks; public API audit; Effect-first audit over 274 files;
-    Core/React/Solid resource/router tests 5 files / 136 tests; DB
-    collection/sync tests; Start route/diagnostics tests; starter packaging;
-    and the 16-target package dry-run gate. Latest full evidence:
-    `pnpm verify` ran after Review 166 with 53 test files / 1021 tests.
+  - Latest focused evidence: Review 167 ran Core/React/Solid route and Resource
+    focused tests, Start app graph focused tests, Core/React/Solid package
+    typechecks, public type tests, and public API audit for the route identity,
+    Resource retry cleanup, agent fact detachment, and DB adapter pin slice.
+    Latest full evidence:
+    `pnpm verify` ran after Review 167 with 53 test files / 1025 tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.
@@ -793,14 +793,17 @@ Last evidence pass: May 16, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 166 UI retention, DB no-op
-    semantics, Start diagnostics, generated artifact, and guardrail fixes.
+  - Evidence: no new ADR required for the Review 167 route identity, Resource
+    retry cleanup, Start agent fact detachment, and DB adapter type-test pins.
+    Larger Review167 module-depth candidates remain tracked in
+    `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 166
-    UI retention, collection no-op, Start diagnostics, and guardrail slice:
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 167
+    route identity, Resource retry cleanup, Start agent fact detachment, and DB
+    adapter pin slice:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
-    274 files, 53 root test files / 1021 tests, devtools-panel verify with 1
+    274 files, 53 root test files / 1025 tests, devtools-panel verify with 1
     panel test file / 2 tests,
     devtools-extension verify with 1 extension test file / 20 tests, basic
     starter verify with 1 starter test file / 2 tests, React starter verify
@@ -809,11 +812,10 @@ Last evidence pass: May 16, 2026.
     dry-run gate, project-console typecheck, 4 project-console test files / 27
     tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 166 records Core, React, Solid, DB, and Start package
-    typechecks; public API audit; Effect-first audit over 274 files; focused
-    Core/React/Solid/DB/Start tests; root tests 53 files / 1021 tests; starter
-    packaging; and the 16-target package dry-run gate. Full verification is
-    recorded in the Review166 full gate above.
+  - Evidence: Review 167 records Core Resource UI Binding tests, Core/React/
+    Solid router tests, Start app graph tests, Core/React/Solid package
+    typechecks, public type tests, and public API audit. Full verification is
+    recorded in the Review167 full gate above.
 
 ## Remaining Winning-Bar Items
 

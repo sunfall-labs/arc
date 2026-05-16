@@ -1,5 +1,5 @@
-import { makeMemoryBrowserHistoryAdapter, makeRuntime, onDispose, Resource, route, runWithRuntime } from "@effect-ui/core";
-import { Effect } from "effect";
+import { makeMemoryBrowserHistoryAdapter, makeRuntime, onDispose, Resource, route, runWithRuntime, type BrowserRouterState } from "@effect-ui/core";
+import { Cause, Effect } from "effect";
 import { Window } from "happy-dom";
 import { act, Component, createElement, Fragment, useState, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
@@ -12,6 +12,7 @@ import {
   useRouter,
   type BrowserRouter
 } from "../src/index.js";
+import { renderReactRouteState } from "../src/route-render-scope.js";
 
 const installDom = (url = "http://effect-ui.test/"): (() => void) => {
   const window = new Window({ url });
@@ -621,6 +622,106 @@ describe("react router", () => {
 
       await Effect.runPromise(Effect.sleep("20 millis"));
       expect(runWithRuntime(runtime, () => Resource.status(ref)._tag)).toBe("Initial");
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("rerenders pending outlet renderers without navigation", async () => {
+    const runtime = makeRuntime();
+    const Project = route("/renderer-pending/:id", {
+      component: () => createElement("span", {}, "Project")
+    });
+    const match = Project.match("/renderer-pending/atlas");
+    if (!match) {
+      expect.fail("Expected route to match.");
+    }
+    const state: Extract<BrowserRouterState<readonly [typeof Project]>, { readonly _tag: "Pending" }> = {
+      _tag: "Pending",
+      href: "/renderer-pending/atlas",
+      match
+    };
+    const disposed: Array<string> = [];
+    const first = () => {
+      onDispose(() => Effect.sync(() => {
+        disposed.push("first");
+      }));
+      return createElement("span", {}, "pending-one");
+    };
+    const second = () => {
+      onDispose(() => Effect.sync(() => {
+        disposed.push("second");
+      }));
+      return createElement("span", {}, "pending-two");
+    };
+
+    try {
+      await withReactRoot(async (root, container) => {
+        await act(async () => {
+          root.render(renderReactRouteState(state, { pending: first }, runtime));
+        });
+        await flushReact();
+        expect(container.textContent).toBe("pending-one");
+
+        await act(async () => {
+          root.render(renderReactRouteState(state, { pending: second }, runtime));
+        });
+        await flushReact();
+        await Effect.runPromise(Effect.sleep("20 millis"));
+
+        expect(container.textContent).toBe("pending-two");
+        expect(disposed).toEqual(["first"]);
+      });
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("rerenders failure outlet renderers without navigation", async () => {
+    const runtime = makeRuntime();
+    const FailingRoute = route("/renderer-failure", {
+      preload: () => Effect.fail("offline" as const),
+      component: () => createElement("span", {}, "never")
+    });
+    const routes = [FailingRoute] as const;
+    type FailureState = Extract<BrowserRouterState<typeof routes, "offline">, { readonly _tag: "Failure" }>;
+    const state: FailureState = {
+      _tag: "Failure",
+      href: "/renderer-failure",
+      cause: Cause.fail("offline" as const),
+      error: "offline"
+    };
+    const disposed: Array<string> = [];
+    const first = () => {
+      onDispose(() => Effect.sync(() => {
+        disposed.push("first");
+      }));
+      return createElement("span", {}, "failure-one");
+    };
+    const second = () => {
+      onDispose(() => Effect.sync(() => {
+        disposed.push("second");
+      }));
+      return createElement("span", {}, "failure-two");
+    };
+
+    try {
+      await withReactRoot(async (root, container) => {
+        await act(async () => {
+          root.render(renderReactRouteState(state, { failure: first }, runtime));
+        });
+        await flushReact();
+        expect(container.textContent).toBe("failure-one");
+
+        await act(async () => {
+          root.render(renderReactRouteState(state, { failure: second }, runtime));
+        });
+        await flushReact();
+        await Effect.runPromise(Effect.sleep("20 millis"));
+
+        expect(container.textContent).toBe("failure-two");
+        expect(disposed).toEqual(["first"]);
+      });
     } finally {
       await Effect.runPromise(runtime.disposeEffect);
     }

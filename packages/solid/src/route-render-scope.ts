@@ -1,4 +1,5 @@
 import {
+  browserRouteRenderIdentity,
   browserRouteRenderDecision,
   makeRuntimeUiScope,
   runWithRuntime,
@@ -47,23 +48,10 @@ const defaultFailure = <ER>(
 
 const defaultNotFound = (): JSX.Element => undefined;
 
-const activeRouteRenderer = <Routes extends readonly AnyRoute[], ER>(
-  state: BrowserRouterState<Routes, ER>,
-  renderers: SolidRouteOutletRenderers<Routes, ER>
-): unknown => {
-  const decision = browserRouteRenderDecision(state);
-  switch (decision._tag) {
-    case "Pending":
-      return renderers.pending ?? defaultPending;
-    case "Failure":
-      return renderers.failure ?? defaultFailure;
-    case "NotFound":
-      return renderers.notFound ?? defaultNotFound;
-    case "Ready":
-      return decision.component;
-    case "Empty":
-      return undefined;
-  }
+const routeRenderDefaults = {
+  pending: defaultPending,
+  failure: defaultFailure,
+  notFound: defaultNotFound
 };
 
 const renderInRouteScope = <ER>(
@@ -173,7 +161,11 @@ export const makeSolidRouteRenderScopeController = <Routes extends readonly AnyR
   readonly setRenderError: Setter<unknown>;
 }): SolidRouteRenderScopeController<Routes, ER> => {
   let renderedState = options.initialInput.state;
-  let renderedRenderer = activeRouteRenderer(options.initialInput.state, options.initialInput.renderers);
+  let renderedIdentity = browserRouteRenderIdentity({
+    state: options.initialInput.state,
+    renderers: options.initialInput.renderers,
+    defaults: routeRenderDefaults
+  });
   const initial = renderRouteState(renderedState, options.initialInput.renderers, options.runtime);
   options.setNode(() => initial.node);
   let disposeRoute: Effect.Effect<void, never, never> | undefined = initial.dispose;
@@ -202,14 +194,18 @@ export const makeSolidRouteRenderScopeController = <Routes extends readonly AnyR
 
   return {
     update: (input) => {
-      const nextRenderer = activeRouteRenderer(input.state, input.renderers);
+      const nextIdentity = browserRouteRenderIdentity({
+        state: input.state,
+        renderers: input.renderers,
+        defaults: routeRenderDefaults
+      });
       const sameState = input.state === renderedState;
-      if (sameState && nextRenderer === renderedRenderer) {
+      if (sameState && nextIdentity === renderedIdentity) {
         return;
       }
 
       renderedState = input.state;
-      renderedRenderer = nextRenderer;
+      renderedIdentity = nextIdentity;
       const transition = ++transitionVersion;
       options.setNode(() => undefined);
       options.setRenderError(() => undefined);

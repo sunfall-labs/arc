@@ -4,6 +4,7 @@ import {
   browserRouterLinkClickDecision,
   browserRouterLinkPreloadDecision,
   browserRouteRenderDecision,
+  browserRouteRenderIdentity,
   browserRouteRenderKey,
   createBrowserRouterHostController,
   createBrowserRouterKernel,
@@ -127,6 +128,23 @@ describe("browser router kernel", () => {
     const readyDecision = browserRouteRenderDecision(ready);
 
     expect(browserRouteRenderKey(ready)).toBe("Ready:/render-projects/atlas:/render-projects/:id");
+    expect(browserRouteRenderIdentity({
+      state: ready,
+      renderers: {},
+      defaults: {
+        pending: () => undefined,
+        failure: () => undefined,
+        notFound: () => undefined
+      }
+    })).toBe(browserRouteRenderIdentity({
+      state: ready,
+      renderers: {},
+      defaults: {
+        pending: () => undefined,
+        failure: () => undefined,
+        notFound: () => undefined
+      }
+    }));
     expect(readyDecision).toMatchObject({
       _tag: "Ready",
       component,
@@ -143,10 +161,30 @@ describe("browser router kernel", () => {
     });
     expect(emptyDecision).toMatchObject({ _tag: "Empty" });
 
-    expect(browserRouteRenderDecision({
+    const notFound = {
       _tag: "NotFound",
       href: "/missing"
-    })).toMatchObject({ _tag: "NotFound" });
+    } as const;
+    const notFoundRenderer = () => undefined;
+    const nextNotFoundRenderer = () => undefined;
+    expect(browserRouteRenderDecision(notFound)).toMatchObject({ _tag: "NotFound" });
+    expect(browserRouteRenderIdentity({
+      state: notFound,
+      renderers: { notFound: notFoundRenderer },
+      defaults: {
+        pending: () => undefined,
+        failure: () => undefined,
+        notFound: () => undefined
+      }
+    })).not.toBe(browserRouteRenderIdentity({
+      state: notFound,
+      renderers: { notFound: nextNotFoundRenderer },
+      defaults: {
+        pending: () => undefined,
+        failure: () => undefined,
+        notFound: () => undefined
+      }
+    }));
   });
 
   it("shares router link hover preload interruption across framework adapters", () =>

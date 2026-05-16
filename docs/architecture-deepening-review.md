@@ -12,9 +12,112 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review166, immediately after Review165. Some older review entries remain below
+Review167, immediately after Review166. Some older review entries remain below
 it from prior ledger merges; use this tip rather than file order alone when
 looking for the latest architecture sweep.
+
+## Review 167: Shared Route Render Identity, Resource Retry Cleanup, Agent Facts, And DB Pins
+
+Review167 fixed a focused set of fresh findings from the post-Review166
+subagents across Core/UI, Start, and DB public-surface guardrails. Larger
+deepening candidates remain explicitly tracked below rather than being counted
+as clean-sweep evidence.
+
+1. Core Route Render Identity And React Parity
+   - Status: fixed.
+   - Files: `packages/core/src/browser-router-render-decision.ts`,
+     `packages/react/src/route-render-scope.ts`,
+     `packages/solid/src/route-render-scope.ts`,
+     `packages/core/test/browser-router.test.ts`,
+     `packages/react/test/router.test.ts`.
+   - Problem: Core owned route state identity but not active renderer identity.
+     Solid had a local same-state renderer-swap Implementation from Review166,
+     while React still keyed route `UiScope` frames by state only.
+   - Fix: Core now exposes `browserRouteActiveRenderer(...)` and
+     `browserRouteRenderIdentity(...)`, combining the route-state key with the
+     active pending/failure/not-found/component renderer. React keys route
+     frames from the shared identity, and Solid consumes the same Core
+     Interface instead of carrying a private active-renderer policy.
+   - Benefits: route `UiScope` lifetime policy has better Locality in the Core
+     render-decision Module, and React/Solid Adapters get the same Leverage for
+     same-state renderer swaps.
+
+2. Resource UI Manual Retry Clears Stale Preload Failures
+   - Status: fixed.
+   - Files: `packages/core/src/resource-ui-binding.ts`,
+     `packages/core/test/resource-ui-binding.test.ts`.
+   - Problem: automatic preload failures were cleared by successful automatic
+     preload fibers, but successful manual `prefetchEffect(...)` or
+     `refreshEffect(...)` calls could leave a same-ref `preloadFailure` visible
+     after the Resource had recovered.
+   - Fix: the Resource UI Binding Controller now clears same-ref keyed preload
+     failures after successful controller-owned prefetch and refresh Effects.
+   - Benefits: the Core Resource UI Binding Module owns retry cleanup once, so
+     React and Solid handles do not need Adapter-local failure reset policy.
+
+3. Start Agent Graph Fact Detachment
+   - Status: fixed.
+   - Files: `packages/start/src/agent-graph.ts`,
+     `packages/start/test/app-graph.test.ts`.
+   - Problem: `StartAgentGraphNode.facts` promised detached facts, but route,
+     action, server function, resource, collection, and finding facts reused
+     nested diagnostics records or broad casts.
+   - Fix: Start now has one fact-detachment policy at the agent graph projection
+     Seam. Every node kind constructs facts through that policy, and regression
+     tests mutate returned facts before rebuilding/querying/impacting the graph
+     to prove diagnostics remain unchanged.
+   - Benefits: agent graph consumers get detached data by contract, and fact
+     shape changes stay local to the projection Module.
+
+4. React/Solid DB Adapter Re-Export Pins
+   - Status: fixed.
+   - Files: `type-tests/react-db.test-d.ts`,
+     `type-tests/solid-db.test-d.ts`,
+     `type-tests/public-api.manifest.json`.
+   - Problem: React DB and Solid DB intentionally re-export `Collection` and
+     `Query`, but the adapter-local type tests did not pin those imports, and
+     the public API manifest had no required import list for those entrypoints.
+   - Fix: both adapter type tests now import and exercise `Collection`,
+     `Query`, `useCollection`, `useLiveQuery`, `CollectionHandle`, and
+     `LiveQueryHandle`; the public API manifest requires those symbols.
+   - Benefits: the Adapter public Interface is guarded where it is declared,
+     so accidental removal of the ergonomic DB re-exports fails the audit.
+
+5. Larger Review167 Candidates
+   - Status: carried forward.
+   - Files: `scripts/package-project-console-starter.mjs`,
+     `scripts/verify-package-dry-runs.mjs`,
+     `scripts/generated-starter-artifacts.mjs`,
+     `scripts/audit-public-api-inventory.mjs`,
+     `scripts/audit-effect-first.mjs`,
+     `packages/start/src/start-fetch.ts`,
+     `packages/start/src/fetch-adapter.ts`,
+     `packages/start/src/start-vite-dev-ssr.ts`,
+     `packages/devtools/src/app-graph-normalizer.ts`,
+     `packages/db/src/query-execution-plan.ts`,
+     `packages/db/src/query-plan.ts`.
+   - Problem: subagents also found broader Module-depth opportunities: one
+     starter/catalog manifest, declaration-level public symbol policy, docs
+     snippet Effect-first scanning, shared Start abort lifecycle policy,
+     Devtools app graph count normalization, and a deeper DB Query Execution
+     Plan Module.
+   - Next step: handle these as follow-up Review167/168 slices because they are
+     cross-cutting refactors rather than the small correctness/API guardrail
+     batch fixed here.
+
+Focused verification passed across the Review167 slices: Core Resource UI
+Binding tests 1 file / 2 selected tests; Core/React/Solid router tests 3 files
+/ 5 selected tests; Start app graph tests 1 file / 4 selected tests;
+Core/React/Solid package typechecks; public type tests; and public API audit.
+
+Full `pnpm verify` passed after Review167: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 274 files, 53 root test files / 1025 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, starter-suite packaging/verifies for
+basic/react/project-console at 19/24/30 app files with 5/4/6 local packages,
+16-target package dry-run gate, project-console typecheck, 4 project-console
+test files / 27 tests, project-console build, and leak scans.
 
 ## Review 166: UI Resource Retention, Collection No-Ops, Start Diagnostics, And Guardrails
 

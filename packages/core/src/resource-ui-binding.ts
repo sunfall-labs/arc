@@ -201,6 +201,12 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
     options.onPreloadFailureChange?.(failure);
   };
 
+  const clearPreloadFailureForRef = (ref: ResourceRef<I, A, E, R>): void => {
+    if (preloadFailure !== undefined && resourceUiSameRef(preloadFailure.ref, ref)) {
+      setPreloadFailure(undefined);
+    }
+  };
+
   const interruptPreload = (): void => {
     const current = preload;
     preload = undefined;
@@ -252,10 +258,14 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
     runWithRuntime(options.runtime, () => resourceResult(ref));
 
   const prefetchEffect = (ref: ResourceRef<I, A, E, R>): Effect.Effect<A, ResourceLoadError<E> | ER> =>
-    resourceUiBindRuntimeEffect(options.runtime, prefetchResourceEffect(ref));
+    resourceUiBindRuntimeEffect(options.runtime, prefetchResourceEffect(ref)).pipe(
+      Effect.tap(() => Effect.sync(() => clearPreloadFailureForRef(ref)))
+    );
 
   const refreshEffect = (ref: ResourceRef<I, A, E, R>): Effect.Effect<A, ResourceLoadError<E> | ER> =>
-    resourceUiBindRuntimeEffect(options.runtime, refreshResourceEffect(ref));
+    resourceUiBindRuntimeEffect(options.runtime, refreshResourceEffect(ref)).pipe(
+      Effect.tap(() => Effect.sync(() => clearPreloadFailureForRef(ref)))
+    );
 
   const notifyPreloadFailure = (
     observer: ResourceUiAutoPreloadOptions<E, ER>["onPreloadFailure"],

@@ -136,6 +136,54 @@ describe("Resource UI Binding Controller", () => {
     );
   });
 
+  it("clears keyed automatic preload failures after manual retry succeeds", () => {
+    const runtime = makeRuntime();
+    const failure = { _tag: "ResourceUiRetryPreloadFailed" } as const;
+    let shouldFail = true;
+    const ProjectById = Resource.family<string, Project, typeof failure>({
+      name: "ResourceUiBinding.preload-failure-retry",
+      load: (id) =>
+        shouldFail
+          ? Effect.fail(failure)
+          : Effect.succeed({ id, name: "Atlas" })
+    });
+    const prefetchRef = ProjectById("prefetch");
+    const refreshRef = ProjectById("refresh");
+    const changes: Array<typeof failure | undefined> = [];
+    const controller = makeResourceUiBindingController<string, Project, typeof failure, never, never>({
+      runtime,
+      onPreloadFailureChange: (next) => {
+        changes.push(next?.error);
+      }
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        controller.startInitialPreload(prefetchRef);
+        yield* Effect.sleep("20 millis");
+        expect(controller.preloadFailureFor(prefetchRef)).toBe(failure);
+
+        shouldFail = false;
+        expect(yield* controller.prefetchEffect(prefetchRef)).toEqual({ id: "prefetch", name: "Atlas" });
+        expect(controller.preloadFailureFor(prefetchRef)).toBeUndefined();
+        expect(changes.at(-1)).toBeUndefined();
+
+        shouldFail = true;
+        controller.startInitialPreload(refreshRef);
+        yield* Effect.sleep("20 millis");
+        expect(controller.preloadFailureFor(refreshRef)).toBe(failure);
+
+        shouldFail = false;
+        expect(yield* controller.refreshEffect(refreshRef)).toEqual({ id: "refresh", name: "Atlas" });
+        expect(controller.preloadFailureFor(refreshRef)).toBeUndefined();
+        expect(changes.at(-1)).toBeUndefined();
+      }).pipe(
+        Effect.ensuring(Effect.sync(() => controller.dispose())),
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
   it("serializes retained refs across rapid ref changes", () => {
     const runtime = makeRuntime();
     const ProjectById = Resource.family<string, Project>({

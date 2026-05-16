@@ -65,14 +65,14 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 166:
+Latest full gate on May 16, 2026 after Review 167:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
 - Effect-first audit over 274 package/example/config/script/type-test/generated
   template files;
-- 53 root test files / 1021 tests;
+- 53 root test files / 1025 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
 - basic starter verify with 1 starter test file / 2 tests;
@@ -87,6 +87,11 @@ Latest full gate on May 16, 2026 after Review 166:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 167 closed shared Core route render identity for React/Solid route
+  `UiScope` lifetimes, same-ref Resource preload failure cleanup after manual
+  prefetch/refresh retry, detached Start agent graph facts, and React/Solid DB
+  adapter re-export type-test pins. Broader Review167 module-depth candidates
+  remain carried forward for the next architecture lap.
 - Review 166 closed mounted Resource UI retention through `gcFor`, Solid route
   render updates keyed by state plus active renderer identity, DB no-op write
   side effects, single-tick DB hydration, observable change-feed unsubscribe
@@ -914,14 +919,13 @@ Latest full gate on May 16, 2026 after Review 166:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 166 closed mounted Resource
-  UI retention, Solid route render input identity, DB no-op write side effects,
-  single-tick DB hydration, observable change-feed unsubscribe failures,
-  generated route output discovery/HMR exclusion, Start diagnostics graph
-  coherence, exact generated starter tarball app manifests, structural public
-  type-test references, and host-global Promise alias guardrails: 11 package builds, workspace
+- The latest full `pnpm verify` passed after Review 167 closed shared Core
+  route-render identity, Resource UI manual-retry cleanup, detached Start agent
+  graph facts, and React/Solid DB adapter re-export pins. Larger Review167
+  module-depth candidates remain carried forward before any clean-sweep count
+  can start. Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 274 files, 53 root test files / 1021 tests,
+  Effect-first audit over 274 files, 53 root test files / 1025 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,
   generated starter-suite packaging/verifies for basic/react/project-console,
