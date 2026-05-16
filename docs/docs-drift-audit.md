@@ -52,8 +52,9 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     CLI parser compatibility, and Review 111 query execution ordering parity
     sweeps, Review 112 core action workflow resource runtime locality, Review
     113 start action request codec module extraction, Review 114 start
-    diagnostics CLI query kind subcommands, and Review 115 start vite
-    diagnostics loader module extraction.
+    diagnostics CLI query kind subcommands, Review 115 start vite diagnostics
+    loader module extraction, and Review 116 db collection sync load policy
+    module extraction.
 
 ## Current Sweep Results
 
@@ -416,8 +417,11 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Added Review 115 and progress entry 354 evidence for the Start Vite
   Diagnostics Loader extraction. Current docs now record that temporary Vite
   diagnostics loading lives in `start-vite-diagnostics-loader.ts`.
-- Updated current-facing verification snapshots after Review 115 full
-  verification so the latest gate points at the 227-file Effect-first audit and
+- Added Review 116 and progress entry 355 evidence for the DB Collection Sync
+  Load Policy extraction. Current docs now record that load/refetch orchestration
+  lives in `collection-sync-load-policy.ts`.
+- Updated current-facing verification snapshots after Review 116 full
+  verification so the latest gate points at the 228-file Effect-first audit and
   52 root test files / 860 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are
   wrapped with `Effect.tryPromise(...)` at the Adapter seam.

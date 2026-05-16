@@ -1097,9 +1097,14 @@ interruption.
 - Start Action Request Codec now owns schema-backed JSON/form request encoding
   and decoding in `start-action-request-codec.ts`; Start Transport Protocol
   keeps response/status/failure policy and compatibility re-exports.
-- The latest full `pnpm verify` passed after the Review 115 Start Vite
-  Diagnostics Loader Module slice: 11 package builds, workspace typecheck, type
-  tests, public API inventory audit, Effect-first audit over 227
+- DB Collection Sync Load Policy now owns `preloadEffect(...)` and
+  `refetchEffect(...)` orchestration in `collection-sync-load-policy.ts`,
+  including in-flight `Deferred` ownership/joining, forced-refetch generation
+  freshness, restore-before-load, load/refetch selection, retry, row
+  replacement, lifecycle events, and load persistence.
+- The latest full `pnpm verify` passed after the Review 116 DB Collection Sync
+  Load Policy Module slice: 11 package builds, workspace typecheck, type tests,
+  public API inventory audit, Effect-first audit over 228
   package/example/script/type-test files, 52 root test files / 860 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
@@ -1108,8 +1113,8 @@ interruption.
   4 project-console test files / 27 tests, build, and leak scans. Review 75
   added the public API inventory audit to the full gate, Review 86 kept the
   scanner green over the expanded public type-test scope, Review 113 expanded
-  the scanner to 226 files, and Review 115 kept it green over its expanded
-  227-file scope.
+  the scanner to 226 files, Review 115 expanded it to 227 files, and Review 116
+  kept it green over its expanded 228-file scope.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

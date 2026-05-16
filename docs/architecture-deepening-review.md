@@ -11,9 +11,48 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 115, immediately after Review 114. Some older review
+The newest review is Review 116, immediately after Review 115. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 116: DB Collection Sync Load Policy Module
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Collection Sync Load Policy: added
+  `packages/db/src/collection-sync-load-policy.ts` as the focused Effect-first
+  Module for `preloadEffect(...)` and `refetchEffect(...)` load orchestration.
+  It owns in-flight `Deferred` ownership/joining, forced-refetch generation
+  freshness, restore-before-load, load/refetch selection, retry scheduling, row
+  replacement, `CollectionLoaded`/`CollectionLoadFailure` events, and load
+  persistence.
+- Runtime locality: `packages/db/src/collection-runtime.ts` now keeps the
+  public Collection facade, optimistic mutation execution, pending flush replay,
+  direct writes, change-feed batch application, hydration, and persistence
+  facades while delegating load/refetch ordering to the focused Module.
+- Effect v4 fit: this extraction concentrates the real Effect orchestration
+  seam instead of inventing Effects around pure row reads. The public Collection
+  Interface still returns Effects for asynchronous load/refetch work and keeps
+  synchronous read methods synchronous.
+- Audit shape: the Effect-first source scope expanded to 228 auditable files
+  after the new DB source Module.
+
+Focused verification: `pnpm --filter @effect-ui/db typecheck`, `pnpm --filter
+@effect-ui/db build`, `pnpm exec vitest run packages/db/test/collection.test.ts
+-t "preload|refetch|load|restore|persistence"` (1 file / 37 selected tests),
+`pnpm exec vitest run packages/db/test/persisted-options.test.ts
+packages/db/test/sync-adapter.test.ts packages/db/test/flush-policy.test.ts` (3
+files / 26 tests), `pnpm exec vitest run packages/db/test/collection.test.ts`
+(1 file / 102 tests), `pnpm audit:public-api`, `pnpm typecheck:types`, `pnpm
+audit:effect-first` over 228 files, and `git diff --check` passed. Full `pnpm
+verify` passed: 11 package builds, workspace typecheck, public type tests,
+public API inventory audit, Effect-first audit over 228 files, 52 root test
+files / 860 tests, devtools-panel verify with 2 tests, devtools-extension
+verify with 20 tests, basic starter verify with 2 tests, React starter verify
+with 3 tests, project-console packaging/typecheck/tests/build with 4 files / 27
+tests, and leak scans.
 
 ## Review 115: Start Vite Diagnostics Loader Module
 
