@@ -205,6 +205,34 @@ const publicHoverDocs = [
     ]
   },
   {
+    file: "packages/start/src/request-trace.ts",
+    declarations: [
+      "StartRequestTraceTransport",
+      "StartRequestTraceStatus",
+      "StartRequestTraceFailureKind",
+      "StartRequestTraceStreamState",
+      "StartRequestTraceFiberStatus",
+      "StartRequestTraceHeader",
+      "StartRequestTraceCookie",
+      "StartRequestTraceRequest",
+      "StartRequestTraceResponse",
+      "StartRequestTraceResource",
+      "StartRequestTraceCollection",
+      "StartRequestTraceServerFunction",
+      "StartRequestTraceAction",
+      "StartRequestTraceFiber",
+      "StartRequestTraceStream",
+      "StartRequestTraceTeardownSnapshot",
+      "StartRequestTraceTeardown",
+      "StartRequestTrace",
+      "StartRequestTraceRoutePlan",
+      "StartRequestTraceHandler",
+      "startRequestCountMetric",
+      "startRequestDurationMetric",
+      "startRequestStatusMetric"
+    ]
+  },
+  {
     file: "packages/start/src/fetch-adapter.ts",
     allDeclarations: [
       "toFetchHandlerEffect",

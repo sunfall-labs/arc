@@ -648,8 +648,11 @@ Last evidence pass: May 16, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Evidence: `pnpm verify` ran all root package tests: 53 test files, 908
-    tests.
+  - Latest focused evidence: Review 152 ran Core router/route/resource tests
+    3 files / 100 tests, DB/React-DB/Solid-DB tests 4 files / 150 tests,
+    Start tests 2 files / 158 tests, generated starter packaging, and the
+    16-target package dry-run gate. Latest full evidence: `pnpm verify` ran
+    all root package tests after Review 152: 53 test files / 919 tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.

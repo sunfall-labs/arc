@@ -49,15 +49,20 @@ import {
   type StartRenderHydrationPlan,
   type StartRequestTraceAction,
   type StartRequestTraceCollection,
+  type StartRequestTraceCookie,
   type StartRequestTraceFailureKind,
   type StartRequestTraceFiber,
+  type StartRequestTraceFiberStatus,
   type StartRequestTraceHeader,
+  type StartRequestTraceHandler,
   type StartRequestTraceRequest,
+  type StartRequestTraceResource,
   type StartRequestTraceResponse,
   type StartRequestTraceRoutePlan,
   type StartRequestTraceServerFunction,
   type StartRequestTraceStatus,
   type StartRequestTraceStream,
+  type StartRequestTraceStreamState,
   type StartRequestTraceTeardown,
   type StartRequestTraceTeardownSnapshot,
   type StartRequestTraceTransport,
@@ -119,15 +124,20 @@ type StartTypes =
   | StartRenderHydrationPlan
   | StartRequestTraceAction
   | StartRequestTraceCollection
+  | StartRequestTraceCookie
   | StartRequestTraceFailureKind
   | StartRequestTraceFiber
+  | StartRequestTraceFiberStatus
   | StartRequestTraceHeader
+  | StartRequestTraceHandler
   | StartRequestTraceRequest
+  | StartRequestTraceResource
   | StartRequestTraceResponse
   | StartRequestTraceRoutePlan
   | StartRequestTraceServerFunction
   | StartRequestTraceStatus
   | StartRequestTraceStream
+  | StartRequestTraceStreamState
   | StartRequestTraceTeardown
   | StartRequestTraceTeardownSnapshot
   | StartRequestTraceTransport
@@ -173,16 +183,26 @@ void endpointPath;
 void procedureSchemaFlags;
 
 const traceHeader: StartRequestTraceHeader = { name: "x-effect-ui", value: "ok" };
+const traceCookie: StartRequestTraceCookie = { name: "session", value: "[redacted]" };
 const traceTransport: StartRequestTraceTransport = "ssr";
 const traceStatus: StartRequestTraceStatus = "success";
 const traceFailureKind: StartRequestTraceFailureKind = "transport";
+const traceFiberStatus: StartRequestTraceFiberStatus = "done";
+const traceStreamState: StartRequestTraceStreamState = "closed";
+const traceResource: StartRequestTraceResource = {
+  key: "project:atlas",
+  family: "Project",
+  input: { id: "atlas" },
+  state: "Success"
+};
 const traceRequest: StartRequestTraceRequest = {
   id: "request-1",
   method: "GET",
   url: "https://effect-ui.test/projects",
   path: "/projects",
   transport: traceTransport,
-  headers: [traceHeader]
+  headers: [traceHeader],
+  cookies: [traceCookie]
 };
 const traceResponse: StartRequestTraceResponse = {
   status: 200,
@@ -200,10 +220,10 @@ const traceAction: StartRequestTraceAction = {
   failureKind: traceFailureKind,
   invalidationIndexes: [0]
 };
-const traceFiber: StartRequestTraceFiber = { name: "request-runtime", status: "done" };
+const traceFiber: StartRequestTraceFiber = { name: "request-runtime", status: traceFiberStatus };
 const traceStream: StartRequestTraceStream = {
   name: "ssr",
-  state: "closed",
+  state: traceStreamState,
   chunkCount: 1
 };
 const traceTeardownSnapshot: StartRequestTraceTeardownSnapshot = {
@@ -236,7 +256,7 @@ const requestTrace: StartRequestTrace = {
   response: traceResponse,
   services: ["RequestContext", "ResponseContext"],
   routePlan: traceRoutePlan,
-  resources: [],
+  resources: [traceResource],
   collections: [traceCollection],
   serverFunctions: [traceServerFunction],
   actions: [traceAction],
@@ -250,5 +270,9 @@ const requestMetrics: ReadonlyArray<unknown> = [
   startRequestDurationMetric,
   startRequestStatusMetric
 ];
+const traceHandler: StartRequestTraceHandler = (trace) => {
+  void trace;
+};
 void requestTrace;
 void requestMetrics;
+void traceHandler;
