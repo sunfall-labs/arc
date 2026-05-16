@@ -17,17 +17,25 @@ import type { FileRouteManifest } from "./file-routes.js";
 
 /** Plan for a generated route definitions file write. */
 export interface FileRouteDefinitionsFileWritePlan {
+  /** User-facing output path from `fileRouteGeneration.outputFile`. */
   readonly outputFile: string;
+  /** Absolute filesystem path that will be read or written. */
   readonly absolutePath: string;
+  /** Root-relative path embedded in the generated module source. */
   readonly generatedFile: string;
+  /** Complete generated TypeScript module source. */
   readonly source: string;
 }
 
 /** Result from writing the generated route definitions module. */
 export interface FileRouteDefinitionsFileWriteResult {
+  /** User-facing output path from `fileRouteGeneration.outputFile`. */
   readonly outputFile: string;
+  /** Absolute filesystem path that was checked. */
   readonly absolutePath: string;
+  /** True when the file contents changed and were written. */
   readonly written: boolean;
+  /** Complete generated TypeScript module source. */
   readonly source: string;
 }
 
@@ -35,8 +43,11 @@ export interface FileRouteDefinitionsFileWriteResult {
 export class FileRouteDefinitionsFileWriteError extends Data.TaggedError(
   "FileRouteDefinitionsFileWriteError"
 )<{
+  /** Filesystem operation that failed. */
   readonly operation: "read-existing" | "create-directory" | "write-file";
+  /** Path passed to the failing filesystem operation. */
   readonly path: string;
+  /** Original host filesystem error. */
   readonly cause: unknown;
 }> {}
 
@@ -44,12 +55,23 @@ export class FileRouteDefinitionsFileWriteError extends Data.TaggedError(
 export class FileRouteDefinitionsOutputPathError extends Data.TaggedError(
   "FileRouteDefinitionsOutputPathError"
 )<{
+  /** Vite project root used to resolve the output file. */
   readonly root: string;
+  /** Configured route definitions output file. */
   readonly outputFile: string;
+  /** Absolute resolved output path that escaped the root. */
   readonly absolutePath: string;
+  /** Human-readable repair hint for configuration diagnostics. */
   readonly guidance: string;
 }> {}
 
+/**
+ * Typed failure channel for generated route definitions file writes.
+ *
+ * The union separates host filesystem failures, root-escape configuration
+ * errors, and generated module validation errors so Vite integrations can keep
+ * file-route generation inside Effect instead of catching unknown exceptions.
+ */
 export type FileRouteDefinitionsFileWriteFailure =
   | FileRouteDefinitionsFileWriteError
   | FileRouteDefinitionsOutputPathError

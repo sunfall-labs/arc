@@ -142,7 +142,15 @@
       "import": "@effect-ui/start/vite",
       "source": "packages/start/src/vite.ts",
       "docs": "docs/public-api-inventory.md",
-      "typeTest": "type-tests/start-vite.test-d.ts"
+      "typeTest": "type-tests/start-vite.test-d.ts",
+      "requiredTypeTestImports": [
+        "FileRouteDefinitionsFileWriteError",
+        "FileRouteDefinitionsFileWriteFailure",
+        "FileRouteDefinitionsFileWriteResult",
+        "FileRouteDefinitionsOutputPathError",
+        "writeFileRouteDefinitionsFile",
+        "writeFileRouteDefinitionsFileEffect"
+      ]
     },
     {
       "package": "@effect-ui/start-fetch",

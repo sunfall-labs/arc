@@ -1,3 +1,4 @@
+import { Effect } from "effect";
 import {
   effectUiStart,
   handleSsrDevRequestEffect,
@@ -5,6 +6,7 @@ import {
   loadStartAppGraphDiagnosticsEffect,
   runStartViteDiagnosticsGateEffect,
   StartAppGraphDiagnosticsRunnerError,
+  FileRouteDefinitionsFileWriteError,
   FileRouteDefinitionsOutputPathError,
   StartAppGraphMissingWireSchemas,
   StartAppGraphUnknownActionBehavior,
@@ -14,9 +16,12 @@ import {
   validateStartAppGraphRoutePreloadCollectionsDiagnosticsEffect,
   validateStartAppGraphRoutePreloadResourcesDiagnosticsEffect,
   validateStartBuildPolicyEffect,
+  writeFileRouteDefinitionsFile,
   writeFileRouteDefinitionsFileEffect,
   type EffectUiStartOptions,
   type EffectUiStartPlugin,
+  type FileRouteDefinitionsFileWriteFailure,
+  type FileRouteDefinitionsFileWriteResult,
   type LoadedStartAppGraphDiagnostics,
   type LoadStartAppGraphDiagnosticsOptions,
   type StartAppGraphDiagnosticsLoadError,
@@ -32,6 +37,7 @@ const viteExports: Array<unknown> = [
   loadStartAppGraphDiagnosticsEffect,
   runStartViteDiagnosticsGateEffect,
   StartAppGraphDiagnosticsRunnerError,
+  FileRouteDefinitionsFileWriteError,
   FileRouteDefinitionsOutputPathError,
   StartAppGraphMissingWireSchemas,
   StartAppGraphUnknownActionBehavior,
@@ -41,6 +47,7 @@ const viteExports: Array<unknown> = [
   validateStartAppGraphRoutePreloadCollectionsDiagnosticsEffect,
   validateStartAppGraphRoutePreloadResourcesDiagnosticsEffect,
   validateStartBuildPolicyEffect,
+  writeFileRouteDefinitionsFile,
   writeFileRouteDefinitionsFileEffect
 ];
 const diagnosticsBuildPolicyOptions = {
@@ -70,15 +77,33 @@ type _StartBuildPolicyErrorExcludesDiagnostics = Assert<
 type ViteTypes =
   | EffectUiStartOptions
   | EffectUiStartPlugin
+  | FileRouteDefinitionsFileWriteFailure
+  | FileRouteDefinitionsFileWriteResult
   | LoadedStartAppGraphDiagnostics
   | LoadStartAppGraphDiagnosticsOptions
   | StartAppGraphDiagnosticsLoadError
   | StartBuildPolicy
   | StartBuildPolicyError
   | StartDevServer;
+declare const viteRoot: string;
+declare const viteManifest: Parameters<typeof writeFileRouteDefinitionsFile>[1];
 declare const routeOutputFailure: FileRouteDefinitionsOutputPathError;
+declare const routeWriteFailure: FileRouteDefinitionsFileWriteError;
 const routeOutputGuidance: string = routeOutputFailure.guidance;
+const routeWriteOperation:
+  | "read-existing"
+  | "create-directory"
+  | "write-file" = routeWriteFailure.operation;
+const routeDefinitionsWriteResult: FileRouteDefinitionsFileWriteResult | undefined =
+  writeFileRouteDefinitionsFile(viteRoot, viteManifest);
+const routeDefinitionsWriteEffect: Effect.Effect<
+  FileRouteDefinitionsFileWriteResult | undefined,
+  FileRouteDefinitionsFileWriteFailure
+> = writeFileRouteDefinitionsFileEffect(viteRoot, viteManifest);
 void viteExports;
 void diagnosticsBuildPolicyOptions;
 void routeOutputGuidance;
+void routeWriteOperation;
+void routeDefinitionsWriteResult;
+void routeDefinitionsWriteEffect;
 type _ViteTypes = ViteTypes;
