@@ -206,6 +206,9 @@ Latest full gate on May 15, 2026:
 - Review 109 made `runStartDiagnosticsCliEffect(...)` execute the Effect v4
   command tree directly, including built-in `--help`, `--version`, and
   unknown-subcommand formatter handling.
+- Review 110 made `parseStartDiagnosticsCliArgsEffect(...)` reuse that same
+  Effect v4 command tree and interpret `CliError.ShowHelp` results instead of
+  maintaining local argv sniffing for help and unknown commands.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime

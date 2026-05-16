@@ -11,9 +11,45 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 109, immediately after Review 108. Some older review
+The newest review is Review 110, immediately after Review 109. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 110: Start Diagnostics CLI Parser Compatibility
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Start CLI parser compatibility: `parseStartDiagnosticsCliArgsEffect(...)` now
+  runs the same Effect v4 command tree used by the runtime path and interprets
+  `CliError.ShowHelp` as the compatibility `Help` result when the formatter
+  reports a help-only action.
+- Manual argv sniffing removed: the parser helper no longer maintains a local
+  command-name set, top-level help detector, nested help detector, or unknown
+  command precheck. Unknown subcommands and invalid arguments are owned by
+  `Command.runWith(...)`, the Effect CLI parser, and formatter diagnostics.
+- Usage guidance: typed `StartDiagnosticsCliUsageError` values can carry
+  generated Effect CLI help as guidance, so embedding callers see the same
+  grammar surface as the bin runner instead of the legacy hand-written usage
+  string.
+- Regression coverage: parser tests now pin empty argv and nested subcommand
+  help as compatibility `Help` results while the runtime tests continue to pin
+  formatted help and invalid-input exit codes.
+
+Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm exec
+vitest run packages/start/test/start.test.ts -t "parses and runs the Start
+diagnostics CLI wrapper|returns a usage result for invalid Start diagnostics CLI
+input"` (1 file / 2 selected tests), `pnpm typecheck:types`, `pnpm
+audit:effect-first` over 225 files, `pnpm --filter @effect-ui/start build`,
+built CLI top-level help, nested help, unknown-subcommand, and valid graph query
+probes, and `git diff --check` passed. Full `pnpm verify` passed: 11 package
+builds, workspace typecheck, public type tests, public API inventory audit,
+Effect-first audit over 225 files, 52 root test files / 859 tests,
+devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
+basic starter verify with 2 tests, React starter verify with 3 tests,
+project-console packaging/typecheck/tests/build with 4 files / 27 tests, and
+leak scans.
 
 ## Review 109: Start Diagnostics CLI Runtime Dispatch
 

@@ -199,30 +199,13 @@ const requiredQueryFromPositionalsEffect = (
     )
   );
 
-const startDiagnosticsCliCommandNames = new Set([
-  "diagnostics",
-  "graph",
-  "impact"
-]);
-
-const isStartDiagnosticsCliCommandName = (value: string): boolean =>
-  startDiagnosticsCliCommandNames.has(value);
-
-const isHelpFlag = (value: string | undefined): boolean =>
-  value === "-h" || value === "--help";
-
-const isTopLevelHelpRequest = (args: readonly string[]): boolean =>
-  args.length === 0 || isHelpFlag(args[0]);
-
-const isNestedHelpRequest = (args: readonly string[]): boolean =>
-  args[0] !== undefined &&
-  isStartDiagnosticsCliCommandName(args[0]) &&
-  args.slice(1).some(isHelpFlag);
-
-const makeUsageError = (message: string): StartDiagnosticsCliUsageError =>
+const makeUsageError = (
+  message: string,
+  guidance: string = startDiagnosticsCliUsage
+): StartDiagnosticsCliUsageError =>
   new StartDiagnosticsCliUsageError({
     message,
-    guidance: startDiagnosticsCliUsage
+    guidance
   });
 
 const noopConsole: Console.Console = {
@@ -437,61 +420,66 @@ const runStartDiagnosticsCliCommandGrammarEffect = (
     Effect.provide(startDiagnosticsCliCommandEnvironmentLayer)
   );
 
-const usageErrorFromCliCause = (cause: unknown): StartDiagnosticsCliUsageError => {
+const usageErrorFromCliCause = (
+  cause: unknown,
+  guidance: string = startDiagnosticsCliUsage
+): StartDiagnosticsCliUsageError => {
   if (cause instanceof StartDiagnosticsCliUsageError) {
     return cause;
   }
 
   if (CliError.isCliError(cause)) {
     if (cause._tag === "ShowHelp" && cause.errors.length > 0) {
-      return makeUsageError(cause.errors.map((error) => error.message).join("\n"));
+      return makeUsageError(cause.errors.map((error) => error.message).join("\n"), guidance);
     }
-    return makeUsageError(cause.message);
+    return makeUsageError(cause.message, guidance);
   }
 
   if (cause instanceof Error) {
-    return makeUsageError(cause.message);
+    return makeUsageError(cause.message, guidance);
   }
 
-  return makeUsageError(String(cause));
-};
-
-const rejectUnknownStartDiagnosticsCliCommandEffect = (
-  args: readonly string[]
-): Effect.Effect<void, StartDiagnosticsCliUsageError> => {
-  const command = args[0];
-  if (command !== undefined && !command.startsWith("-") && !isStartDiagnosticsCliCommandName(command)) {
-    return Effect.fail(makeUsageError(`Unknown command "${command}".`));
-  }
-
-  return Effect.void;
+  return makeUsageError(String(cause), guidance);
 };
 
 /** Parses CLI argv into a diagnostics command or help request as an Effect. */
 export const parseStartDiagnosticsCliArgsEffect = (
   args: readonly string[]
 ): Effect.Effect<StartCliCommand, StartDiagnosticsCliUsageError> => {
-  if (isTopLevelHelpRequest(args) || isNestedHelpRequest(args)) {
-    return Effect.succeed({ _tag: "Help" });
-  }
-
   return Effect.gen(function* () {
-    yield* rejectUnknownStartDiagnosticsCliCommandEffect(args);
-
     const parsedCommandRef = yield* Ref.make<
       Exclude<StartCliCommand, { readonly _tag: "Help" }> | undefined
     >(undefined);
     const command = makeStartDiagnosticsCliCommand((parsedCommand) =>
       Ref.set(parsedCommandRef, parsedCommand)
     );
+    const stdout: string[] = [];
+    const stderr: string[] = [];
 
-    yield* runStartDiagnosticsCliCommandGrammarEffect(command, args).pipe(
-      Effect.mapError(usageErrorFromCliCause)
+    const grammarResult = yield* runStartDiagnosticsCliCommandGrammarEffect(
+      command,
+      args,
+      makeStartDiagnosticsCliConsole(
+        (text) => stdout.push(text),
+        (text) => stderr.push(text)
+      )
+    ).pipe(
+      Effect.map(() => ({ _tag: "Success" as const })),
+      Effect.catch((cause) => Effect.succeed({ _tag: "Failure" as const, cause }))
     );
+
+    if (grammarResult._tag === "Failure") {
+      if (CliError.isCliError(grammarResult.cause) && grammarResult.cause._tag === "ShowHelp" && grammarResult.cause.errors.length === 0) {
+        return { _tag: "Help" };
+      }
+
+      const guidance = stdout.join("\n") || startDiagnosticsCliUsage;
+      return yield* Effect.fail(usageErrorFromCliCause(grammarResult.cause, guidance));
+    }
 
     const parsedCommand = yield* Ref.get(parsedCommandRef);
     if (parsedCommand === undefined) {
-      return yield* Effect.fail(makeUsageError("Expected a diagnostics command."));
+      return { _tag: "Help" };
     }
 
     return parsedCommand;

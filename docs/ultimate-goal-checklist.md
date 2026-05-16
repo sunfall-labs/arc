@@ -731,8 +731,8 @@ Last evidence pass: May 15, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 15, 2026 after the Review 109
-    Start Diagnostics CLI Runtime Dispatch slice: 11 package builds, workspace
+  - Evidence: root `pnpm verify` passed on May 15, 2026 after the Review 110
+    Start Diagnostics CLI Parser Compatibility slice: 11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
     225 files,
     52 root test files / 859 tests,

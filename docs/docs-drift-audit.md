@@ -48,7 +48,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     ownership, Review 105 start client transport status policy, Review 106
     core resource UI binding runtime locality, Review 107 start diagnostics
     CLI shared flags, Review 108 start diagnostics CLI query argument, and
-    Review 109 start diagnostics CLI runtime dispatch sweeps.
+    Review 109 start diagnostics CLI runtime dispatch, and Review 110 start
+    diagnostics CLI parser compatibility sweeps.
 
 ## Current Sweep Results
 
@@ -391,7 +392,11 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   CLI runtime-dispatch cleanup. Current docs now record that the runtime runner
   executes the Effect v4 command tree directly and lets built-in help/version
   actions use Effect CLI formatter output.
-- Updated current-facing verification snapshots after Review 109 full
+- Added Review 110 and progress entry 349 evidence for the Start diagnostics
+  CLI parser-compatibility cleanup. Current docs now record that the parser
+  helper reuses the Effect v4 command tree and interprets `CliError.ShowHelp`
+  instead of hand-sniffing argv.
+- Updated current-facing verification snapshots after Review 110 full
   verification so the latest gate points at the 225-file Effect-first audit and
   52 root test files / 859 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are

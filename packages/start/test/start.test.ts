@@ -5640,6 +5640,8 @@ describe("Effect UI Start", () => {
         pretty: false
       }
     });
+    expect(parseStartDiagnosticsCliArgs([])).toEqual({ _tag: "Help" });
+    expect(parseStartDiagnosticsCliArgs(["diagnostics", "--help"])).toEqual({ _tag: "Help" });
 
     const helpStdout: string[] = [];
     const helpStderr: string[] = [];
