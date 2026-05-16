@@ -601,6 +601,11 @@ Release decisions:
   diagnostics, and projection stages shared by `Query.build(...).execute()`,
   `Query.onceEffect(...)`, `Query.diagnostics(...)`, and live-query state.
   It is not exported; public Query APIs stay unchanged.
+- The internal Query Context Identity Module owns source alias/key identity,
+  collection row delta identity, merged context identity, ordered tie-break
+  identity, and IVM context metadata shared by Query Execution Plan and Live
+  Query Runtime. It is not exported; public Query and Collection APIs stay
+  unchanged.
 - The internal Collection Value Detachment Module owns deep collection value
   cloning, frozen value/transaction copies, mutation and transaction cloning,
   update-draft detachment, value-change diffing, and public row DTO detachment

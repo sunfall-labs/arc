@@ -461,9 +461,13 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   extraction. Current docs now record that graph DTO contracts, query matching,
   shared display policy, graph/impact text formatting, and semantic impact
   planning live in focused internal Modules.
-- Updated current-facing verification snapshots after Review 127 full
-  verification so the latest gate points at the 242-file Effect-first audit and
-  52 root test files / 867 tests.
+- Added Review 128 evidence for DB Query Context Identity extraction. Current
+  docs now record that source alias/key identity, merged context identity,
+  ordered tie-break identity, IVM metadata, and collection row delta identity
+  live in one DB-local Module.
+- Updated current-facing verification snapshots after Review 128 full
+  verification so the latest gate points at the 243-file Effect-first audit and
+  53 root test files / 872 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are
   wrapped with `Effect.tryPromise(...)` at the Adapter seam.
 - Clarified that `virtual:effect-ui/routes` exposes runtime helpers while the

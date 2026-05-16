@@ -145,6 +145,10 @@ Latest full gate on May 15, 2026:
   projection while focused internal Modules own DTO contracts, query matching,
   shared display policy, graph/impact text, semantic impact relations, warnings,
   and verify-command injection.
+- Review 128 extracted the internal DB Query Context Identity Module: Query
+  Execution Plan and Live Query Runtime now share one source alias/key, merged
+  context, ordered tie-break, IVM metadata, and collection-row delta identity
+  policy while public Query and Collection APIs stay unchanged.
 - Review 85 extracted the internal Solid Route Render Scope Controller:
   `RouterOutlet` now delegates route branch rendering, route-owned `UiScope`
   creation, Solid root cleanup, runtime-bound route finalizers, transition
@@ -774,12 +778,11 @@ Latest full gate on May 15, 2026:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 127 split the internal
-  Start Agent Graph formatter and impact Modules while keeping public package
-  exports stable:
+- The latest full `pnpm verify` passed after Review 128 extracted the internal
+  DB Query Context Identity Module while keeping public package exports stable:
   11 package builds, workspace typecheck, public type tests, public API
-  inventory audit, Effect-first audit over 242 files, 52 root test
-  files / 867 tests,
+  inventory audit, Effect-first audit over 243 files, 53 root test
+  files / 872 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,
   project-console packaging/typecheck/tests/build with 4 files / 27 tests, and

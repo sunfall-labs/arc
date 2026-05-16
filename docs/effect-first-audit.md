@@ -1010,6 +1010,10 @@ interruption.
   snapshot execution, diagnostics, stable equal-order tie-break identity, and
   final projection stages for one-shot and live query facades. The Module
   remains Effect-first and does not add Promise host seams.
+- Query Context Identity now owns DB query source alias/key identity, merged
+  context identity, ordered tie-break identity, IVM context metadata, and
+  collection-row delta identity in a pure internal Module shared by Query
+  Execution Plan and Live Query Runtime.
 - Devtools request summaries and panels now preserve teardown snapshots and
   per-server-function/action failure owners, so inspection stays on structured
   Effect facts rather than raw event spelunking.
@@ -1141,10 +1145,10 @@ interruption.
 - Devtools Panels and Store no longer expose internal single-adapter runtime
   injection seams. Effect wrappers and store Effect methods stay intact while
   pure projection dependencies live in the owning Modules.
-- The latest full `pnpm verify` passed after the Review 127 Start Agent Graph
-  formatter and impact Module slice: 11 package builds, workspace typecheck,
-  type tests, public API inventory audit, Effect-first audit over 242
-  package/example/script/type-test files, 52 root test files / 867 tests,
+- The latest full `pnpm verify` passed after the Review 128 DB Query Context
+  Identity Module slice: 11 package builds, workspace typecheck, type tests,
+  public API inventory audit, Effect-first audit over 243
+  package/example/script/type-test files, 53 root test files / 872 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
   verify with 1 starter test file / 2 tests, React starter verify with 1
@@ -1155,8 +1159,9 @@ interruption.
   the scanner to 226 files, Review 115 expanded it to 227 files, Review 116
   expanded it to 228 files, Review 120 expanded it to 230 files, Review 121
   expanded it to 231 files, Review 123 expanded it to 232 files, Review
-  124 expanded it to 233 files, Review 125 expanded it to 237 files, and
-  Review 127 expanded it to 242 files while keeping it green over that scope.
+  124 expanded it to 233 files, Review 125 expanded it to 237 files, Review
+  127 expanded it to 242 files, and Review 128 expanded it to 243 files while
+  keeping it green over that scope.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

@@ -400,6 +400,11 @@ Last evidence pass: May 15, 2026.
     `packages/db/test/live-query-collection.test.ts`.
 - [x] Query diagnostics explain sources, joins, row counts, and estimated cost.
   - Evidence: `describes query plans with indexed join cost diagnostics`.
+- [x] Query context identity is centralized.
+  - Evidence: `packages/db/src/query-context-identity.ts` owns source alias/key
+    identity, merged context identity, ordered tie-break identity, IVM metadata,
+    and collection row delta identity shared by `query-execution-plan.ts` and
+    `live-query-runtime.ts`.
 - [x] Collection persistence supports string storage and SQLite-shaped adapters.
   - Evidence: `packages/db/test/collection.test.ts`,
     `packages/db/test/sqlite-persistence.test.ts`.

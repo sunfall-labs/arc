@@ -11,9 +11,41 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 127, immediately after Review 126. Some older review
+The newest review is Review 128, immediately after Review 127. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 128: DB Query Context Identity Module
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Query Context Identity: added `packages/db/src/query-context-identity.ts` as
+  the focused internal Module for source alias/key identity, collection row
+  delta identity, merged context identity, ordered-context tie-break identity,
+  and IVM context metadata.
+- Query Execution Plan: `packages/db/src/query-execution-plan.ts` now consumes
+  Query Context Identity for stable equal-order tie breaks while keeping query
+  validation, preload/refetch, snapshot execution, diagnostics, and projection
+  stages local.
+- Live Query Runtime: `packages/db/src/live-query-runtime.ts` now consumes the
+  same identity Module for source deltas, context merge keys, IVM row keys, and
+  ordered live-query parity instead of owning a separate symbol/string policy.
+- Regression coverage: added
+  `packages/db/test/query-context-identity.test.ts` for key-type identity,
+  self-join alias identity, delimiter-safe merges, base-source-before-join
+  ordering, and missing-key fallback.
+
+Focused verification passed: `pnpm --filter @effect-ui/db typecheck`, `pnpm
+exec vitest run packages/db/test/query-context-identity.test.ts
+packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
+(3 files / 134 tests), `pnpm exec vitest run packages/db/test/collection.test.ts
+packages/db/test/live-query-collection.test.ts packages/db/test/sync-adapter.test.ts
+packages/db/test/server-collection.test.ts packages/db/test/sqlite-persistence.test.ts`
+(5 files / 159 tests), `pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm
+audit:effect-first` over 243 files, and `git diff --check`.
+Full `pnpm verify` also passed after the slice.
 
 ## Review 127: Start Agent Graph Formatter and Impact Modules
 

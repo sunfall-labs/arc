@@ -1,4 +1,3 @@
-import { stableStringify } from "@effect-ui/core";
 import { Effect } from "effect";
 import {
   buildQueryContexts,
@@ -16,7 +15,18 @@ import {
   type QueryPlanDiagnostics,
   type QueryProjectOptions
 } from "./query-plan.js";
-import type { CollectionKey } from "./collection-contract.js";
+import {
+  queryContextOrderIdentity,
+  type QueryContextIdentity
+} from "./query-context-identity.js";
+export {
+  mergeQueryContextIdentities,
+  queryCollectionRowIdentity,
+  queryContextIdentityOf,
+  queryContextIdentitySymbol,
+  queryContextOrderIdentity,
+  querySourceContextIdentity
+} from "./query-context-identity.js";
 import type { QueryCollectionSourceAdapter } from "./query-source-adapter.js";
 
 export interface QueryExecutionPlanBuilder<TContext extends AnyQueryContext, TResult>
@@ -33,54 +43,8 @@ export const queryExecutionPlanSourceAdapters = (
 export interface QueryOrderedContext<TContext extends AnyQueryContext> {
   readonly row: TContext;
   readonly index: number;
-  readonly identity?: string;
+  readonly identity?: QueryContextIdentity;
 }
-
-export const querySourceContextIdentity = (alias: string, key: CollectionKey): string =>
-  stableStringify([alias, typeof key, key]);
-
-export const mergeQueryContextIdentities = (
-  left: string,
-  right: string
-): string =>
-  stableStringify([left, right]);
-
-const queryContextOrderAliases = (
-  builder: QueryPlanBuilder<any>
-): ReadonlyArray<string> => {
-  const joinAliases = new Set(builder.joins.map((join) => join.alias));
-  return [
-    ...builder.sources
-      .filter(([alias]) => !joinAliases.has(alias))
-      .map(([alias]) => alias),
-    ...builder.joins.map((join) => join.alias)
-  ];
-};
-
-const rowKey = (value: unknown): CollectionKey | undefined =>
-  typeof value === "object" && value !== null && "$key" in value
-    ? (value as { readonly $key: CollectionKey }).$key
-    : undefined;
-
-export const queryContextOrderIdentity = (
-  builder: QueryPlanBuilder<any>,
-  context: AnyQueryContext
-): string | undefined => {
-  let identity: string | undefined;
-  for (const alias of queryContextOrderAliases(builder)) {
-    const key = rowKey(context[alias]);
-    if (key === undefined) {
-      continue;
-    }
-
-    const sourceIdentity = querySourceContextIdentity(alias, key);
-    identity = identity === undefined
-      ? sourceIdentity
-      : mergeQueryContextIdentities(identity, sourceIdentity);
-  }
-
-  return identity;
-};
 
 export const compareQueryOrderedContexts = <TContext extends AnyQueryContext>(
   left: QueryOrderedContext<TContext>,

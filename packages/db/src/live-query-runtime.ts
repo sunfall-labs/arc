@@ -14,7 +14,7 @@ import {
   type PipedOperator,
   type RootStreamBuilder
 } from "@tanstack/db-ivm";
-import type { AnyCollection, CollectionKey } from "./collection-contract.js";
+import type { AnyCollection } from "./collection-contract.js";
 import {
   UnsupportedLiveQuery,
   compareValue,
@@ -31,11 +31,16 @@ import {
 } from "./query-plan.js";
 import {
   compareQueryOrderedContexts,
-  mergeQueryContextIdentities,
   projectQueryContexts,
-  querySourceContextIdentity,
   type QueryExecutionPlanBuilder
 } from "./query-execution-plan.js";
+import {
+  mergeQueryContextRecords,
+  queryCollectionRowIdentity,
+  queryContextIdentityOf,
+  querySourceContext,
+  type QueryContextIdentityRecord
+} from "./query-context-identity.js";
 import {
   makeQuerySourceAdapter,
   type QueryCollectionSourceAdapter
@@ -51,18 +56,20 @@ export interface LiveQueryRuntime<TResult> {
 const compareIvmContexts = <TContext extends AnyQueryContext>(
   orders: ReadonlyArray<QueryOrder<TContext>>
 ) => (left: TContext, right: TContext): number => {
+  const leftIdentity = queryContextIdentityOf(left);
+  const rightIdentity = queryContextIdentityOf(right);
   return compareQueryOrderedContexts(
-    { row: left, index: 0, identity: (left as IvmContext)[contextKeySymbol] },
-    { row: right, index: 0, identity: (right as IvmContext)[contextKeySymbol] },
+    leftIdentity === undefined
+      ? { row: left, index: 0 }
+      : { row: left, index: 0, identity: leftIdentity },
+    rightIdentity === undefined
+      ? { row: right, index: 0 }
+      : { row: right, index: 0, identity: rightIdentity },
     orders
   );
 };
 
-const contextKeySymbol: unique symbol = Symbol.for("@effect-ui/db/QueryContextKey") as typeof contextKeySymbol;
 const crossJoinKey = "__effect_ui_db_all__";
-
-const collectionRowIdentity = (key: CollectionKey): string =>
-  stableStringify([typeof key, key]);
 
 type IvmRuntimeOperator = IOperator<unknown>;
 
@@ -123,9 +130,7 @@ const ivmFlatMap = <T, U>(
     return output;
   };
 
-type IvmContext = Record<string, unknown> & {
-  readonly [contextKeySymbol]: string;
-};
+type IvmContext = AnyQueryContext & QueryContextIdentityRecord;
 
 interface IvmSource {
   readonly alias: string;
@@ -259,7 +264,7 @@ class IvmLiveQueryRuntime<TContext extends AnyQueryContext, TResult> implements 
           )
         ),
         ivmMap(([_, context]) =>
-          [context[contextKeySymbol], context as TContext] satisfies KeyValue<string, TContext>
+          [queryContextIdentityOf(context) ?? crossJoinKey, context as TContext] satisfies KeyValue<string, TContext>
         )
       );
     }
@@ -328,7 +333,7 @@ class IvmLiveQueryRuntime<TContext extends AnyQueryContext, TResult> implements 
     const deltas: Array<[KeyValue<string, IvmContext>, number]> = [];
 
     for (const row of source.source.rows()) {
-      const key = collectionRowIdentity(row.$key);
+      const key = queryCollectionRowIdentity(row.$key);
       const hash = stableStringify(row);
       const previous = source.previous.get(key);
       current.set(key, { row, hash });
@@ -366,21 +371,11 @@ const sourceContext = (
   row: AnyCollectionRow
 ): KeyValue<string, IvmContext> => [
   crossJoinKey,
-  {
-    [alias]: row,
-    [contextKeySymbol]: querySourceContextIdentity(alias, row.$key)
-  }
+  querySourceContext(alias, row)
 ];
 
-const mergeContexts = (left: IvmContext | null, right: IvmContext | null): IvmContext => {
-  const leftKey = left?.[contextKeySymbol] ?? "";
-  const rightKey = right?.[contextKeySymbol] ?? "";
-  return {
-    ...(left ?? {}),
-    ...(right ?? {}),
-    [contextKeySymbol]: mergeQueryContextIdentities(leftKey, rightKey)
-  };
-};
+const mergeContexts = (left: IvmContext | null, right: IvmContext | null): IvmContext =>
+  mergeQueryContextRecords(left, right);
 
 export const makeLiveQueryRuntime = <TContext extends AnyQueryContext, TResult>(
   builder: LiveQueryRuntimeBuilder<TContext, TResult>
