@@ -1091,6 +1091,53 @@ describe("createBrowserRouter", () => {
       )
     ));
 
+  it("does not start route preload work during non-browser construction", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          let preloads = 0;
+          const runtime = makeRuntime();
+          const windowDescriptor = Object.getOwnPropertyDescriptor(globalThis, "window");
+          Reflect.deleteProperty(globalThis, "window");
+          yield* Effect.addFinalizer(() =>
+            Effect.sync(() => {
+              if (windowDescriptor === undefined) {
+                Reflect.deleteProperty(globalThis, "window");
+              } else {
+                Object.defineProperty(globalThis, "window", windowDescriptor);
+              }
+            })
+          );
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+
+          const ProjectRoute = route("/server-projects/:id", {
+            preload: () =>
+              Effect.sync(() => {
+                preloads++;
+              })
+          });
+          let dispose: () => void = () => undefined;
+          const router = createRoot((rootDispose): BrowserRouter<readonly [typeof ProjectRoute]> => {
+            dispose = rootDispose;
+            return createBrowserRouter([ProjectRoute] as const, {
+              initialHref: "/server-projects/atlas",
+              runtime
+            });
+          });
+          yield* Effect.addFinalizer(() => Effect.sync(dispose));
+          yield* Effect.sleep("20 millis");
+
+          yield* Effect.sync(() => {
+            expect(router.state()).toMatchObject({
+              _tag: "Ready",
+              href: "/server-projects/atlas"
+            });
+            expect(preloads).toBe(0);
+          });
+        })
+      )
+    ));
+
   it("keeps client-only initial navigation pending after Solid hydration globals remain", () =>
     Effect.runPromise(
       Effect.scoped(

@@ -4,6 +4,7 @@ import {
   makeRuntimeUiScopeFrame,
   makeRuntime,
   runWithScope,
+  runWithRuntime,
   type AnyEffectUiRuntime,
   type EffectInput,
   type EffectUiRuntime,
@@ -159,6 +160,7 @@ export const useComponentScope = (): UiScope => {
 
 /** Runs synchronous construction while the component `UiScope` is ambient. */
 export const useScoped = <A>(f: (scope: UiScope) => A): A => {
+  const runtime = useRuntime();
   const scope = useComponentScope();
-  return runWithScope(scope, () => f(scope));
+  return runWithRuntime(runtime, () => runWithScope(scope, () => f(scope)));
 };

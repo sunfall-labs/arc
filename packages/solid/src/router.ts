@@ -245,7 +245,9 @@ export const createBrowserRouter = <
   const unsubscribeMatch = controller.match.subscribe(() => {
     setMatch(() => controller.match.get());
   });
-  const stopController = controller.start();
+  const stopController = canUseBrowser()
+    ? controller.start()
+    : () => undefined;
 
   onCleanup(() => {
     stopController();

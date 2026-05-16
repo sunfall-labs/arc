@@ -12,6 +12,7 @@ import {
   useResourceSuspense,
   useRuntime,
   useRuntimeEffect,
+  useScoped,
   useSignal,
   type ResourceHandle
 } from "../src/index.js";
@@ -172,6 +173,40 @@ describe("react hooks", () => {
         catch: (error) => error
       }).pipe(Effect.ensuring(runtime.disposeEffect))
     );
+  });
+
+  it("runs useScoped construction inside the React runtime spine", async () => {
+    const runtime = makeRuntime();
+    const ProjectById = Resource.family<string, Project>({
+      name: "ReactHooks.useScoped-runtime-spine",
+      load: (id) => Effect.succeed({ id, name: "Atlas" })
+    });
+    const ref = ProjectById("atlas");
+    await Effect.runPromise(runtime.provide(Resource.prefetchEffect(ref)));
+
+    try {
+      await withReactRoot(async (root, container) => {
+        function Capture() {
+          const status = useScoped(() => Resource.status(ref)._tag);
+          return createElement("span", {}, status);
+        }
+
+        await act(async () => {
+          root.render(
+            createElement(
+              RuntimeProvider,
+              { runtime },
+              createElement(Capture)
+            )
+          );
+        });
+        await flushReact();
+
+        expect(container.textContent).toBe("Success");
+      });
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
   });
 
   it("bridges same-ref delete and reload through React resource handles", async () => {
