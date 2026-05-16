@@ -129,12 +129,22 @@ export const browserRouterLinkClickDecision = (
 
 /** Controls hover preloads for router-owned links. */
 export interface BrowserRouterLinkPreloader {
+  /** Binds the current preload identity and interrupts stale hover preload work when it changes or becomes disabled. */
+  bindPreloadIdentity(identity: BrowserRouterLinkPreloadIdentity): void;
   /** Binds the current link target and interrupts any stale hover preload when it changes. */
   bindTarget(targetKey: string): void;
   /** Starts a fresh preload, interrupting any previous hover preload first. */
   preload(): void;
   /** Interrupts the active hover preload, when one is running. */
   interrupt(): void;
+}
+
+/** Stable facts that decide whether an in-flight link preload still belongs to the rendered anchor. */
+export interface BrowserRouterLinkPreloadIdentity {
+  /** Stable key built from href plus preload-affecting adapter facts. */
+  readonly key: string;
+  /** Whether this anchor is currently allowed to own hover preload work. */
+  readonly enabled: boolean;
 }
 
 /** Runtime capability required by the framework-neutral link preloader. */
@@ -166,7 +176,7 @@ export const makeBrowserRouterLinkPreloader = <ER>(
   options: BrowserRouterLinkPreloaderOptions<ER>
 ): BrowserRouterLinkPreloader => {
   let revision = 0;
-  let targetKey: string | undefined;
+  let preloadIdentity: BrowserRouterLinkPreloadIdentity | undefined;
   let preloadFiber: Fiber.Fiber<void, unknown> | undefined;
 
   const interrupt = (): void => {
@@ -180,16 +190,23 @@ export const makeBrowserRouterLinkPreloader = <ER>(
     );
   };
 
-  const bindTarget = (nextTargetKey: string): void => {
-    if (targetKey === nextTargetKey) {
+  const bindPreloadIdentity = (nextIdentity: BrowserRouterLinkPreloadIdentity): void => {
+    if (
+      preloadIdentity?.key === nextIdentity.key &&
+      preloadIdentity.enabled === nextIdentity.enabled
+    ) {
       return;
     }
-    targetKey = nextTargetKey;
+    preloadIdentity = nextIdentity;
     interrupt();
   };
 
+  const bindTarget = (nextTargetKey: string): void => {
+    bindPreloadIdentity({ key: nextTargetKey, enabled: true });
+  };
+
   const preload = (): void => {
-    if (!options.enabled()) {
+    if (preloadIdentity?.enabled === false || !options.enabled()) {
       return;
     }
     interrupt();
@@ -206,5 +223,5 @@ export const makeBrowserRouterLinkPreloader = <ER>(
     );
   };
 
-  return { bindTarget, interrupt, preload };
+  return { bindPreloadIdentity, bindTarget, interrupt, preload };
 };

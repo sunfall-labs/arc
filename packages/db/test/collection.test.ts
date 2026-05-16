@@ -456,6 +456,221 @@ describe("Collection", () => {
     }
   });
 
+  it("keeps prior rows and load state committed when interrupted during load persistence", async () => {
+    const runtime = makeRuntime();
+    const key = "projects-load-persist-interrupt-cache";
+    const persisted = new Map<string, string>();
+    const persistStarted = Effect.runSync(Deferred.make<void>());
+    const releasePersist = Effect.runSync(Deferred.make<void>());
+    let writes = 0;
+    let refetches = 0;
+    const storage: Collection.PersistenceStorage = {
+      getItem: (storageKey) => persisted.get(storageKey) ?? null,
+      setItem: (storageKey, value) =>
+        Effect.gen(function* () {
+          writes++;
+          if (writes === 1) {
+            yield* Deferred.succeed(persistStarted, undefined).pipe(Effect.ignore);
+            yield* Deferred.await(releasePersist);
+          }
+          persisted.set(storageKey, value);
+        })
+    };
+    const Projects = Collection.define<Project>({
+      name: "Projects.load-persist-interrupt",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Initial", status: "active", progress: 1 }
+      ],
+      refetch: () =>
+        Effect.sync(() => {
+          refetches++;
+          return [
+            { id: "atlas", name: `Refetched ${refetches}`, status: "blocked", progress: 80 + refetches }
+          ] satisfies ReadonlyArray<Project>;
+        }),
+      persistence: {
+        storage,
+        key,
+        persistOnLoad: true
+      }
+    });
+    let refetch: Fiber.Fiber<unknown, unknown> | undefined;
+
+    try {
+      refetch = runtime.runFork(Projects.refetchEffect());
+      await Effect.runPromise(Deferred.await(persistStarted));
+
+      expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.name))).toEqual(["Initial"]);
+      expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
+        _tag: "Pending",
+        waiting: true
+      });
+
+      await Effect.runPromise(Fiber.interrupt(refetch));
+
+      expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.name))).toEqual(["Initial"]);
+      expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
+        _tag: "Ready",
+        waiting: false
+      });
+
+      const retry = await Effect.runPromise(
+        runtime.provide(Projects.refetchEffect().pipe(Effect.timeoutOption("1 second")))
+      );
+
+      if (Option.isNone(retry)) {
+        expect.fail("Expected later refetch to retry after interrupted load persistence.");
+      }
+
+      const snapshot = JSON.parse(persisted.get(key) ?? "{}") as Collection.Snapshot<Project, string>;
+      expect(refetches).toBe(2);
+      expect(writes).toBe(2);
+      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
+        name: "Refetched 2",
+        progress: 82
+      });
+      expect(snapshot.rows.map((row) => row.value.name)).toEqual(["Refetched 2"]);
+    } finally {
+      Effect.runSync(Deferred.succeed(releasePersist, undefined).pipe(Effect.ignore));
+      if (refetch !== undefined) {
+        await Effect.runPromise(Fiber.await(refetch));
+      }
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("serializes stale preload persistence behind a newer forced refetch", async () => {
+    const runtime = makeRuntime();
+    const key = "projects-preload-refetch-durable-generation-cache";
+    const persisted = new Map<string, string>();
+    const stalePersistStarted = Effect.runSync(Deferred.make<void>());
+    const releaseStalePersist = Effect.runSync(Deferred.make<void>());
+    let writes = 0;
+    const storage: Collection.PersistenceStorage = {
+      getItem: (storageKey) => persisted.get(storageKey) ?? null,
+      setItem: (storageKey, value) =>
+        Effect.gen(function* () {
+          writes++;
+          if (writes === 1) {
+            yield* Deferred.succeed(stalePersistStarted, undefined).pipe(Effect.ignore);
+            yield* Deferred.await(releaseStalePersist);
+          }
+          persisted.set(storageKey, value);
+        })
+    };
+    const Projects = Collection.define<Project>({
+      name: "Projects.preload-refetch-durable-generation",
+      getKey: (project) => project.id,
+      load: () =>
+        Effect.succeed<ReadonlyArray<Project>>([
+          { id: "atlas", name: "Atlas Stale", status: "active", progress: 10 }
+        ]),
+      refetch: () =>
+        Effect.succeed<ReadonlyArray<Project>>([
+          { id: "atlas", name: "Atlas Fresh", status: "active", progress: 90 }
+        ]),
+      persistence: {
+        storage,
+        key,
+        persistOnLoad: true
+      }
+    });
+    let preload: Fiber.Fiber<unknown, unknown> | undefined;
+    let refetch: Fiber.Fiber<unknown, unknown> | undefined;
+
+    try {
+      preload = runtime.runFork(Projects.preloadEffect());
+      await Effect.runPromise(Deferred.await(stalePersistStarted));
+
+      refetch = runtime.runFork(Projects.refetchEffect());
+      await Effect.runPromise(Effect.sleep("20 millis"));
+
+      Effect.runSync(Deferred.succeed(releaseStalePersist, undefined));
+      await Effect.runPromise(Fiber.join(refetch));
+      await Effect.runPromise(Fiber.join(preload));
+
+      const snapshot = JSON.parse(persisted.get(key) ?? "{}") as Collection.Snapshot<Project, string>;
+      expect(writes).toBe(2);
+      expect(snapshot.rows.map((row) => row.value.name)).toEqual(["Atlas Fresh"]);
+      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
+        name: "Atlas Fresh",
+        progress: 90
+      });
+    } finally {
+      Effect.runSync(Deferred.succeed(releaseStalePersist, undefined).pipe(Effect.ignore));
+      if (preload !== undefined) {
+        await Effect.runPromise(Fiber.await(preload));
+      }
+      if (refetch !== undefined) {
+        await Effect.runPromise(Fiber.await(refetch));
+      }
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("reports CollectionLoaded count from stored rows after optimistic rebases", async () => {
+    const runtime = makeRuntime();
+    const insertStarted = Effect.runSync(Deferred.make<void>());
+    const releaseInsert = Effect.runSync(Deferred.make<void, string>());
+    const Projects = Collection.define<Project, string, string>({
+      name: "Projects.loaded-count-optimistic-rebase",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+      ],
+      refetch: () =>
+        Effect.succeed<ReadonlyArray<Project>>([
+          { id: "atlas", name: "Atlas Remote", status: "active", progress: 88 }
+        ]),
+      onInsert: () =>
+        Effect.gen(function* () {
+          yield* Deferred.succeed(insertStarted, undefined);
+          yield* Deferred.await(releaseInsert);
+        })
+    });
+    let insert: Fiber.Fiber<unknown, unknown> | undefined;
+
+    try {
+      insert = runtime.runFork(Projects.insertEffect({
+        id: "nova",
+        name: "Nova",
+        status: "blocked",
+        progress: 12
+      }));
+      await Effect.runPromise(Deferred.await(insertStarted));
+
+      await Effect.runPromise(
+        runtime.provide(
+          Effect.scoped(
+            Effect.gen(function* () {
+              const subscription = yield* Collection.subscribeEventsEffect();
+              yield* Projects.refetchEffect();
+              const event = yield* PubSub.take(subscription);
+
+              expect(event).toMatchObject({
+                _tag: "CollectionLoaded",
+                collection: "Projects.loaded-count-optimistic-rebase",
+                count: 2
+              });
+            })
+          )
+        )
+      );
+
+      expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.id).sort())).toEqual([
+        "atlas",
+        "nova"
+      ]);
+    } finally {
+      Effect.runSync(Deferred.fail(releaseInsert, "cleanup").pipe(Effect.ignore));
+      if (insert !== undefined) {
+        await Effect.runPromise(Fiber.await(insert));
+      }
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
   it("uses Effect schedules for collection load retry policy", async () => {
     let attempts = 0;
     const Projects = Collection.define<Project, string, string>({

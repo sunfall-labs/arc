@@ -43,6 +43,9 @@ const hrefArgs = <R extends AnyRoute>(
 ): Route.HrefArgs<R> =>
   (options === undefined ? [] : [options]) as Route.HrefArgs<R>;
 
+const preloadIdentityValue = (value: unknown): string =>
+  value === undefined ? "" : String(value);
+
 /** Typed React anchor that builds hrefs, preloads on hover, and navigates on plain clicks. */
 export const RouterLink = <R extends AnyRoute>(
   props: RouterLinkProps<R>
@@ -61,6 +64,23 @@ export const RouterLink = <R extends AnyRoute>(
   const currentHrefArgs = (): Route.HrefArgs<R> =>
     hrefArgs(options as Route.HrefOptions<R> | undefined);
   const href = Route.href<R>(routeValue, ...currentHrefArgs());
+  const preloadIdentity = {
+    key: [
+      href,
+      preloadOption !== false,
+      router.canHandleRoute(routeValue),
+      preloadIdentityValue(anchorProps.target),
+      preloadIdentityValue(anchorProps.download)
+    ].join("\0"),
+    enabled:
+      browserRouterLinkPreloadDecision({
+        defaultPrevented: false,
+        preload: preloadOption !== false,
+        canHandleRoute: router.canHandleRoute(routeValue),
+        target: anchorProps.target,
+        download: anchorProps.download
+      })._tag === "Preload"
+  };
   const preloadConfig = useRef<{
     readonly enabled: () => boolean;
     readonly preloadEffect: () => ReturnType<typeof router.preloadEffect<R>>;
@@ -86,8 +106,8 @@ export const RouterLink = <R extends AnyRoute>(
   );
 
   useEffect(() => {
-    preloader.bindTarget(href);
-  }, [href, preloader]);
+    preloader.bindPreloadIdentity(preloadIdentity);
+  }, [preloadIdentity.key, preloadIdentity.enabled, preloader]);
   useEffect(() => preloader.interrupt, [preloader]);
 
   return createElement("a", {

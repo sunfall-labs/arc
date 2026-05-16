@@ -1,4 +1,4 @@
-import { Effect, PubSub, Schema } from "effect";
+import { Effect, Fiber, PubSub, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import { Action, makeRuntime, Program, read as readSignal, Resource, route, Route, Signal, type ActionState } from "@effect-ui/core";
 import { Collection } from "@effect-ui/db";
@@ -36,6 +36,35 @@ import {
   type DevtoolsStartAppGraphDiagnostics
 } from "../src/index.js";
 import { stableFactFingerprint } from "../src/fact-identity.js";
+
+type DevtoolsLifecycleType = "pagehide" | "beforeunload";
+
+const makeDevtoolsLifecycleWindow = () => {
+  const listeners = new Map<DevtoolsLifecycleType, Set<() => void>>([
+    ["pagehide", new Set()],
+    ["beforeunload", new Set()]
+  ]);
+  const lifecycleWindow = {
+    addEventListener: (type: DevtoolsLifecycleType, listener: () => void) => {
+      listeners.get(type)?.add(listener);
+    },
+    removeEventListener: (type: DevtoolsLifecycleType, listener: () => void) => {
+      listeners.get(type)?.delete(listener);
+    }
+  } as unknown as Window;
+
+  return {
+    lifecycleWindow,
+    listeners
+  };
+};
+
+const expectNoDevtoolsLifecycleListeners = (
+  listeners: ReadonlyMap<DevtoolsLifecycleType, ReadonlySet<() => void>>
+): void => {
+  expect(listeners.get("pagehide")?.size).toBe(0);
+  expect(listeners.get("beforeunload")?.size).toBe(0);
+};
 
 describe("devtools invalidation plans", () => {
   it("rejects invalidation inputs with typed errors", () => {
@@ -1570,19 +1599,7 @@ describe("devtools invalidation plans", () => {
   });
 
   it("releases devtools panel lifecycle listeners on manual boot interrupt", async () => {
-    type LifecycleType = "pagehide" | "beforeunload";
-    const listeners = new Map<LifecycleType, Set<() => void>>([
-      ["pagehide", new Set()],
-      ["beforeunload", new Set()]
-    ]);
-    const lifecycleWindow = {
-      addEventListener: (type: LifecycleType, listener: () => void) => {
-        listeners.get(type)?.add(listener);
-      },
-      removeEventListener: (type: LifecycleType, listener: () => void) => {
-        listeners.get(type)?.delete(listener);
-      }
-    };
+    const { lifecycleWindow, listeners } = makeDevtoolsLifecycleWindow();
     const root = {
       innerHTML: "",
       addEventListener: () => undefined,
@@ -1592,7 +1609,7 @@ describe("devtools invalidation plans", () => {
     const boot = bootDevtoolsPanels({
       root,
       includeStyles: false,
-      lifecycleWindow: lifecycleWindow as unknown as Window
+      lifecycleWindow
     });
 
     expect(listeners.get("pagehide")?.size).toBe(1);
@@ -1600,9 +1617,49 @@ describe("devtools invalidation plans", () => {
 
     boot.interrupt();
 
-    expect(listeners.get("pagehide")?.size).toBe(0);
-    expect(listeners.get("beforeunload")?.size).toBe(0);
+    expectNoDevtoolsLifecycleListeners(listeners);
     await Effect.runPromise(boot.interruptEffect);
+  });
+
+  it("releases devtools panel lifecycle listeners when afterMount fails synchronously", async () => {
+    const { lifecycleWindow, listeners } = makeDevtoolsLifecycleWindow();
+    const root = {
+      innerHTML: "",
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      contains: () => true
+    } as unknown as HTMLElement;
+    const boot = bootDevtoolsPanels({
+      root,
+      includeStyles: false,
+      lifecycleWindow,
+      afterMount: () => Effect.die(new Error("after mount failed"))
+    });
+
+    await Effect.runPromise(Fiber.await(boot.fiber));
+
+    expectNoDevtoolsLifecycleListeners(listeners);
+  });
+
+  it("releases devtools panel lifecycle listeners when mount fails synchronously", async () => {
+    const { lifecycleWindow, listeners } = makeDevtoolsLifecycleWindow();
+    const root = {
+      innerHTML: "",
+      addEventListener: () => {
+        throw new Error("mount failed");
+      },
+      removeEventListener: () => undefined,
+      contains: () => true
+    } as unknown as HTMLElement;
+    const boot = bootDevtoolsPanels({
+      root,
+      includeStyles: false,
+      lifecycleWindow
+    });
+
+    await Effect.runPromise(Fiber.await(boot.fiber));
+
+    expectNoDevtoolsLifecycleListeners(listeners);
   });
 
   it("keeps public devtools Effect wrappers lazy until execution", async () => {
@@ -3133,14 +3190,18 @@ describe("devtools invalidation plans", () => {
     });
   });
 
-  it("redacts sensitive request trace headers and cookies before storage and projection", () => {
-    const store = makeDevtoolsStore();
+  it("redacts sensitive request trace URL queries, headers, and cookies before storage and projection", () => {
+    const store = makeDevtoolsStore({
+      serializationPolicy: {
+        redactKeys: ["tenantPrivate"]
+      }
+    });
     const trace: DevtoolsRequestTrace = {
       request: {
         id: "req-sensitive",
         method: "POST",
-        url: "https://example.test/projects/secret",
-        path: "/projects/secret",
+        url: "https://example.test/projects/secret?tab=activity&accessToken=raw-url-token&tenantPrivate=raw-url-tenant&api_key=raw-url-api-key",
+        path: "/projects/secret?tab=activity&password=raw-path-password&tenantPrivate=raw-path-tenant",
         transport: "rpc",
         headers: [
           { name: "accept", value: "application/json" },
@@ -3176,6 +3237,10 @@ describe("devtools invalidation plans", () => {
 
     const snapshot = store.getSnapshot();
     const storedTrace = snapshot.requestTraces?.[0];
+    expect(storedTrace?.request.url).toContain("tab=activity");
+    expect(storedTrace?.request.url).toContain("[redacted]=[redacted]");
+    expect(storedTrace?.request.path).toContain("tab=activity");
+    expect(storedTrace?.request.path).toContain("[redacted]=[redacted]");
     expect(storedTrace?.request.headers).toEqual(expect.arrayContaining([
       { name: "accept", value: "application/json" },
       { name: "[redacted]", value: "[redacted]" }
@@ -3215,7 +3280,16 @@ describe("devtools invalidation plans", () => {
         "raw-set-cookie",
         "raw-response-key",
         "raw-session",
-        "raw-csrf"
+        "raw-csrf",
+        "accesstoken",
+        "raw-url-token",
+        "tenantprivate",
+        "raw-url-tenant",
+        "api_key",
+        "raw-url-api-key",
+        "password",
+        "raw-path-password",
+        "raw-path-tenant"
       ]) {
         expect(projected).not.toContain(raw);
       }

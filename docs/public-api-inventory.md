@@ -51,8 +51,11 @@ public API inventory audit verifies the manifest against package
 manifest source paths, and checks that each focused type-test file imports the
 entrypoint it claims to cover, exercises imported bindings as AST identifiers
 outside import declarations, and includes any manifest-listed
-`typeTestReferences` for virtual or side-effect declaration surfaces. It also
-checks that every package root
+`typeTestReferences` for virtual or side-effect declaration surfaces. Manifest
+entries may also list `requiredTypeTestImports` when a public symbol is
+important enough to pin as a direct import; the audit rejects entries that are
+not directly imported and exercised outside import declarations. It also checks
+that every package root
 barrel's local re-exported modules are named in that package's Source Surface
 section, and that Source Surface local-module lists do not name modules the root
 barrel does not export. Curated namespace-backed source modules must have an

@@ -3,9 +3,12 @@ import type { ResourceInvalidationPlan } from "@effect-ui/core";
 import {
   DevtoolsActionInvalidationPlanConflict,
   DevtoolsPanelContractError,
+  DevtoolsUnknownInvalidationTarget,
   bootDevtoolsPanels,
   describeDevtoolsCausalGraph,
   describeDevtoolsCausalGraphEffect,
+  describeInvalidationPlan,
+  describeRoutePlan,
   describeDevtoolsPanels,
   describeDevtoolsPanelsEffect,
   describeDevtoolsSummary,
@@ -403,6 +406,16 @@ const invalidDevtoolsRuntimeEvent: DevtoolsRuntimeEvent = {
 };
 
 declare const devtoolsLiveInvalidationPlan: ResourceInvalidationPlan;
+declare const devtoolsLiveRoutePlan: Parameters<typeof describeRoutePlan>[0];
+const describedLiveInvalidationPlan: DevtoolsInvalidationPlan =
+  describeInvalidationPlan(devtoolsLiveInvalidationPlan);
+const describedLiveRoutePlan: DevtoolsRoutePlan =
+  describeRoutePlan(devtoolsLiveRoutePlan);
+const devtoolsUnknownInvalidationTarget: DevtoolsUnknownInvalidationTarget =
+  new DevtoolsUnknownInvalidationTarget({
+    target: "not-a-resource",
+    guidance: "Use Resource refs or tags."
+  });
 const devtoolsSerializedInvalidationIndex: number =
   devtoolsStore.recordSerializedInvalidation(serializedInvalidationPlan);
 const devtoolsSerializedInvalidationIndexEffect: Effect.Effect<number> =
@@ -502,6 +515,9 @@ void devtoolsCausalEdgeKind;
 void devtoolsRuntimeSnapshot;
 void devtoolsSummaryRuntimeEvent;
 void invalidDevtoolsRuntimeEvent;
+void describedLiveInvalidationPlan;
+void describedLiveRoutePlan;
+void devtoolsUnknownInvalidationTarget;
 void devtoolsSerializedInvalidationIndex;
 void devtoolsSerializedInvalidationIndexEffect;
 void devtoolsSerializedRoutePlanIndex;

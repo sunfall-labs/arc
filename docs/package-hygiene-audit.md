@@ -54,6 +54,10 @@ exports. It supports the release-engineering charter workstream.
   `UNLICENSED`, every target has a non-empty `files` allowlist, dist packages
   carry descriptions, `sideEffects: false`, `main`/`types` entries under
   `./dist/`, and source packages that require copy hygiene list `.gitignore`.
+- Review156 tightened source-package payload validation again: devtools panel,
+  devtools extension, project console, basic starter, and React starter dry-runs
+  now require their concrete copyable source files and directories instead of
+  passing when only `.gitignore` is present.
 
 ## Verification Evidence
 
@@ -110,6 +114,9 @@ exports. It supports the release-engineering charter workstream.
   project-console typecheck/tests/build, and leak scan.
 - Review155 focused `pnpm example:pack-dry-run` passed across all 16 package
   payloads after adding manifest metadata enforcement to the dry-run gate.
+- Review156 focused `pnpm example:pack-dry-run` passed across all 16 package
+  payloads after adding concrete source payload file/directory requirements to
+  the dry-run gate.
 - `pnpm verify` passed after adding the Node and Fetch adapter facade packages:
   9 package builds, workspace typecheck, type tests, 35 package test files /
   308 tests, example typecheck, 4 example test files / 23 tests, example build,

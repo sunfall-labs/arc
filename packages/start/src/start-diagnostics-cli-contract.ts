@@ -37,17 +37,13 @@ const diagnosticsLoadCommandOptions = (
 const queryCommandArgs = (
   query: StartAgentGraphQuery
 ): string => {
-  const args = [
-    ...(query.kind === undefined ? [] : [query.kind]),
-    ...(query.text === undefined ? [] : [query.text])
-  ];
-  if (args.length === 0) {
-    return "";
+  const kind = query.kind === undefined ? "" : ` ${shellArg(query.kind)}`;
+  if (query.text === undefined) {
+    return kind;
   }
-  const rendered = args.map(shellArg).join(" ");
-  return args.some((arg) => arg.startsWith("-"))
-    ? ` -- ${rendered}`
-    : ` ${rendered}`;
+  return query.text.startsWith("-")
+    ? `${kind} --query=${shellArg(query.text)}`
+    : `${kind} ${shellArg(query.text)}`;
 };
 
 /**

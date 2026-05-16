@@ -733,6 +733,49 @@ describe("createBrowserRouter", () => {
       )
     ));
 
+  it("does not start RouterLink hover preloads when target disables router handling", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+
+          let starts = 0;
+          const ProjectRoute = route("/hover-disabled-projects/:id", {
+            preload: () =>
+              Effect.sync(() => {
+                starts++;
+              })
+          });
+          const container = document.createElement("div");
+          const dispose = render(
+            () =>
+              createComponent(RouterProvider, {
+                routes: [ProjectRoute] as const,
+                initialHref: "/missing",
+                runtime,
+                get children() {
+                  return createComponent(RouterLink, {
+                    route: ProjectRoute,
+                    options: { params: { id: "atlas" } },
+                    target: "_blank",
+                    children: "Atlas"
+                  });
+                }
+              }),
+            container
+          );
+          yield* Effect.addFinalizer(() => Effect.sync(dispose));
+
+          const anchor = container.querySelector("a");
+          anchor?.dispatchEvent(new MouseEvent("mouseenter", { cancelable: true }));
+          yield* Effect.sleep("20 millis");
+
+          expect(starts).toBe(0);
+        })
+      )
+    ));
+
   it("interrupts stale RouterLink hover preloads with the Solid owner", () =>
     Effect.runPromise(
       Effect.scoped(

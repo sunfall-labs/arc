@@ -278,6 +278,70 @@ describe("react router", () => {
     }
   });
 
+  it("interrupts stale RouterLink hover preloads when preload becomes disabled", async () => {
+    const runtime = makeRuntime();
+    const started: string[] = [];
+    const finalized: string[] = [];
+    const Project = route("/hover-disabled-projects/:id", {
+      preload: ({ params }) =>
+        Effect.sync(() => {
+          started.push((params as { id: string }).id);
+        }).pipe(
+          Effect.andThen(Effect.never),
+          Effect.ensuring(Effect.sync(() => {
+            finalized.push((params as { id: string }).id);
+          }))
+        )
+    });
+    const routes = [Project] as const;
+
+    try {
+      await withReactRoot(async (root, container) => {
+        let disablePreload: (() => void) | undefined;
+        function App() {
+          const [preload, setPreload] = useState(true);
+          disablePreload = () => setPreload(false);
+          return createElement(
+            RouterProvider,
+            { routes, initialHref: "/missing", runtime },
+            createElement(RouterLink, {
+              route: Project,
+              options: { params: { id: "atlas" } },
+              preload,
+              children: "Atlas"
+            })
+          );
+        }
+
+        await act(async () => {
+          root.render(createElement(App));
+        });
+        await flushReact();
+
+        const anchor = () => container.querySelector("a")!;
+        await act(async () => {
+          anchor().dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+        });
+        await flushReact();
+        expect(started).toEqual(["atlas"]);
+
+        await act(async () => {
+          disablePreload?.();
+        });
+        await flushReact();
+        await vi.waitFor(() => expect(finalized).toEqual(["atlas"]));
+
+        await act(async () => {
+          anchor().dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+        });
+        await flushReact();
+        expect(started).toEqual(["atlas"]);
+      });
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
   it("preloads shadowed hrefs with the same route match as navigation", async () => {
     const preloaded: string[] = [];
     let router: BrowserRouter<typeof routes> | undefined;

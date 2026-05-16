@@ -11,9 +11,102 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed review is Review 155, immediately after Review 154. Some
-older review entries remain below it from prior ledger merges; use this tip
-rather than file order alone when looking for the latest architecture sweep.
+The newest completed focused review is Review 156, immediately after Review
+155. The latest full `pnpm verify` checkpoint remains Review 155 until the next
+full gate is rerun. Some older review entries remain below it from prior ledger
+merges; use this tip rather than file order alone when looking for the latest
+architecture sweep.
+
+## Review 156: Durable Commit Races, Query Redaction, And Guardrail Pins
+
+Review156 fixed fresh Core/React/Solid, DB, Devtools, Start, public API, and
+script guardrail findings from the post-Review155 sweeps.
+
+1. Router Link Preload Identity
+   - Status: fixed.
+   - Files: `packages/core/src/browser-router-link.ts`,
+     `packages/react/src/link.ts`, `packages/solid/src/link.ts`,
+     `packages/core/test/browser-router.test.ts`,
+     `packages/react/test/router.test.ts`,
+     `packages/solid/test/router.test.ts`.
+   - Problem: Review155 bound hover preloads to href, but the ownership
+     decision also depends on whether preloading is enabled, whether the route
+     belongs to the active router, and whether anchor `target`/`download`
+     attributes hand navigation to the browser.
+   - Fix: Core now exposes `bindPreloadIdentity(...)`, an Interface whose
+     identity includes all preload-affecting adapter facts and an enabled bit.
+     React and Solid compute that identity from href, preload, route
+     membership, target, and download before starting hover work.
+   - Benefits: the link preloader Seam now has enough Locality to interrupt
+     stale work when any fact that changes ownership changes, while preserving
+     the older `bindTarget(...)` compatibility path.
+
+2. DB Durable Load Commit Races
+   - Status: fixed.
+   - Files: `packages/db/src/collection-sync-load-policy.ts`,
+     `packages/db/test/collection.test.ts`.
+   - Problem: `persistOnLoad` could mutate live rows before durable persistence
+     completed, and superseded loads could win the storage race after a newer
+     visible generation had already committed. `CollectionLoaded.count` also
+     reported the loaded batch size instead of the stored row count.
+   - Fix: load persistence now stages the snapshot and commits visible rows
+     only after durable persistence succeeds. Durable load commits are
+     serialized per collection and guarded by generation checks, interruption
+     restores the prior committed state, and `CollectionLoaded.count` reports
+     the store size after commit.
+   - Benefits: Collection load commit Locality now covers memory, persistence,
+     interruption, and stale-generation races rather than treating storage as a
+     best-effort side effect.
+
+3. Devtools Serialization And Lifecycle Cleanup
+   - Status: fixed.
+   - Files: `packages/devtools/src/index.ts`,
+     `packages/devtools/src/serialization.ts`,
+     `packages/devtools/test/devtools.test.ts`.
+   - Problem: request URL query secrets bypassed the Devtools Serialization
+     Contract through `trace.request.url` and `trace.request.path`, and a
+     synchronous panel boot failure could finish before lifecycle cleanup was
+     fully registered.
+   - Fix: Devtools now redacts sensitive query parameter names and values at
+     the trace request serialization Seam. Panel boot installs finalization
+     cleanup before the boot fiber can complete, covering sync mount and
+     `afterMount` failures.
+   - Benefits: callers no longer need to sanitize request query strings before
+     handing traces to Devtools, and panel lifecycle cleanup belongs to the
+     boot Module from the first instruction.
+
+4. Start CLI Query Encoding And Guardrail Depth
+   - Status: fixed.
+   - Files: `packages/start/src/cli.ts`,
+     `packages/start/src/start-diagnostics-cli-contract.ts`,
+     `packages/start/test/start.test.ts`, `scripts/audit-effect-first.mjs`,
+     `scripts/audit-public-api-inventory.mjs`,
+     `scripts/verify-package-dry-runs.mjs`,
+     `type-tests/devtools.test-d.ts`,
+     `type-tests/public-api.manifest.json`.
+   - Problem: generated graph/impact repair commands could still lose query
+     text that begins with `-` because Effect CLI does not preserve those
+     positionals after `--` in this command tree. The Effect-first audit missed
+     Promise constructors extracted from `globalThis`/`window`, source package
+     dry-runs only asserted `.gitignore`, and public API type tests did not pin
+     important direct Devtools exports.
+   - Fix: Start supports `--query=<text>` and generated repair commands use it
+     for flag-shaped query text, with parser round-trip coverage. The
+     Effect-first audit now catches destructured global Promise constructor
+     aliases. Source package dry-runs require concrete files/directories, and
+     the public API manifest can require direct type-test imports for important
+     public symbols.
+   - Benefits: CLI repair commands, Promise guardrails, package copyability,
+     and LSP-facing public API coverage now fail at the Interface where drift
+     enters.
+
+Focused verification passed: Core/React/Solid/DB/Devtools/Start package
+typechecks, public type tests, public API audit, Effect-first audit over 272
+files, 16-target package dry-run metadata/payload gate, DB collection tests 1
+file / 119 tests, Devtools tests 1 file / 75 tests, Start start/app-graph tests
+2 files / 170 tests, Core/React/Solid hook/router tests 5 files / 79 tests,
+script syntax checks, and `git diff --check`. Full `pnpm verify` has not yet
+been rerun after Review156; the latest full gate remains Review155.
 
 ## Review 155: Runtime Identity, Persistence Commit, And Guardrail Depth
 

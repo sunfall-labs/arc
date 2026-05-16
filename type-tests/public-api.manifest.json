@@ -22,7 +22,12 @@
       "import": "@effect-ui/devtools",
       "source": "packages/devtools/src/index.ts",
       "docs": "docs/public-api-inventory.md",
-      "typeTest": "type-tests/devtools.test-d.ts"
+      "typeTest": "type-tests/devtools.test-d.ts",
+      "requiredTypeTestImports": [
+        "DevtoolsUnknownInvalidationTarget",
+        "describeInvalidationPlan",
+        "describeRoutePlan"
+      ]
     },
     {
       "package": "@effect-ui/react",

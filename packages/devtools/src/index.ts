@@ -141,7 +141,12 @@ export const bootDevtoolsPanels = (
     lifecycleWindow,
     ...mountOptions
   } = options;
-  let releaseLifecycleListeners: () => void = () => undefined;
+  let interruptBootFiber: () => Effect.Effect<void> = () => Effect.void;
+  const releaseLifecycleListeners = lifecycleWindow === undefined
+    ? () => undefined
+    : wireDevtoolsPanelLifecycleCleanup(() => {
+        void Effect.runFork(interruptBootFiber());
+      }, lifecycleWindow);
   const fiber = Effect.runFork(
     Effect.scoped(
       Effect.gen(function* () {
@@ -153,23 +158,19 @@ export const bootDevtoolsPanels = (
       })
     ).pipe(Effect.ensuring(Effect.sync(() => releaseLifecycleListeners())))
   );
-  const interruptFiber = () => interruptDevtoolsPanelBoot(fiber);
+  interruptBootFiber = () => interruptDevtoolsPanelBoot(fiber);
   const interruptEffect = Effect.gen(function* () {
     releaseLifecycleListeners();
-    yield* interruptFiber();
+    yield* interruptBootFiber();
   });
   const boot: DevtoolsPanelBoot = {
     fiber,
     interruptEffect,
     interrupt: () => {
       releaseLifecycleListeners();
-      void Effect.runFork(interruptFiber());
+      void Effect.runFork(interruptBootFiber());
     }
   };
-
-  if (lifecycleWindow) {
-    releaseLifecycleListeners = wireDevtoolsPanelLifecycleCleanup(boot.interrupt, lifecycleWindow);
-  }
 
   return boot;
 };

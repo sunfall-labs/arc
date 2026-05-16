@@ -1043,6 +1043,55 @@ const copyTraceCookies = (
         }))
         .sort((left, right) => left.name.localeCompare(right.name));
 
+const decodeSearchParamName = (name: string): string => {
+  try {
+    return decodeURIComponent(name.replace(/\+/g, " "));
+  } catch {
+    return name;
+  }
+};
+
+const redactTraceSearchParams = (
+  search: string,
+  policy: NormalizedDevtoolsSerializationPolicy
+): string =>
+  search
+    .split("&")
+    .map((part) => {
+      if (part === "") {
+        return part;
+      }
+
+      const equalsIndex = part.indexOf("=");
+      const name = equalsIndex === -1 ? part : part.slice(0, equalsIndex);
+      return shouldRedactKey(decodeSearchParamName(name), policy)
+        ? equalsIndex === -1
+          ? redactedTraceText
+          : `${redactedTraceText}=${redactedTraceText}`
+        : part;
+    })
+    .join("&");
+
+const redactTraceUrlQuery = (
+  value: string,
+  policy: NormalizedDevtoolsSerializationPolicy
+): string => {
+  const queryIndex = value.indexOf("?");
+  if (queryIndex === -1) {
+    return value;
+  }
+
+  const fragmentIndex = value.indexOf("#", queryIndex + 1);
+  const searchEnd = fragmentIndex === -1 ? value.length : fragmentIndex;
+  const search = value.slice(queryIndex + 1, searchEnd);
+  const redactedSearch = redactTraceSearchParams(search, policy);
+  if (redactedSearch === search) {
+    return value;
+  }
+
+  return `${value.slice(0, queryIndex + 1)}${redactedSearch}${value.slice(searchEnd)}`;
+};
+
 /** Deep-copies a Devtools route plan, including params/search/resource inputs. */
 export const copyDevtoolsRoutePlan = (
   plan: DevtoolsRoutePlan,
@@ -1094,8 +1143,8 @@ export const copyRequestTrace = (
   const state = initialDetachedCopyState(policy);
   const request: DevtoolsRequestTraceRequest = {
     method: trace.request.method,
-    url: trace.request.url,
-    path: trace.request.path,
+    url: redactTraceUrlQuery(trace.request.url, state.policy),
+    path: redactTraceUrlQuery(trace.request.path, state.policy),
     transport: trace.request.transport,
     ...(trace.request.id === undefined ? {} : { id: trace.request.id }),
     ...(trace.request.traceparent === undefined ? {} : { traceparent: trace.request.traceparent }),

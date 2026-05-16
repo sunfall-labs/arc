@@ -134,6 +134,17 @@ const missingImpactQueryError = (value: string): CliError.InvalidValue =>
     kind: "argument"
   });
 
+const queryFlagConflictError = (
+  positionals: readonly string[],
+  queryText: string
+): CliError.InvalidValue =>
+  new CliError.InvalidValue({
+    option: "query",
+    value: [...positionals, queryText].join(" "),
+    expected: "use either positional query text or --query text, not both",
+    kind: "argument"
+  });
+
 const queryFromPositionalsEffect = (
   positionals: readonly string[]
 ): Effect.Effect<StartAgentGraphQuery | undefined, CliError.CliError> => {
@@ -160,10 +171,42 @@ const queryFromPositionalsEffect = (
   return Effect.succeed({ text: first });
 };
 
+const queryFromCliInputEffect = (
+  positionals: readonly string[],
+  queryTextOption: Option.Option<string>
+): Effect.Effect<StartAgentGraphQuery | undefined, CliError.CliError> => {
+  const queryText = Option.getOrUndefined(queryTextOption);
+  if (queryText === undefined) {
+    return queryFromPositionalsEffect(positionals);
+  }
+  if (positionals.length === 0) {
+    return Effect.succeed({ text: queryText });
+  }
+  if (positionals.length === 1) {
+    const [kind] = positionals;
+    if (kind !== undefined && isStartAgentGraphQueryKind(kind)) {
+      return Effect.succeed({ kind, text: queryText });
+    }
+  }
+  return Effect.fail(queryFlagConflictError(positionals, queryText));
+};
+
 const requiredQueryFromPositionalsEffect = (
   positionals: readonly string[]
 ): Effect.Effect<StartAgentGraphQuery, CliError.CliError> =>
   queryFromPositionalsEffect(positionals).pipe(
+    Effect.flatMap((query) =>
+      query?.text === undefined || query.text.trim().length === 0
+        ? Effect.fail(missingImpactQueryError(positionals.join(" ")))
+        : Effect.succeed(query)
+    )
+  );
+
+const requiredQueryFromCliInputEffect = (
+  positionals: readonly string[],
+  queryTextOption: Option.Option<string>
+): Effect.Effect<StartAgentGraphQuery, CliError.CliError> =>
+  queryFromCliInputEffect(positionals, queryTextOption).pipe(
     Effect.flatMap((query) =>
       query?.text === undefined || query.text.trim().length === 0
         ? Effect.fail(missingImpactQueryError(positionals.join(" ")))
@@ -186,6 +229,21 @@ const optionalKindQueryFromPositionalsEffect = (
   });
 };
 
+const optionalKindQueryFromCliInputEffect = (
+  kind: StartAgentGraphQueryKind,
+  positionals: readonly string[],
+  queryTextOption: Option.Option<string>
+): Effect.Effect<StartAgentGraphQuery, CliError.CliError> => {
+  const queryText = Option.getOrUndefined(queryTextOption);
+  if (queryText === undefined) {
+    return optionalKindQueryFromPositionalsEffect(kind, positionals);
+  }
+  if (positionals.length > 0) {
+    return Effect.fail(queryFlagConflictError([kind, ...positionals], queryText));
+  }
+  return Effect.succeed({ kind, text: queryText });
+};
+
 const requiredKindQueryFromPositionalsEffect = (
   kind: StartAgentGraphQueryKind,
   positionals: readonly string[]
@@ -198,6 +256,23 @@ const requiredKindQueryFromPositionalsEffect = (
   return text === undefined || text.trim().length === 0
     ? Effect.fail(missingImpactQueryError(kind))
     : Effect.succeed({ kind, text });
+};
+
+const requiredKindQueryFromCliInputEffect = (
+  kind: StartAgentGraphQueryKind,
+  positionals: readonly string[],
+  queryTextOption: Option.Option<string>
+): Effect.Effect<StartAgentGraphQuery, CliError.CliError> => {
+  const queryText = Option.getOrUndefined(queryTextOption);
+  if (queryText === undefined) {
+    return requiredKindQueryFromPositionalsEffect(kind, positionals);
+  }
+  if (positionals.length > 0) {
+    return Effect.fail(queryFlagConflictError([kind, ...positionals], queryText));
+  }
+  return queryText.trim().length === 0
+    ? Effect.fail(missingImpactQueryError(kind))
+    : Effect.succeed({ kind, text: queryText });
 };
 
 const makeUsageError = (
@@ -295,33 +370,30 @@ const commonStartDiagnosticsCliFlags = {
   )
 } as const;
 
+const queryTextFlag = Flag.string("query").pipe(
+  Flag.withDescription("Graph or impact query text. Use this when the query text starts with '-'."),
+  Flag.optional
+);
+
 const graphQueryArgument = Argument.string("query").pipe(
   Argument.variadic(),
-  Argument.mapEffect(queryFromPositionalsEffect),
   Argument.withDescription("Optional graph kind and query text.")
 );
 
 const impactQueryArgument = Argument.string("query").pipe(
-  Argument.variadic({ min: 1 }),
-  Argument.mapEffect(requiredQueryFromPositionalsEffect),
+  Argument.variadic(),
   Argument.withDescription("Required impact kind and query text.")
 );
 
 const graphKindQueryArgument = (kind: StartAgentGraphQueryKind) =>
   Argument.string("query").pipe(
     Argument.variadic(),
-    Argument.mapEffect((positionals) =>
-      optionalKindQueryFromPositionalsEffect(kind, positionals)
-    ),
     Argument.withDescription("Optional graph query text.")
   );
 
 const impactKindQueryArgument = (kind: StartAgentGraphQueryKind) =>
   Argument.string("query").pipe(
     Argument.variadic(),
-    Argument.mapEffect((positionals) =>
-      requiredKindQueryFromPositionalsEffect(kind, positionals)
-    ),
     Argument.withDescription("Required impact query text.")
   );
 
@@ -374,7 +446,8 @@ const makeStartDiagnosticsCliCommand = (
   const graphBase = Command.make(
     "graph",
     {
-      query: graphQueryArgument
+      query: graphQueryArgument,
+      queryText: queryTextFlag
     }
   ).pipe(
     Command.withSharedFlags(graphSharedFlags),
@@ -387,12 +460,13 @@ const makeStartDiagnosticsCliCommand = (
     Command.withHandler((config) =>
       Effect.gen(function* () {
         const common = yield* root;
+        const query = yield* queryFromCliInputEffect(config.query, config.queryText);
         yield* handleCommand({
           _tag: "Graph",
           options: {
             ...commonOptionsFromCliConfig(common),
             verbose: config.verbose,
-            ...(config.query === undefined ? {} : { query: config.query })
+            ...(query === undefined ? {} : { query })
           }
         });
       })
@@ -401,17 +475,25 @@ const makeStartDiagnosticsCliCommand = (
       startAgentGraphQueryKinds.map((kind) =>
         Command.make(
           kind,
-          { query: graphKindQueryArgument(kind) },
+          {
+            query: graphKindQueryArgument(kind),
+            queryText: queryTextFlag
+          },
           (config) =>
             Effect.gen(function* () {
               const common = yield* root;
               const graphCommon = yield* graph;
+              const query = yield* optionalKindQueryFromCliInputEffect(
+                kind,
+                config.query,
+                config.queryText
+              );
               yield* handleCommand({
                 _tag: "Graph",
                 options: {
                   ...commonOptionsFromCliConfig(common),
                   verbose: graphCommon.verbose,
-                  query: config.query
+                  query
                 }
               });
             })
@@ -425,16 +507,18 @@ const makeStartDiagnosticsCliCommand = (
   const impactBase = Command.make(
     "impact",
     {
-      query: impactQueryArgument
+      query: impactQueryArgument,
+      queryText: queryTextFlag
     },
     (config) =>
       Effect.gen(function* () {
         const common = yield* root;
+        const query = yield* requiredQueryFromCliInputEffect(config.query, config.queryText);
         yield* handleCommand({
           _tag: "Impact",
           options: {
             ...commonOptionsFromCliConfig(common),
-            query: config.query
+            query
           }
         });
       })
@@ -447,15 +531,23 @@ const makeStartDiagnosticsCliCommand = (
       startAgentGraphQueryKinds.map((kind) =>
         Command.make(
           kind,
-          { query: impactKindQueryArgument(kind) },
+          {
+            query: impactKindQueryArgument(kind),
+            queryText: queryTextFlag
+          },
           (config) =>
             Effect.gen(function* () {
               const common = yield* root;
+              const query = yield* requiredKindQueryFromCliInputEffect(
+                kind,
+                config.query,
+                config.queryText
+              );
               yield* handleCommand({
                 _tag: "Impact",
                 options: {
                   ...commonOptionsFromCliConfig(common),
-                  query: config.query
+                  query
                 }
               });
             })

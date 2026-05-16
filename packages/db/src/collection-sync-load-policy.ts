@@ -1,20 +1,24 @@
 import { EffectInputCallbackError, type EffectInput } from "@effect-ui/core";
-import { Cause, Clock, Deferred, Effect, Exit, type Schedule } from "effect";
+import { Cause, Clock, Deferred, Effect, Exit, Semaphore, type Schedule } from "effect";
 import type {
   AnyCollection,
   CollectionDefinition,
   CollectionKey,
+  CollectionLoadState,
+  CollectionSnapshot,
   CollectionRuntimeError
 } from "./collection-contract.js";
 import {
   collectionPersistenceConfig,
-  persistCollectionForReasonEffect,
+  collectionPersistencePersistOptions,
+  persistCollectionSnapshotEffect,
   restoreCollectionBeforePreloadEffect
 } from "./collection-persistence.js";
 import { ingestCollectionOutputRowsEffect } from "./collection-row-ingress.js";
 import {
   applyCollectionBaseRow,
   deleteCollectionBaseRow,
+  makeCollectionState,
   rebaseCollectionBaseRows,
   type CollectionLoadAttempt,
   type CollectionState,
@@ -32,6 +36,9 @@ import {
   restoreCollectionStateSnapshot,
   snapshotCollectionState
 } from "./collection-write-commit.js";
+import {
+  collectionSnapshotFromState
+} from "./collection-snapshot-codec.js";
 
 /** Options for one Collection Sync Load Policy invocation. */
 export interface CollectionSyncLoadPolicyOptions {
@@ -78,6 +85,22 @@ const withCollectionLoadRetry = <A, E, R>(
   const retry = definition.options.policy?.retry;
   return retry ? Effect.retry(effect, retry as Schedule.Schedule<unknown, E>) : effect;
 };
+
+const loadCommitSemaphores = new WeakMap<object, Semaphore.Semaphore>();
+
+const loadCommitSemaphore = (state: CollectionState<any, any, any>): Semaphore.Semaphore => {
+  const existing = loadCommitSemaphores.get(state);
+  if (existing) {
+    return existing;
+  }
+
+  const semaphore = Semaphore.makeUnsafe(1);
+  loadCommitSemaphores.set(state, semaphore);
+  return semaphore;
+};
+
+const isInterruptedCause = <E>(cause: Cause.Cause<E>): boolean =>
+  cause.reasons.some(Cause.isInterruptReason);
 
 const failCollectionLoadEffect = <A extends object, K extends CollectionKey, E, R, Cause>(
   store: RuntimeCollectionStore,
@@ -209,11 +232,127 @@ const restoreBeforePreloadEffect = <A extends object, K extends CollectionKey, E
 ): Effect.Effect<boolean, CollectionRuntimeError<E>, R> =>
   restoreCollectionBeforePreloadEffect(definition, state, store, collectionStoreEffect);
 
-const persistLoadEffect = <A extends object, K extends CollectionKey, E, R>(
+const shouldPersistLoad = (definition: AnyCollection): boolean => {
+  const config = collectionPersistenceConfig(definition);
+  return config !== undefined && config.persistOnLoad !== false;
+};
+
+const stagedLoadedCollectionSnapshotEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
-  store: RuntimeCollectionStore
+  state: CollectionState<A, K, E>,
+  rows: ReadonlyArray<StoredRow<A, K>>,
+  updatedAt: number
+): Effect.Effect<CollectionSnapshot<A, K>, EffectInputCallbackError> =>
+  Effect.try({
+    try: () => {
+      const stagedState = makeCollectionState<A, K, E>();
+      restoreCollectionStateSnapshot(stagedState, snapshotCollectionState(state));
+      replaceLoadedCollectionRows(stagedState, rows);
+      return collectionSnapshotFromState(definition, stagedState, updatedAt);
+    },
+    catch: (cause) =>
+      new EffectInputCallbackError({
+        operation: `Collection.load(${definition.name}).snapshot`,
+        cause,
+        guidance: "Collection load snapshots must be serializable before rows are committed to live state."
+      })
+  });
+
+const persistLoadSnapshotEffect = <A extends object, K extends CollectionKey, E, R>(
+  definition: CollectionDefinition<A, K, E, R>,
+  store: RuntimeCollectionStore,
+  snapshot: CollectionSnapshot<A, K>
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
-  persistCollectionForReasonEffect(definition, store, collectionStoreEffect, "load");
+  Effect.suspend(() => {
+    const config = collectionPersistenceConfig(definition);
+    if (config === undefined || config.persistOnLoad === false) {
+      return Effect.succeed(undefined);
+    }
+
+    return persistCollectionSnapshotEffect(
+      definition,
+      Effect.succeed(snapshot),
+      config.storage,
+      collectionPersistencePersistOptions(config),
+      store
+    ).pipe(Effect.asVoid);
+  });
+
+const restoreLoadStateIfCurrentEffect = <A extends object, K extends CollectionKey, E>(
+  state: CollectionState<A, K, E>,
+  attempt: CollectionLoadAttempt,
+  loadState: CollectionLoadState<CollectionRuntimeError<E>>
+): Effect.Effect<void> =>
+  Effect.sync(() => {
+    if (isCurrentLoadAttempt(state, attempt)) {
+      state.loadState.set(loadState);
+    }
+  });
+
+const commitLoadedCollectionRowsEffect = <A extends object, K extends CollectionKey, E, R>(
+  definition: CollectionDefinition<A, K, E, R>,
+  state: CollectionState<A, K, E>,
+  store: RuntimeCollectionStore,
+  attempt: CollectionLoadAttempt,
+  rows: ReadonlyArray<StoredRow<A, K>>,
+  previousLoadState: CollectionLoadState<CollectionRuntimeError<E>>,
+  updatedAt: number
+): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
+  Semaphore.withPermit(
+    loadCommitSemaphore(state),
+    Effect.uninterruptibleMask((restore) =>
+      Effect.gen(function* () {
+        if (!isCurrentLoadAttempt(state, attempt)) {
+          return;
+        }
+
+        const snapshot = shouldPersistLoad(definition)
+          ? yield* stagedLoadedCollectionSnapshotEffect(definition, state, rows, updatedAt).pipe(
+              Effect.catch((error) =>
+                isCurrentLoadAttempt(state, attempt)
+                  ? failCollectionLoadEffect(store, definition, state, error)
+                  : Effect.fail(error)
+              )
+            )
+          : undefined;
+
+        if (!isCurrentLoadAttempt(state, attempt)) {
+          return;
+        }
+
+        const persistExit = yield* (snapshot === undefined
+          ? Effect.succeed(Exit.void)
+          : restore(persistLoadSnapshotEffect(definition, store, snapshot)).pipe(Effect.exit));
+        if (Exit.isFailure(persistExit)) {
+          if (isInterruptedCause(persistExit.cause)) {
+            yield* restoreLoadStateIfCurrentEffect(state, attempt, previousLoadState);
+          } else if (isCurrentLoadAttempt(state, attempt)) {
+            yield* failCollectionLoadEffect(
+              store,
+              definition,
+              state,
+              persistExit.cause.reasons.find(Cause.isFailReason)?.error ?? Cause.squash(persistExit.cause)
+            ).pipe(Effect.exit);
+          }
+          return yield* Effect.failCause(persistExit.cause);
+        }
+
+        if (!isCurrentLoadAttempt(state, attempt)) {
+          return;
+        }
+
+        replaceLoadedCollectionRows(state, rows);
+        state.initialDataError = undefined;
+        state.loadState.set({ _tag: "Ready", waiting: false, updatedAt });
+        yield* publishStoreEvent(store, {
+          _tag: "CollectionLoaded",
+          collection: definition.name,
+          count: state.rows.size,
+          updatedAt
+        });
+      })
+    )
+  );
 
 /**
  * Runs the Collection Sync Load Policy for `preloadEffect` and `refetchEffect`.
@@ -271,10 +410,11 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
         return;
       }
 
+      const load = collectionCallbackEffect(operation);
+      const previousLoadState = state.loadState.get();
       if (isCurrentLoadAttempt(state, attempt)) {
         state.loadState.set({ _tag: "Pending", waiting: true });
       }
-      const load = collectionCallbackEffect(operation);
       const values = yield* withCollectionLoadRetry(definition, load).pipe(
         Effect.catch((error: E | EffectInputCallbackError) => failCurrentLoad(error))
       );
@@ -292,36 +432,15 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
       }
 
       const updatedAt = yield* Clock.currentTimeMillis;
-      const previousState = snapshotCollectionState(state);
-      const previousInitialDataError = state.initialDataError;
-      replaceLoadedCollectionRows(state, rows);
-      const persistExit = yield* Effect.exit(persistLoadEffect(definition, store));
-      if (Exit.isFailure(persistExit)) {
-        if (isCurrentLoadAttempt(state, attempt)) {
-          restoreCollectionStateSnapshot(state, previousState);
-          state.initialDataError = previousInitialDataError;
-          yield* failCollectionLoadEffect(
-            store,
-            definition,
-            state,
-            persistExit.cause.reasons.find(Cause.isFailReason)?.error ?? Cause.squash(persistExit.cause)
-          ).pipe(Effect.exit);
-        }
-        return yield* Effect.failCause(persistExit.cause);
-      }
-
-      if (!isCurrentLoadAttempt(state, attempt)) {
-        return;
-      }
-
-      state.initialDataError = undefined;
-      state.loadState.set({ _tag: "Ready", waiting: false, updatedAt });
-      yield* publishStoreEvent(store, {
-        _tag: "CollectionLoaded",
-        collection: definition.name,
-        count: rows.length,
+      yield* commitLoadedCollectionRowsEffect(
+        definition,
+        state,
+        store,
+        attempt,
+        rows,
+        previousLoadState,
         updatedAt
-      });
+      );
     }).pipe(
       Effect.exit,
       Effect.flatMap((exit) =>

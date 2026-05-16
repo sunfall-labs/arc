@@ -144,6 +144,60 @@ const startAgentGraphCliQueryTextByKind = {
   "server-function": "Project.load"
 } satisfies Record<StartAgentGraphQueryKind, string>;
 
+const shellSplit = (command: string): readonly string[] => {
+  const args: string[] = [];
+  let current = "";
+  let inSingleQuote = false;
+  let hasCurrent = false;
+
+  for (let index = 0; index < command.length; index += 1) {
+    const char = command[index] ?? "";
+    if (inSingleQuote) {
+      if (char === "'") {
+        inSingleQuote = false;
+      } else {
+        current += char;
+      }
+      continue;
+    }
+
+    if (/\s/.test(char)) {
+      if (hasCurrent) {
+        args.push(current);
+        current = "";
+        hasCurrent = false;
+      }
+      continue;
+    }
+
+    hasCurrent = true;
+    if (char === "'") {
+      inSingleQuote = true;
+      continue;
+    }
+    if (char === "\\") {
+      index += 1;
+      current += command[index] ?? "";
+      continue;
+    }
+    current += char;
+  }
+
+  if (inSingleQuote) {
+    throw new Error(`Unclosed single quote in shell command: ${command}`);
+  }
+  if (hasCurrent) {
+    args.push(current);
+  }
+  return args;
+};
+
+const shellSplitStartCliArgs = (command: string): readonly string[] => {
+  const [binary, ...args] = shellSplit(command);
+  expect(binary).toBe("effect-ui-start");
+  return args;
+};
+
 const makeStreamHydrationElement = (script: string, sequence: number) => {
   const attributes = new Map<string, string>([
     [streamHydrationSequenceAttribute, String(sequence)]
@@ -6494,6 +6548,41 @@ describe("Effect UI Start", () => {
     });
     expect(
       parseStartDiagnosticsCliArgs([
+        "graph",
+        "--query=--root"
+      ])
+    ).toEqual({
+      _tag: "Graph",
+      options: {
+        query: {
+          text: "--root"
+        },
+        json: false,
+        pretty: false,
+        verbose: false
+      }
+    });
+    expect(
+      parseStartDiagnosticsCliArgs([
+        "graph",
+        "route",
+        "--query=--root",
+        "--json"
+      ])
+    ).toEqual({
+      _tag: "Graph",
+      options: {
+        query: {
+          kind: "route",
+          text: "--root"
+        },
+        json: true,
+        pretty: false,
+        verbose: false
+      }
+    });
+    expect(
+      parseStartDiagnosticsCliArgs([
         "impact",
         "action",
         "Project.rename",
@@ -6507,6 +6596,44 @@ describe("Effect UI Start", () => {
         query: {
           kind: "action",
           text: "Project.rename"
+        },
+        json: false,
+        pretty: false
+      }
+    });
+    expect(
+      parseStartDiagnosticsCliArgs([
+        "impact",
+        "--query=--root",
+        "--root",
+        "app"
+      ])
+    ).toEqual({
+      _tag: "Impact",
+      options: {
+        root: "app",
+        query: {
+          text: "--root"
+        },
+        json: false,
+        pretty: false
+      }
+    });
+    expect(
+      parseStartDiagnosticsCliArgs([
+        "impact",
+        "route",
+        "--query=--root",
+        "--root",
+        "app"
+      ])
+    ).toEqual({
+      _tag: "Impact",
+      options: {
+        root: "app",
+        query: {
+          kind: "route",
+          text: "--root"
         },
         json: false,
         pretty: false
@@ -7056,16 +7183,67 @@ describe("Effect UI Start", () => {
       "effect-ui-start diagnostics --root='examples/project console' --config='vite config.ts' --mode='ci mode'",
       "effect-ui-start graph --root='examples/project console' --config='vite config.ts' --mode='ci mode' route '/project spaces/:id'"
     ]);
+    expect(parseStartDiagnosticsCliArgs(shellSplitStartCliArgs(
+      payload.items?.[0]?.verify?.[1] ?? ""
+    ))).toEqual({
+      _tag: "Graph",
+      options: {
+        root: "examples/project console",
+        configFile: "vite config.ts",
+        mode: "ci mode",
+        query: {
+          kind: "route",
+          text: "/project spaces/:id"
+        },
+        json: false,
+        pretty: false,
+        verbose: false
+      }
+    });
   });
 
   it("protects impact verify command queries that look like CLI flags", () => {
-    expect(startDiagnosticsCliVerifyCommandsForQuery(
-      { kind: "route", text: "--root" },
-      { root: "examples/project-console" }
-    )).toEqual([
+    const query = { kind: "route" as const, text: "--root" };
+    const commands = startDiagnosticsCliVerifyCommandsForQuery(query, {
+      root: "examples/project-console"
+    });
+
+    expect(commands).toEqual([
       "effect-ui-start diagnostics --root=examples/project-console",
-      "effect-ui-start graph --root=examples/project-console -- route --root"
+      "effect-ui-start graph --root=examples/project-console route --query=--root"
     ]);
+    expect(parseStartDiagnosticsCliArgs(shellSplitStartCliArgs(commands[1] ?? ""))).toEqual({
+      _tag: "Graph",
+      options: {
+        root: "examples/project-console",
+        query,
+        json: false,
+        pretty: false,
+        verbose: false
+      }
+    });
+
+    const textOnlyCommands = startDiagnosticsCliVerifyCommandsForQuery(
+      { text: "--root" },
+      { root: "examples/project-console" }
+    );
+
+    expect(textOnlyCommands).toEqual([
+      "effect-ui-start diagnostics --root=examples/project-console",
+      "effect-ui-start graph --root=examples/project-console --query=--root"
+    ]);
+    expect(parseStartDiagnosticsCliArgs(shellSplitStartCliArgs(textOnlyCommands[1] ?? ""))).toEqual({
+      _tag: "Graph",
+      options: {
+        root: "examples/project-console",
+        query: {
+          text: "--root"
+        },
+        json: false,
+        pretty: false,
+        verbose: false
+      }
+    });
   });
 
   it("protects impact verify command load options that look like CLI flags", () => {

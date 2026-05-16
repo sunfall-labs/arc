@@ -450,6 +450,30 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
     }
   };
 
+  const declaresPromiseConstructorFromGlobalObject = (name, initializer) => {
+    if (!ts.isObjectBindingPattern(name) || !isGlobalReceiver(initializer)) {
+      return false;
+    }
+    let found = false;
+    for (const element of name.elements) {
+      if (!ts.isBindingElement(element)) {
+        continue;
+      }
+      const propertyName = bindingNameText(element.propertyName ?? element.name);
+      if (propertyName !== "Promise") {
+        declareBindingPattern(element.name, false);
+        continue;
+      }
+      if (ts.isIdentifier(element.name)) {
+        setBinding(element.name.text, true);
+      } else {
+        declareBindingPattern(element.name, false);
+      }
+      found = true;
+    }
+    return found;
+  };
+
   const visitFunctionLike = (node) => {
     if (node.name !== undefined && ts.isIdentifier(node.name)) {
       setBinding(node.name.text, false);
@@ -482,6 +506,11 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
         node.name.text,
         initializer !== undefined && isPromiseConstructorExpression(initializer)
       );
+    } else if (
+      initializer !== undefined &&
+      declaresPromiseConstructorFromGlobalObject(node.name, initializer)
+    ) {
+      // Binding state was recorded while walking the object pattern above.
     } else {
       declareBindingPattern(node.name, false);
     }
@@ -787,6 +816,8 @@ assertPromiseStaticBans("new Promise(() => undefined);", ["new Promise"]);
 assertPromiseStaticBans("new globalThis.Promise(() => undefined);", ["new Promise"]);
 assertPromiseStaticBans("new (Promise)(() => undefined);", ["new Promise"]);
 assertPromiseStaticBans("const P = Promise; new P(() => undefined);", ["new Promise"]);
+assertPromiseStaticBans("const { Promise: P } = globalThis; P.all([]);", ["Promise.all"]);
+assertPromiseStaticBans("const { Promise } = window; new Promise(() => undefined);", ["new Promise"]);
 assertPromiseStaticBans("const Promise = class {}; new Promise(() => undefined);", []);
 assertBannedPattern(".then(...)", "client.then<string>(() => undefined);", 1);
 assertBannedPattern(".then(...)", "client[\"then\"](() => undefined);", 1);

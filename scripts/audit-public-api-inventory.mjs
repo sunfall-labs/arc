@@ -541,6 +541,16 @@ const assertTypeTestCoverage = (entry, typeTestPath, typeTest) => {
     }
   }
 
+  for (const name of entry.requiredTypeTestImports ?? []) {
+    if (typeof name !== "string" || name.length === 0) {
+      failures.push(`${entry.package} export ${entry.export} requiredTypeTestImports entries must be non-empty strings`);
+    } else if (!importedNames.includes(name)) {
+      failures.push(`${entry.package} export ${entry.export} type test ${entry.typeTest} must directly import required public symbol ${name}`);
+    } else if (!usedIdentifiers.has(name)) {
+      failures.push(`${entry.package} export ${entry.export} type test ${entry.typeTest} must exercise required public symbol ${name}`);
+    }
+  }
+
   for (const reference of entry.typeTestReferences ?? []) {
     if (typeof reference !== "string" || reference.length === 0) {
       failures.push(`${entry.package} export ${entry.export} typeTestReferences entries must be non-empty strings`);

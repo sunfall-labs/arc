@@ -45,6 +45,9 @@ const hrefArgs = <R extends AnyRoute>(
 ): Route.HrefArgs<R> =>
   (options === undefined ? [] : [options]) as Route.HrefArgs<R>;
 
+const preloadIdentityValue = (value: unknown): string =>
+  value === undefined ? "" : String(value);
+
 const callAnchorMouseHandler = (
   handler: AnchorMouseHandler | undefined,
   event: AnchorMouseEvent
@@ -100,7 +103,25 @@ export const RouterLink = <R extends AnyRoute>(
   });
 
   createRenderEffect(() => {
-    preloader.bindTarget(href());
+    const canHandleRoute = router.canHandleRoute(route());
+    const preload = local.preload !== false;
+    preloader.bindPreloadIdentity({
+      key: [
+        href(),
+        preload,
+        canHandleRoute,
+        preloadIdentityValue(anchorProps.target),
+        preloadIdentityValue(anchorProps.download)
+      ].join("\0"),
+      enabled:
+        browserRouterLinkPreloadDecision({
+          defaultPrevented: false,
+          preload,
+          canHandleRoute,
+          target: anchorProps.target,
+          download: anchorProps.download
+        })._tag === "Preload"
+    });
   });
   createRenderEffect(() => {
     anchorElement?.setAttribute("href", href());

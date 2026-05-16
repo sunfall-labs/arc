@@ -29,18 +29,49 @@ const packagePayloadPolicies = new Map([
   ["@effect-ui/tsrx", { payload: "dist-package" }],
   [
     "@effect-ui/example-devtools-extension",
-    { payload: "source-package", requiresGitignore: true },
+    {
+      payload: "source-package",
+      requiresGitignore: true,
+      requiredFiles: ["README.md", "devtools.html", "panel.html", "tsconfig.json", "vite.config.ts"],
+      requiredDirectories: ["public", "src"],
+    },
   ],
   [
     "@effect-ui/example-devtools-panel",
-    { payload: "source-package", requiresGitignore: true },
+    {
+      payload: "source-package",
+      requiresGitignore: true,
+      requiredFiles: ["README.md", "index.html", "tsconfig.json", "vite.config.ts"],
+      requiredDirectories: ["src"],
+    },
   ],
   [
     "@effect-ui/example-project-console",
-    { payload: "source-package", requiresGitignore: true },
+    {
+      payload: "source-package",
+      requiresGitignore: true,
+      requiredFiles: ["README.md", "index.html", "tsconfig.json", "vite.config.ts"],
+      requiredDirectories: ["scripts", "src"],
+    },
   ],
-  ["@effect-ui/starter-basic", { payload: "source-package", requiresGitignore: true }],
-  ["@effect-ui/starter-react", { payload: "source-package", requiresGitignore: true }],
+  [
+    "@effect-ui/starter-basic",
+    {
+      payload: "source-package",
+      requiresGitignore: true,
+      requiredFiles: ["README.md", "index.html", "tsconfig.json", "vite.config.ts"],
+      requiredDirectories: ["scripts", "src"],
+    },
+  ],
+  [
+    "@effect-ui/starter-react",
+    {
+      payload: "source-package",
+      requiresGitignore: true,
+      requiredFiles: ["README.md", "components.json", "index.html", "tsconfig.json", "vite.config.ts"],
+      requiredDirectories: ["scripts", "src"],
+    },
+  ],
 ]);
 
 const knownPayloadPolicies = new Set(["dist-package", "source-package"]);
@@ -103,6 +134,23 @@ const manifestMetadataValidationFailures = (target) => {
   return failures;
 };
 
+const packagePayloadValidationFailures = (target, files) => {
+  const failures = [];
+  const fileSet = new Set(files);
+  for (const requiredFile of target.requiredFiles ?? []) {
+    if (!fileSet.has(requiredFile)) {
+      failures.push(`${target.label} package dry-run is missing required source file ${requiredFile}.`);
+    }
+  }
+  for (const requiredDirectory of target.requiredDirectories ?? []) {
+    const prefix = `${requiredDirectory}/`;
+    if (!files.some((file) => file.startsWith(prefix))) {
+      failures.push(`${target.label} package dry-run is missing required source directory ${requiredDirectory}.`);
+    }
+  }
+  return failures;
+};
+
 const failSelfTest = (message) => {
   console.error(message);
   process.exit(1);
@@ -119,6 +167,22 @@ const assertManifestMetadataPolicy = (name, target, expectedFragments) => {
     if (!failures.some((failure) => failure.includes(expectedFragment))) {
       failSelfTest(
         `${name} manifest metadata self-test did not find expected failure fragment ${expectedFragment}: ${failures.join(" ")}`
+      );
+    }
+  }
+};
+
+const assertPackagePayloadPolicy = (name, target, files, expectedFragments) => {
+  const failures = packagePayloadValidationFailures(target, files);
+  if (failures.length !== expectedFragments.length) {
+    failSelfTest(
+      `${name} package payload self-test expected ${expectedFragments.length} failures but found ${failures.length}: ${failures.join(" ")}`
+    );
+  }
+  for (const expectedFragment of expectedFragments) {
+    if (!failures.some((failure) => failure.includes(expectedFragment))) {
+      failSelfTest(
+        `${name} package payload self-test did not find expected failure fragment ${expectedFragment}: ${failures.join(" ")}`
       );
     }
   }
@@ -168,6 +232,25 @@ assertManifestMetadataPolicy(
     },
   },
   [".gitignore"],
+);
+
+const sourcePackageSelfTest = {
+  label: "@effect-ui/source-self-test",
+  payload: "source-package",
+  requiredFiles: ["README.md", "index.html"],
+  requiredDirectories: ["src"],
+};
+assertPackagePayloadPolicy(
+  "valid source package payload",
+  sourcePackageSelfTest,
+  ["README.md", "index.html", "src/main.ts"],
+  [],
+);
+assertPackagePayloadPolicy(
+  "source package missing required payload",
+  sourcePackageSelfTest,
+  [".gitignore"],
+  ["README.md", "index.html", "src"],
 );
 
 const workspacePackageTargets = collectWorkspacePackageManifests(workspaceRoot).pipe(
@@ -329,6 +412,7 @@ const verifyPackageTarget = (target) =>
     const pack = yield* parsePackOutput(target, stdout);
     const files = pack.files.map((file) => file.path).sort((left, right) => left.localeCompare(right));
     const forbidden = files.filter((file) => hasForbiddenPath(target, file));
+    const missingRequiredPayload = packagePayloadValidationFailures(target, files);
     const missingManifestTargets = manifestTargetValidationFailures({
       packageName: target.label,
       packageJson: target.packageJson,
@@ -351,6 +435,17 @@ const verifyPackageTarget = (target) =>
           [
             "Build the package or fix package.json exports/bin/main/types targets before publishing.",
             ...missingManifestTargets,
+          ].join(" "),
+        ),
+      );
+    }
+    if (missingRequiredPayload.length > 0) {
+      return yield* Effect.fail(
+        fail(
+          `${target.label} package dry-run is missing required source/config payloads.`,
+          [
+            "Keep source package files allowlists aligned with copyable app and example contracts.",
+            ...missingRequiredPayload,
           ].join(" "),
         ),
       );

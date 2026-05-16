@@ -67,6 +67,10 @@ interruption.
     `Promise.try(...)` and `Promise.withResolvers(...)`, including extracted
     dot, bracket, and template-literal forms, so library internals cannot grow
     Promise-first factory seams by using newer JavaScript APIs.
+  - The Review 156 pass catches Promise constructors destructured from global
+    host objects such as `globalThis` and `window`, including aliased
+    destructuring, so `const { Promise: P } = globalThis; new P(...)` cannot
+    bypass the constructor guard.
 - `packages/start/src/start-fetch.ts` and `packages/start/src/file-route.ts`
   - Custom Start fetchers and file-route preload helpers now reject
     Promise-shaped erased JavaScript values before they cross deeper runtime
@@ -458,6 +462,9 @@ interruption.
   files after moving `new Promise` detection into the TypeScript AST guard so
   direct, global, parenthesized, and aliased Promise constructor forms are
   rejected.
+- Review 156 focused verification kept `pnpm audit:effect-first` green over 272
+  files after adding object-binding extraction checks for Promise constructors
+  destructured from `globalThis` and `window`.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
