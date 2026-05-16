@@ -4,6 +4,9 @@ import {
   SQLitePersistence,
   SQLitePersistenceInvalidRow,
   SQLitePersistenceInvalidTableName,
+  createCollection,
+  createLiveQuery,
+  createLiveQueryCollection,
   eq,
   flushCollectionsPendingMutationsEffect,
   makeSQLiteMemoryStatementDatabase,
@@ -31,6 +34,9 @@ const sqliteRow: SQLitePersistenceRow = {
   value: "{}",
   updatedAt: 1
 };
+const collectionAlias: typeof Collection.define = createCollection;
+const liveQueryAlias: typeof Query.live = createLiveQuery;
+const liveQueryCollectionAlias: typeof Collection.liveQuery = createLiveQueryCollection;
 
 const dbExports: Array<unknown> = [
   Collection,
@@ -38,6 +44,9 @@ const dbExports: Array<unknown> = [
   SQLitePersistence,
   SQLitePersistenceInvalidRow,
   SQLitePersistenceInvalidTableName,
+  createCollection,
+  createLiveQuery,
+  createLiveQueryCollection,
   eq,
   flushCollectionsPendingMutationsEffect,
   makeSQLiteMemoryStatementDatabase,
@@ -45,7 +54,10 @@ const dbExports: Array<unknown> = [
   makeSQLiteStatementPersistenceDriver,
   sqliteStorage,
   sqliteNamespaceStorage,
-  sqliteRow
+  sqliteRow,
+  collectionAlias,
+  liveQueryAlias,
+  liveQueryCollectionAlias
 ];
 type DbErrors =
   | CollectionStorageError

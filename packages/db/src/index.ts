@@ -843,11 +843,32 @@ export namespace Collection {
     subscribeCollectionEventsEffect();
 }
 
-/** Alias for `Collection.define`. */
+/**
+ * Compatibility alias for `Collection.define(...)`.
+ *
+ * Prefer `Collection.define(...)` in new code so DB APIs stay grouped under
+ * their owning namespace in LSP hovers and generated docs.
+ *
+ * @deprecated Use `Collection.define(...)`.
+ */
 export const createCollection = Collection.define;
-/** Alias for `Query.live`. */
+/**
+ * Compatibility alias for `Query.live(...)`.
+ *
+ * Prefer `Query.live(...)` in new code so query APIs stay grouped under their
+ * owning namespace in LSP hovers and generated docs.
+ *
+ * @deprecated Use `Query.live(...)`.
+ */
 export const createLiveQuery = Query.live;
-/** Alias for `Collection.liveQuery`. */
+/**
+ * Compatibility alias for `Collection.liveQuery(...)`.
+ *
+ * Prefer `Collection.liveQuery(...)` in new code so live-query collection APIs
+ * stay grouped under their owning namespace in LSP hovers and generated docs.
+ *
+ * @deprecated Use `Collection.liveQuery(...)`.
+ */
 export const createLiveQueryCollection = Collection.liveQuery;
 export * from "./flush-policy.js";
 export * from "./server-collection.js";

@@ -622,6 +622,12 @@ The root export includes:
 
 Release decisions:
 
+- `createCollection`, `createLiveQuery`, and `createLiveQueryCollection` remain
+  expert-public compatibility aliases for `Collection.define(...)`,
+  `Query.live(...)`, and `Collection.liveQuery(...)`. New docs and examples
+  should prefer the namespace-owned APIs so LSP hovers make Module ownership
+  clear, but the aliases are pinned in the focused DB type test and manifest so
+  compatibility cannot drift accidentally.
 - SQLite helper names are expert public storage-adapter APIs. Keep them because
   local-first recipes need a SQLite-shaped seam without a runtime dependency on
   a specific SQLite package. `sqlite-persistence.ts` owns the statement value,

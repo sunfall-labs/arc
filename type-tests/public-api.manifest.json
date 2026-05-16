@@ -14,7 +14,28 @@
       "import": "@effect-ui/db",
       "source": "packages/db/src/index.ts",
       "docs": "docs/public-api-inventory.md",
-      "typeTest": "type-tests/db.test-d.ts"
+      "typeTest": "type-tests/db.test-d.ts",
+      "requiredTypeTestImports": [
+        "Collection",
+        "Query",
+        "SQLitePersistence",
+        "SQLitePersistenceInvalidRow",
+        "SQLitePersistenceInvalidTableName",
+        "createCollection",
+        "createLiveQuery",
+        "createLiveQueryCollection",
+        "eq",
+        "flushCollectionsPendingMutationsEffect",
+        "makeSQLiteMemoryStatementDatabase",
+        "makeSQLitePersistenceStorage",
+        "makeSQLiteStatementPersistenceDriver"
+      ],
+      "typeTestReferences": [
+        "CollectionStorageError",
+        "QueryEvaluationError",
+        "SQLitePersistenceRow",
+        "SQLiteStatementDatabase"
+      ]
     },
     {
       "package": "@effect-ui/devtools",
