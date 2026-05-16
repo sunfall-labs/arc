@@ -136,37 +136,66 @@ const graphQueryKindSet = new Set<StartAgentGraphQueryKind>(graphQueryKinds);
 const isGraphQueryKind = (value: string): value is StartAgentGraphQueryKind =>
   graphQueryKindSet.has(value as StartAgentGraphQueryKind);
 
-const queryFromPositionals = (
+const invalidGraphQueryKindError = (value: string): CliError.InvalidValue =>
+  new CliError.InvalidValue({
+    option: "query",
+    value,
+    expected: `one of: ${graphQueryKinds.join(", ")}`,
+    kind: "argument"
+  });
+
+const tooManyGraphQueryValuesError = (positionals: readonly string[]): CliError.InvalidValue =>
+  new CliError.InvalidValue({
+    option: "query",
+    value: positionals.join(" "),
+    expected: "at most a graph kind and one query",
+    kind: "argument"
+  });
+
+const missingImpactQueryError = (value: string): CliError.InvalidValue =>
+  new CliError.InvalidValue({
+    option: "query",
+    value,
+    expected: "an impact query such as `impact route /projects/:id`",
+    kind: "argument"
+  });
+
+const queryFromPositionalsEffect = (
   positionals: readonly string[]
-): StartAgentGraphQuery | undefined => {
+): Effect.Effect<StartAgentGraphQuery | undefined, CliError.CliError> => {
   if (positionals.length === 0) {
-    return undefined;
+    return Effect.succeed(undefined);
   }
   if (positionals.length > 2) {
-    throw new StartDiagnosticsCliUsageError({
-      message: `Expected at most a graph kind and one query, received ${positionals.length} positional values.`,
-      guidance: startDiagnosticsCliUsage
-    });
+    return Effect.fail(tooManyGraphQueryValuesError(positionals));
   }
 
   const [first, second] = positionals;
   if (first === undefined) {
-    return undefined;
+    return Effect.succeed(undefined);
   }
   if (isGraphQueryKind(first)) {
-    return {
+    return Effect.succeed({
       kind: first,
       ...(second === undefined ? {} : { text: second })
-    };
-  }
-  if (second !== undefined) {
-    throw new StartDiagnosticsCliUsageError({
-      message: `Unknown graph query kind "${first}".`,
-      guidance: startDiagnosticsCliUsage
     });
   }
-  return { text: first };
+  if (second !== undefined) {
+    return Effect.fail(invalidGraphQueryKindError(first));
+  }
+  return Effect.succeed({ text: first });
 };
+
+const requiredQueryFromPositionalsEffect = (
+  positionals: readonly string[]
+): Effect.Effect<StartAgentGraphQuery, CliError.CliError> =>
+  queryFromPositionalsEffect(positionals).pipe(
+    Effect.flatMap((query) =>
+      query?.text === undefined || query.text.trim().length === 0
+        ? Effect.fail(missingImpactQueryError(positionals.join(" ")))
+        : Effect.succeed(query)
+    )
+  );
 
 const startDiagnosticsCliCommandNames = new Set([
   "diagnostics",
@@ -264,6 +293,18 @@ const commonStartDiagnosticsCliFlags = {
   )
 } as const;
 
+const graphQueryArgument = Argument.string("query").pipe(
+  Argument.variadic(),
+  Argument.mapEffect(queryFromPositionalsEffect),
+  Argument.withDescription("Optional graph kind and query text.")
+);
+
+const impactQueryArgument = Argument.string("query").pipe(
+  Argument.variadic({ min: 1 }),
+  Argument.mapEffect(requiredQueryFromPositionalsEffect),
+  Argument.withDescription("Required impact kind and query text.")
+);
+
 const commonOptionsFromCliConfig = (
   config: StartDiagnosticsCliCommonConfig
 ): StartDiagnosticsCliOptions => {
@@ -280,14 +321,6 @@ const commonOptionsFromCliConfig = (
   };
 };
 
-const commandFromCliConfigEffect = (
-  command: () => Exclude<StartCliCommand, { readonly _tag: "Help" }>
-): Effect.Effect<Exclude<StartCliCommand, { readonly _tag: "Help" }>, unknown> =>
-  Effect.try({
-    try: command,
-    catch: (cause) => cause
-  });
-
 const makeStartDiagnosticsCliCommand = (
   handleCommand: (
     command: Exclude<StartCliCommand, { readonly _tag: "Help" }>
@@ -297,21 +330,16 @@ const makeStartDiagnosticsCliCommand = (
     Command.withSharedFlags(commonStartDiagnosticsCliFlags)
   );
 
-  const emitCommand = (
-    command: () => Exclude<StartCliCommand, { readonly _tag: "Help" }>
-  ): Effect.Effect<void, unknown> =>
-    commandFromCliConfigEffect(command).pipe(Effect.flatMap(handleCommand));
-
   const diagnostics = Command.make(
     "diagnostics",
     {},
     () =>
       Effect.gen(function* () {
         const common = yield* root;
-        yield* emitCommand(() => ({
+        yield* handleCommand({
           _tag: "Diagnostics",
           options: commonOptionsFromCliConfig(common)
-        }));
+        });
       })
   ).pipe(
     Command.withDescription("Print app graph diagnostics and repair findings.")
@@ -320,10 +348,7 @@ const makeStartDiagnosticsCliCommand = (
   const graph = Command.make(
     "graph",
     {
-      positionals: Argument.string("query").pipe(
-        Argument.variadic(),
-        Argument.withDescription("Optional graph kind and query text.")
-      ),
+      query: graphQueryArgument,
       verbose: Flag.boolean("verbose").pipe(
         Flag.withDescription("Print raw graph ids, facts, and edges for graph output.")
       )
@@ -331,17 +356,13 @@ const makeStartDiagnosticsCliCommand = (
     (config) =>
       Effect.gen(function* () {
         const common = yield* root;
-        yield* emitCommand(() => {
-          const positionals = config.positionals as ReadonlyArray<string>;
-          const query = queryFromPositionals(positionals);
-          return {
-            _tag: "Graph",
-            options: {
-              ...commonOptionsFromCliConfig(common),
-              verbose: config.verbose,
-              ...(query === undefined ? {} : { query })
-            }
-          };
+        yield* handleCommand({
+          _tag: "Graph",
+          options: {
+            ...commonOptionsFromCliConfig(common),
+            verbose: config.verbose,
+            ...(config.query === undefined ? {} : { query: config.query })
+          }
         });
       })
   ).pipe(
@@ -351,27 +372,17 @@ const makeStartDiagnosticsCliCommand = (
   const impact = Command.make(
     "impact",
     {
-      positionals: Argument.string("query").pipe(
-        Argument.variadic(),
-        Argument.withDescription("Required impact kind and query text.")
-      )
+      query: impactQueryArgument
     },
     (config) =>
       Effect.gen(function* () {
         const common = yield* root;
-        yield* emitCommand(() => {
-          const positionals = config.positionals as ReadonlyArray<string>;
-          const query = queryFromPositionals(positionals);
-          if (query?.text === undefined || query.text.trim().length === 0) {
-            throw makeUsageError("Expected an impact query such as `impact route /projects/:id`.");
+        yield* handleCommand({
+          _tag: "Impact",
+          options: {
+            ...commonOptionsFromCliConfig(common),
+            query: config.query
           }
-          return {
-            _tag: "Impact",
-            options: {
-              ...commonOptionsFromCliConfig(common),
-              query
-            }
-          };
         });
       })
   ).pipe(

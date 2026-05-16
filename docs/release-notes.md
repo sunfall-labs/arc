@@ -200,6 +200,9 @@ Latest full gate on May 15, 2026:
 - Review 107 moved shared `effect-ui-start` diagnostics flags onto the root
   Effect v4 `Command.withSharedFlags(...)` grammar, so subcommands inherit
   parent flags instead of repeating them.
+- Review 108 moved Start diagnostics CLI graph/impact query parsing into Effect
+  v4 `Argument` parsers that report `CliError.InvalidValue` instead of
+  throwing during command construction.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime

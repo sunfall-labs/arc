@@ -1073,8 +1073,11 @@ interruption.
   `Command.withSharedFlags(...)` on the root command; subcommands read the
   inherited config through the parent command context instead of repeating flag
   parsers.
-- The latest full `pnpm verify` passed after the Review 107 Start Diagnostics
-  CLI Shared Flags slice: 11 package builds, workspace typecheck, type
+- Start diagnostics CLI graph/impact query arguments now parse through Effect
+  v4 `Argument.variadic(...)` and `Argument.mapEffect(...)`, reporting syntax
+  failures as `CliError.InvalidValue` instead of local thrown values.
+- The latest full `pnpm verify` passed after the Review 108 Start Diagnostics
+  CLI Query Arguments slice: 11 package builds, workspace typecheck, type
   tests, public API inventory audit, Effect-first audit over 225
   package/example/script/type-test files, 52 root test files / 859 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
@@ -1083,7 +1086,7 @@ interruption.
   starter test file / 3 tests, project-console starter packaging, typecheck,
   4 project-console test files / 27 tests, build, and leak scans. Review 75
   added the public API inventory audit to the full gate, Review 86 kept the
-  scanner green over the expanded public type-test scope, and Review 107 kept
+  scanner green over the expanded public type-test scope, and Review 108 kept
   the Effect-first scanner green over its expanded 225-file scope.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core

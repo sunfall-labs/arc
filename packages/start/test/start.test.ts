@@ -5869,6 +5869,28 @@ describe("Effect UI Start", () => {
     expect(result.exitCode).toBe(1);
     expect(stderr.join("\n")).toContain('Unknown command "unknown".');
     expect(stderr.join("\n")).toContain("Usage: effect-ui-start diagnostics");
+
+    const extraGraphStderr: string[] = [];
+    const extraGraphResult = await Effect.runPromise(
+      runStartDiagnosticsCliEffect(["graph", "route", "/projects/:id", "extra"], {
+        stdout: () => undefined,
+        stderr: (text) => extraGraphStderr.push(text),
+        loadDiagnosticsEffect: () => Effect.die("unreachable")
+      })
+    );
+    expect(extraGraphResult.exitCode).toBe(1);
+    expect(extraGraphStderr.join("\n")).toContain("at most a graph kind and one query");
+
+    const missingImpactStderr: string[] = [];
+    const missingImpactResult = await Effect.runPromise(
+      runStartDiagnosticsCliEffect(["impact", "route"], {
+        stdout: () => undefined,
+        stderr: (text) => missingImpactStderr.push(text),
+        loadDiagnosticsEffect: () => Effect.die("unreachable")
+      })
+    );
+    expect(missingImpactResult.exitCode).toBe(1);
+    expect(missingImpactStderr.join("\n")).toContain("an impact query such as `impact route /projects/:id`");
   });
 
   it("prints an agent-readable Start diagnostics repair report", async () => {

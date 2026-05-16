@@ -11,9 +11,41 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 107, immediately after Review 106. Some older review
+The newest review is Review 108, immediately after Review 107. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 108: Start Diagnostics CLI Query Arguments
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Start CLI grammar: `packages/start/src/cli.ts` now models graph and impact
+  query tails as Effect v4 `Argument` values with `Argument.variadic(...)` and
+  `Argument.mapEffect(...)`.
+- Error channel: graph query arity, graph query kind validation, and impact
+  required-query validation now fail through `CliError.InvalidValue` instead of
+  command-construction throws caught as `unknown`.
+- Handler locality: `diagnostics`, `graph`, and `impact` command handlers now
+  pass parsed command objects directly to the runner callback; the old
+  `commandFromCliConfigEffect(...)` throw wrapper is gone.
+- CLI behavior: extra graph query tokens and `impact route` are rejected before
+  Vite diagnostics loading, while valid inherited-flag commands such as
+  `effect-ui-start --root examples/project-console graph route /projects/:id`
+  still execute normally.
+
+Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm exec
+vitest run packages/start/test/start.test.ts -t "Start diagnostics CLI"` (1 file
+/ 3 selected tests), `pnpm audit:effect-first` over 225 files, `pnpm --filter
+@effect-ui/start build`, built CLI invalid graph/impact argument probes, built
+CLI valid graph query probe, and `git diff --check` passed. Full `pnpm verify`
+passed: 11 package builds, workspace typecheck, public type tests, public API
+inventory audit, Effect-first audit over 225 files, 52 root test files / 859
+tests, devtools-panel verify with 2 tests, devtools-extension verify with 20
+tests, basic starter verify with 2 tests, React starter verify with 3 tests,
+project-console packaging/typecheck/tests/build with 4 files / 27 tests, and
+leak scans.
 
 ## Review 107: Start Diagnostics CLI Shared Flags
 
