@@ -181,6 +181,10 @@ Latest full gate on May 15, 2026:
 - Review 101 extracted Start transport body readers into an internal Effect v4
   Module: JSON request, action form, and response text reads now share typed
   body-failure mapping before transport protocol parsing continues.
+- Review 102 made the Start diagnostics Vite server lifetime explicit with
+  `Effect.acquireRelease(...)` inside `Effect.scoped(...)`, so the Effect v4 CLI
+  diagnostics runner, CI loader, and build gate all close temporary Vite
+  servers through the same scoped resource policy.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime

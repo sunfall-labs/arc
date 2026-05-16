@@ -373,7 +373,11 @@ Subpath exports:
   bin/host wrapper defines the command tree with Effect v4 `Command`, `Flag`,
   and `Argument` primitives, while the internal Start Diagnostics CLI Runner
   Module owns parsed command execution, app graph diagnostics loading, agent
-  graph/impact projection, output formatting, and failure reporting.
+  graph/impact projection, output formatting, and failure reporting. The
+  diagnostics loader acquires the temporary Vite server with
+  `Effect.acquireRelease(...)` inside `Effect.scoped(...)`, so CLI and CI
+  diagnostics close the Vite resource on success, typed failure, or
+  interruption.
 - Start action clients apply accepted response metadata through the internal
   Start Action Response Application Module. Transport Protocol owns wire DTOs,
   parsing, status policy, and decoding; response application owns invalidation

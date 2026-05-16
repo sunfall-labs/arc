@@ -42,8 +42,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     execution workflow, Review 96 devtools public contract, Review 97 devtools
     public type-test ownership, Review 98 core resource-store test effect
     boundary, Review 99 devtools serialization policy contract edge, Review
-    100 start default fetch abort signal, and Review 101 start transport body
-    reader sweeps.
+    100 start default fetch abort signal, Review 101 start transport body
+    reader, and Review 102 start diagnostics vite server lifetime sweeps.
 
 ## Current Sweep Results
 
@@ -356,7 +356,11 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Added Review 101 and progress entry 340 evidence for the Start transport body
   reader cleanup. Current docs now record that JSON request, action form, and
   response text reads live behind a shared Effect v4 body-reader Module.
-- Updated current-facing verification snapshots after Review 101 full
+- Added Review 102 and progress entry 341 evidence for the Start diagnostics
+  Vite server lifetime cleanup. Current docs now record that the Effect v4 CLI
+  diagnostics path acquires temporary Vite servers through scoped
+  `Effect.acquireRelease(...)`.
+- Updated current-facing verification snapshots after Review 102 full
   verification so the latest gate points at the 225-file Effect-first audit and
   52 root test files / 859 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are

@@ -189,6 +189,11 @@ export type StartAppGraphDiagnosticsLoadError =
   | StartAppGraphDiagnosticsRunnerError
   | StartAppGraphDiagnosticsPolicyException;
 
+type StartDiagnosticsViteServer = Pick<
+  Awaited<ReturnType<typeof createServer>>,
+  "close" | "ssrLoadModule"
+>;
+
 const isStartAppGraphDiagnosticsPolicyException = (
   cause: unknown
 ): cause is StartAppGraphDiagnosticsPolicyException =>
@@ -270,6 +275,61 @@ const startDiagnosticsInlineConfig = (
   };
 };
 
+const startDiagnosticsViteServerEffect = (
+  options: LoadStartAppGraphDiagnosticsOptions
+): Effect.Effect<StartDiagnosticsViteServer, StartAppGraphDiagnosticsLoadError> => {
+  const inlineConfig = options.vite ?? {};
+  const inlinePlugins = removeStartPlugins(inlineConfig.plugins) as InlineConfig["plugins"] | undefined;
+  const plugins = [
+    ...pluginOptionArray(inlinePlugins),
+    ...(options.start === undefined ? [] : [effectUiStartVirtualModules(options.start)])
+  ];
+  const root = options.root ?? inlineConfig.root;
+  const configFile = options.configFile ?? inlineConfig.configFile;
+  const mode = options.mode ?? inlineConfig.mode;
+
+  return Effect.tryPromise({
+    try: () =>
+      createServer({
+        ...inlineConfig,
+        ...(root === undefined ? {} : { root }),
+        ...(configFile === undefined ? {} : { configFile }),
+        ...(mode === undefined ? {} : { mode }),
+        logLevel: inlineConfig.logLevel ?? "silent",
+        plugins,
+        server: {
+          ...inlineConfig.server,
+          middlewareMode: true,
+          hmr: false
+        }
+      }),
+    catch: (cause) =>
+      diagnosticsRunnerError(
+        "Could not create the temporary Vite server for Effect UI app graph diagnostics.",
+        cause
+      )
+  });
+};
+
+const closeStartDiagnosticsViteServerEffect = (
+  server: StartDiagnosticsViteServer
+): Effect.Effect<void> =>
+  Effect.tryPromise({
+    try: () => server.close(),
+    catch: (cause) => cause
+  }).pipe(
+    Effect.catch((cause) => Effect.die(cause)),
+    Effect.asVoid
+  );
+
+const acquireStartDiagnosticsViteServerEffect = (
+  options: LoadStartAppGraphDiagnosticsOptions
+) =>
+  Effect.acquireRelease(
+    startDiagnosticsViteServerEffect(options),
+    closeStartDiagnosticsViteServerEffect
+  );
+
 const decodeStartAppGraphFromModuleEffect = (
   value: unknown
 ): Effect.Effect<StartAppGraph, StartAppGraphDiagnosticsLoadError> =>
@@ -320,55 +380,21 @@ const startAppGraphDiagnosticsFromModuleEffect = (
 const loadStartAppGraphDiagnosticsRawEffect = (
   options: LoadStartAppGraphDiagnosticsOptions = {}
 ): Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsLoadError> =>
-  Effect.gen(function* () {
-    const inlineConfig = options.vite ?? {};
-    const inlinePlugins = removeStartPlugins(inlineConfig.plugins) as InlineConfig["plugins"] | undefined;
-    const plugins = [
-      ...pluginOptionArray(inlinePlugins),
-      ...(options.start === undefined ? [] : [effectUiStartVirtualModules(options.start)])
-    ];
-    const root = options.root ?? inlineConfig.root;
-    const configFile = options.configFile ?? inlineConfig.configFile;
-    const mode = options.mode ?? inlineConfig.mode;
-    const server = yield* Effect.tryPromise({
-      try: () =>
-        createServer({
-          ...inlineConfig,
-          ...(root === undefined ? {} : { root }),
-          ...(configFile === undefined ? {} : { configFile }),
-          ...(mode === undefined ? {} : { mode }),
-          logLevel: inlineConfig.logLevel ?? "silent",
-          plugins,
-          server: {
-            ...inlineConfig.server,
-            middlewareMode: true,
-            hmr: false
-          }
-        }),
-      catch: (cause) =>
-        diagnosticsRunnerError(
-          "Could not create the temporary Vite server for Effect UI app graph diagnostics.",
-          cause
-        )
-    });
+  Effect.scoped(
+    Effect.gen(function* () {
+      const server = yield* acquireStartDiagnosticsViteServerEffect(options);
+      const module = yield* Effect.tryPromise({
+        try: () => server.ssrLoadModule(appGraphRuntimeDiagnosticsVirtualModuleId),
+        catch: (cause) =>
+          diagnosticsRunnerError(
+            "Could not load resolved Effect UI app graph diagnostics through Vite.",
+            cause
+          )
+      });
 
-    return yield* Effect.tryPromise({
-      try: () => server.ssrLoadModule(appGraphRuntimeDiagnosticsVirtualModuleId),
-      catch: (cause) =>
-        diagnosticsRunnerError(
-          "Could not load resolved Effect UI app graph diagnostics through Vite.",
-          cause
-        )
-    }).pipe(
-      Effect.flatMap(startAppGraphDiagnosticsFromModuleEffect),
-      Effect.ensuring(
-        Effect.tryPromise({
-          try: () => server.close(),
-          catch: (cause) => cause
-        }).pipe(Effect.catch((cause) => Effect.die(cause)))
-      )
-    );
-  });
+      return yield* startAppGraphDiagnosticsFromModuleEffect(module);
+    })
+  );
 
 /**
  * Loads resolved Start app graph diagnostics through a temporary Vite server.

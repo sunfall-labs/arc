@@ -11,9 +11,35 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 101, immediately after Review 100. Some older review
+The newest review is Review 102, immediately after Review 101. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 102: Start Diagnostics Vite Server Lifetime
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Start Vite diagnostics: `packages/start/src/vite.ts` now acquires the
+  temporary middleware-mode Vite server with `Effect.acquireRelease(...)` inside
+  `Effect.scoped(...)`.
+- CLI locality: `effect-ui-start diagnostics`, `graph`, `impact`, and the Vite
+  build diagnostics gate continue to consume `loadStartAppGraphDiagnostics*`,
+  but the server lifetime is now an explicit scoped Effect resource.
+- Release policy: Vite server close failures still die from the finalizer, while
+  create/load/decode/policy failures stay in the typed
+  `StartAppGraphDiagnosticsLoadError` channel.
+
+Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm vitest
+run packages/start/test/start.test.ts -t "resolved app graph diagnostics"` (1
+file / 2 selected tests), `pnpm audit:effect-first` over 225 files, and `git
+diff --check` passed. Full `pnpm verify` passed: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 225 files, 52 root test files / 859 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, project-console packaging/typecheck/
+tests/build with 4 files / 27 tests, and leak scans.
 
 ## Review 101: Start Transport Body Readers
 
