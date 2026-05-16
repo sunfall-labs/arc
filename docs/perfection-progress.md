@@ -41,13 +41,13 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest focused Review186 slice is green for the Review185 ledger
-  current-gate sentence found while preparing the post-Review185 clean-sweep
-  record. The post-Review185 Core/React/Solid, DB/public API, and
+- The latest focused Review187 slice is green for the audit-doc current-gate
+  and sharp-cast checklist refresh found by the broader post-Review186 docs
+  drift scan. The post-Review185 Core/React/Solid, DB/public API, and
   Start/devtools/scripts subagents reported no actionable findings in code,
-  public API, scripts, examples, or current-state docs after focused
+  public API, scripts, examples, or package guardrails after focused
   verification.
-- The latest recorded full verification gate is green after Review186:
+- The latest recorded full verification gate is green after Review187:
   `pnpm verify` completed with 53 root test files / 1033 tests, public API
   inventory audit, Effect-first audit over 404 physical/virtual files,
   package-level verifies, parallel example package verifies and leak scans,
@@ -56,7 +56,7 @@ or command result that proves it.
   for mounted Resource UI retention, Program dispatch disposal semantics,
   payload-atomic DB hydration, Start CLI EffectInput writers, dev SSR
   cancellation, public adapter pins, and Effect-first Promise alias scanning.
-- The latest completed sweep through Review186 still found actionable docs drift
+- The latest completed sweep through Review187 still found actionable docs drift
   work, so the Thirty-Sweep clean counter has not started.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
   example, script, and type-test sources while keeping negative runtime
@@ -610,6 +610,7 @@ or command result that proves it.
 | 423 | Review 184 current-status docs drift | `docs/architecture-deepening-review.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md` | Fixed the only actionable finding from the fresh post-Review182 subagent sweep: stale current-status bullets still called older Review166/165/163 and Review167 evidence "latest" or "previous." Those bullets now read as historical evidence, so Review182/Review184 and the clean-sweep state are the only current readiness narrative. | Focused verification passed: stale Review16 wording grep, `pnpm audit:effect-first`, and `git diff --check`. Full `pnpm verify` passed after Review184: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 404 files, 53 root test files / 1033 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. Core/React/Solid and DB/public API subagents reported no actionable findings and ran focused typechecks/tests; Start/devtools/scripts confirmed Review173/179 remain closed and package dry-runs pass. |
 | 424 | Review 185 starter catalog typed error and audit docs gate | `docs/architecture-deepening-review.md`; `docs/effect-first-audit.md`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/ultimate-goal-checklist.md`; `scripts/audit-effect-first.mjs`; `scripts/package-project-console-starter.mjs`; `scripts/starter-catalog.mjs`; `scripts/verify-package-dry-runs.mjs` | Replaced the starter catalog import-time raw `Error` with `StarterCatalogError`, `starterCatalogConsistencyEffect(...)`, and `starterCatalogConsistencyFailures(...)`. Starter packaging and package dry-run scripts now validate the catalog through typed Effect seams; the synchronous Effect-first audit reports catalog failures without throwing. Effect-first, sharp-cast, and package-hygiene docs now point current full-gate wording at Review185 while preserving Review165/179 as historical focused evidence. | Focused verification passed: script syntax checks, raw package/example/script throw grep, stale current-gate wording grep, `pnpm starter:package`, `pnpm example:pack-dry-run`, `pnpm audit:effect-first`, and `git diff --check`. Full `pnpm verify` passed after Review185: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 404 files, 53 root test files / 1033 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. |
 | 425 | Review 186 Review185 current-gate sentence | `docs/architecture-deepening-review.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md` | Fixed a stale sentence in the Review185 architecture entry that still said the audit docs were changed to name Review184 as the current full gate. The current readiness docs now agree that Review186 is the latest focused/docs checkpoint, Review186 has the latest full verification gate, and the Thirty-Sweep clean counter remains unstarted because this pass found actionable docs drift. | Focused verification passed: current-gate wording grep, `pnpm audit:effect-first`, and `git diff --check`. Full `pnpm verify` passed after Review186: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 404 files, 53 root test files / 1033 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. |
+| 426 | Review 187 audit-doc current-gate and checklist refresh | `docs/architecture-deepening-review.md`; `docs/effect-first-audit.md`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/ultimate-goal-checklist.md` | Updated Effect-first, package-hygiene, and sharp-cast audit docs that still named Review185 as the current full verification gate after Review186. Updated the final checklist so broad sharp-cast status says named seams are documented and bounded instead of claiming a zero-hit grep. | Focused verification passed: audit-doc current-gate grep had no current-facing Review185/186 hits, broad sharp-cast grep reported only documented named seams, `pnpm audit:effect-first` passed, and `git diff --check` passed. Full `pnpm verify` passed after Review187: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 404 files, 53 root test files / 1033 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. |
 
 ## Thirty-Sweep Gate
 

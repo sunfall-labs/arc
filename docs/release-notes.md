@@ -65,7 +65,7 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 186:
+Latest full gate on May 16, 2026 after Review 187:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
@@ -86,6 +86,13 @@ Latest full gate on May 16, 2026 after Review 186:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 187 refreshed Effect-first, package-hygiene, and sharp-cast audit docs
+  that still named Review185 as the current full gate after Review186, and
+  corrected the final checklist's broad sharp-cast status so it names
+  documented seams instead of claiming zero grep hits. Review185, Review179,
+  and Review165 remain historical focused evidence for their slices, and the
+  Thirty-Sweep clean counter remains unstarted until the next fresh sweep is
+  clean.
 - Review 186 closed a stale Review185 ledger sentence that still named
   Review184 as the current full gate. The post-Review185 subagents found no
   actionable code/API/script issues, but this docs drift means the
@@ -991,8 +998,9 @@ Latest full gate on May 16, 2026 after Review 186:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 186 closed the stale
-  Review185 current-gate sentence. A fresh no-actionable-findings sweep still
+- The latest full `pnpm verify` passed after Review 187 refreshed audit-doc
+  current-gate wording and final checklist sharp-cast status. A fresh
+  no-actionable-findings sweep still
   needs to run before any clean-sweep count can start.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,

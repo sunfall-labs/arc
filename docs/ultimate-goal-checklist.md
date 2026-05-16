@@ -239,12 +239,14 @@ Last evidence pass: May 16, 2026.
     boundaries with `RuntimeManagedBoundary` and `CurrentRuntimeBoundary`;
     focused Core/DB typechecks, public type tests, and focused runtime/action/
     signal/collection tests passed. Full `pnpm verify` also passed.
-- [x] Broad sharp-cast audit is clean across source and tests.
+- [x] Broad sharp-cast seams are named, documented, and bounded.
   - Evidence: DB change-feed tests use `toEffect(...)`, Start streaming tests
-    use an explicitly typed blocking stream effect, and
+    use an explicitly typed blocking stream effect, and the broad
     `rg -n 'as Effect\.Effect|as unknown as |as never|as any|@ts-ignore' packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs'`
-    reports no hits; focused DB/Start typechecks, public type tests, and touched
-    tests passed. Full `pnpm verify` also passed.
+    scan now reports documented named seams rather than `as any` or
+    `@ts-ignore` debt. `docs/sharp-cast-audit.md` owns the remaining seam list;
+    focused DB/Start typechecks, public type tests, and touched tests passed.
+    Full `pnpm verify` also passed.
 - [x] Package source avoids raw Promise method lifecycle cleanup.
   - Evidence: action and Start action submitters use `Effect.ensuring` for
     in-flight cleanup; Solid/Solid DB background preloads catch inside Effect;
@@ -649,12 +651,11 @@ Last evidence pass: May 16, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 186 ran current-gate wording grep,
-    `pnpm audit:effect-first`, and `git diff --check` after fixing a stale
-    Review185 ledger sentence that still named Review184 as the current full
-    gate.
+  - Latest focused evidence: Review 187 ran audit-doc current-gate grep, broad
+    sharp-cast grep, `pnpm audit:effect-first`, and `git diff --check` after
+    refreshing audit docs and final checklist wording.
     Latest full evidence:
-    `pnpm verify` ran after Review 186 with 53 test files / 1033 tests.
+    `pnpm verify` ran after Review 187 with 53 test files / 1033 tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.
@@ -793,12 +794,12 @@ Last evidence pass: May 16, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 186 ledger current-gate
-    sentence cleanup. Future architecture sweeps remain tracked in
+  - Evidence: no new ADR required for the Review 187 audit-doc current-gate and
+    checklist refresh. Future architecture sweeps remain tracked in
     `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 186
-    ledger current-gate sentence cleanup:
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 187
+    audit-doc current-gate and checklist refresh:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
     404 physical/virtual files, 53 root test files / 1033 tests,
@@ -807,8 +808,8 @@ Last evidence pass: May 16, 2026.
     16-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 186 records current-gate wording grep, Effect-first audit,
-    and whitespace check.
+  - Evidence: Review 187 records audit-doc current-gate grep, broad sharp-cast
+    grep, Effect-first audit, and whitespace check.
     Full verification is recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items

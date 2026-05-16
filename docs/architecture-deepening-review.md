@@ -12,17 +12,66 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review186, the Review185 ledger current-gate sentence cleanup found while
-preparing the post-Review185 clean-sweep record. Some older review entries
-remain below this tip from prior ledger merges; use this tip rather than file
-order alone when looking for the latest architecture sweep.
+Review187, the audit-doc current-gate refresh found by the broader
+post-Review186 docs drift scan. Some older review entries remain below this tip
+from prior ledger merges; use this tip rather than file order alone when looking
+for the latest architecture sweep.
 
 The fresh post-Review185 subagent sweep reported no actionable Core/React/Solid,
 DB/public API, or Start/devtools/scripts findings after focused verification.
-The docs preparation pass found the Review186 stale current-gate sentence below.
-Do not start the clean-sweep counter until a fresh full sweep after Review186
-finds no actionable Module, Interface, Seam, Adapter, Locality, Depth, Leverage,
-typed error, or docs drift work.
+The docs preparation pass found the Review186 stale ledger sentence, and the
+broader audit-doc scan found the Review187 current-gate drift below. Do not
+start the clean-sweep counter until a fresh full sweep after Review187 finds no
+actionable Module, Interface, Seam, Adapter, Locality, Depth, Leverage, typed
+error, or docs drift work.
+
+## Review 187: Audit Docs Current-Gate And Checklist Refresh
+
+Review187 fixed the audit-doc and final-checklist wording missed by the
+narrower Review186 ledger cleanup.
+
+1. Audit Docs Current-Gate Refresh
+   - Status: fixed.
+   - Files: `docs/effect-first-audit.md`, `docs/package-hygiene-audit.md`,
+     `docs/sharp-cast-audit.md`, `docs/architecture-deepening-review.md`,
+     `docs/perfection-progress.md`, `docs/release-notes.md`,
+     `docs/ultimate-goal-checklist.md`.
+   - Problem: after Review186, the Effect-first, package-hygiene, and
+     sharp-cast audit docs still named Review185 as the current full
+     verification gate. Review185 remains important historical evidence for its
+     starter catalog typed-error slice, but it is no longer the current full
+     gate after the Review186 full verify.
+   - Fix: updated those audit docs and the current readiness ledgers to name
+     Review187 as the latest full verification gate, while preserving
+     Review185, Review179, and Review165 as historical focused evidence for
+     their respective slices.
+   - Benefits: current gate ownership is back in one place across the audit
+     docs, release snapshot, progress ledger, and final checklist.
+
+2. Sharp-Cast Checklist Drift
+   - Status: fixed.
+   - Files: `docs/ultimate-goal-checklist.md`,
+     `docs/sharp-cast-audit.md`.
+   - Problem: the final checklist still claimed the broad sharp-cast grep
+     reported no hits across source and tests. The current sharp-cast audit is
+     more precise: `as any` and `@ts-ignore` remain gone, but the broader grep
+     still reports named seams such as `as Effect.Effect`, `as unknown as`, and
+     `as never` that are documented for later removal or retention.
+   - Fix: changed the checklist item to describe the actual invariant: broad
+     sharp-cast seams are named, documented, and bounded rather than zero-hit.
+   - Benefits: the final checklist now matches the sharp-cast audit instead of
+     overstating the current source state.
+
+Focused verification after the patch: audit-doc current-gate grep had no
+current-facing Review185/186 hits, broad sharp-cast grep reported only
+documented named seams, `pnpm audit:effect-first` passed, and `git diff --check`
+passed. Full `pnpm verify` passed after Review187 through the Effect-driven
+runner: 11 package builds, workspace typecheck, public type tests, public API
+inventory audit, Effect-first audit over 404 physical/virtual files, 53 root
+test files / 1033 tests, package-level verifies, generated starter packaging,
+16-target package dry-run gate, project-console checks, and leak scans. This
+pass found actionable docs drift, so the Thirty-Sweep clean counter remains
+unstarted.
 
 ## Review 186: Review185 Ledger Current-Gate Sentence
 
