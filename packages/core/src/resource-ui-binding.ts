@@ -1,7 +1,12 @@
 import { Effect, Fiber } from "effect";
 import type { AnyEffectUiRuntime } from "./runtime.js";
 import { runWithRuntime } from "./runtime.js";
-import { Resource, type ResourceLoadError, type ResourceRef, type ResourceState } from "./resource.js";
+import type { ResourceLoadError, ResourceRef, ResourceState } from "./resource.js";
+import {
+  prefetchResourceEffect,
+  refreshResourceEffect,
+  resourceResult
+} from "./resource-runtime.js";
 import type { ReadableSignal } from "./signal.js";
 
 export type ResourceUiInput<I, A, E, R = unknown> =
@@ -189,13 +194,13 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
   };
 
   const result = (ref: ResourceRef<I, A, E, R>): ReadableSignal<ResourceState<A, ResourceLoadError<E>>> =>
-    runWithRuntime(options.runtime, () => Resource.result(ref));
+    runWithRuntime(options.runtime, () => resourceResult(ref));
 
   const prefetchEffect = (ref: ResourceRef<I, A, E, R>): Effect.Effect<A, ResourceLoadError<E> | ER> =>
-    resourceUiBindRuntimeEffect(options.runtime, Resource.prefetchEffect(ref));
+    resourceUiBindRuntimeEffect(options.runtime, prefetchResourceEffect(ref));
 
   const refreshEffect = (ref: ResourceRef<I, A, E, R>): Effect.Effect<A, ResourceLoadError<E> | ER> =>
-    resourceUiBindRuntimeEffect(options.runtime, Resource.refreshEffect(ref));
+    resourceUiBindRuntimeEffect(options.runtime, refreshResourceEffect(ref));
 
   const startInitialPreload = (
     ref: ResourceRef<I, A, E, R>,
@@ -278,8 +283,8 @@ export const makeResourceUiSuspensePreloadController = <I, A, E, R = unknown, ER
 
       interrupt();
       const fiber = options.fork === undefined
-        ? runtime.runFork(runtime.provide(Resource.prefetchEffect(ref)))
-        : options.fork(Resource.prefetchEffect(ref));
+        ? runtime.runFork(runtime.provide(prefetchResourceEffect(ref)))
+        : options.fork(prefetchResourceEffect(ref));
       const token = options.toHostToken(fiber);
       preload = { ref, fiber, token };
       return token;

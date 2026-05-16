@@ -11,9 +11,35 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 105, immediately after Review 104. Some older review
+The newest review is Review 106, immediately after Review 105. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 106: Core Resource UI Binding Runtime Locality
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Core Resource UI Binding: `packages/core/src/resource-ui-binding.ts` now
+  imports `resourceResult(...)`, `prefetchResourceEffect(...)`, and
+  `refreshResourceEffect(...)` from `resource-runtime.ts`.
+- Facade locality: the controller no longer value-imports the public
+  `Resource` namespace for sibling implementation calls. The public Resource
+  facade remains the app-facing Interface; the UI binding Module consumes the
+  canonical runtime implementation seam directly.
+- Runtime behavior: existing `runWithRuntime(...)`, `runtime.provide(...)`, and
+  `resourceUiBindRuntimeEffect(...)` wrappers are unchanged.
+
+Focused verification: `pnpm --filter @effect-ui/core typecheck`, `pnpm
+typecheck:types`, `pnpm vitest run packages/core/test/resource-ui-binding.test.ts`
+(1 file / 3 tests), `pnpm audit:effect-first` over 225 files, and `git diff
+--check` passed. Full `pnpm verify` passed: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 225 files, 52 root test files / 859 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, project-console packaging/typecheck/
+tests/build with 4 files / 27 tests, and leak scans.
 
 ## Review 105: Start Client Transport Status Policy
 

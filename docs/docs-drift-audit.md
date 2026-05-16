@@ -45,7 +45,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     100 start default fetch abort signal, Review 101 start transport body
     reader, Review 102 start diagnostics vite server lifetime, and Review 103
     db sqlite statement contract ownership, Review 104 db persisted options
-    ownership, and Review 105 start client transport status policy sweeps.
+    ownership, Review 105 start client transport status policy, and Review 106
+    core resource UI binding runtime locality sweeps.
 
 ## Current Sweep Results
 
@@ -372,7 +373,11 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Added Review 105 and progress entry 344 evidence for the Start client
   transport status policy cleanup. Current docs now record that post-parse
   RPC/action HTTP status validation belongs to Start Client Transport.
-- Updated current-facing verification snapshots after Review 105 full
+- Added Review 106 and progress entry 345 evidence for the Core Resource UI
+  Binding runtime locality cleanup. Current docs now record that the controller
+  consumes Resource Runtime functions directly instead of calling back through
+  the public `Resource` facade for sibling implementation work.
+- Updated current-facing verification snapshots after Review 106 full
   verification so the latest gate points at the 225-file Effect-first audit and
   52 root test files / 859 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are

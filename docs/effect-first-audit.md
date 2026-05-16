@@ -1066,8 +1066,11 @@ interruption.
 - Start client transport now owns post-parse RPC/action HTTP status validation;
   the transport protocol parser no longer exports a status validator that only
   one client transport module consumed.
-- The latest full `pnpm verify` passed after the Review 105 Start Client
-  Transport Status Policy slice: 11 package builds, workspace typecheck, type
+- Core Resource UI Binding now consumes Resource Runtime functions directly
+  instead of value-importing the public `Resource` namespace for sibling module
+  implementation calls.
+- The latest full `pnpm verify` passed after the Review 106 Core Resource UI
+  Binding Runtime Locality slice: 11 package builds, workspace typecheck, type
   tests, public API inventory audit, Effect-first audit over 225
   package/example/script/type-test files, 52 root test files / 859 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
@@ -1076,7 +1079,7 @@ interruption.
   starter test file / 3 tests, project-console starter packaging, typecheck,
   4 project-console test files / 27 tests, build, and leak scans. Review 75
   added the public API inventory audit to the full gate, Review 86 kept the
-  scanner green over the expanded public type-test scope, and Review 105 kept
+  scanner green over the expanded public type-test scope, and Review 106 kept
   the Effect-first scanner green over its expanded 225-file scope.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
