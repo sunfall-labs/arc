@@ -162,13 +162,29 @@ const allowed = [
     ]
   },
   {
-    pattern: /(?:\)\s*=>\s*(?:void\s*\|\s*)?|:\s*)\bPromiseLike\s*</g,
+    pattern: /\bPromiseLike\s*</g,
     name: "PromiseLike return type",
     seams: [
+      seam("packages/core/src/effect-like.ts", "EffectInput value Promise rejection conditional", /export type EffectInputValue[\s\S]*?Out extends PromiseLike<unknown>/),
+      seam("packages/core/src/effect-like.ts", "EffectInput union Promise rejection helper", /type HasPromiseLike[\s\S]*?Extract<Out,\s*PromiseLike<unknown>>/),
+      seam("packages/core/src/effect-like.ts", "EffectInput runtime Promise-like guard", /const isPromiseLike\s*=\s*\(value:\s*unknown\):\s*value is PromiseLike<unknown>/),
+      seam("packages/core/src/effect-like.ts", "EffectInput toEffect Promise rejection parameter", /value:\s*EffectInput<A,\s*E,\s*R>\s*&\s*\(A extends PromiseLike<unknown> \? never : unknown\)/),
+      seam("packages/core/src/action-result.ts", "ActionResult fromEffect Promise rejection parameter", /effect:\s*EffectInput<A,\s*E,\s*R>\s*&\s*\(A extends PromiseLike<unknown> \? never : unknown\)/),
+      seam("packages/core/src/action-result.ts", "ActionResult validation Promise rejection parameter", /effect:\s*EffectInput<Values,\s*FormValidationError<Values,\s*E>,\s*R>\s*&\s*\n\s*\(Values extends PromiseLike<unknown> \? never : unknown\)/),
+      seam("packages/core/src/capability.ts", "Capability public useEffect Promise rejection overload", /export interface Capability[\s\S]*?readonly useEffect:[\s\S]*?f:\s*\(service:\s*Shape\)\s*=>\s*A extends PromiseLike<unknown> \? never : A/),
+      seam("packages/core/src/capability.ts", "Capability namespace useEffect Promise rejection overload", /function useEffect<A>\(\s*\n\s*f:\s*\(service:\s*Shape\)\s*=>\s*A extends PromiseLike<unknown> \? never : A/),
+      seam("packages/core/src/server.ts", "Server handler Promise rejection conditional", /type CheckedServerFunctionHandler[\s\S]*?Out extends PromiseLike<unknown>/),
+      seam("packages/start/src/file-route.ts", "File route preload runtime Promise-like guard", /const isPromiseLike\s*=\s*\(value:\s*unknown\):\s*value is PromiseLike<unknown>/),
       seam("packages/start/src/streaming.ts", "ReadableStream finalizer host return contract", /export type StartResponseStreamRunner[\s\S]*?PromiseLike<A>;/)
     ]
   }
 ];
+
+const promiseStaticPattern = (member) =>
+  new RegExp("\\bPromise\\s*(?:\\.\\s*|\\[\\s*['\"])" + member + "(?:\\b|['\"]\\s*\\])\\s*\\(", "g");
+
+const memberCallPattern = (member) =>
+  new RegExp("(?:\\.\\s*" + member + "|\\[\\s*['\"]" + member + "['\"]\\s*\\])\\s*(?:<[^>]+>\\s*)?\\(", "g");
 
 const receiverBeforeMemberAccess = (line, memberIndex) => {
   let end = memberIndex;
@@ -189,14 +205,14 @@ const isEffectStaticMemberAccess = (line, memberIndex) =>
 
 const banned = [
   { pattern: new RegExp("\\b" + "async\\b", "g"), name: "async function syntax" },
-  { pattern: new RegExp("Promise" + "\\.all\\b", "g"), name: ["Promise", "all"].join(".") },
-  { pattern: new RegExp("Promise" + "\\.allSettled\\b", "g"), name: ["Promise", "allSettled"].join(".") },
-  { pattern: new RegExp("Promise" + "\\.any\\b", "g"), name: ["Promise", "any"].join(".") },
-  { pattern: new RegExp("Promise" + "\\.race\\b", "g"), name: ["Promise", "race"].join(".") },
-  { pattern: new RegExp("Promise" + "\\.resolve\\b", "g"), name: ["Promise", "resolve"].join(".") },
-  { pattern: new RegExp("Promise" + "\\.reject\\b", "g"), name: ["Promise", "reject"].join(".") },
+  { pattern: promiseStaticPattern("all"), name: ["Promise", "all"].join(".") },
+  { pattern: promiseStaticPattern("allSettled"), name: ["Promise", "allSettled"].join(".") },
+  { pattern: promiseStaticPattern("any"), name: ["Promise", "any"].join(".") },
+  { pattern: promiseStaticPattern("race"), name: ["Promise", "race"].join(".") },
+  { pattern: promiseStaticPattern("resolve"), name: ["Promise", "resolve"].join(".") },
+  { pattern: promiseStaticPattern("reject"), name: ["Promise", "reject"].join(".") },
   { pattern: new RegExp("new\\s+" + "Promise\\b", "g"), name: ["new", "Promise"].join(" ") },
-  { pattern: new RegExp("\\." + "then\\s*(?:<[^>]+>\\s*)?\\(", "g"), name: "." + "then(...)" },
+  { pattern: memberCallPattern("then"), name: "." + "then(...)" },
   {
     pattern: /(?<!\.)\bawait\b/g,
     name: "await keyword",
@@ -205,11 +221,11 @@ const banned = [
     ]
   },
   {
-    pattern: new RegExp("\\." + "catch\\s*(?:<[^>]+>\\s*)?\\(", "g"),
+    pattern: memberCallPattern("catch"),
     name: "non-Effect ." + "catch(...)",
     allow: isEffectStaticMemberAccess
   },
-  { pattern: new RegExp("\\." + "finally\\s*(?:<[^>]+>\\s*)?\\(", "g"), name: "." + "finally(...)" }
+  { pattern: memberCallPattern("finally"), name: "." + "finally(...)" }
 ];
 
 const codeLines = (source) => {
@@ -359,15 +375,24 @@ const assertBannedPattern = (checkName, source, expectedMatches) => {
 assertAuditPattern("Promise return type", "const value: Promise <string> = promised;", 1);
 assertAuditPattern("Promise return type", "const value: Promise\n<string> = promised;", 1);
 assertAuditPattern("PromiseLike return type", ") => void | PromiseLike <string>;", 1);
+assertAuditPattern("PromiseLike return type", "type Bad<T> = PromiseLike<T>;", 1);
+assertAuditPattern("PromiseLike return type", "interface Bad<T> extends PromiseLike<T> {}", 1);
+assertBannedPattern("Promise.all", "Promise\n.all([]);", 1);
+assertBannedPattern("Promise.all", "Promise[\"all\"]([]);", 1);
 assertBannedPattern("Promise.allSettled", "Promise.allSettled([]);", 1);
 assertBannedPattern("Promise.any", "Promise.any([]);", 1);
 assertBannedPattern(".then(...)", "client.then<string>(() => undefined);", 1);
+assertBannedPattern(".then(...)", "client[\"then\"](() => undefined);", 1);
+assertBannedPattern(".then(...)", "client.then\n<string>(() => undefined);", 1);
 assertBannedPattern("non-Effect .catch(...)", "Effect.catch(() => Effect.void);", 0);
 assertBannedPattern("non-Effect .catch(...)", "Effect.catch<Error>(() => Effect.void);", 0);
+assertBannedPattern("non-Effect .catch(...)", "Effect\n.catch<Error>(() => Effect.void);", 0);
 assertBannedPattern("non-Effect .catch(...)", "client.catch(() => undefined);", 1);
 assertBannedPattern("non-Effect .catch(...)", "client.catch<Error>(() => undefined);", 1);
+assertBannedPattern("non-Effect .catch(...)", "client[\"catch\"](() => undefined);", 1);
 assertBannedPattern("non-Effect .catch(...)", codeLines("`${client.catch(() => undefined)}`;")[0], 1);
 assertBannedPattern(".finally(...)", "client.finally<void>(() => undefined);", 1);
+assertBannedPattern(".finally(...)", "client[\"finally\"](() => undefined);", 1);
 assertBannedPattern("async function syntax", "async function run() {}", 1);
 assertBannedPattern("await keyword", "await run();", 1);
 assertBannedPattern("await keyword", "Deferred.await(done);", 0);
@@ -421,16 +446,15 @@ for (const file of sourceFiles) {
   const lines = codeLines(readFileSync(file, "utf8"));
   const source = lines.join("\n");
 
-  lines.forEach((line, index) => {
-    for (const check of banned) {
-      const matches = bannedMatches(check, line);
-      for (const _match of matches) {
-        if (check.seams === undefined) {
-          failures.push(`${relativeFile}:${index + 1} uses ${check.name}`);
-        }
-      }
+  for (const check of banned) {
+    if (check.seams !== undefined) {
+      continue;
     }
-  });
+    const matches = bannedMatches(check, source);
+    for (const match of matches) {
+      failures.push(`${relativeFile}:${lineNumberAt(source, match.index)} uses ${check.name}`);
+    }
+  }
 
   for (const check of banned) {
     if (check.seams === undefined) {

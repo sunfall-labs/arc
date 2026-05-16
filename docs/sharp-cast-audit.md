@@ -134,7 +134,7 @@ zero hits.
 
 ## Verification Evidence
 
-The latest full verification gate is recorded in the Review 142 ledgers: 11
+The latest full verification gate is recorded in the Review 143 ledgers: 11
 package builds, workspace typecheck, type tests, public API inventory audit,
 Effect-first audit over 249 files, 53 root test files / 891 tests,
 devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,

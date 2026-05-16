@@ -74,8 +74,9 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     bidirectional public source surface audit, Review 138 Effect audit wording
     exactness, Review 139 endpoint runner, query seams, and audit anchors, and
     Review 140 router history projection and Program runtime scheduling,
-    Review 141 Project Console runtime store and starter manifest gate, and
-    Review 142 runtime locality and verification pin closure.
+    Review 141 Project Console runtime store and starter manifest gate, Review
+    142 runtime locality and verification pin closure, and Review 143 stale
+    StartAction invalidation and audit guardrails.
 
 ## Current Sweep Results
 
@@ -123,6 +124,14 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Updated current-facing verification snapshots after the Review142 full
   `pnpm verify` gate: 53 root test files / 891 tests and the 249-file
   Effect-first audit.
+- Recorded Review143 docs drift fixes: the active ultimate-goal verification
+  gate now uses the latest Review143 counts, the latest focused sweep points at
+  Review143 instead of Review140, and the project-console README names the
+  27-file copyable-source manifest and workspace package-manifest dependency
+  rewrite policy.
+- Updated current-facing verification snapshots after the Review143 full
+  `pnpm verify` gate while keeping the 53 root test files / 891 tests and
+  249-file Effect-first audit counts current.
 - Updated the cleanup backlog so the generated artifact determinism audit points
   at the completed audit artifact instead of remaining unchecked.
 - Updated final handoff evidence to point at the latest full `pnpm verify`

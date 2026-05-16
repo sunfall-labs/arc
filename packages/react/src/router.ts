@@ -80,6 +80,7 @@ type RouterProviderRuntimeProps<
     ? { readonly runtime?: RouterRuntime<Routes, ER, Runtime> }
     : { readonly runtime: RouterRuntime<Routes, ER, Runtime> };
 
+/** Props for `RouterProvider`, including route definitions, history, and render fallbacks. */
 export type RouterProviderProps<
   Routes extends readonly AnyRoute[],
   ER = never,

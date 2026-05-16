@@ -34,7 +34,8 @@ pnpm verify
   `.test-dist/starters/project-console`. The generated payload rewrites
   workspace protocol dependencies to the versions declared by the workspace
   package manifests, removes monorepo Vite aliases, writes a standalone
-  `tsconfig.json`, and verifies the generated file manifest.
+  `tsconfig.json`, and verifies the 27-file generated manifest against the
+  copyable source manifest.
 - Keep `src/domain.contract.ts` browser-safe. Put server implementations and
   seed data in `src/domain.server.ts`.
 - Keep `src/start-options.ts` explicit. It is the app graph source for server
@@ -44,4 +45,5 @@ pnpm verify
   server-only module names and seed-data strings.
 - The source `vite.config.ts` in this example points at workspace source
   packages for framework development. The generated starter strips those
-  aliases so copied apps depend on published `@effect-ui/*` packages instead.
+  aliases so copied apps depend on versioned `@effect-ui/*` package entries
+  derived from workspace package manifests instead.

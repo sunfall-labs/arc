@@ -11,15 +11,57 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 142, immediately after Review 141. Some older review
+The newest review is Review 143, immediately after Review 142. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 143: Stale StartAction Invalidation And Audit Guardrails
+
+Status: fixed for the fresh post-Review142 architecture/locality, docs/LSP, and
+Effect-first guardrail sweeps. Focused and full verification are green. Fresh
+post-fix sweeps must still run before the clean-sweep counter can be considered.
+
+- StartAction stale invalidation: stale successful parallel submissions no
+  longer drop all response metadata. Hydration and visible action state remain
+  latest-only, but accepted server invalidation metadata now still runs in the
+  captured/caller runtime. A Start regression proves a late stale response can
+  refresh a separately preloaded resource without overwriting the newer
+  hydrated resource value.
+- Browser-history public seam closure: the public hover audit now covers the
+  complete exposed history seam, including `BrowserNavigateOptions`,
+  `BrowserHistoryWindow`, React/Solid `BrowserRouterOptions`, and React/Solid
+  `RouterProviderProps`. Core, React, and Solid type tests now assert injected
+  `BrowserHistoryAdapter` values across the provider/options surfaces.
+- Effect-first audit guardrails: the scanner now treats all
+  `PromiseLike<T>` type surfaces as anchored exceptions, including alias and
+  `extends` forms, and catches bracket/multiline Promise choreography such as
+  `Promise["all"](...)`, `Promise\n.all(...)`, `client["then"](...)`, and
+  split typed member chains.
+- Docs drift: the active verification gate in the ultimate checklist now
+  matches the Review143 full gate, and project-console starter docs describe
+  the 27-file copyable-source manifest comparison plus workspace-manifest
+  version rewrite policy without claiming published packages.
+
+Focused verification passed: `pnpm --filter @effect-ui/start typecheck`, `pnpm
+--filter @effect-ui/react typecheck`, `pnpm --filter @effect-ui/solid
+typecheck`, `pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm
+audit:effect-first`, and `pnpm exec vitest run packages/start/test/start.test.ts`
+(1 file / 136 tests).
+
+Full `pnpm verify` passed after Review 143: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 249 files, 53 root test files / 891 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, project-console starter packaging
+with 27 files verified, project-console typecheck, 4 project-console test files
+/ 27 tests, project-console build, and leak scan.
 
 ## Review 142: Runtime Locality And Verification Pin Closure
 
 Status: fixed for the fresh post-Review141 runtime, React DB parity, public
-hover/type, Effect-first scanner, and docs-drift sweep. Focused verification is
-green. Full verification passed after this review.
+hover/type, Effect-first scanner, and docs-drift sweep. Focused and full
+verification passed. Fresh post-fix sweeps found the Review 143 stale
+StartAction invalidation, public seam, audit guardrail, and docs-drift gaps.
 
 - StartAction runtime locality: `StartAction.use(...)` now mirrors Core
   `Action.use(...)` runtime capture policy. It captures explicit or ambient

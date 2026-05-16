@@ -162,6 +162,46 @@ const startActionHydrationTransportError = (
     payload: body
   });
 
+const startActionResponseInvalidationEffect = (
+  body: StartActionResponseBody,
+  hydrationKeys: ReadonlySet<string> = new Set()
+): Effect.Effect<void, ServerTransportError, any> =>
+  Effect.gen(function* () {
+    const invalidationTargets = "invalidation" in body
+      ? yield* validateStartActionInvalidationPlanEffect(body, body.invalidation)
+      : [];
+
+    if (invalidationTargets.length > 0) {
+      const plan = yield* Resource.planInvalidationEffect(invalidationTargets);
+      yield* Resource.runInvalidationPlanEffect({
+        targets: plan.targets,
+        entries: plan.entries.filter((entry) => !hydrationKeys.has(entry.ref.key))
+      });
+    }
+  });
+
+/**
+ * Applies Start action invalidation metadata without applying hydration.
+ *
+ * Start action clients use this for stale successful parallel submissions: the
+ * visible state and hydrated values stay latest-only, while accepted server
+ * mutations still refresh invalidated resources.
+ */
+export const applyStartActionInvalidationEffect = <
+  FetchError = never,
+  FetchRequirements = never,
+  RuntimeError = never
+>(
+  body: StartActionResponseBody,
+  options: StartActionClientOptions<FetchError, FetchRequirements, RuntimeError>
+): Effect.Effect<void, ServerTransportError | RuntimeError, FetchRequirements> => {
+  const effect = startActionResponseInvalidationEffect(body);
+
+  return (options.runtime
+    ? options.runtime.provide(effect)
+    : effect) as Effect.Effect<void, ServerTransportError | RuntimeError, FetchRequirements>;
+};
+
 /**
  * Applies accepted Start action response metadata in the browser Runtime Spine.
  *
@@ -178,10 +218,6 @@ export const applyStartActionResponseEffect = <
   options: StartActionClientOptions<FetchError, FetchRequirements, RuntimeError>
 ): Effect.Effect<void, ServerTransportError | RuntimeError, FetchRequirements> => {
   const effect = Effect.gen(function* () {
-    const invalidationTargets = "invalidation" in body
-      ? yield* validateStartActionInvalidationPlanEffect(body, body.invalidation)
-      : [];
-
     if ("hydration" in body && body.hydration !== undefined) {
       yield* hydrateStartPayloadEffect(body.hydration, options).pipe(
         Effect.mapError((error) => startActionHydrationTransportError(body, error))
@@ -194,13 +230,7 @@ export const applyStartActionResponseEffect = <
         : []
     );
 
-    if (invalidationTargets.length > 0) {
-      const plan = yield* Resource.planInvalidationEffect(invalidationTargets);
-      yield* Resource.runInvalidationPlanEffect({
-        targets: plan.targets,
-        entries: plan.entries.filter((entry) => !hydrationKeys.has(entry.ref.key))
-      });
-    }
+    yield* startActionResponseInvalidationEffect(body, hydrationKeys);
   });
 
   return (options.runtime

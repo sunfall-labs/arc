@@ -46,6 +46,10 @@ interruption.
     and typed Promise member chains such as `.then<T>(...)`, `.catch<T>(...)`,
     and `.finally<T>(...)`, with self-tests proving those holes stay closed
     while `Effect.catch<T>(...)` remains allowed.
+  - The Review 143 pass broadened `PromiseLike<T>` detection to any audited
+    type surface, including aliases and `extends`, and moved banned Promise
+    member scans over sanitized joined source so bracket and multiline
+    choreography cannot evade line-local checks.
 - `packages/start/src/start-fetch.ts` and `packages/start/src/file-route.ts`
   - Custom Start fetchers and file-route preload helpers now reject
     Promise-shaped erased JavaScript values before they cross deeper runtime
@@ -399,10 +403,14 @@ interruption.
 - Review 142 focused verification kept `pnpm audit:effect-first` green over 249
   files after tightening the scanner for `Promise.allSettled`,
   `Promise.any`, and typed Promise member chains.
+- Review 143 focused verification kept `pnpm audit:effect-first` green over 249
+  files after anchoring all approved `PromiseLike<T>` type seams and adding
+  self-tests for alias, `extends`, bracket member, multiline static, and split
+  typed member-chain forms.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The latest full gate is the Review 142 `pnpm verify` run: 11 package builds,
+- The latest full gate is the Review 143 `pnpm verify` run: 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
   Effect-first audit over 249 files, 53 root test files / 891 tests,
   devtools-panel/devtools-extension/starter/project-console gates, and leak
@@ -1201,8 +1209,8 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The latest full `pnpm verify` passed after the Review 142 Runtime Locality
-  and Verification Pin Closure slice: 11 package builds, workspace
+- The latest full `pnpm verify` passed after the Review 143 Stale StartAction
+  Invalidation and Audit Guardrails slice: 11 package builds, workspace
   typecheck, type tests, public API inventory audit, Effect-first audit over 249
   package/example/script/type-test files, 53 root test files / 891 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
@@ -1223,8 +1231,10 @@ interruption.
   hover-only public docs changes, Review 132 expanded it to 246 files while
   keeping the scope green, Review 133 kept that 246-file scope green, Review
   139 expanded it to 248 files with exact seam anchors, Review 140 expanded it
-  to 249 files with the Program Runtime Scheduler Module, and Review 142 kept
-  that 249-file scope green while tightening Promise member-pattern detection.
+  to 249 files with the Program Runtime Scheduler Module, Review 142 kept that
+  249-file scope green while tightening Promise member-pattern detection, and
+  Review 143 kept it green while broadening `PromiseLike<T>` and
+  bracket/multiline Promise detection.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

@@ -65,7 +65,7 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 142:
+Latest full gate on May 16, 2026 after Review 143:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
@@ -216,6 +216,11 @@ Latest full gate on May 16, 2026 after Review 142:
   Adapter declarations are LSP/type pinned, the Effect-first scanner catches
   typed Promise member chains plus `Promise.allSettled`/`Promise.any`, and
   stale starter docs now describe the 27-file manifest policy.
+- Review 143 closed fresh StartAction/audit/docs gaps: stale successful
+  parallel StartAction submissions now still run invalidations without applying
+  stale hydration, public browser-history pins cover React/Solid provider and
+  option surfaces, the Effect-first scanner catches broad `PromiseLike<T>` and
+  bracket/multiline Promise choreography, and starter/checklist docs are current.
 - Review 85 extracted the internal Solid Route Render Scope Controller:
   `RouterOutlet` now delegates route branch rendering, route-owned `UiScope`
   creation, Solid root cleanup, runtime-bound route finalizers, transition
@@ -845,8 +850,8 @@ Latest full gate on May 16, 2026 after Review 142:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 142 closed the runtime
-  locality and verification pin tranche:
+- The latest full `pnpm verify` passed after Review 143 closed the stale
+  StartAction invalidation and audit guardrail tranche:
   11 package builds, workspace typecheck, public type tests, public API
   inventory audit, Effect-first audit over 249 files, 53 root test
   files / 891 tests,

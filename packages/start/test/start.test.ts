@@ -3830,11 +3830,21 @@ describe("Effect UI Start", () => {
     const ResultSchema = Schema.Struct({
       name: Schema.String
     });
+    let invalidatedProject = {
+      id: "atlas",
+      name: "Invalidation Initial"
+    };
     const Project = Resource.family({
       name: "Start.action.Project.stale-hydration",
       input: Schema.String,
       output: ProjectSchema,
       load: () => Effect.succeed({ id: "atlas", name: "Initial" })
+    });
+    const InvalidatedProject = Resource.family({
+      name: "Start.action.Project.stale-invalidation",
+      input: Schema.String,
+      output: ProjectSchema,
+      load: () => Effect.succeed(invalidatedProject)
     });
     const RenameProject = Action.define<
       { readonly name: string },
@@ -3850,10 +3860,15 @@ describe("Effect UI Start", () => {
     });
     const runtime = makeRuntime();
     const ref = Project("atlas");
+    const invalidatedRef = InvalidatedProject("atlas");
     const firstRelease = Effect.runSync(Deferred.make<void>());
     const secondRelease = Effect.runSync(Deferred.make<void>());
     let requests = 0;
-    const responseFor = (name: string, updatedAt: number): Response =>
+    const responseFor = (
+      name: string,
+      updatedAt: number,
+      options: { readonly invalidateProject?: boolean } = {}
+    ): Response =>
       new Response(
         JSON.stringify({
           _tag: "Success",
@@ -3872,7 +3887,37 @@ describe("Effect UI Start", () => {
                 }
               }
             ]
-          }
+          },
+          ...(options.invalidateProject
+            ? {
+                invalidation: {
+                  targets: [
+                    {
+                      _tag: "Ref",
+                      key: invalidatedRef.key,
+                      family: "Start.action.Project.stale-invalidation",
+                      input: "atlas"
+                    }
+                  ],
+                  entries: [
+                    {
+                      ref: {
+                        key: invalidatedRef.key,
+                        family: "Start.action.Project.stale-invalidation",
+                        input: "atlas"
+                      },
+                      causes: [
+                        {
+                          _tag: "Ref",
+                          key: invalidatedRef.key,
+                          family: "Start.action.Project.stale-invalidation"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+            : {})
         }),
         {
           headers: { "content-type": "application/json" }
@@ -3884,7 +3929,7 @@ describe("Effect UI Start", () => {
         const current = requests;
         if (current === 1) {
           yield* Deferred.await(firstRelease);
-          return responseFor("First", 1);
+          return responseFor("First", 1, { invalidateProject: true });
         }
 
         yield* Deferred.await(secondRelease);
@@ -3894,6 +3939,7 @@ describe("Effect UI Start", () => {
 
     try {
       await runInRuntime(runtime, Resource.prefetchEffect(ref));
+      await runInRuntime(runtime, Resource.prefetchEffect(invalidatedRef));
       const first = runtime.runFork(action.submitEffect({ name: "First" }));
       await Effect.runPromise(Effect.sleep("10 millis"));
       const second = runtime.runFork(action.submitEffect({ name: "Second" }));
@@ -3907,7 +3953,15 @@ describe("Effect UI Start", () => {
         id: "atlas",
         name: "Second"
       });
+      expect(runWithRuntime(runtime, () => Resource.status(invalidatedRef).value)).toEqual({
+        id: "atlas",
+        name: "Invalidation Initial"
+      });
 
+      invalidatedProject = {
+        id: "atlas",
+        name: "Invalidated By First"
+      };
       Effect.runSync(Deferred.succeed(firstRelease, undefined));
       await expect(runInRuntime(runtime, Fiber.join(first))).resolves.toMatchObject({
         _tag: "Success",
@@ -3916,6 +3970,10 @@ describe("Effect UI Start", () => {
       expect(runWithRuntime(runtime, () => Resource.status(ref).value)).toEqual({
         id: "atlas",
         name: "Second"
+      });
+      expect(runWithRuntime(runtime, () => Resource.status(invalidatedRef).value)).toEqual({
+        id: "atlas",
+        name: "Invalidated By First"
       });
       expect(action.state.get()).toMatchObject({
         _tag: "Success",

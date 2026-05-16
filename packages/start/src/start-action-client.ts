@@ -15,7 +15,10 @@ import {
 import { Effect, Fiber } from "effect";
 import type { StartHydrationPayload } from "./hydration.js";
 import { executeStartClientTransportEffect } from "./start-client-transport.js";
-import { applyStartActionResponseEffect } from "./start-action-response-application.js";
+import {
+  applyStartActionInvalidationEffect,
+  applyStartActionResponseEffect
+} from "./start-action-response-application.js";
 import { resolveStartActionEndpoint } from "./start-transport-endpoints.js";
 import {
   encodeStartActionRequestEffect,
@@ -280,15 +283,23 @@ export namespace StartAction {
         yield* submissions.interruptStaleEffect(submission);
 
         const value = submitted.result;
-        if (submissions.acceptsStateUpdate(submission)) {
+        const acceptsStateUpdate = submissions.acceptsStateUpdate(submission);
+        const responseOptions = {
+          ...options,
+          ...(responseRuntime === undefined ? {} : { runtime: responseRuntime })
+        };
+        if (acceptsStateUpdate) {
           yield* applyStartActionResponseEffect(submitted.response, {
-            ...options,
-            ...(responseRuntime === undefined ? {} : { runtime: responseRuntime })
+            ...responseOptions
+          });
+        } else {
+          yield* applyStartActionInvalidationEffect(submitted.response, {
+            ...responseOptions
           });
         }
 
         yield* Effect.sync(() => {
-          if (submissions.acceptsStateUpdate(submission)) {
+          if (acceptsStateUpdate) {
             hydration.set(value.hydration);
           }
         });
