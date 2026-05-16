@@ -11,10 +11,10 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review158. The newest full verification
-checkpoint is Review157, immediately before Review158. Some older review
-entries remain below it from prior ledger merges; use this tip rather than file
-order alone when looking for the latest architecture sweep.
+The newest completed focused review and full verification checkpoint is
+Review158, immediately after Review157. Some older review entries remain below
+it from prior ledger merges; use this tip rather than file order alone when
+looking for the latest architecture sweep.
 
 ## Review 158: Scoped UI Preloads, Durable Restore Liveness, And Trace Defects
 
@@ -103,9 +103,18 @@ Focused verification passed: Core/React/Solid/DB/Start package typechecks,
 public type tests, public API audit, Effect-first audit over 273 files, DB
 collection tests 1 file / 126 tests, Start request/app-graph tests 2 files /
 173 tests, Core/React/Solid resource and router tests 3 files / 48 tests, and
-focused stale-restore/mutation/persist/hydrate DB regressions. Full
-`pnpm verify` still needs to be rerun for Review158 before the full checkpoint
-tip can advance.
+focused stale-restore/mutation/persist/hydrate DB regressions.
+
+Full `pnpm verify` passed after Review158: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 273 files, 53 root test files / 965 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, generated starter-suite
+packaging/verifies for basic/react/project-console at 19/24/30 app files with
+5/4/6 local packages, 16-target package dry-run gate, project-console
+typecheck, 4 project-console test files / 27 tests, project-console build, and
+leak scans. Fresh post-fix sweeps still need to run before the clean-sweep
+counter can start.
 
 ## Review 157: Durable Commit Locality, Devtools Secrets, And Public CLI Surface
 
