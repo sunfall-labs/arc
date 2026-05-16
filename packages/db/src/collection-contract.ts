@@ -335,6 +335,13 @@ export interface CollectionPersistenceConfig<E = never, R = never> extends Colle
   readonly persistOnWrite?: boolean;
 }
 
+/**
+ * `Collection.define` options with an attached persistence backend.
+ *
+ * `persistedCollectionOptions(...)` converts this shape into normal
+ * `CollectionOptions` while unioning collection handler `E`/`R` with
+ * persistence storage `PE`/`PR`.
+ */
 export type CollectionPersistedOptions<
   A extends object,
   K extends CollectionKey = string,

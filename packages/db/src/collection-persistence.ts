@@ -26,9 +26,12 @@ import type {
   CollectionHydrationPayload,
   CollectionKey,
   CollectionMemoryStorage,
+  CollectionOptions,
   CollectionPersistOptions,
+  CollectionPersistedOptions,
   CollectionPersistenceConfig,
   CollectionPersistenceStorage,
+  CollectionPolicy,
   CollectionSnapshot,
   CollectionStorageLike,
   CollectionStoreEvent
@@ -315,6 +318,30 @@ export const collectionPersistenceRestoreOptions = <E, R>(
   ...collectionPersistencePersistOptions(config),
   ...(config.hydrate ?? {})
 });
+
+/**
+ * Merge collection and persistence error/requirement channels.
+ *
+ * Use before `Collection.define` when the persistence backend has a different
+ * Effect error or requirement type from the collection load/mutation handlers.
+ */
+export const persistedCollectionOptions = <
+  A extends object,
+  K extends CollectionKey = string,
+  E = never,
+  R = never,
+  PE = never,
+  PR = never
+>(
+  options: CollectionPersistedOptions<A, K, E, R, PE, PR>
+): CollectionOptions<A, K, E | PE, R | PR> => {
+  const { policy, persistence, ...rest } = options;
+  return {
+    ...rest,
+    ...(policy === undefined ? {} : { policy: policy as CollectionPolicy<E | PE> }),
+    persistence
+  };
+};
 
 export const persistCollectionForReasonEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,

@@ -188,6 +188,9 @@ Latest full gate on May 15, 2026:
 - Review 103 moved DB SQLite statement contract ownership back to
   `sqlite-persistence.ts`; the root `Collection.SQLiteStatement*` names now
   alias the storage Adapter contracts instead of redefining them.
+- Review 104 moved `persistedCollectionOptions(...)` into the DB persistence
+  module and documented `CollectionPersistedOptions` channel unioning for LSP
+  hover, while preserving the public top-level and namespace helper names.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime

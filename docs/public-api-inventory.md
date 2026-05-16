@@ -500,6 +500,10 @@ Release decisions:
   tests, devtools, persistence, and sync adapters. App code should use
   `Collection` namespace operations instead of constructing those records
   manually.
+- `persistedCollectionOptions(...)` remains a top-level and
+  `Collection.persistedOptions(...)` public helper, but the implementation and
+  LSP docs live with `collection-persistence.ts` so persistence storage error
+  and requirement channel unioning has one owner.
 - `Collection.StoreDiagnostics` and
   `Collection.StoreDiagnosticsSnapshot` are the public runtime-local diagnostic
   view over a Collection Store. They expose counts for registered collections,

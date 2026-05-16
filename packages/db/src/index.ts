@@ -78,7 +78,8 @@ import { UnknownCollectionIndex } from "./collection-index-materialization.js";
 import {
   collectionStorageFromSync,
   makeCollectionMemoryStorage,
-  CollectionStorageError
+  CollectionStorageError,
+  persistedCollectionOptions
 } from "./collection-persistence.js";
 import { Query } from "./query-builder.js";
 import type { QueryEvaluationError } from "./query-plan.js";
@@ -335,29 +336,7 @@ export type {
   QuerySortValue
 } from "./query-plan.js";
 
-/**
- * Merge collection and persistence error/requirement channels.
- *
- * Use before `Collection.define` when the persistence backend has a different
- * Effect error or requirement type from the collection load/mutation handlers.
- */
-export const persistedCollectionOptions = <
-  A extends object,
-  K extends CollectionKey = string,
-  E = never,
-  R = never,
-  PE = never,
-  PR = never
->(
-  options: CollectionPersistedOptions<A, K, E, R, PE, PR>
-): CollectionOptions<A, K, E | PE, R | PR> => {
-  const { policy, persistence, ...rest } = options;
-  return {
-    ...rest,
-    ...(policy === undefined ? {} : { policy: policy as CollectionPolicy<E | PE> }),
-    persistence
-  };
-};
+export { persistedCollectionOptions } from "./collection-persistence.js";
 
 /**
  * Create a read-only collection from a live query.

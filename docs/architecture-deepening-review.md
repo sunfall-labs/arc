@@ -11,9 +11,34 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 103, immediately after Review 102. Some older review
+The newest review is Review 104, immediately after Review 103. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 104: DB Persisted Options Ownership
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- DB persistence: moved `persistedCollectionOptions(...)` from
+  `packages/db/src/index.ts` into `packages/db/src/collection-persistence.ts`.
+- Public facade: the top-level `persistedCollectionOptions` export and
+  `Collection.persistedOptions` namespace alias remain stable.
+- LSP docs: `CollectionPersistedOptions` now explains that the helper converts
+  persisted options into normal `CollectionOptions` while unioning collection
+  handler `E`/`R` with persistence storage `PE`/`PR`.
+
+Focused verification: `pnpm --filter @effect-ui/db typecheck`, `pnpm
+typecheck:types`, `pnpm vitest run packages/db/test/persisted-options.test.ts`
+(1 file / 3 tests), `pnpm audit:public-api`, `pnpm audit:effect-first` over
+225 files, and `git diff --check` passed. Full `pnpm verify` passed: 11 package
+builds, workspace typecheck, public type tests, public API inventory audit,
+Effect-first audit over 225 files, 52 root test files / 859 tests,
+devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
+basic starter verify with 2 tests, React starter verify with 3 tests,
+project-console packaging/typecheck/tests/build with 4 files / 27 tests, and
+leak scans.
 
 ## Review 103: DB SQLite Statement Contract Ownership
 
