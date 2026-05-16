@@ -91,6 +91,9 @@ Latest full gate on May 16, 2026 after Review 190:
   values until validator rejection, removed the accidental public query
   projection helper, and clarified raw `.catch(...)`/`async` audit evidence
   around scanner fixture strings and prose-only hits.
+- The fresh post-Review190 Core/React/Solid, DB/public API, and
+  Start/devtools/examples/docs/scripts sweeps reported no actionable findings,
+  so the Thirty-Sweep clean counter is now 1/30.
 - Review 189 clarified Promise-method audit evidence: raw grep hits in
   `scripts/audit-effect-first.mjs` are scanner fixture strings for banned
   Promise forms, while `pnpm audit:effect-first` is the authoritative
@@ -1020,9 +1023,8 @@ Latest full gate on May 16, 2026 after Review 190:
   adapted explicitly with `Effect.tryPromise(...)`.
 - The latest full `pnpm verify` passed after Review 190 tightened Server
   union-Promise rejection, query window validation, and audit-fixture docs. A
-  fresh
-  no-actionable-findings sweep still
-  needs to run before any clean-sweep count can start.
+  fresh no-actionable-findings sweep after Review190 completed, so the
+  clean-sweep counter is now 1/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
   Effect-first audit over 404 physical/virtual files, 53 root test files / 1033

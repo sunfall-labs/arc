@@ -664,6 +664,9 @@ Last evidence pass: May 16, 2026.
     current-gate/audit-fixture wording greps, and `git diff --check` after
     tightening Server union-Promise rejection, query window validation, and
     audit-fixture docs.
+    The fresh post-Review190 Core/React/Solid, DB/public API, and
+    Start/devtools/examples/docs/scripts sweeps then reported no actionable
+    findings, starting the Thirty-Sweep clean counter at 1/30.
     Latest full evidence:
     `pnpm verify` ran after Review 190 with 53 test files / 1033 tests.
 - [x] Type tests pass after compile-time API changes.
@@ -820,7 +823,9 @@ Last evidence pass: May 16, 2026.
 - [x] Latest focused verification recorded.
   - Evidence: Review 190 records Core/DB typechecks, public type tests, DB
     collection regressions, public API audit, Effect-first audit,
-    current-gate/audit-fixture wording greps, and whitespace check.
+    current-gate/audit-fixture wording greps, and whitespace check. Clean
+    Sweep 1 after Review190 records no-actionable findings across the three
+    post-fix review lanes.
     Full verification is recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items

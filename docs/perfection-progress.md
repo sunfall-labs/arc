@@ -56,9 +56,9 @@ or command result that proves it.
   for mounted Resource UI retention, Program dispatch disposal semantics,
   payload-atomic DB hydration, Start CLI EffectInput writers, dev SSR
   cancellation, public adapter pins, and Effect-first Promise alias scanning.
-- The latest completed sweep through Review190 still found actionable
-  implementation and docs drift work, so the Thirty-Sweep clean counter has not
-  started.
+- The latest completed post-Review190 sweep found no actionable
+  Core/React/Solid, DB/public API, Start/devtools/examples/docs/scripts, or
+  guardrail work. The Thirty-Sweep clean counter is now 1/30.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
   example, script, and type-test sources while keeping negative runtime
   validation tests explicit.
@@ -618,14 +618,15 @@ or command result that proves it.
 | 427 | Review 188 DB sharp-cast and docs honesty | `docs/architecture-deepening-review.md`; `docs/effect-first-audit.md`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/ultimate-goal-checklist.md`; `packages/db/src/change-feed-dispatcher.ts`; `packages/db/src/collection-change-feed-runtime.ts`; `packages/db/src/live-query-collection.ts`; `packages/db/src/runtime-collection-store.ts`; `packages/react-db/test/react-db.test.ts`; `packages/solid-db/test/solid-db.test.ts` | Typed collection change-feed dispatcher completions with the collection runtime error channel, removed inline Effect assertions from change-feed emit and read-only live-query restore, named the Runtime Collection Store weak-map state boundary, and removed redundant React/Solid DB delayed-cleanup Effect assertions. Updated sharp-cast docs and release notes so current broad-grep hits are package, example, and type-test named seams rather than zero-hit claims. | Focused verification passed: DB/React-DB/Solid-DB typechecks, broad sharp-cast grep review, stale sharp-cast zero-hit wording grep, `pnpm audit:effect-first`, and `git diff --check`. Full `pnpm verify` passed after Review188: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 404 files, 53 root test files / 1033 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. |
 | 428 | Review 189 Promise-method audit fixture docs | `docs/architecture-deepening-review.md`; `docs/effect-first-audit.md`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/ultimate-goal-checklist.md` | Clarified that raw Promise-method and Promise-constructor greps intentionally report `scripts/audit-effect-first.mjs` scanner fixture strings, while `pnpm audit:effect-first` is the authoritative guardrail that distinguishes fixture text from implementation Promise choreography. | Focused verification passed: Promise-method raw grep review, `pnpm audit:effect-first`, current-gate wording grep, and `git diff --check`. Full `pnpm verify` passed after Review189: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 404 files, 53 root test files / 1033 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. |
 | 429 | Review 190 Server union-Promise, query windows, and audit-fixture docs | `docs/architecture-deepening-review.md`; `docs/effect-first-audit.md`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/ultimate-goal-checklist.md`; `packages/core/src/server.ts`; `packages/db/src/query-builder.ts`; `packages/db/test/collection.test.ts`; `scripts/audit-effect-first.mjs`; `type-tests/framework.test-d.ts` | Reused the shared EffectInput guard so `Server.fn(...)` rejects union-shaped Promise handler returns, removed the accidental public `QueryBuilder.projectContexts(...)` projection hook, preserved negative query window counts for validator rejection, added public type/query regressions, and clarified raw `.catch(...)`/`async` grep evidence around scanner fixture strings and prose-only hits. | Focused verification passed: Core/DB typechecks, public type tests, DB collection regressions, public API audit, Effect-first audit, current-gate/audit-fixture wording greps, and `git diff --check`. Full `pnpm verify` passed after Review190: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 404 files, 53 root test files / 1033 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. |
+| 430 | Clean Sweep 1 after Review190 | `docs/architecture-deepening-review.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md` | Recorded the first post-fix no-actionable sweep in this run. Core/React/Solid, DB/public API, and Start/devtools/examples/docs/scripts reviewers reported no actionable implementation, public API, Effect-first, LSP/JSDoc, package, or docs-honesty findings after Review190. | Clean counter is 1/30. Evidence included focused package typechecks, public type tests, public API audit, Effect-first audit over 404 files, Core/React/Solid tests, DB-family tests, Start/devtools/example verifies, package dry-runs, and Review190 full `pnpm verify`. |
 
 ## Thirty-Sweep Gate
 
 The final goal requires 30 full code sweeps without finding more improvements.
 This ledger records implementation/audit sweeps, but it does not satisfy the
-final no-new-improvements gate yet because the latest sweeps still found
-actionable work. Start the clean-sweep counter only when a full code/docs/test
-pass finds no improvements to make.
+final no-new-improvements gate yet. The current counter is 1/30 after the
+post-Review190 no-actionable sweep; 29 more consecutive clean sweeps are
+required before claiming the final gate.
 
 - Re-run the Promise and docs drift audits after each single-command full
   verification.
@@ -642,5 +643,5 @@ pass finds no improvements to make.
    migration notes.
 3. Run full `pnpm verify` and record the result before any handoff that claims
    release-candidate status.
-4. After the remaining release-candidate slices stabilize, run the required
-   no-new-improvements clean-sweep sequence.
+4. Continue the required no-new-improvements clean-sweep sequence until the
+   counter reaches 30/30.

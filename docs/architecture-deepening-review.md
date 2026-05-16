@@ -13,10 +13,10 @@ explicitly scoped future work.
 
 The newest completed focused review and full verification checkpoint is
 Review190, the Server union-Promise, query window, and audit-fixture docs
-refresh found by the first post-Review189 clean-sweep candidate. Some older
-review entries remain below
-this tip from prior ledger merges; use this tip rather than file order alone
-when looking for the latest architecture sweep.
+refresh found by the first post-Review189 clean-sweep candidate. The newest
+post-fix no-actionable sweep is Clean Sweep 1 after Review190. Some older
+review entries remain below this tip from prior ledger merges; use this tip
+rather than file order alone when looking for the latest architecture sweep.
 
 The fresh post-Review185 subagent sweep reported no actionable Core/React/Solid,
 DB/public API, or Start/devtools/scripts findings after focused verification.
@@ -25,11 +25,30 @@ audit-doc scan found the Review187 current-gate drift, the first
 post-Review187 clean-sweep candidate found the Review188 sharp-cast docs drift,
 and the first post-Review188 candidate found the Review189 Promise-method audit
 fixture docs drift below. The first post-Review189 candidate found the
-Review190 Server union-Promise, query window, and audit-fixture docs drift. Do
-not start the clean-sweep counter until a fresh full sweep after Review190 finds
-no
-actionable Module, Interface, Seam, Adapter, Locality, Depth, Leverage, typed
-error, or docs drift work.
+Review190 Server union-Promise, query window, and audit-fixture docs drift. The
+fresh post-Review190 Core/React/Solid, DB/public API, and
+Start/devtools/examples/docs/scripts sweeps found no actionable Module,
+Interface, Seam, Adapter, Locality, Depth, Leverage, typed error, or docs drift
+work, so the Thirty-Sweep clean counter is now 1/30.
+
+## Clean Sweep 1: Post-Review190 No-Actionable Sweep
+
+Clean Sweep 1 recorded the first fresh post-fix sweep in this run where all
+review lanes reported no actionable findings.
+
+- Scope: Core/React/Solid; DB/React-DB/Solid-DB/public API; and
+  Start/start-node/start-fetch/devtools/examples/docs/scripts.
+- Evidence: subagents reported no actionable findings after focused package
+  typechecks, public type tests, public API audit, Effect-first audit over 404
+  auditable files, DB-family tests, Core/React/Solid tests, Start/devtools and
+  example verifies, package dry-runs, and docs-honesty greps.
+- Baseline: Review190 full `pnpm verify` already passed with 11 package builds,
+  workspace typecheck, public type tests, public API inventory audit,
+  Effect-first audit over 404 physical/virtual files, 53 root test files / 1033
+  tests, package-level verifies, generated starter packaging, 16-target package
+  dry-run gate, project-console checks, and leak scans.
+- Counter: Thirty-Sweep clean counter is 1/30. Twenty-nine more consecutive
+  no-actionable sweeps are required before claiming the final gate.
 
 ## Review 190: Server Union-Promise, Query Windows, And Audit-Fixture Docs
 
