@@ -35,7 +35,7 @@ export interface CollectionPersistenceStore {
 /**
  * Collection Definition extension for snapshots that must use a supplied store.
  *
- * A marked definition must provide all three methods. Missing implementations
+ * A marked definition must provide all store-explicit methods. Missing implementations
  * fail with `CollectionSnapshotCodecError` instead of falling back to the
  * ambient store.
  */
@@ -53,6 +53,11 @@ export interface StoreExplicitCollectionSnapshotDefinition<
     updatedAt: number
   ) => Effect.Effect<CollectionSnapshot<A, K>, CollectionSnapshotCodecError | EffectInputCallbackError>;
   readonly hydratePreflightEffect: (
+    snapshot: CollectionSnapshot<A, K>,
+    options: CollectionHydrateOptions
+  ) => Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError>;
+  readonly hydrateWithStoreEffect: (
+    store: CollectionPersistenceStore,
     snapshot: CollectionSnapshot<A, K>,
     options: CollectionHydrateOptions
   ) => Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError>;
@@ -98,7 +103,9 @@ export const isStoreExplicitCollectionSnapshotDefinition = (
   typeof (definition as Partial<StoreExplicitCollectionSnapshotImplementation>)
     .snapshotWithStoreEffect === "function" &&
   typeof (definition as Partial<StoreExplicitCollectionSnapshotImplementation>)
-    .hydratePreflightEffect === "function";
+    .hydratePreflightEffect === "function" &&
+  typeof (definition as Partial<StoreExplicitCollectionSnapshotImplementation>)
+    .hydrateWithStoreEffect === "function";
 
 const missingStoreExplicitSnapshotMethods = (
   definition: AnyCollection
@@ -107,7 +114,8 @@ const missingStoreExplicitSnapshotMethods = (
   return [
     ...(typeof candidate.snapshotWithStore === "function" ? [] : ["snapshotWithStore"]),
     ...(typeof candidate.snapshotWithStoreEffect === "function" ? [] : ["snapshotWithStoreEffect"]),
-    ...(typeof candidate.hydratePreflightEffect === "function" ? [] : ["hydratePreflightEffect"])
+    ...(typeof candidate.hydratePreflightEffect === "function" ? [] : ["hydratePreflightEffect"]),
+    ...(typeof candidate.hydrateWithStoreEffect === "function" ? [] : ["hydrateWithStoreEffect"])
   ];
 };
 
@@ -179,4 +187,20 @@ export const hydrateStoreExplicitCollectionSnapshotPreflightEffect = (
       "hydrate"
     );
     yield* snapshotDefinition.hydratePreflightEffect(snapshot, options);
+  });
+
+/** Runs hydrate application for a store-explicit snapshot definition. */
+export const hydrateStoreExplicitCollectionSnapshotEffect = (
+  definition: AnyCollection,
+  store: CollectionPersistenceStore,
+  snapshot: CollectionSnapshot<any, any>,
+  options: CollectionHydrateOptions
+): Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError> =>
+  Effect.gen(function* () {
+    const snapshotDefinition = yield* requireStoreExplicitCollectionSnapshotDefinitionEffect(
+      definition,
+      "hydrate"
+    );
+    yield* snapshotDefinition.hydratePreflightEffect(snapshot, options);
+    yield* snapshotDefinition.hydrateWithStoreEffect(store, snapshot, options);
   });

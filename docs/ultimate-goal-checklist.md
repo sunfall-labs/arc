@@ -177,7 +177,8 @@ Last evidence pass: May 15, 2026.
     `start-agent-graph-vocabulary.ts` own DTO contracts, query matching,
     display policy, text formatting, impact planning, and graph-kind
     vocabulary behind the stable `agent-graph.ts` facade. Start diagnostics
-    DTO decoding now validates resource/tag/collection registry facts,
+    DTO decoding now validates resource/tag/collection registry facts and
+    rejects malformed preload/action enum strings before policy/reporting,
     `start-app-graph-diagnostics-policy.ts` owns route preload diagnostics
     policy validation for resolved runtime/Vite adapters while static build
     validation stays on static app graph facts, and
@@ -224,10 +225,10 @@ Last evidence pass: May 15, 2026.
 - [x] DB store-explicit collection snapshots have one Interface.
   - Evidence: `packages/db/src/collection-definition-snapshot.ts` owns the
     marker, guard, store-explicit snapshot Interface, snapshot dispatch, hydrate
-    preflight dispatch, and incomplete-marker error; `collection-persistence.ts`
-    and `live-query-collection.ts` consume it, and
-    `packages/db/test/live-query-collection.test.ts` pins incomplete markers as
-    typed snapshot failures.
+    preflight and store-aware hydrate application, and incomplete-marker error;
+    `collection-persistence.ts` and `live-query-collection.ts` consume it, and
+    DB tests pin incomplete markers plus complete store-explicit hydrate
+    application as typed snapshot behavior.
 - [x] Core runtime and optimistic signal erasure boundaries are named.
   - Evidence: `packages/core/src/action.ts` names optimistic signal patch
     storage with `AnyWritableSignal` and `AnySignalPatchState`;
@@ -786,10 +787,10 @@ Last evidence pass: May 15, 2026.
   - Evidence: no new ADR required for the Start Action Response Codec
     extraction.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 15, 2026 after the Review 133
-    app graph public hover and CLI vocabulary slice: 11 package builds, workspace
+  - Evidence: root `pnpm verify` passed on May 15, 2026 after the Review 135
+    store-explicit hydrate apply and strict diagnostics DTO slice: 11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
-    246 files, 53 root test files / 877 tests,
+    246 files, 53 root test files / 882 tests,
     devtools-panel verify with 1 panel test file / 2 tests, devtools-extension
     verify with 1 extension test file / 20 tests, basic starter verify with 1
     starter test file / 2 tests, React starter verify with 1 starter test file

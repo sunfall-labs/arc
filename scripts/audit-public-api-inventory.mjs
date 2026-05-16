@@ -147,6 +147,13 @@ const publicHoverDocs = [
     ]
   },
   {
+    file: "packages/start/src/start-manifest-wall.ts",
+    declarations: [
+      "StartBuildPolicy",
+      "StartBuildPolicyError"
+    ]
+  },
+  {
     file: "packages/start/src/start-vite-diagnostics-loader.ts",
     declarations: [
       "StartAppGraphDiagnosticsLoadError"

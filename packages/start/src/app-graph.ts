@@ -349,6 +349,24 @@ const isFeaturePresence = (
 ): value is StartAppGraphRouteFeaturePresence =>
   value === "present" || value === "absent" || value === "unknown";
 
+const isPreloadDiagnosticsStatus = (
+  value: unknown
+): value is import("@effect-ui/core").Route.PreloadResourceDiagnostics["status"] =>
+  value === "declared" || value === "none" || value === "unknown";
+
+const isActionBehaviorPresence = (
+  value: unknown
+): value is ActionManifest["entries"][number]["behavior"]["invalidates"] =>
+  value === "present" || value === "absent" || value === "unknown";
+
+const isActionManifestConcurrency = (
+  value: unknown
+): value is ActionManifest["entries"][number]["behavior"]["concurrency"] =>
+  value === "latest" ||
+  value === "parallel" ||
+  value === "exhaust" ||
+  value === "unknown";
+
 const isWireSchemaField = (
   value: unknown
 ): value is StartAppGraphWireSchemaField =>
@@ -365,14 +383,14 @@ const isPreloadResourceDiagnostics = (
   value: unknown
 ): value is import("@effect-ui/core").Route.PreloadResourceDiagnostics =>
   isRecord(value) &&
-  typeof value.status === "string" &&
+  isPreloadDiagnosticsStatus(value.status) &&
   isStringArray(value.families);
 
 const isPreloadCollectionDiagnostics = (
   value: unknown
 ): value is import("@effect-ui/core").Route.PreloadCollectionDiagnostics =>
   isRecord(value) &&
-  typeof value.status === "string" &&
+  isPreloadDiagnosticsStatus(value.status) &&
   isStringArray(value.collections);
 
 const isResourceFamilyDiagnostics = (
@@ -523,10 +541,10 @@ const isActionDiagnostics = (
     !isRecord(value.client) ||
     !isWireDiagnostics(value.wire) ||
     !isRecord(value.behavior) ||
-    typeof value.behavior.invalidates !== "string" ||
-    typeof value.behavior.optimistic !== "string" ||
-    typeof value.behavior.retry !== "string" ||
-    typeof value.behavior.concurrency !== "string"
+    !isActionBehaviorPresence(value.behavior.invalidates) ||
+    !isActionBehaviorPresence(value.behavior.optimistic) ||
+    !isActionBehaviorPresence(value.behavior.retry) ||
+    !isActionManifestConcurrency(value.behavior.concurrency)
   ) {
     return false;
   }
@@ -567,10 +585,10 @@ const isUnknownActionBehaviorDiagnostics = (
   isRecord(value) &&
   value.kind === "action" &&
   typeof value.name === "string" &&
-  typeof value.invalidates === "string" &&
-  typeof value.optimistic === "string" &&
-  typeof value.retry === "string" &&
-  typeof value.concurrency === "string";
+  isActionBehaviorPresence(value.invalidates) &&
+  isActionBehaviorPresence(value.optimistic) &&
+  isActionBehaviorPresence(value.retry) &&
+  isActionManifestConcurrency(value.concurrency);
 
 const isUnknownRoutePreloadResourcesDiagnostics = (
   value: unknown

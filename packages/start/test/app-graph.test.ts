@@ -361,6 +361,79 @@ describe("Start app graph", () => {
             ]
           })
         );
+        const invalidEnumExits = yield* Effect.all([
+          Effect.exit(
+            decodeStartAppGraphDiagnosticsDtoEffect({
+              diagnostics: {
+                ...diagnostics,
+                routeModules: [
+                  {
+                    ...diagnostics.routeModules[0]!,
+                    preloadResources: {
+                      status: "maybe",
+                      families: []
+                    }
+                  }
+                ]
+              },
+              diagnosticsPolicyViolations: []
+            })
+          ),
+          Effect.exit(
+            decodeStartAppGraphDiagnosticsDtoEffect({
+              diagnostics: {
+                ...diagnostics,
+                routeModules: [
+                  {
+                    ...diagnostics.routeModules[0]!,
+                    preloadCollections: {
+                      status: "maybe",
+                      collections: []
+                    }
+                  }
+                ]
+              },
+              diagnosticsPolicyViolations: []
+            })
+          ),
+          Effect.exit(
+            decodeStartAppGraphDiagnosticsDtoEffect({
+              diagnostics: {
+                ...diagnostics,
+                actionModules: [
+                  {
+                    ...diagnostics.actionModules[0]!,
+                    behavior: {
+                      invalidates: "maybe",
+                      optimistic: "unknown",
+                      retry: "unknown",
+                      concurrency: "unknown"
+                    }
+                  }
+                ]
+              },
+              diagnosticsPolicyViolations: []
+            })
+          ),
+          Effect.exit(
+            decodeStartAppGraphDiagnosticsDtoEffect({
+              diagnostics: {
+                ...diagnostics,
+                unknownActionBehavior: [
+                  {
+                    kind: "action",
+                    name: "Project.rename",
+                    invalidates: "unknown",
+                    optimistic: "unknown",
+                    retry: "unknown",
+                    concurrency: "maybe"
+                  }
+                ]
+              },
+              diagnosticsPolicyViolations: []
+            })
+          )
+        ]);
 
         yield* Effect.sync(() => {
           expect(decoded).toEqual({
@@ -378,6 +451,11 @@ describe("Start app graph", () => {
           expect(firstFailure(invalidPolicyExit)).toBeInstanceOf(
             StartAppGraphDiagnosticsDtoError
           );
+          for (const exit of invalidEnumExits) {
+            expect(firstFailure(exit)).toBeInstanceOf(
+              StartAppGraphDiagnosticsDtoError
+            );
+          }
         });
       })
     );

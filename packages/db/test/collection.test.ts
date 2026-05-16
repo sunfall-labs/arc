@@ -2,7 +2,10 @@ import { EffectInputCallbackError, makeResourceStore, makeRuntime, read, Resourc
 import { Collection, CollectionRowKeyChanged, CollectionRowNotFound, CollectionStorageError, Query, QueryBuilder, QueryEvaluationError, UnknownCollectionIndex, UnsupportedLiveQuery, and, eq, gt } from "@effect-ui/db";
 import { Cause, Deferred, Effect, Exit, Fiber, Option, PubSub, Schedule, Schema } from "effect";
 import { describe, expect, it, vi } from "vitest";
-import { markStoreExplicitCollectionSnapshotDefinition } from "../src/collection-definition-snapshot.js";
+import {
+  markStoreExplicitCollectionSnapshotDefinition,
+  type StoreExplicitCollectionSnapshotImplementation
+} from "../src/collection-definition-snapshot.js";
 import { CollectionSnapshotCodecError } from "../src/collection-snapshot-codec.js";
 
 interface Project {
@@ -1956,12 +1959,86 @@ describe("Collection", () => {
           expect((failure as CollectionSnapshotCodecError).reason).toContain("snapshotWithStore");
           expect((failure as CollectionSnapshotCodecError).reason).toContain("snapshotWithStoreEffect");
           expect((failure as CollectionSnapshotCodecError).reason).toContain("hydratePreflightEffect");
+          expect((failure as CollectionSnapshotCodecError).reason).toContain("hydrateWithStoreEffect");
         }
         expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.id))).toEqual([
           "existing-project"
         ]);
         expect(runWithRuntime(runtime, () => Tasks.rows().map((task) => task.id))).toEqual([
           "existing-task"
+        ]);
+      }).pipe(
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
+  it("applies complete store-explicit hydration through the store-aware adapter", () => {
+    const runtime = makeRuntime();
+    const Projects = Collection.define<Project>({
+      name: "Projects.snapshot-codec-store-explicit-hydrate-apply",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "existing-project", name: "Existing", status: "active", progress: 1 }
+      ]
+    });
+    const calls: Array<{
+      readonly existingKeys: readonly string[];
+      readonly hydrateKeys: readonly string[];
+      readonly replace: boolean | undefined;
+    }> = [];
+    const implementation = {
+      snapshotWithStore: (_store, updatedAt) => ({
+        name: Projects.name,
+        rows: [],
+        pendingMutations: [],
+        updatedAt
+      }),
+      snapshotWithStoreEffect: (_store, updatedAt) =>
+        Effect.succeed({
+          name: Projects.name,
+          rows: [],
+          pendingMutations: [],
+          updatedAt
+        }),
+      hydratePreflightEffect: () => Effect.void,
+      hydrateWithStoreEffect: (store, snapshot, options) =>
+        Effect.sync(() => {
+          calls.push({
+            existingKeys: Array.from(store.state(Projects).rows.keys()),
+            hydrateKeys: snapshot.rows.map((row) => row.key),
+            replace: options.replace
+          });
+        })
+    } satisfies StoreExplicitCollectionSnapshotImplementation<Project, string>;
+    Object.assign(Projects, implementation);
+    markStoreExplicitCollectionSnapshotDefinition(Projects);
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* runtime.provide(Projects.hydrateEffect({
+          name: Projects.name,
+          rows: [
+            {
+              key: "atlas",
+              value: { id: "atlas", name: "Atlas", status: "active", progress: 72 },
+              synced: true,
+              origin: "remote"
+            }
+          ],
+          pendingMutations: [],
+          updatedAt: 1
+        }, { replace: false }));
+
+        expect(calls).toEqual([
+          {
+            existingKeys: ["existing-project"],
+            hydrateKeys: ["atlas"],
+            replace: false
+          }
+        ]);
+        expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.id))).toEqual([
+          "existing-project"
         ]);
       }).pipe(
         Effect.ensuring(runtime.disposeEffect)

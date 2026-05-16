@@ -11,16 +11,57 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 134, immediately after Review 133. Some older review
+The newest review is Review 135, immediately after Review 134. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 135: Store-Explicit Hydration Apply and Strict Diagnostics DTOs
+
+Status: fixed for the fresh post-Review134 architecture, Effect/Promise,
+docs/LSP, and test-gap sweeps. Full verification passed. A fresh post-fix sweep
+is still required before the clean-sweep counter can start.
+
+- DB store-explicit hydration: `StoreExplicitCollectionSnapshotDefinition` now
+  includes `hydrateWithStoreEffect(...)`, and Collection Persistence applies
+  marked definitions through that store-aware Interface instead of recursing
+  back through the public collection facade. Live Query Collections keep their
+  read-only hydrate failure through the same store-explicit contract.
+- Start diagnostics DTO strictness: the shared diagnostics decoder now rejects
+  malformed preload status, action behavior presence, and action concurrency
+  strings before Vite/CLI policy checks or agent graph projection can consume
+  them.
+- Public Vite diagnostics type surface: `type-tests/start-vite.test-d.ts` now
+  imports the diagnostics gate, build-policy validators, diagnostics policy
+  validators, load DTO/error types, and asserts `StartBuildPolicyError` remains
+  static-only rather than reabsorbing resolved diagnostics errors.
+- Public hover audit: `StartBuildPolicyError` now has declaration-site JSDoc
+  and the public hover audit pins `StartBuildPolicy` plus
+  `StartBuildPolicyError`.
+- Effect-first exact seams: the Promise return-type audit now tightens
+  `packages/start/src/fetch-adapter.ts` to its single real
+  `Promise<Response>` host facade.
+
+Focused verification passed: `pnpm --filter @effect-ui/db typecheck`, `pnpm
+--filter @effect-ui/start typecheck`, `pnpm typecheck:types`, `pnpm
+audit:public-api`, `pnpm audit:effect-first`, `pnpm exec vitest run
+packages/start/test/app-graph.test.ts -t "DTO|malformed graph payloads|policy"`
+(1 file / 3 selected tests), `pnpm exec vitest run
+packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts
+-t "store-explicit|hydrate preflight|store-aware adapter"` (2 files / 4
+selected tests), and `git diff --check`.
+Full `pnpm verify` passed after the slice: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 246 files, 53 root test files / 882 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, project-console packaging/typecheck/
+tests/build with 4 files / 27 tests, and leak scans.
 
 ## Review 134: Runtime Diagnostics Policy and Audit Drift Closure
 
 Status: fixed for the fresh post-Review133 architecture, Effect/Promise,
-docs/LSP, and test-gap sweeps. Focused verification is green. Full verification
-and a fresh post-fix sweep are still required before the clean-sweep counter can
-start.
+docs/LSP, and test-gap sweeps. Full verification passed, but fresh post-fix
+sweeps found the Review 135 architecture, Effect/Promise, docs/LSP, and
+test-gap issues, so the Thirty-Sweep clean counter remains at 0.
 
 - Start graph query vocabulary: `StartAgentGraphQueryKind` is now derived from
   `startAgentGraphQueryKinds`, removing the second hand-maintained authority
@@ -54,6 +95,12 @@ payload|preflights incomplete|multi-collection hydration"` (1 file / 2 selected
 tests), `pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm
 audit:effect-first` over 246 files, and `pnpm --filter @effect-ui/start
 typecheck`.
+Full `pnpm verify` passed after the slice: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 246 files, 53 root test files / 881 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, project-console packaging/typecheck/
+tests/build with 4 files / 27 tests, and leak scans.
 
 ## Review 133: App Graph Public Hover and CLI Vocabulary Seams
 

@@ -800,6 +800,7 @@ describe("Collection.liveQuery", () => {
         expect((failure as CollectionSnapshotCodecError).reason).toContain("snapshotWithStore");
         expect((failure as CollectionSnapshotCodecError).reason).toContain("snapshotWithStoreEffect");
         expect((failure as CollectionSnapshotCodecError).reason).toContain("hydratePreflightEffect");
+        expect((failure as CollectionSnapshotCodecError).reason).toContain("hydrateWithStoreEffect");
       })
     ));
 
@@ -838,6 +839,7 @@ describe("Collection.liveQuery", () => {
         expect((failure as CollectionSnapshotCodecError).reason).toContain("snapshotWithStore");
         expect((failure as CollectionSnapshotCodecError).reason).toContain("snapshotWithStoreEffect");
         expect((failure as CollectionSnapshotCodecError).reason).toContain("hydratePreflightEffect");
+        expect((failure as CollectionSnapshotCodecError).reason).toContain("hydrateWithStoreEffect");
         expect(Projects.rows().map((project) => project.id)).toEqual(["atlas"]);
       })
     ));

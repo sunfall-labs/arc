@@ -146,6 +146,7 @@ export const makeLiveQueryCollectionDefinition = <
     snapshotWithStoreEffect: (store, updatedAt) =>
       materialization.snapshotWithStoreEffect(store as RuntimeCollectionStore, updatedAt),
     hydratePreflightEffect: () => Effect.fail(readonlySnapshotCodecFailure("hydrate")),
+    hydrateWithStoreEffect: () => Effect.fail(readonlySnapshotCodecFailure("hydrate")),
     hydrateEffect: () => Effect.fail(readonlySnapshotCodecFailure("hydrate")),
     hydrate: (snapshot, hydrateOptions) => {
       void runFork(definition.hydrateEffect(snapshot, hydrateOptions));

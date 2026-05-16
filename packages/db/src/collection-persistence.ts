@@ -6,6 +6,7 @@ import {
 } from "./collection-state.js";
 import {
   hasStoreExplicitCollectionSnapshotMarker,
+  hydrateStoreExplicitCollectionSnapshotEffect,
   hydrateStoreExplicitCollectionSnapshotPreflightEffect,
   snapshotStoreExplicitCollection,
   snapshotStoreExplicitCollectionEffect,
@@ -144,9 +145,9 @@ export function hydrateCollectionEffect(
 ): Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError> {
   return Effect.gen(function* () {
     if (hasStoreExplicitCollectionSnapshotMarker(definition)) {
+      const dbStore = store ?? (yield* storeEffect);
       const validatedSnapshot = yield* validateCollectionSnapshotDefinitionEffect(definition, snapshot);
-      yield* hydrateStoreExplicitCollectionSnapshotPreflightEffect(definition, validatedSnapshot, options);
-      yield* definition.hydrateEffect(validatedSnapshot, options);
+      yield* hydrateStoreExplicitCollectionSnapshotEffect(definition, dbStore, validatedSnapshot, options);
       return;
     }
 

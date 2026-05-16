@@ -70,7 +70,7 @@ Latest full gate on May 15, 2026:
 - workspace typecheck and public type tests;
 - public API inventory audit;
 - Effect-first audit over 246 package/example/script/type-test files;
-- 53 root test files / 877 tests;
+- 53 root test files / 882 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
 - basic starter verify with 1 starter test file / 2 tests;
@@ -178,6 +178,12 @@ Latest full gate on May 15, 2026:
   multi-collection store-explicit hydrate preflight are pinned, app graph
   DTO/errors/deserializer hovers are audit-pinned, and stale
   `Effect.runPromise` seam allowances were removed.
+- Review 135 closed the fresh post-Review134 sweep gaps: store-explicit
+  hydration now applies through a store-aware internal Interface, diagnostics
+  DTO decoding rejects malformed preload/action enum strings, the Vite subpath
+  type test pins diagnostics/build-policy exports and static-only
+  `StartBuildPolicyError`, `StartBuildPolicyError` hovers are audit-pinned, and
+  the Start fetch Promise-return allowance is exact.
 - Review 85 extracted the internal Solid Route Render Scope Controller:
   `RouterOutlet` now delegates route branch rendering, route-owned `UiScope`
   creation, Solid root cleanup, runtime-bound route finalizers, transition
@@ -807,12 +813,12 @@ Latest full gate on May 15, 2026:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 132 extracted the Start
-  Diagnostics Policy Module and added regression hooks while keeping public
-  package exports stable:
+- The latest full `pnpm verify` passed after Review 135 tightened
+  store-explicit hydrate apply, strict diagnostics DTO decoding, and the Vite
+  diagnostics/build-policy public type surface:
   11 package builds, workspace typecheck, public type tests, public API
   inventory audit, Effect-first audit over 246 files, 53 root test
-  files / 875 tests,
+  files / 882 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,
   project-console packaging/typecheck/tests/build with 4 files / 27 tests, and

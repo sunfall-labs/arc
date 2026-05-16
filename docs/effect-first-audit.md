@@ -33,6 +33,8 @@ interruption.
   - The Review 134 pass removed stale `Effect.runPromise` allowances for
     Start fetch and Vite implementation files and tightened
     `request-runtime-response.ts` to the single remaining host seam.
+  - The Review 135 pass tightened the Start fetch adapter `Promise<Response>`
+    return-type allowance to the single public host facade.
 - `packages/start/src/start-fetch.ts` and `packages/start/src/file-route.ts`
   - Custom Start fetchers and file-route preload helpers now reject
     Promise-shaped erased JavaScript values before they cross deeper runtime
@@ -377,12 +379,12 @@ interruption.
 
 ## Verification Evidence
 
-- Review 134 focused verification passed `pnpm audit:effect-first` over 246
+- Review 135 focused verification passed `pnpm audit:effect-first` over 246
   package/example/script/type-test files after tightening exact
-  `Effect.runPromise` seam allowances.
-- The latest full gate is the Review 133 `pnpm verify` run: 11 package builds,
+  `Effect.runPromise` and Start fetch Promise-return seam allowances.
+- The latest full gate is the Review 135 `pnpm verify` run: 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 246 files, 53 root test files / 877 tests,
+  Effect-first audit over 246 files, 53 root test files / 882 tests,
   devtools-panel/devtools-extension/starter/project-console gates, and leak
   scans.
 - `pnpm exec vitest run packages/core/test/runtime.test.ts packages/start/test/start.test.ts`
@@ -1174,10 +1176,15 @@ interruption.
 - Review 133 added docs/type-test/CLI verification hooks for public app graph
   diagnostics and kept the focused Effect-first audit green over the same 246
   auditable files.
-- The latest full `pnpm verify` passed after the Review 132 Start Diagnostics
-  Policy Module slice: 11 package builds, workspace typecheck,
+- Review 134 tightened stale `Effect.runPromise` allowances while keeping the
+  focused Effect-first audit green over the same 246 auditable files.
+- Review 135 tightened the Start fetch adapter Promise-return allowance while
+  keeping the focused Effect-first audit green over the same 246 auditable
+  files.
+- The latest full `pnpm verify` passed after the Review 135 Store-Explicit
+  Hydration Apply and Strict Diagnostics DTOs slice: 11 package builds, workspace typecheck,
   type tests, public API inventory audit, Effect-first audit over 246
-  package/example/script/type-test files, 53 root test files / 875 tests,
+  package/example/script/type-test files, 53 root test files / 882 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
   verify with 1 starter test file / 2 tests, React starter verify with 1

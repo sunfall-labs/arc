@@ -106,6 +106,7 @@ export interface StartBuildPolicy {
   readonly diagnostics?: StartAppGraphDiagnosticsPolicy | false;
 }
 
+/** Failure channel for static Start build policy validation. */
 export type StartBuildPolicyError =
   | StartAppGraphMissingWireSchemasError
   | StartAppGraphUnknownActionBehaviorError;

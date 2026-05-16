@@ -135,7 +135,7 @@ const allowed = [
     pattern: /\bPromise\s*</g,
     name: "Promise return type",
     seams: new Map([
-      ["packages/start/src/fetch-adapter.ts", 2],
+      ["packages/start/src/fetch-adapter.ts", 1],
       ["packages/start/src/start-host-runtime-runner.ts", 2],
       ["packages/start/src/start-vite-dev-ssr.ts", 3],
       ["packages/start/src/vite.ts", 2],
