@@ -26,6 +26,11 @@ import {
   pendingMutationSnapshots
 } from "./collection-mutation-queue.js";
 import {
+  collectionProjectionEffect,
+  collectionStateEffect,
+  ensureCollectionRowKey
+} from "./collection-projection-callback-policy.js";
+import {
   deleteCollectionMutationEffect,
   flushCollectionPendingMutationsEffect,
   insertCollectionMutationEffect,
@@ -114,47 +119,6 @@ const collectionState = <A extends object, K extends CollectionKey, E, R>(
 ): CollectionState<A, K, E> => {
   return store.state(definition);
 };
-
-const collectionProjectionCallbackError = (
-  definition: AnyCollection,
-  operation: string,
-  cause: unknown
-): EffectInputCallbackError =>
-  new EffectInputCallbackError({
-    operation: `Collection.${operation}(${definition.name})`,
-    cause,
-    guidance: "Collection projection callbacks such as getKey, indexes, and update functions must be synchronous, pure, and total. Move Effectful work into collection loaders or mutation handlers."
-  });
-
-const collectionProjectionEffect = <A>(
-  definition: AnyCollection,
-  operation: string,
-  evaluate: () => A
-): Effect.Effect<A, EffectInputCallbackError> =>
-  Effect.try({
-    try: evaluate,
-    catch: (cause) => collectionProjectionCallbackError(definition, operation, cause)
-  });
-
-const collectionStateEffect = <A extends object, K extends CollectionKey, E, R>(
-  definition: CollectionDefinition<A, K, E, R>,
-  store: RuntimeCollectionStore
-): Effect.Effect<CollectionState<A, K, E>, EffectInputCallbackError> =>
-  collectionProjectionEffect(definition, "state", () => collectionState(definition, store));
-
-const ensureCollectionRowKey = <A extends object, K extends CollectionKey, E, R>(
-  definition: CollectionDefinition<A, K, E, R>,
-  key: K,
-  nextKey: K
-): Effect.Effect<void, CollectionRowKeyChanged> =>
-  Object.is(nextKey, key)
-    ? Effect.void
-    : Effect.fail(new CollectionRowKeyChanged({
-        collection: definition.name,
-        key,
-        nextKey,
-        guidance: "Collection updates must preserve the row key. Delete and insert when a domain workflow intentionally changes identity."
-      }));
 
 const rowsByIndex = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,

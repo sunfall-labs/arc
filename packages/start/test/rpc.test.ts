@@ -340,6 +340,34 @@ describe("Start RPC transport", () => {
     );
   });
 
+  it("labels malformed JSON action request bodies as action request failures", () => {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const response = yield* createServerActionResponseEffect(
+          app,
+          new Request(`https://example.com${serverActionPath}`, {
+            method: "POST",
+            headers: {
+              accept: startJsonMediaType,
+              "content-type": startJsonMediaType
+            },
+            body: "{"
+          }),
+          []
+        );
+        const body = yield* readRpcFailureBodyEffect(response);
+
+        yield* Effect.sync(() => {
+          expect(response.status).toBe(400);
+          expect(body.error).toMatchObject({
+            _tag: "ServerRpcProtocolError",
+            message: "Expected a JSON action request body."
+          });
+        });
+      })
+    );
+  });
+
   it("propagates request id and trace headers from the browser RPC client", () => {
     const Echo = Server.contract<string, string>("Start.transport.echo", {
       input: Schema.String,

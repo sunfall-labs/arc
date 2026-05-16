@@ -799,6 +799,9 @@ Last evidence pass: May 15, 2026.
     / 3 tests, project-console starter packaging, project-console typecheck, 4
     project-console test files / 27 tests, project-console build, and leak
     scans.
+- [x] Latest focused post-verify sweep recorded.
+  - Evidence: Review 139 records focused Start, DB, public API, Effect-first,
+    type-test, and whitespace verification after the fresh architecture sweep.
 
 ## Remaining Winning-Bar Items
 

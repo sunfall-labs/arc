@@ -48,15 +48,17 @@ file, this inventory, and a focused `type-tests/*.test-d.ts` file; package
 bins may omit an import-shaped type test only with an explicit reason. The
 public API inventory audit verifies the manifest against package
 `exports`/`bin` maps and checks that each focused type-test file imports the
-entrypoint it claims to cover. It also checks that every package root barrel's
-local re-exported modules are named in that package's Source Surface section,
-and that Source Surface local-module lists do not name modules the root barrel
-does not export. Curated namespace-backed source modules must have an explicit
-audit allowance and a root-barrel import. Together these checks keep hover/LSP
-docs from drifting away from exported source files. The audit also enforces
-JSDoc on selected public hover declarations for the Core Program and Start
-diagnostics surfaces. The broad `type-tests/framework.test-d.ts` file remains
-as cross-package integration coverage.
+entrypoint it claims to cover, exercises imported bindings outside the import
+declaration, and includes any manifest-listed `typeTestReferences` for virtual
+or side-effect declaration surfaces. It also checks that every package root
+barrel's local re-exported modules are named in that package's Source Surface
+section, and that Source Surface local-module lists do not name modules the root
+barrel does not export. Curated namespace-backed source modules must have an
+explicit audit allowance and a root-barrel import. Together these checks keep
+hover/LSP docs from drifting away from exported source files. The audit also
+enforces JSDoc on selected public hover declarations for the Core Program and
+Start diagnostics surfaces. The broad `type-tests/framework.test-d.ts` file
+remains as cross-package integration coverage.
 
 ## Source Surface By Package
 
@@ -666,10 +668,12 @@ Release decisions:
 - `Collection.resourceSyncAdapter(...)` returns a sync adapter whose load and
   refetch errors use `Resource.LoadError<E>`, because Resource callbacks can
   fail before the underlying user error channel `E` is reached.
-- Collection projection callbacks used by Effect APIs, including `getKey` and
-  functional `CollectionUpdate` bodies, fail through `EffectInputCallbackError`
-  instead of defects. Synchronous read helpers stay synchronous and should only
-  use pure, total projection callbacks.
+- The internal Collection Projection Callback Policy Module owns Effect-visible
+  state/projection callback normalization for `getKey`, functional
+  `CollectionUpdate` bodies, and row-key preservation. Effect APIs report
+  projection throws as `EffectInputCallbackError` and key changes as
+  `CollectionRowKeyChanged`; synchronous read helpers stay synchronous and
+  should only use pure, total projection callbacks.
 - Public `Query.Factory<TResult>` annotations default error and requirement
   channels to `never`, not `any`. Serviceful query factories must spell their
   `E`/`R` parameters so `Query.onceEffect(...)`, `Query.live(...)`, and live

@@ -196,6 +196,11 @@ Latest full gate on May 15, 2026 after Review 138:
   are now reported as allowed occurrence counts, and docs describe the guarantee
   as deleted-occurrence/cross-file-move detection rather than line-level seam
   anchoring.
+- Review 139 closed fresh Start/DB/audit/docs gaps: RPC and action endpoints
+  share the Start Transport Endpoint Runner Module, Live Query Runtime validates
+  through the Query Execution Plan Module Interface, Collection projection/state
+  callback policy lives in one DB Module, public type-test rows can require
+  concrete references, and Effect-first allowances are anchored to named seams.
 - Review 85 extracted the internal Solid Route Render Scope Controller:
   `RouterOutlet` now delegates route branch rendering, route-owned `UiScope`
   creation, Solid root cleanup, runtime-bound route finalizers, transition

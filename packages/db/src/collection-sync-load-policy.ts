@@ -1,4 +1,4 @@
-import { EffectInputCallbackError, invokeEffectInput, type EffectInput } from "@effect-ui/core";
+import { EffectInputCallbackError, type EffectInput } from "@effect-ui/core";
 import { Clock, Deferred, Effect, Exit, type Schedule } from "effect";
 import type {
   AnyCollection,
@@ -24,36 +24,16 @@ import {
   collectionStoreEffect,
   type RuntimeCollectionStore
 } from "./runtime-collection-store.js";
+import {
+  collectionCallbackEffect,
+  collectionStateEffect
+} from "./collection-projection-callback-policy.js";
 
 /** Options for one Collection Sync Load Policy invocation. */
 export interface CollectionSyncLoadPolicyOptions {
   /** Forces a fresh `refetch`/`load` attempt even when the collection is already ready. */
   readonly force: boolean;
 }
-
-const collectionLoadCallbackEffect = <A, E, R>(
-  callback: () => EffectInput<A, E, R>
-): Effect.Effect<A, E | EffectInputCallbackError, R> =>
-  invokeEffectInput("collection callback", callback);
-
-const collectionStateCallbackError = (
-  definition: AnyCollection,
-  cause: unknown
-): EffectInputCallbackError =>
-  new EffectInputCallbackError({
-    operation: `Collection.state(${definition.name})`,
-    cause,
-    guidance: "Collection state lookup must be synchronous and runtime-local. Use collection load or mutation Effects for asynchronous work."
-  });
-
-const collectionStateEffect = <A extends object, K extends CollectionKey, E, R>(
-  definition: CollectionDefinition<A, K, E, R>,
-  store: RuntimeCollectionStore
-): Effect.Effect<CollectionState<A, K, E>, EffectInputCallbackError> =>
-  Effect.try({
-    try: () => store.state(definition),
-    catch: (cause) => collectionStateCallbackError(definition, cause)
-  });
 
 const publishStoreEvent = (
   store: RuntimeCollectionStore,
@@ -236,7 +216,7 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
       if (isCurrentLoadAttempt(state, attempt)) {
         state.loadState.set({ _tag: "Pending", waiting: true });
       }
-      const load = collectionLoadCallbackEffect(operation);
+      const load = collectionCallbackEffect(operation);
       const values = yield* withCollectionLoadRetry(definition, load).pipe(
         Effect.catch((error: E | EffectInputCallbackError) => failCurrentLoad(error))
       );

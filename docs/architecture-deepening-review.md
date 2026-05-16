@@ -11,14 +11,59 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 138, immediately after Review 137. Some older review
+The newest review is Review 139, immediately after Review 138. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
 
+## Review 139: Endpoint Runner, Query Seams, and Audit Anchors
+
+Status: fixed for the fresh post-Review138 Start, DB, public audit, and
+docs/vocabulary sweeps. Focused verification is green. Full verification is
+still inherited from Review 138 until the next single-command gate runs.
+
+- Start Transport Endpoint Runner: shared RPC/action endpoint policy now lives
+  in `start-transport-endpoint-runner.ts`. RPC and action endpoints provide
+  protocol-specific Adapter slots while envelope creation, request validation,
+  Request Runtime provisioning, diagnostics headers, transport failure tracing,
+  and runtime failure tracing stay local to one Module.
+- Start trace/diagnostics cleanup: request trace response projection now
+  feature-detects `Headers.getSetCookie()` and degrades to zero when a host
+  omits it, and malformed action JSON bodies now report action request wording
+  instead of server-function wording.
+- Query Execution Plan seam: Live Query Runtime now validates through
+  `validateQueryExecutionPlan(...)`, keeping Query validation callers on the
+  Query Execution Plan Module Interface instead of reaching back to Query Plan.
+- Collection Projection Callback Policy: state lookup, projection callback
+  normalization, functional update application, and row-key preservation now
+  live in `collection-projection-callback-policy.ts` instead of being copied
+  across Collection Runtime, Collection Sync Load Policy, and Collection
+  Mutation Workflow.
+- Public type-test manifest depth: `type-tests/public-api.manifest.json` can
+  now require `typeTestReferences`, and the public API audit rejects vacuous
+  side-effect-only focused type tests. `type-tests/start-virtual.test-d.ts`
+  now pins representative `virtual:effect-ui/*` declarations.
+- Effect-first audit anchoring: `scripts/audit-effect-first.mjs` now stores
+  named seam anchors with context matchers rather than file/count allowances, so
+  replacing an approved occurrence with another same-pattern occurrence in the
+  same file fails.
+- Domain vocabulary drift: `CONTEXT.md` now describes the actual bidirectional
+  Public API Source Surface Coverage Gate Interface from Review 137, including
+  namespace-backed modules that require an explicit audit allowance plus a
+  root-barrel import.
+
+Focused verification passed: `pnpm --filter @effect-ui/db typecheck`, `pnpm
+--filter @effect-ui/start typecheck`, `pnpm typecheck:types`, `pnpm
+audit:public-api`, `pnpm audit:effect-first`, `pnpm exec vitest run
+packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts
+packages/db/test/sync-adapter.test.ts` (3 files / 149 tests), `pnpm exec
+vitest run packages/start/test/rpc.test.ts packages/start/test/start.test.ts`
+(2 files / 149 tests), and `git diff --check`.
+
 ## Review 138: Effect Audit Wording Exactness
 
-Status: fixed for the fresh post-Review137 Effect/Promise wording sweep.
-Full verification is green.
+Status: fixed for the fresh post-Review137 Effect/Promise wording sweep. Full
+verification is green, but fresh post-fix sweeps found the Review 139 Start,
+DB, public audit, and docs/vocabulary issues.
 
 - Effect-first audit wording: `scripts/audit-effect-first.mjs` now describes
   allowlisted matches as exact allowed occurrence counts rather than all of them

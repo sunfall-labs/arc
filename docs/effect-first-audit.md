@@ -38,6 +38,10 @@ interruption.
   - The Review 136 pass made approved Effect-first occurrences exact per-file
     count checks, so deleted occurrences or cross-file moves fail until the
     audit contract is updated.
+  - The Review 139 pass anchors approved Effect-first occurrences to named
+    local seams with context matchers, so deleting an approved occurrence and
+    adding a different same-pattern occurrence in the same file no longer
+    preserves the audit.
 - `packages/start/src/start-fetch.ts` and `packages/start/src/file-route.ts`
   - Custom Start fetchers and file-route preload helpers now reject
     Promise-shaped erased JavaScript values before they cross deeper runtime
@@ -382,9 +386,9 @@ interruption.
 
 ## Verification Evidence
 
-- Review 138 focused verification passed `pnpm audit:effect-first` over 246
-  package/example/script/type-test files after tightening the audit output to
-  exact allowed occurrence counts.
+- Review 139 focused verification passed `pnpm audit:effect-first` over 248
+  package/example/script/type-test files after anchoring allowed occurrences to
+  named seams and context matchers.
 - The latest full gate is the Review 138 `pnpm verify` run: 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
   Effect-first audit over 246 files, 53 root test files / 882 tests,

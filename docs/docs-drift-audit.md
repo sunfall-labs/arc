@@ -71,8 +71,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     seams, Review 134 runtime diagnostics policy and audit drift closure,
     Review 135 store-explicit hydrate apply and strict diagnostics DTOs,
     Review 136 exact Effect audit and public inventory drift, Review 137
-    bidirectional public source surface audit, and Review 138 Effect audit
-    wording exactness.
+    bidirectional public source surface audit, Review 138 Effect audit wording
+    exactness, and Review 139 endpoint runner, query seams, and audit anchors.
 
 ## Current Sweep Results
 
@@ -107,6 +107,12 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   separated from runtime host-seam language after the fresh Review138 sweep.
 - Updated current-facing verification snapshots after the Review138 full
   `pnpm verify` gate.
+- Updated `CONTEXT.md` so the Public API Source Surface Coverage Gate
+  vocabulary matches the bidirectional and namespace-backed audit behavior from
+  Review137.
+- Recorded the Review139 Start Transport Endpoint Runner extraction, DB query
+  validation seam cleanup, Collection Projection Callback Policy Module,
+  non-vacuous public type-test references, and anchored Effect-first allowances.
 - Updated the cleanup backlog so the generated artifact determinism audit points
   at the completed audit artifact instead of remaining unchecked.
 - Updated final handoff evidence to point at the latest full `pnpm verify`

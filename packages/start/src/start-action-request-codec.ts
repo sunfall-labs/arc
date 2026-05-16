@@ -221,7 +221,7 @@ const readActionJsonEffect = (request: Request): Effect.Effect<StartActionReques
   Effect.gen(function* () {
     const payload = yield* readStartTransportJsonBodyEffect(
       request,
-      "Expected a JSON server function request body."
+      "Expected a JSON action request body."
     );
     if (
       !isRecord(payload) ||

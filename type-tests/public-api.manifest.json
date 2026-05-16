@@ -102,7 +102,26 @@
       "import": "@effect-ui/start/virtual",
       "source": "packages/start/src/virtual-modules.d.ts",
       "docs": "docs/public-api-inventory.md",
-      "typeTest": "type-tests/start-virtual.test-d.ts"
+      "typeTest": "type-tests/start-virtual.test-d.ts",
+      "typeTestReferences": [
+        "virtual:effect-ui/server-functions",
+        "serverFunctionManifest",
+        "ServerFunctionManifestEntry",
+        "virtual:effect-ui/actions",
+        "actionManifest",
+        "ActionManifestEntry",
+        "virtual:effect-ui/file-routes",
+        "fileRouteManifest",
+        "FileRouteManifestEntry",
+        "virtual:effect-ui/routes",
+        "hrefByPath",
+        "RoutePath",
+        "virtual:effect-ui/app-graph",
+        "appGraph",
+        "StartAppGraphDiagnostics",
+        "virtual:effect-ui/app-graph/runtime-diagnostics",
+        "runtimeDiagnostics"
+      ]
     },
     {
       "package": "@effect-ui/start",

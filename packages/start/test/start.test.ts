@@ -1564,6 +1564,38 @@ describe("Effect UI Start", () => {
     expect(trace.status).toBe("failure");
   });
 
+  it("projects trace Set-Cookie counts as zero when the host omits getSetCookie", () => {
+    const response = new Response("ok", {
+      headers: {
+        "set-cookie": "session=abc"
+      }
+    });
+    Object.defineProperty(response.headers, "getSetCookie", {
+      configurable: true,
+      value: undefined
+    });
+    const trace = buildStartRequestTrace(
+      new Request("https://example.com/"),
+      {
+        requestId: "req-no-get-set-cookie",
+        transport: "ssr",
+        startedAt: 0,
+        collections: [],
+        serverFunctions: [],
+        actions: []
+      },
+      "success",
+      {
+        response,
+        teardown: {
+          runtimeDisposed: true
+        }
+      }
+    );
+
+    expect(trace.response?.setCookieCount).toBeUndefined();
+  });
+
   it("reads request runtime teardown snapshots through ResourceStore diagnostics", async () => {
     const runtime = makeRuntime();
     runtime.resourceStore.moduleRegistry.register(Symbol("start-trace-module"), {});

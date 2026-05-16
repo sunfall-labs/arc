@@ -1,4 +1,4 @@
-import { EffectInputCallbackError, invokeEffectInput, type EffectInput } from "@effect-ui/core";
+import { EffectInputCallbackError } from "@effect-ui/core";
 import { Clock, Deferred, Effect, Exit, type Schedule } from "effect";
 import { CollectionRowKeyChanged, CollectionRowNotFound } from "./collection-errors.js";
 import {
@@ -31,11 +31,16 @@ import {
   snapshotCollectionState
 } from "./collection-write-commit.js";
 import {
-  applyCollectionUpdate,
   cloneFrozenCollectionTransaction,
   cloneFrozenCollectionValue,
   collectionValueChanges
 } from "./collection-value-detachment.js";
+import {
+  applyCollectionUpdateEffect,
+  collectionCallbackEffect,
+  collectionStateEffect,
+  ensureCollectionRowKey
+} from "./collection-projection-callback-policy.js";
 import {
   collectionStoreEffect,
   type RuntimeCollectionStore
@@ -54,59 +59,6 @@ import type {
 
 const toArray = <A>(input: A | ReadonlyArray<A>): ReadonlyArray<A> =>
   Array.isArray(input) ? input as ReadonlyArray<A> : [input as A];
-
-const collectionMutationCallbackEffect = <A, E, R>(
-  callback: () => EffectInput<A, E, R>
-): Effect.Effect<A, E | EffectInputCallbackError, R> =>
-  invokeEffectInput("collection callback", callback);
-
-const collectionMutationProjectionError = (
-  definition: AnyCollection,
-  operation: string,
-  cause: unknown
-): EffectInputCallbackError =>
-  new EffectInputCallbackError({
-    operation: `Collection.${operation}(${definition.name})`,
-    cause,
-    guidance: "Collection mutation projection callbacks such as update functions and state lookup must be synchronous, pure, and total. Move Effectful work into collection loaders or mutation handlers."
-  });
-
-const collectionMutationProjectionEffect = <A>(
-  definition: AnyCollection,
-  operation: string,
-  evaluate: () => A
-): Effect.Effect<A, EffectInputCallbackError> =>
-  Effect.try({
-    try: evaluate,
-    catch: (cause) => collectionMutationProjectionError(definition, operation, cause)
-  });
-
-const collectionStateEffect = <A extends object, K extends CollectionKey, E, R>(
-  definition: CollectionDefinition<A, K, E, R>,
-  store: RuntimeCollectionStore
-): Effect.Effect<CollectionState<A, K, E>, EffectInputCallbackError> =>
-  collectionMutationProjectionEffect(definition, "state", () => store.state(definition));
-
-const ensureCollectionRowKey = <A extends object, K extends CollectionKey, E, R>(
-  definition: CollectionDefinition<A, K, E, R>,
-  key: K,
-  nextKey: K
-): Effect.Effect<void, CollectionRowKeyChanged> =>
-  Object.is(nextKey, key)
-    ? Effect.void
-    : Effect.fail(new CollectionRowKeyChanged({
-        collection: definition.name,
-        key,
-        nextKey,
-        guidance: "Collection updates must preserve the row key. Delete and insert when a domain workflow intentionally changes identity."
-      }));
-
-const applyCollectionUpdateEffect = <A extends object, K extends CollectionKey, E, R>(
-  definition: CollectionDefinition<A, K, E, R>,
-  previous: A,
-  update: CollectionUpdate<A>
-): Effect.Effect<ReturnType<typeof applyCollectionUpdate<A>>, EffectInputCallbackError> =>
-  collectionMutationProjectionEffect(definition, "update", () => applyCollectionUpdate(previous, update));
 
 const publishStoreEvent = (
   store: RuntimeCollectionStore,
@@ -165,13 +117,13 @@ const collectionMutationHandlerEffect = <A extends object, K extends CollectionK
       transaction: cloneFrozenCollectionTransaction(transaction)
     });
     if (inserts.length > 0 && definition.options.onInsert) {
-      yield* collectionMutationCallbackEffect(() => definition.options.onInsert!(Object.freeze(inserts), context));
+      yield* collectionCallbackEffect(() => definition.options.onInsert!(Object.freeze(inserts), context));
     }
     if (updates.length > 0 && definition.options.onUpdate) {
-      yield* collectionMutationCallbackEffect(() => definition.options.onUpdate!(Object.freeze(updates), context));
+      yield* collectionCallbackEffect(() => definition.options.onUpdate!(Object.freeze(updates), context));
     }
     if (deletes.length > 0 && definition.options.onDelete) {
-      yield* collectionMutationCallbackEffect(() => definition.options.onDelete!(Object.freeze(deletes), context));
+      yield* collectionCallbackEffect(() => definition.options.onDelete!(Object.freeze(deletes), context));
     }
   });
 

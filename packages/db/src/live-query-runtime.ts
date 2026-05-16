@@ -20,7 +20,6 @@ import {
   compareValue,
   evaluateQueryOperation,
   joinKey,
-  validateQueryPlan,
   type AnyCollectionRow,
   type AnyQueryAggregateRecord,
   type AnyQueryContext,
@@ -32,6 +31,7 @@ import {
 import {
   compareQueryOrderedContexts,
   projectQueryContexts,
+  validateQueryExecutionPlan,
   type QueryExecutionPlanBuilder
 } from "./query-execution-plan.js";
 import {
@@ -380,6 +380,6 @@ const mergeContexts = (left: IvmContext | null, right: IvmContext | null): IvmCo
 export const makeLiveQueryRuntime = <TContext extends AnyQueryContext, TResult>(
   builder: LiveQueryRuntimeBuilder<TContext, TResult>
 ): LiveQueryRuntime<TResult> => {
-  validateQueryPlan(builder);
+  validateQueryExecutionPlan(builder);
   return new IvmLiveQueryRuntime(builder);
 };

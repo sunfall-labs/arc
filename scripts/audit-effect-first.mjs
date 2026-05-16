@@ -91,6 +91,8 @@ const auditableFilesByRoot = auditableRoots.map((auditableRoot) => ({
 
 const sourceFiles = auditableFilesByRoot.flatMap((auditableRoot) => auditableRoot.files);
 
+const seam = (file, name, anchor) => ({ file, name, anchor });
+
 const printScopeSummary = () => {
   console.log("Effect-first audit scope:");
   for (const auditableRoot of auditableFilesByRoot) {
@@ -99,21 +101,21 @@ const printScopeSummary = () => {
     );
   }
   console.log(`- total auditable files: ${sourceFiles.length}`);
-  console.log("Effect-first allowed occurrence counts:");
+  console.log("Effect-first anchored allowed occurrences:");
   for (const check of allowed) {
-    console.log(`- ${check.name}: ${check.seams.size} explicit file allowances`);
-    for (const [file, expected] of check.seams) {
-      console.log(`  - ${file}: = ${expected}`);
+    console.log(`- ${check.name}: ${check.seams.length} anchored allowances`);
+    for (const allowedSeam of check.seams) {
+      console.log(`  - ${allowedSeam.file}: ${allowedSeam.name}`);
     }
   }
-  console.log("Effect-first banned-pattern exception limits:");
+  console.log("Effect-first anchored banned-pattern exceptions:");
   for (const check of banned) {
     if (check.seams === undefined) {
       continue;
     }
-    console.log(`- ${check.name}: ${check.seams.size} explicit file exceptions`);
-    for (const [file, maximum] of check.seams) {
-      console.log(`  - ${file}: <= ${maximum}`);
+    console.log(`- ${check.name}: ${check.seams.length} anchored exceptions`);
+    for (const allowedSeam of check.seams) {
+      console.log(`  - ${allowedSeam.file}: ${allowedSeam.name}`);
     }
   }
 };
@@ -122,33 +124,49 @@ const allowed = [
   {
     pattern: /Effect\.runPromise/g,
     name: "Effect.runPromise",
-    seams: new Map([
-      ["packages/solid/src/hooks.ts", 1],
-      ["packages/react/src/hooks.ts", 1],
-      ["packages/start/src/request-runtime-response.ts", 1],
-      ["packages/start/src/streaming.ts", 1],
-      ["packages/start/src/start-host-runtime-runner.ts", 1],
-      ["packages/start/src/cli.ts", 1],
-      ["scripts/package-project-console-starter.mjs", 1]
-    ])
+    seams: [
+      seam("packages/solid/src/hooks.ts", "Solid Suspense token Adapter", /toHostToken:\s*\(fiber\)\s*=>\s*Effect\.runPromise\(Fiber\.join\(fiber\)\)/),
+      seam("packages/react/src/hooks.ts", "React Suspense token Adapter", /toHostToken:\s*\(fiber\)\s*=>\s*Effect\.runPromise\(Fiber\.join\(fiber\)\)/),
+      seam("packages/start/src/request-runtime-response.ts", "Request Runtime response host runner", /runEffect:\s*\(effect\)\s*=>\s*Effect\.runPromise\(runtime\.provide\(effect\)\)/),
+      seam("packages/start/src/streaming.ts", "ReadableStream finalizer host runner", /const runResponseStreamEffect:\s*StartResponseStreamRunner\s*=\s*\(effect\)\s*=>\s*Effect\.runPromise\(effect\);/),
+      seam("packages/start/src/start-host-runtime-runner.ts", "Start host Promise runtime runner", /export const runStartHostPromise[\s\S]*?Effect\.runPromise\(/),
+      seam("packages/start/src/cli.ts", "Start diagnostics CLI bin runner", /void Effect\.runPromise\(runStartDiagnosticsCliMainEffect\(\)\);/),
+      seam("scripts/package-project-console-starter.mjs", "Project console starter packaging script runner", /await Effect\.runPromise\(/)
+    ]
   },
   {
     pattern: /\bPromise\s*</g,
     name: "Promise return type",
-    seams: new Map([
-      ["packages/start/src/fetch-adapter.ts", 1],
-      ["packages/start/src/start-host-runtime-runner.ts", 2],
-      ["packages/start/src/start-vite-dev-ssr.ts", 3],
-      ["packages/start/src/vite.ts", 2],
-      ["type-tests/framework.test-d.ts", 13]
-    ])
+    seams: [
+      seam("packages/start/src/fetch-adapter.ts", "Fetch host Promise handler facade", /export type StartFetchPromiseHandler\s*=\s*\(request:\s*Request\)\s*=>\s*Promise<Response>;/),
+      seam("packages/start/src/start-host-runtime-runner.ts", "generic host Promise runner return", /export const runStartHostPromise[\s\S]*?\):\s*Promise<A>\s*=>/),
+      seam("packages/start/src/start-host-runtime-runner.ts", "request-scoped host Promise response return", /export const runStartHostResponsePromise[\s\S]*?\):\s*Promise<Response>\s*=>/),
+      seam("packages/start/src/start-vite-dev-ssr.ts", "Vite ssrLoadModule host method", /ssrLoadModule\(id:\s*string\):\s*Promise<Record<string,\s*unknown>>;/),
+      seam("packages/start/src/start-vite-dev-ssr.ts", "Vite transformIndexHtml host method", /transformIndexHtml\(url:\s*string,\s*html:\s*string\):\s*Promise<string>;/),
+      seam("packages/start/src/start-vite-dev-ssr.ts", "Vite module loader host callback", /f:\s*\(\)\s*=>\s*Promise<A>/),
+      seam("packages/start/src/vite.ts", "Vite plugin buildStart hook contract", /readonly buildStart:\s*\(\)\s*=>\s*void\s*\|\s*Promise<void>;/),
+      seam("packages/start/src/vite.ts", "Vite diagnostics gate Promise hook", /const runCurrentDiagnosticsGate\s*=\s*\(\):\s*Promise<void>\s*=>/),
+      seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedProject", /declare const promisedProject:\s*Promise<Project>;/),
+      seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedProjects", /declare const promisedProjects:\s*Promise<ReadonlyArray<Project>>;/),
+      seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedString", /declare const promisedString:\s*Promise<string>;/),
+      seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedNumber", /declare const promisedNumber:\s*Promise<number>;/),
+      seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedVoid", /declare const promisedVoid:\s*Promise<void>;/),
+      seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedStartDevModule", /declare const promisedStartDevModule:\s*Promise<Record<string,\s*unknown>>;/),
+      seam("type-tests/framework.test-d.ts", "Promise negative fixture projectRowsPromise", /declare const projectRowsPromise:\s*Promise<readonly Project\[]>;/),
+      seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedBoolean", /declare const promisedBoolean:\s*Promise<boolean>;/),
+      seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedStorageText", /declare const promisedStorageText:\s*Promise<string\s*\|\s*null>;/),
+      seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedSqliteRow", /declare const promisedSqliteRow:\s*Promise<Collection\.SQLiteStorageRow\s*\|\s*null>;/),
+      seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedChangeFeedSubscription", /declare const promisedChangeFeedSubscription:\s*Promise<Collection\.ChangeFeedSubscription>;/),
+      seam("type-tests/framework.test-d.ts", "Promise negative fixture startResponsePromise", /declare const startResponsePromise:\s*Promise<Response>;/),
+      seam("type-tests/framework.test-d.ts", "Start fetch package Promise facade assertion", /const rootFetchPromise:\s*Promise<Response>\s*=\s*rootFetchPromiseHandler/)
+    ]
   },
   {
     pattern: /(?:\)\s*=>\s*(?:void\s*\|\s*)?|:\s*)\bPromiseLike\s*</g,
     name: "PromiseLike return type",
-    seams: new Map([
-      ["packages/start/src/streaming.ts", 1]
-    ])
+    seams: [
+      seam("packages/start/src/streaming.ts", "ReadableStream finalizer host return contract", /export type StartResponseStreamRunner[\s\S]*?PromiseLike<A>;/)
+    ]
   }
 ];
 
@@ -180,9 +198,9 @@ const banned = [
   {
     pattern: /(?<!\.)\bawait\b/g,
     name: "await keyword",
-    seams: new Map([
-      ["scripts/package-project-console-starter.mjs", 1]
-    ])
+    seams: [
+      seam("scripts/package-project-console-starter.mjs", "Project console starter packaging script runner", /await Effect\.runPromise\(/)
+    ]
   },
   {
     pattern: new RegExp("\\." + "catch\\s*\\(", "g"),
@@ -347,13 +365,48 @@ assertBannedPattern("await keyword", "await run();", 1);
 assertBannedPattern("await keyword", "Deferred.await(done);", 0);
 
 const failures = [];
-const counts = new Map();
 
 printScopeSummary();
 
-const record = (key) => {
-  counts.set(key, (counts.get(key) ?? 0) + 1);
+const globalPattern = (pattern) =>
+  new RegExp(pattern.source, pattern.flags.includes("g") ? pattern.flags : `${pattern.flags}g`);
+
+const rangesForSeam = (source, check, allowedSeam) => {
+  const anchor = globalPattern(allowedSeam.anchor);
+  const ranges = [];
+  let anchorMatch;
+  while ((anchorMatch = anchor.exec(source)) !== null) {
+    const anchorSource = anchorMatch[0];
+    const pattern = globalPattern(check.pattern);
+    const patternMatches = [...anchorSource.matchAll(pattern)];
+    if (patternMatches.length !== 1) {
+      failures.push(`${allowedSeam.file} seam "${allowedSeam.name}" contains ${patternMatches.length} ${check.name} occurrences; expected exactly 1`);
+    } else {
+      ranges.push({
+        start: anchorMatch.index,
+        end: anchorMatch.index + anchorSource.length,
+        seam: allowedSeam
+      });
+    }
+    if (anchorMatch[0].length === 0) {
+      anchor.lastIndex += 1;
+    }
+  }
+  if (ranges.length === 0) {
+    failures.push(`${allowedSeam.file} seam "${allowedSeam.name}" for ${check.name} was not found`);
+  } else if (ranges.length > 1) {
+    failures.push(`${allowedSeam.file} seam "${allowedSeam.name}" for ${check.name} matched ${ranges.length} anchors; expected exactly 1`);
+  }
+  return ranges;
 };
+
+const anchoredRangesForFile = (check, relativeFile, source) =>
+  (check.seams ?? [])
+    .filter((allowedSeam) => allowedSeam.file === relativeFile)
+    .flatMap((allowedSeam) => rangesForSeam(source, check, allowedSeam));
+
+const inAnchoredRange = (ranges, index) =>
+  ranges.some((range) => index >= range.start && index < range.end);
 
 for (const file of sourceFiles) {
   const relativeFile = relative(root, file);
@@ -364,25 +417,38 @@ for (const file of sourceFiles) {
     for (const check of banned) {
       const matches = bannedMatches(check, line);
       for (const _match of matches) {
-        const maximum = check.seams?.get(relativeFile);
-        if (maximum === undefined) {
+        if (check.seams === undefined) {
           failures.push(`${relativeFile}:${index + 1} uses ${check.name}`);
-        } else {
-          record(`${check.name}\0${relativeFile}`);
         }
       }
     }
   });
 
-  for (const check of allowed) {
+  for (const check of banned) {
+    if (check.seams === undefined) {
+      continue;
+    }
+    const anchoredRanges = anchoredRangesForFile(check, relativeFile, source);
     check.pattern.lastIndex = 0;
     let match;
     while ((match = check.pattern.exec(source)) !== null) {
-      const maximum = check.seams.get(relativeFile);
-      if (maximum === undefined) {
-        failures.push(`${relativeFile}:${lineNumberAt(source, match.index)} uses ${check.name} outside an approved host seam`);
-      } else {
-        record(`${check.name}\0${relativeFile}`);
+      if (!inAnchoredRange(anchoredRanges, match.index)) {
+        failures.push(`${relativeFile}:${lineNumberAt(source, match.index)} uses ${check.name} outside an anchored exception`);
+      }
+
+      if (match[0].length === 0) {
+        check.pattern.lastIndex += 1;
+      }
+    }
+  }
+
+  for (const check of allowed) {
+    const anchoredRanges = anchoredRangesForFile(check, relativeFile, source);
+    check.pattern.lastIndex = 0;
+    let match;
+    while ((match = check.pattern.exec(source)) !== null) {
+      if (!inAnchoredRange(anchoredRanges, match.index)) {
+        failures.push(`${relativeFile}:${lineNumberAt(source, match.index)} uses ${check.name} outside an anchored allowed occurrence`);
       }
 
       if (match[0].length === 0) {
@@ -393,10 +459,9 @@ for (const file of sourceFiles) {
 }
 
 for (const check of allowed) {
-  for (const [file, expected] of check.seams) {
-    const count = counts.get(`${check.name}\0${file}`) ?? 0;
-    if (count !== expected) {
-      failures.push(`${file} has ${count} ${check.name} occurrences; expected exactly ${expected}`);
+  for (const allowedSeam of check.seams) {
+    if (!existsSync(join(root, allowedSeam.file))) {
+      failures.push(`${allowedSeam.file} seam "${allowedSeam.name}" for ${check.name} points at a missing file`);
     }
   }
 }
@@ -405,10 +470,9 @@ for (const check of banned) {
   if (check.seams === undefined) {
     continue;
   }
-  for (const [file, maximum] of check.seams) {
-    const count = counts.get(`${check.name}\0${file}`) ?? 0;
-    if (count > maximum) {
-      failures.push(`${file} has ${count} ${check.name} occurrences; expected at most ${maximum}`);
+  for (const allowedSeam of check.seams) {
+    if (!existsSync(join(root, allowedSeam.file))) {
+      failures.push(`${allowedSeam.file} seam "${allowedSeam.name}" for ${check.name} points at a missing file`);
     }
   }
 }

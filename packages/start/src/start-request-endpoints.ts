@@ -16,14 +16,11 @@ import {
 } from "@effect-ui/core";
 import { Effect, Exit, type Scope } from "effect";
 import {
-  startTransportEndpointEnvelopeEffect,
   validateStartActionRequestEffect,
-  validateStartRpcRequestEffect,
-  withStartTransportDiagnostics
+  validateStartRpcRequestEffect
 } from "./rpc.js";
 import {
   makeRequestRuntime,
-  provideRequestRuntime,
   type RequestRuntimeRemainingRequirements
 } from "./request-runtime.js";
 import {
@@ -61,6 +58,7 @@ import {
   readStartActionRequestEffect,
   type StartActionDefinition
 } from "./start-action-request-codec.js";
+import { runStartTransportEndpointEffect } from "./start-transport-endpoint-runner.js";
 
 export const createServerRpcResponseEffectWithRuntime = <
   const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
@@ -82,92 +80,72 @@ export const createServerRpcResponseEffectWithRuntime = <
     ServerServices
   >
 > => {
-  return Effect.gen(function* () {
-    const envelope = yield* startTransportEndpointEnvelopeEffect("rpc", request, {
-      requestId: traceFacts?.requestId
-    });
-    const diagnostics = envelope.diagnostics;
-    const validation = yield* validateStartRpcRequestEffect(request).pipe(
-      Effect.as(undefined),
-      Effect.catch((error) =>
-        Effect.sync(() => {
-          recordStartRequestTraceFailure(traceFacts, "transport");
-          return rpcTransportRequestFailureResponse(error);
-        })
-      )
-    );
-    if (validation instanceof Response) {
-      return withStartTransportDiagnostics(validation, diagnostics);
-    }
+  return runStartTransportEndpointEffect({
+    request,
+    runtime,
+    responseContext,
+    registry: app.registry,
+    ...(traceFacts === undefined ? {} : { traceFacts }),
+    adapter: {
+      kind: "rpc",
+      validateRequest: validateStartRpcRequestEffect,
+      transportFailureResponse: rpcTransportRequestFailureResponse,
+      runtimeFailureResponse: rpcRuntimeFailureResponse,
+      run: () =>
+        Effect.gen(function* () {
+          const payload = yield* readJsonEffect(request).pipe(
+            Effect.catch((error) =>
+              Effect.sync(() => {
+                recordStartRequestTraceFailure(traceFacts, "protocol");
+                return protocolFailureResponse(error);
+              })
+            )
+          );
+          if (payload instanceof Response) {
+            return payload;
+          }
 
-    const response = yield* provideRequestRuntime(
-      runtime,
-      request,
-      Effect.gen(function* () {
-        const payload = yield* readJsonEffect(request).pipe(
-          Effect.catch((error) =>
-            Effect.sync(() => {
-              recordStartRequestTraceFailure(traceFacts, "protocol");
-              return protocolFailureResponse(error);
-            })
-          )
-        );
-        if (payload instanceof Response) {
-          return payload;
-        }
+          const decoded = yield* Server.decodeRpcRequest(payload).pipe(
+            Effect.catch((error) =>
+              Effect.sync(() => {
+                recordStartRequestTraceFailure(traceFacts, "protocol");
+                return protocolFailureResponse(
+                  new ServerRpcProtocolError({
+                    message: error.message,
+                    payload: Server.serializeDefect(error)
+                  })
+                );
+              })
+            )
+          );
+          if (decoded instanceof Response) {
+            return decoded;
+          }
 
-        const decoded = yield* Server.decodeRpcRequest(payload).pipe(
-          Effect.catch((error) =>
-            Effect.sync(() => {
-              recordStartRequestTraceFailure(traceFacts, "protocol");
-              return protocolFailureResponse(
-                new ServerRpcProtocolError({
-                  message: error.message,
-                  payload: Server.serializeDefect(error)
-                })
-              );
-            })
-          )
-        );
-        if (decoded instanceof Response) {
-          return decoded;
-        }
+          const fn = app.registry.serverFunctions.get(decoded.name);
+          if (!fn) {
+            recordStartRequestTraceServerFunction(traceFacts, {
+              name: decoded.name,
+              status: "failure",
+              failureKind: "protocol"
+            });
+            return functionNotFoundResponse(decoded.name);
+          }
 
-        const fn = app.registry.serverFunctions.get(decoded.name);
-        if (!fn) {
+          const exit = yield* Effect.exit(
+            withStartRpcObservability(decoded.name, fn.invoke(decoded.input))
+          );
+          const failureKind = Exit.isSuccess(exit)
+            ? undefined
+            : yield* rpcFailureKindEffect(fn, exit);
           recordStartRequestTraceServerFunction(traceFacts, {
             name: decoded.name,
-            status: "failure",
-            failureKind: "protocol"
+            status: Exit.isSuccess(exit) ? "success" : "failure",
+            ...(failureKind === undefined ? {} : { failureKind })
           });
-          return functionNotFoundResponse(decoded.name);
-        }
-
-        const exit = yield* Effect.exit(
-          withStartRpcObservability(decoded.name, fn.invoke(decoded.input))
-        );
-        const failureKind = Exit.isSuccess(exit)
-          ? undefined
-          : yield* rpcFailureKindEffect(fn, exit);
-        recordStartRequestTraceServerFunction(traceFacts, {
-          name: decoded.name,
-          status: Exit.isSuccess(exit) ? "success" : "failure",
-          ...(failureKind === undefined ? {} : { failureKind })
-        });
-        return yield* exitToRpcResponse(fn, exit);
-      }),
-      responseContext,
-      app.registry
-    ).pipe(
-      Effect.catch((error) =>
-        Effect.sync(() => {
-          recordStartRequestTraceFailure(traceFacts, "defect");
-          return rpcRuntimeFailureResponse(error);
+          return yield* exitToRpcResponse(fn, exit);
         })
-      )
-    );
-
-    return withStartTransportDiagnostics(response, diagnostics);
+    }
   }) as Effect.Effect<
     Response,
     never,
@@ -241,112 +219,92 @@ export const createServerActionResponseEffectWithRuntime = <
     ServerServices
   >
 > => {
-  return Effect.gen(function* () {
-    const envelope = yield* startTransportEndpointEnvelopeEffect("action", request, {
-      requestId: traceFacts?.requestId
-    });
-    const diagnostics = envelope.diagnostics;
-    const validation = yield* validateStartActionRequestEffect(request).pipe(
-      Effect.as(undefined),
-      Effect.catch((error) =>
-        Effect.sync(() => {
-          recordStartRequestTraceFailure(traceFacts, "transport");
-          return actionTransportRequestFailureResponse(error);
-        })
-      )
-    );
-    if (validation instanceof Response) {
-      return withStartTransportDiagnostics(validation, diagnostics);
-    }
+  return runStartTransportEndpointEffect({
+    request,
+    runtime,
+    responseContext,
+    registry: app.registry,
+    ...(traceFacts === undefined ? {} : { traceFacts }),
+    adapter: {
+      kind: "action",
+      validateRequest: validateStartActionRequestEffect,
+      transportFailureResponse: actionTransportRequestFailureResponse,
+      runtimeFailureResponse: actionRuntimeFailureResponse,
+      run: () =>
+        Effect.gen(function* () {
+          const decoded = yield* readStartActionRequestEffect(request).pipe(
+            Effect.catch((error) =>
+              Effect.sync(() => {
+                recordStartRequestTraceFailure(traceFacts, "protocol");
+                return actionProtocolFailureResponse(error);
+              })
+            )
+          );
+          if (decoded instanceof Response) {
+            return decoded;
+          }
 
-    const response = yield* provideRequestRuntime(
-      runtime,
-      request,
-      Effect.gen(function* () {
-        const decoded = yield* readStartActionRequestEffect(request).pipe(
-          Effect.catch((error) =>
-            Effect.sync(() => {
-              recordStartRequestTraceFailure(traceFacts, "protocol");
-              return actionProtocolFailureResponse(error);
-            })
-          )
-        );
-        if (decoded instanceof Response) {
-          return decoded;
-        }
+          const actionMap = yield* Effect.try({
+            try: () => makeActionMap(actions, app.registry),
+            catch: (error) => error
+          }).pipe(
+            Effect.catch((error) =>
+              Effect.sync(() => {
+                recordStartRequestTraceFailure(traceFacts, "defect");
+                return actionRuntimeFailureResponse(error);
+              })
+            )
+          );
+          if (actionMap instanceof Response) {
+            return actionMap;
+          }
 
-        const actionMap = yield* Effect.try({
-          try: () => makeActionMap(actions, app.registry),
-          catch: (error) => error
-        }).pipe(
-          Effect.catch((error) =>
-            Effect.sync(() => {
-              recordStartRequestTraceFailure(traceFacts, "defect");
-              return actionRuntimeFailureResponse(error);
-            })
-          )
-        );
-        if (actionMap instanceof Response) {
-          return actionMap;
-        }
+          const action = actionMap.get(decoded.name);
+          if (!action) {
+            recordStartRequestTraceAction(traceFacts, {
+              name: decoded.name,
+              state: "Failure",
+              failureKind: "protocol"
+            });
+            return actionFunctionNotFoundResponse(decoded.name);
+          }
 
-        const action = actionMap.get(decoded.name);
-        if (!action) {
-          recordStartRequestTraceAction(traceFacts, {
-            name: decoded.name,
-            state: "Failure",
-            failureKind: "protocol"
-          });
-          return actionFunctionNotFoundResponse(decoded.name);
-        }
+          const input = yield* decodeWithSchema(action.input, decoded.input).pipe(
+            Effect.catch((error) =>
+              Effect.sync(() => {
+                recordStartRequestTraceFailure(traceFacts, "validation");
+                return actionProtocolFailureResponse(
+                  new ServerRpcProtocolError({
+                    message: error.message,
+                    payload: Server.serializeDefect(error)
+                  })
+                );
+              })
+            )
+          );
+          if (input instanceof Response) {
+            recordStartRequestTraceAction(traceFacts, {
+              name: action.name,
+              state: "Failure",
+              failureKind: "validation"
+            });
+            return input;
+          }
 
-        const input = yield* decodeWithSchema(action.input, decoded.input).pipe(
-          Effect.catch((error) =>
-            Effect.sync(() => {
-              recordStartRequestTraceFailure(traceFacts, "validation");
-              return actionProtocolFailureResponse(
-                new ServerRpcProtocolError({
-                  message: error.message,
-                  payload: Server.serializeDefect(error)
-                })
-              );
-            })
-          )
-        );
-        if (input instanceof Response) {
+          const instance = Action.use(action as unknown as ActionDefinition<any, any, never, any>);
+          const exit = yield* Effect.exit(
+            withStartActionObservability(action.name, instance.submitEffect(input))
+          );
+          const meta = yield* actionResponseMetaEffect(instance.invalidationPlan.get());
+          const failureKind = yield* actionFailureKindEffect(action, exit);
           recordStartRequestTraceAction(traceFacts, {
             name: action.name,
-            state: "Failure",
-            failureKind: "validation"
+            state: failureKind === undefined ? "Success" : "Failure",
+            ...(failureKind === undefined ? {} : { failureKind })
           });
-          return input;
-        }
-
-        const instance = Action.use(action as unknown as ActionDefinition<any, any, never, any>);
-        const exit = yield* Effect.exit(
-          withStartActionObservability(action.name, instance.submitEffect(input))
-        );
-        const meta = yield* actionResponseMetaEffect(instance.invalidationPlan.get());
-        const failureKind = yield* actionFailureKindEffect(action, exit);
-        recordStartRequestTraceAction(traceFacts, {
-          name: action.name,
-          state: failureKind === undefined ? "Success" : "Failure",
-          ...(failureKind === undefined ? {} : { failureKind })
-        });
-        return yield* actionExitResponseEffect(action, exit, meta, actionResponseMode(request));
-      }),
-      responseContext,
-      app.registry
-    ).pipe(
-      Effect.catch((error) =>
-        Effect.sync(() => {
-          recordStartRequestTraceFailure(traceFacts, "defect");
-          return actionRuntimeFailureResponse(error);
+          return yield* actionExitResponseEffect(action, exit, meta, actionResponseMode(request));
         })
-      )
-    );
-
-    return withStartTransportDiagnostics(response, diagnostics);
+    }
   }) as Effect.Effect<
     Response,
     never,

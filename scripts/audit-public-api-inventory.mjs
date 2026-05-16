@@ -287,6 +287,8 @@ const expectedBins = new Map();
 const importSpecifierFor = (packageName, exportPath) =>
   exportPath === "." ? packageName : `${packageName}${exportPath.slice(1)}`;
 
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
 const assertRelativeFile = (label, path) => {
   if (typeof path !== "string" || path.length === 0) {
     failures.push(`${label} must be a non-empty relative path`);
@@ -295,6 +297,80 @@ const assertRelativeFile = (label, path) => {
 
   if (!existsSync(join(root, path))) {
     failures.push(`${label} points at missing file ${path}`);
+  }
+};
+
+const importDeclarationsFor = (sourceFile, specifier) =>
+  sourceFile.statements.filter((statement) =>
+    ts.isImportDeclaration(statement) &&
+    ts.isStringLiteral(statement.moduleSpecifier) &&
+    statement.moduleSpecifier.text === specifier
+  );
+
+const importedBindingNames = (declaration) => {
+  const importClause = declaration.importClause;
+  if (importClause === undefined) {
+    return [];
+  }
+
+  const names = [];
+  if (importClause.name !== undefined) {
+    names.push(importClause.name.text);
+  }
+
+  const namedBindings = importClause.namedBindings;
+  if (namedBindings === undefined) {
+    return names;
+  }
+  if (ts.isNamespaceImport(namedBindings)) {
+    names.push(namedBindings.name.text);
+  } else {
+    for (const element of namedBindings.elements) {
+      names.push(element.name.text);
+    }
+  }
+
+  return names;
+};
+
+const nonImportText = (sourceFile) =>
+  sourceFile.statements
+    .filter((statement) => !ts.isImportDeclaration(statement))
+    .map((statement) => statement.getText(sourceFile))
+    .join("\n");
+
+const assertTypeTestCoverage = (entry, typeTestPath, typeTest) => {
+  const sourceFile = ts.createSourceFile(
+    typeTestPath,
+    typeTest,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  );
+  const imports = importDeclarationsFor(sourceFile, entry.import);
+  if (imports.length === 0) {
+    failures.push(`${entry.package} export ${entry.export} type test ${entry.typeTest} does not import ${entry.import}`);
+    return;
+  }
+
+  const importedNames = imports.flatMap(importedBindingNames);
+  if (importedNames.length === 0 && !Array.isArray(entry.typeTestReferences)) {
+    failures.push(`${entry.package} export ${entry.export} type test ${entry.typeTest} is side-effect-only and must declare typeTestReferences in the manifest`);
+  }
+
+  const body = nonImportText(sourceFile);
+  for (const name of importedNames) {
+    if (!new RegExp(`\\b${escapeRegExp(name)}\\b`).test(body)) {
+      failures.push(`${entry.package} export ${entry.export} type test ${entry.typeTest} imports ${name} but does not exercise it outside the import declaration`);
+    }
+  }
+
+  for (const reference of entry.typeTestReferences ?? []) {
+    if (typeof reference !== "string" || reference.length === 0) {
+      failures.push(`${entry.package} export ${entry.export} typeTestReferences entries must be non-empty strings`);
+    } else if (!typeTest.includes(reference)) {
+      failures.push(`${entry.package} export ${entry.export} type test ${entry.typeTest} is missing required reference ${reference}`);
+    }
   }
 };
 
@@ -315,9 +391,7 @@ for (const entry of publicApiManifest.entrypoints ?? []) {
   assertRelativeFile(`${entry.package} export ${entry.export} typeTest`, entry.typeTest);
   if (typeof entry.typeTest === "string" && existsSync(join(root, entry.typeTest))) {
     const typeTest = readText(join(root, entry.typeTest));
-    if (!typeTest.includes(`"${entry.import}"`) && !typeTest.includes(`'${entry.import}'`)) {
-      failures.push(`${entry.package} export ${entry.export} type test ${entry.typeTest} does not import ${entry.import}`);
-    }
+    assertTypeTestCoverage(entry, entry.typeTest, typeTest);
   }
 }
 

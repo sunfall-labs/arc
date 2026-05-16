@@ -40,6 +40,13 @@ export const queryExecutionPlanSourceAdapters = (
 ): ReadonlyArray<QueryCollectionSourceAdapter> =>
   querySourceAdapters(builder);
 
+/** Validates alias, join, offset, and limit invariants for a query execution plan. */
+export const validateQueryExecutionPlan = <TContext extends AnyQueryContext>(
+  builder: QueryPlanBuilder<TContext>
+): void => {
+  validateQueryPlan(builder);
+};
+
 export interface QueryOrderedContext<TContext extends AnyQueryContext> {
   readonly row: TContext;
   readonly index: number;
@@ -117,7 +124,7 @@ export const executeQueryPlan = <TContext extends AnyQueryContext, TResult>(
 export const queryExecutionPlanDiagnostics = (
   builder: QueryPlanBuilder<any>
 ): QueryPlanDiagnostics => {
-  validateQueryPlan(builder);
+  validateQueryExecutionPlan(builder);
   return buildQueryExecution(builder).diagnostics;
 };
 
@@ -138,7 +145,7 @@ export const preloadQueryExecutionPlanEffect = <E, R>(
 ): Effect.Effect<void, E | QueryEvaluationError, R> =>
   Effect.gen(function* () {
     yield* Effect.try({
-      try: () => validateQueryPlan(builder),
+      try: () => validateQueryExecutionPlan(builder),
       catch: (cause) => toQueryEvaluationError("evaluate", cause)
     });
     yield* preloadQueryExecutionPlanSourcesEffect<E, R>(

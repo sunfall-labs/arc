@@ -262,9 +262,19 @@ const traceCookies = (headers: Headers): ReadonlyArray<StartRequestTraceCookie> 
     .sort((left, right) => left.name.localeCompare(right.name));
 };
 
+const startTraceSetCookieCount = (headers: Headers): number => {
+  const getSetCookie = (headers as Headers & { readonly getSetCookie?: unknown }).getSetCookie;
+  if (typeof getSetCookie !== "function") {
+    return 0;
+  }
+
+  const cookies = getSetCookie.call(headers);
+  return Array.isArray(cookies) ? cookies.length : 0;
+};
+
 const traceResponse = (response: Response): StartRequestTraceResponse => {
   const headers = traceHeaders(response.headers);
-  const setCookieCount = response.headers.getSetCookie().length;
+  const setCookieCount = startTraceSetCookieCount(response.headers);
   return {
     status: response.status,
     ...(response.statusText === "" ? {} : { statusText: response.statusText }),
