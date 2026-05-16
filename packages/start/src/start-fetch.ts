@@ -10,6 +10,7 @@ import {
   startJsonMediaType,
   startRequestIdHeader
 } from "./rpc.js";
+import { mergeStartAbortSignals } from "./start-abort-lifecycle.js";
 import type { StartTransportEndpointSource } from "./start-transport-endpoints.js";
 
 const invalidStartFetchReturnMessage =
@@ -103,54 +104,6 @@ export const callStartFetchEffect = <FetchError, FetchRequirements>(
           })))
   );
 
-const mergeAbortSignals = (
-  signals: ReadonlyArray<AbortSignal>
-): { readonly signal: AbortSignal; readonly cleanup: () => void } => {
-  const uniqueSignals = signals.filter((signal, index, all) =>
-    all.indexOf(signal) === index
-  );
-  if (uniqueSignals.length === 1) {
-    return { signal: uniqueSignals[0]!, cleanup: () => undefined };
-  }
-
-  const abortSignalAny = (AbortSignal as typeof AbortSignal & {
-    any?: (signals: Iterable<AbortSignal>) => AbortSignal;
-  }).any;
-  if (typeof abortSignalAny === "function") {
-    return { signal: abortSignalAny(uniqueSignals), cleanup: () => undefined };
-  }
-
-  const controller = new AbortController();
-  const cleanupHandlers: Array<() => void> = [];
-  const abortFrom = (source: AbortSignal): void => {
-    if (controller.signal.aborted) {
-      return;
-    }
-    controller.abort((source as AbortSignal & { readonly reason?: unknown }).reason);
-  };
-
-  for (const signal of uniqueSignals) {
-    if (signal.aborted) {
-      abortFrom(signal);
-      break;
-    }
-    const abort = (): void => abortFrom(signal);
-    signal.addEventListener("abort", abort, { once: true });
-    cleanupHandlers.push(() => {
-      signal.removeEventListener("abort", abort);
-    });
-  }
-
-  return {
-    signal: controller.signal,
-    cleanup: () => {
-      for (const cleanup of cleanupHandlers.splice(0)) {
-        cleanup();
-      }
-    }
-  };
-};
-
 const withStartFetchAbortSignal = (
   input: StartFetchInput,
   init: StartFetchInit,
@@ -163,7 +116,7 @@ const withStartFetchAbortSignal = (
   if (typeof Request === "function" && input instanceof Request) {
     signals.push(input.signal);
   }
-  const merged = mergeAbortSignals(signals);
+  const merged = mergeStartAbortSignals(signals);
   return {
     init: {
       ...init,

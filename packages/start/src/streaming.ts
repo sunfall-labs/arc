@@ -128,6 +128,10 @@ export type StartResponseStreamRunner = <A, E>(
 export interface StartResponseStreamFinalizerOptions {
   /** Runs the Effect program produced by Web stream pull/cancel callbacks. */
   readonly runEffect?: StartResponseStreamRunner;
+  /** Cancels the wrapped response body when the host request aborts after response creation. */
+  readonly abortSignal?: AbortSignal;
+  /** Stable teardown reason used when `abortSignal` cancels the response body. */
+  readonly abortTeardownReason?: string;
   /** Receives the close/error/cancel lifecycle event exactly once. */
   readonly onFinalize?: StartResponseStreamFinalizer;
 }
@@ -419,8 +423,12 @@ export const responseWithStreamFinalizer = (
   const reader = response.body.getReader();
   let chunkCount = 0;
   let finalized = false;
+  let readerCancelled = false;
+  let abortRequested = false;
+  let abortReason: unknown;
   let successSuspensions = 0;
   let pendingSuccess: StartResponseStreamFinalizeEvent | undefined;
+  let cleanupAbortSignal = (): void => undefined;
   const runFinalize = (
     event: StartResponseStreamFinalizeEvent
   ): Effect.Effect<void> =>
@@ -430,6 +438,7 @@ export const responseWithStreamFinalizer = (
       }
 
       finalized = true;
+      cleanupAbortSignal();
       return options.onFinalize === undefined
         ? Effect.void
         : options.onFinalize(event);
@@ -445,8 +454,69 @@ export const responseWithStreamFinalizer = (
 
       return runFinalize(event);
     });
+  const cancelReaderEffect = (
+    reason: unknown,
+    options: { readonly ignoreFailure?: boolean } = {}
+  ): Effect.Effect<void, unknown> =>
+    Effect.suspend(() => {
+      if (readerCancelled) {
+        return Effect.void;
+      }
+
+      readerCancelled = true;
+      const cancel = Effect.tryPromise({
+        try: () => reader.cancel(reason),
+        catch: (cause) => cause
+      });
+      return options.ignoreFailure === true
+        ? cancel.pipe(Effect.catchCause(() => Effect.void))
+        : cancel;
+    });
+  const abortFinalizeEvent = (): StartResponseStreamFinalizeEvent => ({
+    stream: {
+      name: "response",
+      state: "cancelled",
+      chunkCount
+    },
+    status: "cancelled",
+    teardownReason: options.abortTeardownReason ?? (
+      typeof abortReason === "string" ? abortReason : "request-abort"
+    )
+  });
 
   const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      const signal = options.abortSignal;
+      if (signal === undefined) {
+        return;
+      }
+
+      const abort = (): void => {
+        const reason = signal.reason ?? "request-abort";
+        abortRequested = true;
+        abortReason = reason;
+        void runEffect(
+          cancelReaderEffect(reason, { ignoreFailure: true }).pipe(
+            Effect.ensuring(finalize(abortFinalizeEvent())),
+            Effect.ensuring(Effect.sync(() => {
+              try {
+                controller.error(reason);
+              } catch {
+                // The consumer may have already closed or cancelled the stream.
+              }
+            }))
+          )
+        );
+      };
+      cleanupAbortSignal = () => {
+        signal.removeEventListener("abort", abort);
+      };
+      if (signal.aborted) {
+        abort();
+      } else {
+        signal.addEventListener("abort", abort, { once: true });
+      }
+    },
     pull(controller) {
       return runEffect(
         Effect.gen(function* () {
@@ -455,6 +525,18 @@ export const responseWithStreamFinalizer = (
             catch: (cause) => cause
           });
           if (result.done) {
+            if (abortRequested) {
+              yield* finalize(abortFinalizeEvent());
+              yield* Effect.sync(() => {
+                try {
+                  controller.error(abortReason ?? "request-abort");
+                } catch {
+                  // The abort listener may have already errored the stream.
+                }
+              });
+              return;
+            }
+
             yield* finalize({
               stream: {
                 name: "response",
@@ -477,6 +559,14 @@ export const responseWithStreamFinalizer = (
         }).pipe(
           Effect.catch((cause) =>
             Effect.gen(function* () {
+              if (abortRequested) {
+                yield* finalize(abortFinalizeEvent());
+                yield* Effect.sync(() => {
+                  controller.error(cause);
+                });
+                return;
+              }
+
               const failurePhase = startStreamFailurePhase(cause);
               yield* finalize({
                 stream: {
@@ -499,10 +589,7 @@ export const responseWithStreamFinalizer = (
     },
     cancel(reason) {
       return runEffect(
-        Effect.tryPromise({
-          try: () => reader.cancel(reason),
-          catch: (cause) => cause
-        }).pipe(
+        cancelReaderEffect(reason).pipe(
           Effect.ensuring(
             finalize({
               stream: {

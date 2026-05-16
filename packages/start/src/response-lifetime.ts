@@ -7,6 +7,8 @@ import {
 
 export interface ResponseScopeLifetimeOptions {
   readonly runEffect?: StartResponseStreamRunner;
+  readonly abortSignal?: AbortSignal;
+  readonly abortTeardownReason?: string;
 }
 
 const streamFinalizeExit = (
@@ -49,12 +51,13 @@ export const responseWithScopeLifetimeEffect = <E, R>(
 
     const onFinalize = (event: StartResponseStreamFinalizeEvent) =>
       closeScope(streamFinalizeExit(event));
-    if (options.runEffect === undefined) {
-      return responseWithStreamFinalizer(response, { onFinalize });
-    }
-
-    return responseWithStreamFinalizer(response, {
-      runEffect: options.runEffect,
+    const finalizerOptions = {
+      ...(options.runEffect === undefined ? {} : { runEffect: options.runEffect }),
+      ...(options.abortSignal === undefined ? {} : { abortSignal: options.abortSignal }),
+      ...(options.abortTeardownReason === undefined
+        ? {}
+        : { abortTeardownReason: options.abortTeardownReason }),
       onFinalize
-    });
+    };
+    return responseWithStreamFinalizer(response, finalizerOptions);
   }) as Effect.Effect<Response, E, Exclude<R, Scope.Scope>>;

@@ -459,6 +459,48 @@ describe("Start streaming", () => {
     );
   });
 
+  it("cancels wrapped Web response streams from abort signals", () => {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const controller = new AbortController();
+        const cancelled = yield* Deferred.make<unknown>();
+        const finalized = yield* Deferred.make<StartResponseStreamFinalizeEvent>();
+
+        responseWithStreamFinalizer(
+          new Response(
+            new ReadableStream<Uint8Array>({
+              cancel(reason) {
+                Effect.runFork(Deferred.succeed(cancelled, reason));
+              }
+            })
+          ),
+          {
+            abortSignal: controller.signal,
+            abortTeardownReason: "request-abort",
+            onFinalize: (event) => Deferred.succeed(finalized, event)
+          }
+        );
+
+        controller.abort("browser-left");
+        const cancelReason = yield* Deferred.await(cancelled).pipe(Effect.timeout("1 second"));
+        const event = yield* Deferred.await(finalized).pipe(Effect.timeout("1 second"));
+
+        yield* Effect.sync(() => {
+          expect(cancelReason).toBe("browser-left");
+          expect(event).toEqual({
+            stream: {
+              name: "response",
+              state: "cancelled",
+              chunkCount: 0
+            },
+            status: "cancelled",
+            teardownReason: "request-abort"
+          });
+        });
+      })
+    );
+  });
+
   it("preserves StartStreamError phases when wrapped Web response streams fail", () => {
     return Effect.runPromise(
       Effect.gen(function* () {

@@ -12,9 +12,75 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review168, immediately after Review167. Some older review entries remain below
+Review169, immediately after Review168. Some older review entries remain below
 it from prior ledger merges; use this tip rather than file order alone when
 looking for the latest architecture sweep.
+
+## Review 169: Start Abort Lifecycle And Host Response Cancellation
+
+Review169 fixed the Start abort/lifecycle Seam that remained after earlier
+request-runtime and outbound fetch abort work.
+
+1. Start Abort Signal Lifecycle Module
+   - Status: fixed.
+   - Files: `packages/start/src/start-abort-lifecycle.ts`,
+     `packages/start/src/start-fetch.ts`,
+     `packages/start/src/fetch-adapter.ts`,
+     `packages/start/src/start-host-runtime-runner.ts`,
+     `packages/start/src/start-vite-dev-ssr.ts`.
+   - Problem: Start Fetch Transport, Fetch host facades, Vite dev SSR body
+     readers, and host callback runners each carried a local abort listener
+     Implementation. The duplicated Interface made fallback listener cleanup,
+     abort reason propagation, already-aborted signals, and host-fiber
+     interruption a memory task across Adapters.
+   - Fix: added the internal Start Abort Signal Lifecycle Module. It owns
+     signal merging, native `AbortSignal.any(...)` delegation, fallback
+     listener cleanup, abort reason propagation, scoped abort finalizers, and
+     forked host-fiber interruption. The existing Adapters now consume that
+     Module instead of carrying their own listener policy.
+   - Benefits: abort policy has more Depth at one Interface. Fetch, Vite, and
+     Node/Vite callback Adapters get shared Leverage, and future cancellation
+     fixes have better Locality.
+
+2. Fetch Host Post-Response Stream Abort
+   - Status: fixed.
+   - Files: `packages/start/src/streaming.ts`,
+     `packages/start/src/response-lifetime.ts`,
+     `packages/start/src/fetch-adapter.ts`,
+     `packages/start/test/streaming.test.ts`,
+     `packages/start/test/adapters.test.ts`.
+   - Problem: `createFetchHandler(...)` connected `Request.signal` to Effect
+     execution until the host `Promise<Response>` resolved, but a later request
+     abort did not cancel an outstanding streamed response body. Request Runtime
+     finalization already closes when the body closes/cancels/errors, so the
+     missing Adapter behavior could leave Scope lifetime dependent on whether a
+     Fetch host cancelled returned bodies for the library.
+   - Fix: `responseWithStreamFinalizer(...)` now accepts an abort signal and
+     reports abort-driven cancellation through the same stream finalization
+     path, including the pending-read race where cancellation can otherwise
+     look like a clean close. `responseWithScopeLifetimeEffect(...)` exposes
+     that policy, and the Fetch host Adapter passes the merged
+     request/runOptions signal with a stable `request-abort` teardown reason.
+   - Benefits: Start Host Response Abort Policy is local to the response
+     lifetime Module instead of being left to each host Adapter. Fetch facades
+     release request Scopes and upstream streams when the inbound request
+     disconnects after response creation.
+
+Focused verification passed for Review169: Start package typecheck,
+`pnpm vitest run packages/start/test/streaming.test.ts -t "abort signals|finalizes wrapped"`,
+`pnpm vitest run packages/start/test/adapters.test.ts -t "abort|streamed bodies are cancelled"`,
+and `pnpm vitest run packages/start/test/adapters.test.ts packages/start/test/streaming.test.ts packages/start/test/rpc.test.ts packages/start/test/start.test.ts`
+with 4 files / 211 tests.
+
+Full `pnpm verify` passed after Review169: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 399 physical/virtual package/example/config/script/type-test/generated/docs
+files, 53 root test files / 1028 tests, devtools-panel verify with 2 tests,
+devtools-extension verify with 20 tests, basic starter verify with 2 tests,
+React starter verify with 3 tests, starter-suite packaging/verifies for
+basic/react/project-console at 19/24/30 app files with 5/4/6 local packages,
+16-target package dry-run gate, project-console typecheck, 4 project-console
+test files / 27 tests, project-console build, and leak scans.
 
 ## Review 168: Docs Snippet Guardrails And Devtools App Graph Normalization
 

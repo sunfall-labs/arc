@@ -1,6 +1,7 @@
-import { defaultRuntime, type AnyEffectUiRuntime, type EffectUiRuntime } from "@effect-ui/core";
+import { type AnyEffectUiRuntime, defaultRuntime, type EffectUiRuntime } from "@effect-ui/core";
 import { Effect, Fiber, Scope } from "effect";
 import { responseWithScopeLifetimeEffect } from "./response-lifetime.js";
+export { interruptStartHostFiberOnSignal } from "./start-abort-lifecycle.js";
 
 /** Options shared by host facades that resolve an Effect to a platform Promise. */
 export interface StartHostPromiseRunnerOptions<RuntimeError = never> {
@@ -62,32 +63,3 @@ export const forkStartHostEffect = <A, E, R, RuntimeError = never>(
     Effect.scoped(effect),
     options.runOptions
   ) as Fiber.Fiber<A, E | RuntimeError>;
-
-/** Interrupts a forked host Effect from an AbortSignal and removes listeners on completion. */
-export const interruptStartHostFiberOnSignal = <A, E>(
-  fiber: Fiber.Fiber<A, E>,
-  signal: AbortSignal,
-  options: Pick<StartHostForkRunnerOptions, "runOptions"> = {}
-): (() => void) => {
-  const interrupt = (): void => {
-    void defaultRuntime.runFork(
-      Fiber.interrupt(fiber).pipe(Effect.catchCause(() => Effect.void)),
-      options.runOptions
-    );
-  };
-  const dispose = (): void => {
-    signal.removeEventListener("abort", interrupt);
-  };
-
-  if (signal.aborted) {
-    interrupt();
-    return dispose;
-  }
-
-  signal.addEventListener("abort", interrupt, { once: true });
-  const removeObserver = fiber.addObserver(dispose);
-  return () => {
-    dispose();
-    removeObserver();
-  };
-};

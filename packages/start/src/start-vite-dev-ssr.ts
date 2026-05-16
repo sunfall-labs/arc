@@ -15,6 +15,7 @@ import {
   resolveStartTransportEndpoints,
   type StartTransportEndpointSource
 } from "./start-transport-endpoints.js";
+import { runStartAbortFinalizerOnSignalEffect } from "./start-abort-lifecycle.js";
 
 /**
  * Handler export shape used by the Vite dev SSR middleware.
@@ -136,23 +137,9 @@ const installRequestAbortReaderCancel = (
   reader: ReadableStreamDefaultReader<Uint8Array>,
   signal: AbortSignal
 ): Effect.Effect<void, never, Scope.Scope> =>
-  Effect.acquireRelease(
-    Effect.sync(() => {
-      const cancel = (): void => {
-        void Effect.runFork(cancelResponseReaderEffect(reader, signal.reason ?? "request-aborted"));
-      };
-      if (signal.aborted) {
-        cancel();
-      } else {
-        signal.addEventListener("abort", cancel, { once: true });
-      }
-      return cancel;
-    }),
-    (cancel) =>
-      Effect.sync(() => {
-        signal.removeEventListener("abort", cancel);
-      })
-  ).pipe(Effect.asVoid);
+  runStartAbortFinalizerOnSignalEffect(signal, (reason) => {
+    void Effect.runFork(cancelResponseReaderEffect(reader, reason ?? "request-aborted"));
+  });
 
 const readResponseChunkEffect = (
   reader: ReadableStreamDefaultReader<Uint8Array>
