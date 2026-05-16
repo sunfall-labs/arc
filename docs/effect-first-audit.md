@@ -1095,8 +1095,11 @@ interruption.
   execution in `start-vite-diagnostics-loader.ts`; the Vite facade re-exports
   the public Interface.
 - Start Action Request Codec now owns schema-backed JSON/form request encoding
-  and decoding in `start-action-request-codec.ts`; Start Transport Protocol
-  keeps response/status/failure policy and compatibility re-exports.
+  and decoding in `start-action-request-codec.ts`.
+- Start Action Response Codec now owns action response DTOs, response metadata,
+  response-mode selection, Exit-to-Response encoding, client parsing, and typed
+  result decoding in `start-action-response-codec.ts`. Request and response
+  codecs share Effect Schema helpers through `start-schema-codec.ts`.
 - DB Collection Sync Load Policy now owns `preloadEffect(...)` and
   `refetchEffect(...)` orchestration in `collection-sync-load-policy.ts`,
   including in-flight `Deferred` ownership/joining, forced-refetch generation
@@ -1111,9 +1114,9 @@ interruption.
 - Devtools Panels and Store no longer expose internal single-adapter runtime
   injection seams. Effect wrappers and store Effect methods stay intact while
   pure projection dependencies live in the owning Modules.
-- The latest full `pnpm verify` passed after the Review 119 Devtools Runtime
-  Seam Collapse slice: 11 package builds, workspace typecheck, type tests,
-  public API inventory audit, Effect-first audit over 228
+- The latest full `pnpm verify` passed after the Review 120 Start Action
+  Response Codec slice: 11 package builds, workspace typecheck, type tests,
+  public API inventory audit, Effect-first audit over 230
   package/example/script/type-test files, 52 root test files / 861 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
@@ -1123,7 +1126,8 @@ interruption.
   added the public API inventory audit to the full gate, Review 86 kept the
   scanner green over the expanded public type-test scope, Review 113 expanded
   the scanner to 226 files, Review 115 expanded it to 227 files, Review 116
-  expanded it to 228 files, and Review 119 kept it green over that scope.
+  expanded it to 228 files, and Review 120 expanded it to 230 files while
+  keeping it green over that scope.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

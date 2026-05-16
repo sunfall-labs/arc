@@ -11,9 +11,34 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 119, immediately after Review 118. Some older review
+The newest review is Review 120, immediately after Review 119. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 120: Start Action Response Codec Module
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Action response codec: added
+  `packages/start/src/start-action-response-codec.ts` for action response DTOs,
+  invalidation metadata serialization, response metadata hydration payload
+  construction, JSON/redirect response mode selection, action Exit-to-Response
+  encoding, client response parsing, and typed output/error decoding.
+- Schema codec locality: added `packages/start/src/start-schema-codec.ts` so
+  request and response codecs share the same Effect Schema encode/decode policy
+  instead of duplicating it.
+- Transport protocol locality: `packages/start/src/start-transport-protocol.ts`
+  now keeps RPC protocol behavior, action map construction, action failure-kind
+  classification, and compatibility re-exports. Action client, request
+  endpoints, client transport, and response application import the focused
+  response codec directly.
+
+Focused verification: `pnpm --filter @effect-ui/start typecheck` and `pnpm
+exec vitest run packages/start/test/rpc.test.ts packages/start/test/start.test.ts
+-t "action response|Start action|Start actions"` (2 files / 14 tests) passed.
+Full `pnpm verify` also passed after the slice.
 
 ## Review 119: Devtools Runtime Seam Collapse
 

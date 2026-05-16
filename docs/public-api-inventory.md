@@ -390,11 +390,13 @@ Subpath exports:
   `Effect.acquireRelease(...)` inside `Effect.scoped(...)`, so CLI and CI
   diagnostics close the Vite resource on success, typed failure, or
   interruption.
-- Start action clients apply accepted response metadata through the internal
-  Start Action Response Application Module. Transport Protocol owns wire DTOs,
-  parsing, status policy, and decoding; response application owns invalidation
-  target validation, Resource Tag/Ref resolution, hydration, hydrated-ref
-  filtering, and malformed metadata transport errors.
+- Start action clients parse and decode action responses through the internal
+  Start Action Response Codec Module. It owns wire DTOs, response metadata,
+  invalidation metadata serialization, response-mode selection, Exit-to-Response
+  encoding, client parsing, and typed result decoding; the internal Start Action
+  Response Application Module owns invalidation target validation, Resource
+  Tag/Ref resolution, hydration, hydrated-ref filtering, and malformed metadata
+  transport errors.
 - Start Transport Body Readers own the internal Effect v4 boundary around
   one-shot JSON, form-data, and response-text reads for RPC/action transports.
   Transport Protocol consumes those helpers so body stream failures are typed

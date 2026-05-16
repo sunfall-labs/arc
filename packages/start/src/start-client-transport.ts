@@ -11,7 +11,7 @@ import {
 } from "./start-fetch.js";
 import {
   type StartActionResponseBody
-} from "./start-transport-protocol.js";
+} from "./start-action-response-codec.js";
 import type { StartTransportKind } from "./rpc.js";
 
 type StartClientTransportBody = Server.RpcResponse | StartActionResponseBody;

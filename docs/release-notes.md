@@ -243,6 +243,11 @@ Latest full gate on May 15, 2026:
 - Review 119 collapsed the internal Devtools runtime injection seams. Panels
   and Store now import their single concrete dependencies directly, while the
   public root stays a facade instead of assembling one-off runtime objects.
+- Review 120 extracted the Start Action Response Codec Module. Action response
+  DTOs, invalidation metadata, response metadata hydration, response-mode
+  selection, Exit-to-Response encoding, client parsing, and typed result
+  decoding now live in `start-action-response-codec.ts`; request and response
+  codecs share Effect Schema helpers through `start-schema-codec.ts`.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime
@@ -731,10 +736,10 @@ Latest full gate on May 15, 2026:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 119 collapsed Devtools
-  runtime seams while keeping public package exports stable:
+- The latest full `pnpm verify` passed after Review 120 extracted the Start
+  Action Response Codec while keeping public package exports stable:
   11 package builds, workspace typecheck, public type tests, public API
-  inventory audit, Effect-first audit over 228 files, 52 root test
+  inventory audit, Effect-first audit over 230 files, 52 root test
   files / 861 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,

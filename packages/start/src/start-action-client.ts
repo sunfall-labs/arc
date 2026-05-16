@@ -29,12 +29,14 @@ import {
   decodeStartActionResponseEffect,
   parseStartActionResponse,
   type ActionDefinitionErrorValue,
-  type ActionDefinitionInputValue,
   type ActionDefinitionOutputValue,
-  type StartActionClientOptions,
   type StartActionInvalidationPlan,
   type StartActionResponseBody,
   type StartActionResultFor
+} from "./start-action-response-codec.js";
+import {
+  type ActionDefinitionInputValue,
+  type StartActionClientOptions
 } from "./start-transport-protocol.js";
 
 interface SubmittedStartAction<D extends StartActionDefinition> {

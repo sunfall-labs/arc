@@ -8,12 +8,12 @@ import {
 import { Effect } from "effect";
 import { hydrateStartPayloadEffect } from "./hydration.js";
 import type {
-  StartActionClientOptions,
   StartActionInvalidationCause,
   StartActionInvalidationPlan,
   StartActionInvalidationTarget,
   StartActionResponseBody
-} from "./start-transport-protocol.js";
+} from "./start-action-response-codec.js";
+import type { StartActionClientOptions } from "./start-transport-protocol.js";
 
 const startActionInvalidationTransportError = (
   body: StartActionResponseBody,

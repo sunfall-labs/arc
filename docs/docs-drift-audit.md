@@ -55,8 +55,9 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     diagnostics CLI query kind subcommands, Review 115 start vite diagnostics
     loader module extraction, Review 116 db collection sync load policy module
     extraction, Review 117 browser route render decision module extraction,
-    Review 118 devtools fact identity index helper extraction, and Review 119
-    devtools runtime seam collapse.
+    Review 118 devtools fact identity index helper extraction, Review 119
+    devtools runtime seam collapse, and Review 120 start action response codec
+    module extraction.
 
 ## Current Sweep Results
 
@@ -432,8 +433,12 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Added Review 119 and progress entry 358 evidence for the Devtools runtime
   seam collapse. Current docs now record that Panels and Store own their single
   concrete dependencies and the root devtools Module stays a facade.
-- Updated current-facing verification snapshots after Review 119 full
-  verification so the latest gate points at the 228-file Effect-first audit and
+- Added Review 120 and progress entry 359 evidence for the Start Action
+  Response Codec extraction. Current docs now record that action response DTOs,
+  response metadata, response encoding/parsing, and typed result decoding live
+  in `start-action-response-codec.ts`.
+- Updated current-facing verification snapshots after Review 120 full
+  verification so the latest gate points at the 230-file Effect-first audit and
   52 root test files / 861 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are
   wrapped with `Effect.tryPromise(...)` at the Adapter seam.

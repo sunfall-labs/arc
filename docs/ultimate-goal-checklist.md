@@ -729,12 +729,13 @@ Last evidence pass: May 15, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Devtools runtime seam collapse.
+  - Evidence: no new ADR required for the Start Action Response Codec
+    extraction.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 15, 2026 after the Review 119
-    Devtools Runtime Seam Collapse slice: 11 package builds, workspace
+  - Evidence: root `pnpm verify` passed on May 15, 2026 after the Review 120
+    Start Action Response Codec slice: 11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
-    228 files,
+    230 files,
     52 root test files / 861 tests,
     devtools-panel verify with 1 panel test file / 2 tests, devtools-extension
     verify with 1 extension test file / 20 tests, basic starter verify with 1

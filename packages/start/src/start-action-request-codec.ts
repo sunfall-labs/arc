@@ -19,6 +19,9 @@ import {
   readStartTransportFormDataBodyEffect,
   readStartTransportJsonBodyEffect
 } from "./start-transport-body.js";
+import { encodeWithSchema } from "./start-schema-codec.js";
+
+export { encodeWithSchema } from "./start-schema-codec.js";
 
 /** JSON payload accepted by the Start action transport. */
 export interface StartActionRequest {
@@ -83,14 +86,6 @@ export class StartActionFormEncodeError extends Data.TaggedError(
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
-
-export const encodeWithSchema = (
-  schema: unknown,
-  input: unknown
-): Effect.Effect<unknown, Schema.SchemaError> =>
-  Schema.isSchema(schema)
-    ? Schema.encodeUnknownEffect(schema as Schema.Encoder<unknown>)(input)
-    : Effect.succeed(input);
 
 const structSchemaFields = (
   schema: unknown
