@@ -51,6 +51,7 @@ import type { StartNodeRequestOptions } from "./node-web-exchange.js";
 /** Options for generated file-route definition modules written by the plugin. */
 export interface FileRouteGenerationOptions
   extends GeneratedFileRouteDefinitionsModuleOptions {
+  /** Generated route definition path. String values must stay inside the Vite root; `false` disables writes. */
   readonly outputFile?: string | false;
 }
 

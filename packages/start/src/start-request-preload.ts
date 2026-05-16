@@ -17,7 +17,9 @@ import {
 import {
   makeStartCollectionResolution,
   startCollectionArray,
-  uniqueStartCollections
+  uniqueStartCollectionsEffect,
+  validateStartCollectionResolutionOptionsEffect,
+  type StartCollectionDuplicateName
 } from "./start-collection-resolution.js";
 import {
   makeRequestRuntime,
@@ -112,6 +114,13 @@ const unresolvedRouteDeclaredCollection = (name: string): StartPreloadError =>
     { collectionName: name }
   );
 
+const duplicateRouteCollection = (cause: StartCollectionDuplicateName): StartPreloadError =>
+  preloadError(
+    cause.source === "hydration" ? "collection-hydration" : "declared-collection-resolution",
+    cause,
+    { collectionName: cause.name }
+  );
+
 const routeDeclaredCollectionsEffect = (
   routePlan: Route.NavigationPlan,
   options: PreloadRequestOptions = {}
@@ -124,6 +133,9 @@ const routeDeclaredCollectionsEffect = (
   const declaredCollections = routePlan.match.route.options.preloadCollections ?? [];
 
   return Effect.gen(function* () {
+    yield* validateStartCollectionResolutionOptionsEffect(options).pipe(
+      Effect.mapError(duplicateRouteCollection)
+    );
     const resolved: Array<AnyCollection> = [];
     for (const input of declaredCollections) {
       if (Collection.isCollection(input)) {
@@ -144,7 +156,9 @@ const routeDeclaredCollectionsEffect = (
       resolved.push(collection);
     }
 
-    return uniqueStartCollections(resolved);
+    return yield* uniqueStartCollectionsEffect(resolved, "route-preload").pipe(
+      Effect.mapError(duplicateRouteCollection)
+    );
   });
 };
 
@@ -178,12 +192,19 @@ const startCollectionPreloadEffect = (
   options: StartCollectionHydrationOptions = {}
 ): Effect.Effect<StartCollectionPreload, StartPreloadError> =>
   Effect.gen(function* () {
-    const registeredCollections = startCollectionArray(options.collections);
-    const dehydratedCollections = uniqueStartCollections([
+    const registeredCollections = yield* uniqueStartCollectionsEffect(
+      startCollectionArray(options.collections),
+      "collections"
+    ).pipe(
+      Effect.mapError(duplicateRouteCollection)
+    );
+    const dehydratedCollections = yield* uniqueStartCollectionsEffect([
       ...registeredCollections,
       ...routeDeclaredCollections,
       ...routeTouchedCollections
-    ]);
+    ], "hydration").pipe(
+      Effect.mapError(duplicateRouteCollection)
+    );
     const hydration = dehydratedCollections.length > 0
       ? yield* Collection.dehydrateEffect(dehydratedCollections).pipe(
           Effect.mapError((cause) => preloadError("collection-hydration", cause))

@@ -40,8 +40,19 @@ export class FileRouteDefinitionsFileWriteError extends Data.TaggedError(
   readonly cause: unknown;
 }> {}
 
+/** Error raised when generated route definitions would be written outside the Vite root. */
+export class FileRouteDefinitionsOutputPathError extends Data.TaggedError(
+  "FileRouteDefinitionsOutputPathError"
+)<{
+  readonly root: string;
+  readonly outputFile: string;
+  readonly absolutePath: string;
+  readonly guidance: string;
+}> {}
+
 export type FileRouteDefinitionsFileWriteFailure =
   | FileRouteDefinitionsFileWriteError
+  | FileRouteDefinitionsOutputPathError
   | FileRouteDefinitionsModuleError;
 
 const normalizeGeneratedRouteDefinitionsPath = (path: string): string =>
@@ -49,6 +60,22 @@ const normalizeGeneratedRouteDefinitionsPath = (path: string): string =>
     .replace(/\\/g, "/")
     .replace(/\/+/g, "/")
     .replace(/\/$/, "");
+
+const assertOutputFileInsideRoot = (
+  root: string,
+  outputFile: string,
+  absolutePath: string
+): void => {
+  const relative = relativePath(root, absolutePath);
+  if (relative === "" || relative.startsWith("..") || isAbsolute(relative)) {
+    throw new FileRouteDefinitionsOutputPathError({
+      root,
+      outputFile,
+      absolutePath,
+      guidance: "Keep fileRouteGeneration.outputFile inside the Vite root. Use a root-relative path such as 'src/routeTree.gen.ts'."
+    });
+  }
+};
 
 export const shouldWriteFileRouteDefinitionsFile = (
   root: string,
@@ -80,6 +107,7 @@ export const planFileRouteDefinitionsFileWrite = (
   const absolutePath = isAbsolute(outputFile)
     ? outputFile
     : resolvePath(root, outputFile);
+  assertOutputFileInsideRoot(root, outputFile, absolutePath);
   const generatedFile = isAbsolute(outputFile)
     ? normalizeGeneratedRouteDefinitionsPath(relativePath(root, absolutePath))
     : outputFile;
@@ -100,12 +128,12 @@ const planFileRouteDefinitionsFileWriteEffect = (
   root: string,
   manifest: FileRouteManifest,
   options: FileRouteGenerationOptions = {}
-): Effect.Effect<FileRouteDefinitionsFileWritePlan | undefined, FileRouteDefinitionsModuleError> =>
+): Effect.Effect<FileRouteDefinitionsFileWritePlan | undefined, FileRouteDefinitionsModuleError | FileRouteDefinitionsOutputPathError> =>
   Effect.suspend(() => {
     try {
       return Effect.succeed(planFileRouteDefinitionsFileWrite(root, manifest, options));
     } catch (cause) {
-      if (isFileRouteDefinitionsModuleError(cause)) {
+      if (isFileRouteDefinitionsModuleError(cause) || cause instanceof FileRouteDefinitionsOutputPathError) {
         return Effect.fail(cause);
       }
       throw cause;

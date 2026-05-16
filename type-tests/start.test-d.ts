@@ -9,7 +9,9 @@ import {
   deserializeStartAppGraph,
   enforceStartAppGraphDiagnosticsPolicy,
   formatStartAppGraphDiagnosticsPolicyViolation,
+  hydrateStartHydrationChunks,
   preloadRequestEffect,
+  startEffectRpcEndpointDescriptor,
   StartAppGraphDiagnosticsDtoError,
   StartAppGraphMissingWireSchemas,
   StartAppGraphParseError,
@@ -34,11 +36,18 @@ import {
   type StartAppGraphRoutePreloadResourcesPolicy,
   type StartFetch,
   type StartAppGraphWireSchemaPolicy,
+  type HydrateStartPayloadOptions,
+  type ServerFunctionManifest,
+  type StartEffectRpcCompatibilityArtifact,
+  type StartEffectRpcEndpointDescriptor,
+  type StartEffectRpcProcedureDescriptor,
+  type StartHydrationChunk,
   type StartRenderContext,
   type StartRenderHydrationPlan,
   type StartRequestHandler,
   type StartRequestTrace
 } from "@effect-ui/start";
+import type { EffectUiRuntime } from "@effect-ui/core";
 
 const startExports: Array<unknown> = [
   collectStartAppGraphDiagnosticsPolicyViolations,
@@ -51,7 +60,9 @@ const startExports: Array<unknown> = [
   deserializeStartAppGraph,
   enforceStartAppGraphDiagnosticsPolicy,
   formatStartAppGraphDiagnosticsPolicyViolation,
+  hydrateStartHydrationChunks,
   preloadRequestEffect,
+  startEffectRpcEndpointDescriptor,
   StartAppGraphDiagnosticsDtoError,
   StartAppGraphMissingWireSchemas,
   StartAppGraphParseError,
@@ -77,6 +88,12 @@ type StartTypes =
   | StartAppGraphRoutePreloadCollectionsPolicy
   | StartAppGraphRoutePreloadResourcesPolicy
   | StartAppGraphWireSchemaPolicy
+  | HydrateStartPayloadOptions
+  | ServerFunctionManifest
+  | StartEffectRpcCompatibilityArtifact
+  | StartEffectRpcEndpointDescriptor
+  | StartEffectRpcProcedureDescriptor
+  | StartHydrationChunk
   | StartFetch
   | StartRenderContext
   | StartRenderHydrationPlan
@@ -95,3 +112,28 @@ void legacyHydrationScript;
 void deprecatedHydrationScript;
 void hydrationRootScript;
 void hydrationPlan;
+
+interface HydrationRuntimeService {
+  readonly hydrationRuntimeService: unique symbol;
+}
+
+declare const hydrationRuntime: EffectUiRuntime<HydrationRuntimeService>;
+declare const hydrationChunks: ReadonlyArray<StartHydrationChunk>;
+const sortedHydrationChunks: ReadonlyArray<StartHydrationChunk> =
+  hydrateStartHydrationChunks<HydrationRuntimeService>(hydrationChunks, {
+    runtime: hydrationRuntime
+  });
+
+declare const serverFunctionManifest: ServerFunctionManifest;
+const endpointDescriptor: StartEffectRpcEndpointDescriptor =
+  startEffectRpcEndpointDescriptor(serverFunctionManifest);
+const endpointPath: string = endpointDescriptor.path;
+declare const procedureDescriptor: StartEffectRpcProcedureDescriptor;
+const procedureSchemaFlags: ReadonlyArray<boolean> = [
+  procedureDescriptor.schemas.payload,
+  procedureDescriptor.schemas.success,
+  procedureDescriptor.schemas.error
+];
+void sortedHydrationChunks;
+void endpointPath;
+void procedureSchemaFlags;

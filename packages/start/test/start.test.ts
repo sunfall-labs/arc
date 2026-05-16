@@ -42,6 +42,7 @@ import {
   StartHydrationPayloadParseError,
   StartHydrationPayloadSerializeError,
   StartPreloadError,
+  StartCollectionDuplicateName,
   StartAction,
   StartActionFormEncodeError,
   StartActionDuplicateName,
@@ -107,6 +108,7 @@ import {
   StartAppGraphMissingWireSchemas,
   StartAppGraphUnknownActionBehavior,
   StartDevServerError,
+  FileRouteDefinitionsOutputPathError,
   StartHandlerNotFound,
   StartManifestDirectReferenceError,
   StartServerOnlyModuleError,
@@ -1146,6 +1148,42 @@ describe("Effect UI Start", () => {
     expect(projectLoads).toBe(1);
     expect(result.collectionPreload.routeDeclaredCollections).toEqual([Projects]);
     expect(result.collectionPreload.dehydratedCollections).toEqual([Projects]);
+  });
+
+  it("rejects duplicate direct collection definitions before route-declared name resolution", async () => {
+    const name = "Start.Collection.route-declared.duplicate-direct";
+    const PrimaryProjects = Collection.define<{ readonly id: string; readonly name: string }>({
+      name,
+      getKey: (project) => project.id,
+      load: () => Effect.succeed([{ id: "atlas", name: "Atlas" }])
+    });
+    const ShadowProjects = Collection.define<{ readonly slug: string; readonly title: string }>({
+      name,
+      getKey: (project) => project.slug,
+      load: () => Effect.succeed([{ slug: "shadow", title: "Shadow" }])
+    });
+    const ProjectRoute = route("/duplicate-direct-declared-projects", {
+      preloadCollections: [name]
+    });
+    const app = defineApp({
+      routes: [ProjectRoute] as const,
+      client: {}
+    });
+
+    const error = await Effect.runPromise(
+      Effect.flip(
+        preloadRequest(app, new Request("https://example.com/duplicate-direct-declared-projects"), {
+          collections: [PrimaryProjects, ShadowProjects]
+        })
+      )
+    );
+
+    expect(error).toBeInstanceOf(StartPreloadError);
+    expect(error).toMatchObject({
+      operation: "declared-collection-resolution",
+      collectionName: name
+    });
+    expect(error.cause).toBeInstanceOf(StartCollectionDuplicateName);
   });
 
   it("preloads and renders with an app server layer", async () => {
@@ -4187,6 +4225,44 @@ describe("Effect UI Start", () => {
     });
   });
 
+  it("fails Start hydration when direct collection definitions share a name", async () => {
+    const name = "Start.Collection.duplicate-hydration-definition";
+    const PrimaryProjects = Collection.define<{ readonly id: string; readonly name: string }>({
+      name,
+      getKey: (project) => project.id
+    });
+    const ShadowProjects = Collection.define<{ readonly slug: string; readonly title: string }>({
+      name,
+      getKey: (project) => project.slug
+    });
+
+    const exit = await Effect.runPromiseExit(
+      hydrateStartPayloadEffect(
+        {
+          resources: [],
+          collections: [
+            {
+              name,
+              rows: [],
+              pendingMutations: [],
+              updatedAt: 1
+            }
+          ]
+        },
+        {
+          collections: [PrimaryProjects, ShadowProjects]
+        }
+      )
+    );
+
+    expect(Exit.isFailure(exit)).toBe(true);
+    expect(firstFailure(exit.cause)).toMatchObject({
+      _tag: "CollectionSnapshotCodecError",
+      operation: "hydrate",
+      path: "$.collections"
+    });
+  });
+
   it("does not partially apply resources when collection hydration validation fails", async () => {
     const runtime = makeRuntime();
     try {
@@ -5364,6 +5440,27 @@ describe("Effect UI Start", () => {
       expect(existsSync(join(root, defaultFileRouteGeneratedFile))).toBe(false);
     } finally {
       rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects generated file route definitions outside the Vite root", async () => {
+    const root = mkdtempSync(join(tmpdir(), "effect-ui-generated-routes-outside-"));
+
+    try {
+      mkdirSync(join(root, "src/routes"), { recursive: true });
+      writeFileSync(join(root, "src/routes/index.tsx"), "export default null;\n");
+
+      const plugin = effectUiStart({
+        fileRouteGeneration: {
+          outputFile: "../routeTree.gen.ts"
+        }
+      });
+
+      expect(() => plugin.configResolved({ root })).toThrow(FileRouteDefinitionsOutputPathError);
+      expect(existsSync(join(root, "../routeTree.gen.ts"))).toBe(false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+      rmSync(join(root, "../routeTree.gen.ts"), { force: true });
     }
   });
 

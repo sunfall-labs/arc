@@ -5,6 +5,7 @@ import {
   loadStartAppGraphDiagnosticsEffect,
   runStartViteDiagnosticsGateEffect,
   StartAppGraphDiagnosticsRunnerError,
+  FileRouteDefinitionsOutputPathError,
   StartAppGraphMissingWireSchemas,
   StartAppGraphUnknownActionBehavior,
   StartAppGraphUnknownRoutePreloadCollections,
@@ -31,6 +32,7 @@ const viteExports: Array<unknown> = [
   loadStartAppGraphDiagnosticsEffect,
   runStartViteDiagnosticsGateEffect,
   StartAppGraphDiagnosticsRunnerError,
+  FileRouteDefinitionsOutputPathError,
   StartAppGraphMissingWireSchemas,
   StartAppGraphUnknownActionBehavior,
   StartAppGraphUnknownRoutePreloadCollections,
@@ -74,6 +76,9 @@ type ViteTypes =
   | StartBuildPolicy
   | StartBuildPolicyError
   | StartDevServer;
+declare const routeOutputFailure: FileRouteDefinitionsOutputPathError;
+const routeOutputGuidance: string = routeOutputFailure.guidance;
 void viteExports;
 void diagnosticsBuildPolicyOptions;
+void routeOutputGuidance;
 type _ViteTypes = ViteTypes;

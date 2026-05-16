@@ -2422,6 +2422,49 @@ describe("Collection", () => {
     );
   });
 
+  it("rejects duplicate collection definitions during hydration planning", () => {
+    const runtime = makeRuntime();
+    const name = "Projects.snapshot-codec-duplicate-definition";
+    const Projects = Collection.define<Project>({
+      name,
+      getKey: (project) => project.id
+    });
+    const ShadowProjects = Collection.define<{ readonly slug: string; readonly title: string }>({
+      name,
+      getKey: (project) => project.slug
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const exit = yield* Effect.exit(
+          runtime.provide(Collection.hydratePayloadEffect([Projects, ShadowProjects], {
+            collections: [
+              {
+                name,
+                rows: [],
+                pendingMutations: [],
+                updatedAt: 1
+              }
+            ]
+          }))
+        );
+
+        expect(Exit.isFailure(exit)).toBe(true);
+        const failure = Exit.isFailure(exit)
+          ? exit.cause.reasons.find(Cause.isFailReason)?.error
+          : undefined;
+        expect(failure).toBeInstanceOf(CollectionSnapshotCodecError);
+        expect(failure).toMatchObject({
+          _tag: "CollectionSnapshotCodecError",
+          operation: "hydrate",
+          path: "$.collections"
+        });
+      }).pipe(
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
   it("validates collection input schema before local mutation and direct write", () => {
     const runtime = makeRuntime();
     const Projects = Collection.define<Project>({

@@ -158,6 +158,16 @@ export class SQLitePersistenceUnsupportedStatement extends Data.TaggedError(
   readonly guidance: string;
 }> {}
 
+/** Error raised when a SQLite statement row does not match the persistence row contract. */
+export class SQLitePersistenceInvalidRow extends Data.TaggedError(
+  "SQLitePersistenceInvalidRow"
+)<{
+  readonly field: "namespace" | "key" | "schema_version" | "value" | "updated_at";
+  readonly value: unknown;
+  readonly expected: "string" | "finite-number";
+  readonly guidance: string;
+}> {}
+
 const runCallback = <A, E, R>(
   operation: string,
   callback: () => EffectInput<A, E, R>
@@ -196,10 +206,38 @@ const sqlTableName = (sql: string): string => {
   return unquoteIdentifier(match[1]);
 };
 
-const rowNumber = (value: unknown): number =>
+const invalidStatementRow = (
+  field: SQLitePersistenceInvalidRow["field"],
+  value: unknown,
+  expected: SQLitePersistenceInvalidRow["expected"]
+): SQLitePersistenceInvalidRow =>
+  new SQLitePersistenceInvalidRow({
+    field,
+    value,
+    expected,
+    guidance: "SQLite statement adapters must return persisted rows with exact string fields and finite numeric timestamp/version fields."
+  });
+
+const statementRowNumber = (
+  field: SQLitePersistenceInvalidRow["field"],
+  value: unknown
+): Effect.Effect<number, SQLitePersistenceInvalidRow> =>
+  typeof value === "number" && Number.isFinite(value)
+    ? Effect.succeed(value)
+    : Effect.fail(invalidStatementRow(field, value, "finite-number"));
+
+const statementRowString = (
+  field: SQLitePersistenceInvalidRow["field"],
+  value: unknown
+): Effect.Effect<string, SQLitePersistenceInvalidRow> =>
+  typeof value === "string"
+    ? Effect.succeed(value)
+    : Effect.fail(invalidStatementRow(field, value, "string"));
+
+const statementParamNumber = (value: unknown): number =>
   typeof value === "number" ? value : Number(value);
 
-const rowString = (value: unknown): string =>
+const statementParamString = (value: unknown): string =>
   typeof value === "string" ? value : String(value);
 
 const statementParamList = (params?: SQLiteStatementParams): Array<SQLiteStatementValue> =>
@@ -238,14 +276,14 @@ export const makeSQLiteMemoryStatementDatabase = (): SQLiteMemoryStatementDataba
       if (/^\s*INSERT\s+INTO\b/i.test(sql)) {
         const [namespace, key, schemaVersion, value, updatedAt] = params ?? [];
         rows.set(memoryRowId(table, {
-          namespace: rowString(namespace),
-          key: rowString(key)
+          namespace: statementParamString(namespace),
+          key: statementParamString(key)
         }), {
-          namespace: rowString(namespace),
-          key: rowString(key),
-          schemaVersion: rowNumber(schemaVersion),
-          value: rowString(value),
-          updatedAt: rowNumber(updatedAt)
+          namespace: statementParamString(namespace),
+          key: statementParamString(key),
+          schemaVersion: statementParamNumber(schemaVersion),
+          value: statementParamString(value),
+          updatedAt: statementParamNumber(updatedAt)
         });
         return;
       }
@@ -253,8 +291,8 @@ export const makeSQLiteMemoryStatementDatabase = (): SQLiteMemoryStatementDataba
       if (/^\s*DELETE\s+FROM\b/i.test(sql)) {
         const [namespace, key] = params ?? [];
         rows.delete(memoryRowId(table, {
-          namespace: rowString(namespace),
-          key: rowString(key)
+          namespace: statementParamString(namespace),
+          key: statementParamString(key)
         }));
         return;
       }
@@ -277,7 +315,7 @@ export const makeSQLiteMemoryStatementDatabase = (): SQLiteMemoryStatementDataba
 
       const table = sqlTableName(sql);
       const [namespace, key] = params ?? [];
-      const current = row(table, rowString(namespace), rowString(key));
+      const current = row(table, statementParamString(namespace), statementParamString(key));
       return current
         ? [{
             namespace: current.namespace,
@@ -346,7 +384,7 @@ export const makeSQLitePreparedStatementDatabase = <
  */
 export const makeSQLiteStatementPersistenceDriver = <E = never, R = never>(
   database: SQLiteStatementDatabase<E, R>
-): SQLitePersistenceDriver<E | EffectInputCallbackError, R> => ({
+): SQLitePersistenceDriver<E | EffectInputCallbackError | SQLitePersistenceInvalidRow, R> => ({
   table: (name) => {
     const table = quoteIdentifier(name);
     return {
@@ -374,11 +412,11 @@ export const makeSQLiteStatementPersistenceDriver = <E = never, R = never>(
           }
 
           return {
-            namespace: rowString(row.namespace),
-            key: rowString(row.key),
-            schemaVersion: rowNumber(row.schemaVersion ?? row.schema_version),
-            value: rowString(row.value),
-            updatedAt: rowNumber(row.updatedAt ?? row.updated_at)
+            namespace: yield* statementRowString("namespace", row.namespace),
+            key: yield* statementRowString("key", row.key),
+            schemaVersion: yield* statementRowNumber("schema_version", row.schemaVersion ?? row.schema_version),
+            value: yield* statementRowString("value", row.value),
+            updatedAt: yield* statementRowNumber("updated_at", row.updatedAt ?? row.updated_at)
           } satisfies SQLitePersistenceRow;
         }),
       upsert: (row) =>

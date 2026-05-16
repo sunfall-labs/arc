@@ -350,8 +350,13 @@ The root export includes:
   `startRequestCountMetric`, `startRequestDurationMetric`, and
   `startRequestStatusMetric`.
 - Effect RPC compatibility descriptors:
-  `serverFunctionToEffectRpc`, `makeStartEffectRpcGroup`, and
-  `makeStartEffectRpcCompatibilityArtifact`.
+  `serverFunctionToEffectRpc`, `makeStartEffectRpcGroup`,
+  `startEffectRpcEndpointDescriptor`, and
+  `makeStartEffectRpcCompatibilityArtifact`. The endpoint descriptor is the
+  LSP-facing contract for the current JSON POST RPC boundary: path, media
+  types, transport protocol version, and request/diagnostic header names. The
+  compatibility artifact adds one procedure descriptor per manifest entry plus
+  adoption blockers for replacing Start transport with `effect/unstable/rpc`.
 - Generated route artifact helpers:
   `createFileRouteDefinitionsModule`, `createFileRouteModuleReferences`,
   `createFileRouteCompanionModuleReferences`,
@@ -370,6 +375,9 @@ The root export includes:
   collection names; request preload and hydration resolve those names through
   `StartCollectionResolutionOptions` (`collections`, `resolveCollection`, or
   `collectionRegistry`) without falling back to process globals implicitly.
+  Duplicate direct definitions with the same collection name fail as
+  `StartCollectionDuplicateName` during preload, and hydration maps that policy
+  into `CollectionSnapshotCodecError` before any collection payload is applied.
 
 Subpath exports:
 
@@ -387,7 +395,9 @@ Subpath exports:
   `writeFileRouteDefinitionsFile(...)` for Vite sync hooks and
   `writeFileRouteDefinitionsFileEffect(...)` plus
   `FileRouteDefinitionsFileWriteFailure` for typed route-generation and
-  filesystem diagnostics. Its diagnostics loading exports are implemented by
+  filesystem diagnostics. `FileRouteDefinitionsOutputPathError` rejects
+  `fileRouteGeneration.outputFile` values that would write outside the Vite
+  root. Its diagnostics loading exports are implemented by
   the internal Start Vite Diagnostics Loader Module, so CLI/CI/build-gate
   temporary Vite server lifetime and diagnostics DTO decoding share one
   Effect-first policy while the public `./vite` Interface stays stable.
@@ -551,7 +561,10 @@ Release decisions:
   local-first recipes need a SQLite-shaped seam without a runtime dependency on
   a specific SQLite package. `sqlite-persistence.ts` owns the statement value,
   params, row, database, prepared-statement, and memory contracts; the DB root
-  only aliases them under `Collection.*` for namespace ergonomics.
+  exports them directly and aliases them under `Collection.*` for namespace
+  ergonomics. Statement rows fail as `SQLitePersistenceInvalidRow` when SQLite
+  clients return malformed field types instead of being coerced at the Adapter
+  boundary.
 - Mutation, transaction, event, and store diagnostic types are expert public for
   tests, devtools, persistence, and sync adapters. App code should use
   `Collection` namespace operations instead of constructing those records

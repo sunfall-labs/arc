@@ -40,6 +40,18 @@ Live server functions can produce actual `Rpc` descriptors. Production manifests
 cannot, because they intentionally store schema presence booleans instead of
 schema values.
 
+Public helpers:
+
+- `serverFunctionToEffectRpc(fn)` maps one live `Server.fn(...)` contract to an
+  `effect/unstable/rpc` descriptor.
+- `makeStartEffectRpcGroup(functions)` groups live descriptors for development
+  probes and generated metadata.
+- `startEffectRpcEndpointDescriptor(manifest)` returns only the endpoint
+  contract when tooling needs the path/media/header facts without procedure
+  rows.
+- `makeStartEffectRpcCompatibilityArtifact(manifest)` returns the endpoint,
+  procedure descriptors, schema-presence flags, and adoption notes.
+
 ## Next Steps
 
 1. Generate compatibility artifacts beside the Start app graph so downstream

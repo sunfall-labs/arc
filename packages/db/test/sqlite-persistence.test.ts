@@ -4,6 +4,7 @@ import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   SQLITE_PERSISTENCE_DEFAULT_TABLE,
+  SQLitePersistenceInvalidRow,
   SQLitePersistenceInvalidTableName,
   SQLitePersistenceUnsupportedStatement,
   makeSQLiteMemoryStatementDatabase,
@@ -531,6 +532,37 @@ describe("SQLite persistence storage", () => {
             operation: "select"
           });
         }
+      })
+    ));
+
+  it("rejects malformed statement rows instead of coercing them", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const storage = makeSQLitePersistenceStorage(
+          makeSQLiteStatementPersistenceDriver({
+            execute: () => undefined,
+            select: () => [{
+              namespace: "workspace:a",
+              key: "projects-cache",
+              schema_version: "1",
+              value: "{\"collections\":[]}",
+              updated_at: 1
+            }]
+          }),
+          {
+            namespace: "workspace:a",
+            schemaVersion: 1
+          }
+        );
+
+        const failure = yield* Effect.flip(toEffect(storage.getItem("projects-cache")));
+
+        expect(failure).toBeInstanceOf(SQLitePersistenceInvalidRow);
+        expect(failure).toMatchObject({
+          _tag: "SQLitePersistenceInvalidRow",
+          field: "schema_version",
+          expected: "finite-number"
+        });
       })
     ));
 });

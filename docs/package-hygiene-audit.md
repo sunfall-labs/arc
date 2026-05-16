@@ -30,6 +30,9 @@ exports. It supports the release-engineering charter workstream.
   - `@effect-ui/core`: `effect`
   - `@effect-ui/db`: `@effect-ui/core`, `@tanstack/db-ivm`, `effect`
   - `@effect-ui/devtools`: `@effect-ui/core`, `effect`
+  - `@effect-ui/react`: `@effect-ui/core`, `effect`, `react`
+  - `@effect-ui/react-db`: `@effect-ui/core`, `@effect-ui/db`,
+    `@effect-ui/react`, `effect`, `react`
   - `@effect-ui/solid`: `@effect-ui/core`, `effect`, `solid-js`
   - `@effect-ui/solid-db`: `@effect-ui/core`, `@effect-ui/db`,
     `@effect-ui/solid`, `effect`, `solid-js`

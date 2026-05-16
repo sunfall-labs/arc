@@ -1,5 +1,5 @@
 import { type AnyCollection } from "@effect-ui/db";
-import { Effect } from "effect";
+import { Data, Effect } from "effect";
 
 /** Registry shape Start can use to resolve collection names emitted by routes or hydration payloads. */
 export interface StartCollectionDefinitionRegistry {
@@ -34,13 +34,36 @@ export interface StartCollectionResolution {
   resolve(name: string): AnyCollection | undefined;
 }
 
+/** Error raised when one Start collection lookup scope contains two different definitions with the same stable name. */
+export class StartCollectionDuplicateName extends Data.TaggedError("StartCollectionDuplicateName")<{
+  readonly name: string;
+  readonly source: "collections" | "route-preload" | "hydration";
+  readonly guidance: string;
+}> {}
+
+const duplicateCollectionName = (
+  name: string,
+  source: StartCollectionDuplicateName["source"]
+): StartCollectionDuplicateName =>
+  new StartCollectionDuplicateName({
+    name,
+    source,
+    guidance: "Collection names are stable hydration identities. Provide only one definition for each name in a Start request or hydration scope."
+  });
+
 /** Convert optional collection iterables into a readonly array without changing definition identity. */
 export const startCollectionArray = (
   collections: Iterable<AnyCollection> | undefined
 ): ReadonlyArray<AnyCollection> =>
   collections ? Array.from(collections) : [];
 
-/** De-duplicate collection definitions by stable Collection name while preserving first occurrence. */
+/**
+ * De-duplicate collection definitions by stable Collection name while preserving first occurrence.
+ *
+ * This helper is intentionally pure for diagnostics and display paths. Request
+ * preload and hydration should use `uniqueStartCollectionsEffect(...)` so
+ * different definitions with the same name fail before any payload is built.
+ */
 export const uniqueStartCollections = (
   collections: Iterable<AnyCollection>
 ): ReadonlyArray<AnyCollection> => {
@@ -54,6 +77,34 @@ export const uniqueStartCollections = (
   }
   return out;
 };
+
+/** De-duplicate Start collections, failing when a stable name maps to more than one definition. */
+export const uniqueStartCollectionsEffect = (
+  collections: Iterable<AnyCollection>,
+  source: StartCollectionDuplicateName["source"] = "collections"
+): Effect.Effect<ReadonlyArray<AnyCollection>, StartCollectionDuplicateName> =>
+  Effect.gen(function* () {
+    const definitions = new Map<string, AnyCollection>();
+    const out: Array<AnyCollection> = [];
+    for (const collection of collections) {
+      const existing = definitions.get(collection.name);
+      if (existing === collection) {
+        continue;
+      }
+      if (existing !== undefined) {
+        return yield* Effect.fail(duplicateCollectionName(collection.name, source));
+      }
+      definitions.set(collection.name, collection);
+      out.push(collection);
+    }
+    return out;
+  });
+
+/** Validate direct collection resolution inputs before resolving names. */
+export const validateStartCollectionResolutionOptionsEffect = (
+  options: StartCollectionResolutionOptions = {}
+): Effect.Effect<void, StartCollectionDuplicateName> =>
+  Effect.asVoid(uniqueStartCollectionsEffect(startCollectionArray(options.collections), "collections"));
 
 const isCollectionLookup = (
   value: unknown
@@ -81,9 +132,12 @@ export const makeStartCollectionResolution = (
   options: StartCollectionResolutionOptions = {}
 ): StartCollectionResolution => {
   const registeredCollections = startCollectionArray(options.collections);
-  const registeredDefinitions = new Map(
-    registeredCollections.map((collection) => [collection.name, collection] as const)
-  );
+  const registeredDefinitions = new Map<string, AnyCollection>();
+  for (const collection of registeredCollections) {
+    if (!registeredDefinitions.has(collection.name)) {
+      registeredDefinitions.set(collection.name, collection);
+    }
+  }
   const registryDefinitions = collectionRegistryDefinitions(options.collectionRegistry);
 
   return {
@@ -102,6 +156,9 @@ export const resolveStartCollectionsEffect = <E>(
   toFailure: (name: string) => E
 ): Effect.Effect<ReadonlyArray<AnyCollection>, E> =>
   Effect.gen(function* () {
+    yield* validateStartCollectionResolutionOptionsEffect(options).pipe(
+      Effect.mapError((cause) => toFailure(cause.name))
+    );
     const resolution = makeStartCollectionResolution(options);
     const resolved: Array<AnyCollection> = [];
     for (const name of names) {
@@ -111,5 +168,7 @@ export const resolveStartCollectionsEffect = <E>(
       }
       resolved.push(collection);
     }
-    return uniqueStartCollections(resolved);
+    return yield* uniqueStartCollectionsEffect(resolved, "route-preload").pipe(
+      Effect.mapError((cause) => toFailure(cause.name))
+    );
   });

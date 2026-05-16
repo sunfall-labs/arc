@@ -68,6 +68,33 @@ interface CollectionHydrationPlan {
   readonly entries: ReadonlyArray<CollectionHydrationPlanEntry>;
 }
 
+const duplicateCollectionDefinitionError = (
+  name: string
+): CollectionSnapshotCodecError =>
+  new CollectionSnapshotCodecError({
+    operation: "hydrate",
+    path: "$.collections",
+    reason: `Multiple collection definitions were provided for '${name}'. Collection names must identify one hydration definition.`
+  });
+
+const collectionDefinitionMapEffect = (
+  collections: Iterable<AnyCollection>
+): Effect.Effect<ReadonlyMap<string, AnyCollection>, CollectionSnapshotCodecError> =>
+  Effect.gen(function* () {
+    const definitions = new Map<string, AnyCollection>();
+    for (const collection of collections) {
+      const existing = definitions.get(collection.name);
+      if (existing === collection) {
+        continue;
+      }
+      if (existing !== undefined) {
+        return yield* Effect.fail(duplicateCollectionDefinitionError(collection.name));
+      }
+      definitions.set(collection.name, collection);
+    }
+    return definitions;
+  });
+
 const snapshotCallbackError = (
   definition: AnyCollection,
   cause: unknown
@@ -416,7 +443,7 @@ const planCollectionsHydrationEffect = (
   storeEffect: Effect.Effect<CollectionPersistenceStore>
 ): Effect.Effect<CollectionHydrationPlan, CollectionSnapshotCodecError | EffectInputCallbackError> =>
   Effect.gen(function* () {
-    const definitions = new Map(Array.from(collections, (collection) => [collection.name, collection] as const));
+    const definitions = yield* collectionDefinitionMapEffect(collections);
     const hydrationPayload = yield* validateCollectionHydrationPayloadEffect(payload);
     const entries: Array<CollectionHydrationPlanEntry> = [];
     for (const [index, snapshot] of hydrationPayload.collections.entries()) {

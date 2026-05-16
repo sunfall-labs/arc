@@ -81,6 +81,7 @@ export {
   serverFunctionManifestVirtualModuleId
 } from "./start-virtual-modules.js";
 export {
+  FileRouteDefinitionsOutputPathError,
   FileRouteDefinitionsFileWriteError,
   writeFileRouteDefinitionsFileEffect,
   writeFileRouteDefinitionsFile

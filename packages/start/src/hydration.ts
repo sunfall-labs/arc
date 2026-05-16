@@ -32,8 +32,10 @@ import {
 } from "./hydration-dom.js";
 import {
   makeStartCollectionResolution,
+  validateStartCollectionResolutionOptionsEffect,
   type StartCollectionDefinitionRegistry,
   type StartCollectionDefinitionResolver,
+  type StartCollectionDuplicateName,
   type StartCollectionResolutionOptions
 } from "./start-collection-resolution.js";
 export type {
@@ -240,6 +242,15 @@ const collectionHydrateOptions = (
   ...(options.replace === undefined ? {} : { replace: options.replace })
 });
 
+const duplicateHydrationCollection = (
+  cause: StartCollectionDuplicateName
+): CollectionSnapshotCodecError =>
+  new CollectionSnapshotCodecError({
+    operation: "hydrate",
+    path: "$.collections",
+    reason: `Multiple collection definitions were provided for '${cause.name}'. Collection names must identify one hydration definition in a Start hydration scope.`
+  });
+
 const collectionsForHydrationPayloadEffect = (
   payload: StartHydrationPayload,
   options: HydrateStartPayloadEffectOptions
@@ -250,6 +261,9 @@ const collectionsForHydrationPayloadEffect = (
   }
 
   return Effect.gen(function* () {
+    yield* validateStartCollectionResolutionOptionsEffect(options).pipe(
+      Effect.mapError(duplicateHydrationCollection)
+    );
     const resolution = makeStartCollectionResolution(options);
     const resolved = new Map<string, AnyCollection>();
     for (const [index, snapshot] of snapshots.entries()) {
@@ -259,6 +273,21 @@ const collectionsForHydrationPayloadEffect = (
           operation: "hydrate",
           path: `$.collections[${index}].name`,
           reason: `No collection definition was provided for '${snapshot.name}'.`
+        }));
+      }
+      if (collection.name !== snapshot.name) {
+        return yield* Effect.fail(new CollectionSnapshotCodecError({
+          operation: "hydrate",
+          path: `$.collections[${index}].name`,
+          reason: `Collection resolver returned '${collection.name}' for payload collection '${snapshot.name}'.`
+        }));
+      }
+      const existing = resolved.get(collection.name);
+      if (existing !== undefined && existing !== collection) {
+        return yield* Effect.fail(new CollectionSnapshotCodecError({
+          operation: "hydrate",
+          path: `$.collections[${index}].name`,
+          reason: `Multiple collection definitions were resolved for '${collection.name}'.`
         }));
       }
       resolved.set(collection.name, collection);
@@ -639,9 +668,9 @@ export const hydrateStartHydrationChunksEffect = (
   );
 
 /** Synchronous host-seam facade for applying streamed hydration chunks. */
-export const hydrateStartHydrationChunks = <RuntimeError = never>(
+export const hydrateStartHydrationChunks = <RuntimeServices = never, RuntimeError = never>(
   chunks: Iterable<StartHydrationChunk>,
-  options: HydrateStartPayloadOptions<RuntimeError> = {}
+  options: HydrateStartPayloadOptions<RuntimeServices, RuntimeError> = {}
 ): ReadonlyArray<StartHydrationChunk> => {
   const sorted = sortStartHydrationChunks(chunks);
   runHydrationSync(hydrateStartHydrationChunksEffect(sorted, options), options.runtime);
