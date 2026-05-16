@@ -56,6 +56,120 @@ const forbiddenFileNames = new Set([
   "yarn.lock",
 ]);
 
+const isNonEmptyString = (value) =>
+  typeof value === "string" && value.trim().length > 0;
+
+const isStringArray = (value) =>
+  Array.isArray(value) && value.length > 0 && value.every((entry) => typeof entry === "string");
+
+const manifestMetadataValidationFailures = (target) => {
+  const packageJson = target.packageJson;
+  const failures = [];
+
+  if (packageJson.private !== true) {
+    failures.push(`${target.label} package.json must keep private: true until the publication decision is explicit.`);
+  }
+  if (packageJson.license !== "UNLICENSED") {
+    failures.push(`${target.label} package.json must keep license: "UNLICENSED" while the workspace is private.`);
+  }
+  if (!isStringArray(packageJson.files)) {
+    failures.push(`${target.label} package.json must declare a non-empty files allowlist.`);
+  }
+
+  if (target.payload === "dist-package") {
+    if (!isNonEmptyString(packageJson.description)) {
+      failures.push(`${target.label} package.json must include a non-empty description for registry and generated-starter surfaces.`);
+    }
+    if (packageJson.sideEffects !== false) {
+      failures.push(`${target.label} package.json must declare sideEffects: false for tree-shakable framework modules.`);
+    }
+    if (packageJson.files?.length !== 1 || packageJson.files[0] !== "dist") {
+      failures.push(`${target.label} package.json files allowlist must be exactly ["dist"] for dist-package payloads.`);
+    }
+    if (!isNonEmptyString(packageJson.main) || !packageJson.main.startsWith("./dist/")) {
+      failures.push(`${target.label} package.json main must point at a ./dist/ entrypoint.`);
+    }
+    if (!isNonEmptyString(packageJson.types) || !packageJson.types.startsWith("./dist/")) {
+      failures.push(`${target.label} package.json types must point at a ./dist/ declaration entrypoint.`);
+    }
+  }
+
+  if (target.payload === "source-package" && target.requiresGitignore) {
+    if (!Array.isArray(packageJson.files) || !packageJson.files.includes(".gitignore")) {
+      failures.push(`${target.label} package.json files allowlist must include .gitignore for copyable source payload hygiene.`);
+    }
+  }
+
+  return failures;
+};
+
+const failSelfTest = (message) => {
+  console.error(message);
+  process.exit(1);
+};
+
+const assertManifestMetadataPolicy = (name, target, expectedFragments) => {
+  const failures = manifestMetadataValidationFailures(target);
+  if (failures.length !== expectedFragments.length) {
+    failSelfTest(
+      `${name} manifest metadata self-test expected ${expectedFragments.length} failures but found ${failures.length}: ${failures.join(" ")}`
+    );
+  }
+  for (const expectedFragment of expectedFragments) {
+    if (!failures.some((failure) => failure.includes(expectedFragment))) {
+      failSelfTest(
+        `${name} manifest metadata self-test did not find expected failure fragment ${expectedFragment}: ${failures.join(" ")}`
+      );
+    }
+  }
+};
+
+const validDistPackageSelfTest = {
+  label: "@effect-ui/self-test",
+  payload: "dist-package",
+  packageJson: {
+    private: true,
+    license: "UNLICENSED",
+    description: "Self-test package.",
+    files: ["dist"],
+    sideEffects: false,
+    main: "./dist/index.js",
+    types: "./dist/index.d.ts",
+  },
+};
+
+assertManifestMetadataPolicy("valid dist package", validDistPackageSelfTest, []);
+assertManifestMetadataPolicy(
+  "dist package missing side effects",
+  {
+    ...validDistPackageSelfTest,
+    packageJson: { ...validDistPackageSelfTest.packageJson, sideEffects: true },
+  },
+  ["sideEffects: false"],
+);
+assertManifestMetadataPolicy(
+  "dist package wrong files",
+  {
+    ...validDistPackageSelfTest,
+    packageJson: { ...validDistPackageSelfTest.packageJson, files: ["dist", "src"] },
+  },
+  ['files allowlist must be exactly ["dist"]'],
+);
+assertManifestMetadataPolicy(
+  "source package missing gitignore",
+  {
+    label: "@effect-ui/source-self-test",
+    payload: "source-package",
+    requiresGitignore: true,
+    packageJson: {
+      private: true,
+      license: "UNLICENSED",
+      files: ["src"],
+    },
+  },
+  [".gitignore"],
+);
+
 const workspacePackageTargets = collectWorkspacePackageManifests(workspaceRoot).pipe(
   Effect.flatMap((manifests) =>
     Effect.gen(function* () {
@@ -197,6 +311,16 @@ const hasForbiddenPath = (target, filePath) => {
 
 const verifyPackageTarget = (target) =>
   Effect.gen(function* () {
+    const manifestMetadataFailures = manifestMetadataValidationFailures(target);
+    if (manifestMetadataFailures.length > 0) {
+      return yield* Effect.fail(
+        fail(
+          `${target.label} package metadata does not match the documented release policy.`,
+          manifestMetadataFailures.join(" "),
+        ),
+      );
+    }
+
     const { stdout } = yield* commandEffect(
       `${target.label} package dry-run`,
       "pnpm",

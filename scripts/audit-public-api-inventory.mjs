@@ -427,7 +427,7 @@ const auditPublicHoverDocs = () => {
   }
 };
 
-const inventoryRows = new Set();
+const inventoryRows = new Map();
 for (const line of inventory.split(/\r?\n/)) {
   const match = line.match(/^\| `([^`]+)` \| `([^`]+)`([^|]*) \| `([^`]+)` \| ([^|]+) \|/);
   if (match === null) {
@@ -435,7 +435,11 @@ for (const line of inventory.split(/\r?\n/)) {
   }
 
   const exportLabel = `${match[2]}${match[3].includes("bin") ? " bin" : ""}`;
-  inventoryRows.add(`${match[1]}\0${exportLabel}`);
+  const key = `${match[1]}\0${exportLabel}`;
+  if (inventoryRows.has(key)) {
+    failures.push(`docs/public-api-inventory.md duplicates Package Export Map row for ${match[1]} ${exportLabel}`);
+  }
+  inventoryRows.set(key, match[4]);
 }
 
 const packageDirectories = readdirSync(packagesDirectory, { withFileTypes: true })
@@ -602,6 +606,9 @@ for (const packageDirectory of packageDirectories) {
     if (!expectedEntrypoints.has(key)) {
       failures.push(`${packageName} export ${exportPath} is missing from type-tests/public-api.manifest.json`);
     }
+    if (inventoryRows.has(key) && expectedEntrypoints.has(key) && inventoryRows.get(key) !== expectedEntrypoints.get(key).source) {
+      failures.push(`${packageName} export ${exportPath} docs Source must match type-tests/public-api.manifest.json source ${expectedEntrypoints.get(key).source}`);
+    }
   }
 
   for (const binName of Object.keys(packageManifest.bin ?? {})) {
@@ -611,6 +618,9 @@ for (const packageDirectory of packageDirectories) {
     }
     if (!expectedBins.has(`${packageName}\0${binName}`)) {
       failures.push(`${packageName} bin ${binName} is missing from type-tests/public-api.manifest.json`);
+    }
+    if (inventoryRows.has(key) && expectedBins.has(`${packageName}\0${binName}`) && inventoryRows.get(key) !== expectedBins.get(`${packageName}\0${binName}`).source) {
+      failures.push(`${packageName} bin ${binName} docs Source must match type-tests/public-api.manifest.json source ${expectedBins.get(`${packageName}\0${binName}`).source}`);
     }
   }
 }

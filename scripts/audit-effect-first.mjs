@@ -151,7 +151,7 @@ const printScopeSummary = () => {
       console.log(`  - ${allowedSeam.file}: ${allowedSeam.name}`);
     }
   }
-  console.log(`- Promise static AST guard: ${promiseStaticMembers.length} members across direct, global, alias, and extraction forms`);
+  console.log(`- Promise constructor/static AST guard: constructor usage plus ${promiseStaticMembers.length} static members across direct, global, alias, and extraction forms`);
 };
 
 const allowed = [
@@ -271,6 +271,7 @@ const promiseStaticForwarderNames = new Set(["call", "apply", "bind"]);
 
 const promiseStaticCallName = (member) => ["Promise", member].join(".");
 const promiseStaticExtractionName = (member) => ["Promise", member, "extraction"].join(".");
+const promiseConstructorName = ["new", "Promise"].join(" ");
 
 const scriptKindForFile = (fileName) =>
   fileName.endsWith(".tsx")
@@ -531,6 +532,9 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
       visitVariableDeclaration(node);
       return;
     }
+    if (ts.isNewExpression(node) && isPromiseConstructorExpression(node.expression)) {
+      addFinding(node.expression, promiseConstructorName);
+    }
     if (isCallExpressionLike(node)) {
       const member = promiseStaticCallMember(node.expression);
       if (member !== undefined) {
@@ -546,7 +550,6 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
 
 const banned = [
   { pattern: new RegExp("\\b" + "async\\b", "g"), name: "async function syntax" },
-  { pattern: new RegExp("new\\s+" + "Promise\\b", "g"), name: ["new", "Promise"].join(" ") },
   { pattern: memberCallPattern("then"), name: "." + "then(...)" },
   {
     pattern: /(?<!\.)\bawait\b/g,
@@ -780,6 +783,11 @@ assertPromiseStaticBans("const race = globalThis.Promise.race; race([]);", ["Pro
 assertPromiseStaticBans("const resolve = window.Promise.resolve; resolve(value);", ["Promise.resolve.extraction"]);
 assertPromiseStaticBans("const promiseTry = Promise.try; promiseTry(() => value);", ["Promise.try.extraction"]);
 assertPromiseStaticBans("const withResolvers = Promise[`withResolvers`]; withResolvers();", ["Promise.withResolvers.extraction"]);
+assertPromiseStaticBans("new Promise(() => undefined);", ["new Promise"]);
+assertPromiseStaticBans("new globalThis.Promise(() => undefined);", ["new Promise"]);
+assertPromiseStaticBans("new (Promise)(() => undefined);", ["new Promise"]);
+assertPromiseStaticBans("const P = Promise; new P(() => undefined);", ["new Promise"]);
+assertPromiseStaticBans("const Promise = class {}; new Promise(() => undefined);", []);
 assertBannedPattern(".then(...)", "client.then<string>(() => undefined);", 1);
 assertBannedPattern(".then(...)", "client[\"then\"](() => undefined);", 1);
 assertBannedPattern(".then(...)", "client[`then`](() => undefined);", 1);

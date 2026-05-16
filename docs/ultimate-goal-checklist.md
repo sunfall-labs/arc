@@ -648,12 +648,13 @@ Last evidence pass: May 16, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 154 ran Start and DB package typechecks,
-    public type tests, public API audit, Effect-first audit over 272 files, DB
-    collection tests 1 file / 113 tests, Start request/app-graph tests 2 files
-    / 169 tests, script syntax checks, malformed manifest target checks,
-    generated starter-suite packaging/verifies, and the 16-target package
-    dry-run gate. Latest full evidence:
+  - Latest focused evidence: Review 155 ran Core/React/Solid/DB/Devtools/Start
+    package typechecks, public type tests, public API audit, Effect-first audit
+    over 272 files, DB collection tests 1 file / 116 tests, Devtools tests 1
+    file / 73 tests, Start start/app-graph tests 2 files / 170 tests,
+    Core/React/Solid hook/router tests 5 files / 76 tests, script syntax
+    checks, `pnpm example:pack-dry-run` across 16 package targets, and
+    `git diff --check`. Latest full evidence:
     `pnpm verify` ran all root package tests after Review 154: 53 test files /
     932 tests.
 - [x] Type tests pass after compile-time API changes.
@@ -809,12 +810,12 @@ Last evidence pass: May 16, 2026.
     dry-run gate, project-console typecheck, 4 project-console test files / 27
     tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 154 records focused Start and DB package typechecks,
-    public type tests, public API audit, Effect-first audit over 272 files, DB
-    collection tests, Start request/app-graph endpoint tests, script syntax
-    checks, malformed manifest target checks, generated starter-suite
-    packaging/verifies, 16-target package dry-run gate, and `git diff --check`.
-    Full verification is recorded in the Review154 full gate above.
+  - Evidence: Review 155 records focused Core/React/Solid/DB/Devtools/Start
+    package typechecks, public type tests, public API audit, Effect-first audit
+    over 272 files, DB/Devtools/Start/Core/React/Solid focused tests, script
+    syntax checks, the 16-target package dry-run metadata/payload gate, and
+    `git diff --check`. Full verification is still recorded in the Review154
+    full gate above until Review155 full verification runs.
 
 ## Remaining Winning-Bar Items
 

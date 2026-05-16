@@ -3,7 +3,7 @@ import { Effect } from "effect";
 import { Window } from "happy-dom";
 import { act, createElement, Fragment, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   RouterLink,
   RouterOutlet,
@@ -211,6 +211,71 @@ describe("react router", () => {
 
       expect(container.textContent).toBe("Project atlas");
     });
+  });
+
+  it("interrupts stale RouterLink hover preloads when the target changes", async () => {
+    const runtime = makeRuntime();
+    const started: string[] = [];
+    const finalized: string[] = [];
+    const Project = route("/hover-target-projects/:id", {
+      preload: ({ params }) =>
+        Effect.sync(() => {
+          started.push((params as { id: string }).id);
+        }).pipe(
+          Effect.andThen(Effect.never),
+          Effect.ensuring(Effect.sync(() => {
+            finalized.push((params as { id: string }).id);
+          }))
+        ),
+      component: ({ params }) => createElement("h1", {}, `Project ${(params as { id: string }).id}`)
+    });
+    const routes = [Project] as const;
+
+    try {
+      await withReactRoot(async (root, container) => {
+        let setProjectId: ((id: string) => void) | undefined;
+        function App() {
+          const [projectId, setProjectIdState] = useState("atlas");
+          setProjectId = setProjectIdState;
+          return createElement(
+            RouterProvider,
+            { routes, initialHref: "/missing", runtime },
+            createElement(RouterLink, {
+              route: Project,
+              options: { params: { id: projectId } },
+              children: projectId
+            })
+          );
+        }
+
+        await act(async () => {
+          root.render(createElement(App));
+        });
+        await flushReact();
+
+        const anchor = () => container.querySelector("a")!;
+        await act(async () => {
+          anchor().dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+        });
+        await flushReact();
+        expect(started).toEqual(["atlas"]);
+
+        await act(async () => {
+          setProjectId?.("curie");
+        });
+        await flushReact();
+        expect(anchor().getAttribute("href")).toBe("/hover-target-projects/curie");
+        await vi.waitFor(() => expect(finalized).toEqual(["atlas"]));
+
+        await act(async () => {
+          anchor().dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+        });
+        await flushReact();
+        expect(started).toEqual(["atlas", "curie"]);
+      });
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
   });
 
   it("preloads shadowed hrefs with the same route match as navigation", async () => {

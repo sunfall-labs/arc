@@ -1074,15 +1074,15 @@ describe("Start app graph", () => {
               })
             ]),
             verify: [
-              "effect-ui-start diagnostics --root examples/project-console",
-              "effect-ui-start graph --root examples/project-console route /projects/:id"
+              "effect-ui-start diagnostics --root=examples/project-console",
+              "effect-ui-start graph --root=examples/project-console route /projects/:id"
             ]
           });
           expect(text).toContain("Impact: route /projects/:id");
           expect(text).toContain("Contracts");
           expect(text).toContain("- preloads: resources Project.byId; collections ProjectRows");
           expect(text).toContain("Depends on");
-          expect(text).toContain("- effect-ui-start diagnostics --root examples/project-console");
+          expect(text).toContain("- effect-ui-start diagnostics --root=examples/project-console");
           expect(text).not.toContain("route:route_projects_$id");
         });
       })
@@ -1227,8 +1227,8 @@ describe("Start app graph", () => {
       { kind: "route", text: "/project spaces/:id" },
       { root: "examples/project console" }
     )).toEqual([
-      "effect-ui-start diagnostics --root 'examples/project console'",
-      "effect-ui-start graph --root 'examples/project console' route '/project spaces/:id'"
+      "effect-ui-start diagnostics --root='examples/project console'",
+      "effect-ui-start graph --root='examples/project console' route '/project spaces/:id'"
     ]);
   });
 

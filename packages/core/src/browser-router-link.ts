@@ -129,6 +129,8 @@ export const browserRouterLinkClickDecision = (
 
 /** Controls hover preloads for router-owned links. */
 export interface BrowserRouterLinkPreloader {
+  /** Binds the current link target and interrupts any stale hover preload when it changes. */
+  bindTarget(targetKey: string): void;
   /** Starts a fresh preload, interrupting any previous hover preload first. */
   preload(): void;
   /** Interrupts the active hover preload, when one is running. */
@@ -164,6 +166,7 @@ export const makeBrowserRouterLinkPreloader = <ER>(
   options: BrowserRouterLinkPreloaderOptions<ER>
 ): BrowserRouterLinkPreloader => {
   let revision = 0;
+  let targetKey: string | undefined;
   let preloadFiber: Fiber.Fiber<void, unknown> | undefined;
 
   const interrupt = (): void => {
@@ -175,6 +178,14 @@ export const makeBrowserRouterLinkPreloader = <ER>(
     void options.runtime.runFork(
       Fiber.interrupt(fiber).pipe(Effect.catch(() => Effect.void))
     );
+  };
+
+  const bindTarget = (nextTargetKey: string): void => {
+    if (targetKey === nextTargetKey) {
+      return;
+    }
+    targetKey = nextTargetKey;
+    interrupt();
   };
 
   const preload = (): void => {
@@ -195,5 +206,5 @@ export const makeBrowserRouterLinkPreloader = <ER>(
     );
   };
 
-  return { interrupt, preload };
+  return { bindTarget, interrupt, preload };
 };

@@ -1,5 +1,5 @@
 import { EffectInputCallbackError, type EffectInput } from "@effect-ui/core";
-import { Clock, Deferred, Effect, Exit, type Schedule } from "effect";
+import { Cause, Clock, Deferred, Effect, Exit, type Schedule } from "effect";
 import type {
   AnyCollection,
   CollectionDefinition,
@@ -28,6 +28,10 @@ import {
   collectionCallbackEffect,
   collectionStateEffect
 } from "./collection-projection-callback-policy.js";
+import {
+  restoreCollectionStateSnapshot,
+  snapshotCollectionState
+} from "./collection-write-commit.js";
 
 /** Options for one Collection Sync Load Policy invocation. */
 export interface CollectionSyncLoadPolicyOptions {
@@ -288,7 +292,28 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
       }
 
       const updatedAt = yield* Clock.currentTimeMillis;
+      const previousState = snapshotCollectionState(state);
+      const previousInitialDataError = state.initialDataError;
       replaceLoadedCollectionRows(state, rows);
+      const persistExit = yield* Effect.exit(persistLoadEffect(definition, store));
+      if (Exit.isFailure(persistExit)) {
+        if (isCurrentLoadAttempt(state, attempt)) {
+          restoreCollectionStateSnapshot(state, previousState);
+          state.initialDataError = previousInitialDataError;
+          yield* failCollectionLoadEffect(
+            store,
+            definition,
+            state,
+            persistExit.cause.reasons.find(Cause.isFailReason)?.error ?? Cause.squash(persistExit.cause)
+          ).pipe(Effect.exit);
+        }
+        return yield* Effect.failCause(persistExit.cause);
+      }
+
+      if (!isCurrentLoadAttempt(state, attempt)) {
+        return;
+      }
+
       state.initialDataError = undefined;
       state.loadState.set({ _tag: "Ready", waiting: false, updatedAt });
       yield* publishStoreEvent(store, {
@@ -297,7 +322,6 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
         count: rows.length,
         updatedAt
       });
-      yield* persistLoadEffect(definition, store);
     }).pipe(
       Effect.exit,
       Effect.flatMap((exit) =>

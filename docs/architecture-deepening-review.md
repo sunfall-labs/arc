@@ -11,9 +11,96 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed review is Review 154, immediately after Review 153. Some
-older review entries remain below it from prior ledger merges; use this tip
-rather than file order alone when looking for the latest architecture sweep.
+The newest focused review is Review 155, immediately after Review 154. The
+latest full `pnpm verify` gate is still Review 154 until the Review155 full gate
+runs. Some older review entries remain below it from prior ledger merges; use
+this tip rather than file order alone when looking for the latest architecture
+sweep.
+
+## Review 155: Runtime Identity, Persistence Commit, And Guardrail Depth
+
+Review155 fixed fresh Core/React/Solid, DB, Start, Devtools, and script/docs
+guardrail findings from the post-Review154 sweeps.
+
+1. Router Link Target Identity And Solid Runtime Inputs
+   - Status: fixed.
+   - Files: `packages/core/src/browser-router-link.ts`,
+     `packages/react/src/link.ts`, `packages/solid/src/link.ts`,
+     `packages/solid/src/runtime.ts`, `packages/solid/src/router.ts`,
+     `packages/core/test/browser-router.test.ts`,
+     `packages/react/test/router.test.ts`,
+     `packages/solid/test/hooks.test.ts`.
+   - Problem: hover preloads were keyed only by the preloader instance, so a
+     link whose target changed could keep stale work alive. Solid providers
+     also captured runtime/router inputs at construction rather than giving the
+     Adapter a keyed remount seam.
+   - Fix: the Core preloader now exposes `bindTarget(...)` and interrupts stale
+     work when the target identity changes. React and Solid links bind their
+     current href into that Interface. Solid runtime/router providers now mount
+     keyed provider instances under a dedicated owner, and Solid links sync href
+     through `createRenderEffect(...)`.
+   - Benefits: hover preload ownership now has target Locality, and Solid keeps
+     runtime/router provider ownership explicit instead of relying on captured
+     construction state.
+
+2. DB Load Persistence Commit Ordering
+   - Status: fixed.
+   - Files: `packages/db/src/collection-sync-load-policy.ts`,
+     `packages/db/test/collection.test.ts`.
+   - Problem: a load with `persistOnLoad` could mark the Collection `Ready`
+     before persistence failed, causing later preload/refetch paths to skip the
+     retry because the visible state looked successful.
+   - Fix: load commits snapshot the previous Collection State, apply loaded
+     rows, persist, and only then publish `CollectionLoaded` and mark `Ready`.
+     Persistence failure restores the previous rows/error state, records
+     `CollectionLoadFailure`, and re-fails with the original persistence cause.
+   - Benefits: the Collection load Module now has atomic commit Locality across
+     memory and persistence Adapters, so failed durable writes remain retryable.
+
+3. Start And Script Guardrail False Negatives
+   - Status: fixed.
+   - Files: `packages/start/src/start-diagnostics-cli-contract.ts`,
+     `packages/start/test/start.test.ts`, `packages/start/test/app-graph.test.ts`,
+     `scripts/audit-effect-first.mjs`,
+     `scripts/audit-public-api-inventory.mjs`,
+     `scripts/verify-package-dry-runs.mjs`.
+   - Problem: impact verify commands still rendered valued load flags as
+     split argv tokens, the Effect-first audit missed Promise constructor
+     aliases, package release metadata was documented but not enforced, and the
+     public API inventory did not compare Source cells against the manifest.
+   - Fix: Start renders load flags as `--flag=value`. The Effect-first audit
+     catches `new Promise` through direct, global, parenthesized, and aliased
+     constructor forms. Package dry-runs now enforce private/license/files plus
+     framework description, `sideEffects: false`, and `./dist/*` entrypoints.
+     Public API inventory checks now reject Source-column drift.
+   - Benefits: CLI repair commands stay argv-safe, and release/API guardrails
+     now fail at the Interface where the drift is introduced.
+
+4. Devtools Cleanup And Redaction Ownership
+   - Status: fixed.
+   - Files: `packages/devtools/src/bridge.ts`,
+     `packages/devtools/src/devtools-contract.ts`,
+     `packages/devtools/src/index.ts`,
+     `packages/devtools/src/serialization.ts`,
+     `packages/devtools/test/devtools.test.ts`.
+   - Problem: bridge cleanup was not stack-safe for nested/out-of-order
+     installs, request-trace redaction depended on upstream callers rather than
+     the Devtools Serialization Contract, and panel lifecycle listeners could
+     remain after manual cleanup.
+   - Fix: bridge installs keep per-target stack state, trace header/cookie
+     redaction moved into serialization copy paths, and panel boot cleanup
+     removes lifecycle listeners from manual interrupts, lifecycle events, and
+     fiber finalization.
+   - Benefits: Devtools now owns its cleanup and sensitive trace serialization
+     seams, reducing caller coupling and leak risk.
+
+Focused verification passed: Core/React/Solid/DB/Devtools/Start package
+typechecks, public type tests, public API audit, Effect-first audit over 272
+files, package dry-run metadata/payload gate across 16 targets, DB collection
+tests 1 file / 116 tests, Devtools tests 1 file / 73 tests, Start
+start/app-graph tests 2 files / 170 tests, Core/React/Solid hook/router tests
+5 files / 76 tests, script syntax checks, and `git diff --check`. Full
+`pnpm verify` is pending for Review155; the latest full gate remains Review154.
 
 ## Review 154: Interruption Liveness And Guardrail Closure
 

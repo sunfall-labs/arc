@@ -454,6 +454,10 @@ interruption.
 - Review 154 focused verification kept `pnpm audit:effect-first` green over 272
   files after unwrapping `as`, `satisfies`, and type assertion expressions so
   typed literal Promise static element access is audited.
+- Review 155 focused verification kept `pnpm audit:effect-first` green over 272
+  files after moving `new Promise` detection into the TypeScript AST guard so
+  direct, global, parenthesized, and aliased Promise constructor forms are
+  rejected.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.

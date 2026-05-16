@@ -9,7 +9,7 @@ import {
   type UiScope
 } from "@effect-ui/core";
 import { Effect, Layer, ManagedRuntime } from "effect";
-import { createContext, onCleanup, useContext, type JSX } from "solid-js";
+import { createContext, createMemo, createRenderEffect, createRoot, createSignal, onCleanup, useContext, type JSX } from "solid-js";
 import { createComponent } from "solid-js/web";
 
 export const RuntimeContext = createContext<AnyEffectUiRuntime<never>>();
@@ -41,6 +41,11 @@ export type RuntimeProviderProps<RuntimeServices = never, ER = never> =
   | RuntimeProviderSourceProps<RuntimeServices, ER>
   | RuntimeProviderDefaultProps;
 
+interface RuntimeProviderEntry<ER> {
+  readonly runtime: AnyEffectUiRuntime<ER>;
+  readonly ownsRuntime: boolean;
+}
+
 /** Creates an Effect UI runtime for Solid applications. */
 export const createEffectRuntime = makeRuntime;
 
@@ -57,19 +62,58 @@ export const useRuntime = <ER = never>(): AnyEffectUiRuntime<ER> =>
 export const RuntimeProvider = <RuntimeServices = never, ER = never>(
   props: RuntimeProviderProps<RuntimeServices, ER>
 ): JSX.Element => {
-  const source = props.source;
-  const ownsRuntime = props.runtime === undefined;
-  const runtime = props.runtime ?? makeRuntime(source);
-  if (ownsRuntime) {
+  const entry = createMemo<RuntimeProviderEntry<ER>>(() => ({
+    runtime: (props.runtime ?? makeRuntime(props.source)) as AnyEffectUiRuntime<ER>,
+    ownsRuntime: props.runtime === undefined
+  }));
+  const [view, setView] = createSignal<JSX.Element>();
+  let disposeEntry: (() => void) | undefined;
+
+  const mountEntry = (current: RuntimeProviderEntry<ER>): void => {
+    disposeEntry?.();
+    createRoot((dispose) => {
+      disposeEntry = dispose;
+      const next = createComponent(RuntimeProviderInstance, {
+        entry: current,
+        get children() {
+          return props.children;
+        }
+      });
+      setView(() => next);
+    });
+  };
+
+  let mountedEntry = entry();
+  mountEntry(mountedEntry);
+  createRenderEffect(() => {
+    const current = entry();
+    if (current === mountedEntry) {
+      return;
+    }
+    mountedEntry = current;
+    mountEntry(current);
+  });
+  onCleanup(() => disposeEntry?.());
+
+  return view as unknown as JSX.Element;
+};
+
+const RuntimeProviderInstance = <ER>(
+  props: {
+    readonly entry: RuntimeProviderEntry<ER>;
+    readonly children?: JSX.Element;
+  }
+): JSX.Element => {
+  if (props.entry.ownsRuntime) {
     onCleanup(() => {
-      void Effect.runFork(runtime.disposeEffect.pipe(Effect.catch(() => Effect.void)));
+      void Effect.runFork(props.entry.runtime.disposeEffect.pipe(Effect.catch(() => Effect.void)));
     });
   }
 
   return createComponent(RuntimeContext.Provider, {
-    value: runtime as unknown as AnyEffectUiRuntime<never>,
+    value: props.entry.runtime as unknown as AnyEffectUiRuntime<never>,
     get children() {
-      return runWithRuntime(runtime as unknown as AnyEffectUiRuntime<ER>, () => props.children);
+      return runWithRuntime(props.entry.runtime, () => props.children);
     }
   });
 };

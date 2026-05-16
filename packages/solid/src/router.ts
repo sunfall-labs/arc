@@ -15,7 +15,9 @@ import {
 import { Data, Effect } from "effect";
 import {
   createContext,
-  createEffect,
+  createMemo,
+  createRenderEffect,
+  createRoot,
   createSignal,
   onCleanup,
   sharedConfig,
@@ -143,6 +145,17 @@ export type RouterProviderProps<
   readonly children?: JSX.Element;
 };
 
+interface RouterProviderEntry<
+  Routes extends readonly AnyRoute[],
+  ER
+> {
+  readonly routes: Routes;
+  readonly runtime: AnyEffectUiRuntime<ER>;
+  readonly routerRuntime: EffectUiRuntime<Route.PreloadRequirements<Routes[number]>, ER>;
+  readonly history?: BrowserHistoryAdapter;
+  readonly initialHref?: string;
+}
+
 /**
  * Render fallbacks for route pending, failure, and not-found states.
  *
@@ -266,7 +279,7 @@ export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
     setNode
   });
 
-  createEffect(() => {
+  createRenderEffect(() => {
     routeRenderScope.update(router.state());
   });
 
@@ -292,25 +305,75 @@ export const RouterProvider = <
 >(
   props: RouterProviderProps<Routes, ER, Runtime>
 ): JSX.Element => {
-  const runtime = ("runtime" in props && props.runtime !== undefined
-    ? props.runtime
-    : useRuntime()) as AnyEffectUiRuntime<ER>;
-  const routerRuntime = runtime as unknown as EffectUiRuntime<Route.PreloadRequirements<Routes[number]>, ER>;
-  const router = createBrowserRouter<Routes, ER>(
-    props.routes,
-    {
-      runtime: routerRuntime,
+  const contextRuntime = useRuntime<ER>();
+  const entry = createMemo<RouterProviderEntry<Routes, ER>>(() => {
+    const runtime = ("runtime" in props && props.runtime !== undefined
+      ? props.runtime
+      : contextRuntime) as AnyEffectUiRuntime<ER>;
+    return {
+      routes: props.routes,
+      runtime,
+      routerRuntime: runtime as unknown as EffectUiRuntime<Route.PreloadRequirements<Routes[number]>, ER>,
       ...(props.history === undefined ? {} : { history: props.history }),
       ...(props.initialHref === undefined ? {} : { initialHref: props.initialHref })
+    };
+  });
+  const [view, setView] = createSignal<JSX.Element>();
+  let disposeEntry: (() => void) | undefined;
+
+  const mountEntry = (current: RouterProviderEntry<Routes, ER>): void => {
+    disposeEntry?.();
+    createRoot((dispose) => {
+      disposeEntry = dispose;
+      const next = createComponent(RouterProviderInstance, {
+        entry: current,
+        props
+      });
+      setView(() => next);
+    });
+  };
+
+  let mountedEntry = entry();
+  mountEntry(mountedEntry);
+  createRenderEffect(() => {
+    const current = entry();
+    if (current === mountedEntry) {
+      return;
+    }
+    mountedEntry = current;
+    mountEntry(current);
+  });
+  onCleanup(() => disposeEntry?.());
+
+  return view as unknown as JSX.Element;
+};
+
+const RouterProviderInstance = <
+  const Routes extends readonly AnyRoute[],
+  ER = never,
+  Runtime extends EffectUiRuntime<any, ER> = EffectUiRuntime<Route.PreloadRequirements<Routes[number]>, ER>
+>(
+  instanceProps: {
+    readonly entry: RouterProviderEntry<Routes, ER>;
+    readonly props: RouterProviderProps<Routes, ER, Runtime>;
+  }
+): JSX.Element => {
+  const { entry, props } = instanceProps;
+  const router = createBrowserRouter<Routes, ER>(
+    entry.routes,
+    {
+      runtime: entry.routerRuntime,
+      ...(entry.history === undefined ? {} : { history: entry.history }),
+      ...(entry.initialHref === undefined ? {} : { initialHref: entry.initialHref })
     }
   );
   return createComponent(RuntimeContext.Provider, {
-    value: runtime as AnyEffectUiRuntime<never>,
+    value: entry.runtime as AnyEffectUiRuntime<never>,
     get children() {
       return createComponent(RouterContext.Provider, {
         value: router as unknown as BrowserRouter<readonly AnyRoute[], unknown>,
         get children() {
-          return runWithRuntime(runtime, () =>
+          return runWithRuntime(entry.runtime, () =>
             props.children ??
             createComponent(
               RouterOutlet as (props: RouterOutletProps<Routes, ER>) => JSX.Element,

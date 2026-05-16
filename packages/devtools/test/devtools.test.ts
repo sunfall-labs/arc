@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { Action, makeRuntime, Program, read as readSignal, Resource, route, Route, Signal, type ActionState } from "@effect-ui/core";
 import { Collection } from "@effect-ui/db";
 import {
+  bootDevtoolsPanels,
   DevtoolsActionInvalidationPlanConflict,
   DevtoolsUnknownInvalidationTarget,
   devtoolsPanelIds,
@@ -1153,6 +1154,42 @@ describe("devtools invalidation plans", () => {
     });
   });
 
+  it("keeps inspected-window devtools bridge cleanup stack-safe", () => {
+    const target: DevtoolsBridgeTarget = {};
+    const panels = describeDevtoolsPanels();
+    const previous = () => ({
+      panels,
+      title: "Previous"
+    });
+    const firstProvider = { panels, title: "First" };
+    const secondProvider = { panels, title: "Second" };
+    const thirdProvider = { panels, title: "Third" };
+    target[effectUiDevtoolsBridgeGlobal] = previous;
+
+    const first = installDevtoolsBridge(firstProvider, target);
+    const second = installDevtoolsBridge(secondProvider, target);
+    const third = installDevtoolsBridge(thirdProvider, target);
+
+    expect(target[effectUiDevtoolsBridgeGlobal]).toBe(thirdProvider);
+    second.uninstall();
+    expect(target[effectUiDevtoolsBridgeGlobal]).toBe(thirdProvider);
+    first.uninstall();
+    expect(target[effectUiDevtoolsBridgeGlobal]).toBe(thirdProvider);
+    third.uninstall();
+    expect(target[effectUiDevtoolsBridgeGlobal]).toBe(previous);
+    second.uninstall();
+    expect(target[effectUiDevtoolsBridgeGlobal]).toBe(previous);
+
+    const noBaselineTarget: DevtoolsBridgeTarget = {};
+    const noBaselineFirst = installDevtoolsBridge(firstProvider, noBaselineTarget);
+    const noBaselineSecond = installDevtoolsBridge(secondProvider, noBaselineTarget);
+
+    noBaselineFirst.uninstall();
+    expect(noBaselineTarget[effectUiDevtoolsBridgeGlobal]).toBe(secondProvider);
+    noBaselineSecond.uninstall();
+    expect(noBaselineTarget[effectUiDevtoolsBridgeGlobal]).toBeUndefined();
+  });
+
   it("normalizes inspected-window panel payloads through the shared panel contract", () => {
     const panels = describeDevtoolsPanels();
 
@@ -1530,6 +1567,42 @@ describe("devtools invalidation plans", () => {
     expect(root.innerHTML).toContain("Panel contract error");
     expect(root.innerHTML).toContain("Missing required panel");
     mount.unmount();
+  });
+
+  it("releases devtools panel lifecycle listeners on manual boot interrupt", async () => {
+    type LifecycleType = "pagehide" | "beforeunload";
+    const listeners = new Map<LifecycleType, Set<() => void>>([
+      ["pagehide", new Set()],
+      ["beforeunload", new Set()]
+    ]);
+    const lifecycleWindow = {
+      addEventListener: (type: LifecycleType, listener: () => void) => {
+        listeners.get(type)?.add(listener);
+      },
+      removeEventListener: (type: LifecycleType, listener: () => void) => {
+        listeners.get(type)?.delete(listener);
+      }
+    };
+    const root = {
+      innerHTML: "",
+      addEventListener: () => undefined,
+      removeEventListener: () => undefined,
+      contains: () => true
+    } as unknown as HTMLElement;
+    const boot = bootDevtoolsPanels({
+      root,
+      includeStyles: false,
+      lifecycleWindow: lifecycleWindow as unknown as Window
+    });
+
+    expect(listeners.get("pagehide")?.size).toBe(1);
+    expect(listeners.get("beforeunload")?.size).toBe(1);
+
+    boot.interrupt();
+
+    expect(listeners.get("pagehide")?.size).toBe(0);
+    expect(listeners.get("beforeunload")?.size).toBe(0);
+    await Effect.runPromise(boot.interruptEffect);
   });
 
   it("keeps public devtools Effect wrappers lazy until execution", async () => {
@@ -3060,6 +3133,95 @@ describe("devtools invalidation plans", () => {
     });
   });
 
+  it("redacts sensitive request trace headers and cookies before storage and projection", () => {
+    const store = makeDevtoolsStore();
+    const trace: DevtoolsRequestTrace = {
+      request: {
+        id: "req-sensitive",
+        method: "POST",
+        url: "https://example.test/projects/secret",
+        path: "/projects/secret",
+        transport: "rpc",
+        headers: [
+          { name: "accept", value: "application/json" },
+          { name: "authorization", value: "Bearer raw-secret" },
+          { name: "cookie", value: "sid=raw-cookie; theme=dark" },
+          { name: "x-api-key", value: "raw-api-key" }
+        ],
+        cookies: [
+          { name: "theme", value: "dark" },
+          { name: "session", value: "raw-session" },
+          { name: "csrfToken", value: "raw-csrf" }
+        ]
+      },
+      response: {
+        status: 200,
+        headers: [
+          { name: "content-type", value: "application/json" },
+          { name: "set-cookie", value: "sid=raw-set-cookie; Path=/" },
+          { name: "x-api-key", value: "raw-response-key" }
+        ]
+      },
+      services: [],
+      resources: [],
+      collections: [],
+      serverFunctions: [],
+      actions: [],
+      fibers: [],
+      streams: [],
+      status: "success"
+    };
+
+    store.recordRequestTrace(trace);
+
+    const snapshot = store.getSnapshot();
+    const storedTrace = snapshot.requestTraces?.[0];
+    expect(storedTrace?.request.headers).toEqual(expect.arrayContaining([
+      { name: "accept", value: "application/json" },
+      { name: "[redacted]", value: "[redacted]" }
+    ]));
+    expect(storedTrace?.request.headers?.filter((header) => header.name === "[redacted]"))
+      .toHaveLength(3);
+    expect(storedTrace?.response?.headers).toEqual(expect.arrayContaining([
+      { name: "content-type", value: "application/json" },
+      { name: "[redacted]", value: "[redacted]" }
+    ]));
+    expect(storedTrace?.response?.headers?.filter((header) => header.name === "[redacted]"))
+      .toHaveLength(2);
+    expect(storedTrace?.request.cookies).toEqual(expect.arrayContaining([
+      { name: "theme", value: "[redacted]" },
+      { name: "[redacted]", value: "[redacted]" }
+    ]));
+    expect(storedTrace?.request.cookies?.every((cookie) => cookie.value === "[redacted]"))
+      .toBe(true);
+    expect(storedTrace?.request.cookies?.filter((cookie) => cookie.name === "[redacted]"))
+      .toHaveLength(2);
+
+    const projections = [
+      snapshot,
+      store.getSummary(),
+      store.getPanels(),
+      store.getCausalGraph()
+    ];
+    for (const projection of projections) {
+      const projected = JSON.stringify(projection).toLowerCase();
+      for (const raw of [
+        "authorization",
+        "bearer raw-secret",
+        "sid=raw-cookie",
+        "x-api-key",
+        "raw-api-key",
+        "set-cookie",
+        "raw-set-cookie",
+        "raw-response-key",
+        "raw-session",
+        "raw-csrf"
+      ]) {
+        expect(projected).not.toContain(raw);
+      }
+    }
+  });
+
   it("records structured request traces and links them into the causal graph", async () => {
     const store = makeDevtoolsStore();
     const trace: DevtoolsRequestTrace = {
@@ -3075,7 +3237,7 @@ describe("devtools invalidation plans", () => {
           { name: "x-effect-ui-request-id", value: "req-project-atlas" }
         ],
         cookies: [
-          { name: "session", value: "redacted" }
+          { name: "[redacted]", value: "[redacted]" }
         ]
       },
       response: {

@@ -43,10 +43,11 @@ copied as starters and whether browser/server boundaries remain explicit.
   files and include them in their package allowlists, keeping copied shells
   source-only while excluding `node_modules`, `dist`, `.test-dist`, build info,
   and local metadata.
-- Starter packaging compares generated route artifact contents after standalone
-  verify, currently `src/routeTree.gen.ts`, so copied starters cannot be
-  silently repaired by the Start Vite adapter while the source starter artifact
-  remains stale.
+- Starter packaging compares generated route/virtual artifact contents after
+  standalone verify, currently `src/routeTree.gen.ts` and
+  `src/effect-ui-start-virtual.d.ts`, so copied starters cannot be silently
+  repaired by the Start Vite adapter while the source starter artifacts remain
+  stale.
 - `pnpm example:pack-dry-run` runs an Effect-backed dry-run gate for the basic
   starter, React starter, project-console example, devtools panel, and devtools
   extension. The basic, React, and generated project-console starters are the

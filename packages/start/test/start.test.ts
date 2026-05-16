@@ -6438,6 +6438,24 @@ describe("Effect UI Start", () => {
     });
     expect(
       parseStartDiagnosticsCliArgs([
+        "diagnostics",
+        "--root=-app",
+        "--config=-vite.config.ts",
+        "--mode=-ci",
+        "--json"
+      ])
+    ).toEqual({
+      _tag: "Diagnostics",
+      options: {
+        root: "-app",
+        configFile: "-vite.config.ts",
+        mode: "-ci",
+        json: true,
+        pretty: false
+      }
+    });
+    expect(
+      parseStartDiagnosticsCliArgs([
         "graph",
         "route",
         "/projects/:id",
@@ -6933,8 +6951,8 @@ describe("Effect UI Start", () => {
       expect(impactPayload.query?.kind).toBe(kind);
       expect(impactPayload.matches).toBeGreaterThan(0);
       expect(impactPayload.items?.[0]?.verify).toEqual([
-        "effect-ui-start diagnostics --root examples/project-console --config vite.config.ts --mode ci",
-        `effect-ui-start graph --root examples/project-console --config vite.config.ts --mode ci ${kind} ${startAgentGraphCliQueryTextByKind[kind]}`
+        "effect-ui-start diagnostics --root=examples/project-console --config=vite.config.ts --mode=ci",
+        `effect-ui-start graph --root=examples/project-console --config=vite.config.ts --mode=ci ${kind} ${startAgentGraphCliQueryTextByKind[kind]}`
       ]);
     }
   });
@@ -7035,8 +7053,8 @@ describe("Effect UI Start", () => {
       }
     ]);
     expect(payload.items?.[0]?.verify).toEqual([
-      "effect-ui-start diagnostics --root 'examples/project console' --config 'vite config.ts' --mode 'ci mode'",
-      "effect-ui-start graph --root 'examples/project console' --config 'vite config.ts' --mode 'ci mode' route '/project spaces/:id'"
+      "effect-ui-start diagnostics --root='examples/project console' --config='vite config.ts' --mode='ci mode'",
+      "effect-ui-start graph --root='examples/project console' --config='vite config.ts' --mode='ci mode' route '/project spaces/:id'"
     ]);
   });
 
@@ -7045,8 +7063,22 @@ describe("Effect UI Start", () => {
       { kind: "route", text: "--root" },
       { root: "examples/project-console" }
     )).toEqual([
-      "effect-ui-start diagnostics --root examples/project-console",
-      "effect-ui-start graph --root examples/project-console -- route --root"
+      "effect-ui-start diagnostics --root=examples/project-console",
+      "effect-ui-start graph --root=examples/project-console -- route --root"
+    ]);
+  });
+
+  it("protects impact verify command load options that look like CLI flags", () => {
+    expect(startDiagnosticsCliVerifyCommandsForQuery(
+      { kind: "route", text: "/projects/:id" },
+      {
+        root: "-app",
+        configFile: "-vite.config.ts",
+        mode: "-ci"
+      }
+    )).toEqual([
+      "effect-ui-start diagnostics --root=-app --config=-vite.config.ts --mode=-ci",
+      "effect-ui-start graph --root=-app --config=-vite.config.ts --mode=-ci route /projects/:id"
     ]);
   });
 
@@ -7129,8 +7161,8 @@ describe("Effect UI Start", () => {
     expect(text).toContain("Contracts");
     expect(text).toContain("- preloads: resources Project.byId; collections ProjectRows");
     expect(text).toContain("Depends on");
-    expect(text).toContain("- effect-ui-start diagnostics --root examples/project-console");
-    expect(text).toContain("- effect-ui-start graph --root examples/project-console route /projects/:id");
+    expect(text).toContain("- effect-ui-start diagnostics --root=examples/project-console");
+    expect(text).toContain("- effect-ui-start graph --root=examples/project-console route /projects/:id");
     expect(text).not.toContain("route:route_projects_$id");
   });
 

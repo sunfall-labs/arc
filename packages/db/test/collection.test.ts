@@ -1614,6 +1614,278 @@ describe("Collection", () => {
     );
   });
 
+  it("rolls back preload rows and lets later preload retry when persistOnLoad fails", () => {
+    const runtime = makeRuntime();
+    const key = "projects-preload-persist-failure-cache";
+    const persisted = new Map<string, string>();
+    let writes = 0;
+    let loads = 0;
+    const storage: Collection.PersistenceStorage<"disk-full"> = {
+      getItem: (storageKey) => persisted.get(storageKey) ?? null,
+      setItem: (storageKey, value) =>
+        writes++ === 0
+          ? Effect.fail("disk-full" as const)
+          : Effect.sync(() => {
+              persisted.set(storageKey, value);
+            })
+    };
+    const Projects = Collection.define<Project, string, "disk-full">({
+      name: "Projects.preload-persist-failure",
+      getKey: (project) => project.id,
+      load: () =>
+        Effect.sync(() => {
+          loads++;
+          return [
+            { id: "atlas", name: `Loaded ${loads}`, status: "blocked", progress: 90 + loads }
+          ] satisfies ReadonlyArray<Project>;
+        }),
+      persistence: {
+        storage,
+        key,
+        persistOnLoad: true
+      }
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* runtime.provide(
+          Effect.scoped(
+            Effect.gen(function* () {
+              const subscription = yield* Collection.subscribeEventsEffect();
+              const failure = yield* Effect.flip(Projects.preloadEffect());
+              const failureEvent = yield* PubSub.take(subscription);
+              const nextEvent = yield* PubSub.take(subscription).pipe(
+                Effect.timeoutOption("20 millis")
+              );
+
+              expect(failure).toBe("disk-full");
+              expect(failureEvent).toMatchObject({
+                _tag: "CollectionLoadFailure",
+                collection: "Projects.preload-persist-failure",
+                error: "disk-full"
+              });
+              expect(Option.isNone(nextEvent)).toBe(true);
+            })
+          )
+        );
+
+        expect(loads).toBe(1);
+        expect(writes).toBe(1);
+        expect(runWithRuntime(runtime, () => Projects.rows())).toEqual([]);
+        expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
+          _tag: "Failure",
+          error: "disk-full"
+        });
+
+        yield* runtime.provide(Projects.preloadEffect());
+
+        const snapshot = JSON.parse(persisted.get(key) ?? "{}") as Collection.Snapshot<Project, string>;
+        expect(loads).toBe(2);
+        expect(writes).toBe(2);
+        expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
+          name: "Loaded 2",
+          progress: 92
+        });
+        expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
+          _tag: "Ready"
+        });
+        expect(snapshot.rows.map((row) => row.value.name)).toEqual(["Loaded 2"]);
+      }).pipe(
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
+  it("rolls back forced refetch rows and lets later refetch retry when persistOnLoad fails", () => {
+    const runtime = makeRuntime();
+    const key = "projects-refetch-persist-failure-cache";
+    const persisted = new Map<string, string>();
+    let writes = 0;
+    let refetches = 0;
+    const storage: Collection.PersistenceStorage<"disk-full"> = {
+      getItem: (storageKey) => persisted.get(storageKey) ?? null,
+      setItem: (storageKey, value) =>
+        writes++ === 0
+          ? Effect.fail("disk-full" as const)
+          : Effect.sync(() => {
+              persisted.set(storageKey, value);
+            })
+    };
+    const Projects = Collection.define<Project, string, "disk-full">({
+      name: "Projects.refetch-persist-failure",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Initial", status: "active", progress: 1 }
+      ],
+      refetch: () =>
+        Effect.sync(() => {
+          refetches++;
+          return [
+            { id: "atlas", name: `Refetched ${refetches}`, status: "blocked", progress: 80 + refetches }
+          ] satisfies ReadonlyArray<Project>;
+        }),
+      persistence: {
+        storage,
+        key,
+        persistOnLoad: true
+      }
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* runtime.provide(
+          Effect.scoped(
+            Effect.gen(function* () {
+              const subscription = yield* Collection.subscribeEventsEffect();
+              const failure = yield* Effect.flip(Projects.refetchEffect());
+              const failureEvent = yield* PubSub.take(subscription);
+              const nextEvent = yield* PubSub.take(subscription).pipe(
+                Effect.timeoutOption("20 millis")
+              );
+
+              expect(failure).toBe("disk-full");
+              expect(failureEvent).toMatchObject({
+                _tag: "CollectionLoadFailure",
+                collection: "Projects.refetch-persist-failure",
+                error: "disk-full"
+              });
+              expect(Option.isNone(nextEvent)).toBe(true);
+            })
+          )
+        );
+
+        expect(refetches).toBe(1);
+        expect(writes).toBe(1);
+        expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.name))).toEqual(["Initial"]);
+        expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
+          _tag: "Failure",
+          error: "disk-full"
+        });
+
+        yield* runtime.provide(Projects.refetchEffect());
+
+        const snapshot = JSON.parse(persisted.get(key) ?? "{}") as Collection.Snapshot<Project, string>;
+        expect(refetches).toBe(2);
+        expect(writes).toBe(2);
+        expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
+          name: "Refetched 2",
+          progress: 82
+        });
+        expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
+          _tag: "Ready"
+        });
+        expect(snapshot.rows.map((row) => row.value.name)).toEqual(["Refetched 2"]);
+      }).pipe(
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
+  it("retries persistedOptions loadAfterRestore after persistOnLoad fails", () => {
+    const runtime = makeRuntime();
+    const key = "projects-persisted-options-load-after-restore-failure-cache";
+    const persisted = new Map<string, string>([[
+      key,
+      JSON.stringify({
+        name: "Projects.persisted-options-load-after-restore-failure",
+        rows: [
+          {
+            key: "atlas",
+            value: { id: "atlas", name: "Restored", status: "active", progress: 10 },
+            synced: true,
+            origin: "remote"
+          }
+        ],
+        pendingMutations: [],
+        updatedAt: 1
+      })
+    ]]);
+    let writes = 0;
+    let loads = 0;
+    const storage: Collection.PersistenceStorage<"disk-full"> = {
+      getItem: (storageKey) => persisted.get(storageKey) ?? null,
+      setItem: (storageKey, value) =>
+        writes++ === 0
+          ? Effect.fail("disk-full" as const)
+          : Effect.sync(() => {
+              persisted.set(storageKey, value);
+            })
+    };
+    const Projects = Collection.define(
+      Collection.persistedOptions<Project, string, never, never, "disk-full">({
+        name: "Projects.persisted-options-load-after-restore-failure",
+        getKey: (project) => project.id,
+        load: () =>
+          Effect.sync(() => {
+            loads++;
+            return [
+              { id: "atlas", name: `Loaded ${loads}`, status: "blocked", progress: 50 + loads }
+            ] satisfies ReadonlyArray<Project>;
+          }),
+        persistence: {
+          storage,
+          key,
+          restoreOnPreload: true,
+          loadAfterRestore: true,
+          persistOnLoad: true
+        }
+      })
+    );
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* runtime.provide(
+          Effect.scoped(
+            Effect.gen(function* () {
+              const subscription = yield* Collection.subscribeEventsEffect();
+              const failure = yield* Effect.flip(Projects.preloadEffect());
+              const events = [
+                yield* PubSub.take(subscription),
+                yield* PubSub.take(subscription),
+                yield* PubSub.take(subscription)
+              ];
+              const nextEvent = yield* PubSub.take(subscription).pipe(
+                Effect.timeoutOption("20 millis")
+              );
+
+              expect(failure).toBe("disk-full");
+              expect(events.map((event) => event._tag)).toEqual([
+                "CollectionHydrated",
+                "CollectionRestored",
+                "CollectionLoadFailure"
+              ]);
+              expect(Option.isNone(nextEvent)).toBe(true);
+            })
+          )
+        );
+
+        expect(loads).toBe(1);
+        expect(writes).toBe(1);
+        expect(runWithRuntime(runtime, () => Projects.rows().map((project) => project.name))).toEqual(["Restored"]);
+        expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
+          _tag: "Failure",
+          error: "disk-full"
+        });
+
+        yield* runtime.provide(Projects.preloadEffect());
+
+        const snapshot = JSON.parse(persisted.get(key) ?? "{}") as Collection.Snapshot<Project, string>;
+        expect(loads).toBe(2);
+        expect(writes).toBe(2);
+        expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
+          name: "Loaded 2",
+          progress: 52
+        });
+        expect(runWithRuntime(runtime, () => Projects.state().get())).toMatchObject({
+          _tag: "Ready"
+        });
+        expect(snapshot.rows.map((row) => row.value.name)).toEqual(["Loaded 2"]);
+      }).pipe(
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
   it("does not mark missing preload storage as restored", () => {
     const runtime = makeRuntime();
     const key = "projects-missing-restore-cache";

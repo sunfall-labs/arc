@@ -2,7 +2,7 @@ import { Action, makeRuntime, onDispose, Program, Resource, ResourceFailure, Res
 import { Context, Deferred, Effect, Fiber, Layer, Stream } from "effect";
 import { createRoot, createSignal } from "solid-js";
 import { createComponent } from "solid-js/web";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createComponentScope, RuntimeProvider, useAction, useProgram, useResource, useResourceSuspense, useRuntime, useRuntimeEffect, useSignal, useStream } from "../src/index.js";
 
 interface Project {

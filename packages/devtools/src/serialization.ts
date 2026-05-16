@@ -133,6 +133,8 @@ const redactedMarker = (): DevtoolsSerializableValue => ({
   _tag: "Redacted"
 });
 
+const redactedTraceText = "[redacted]";
+
 const keySegments = (key: string): ReadonlyArray<string> =>
   key
     .replace(/([a-z0-9])([A-Z])/g, "$1-$2")
@@ -149,6 +151,9 @@ const defaultRedactedKey = (key: string): boolean => {
     segment === "pwd" ||
     segment === "secret" ||
     segment === "token" ||
+    segment === "authorization" ||
+    segment === "auth" ||
+    segment === "cookie" ||
     segment === "credential" ||
     segment === "credentials"
   ) ||
@@ -156,7 +161,9 @@ const defaultRedactedKey = (key: string): boolean => {
     normalized === "cookie" ||
     normalized === "set-cookie" ||
     normalized === "api-key" ||
-    normalized === "apikey";
+    normalized === "apikey" ||
+    normalized.endsWith("-api-key") ||
+    (segments.includes("api") && segments.includes("key"));
 };
 
 const regexRedactsKey = (matcher: RegExp, key: string): boolean => {
@@ -984,18 +991,57 @@ export const copyInvalidationPlan = (
 };
 
 const copyTraceHeaders = (
-  headers: ReadonlyArray<DevtoolsRequestTraceHeader> | undefined
+  headers: ReadonlyArray<DevtoolsRequestTraceHeader> | undefined,
+  policy: NormalizedDevtoolsSerializationPolicy
 ): ReadonlyArray<DevtoolsRequestTraceHeader> | undefined =>
   headers === undefined
     ? undefined
-    : headers.map((header) => ({ ...header })).sort((left, right) => left.name.localeCompare(right.name));
+    : headers
+        .map((header) =>
+          shouldRedactKey(header.name, policy)
+            ? {
+                name: redactedTraceText,
+                value: redactedTraceText
+              }
+            : { ...header }
+        )
+        .sort((left, right) => left.name.localeCompare(right.name));
+
+const defaultRedactedCookieName = (name: string): boolean => {
+  const segments = keySegments(name);
+  return defaultRedactedKey(name) ||
+    segments.some((segment) =>
+      segment === "session" ||
+      segment === "sid" ||
+      segment === "csrf" ||
+      segment === "xsrf" ||
+      segment === "jwt"
+    );
+};
+
+const shouldRedactCookieName = (
+  name: string,
+  policy: NormalizedDevtoolsSerializationPolicy
+): boolean =>
+  defaultRedactedCookieName(name) ||
+  policy.redactKeys.some((matcher) =>
+    typeof matcher === "string"
+      ? name.toLowerCase() === matcher.toLowerCase()
+      : regexRedactsKey(matcher, name)
+  );
 
 const copyTraceCookies = (
-  cookies: ReadonlyArray<DevtoolsRequestTraceCookie> | undefined
+  cookies: ReadonlyArray<DevtoolsRequestTraceCookie> | undefined,
+  policy: NormalizedDevtoolsSerializationPolicy
 ): ReadonlyArray<DevtoolsRequestTraceCookie> | undefined =>
   cookies === undefined
     ? undefined
-    : cookies.map((cookie) => ({ ...cookie })).sort((left, right) => left.name.localeCompare(right.name));
+    : cookies
+        .map((cookie) => ({
+          name: shouldRedactCookieName(cookie.name, policy) ? redactedTraceText : cookie.name,
+          value: redactedTraceText
+        }))
+        .sort((left, right) => left.name.localeCompare(right.name));
 
 /** Deep-copies a Devtools route plan, including params/search/resource inputs. */
 export const copyDevtoolsRoutePlan = (
@@ -1053,15 +1099,15 @@ export const copyRequestTrace = (
     transport: trace.request.transport,
     ...(trace.request.id === undefined ? {} : { id: trace.request.id }),
     ...(trace.request.traceparent === undefined ? {} : { traceparent: trace.request.traceparent }),
-    ...(trace.request.headers === undefined ? {} : { headers: copyTraceHeaders(trace.request.headers)! }),
-    ...(trace.request.cookies === undefined ? {} : { cookies: copyTraceCookies(trace.request.cookies)! })
+    ...(trace.request.headers === undefined ? {} : { headers: copyTraceHeaders(trace.request.headers, state.policy)! }),
+    ...(trace.request.cookies === undefined ? {} : { cookies: copyTraceCookies(trace.request.cookies, state.policy)! })
   };
   const response: DevtoolsRequestTraceResponse | undefined = trace.response === undefined
     ? undefined
     : {
         status: trace.response.status,
         ...(trace.response.statusText === undefined ? {} : { statusText: trace.response.statusText }),
-        ...(trace.response.headers === undefined ? {} : { headers: copyTraceHeaders(trace.response.headers)! }),
+        ...(trace.response.headers === undefined ? {} : { headers: copyTraceHeaders(trace.response.headers, state.policy)! }),
         ...(trace.response.setCookieCount === undefined ? {} : { setCookieCount: trace.response.setCookieCount })
       };
 

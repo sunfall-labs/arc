@@ -37,17 +37,56 @@ export interface DevtoolsBridgeInstall {
   readonly uninstall: () => void;
 }
 
+interface DevtoolsBridgeInstallEntry {
+  readonly provider: DevtoolsBridgeProvider;
+}
+
+interface DevtoolsBridgeTargetState {
+  readonly hadPrevious: boolean;
+  readonly previous: DevtoolsBridgeProvider | undefined;
+  readonly installs: Array<DevtoolsBridgeInstallEntry>;
+}
+
+const bridgeTargetStates = new WeakMap<DevtoolsBridgeTarget, DevtoolsBridgeTargetState>();
+
+const restoreDevtoolsBridgeTarget = (
+  target: DevtoolsBridgeTarget,
+  state: DevtoolsBridgeTargetState
+): void => {
+  const current = state.installs[state.installs.length - 1];
+  if (current !== undefined) {
+    target[effectUiDevtoolsBridgeGlobal] = current.provider;
+    return;
+  }
+
+  bridgeTargetStates.delete(target);
+  if (state.hadPrevious) {
+    target[effectUiDevtoolsBridgeGlobal] = state.previous;
+  } else {
+    delete target[effectUiDevtoolsBridgeGlobal];
+  }
+};
+
 /** Installs an app-side Devtools provider without coupling the app to an extension UI. */
 export const installDevtoolsBridge = (
   provider: DevtoolsBridgeProvider,
   target: DevtoolsBridgeTarget = globalThis as DevtoolsBridgeTarget
 ): DevtoolsBridgeInstall => {
-  const hadPrevious = Object.prototype.hasOwnProperty.call(
-    target,
-    effectUiDevtoolsBridgeGlobal
-  );
-  const previous = target[effectUiDevtoolsBridgeGlobal];
+  const state = bridgeTargetStates.get(target) ?? {
+    hadPrevious: Object.prototype.hasOwnProperty.call(
+      target,
+      effectUiDevtoolsBridgeGlobal
+    ),
+    previous: target[effectUiDevtoolsBridgeGlobal],
+    installs: []
+  };
+  if (!bridgeTargetStates.has(target)) {
+    bridgeTargetStates.set(target, state);
+  }
+
+  const entry: DevtoolsBridgeInstallEntry = { provider };
   let installed = true;
+  state.installs.push(entry);
   target[effectUiDevtoolsBridgeGlobal] = provider;
 
   return {
@@ -57,11 +96,11 @@ export const installDevtoolsBridge = (
         return;
       }
       installed = false;
-      if (hadPrevious) {
-        target[effectUiDevtoolsBridgeGlobal] = previous;
-      } else {
-        delete target[effectUiDevtoolsBridgeGlobal];
+      const index = state.installs.indexOf(entry);
+      if (index >= 0) {
+        state.installs.splice(index, 1);
       }
+      restoreDevtoolsBridgeTarget(target, state);
     }
   };
 };

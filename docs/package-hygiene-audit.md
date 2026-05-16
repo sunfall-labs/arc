@@ -49,6 +49,11 @@ exports. It supports the release-engineering charter workstream.
   generated project-console starters are the standalone copyable paths; the
   devtools panel and extension are workspace examples. Root `pnpm verify`
   includes this gate.
+- Review155 tightened the same Effect-backed dry-run gate so it also enforces
+  documented release metadata: every target remains `private` and
+  `UNLICENSED`, every target has a non-empty `files` allowlist, dist packages
+  carry descriptions, `sideEffects: false`, `main`/`types` entries under
+  `./dist/`, and source packages that require copy hygiene list `.gitignore`.
 
 ## Verification Evidence
 
@@ -103,6 +108,8 @@ exports. It supports the release-engineering charter workstream.
   Effect-first audit over 272 files, 53 root test files / 932 tests,
   devtools verifies, generated starter packaging, the 16-target dry-run gate,
   project-console typecheck/tests/build, and leak scan.
+- Review155 focused `pnpm example:pack-dry-run` passed across all 16 package
+  payloads after adding manifest metadata enforcement to the dry-run gate.
 - `pnpm verify` passed after adding the Node and Fetch adapter facade packages:
   9 package builds, workspace typecheck, type tests, 35 package test files /
   308 tests, example typecheck, 4 example test files / 23 tests, example build,

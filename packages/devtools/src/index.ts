@@ -110,11 +110,26 @@ export const interruptDevtoolsPanelBoot = (
   Fiber.interrupt(fiber).pipe(Effect.catch(() => Effect.void));
 
 const wireDevtoolsPanelLifecycleCleanup = (
-  boot: DevtoolsPanelBoot,
-  lifecycleWindow: Pick<Window, "addEventListener">
-): void => {
-  lifecycleWindow.addEventListener("pagehide", boot.interrupt, { once: true });
-  lifecycleWindow.addEventListener("beforeunload", boot.interrupt, { once: true });
+  interrupt: () => void,
+  lifecycleWindow: Pick<Window, "addEventListener" | "removeEventListener">
+): (() => void) => {
+  let released = false;
+  function release(): void {
+    if (released) {
+      return;
+    }
+    released = true;
+    lifecycleWindow.removeEventListener("pagehide", interruptFromLifecycle);
+    lifecycleWindow.removeEventListener("beforeunload", interruptFromLifecycle);
+  }
+  function interruptFromLifecycle(): void {
+    release();
+    interrupt();
+  }
+
+  lifecycleWindow.addEventListener("pagehide", interruptFromLifecycle);
+  lifecycleWindow.addEventListener("beforeunload", interruptFromLifecycle);
+  return release;
 };
 
 /** Boots a scoped live Devtools panel and optionally wires browser lifecycle cleanup. */
@@ -126,6 +141,7 @@ export const bootDevtoolsPanels = (
     lifecycleWindow,
     ...mountOptions
   } = options;
+  let releaseLifecycleListeners: () => void = () => undefined;
   const fiber = Effect.runFork(
     Effect.scoped(
       Effect.gen(function* () {
@@ -135,19 +151,24 @@ export const bootDevtoolsPanels = (
         }
         yield* Effect.never;
       })
-    )
+    ).pipe(Effect.ensuring(Effect.sync(() => releaseLifecycleListeners())))
   );
-  const interruptEffect = interruptDevtoolsPanelBoot(fiber);
+  const interruptFiber = () => interruptDevtoolsPanelBoot(fiber);
+  const interruptEffect = Effect.gen(function* () {
+    releaseLifecycleListeners();
+    yield* interruptFiber();
+  });
   const boot: DevtoolsPanelBoot = {
     fiber,
     interruptEffect,
     interrupt: () => {
-      void Effect.runFork(interruptEffect);
+      releaseLifecycleListeners();
+      void Effect.runFork(interruptFiber());
     }
   };
 
   if (lifecycleWindow) {
-    wireDevtoolsPanelLifecycleCleanup(boot, lifecycleWindow);
+    releaseLifecycleListeners = wireDevtoolsPanelLifecycleCleanup(boot.interrupt, lifecycleWindow);
   }
 
   return boot;

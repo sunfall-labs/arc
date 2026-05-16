@@ -47,7 +47,8 @@ Public import-path type coverage is owned by
 file, this inventory, and a focused `type-tests/*.test-d.ts` file; package
 bins may omit an import-shaped type test only with an explicit reason. The
 public API inventory audit verifies the manifest against package
-`exports`/`bin` maps and checks that each focused type-test file imports the
+`exports`/`bin` maps, checks that Package Export Map Source cells match the
+manifest source paths, and checks that each focused type-test file imports the
 entrypoint it claims to cover, exercises imported bindings as AST identifiers
 outside import declarations, and includes any manifest-listed
 `typeTestReferences` for virtual or side-effect declaration surfaces. It also

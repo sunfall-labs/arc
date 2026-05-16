@@ -5,7 +5,7 @@ import {
   isPlainLeftClick as coreIsPlainLeftClick,
   makeBrowserRouterLinkPreloader
 } from "@effect-ui/core";
-import { onCleanup, splitProps, type JSX } from "solid-js";
+import { createMemo, createRenderEffect, onCleanup, splitProps, type JSX } from "solid-js";
 import { createComponent, Dynamic, type DynamicProps } from "solid-js/web";
 import { useRouter } from "./router.js";
 
@@ -77,7 +77,15 @@ export const RouterLink = <R extends AnyRoute>(
   const route = (): R => local.route as R;
   const currentHrefArgs = (): Route.HrefArgs<R> =>
     hrefArgs(local.options as Route.HrefOptions<R> | undefined);
-  const href = () => Route.href<R>(route(), ...currentHrefArgs());
+  const href = createMemo(() => Route.href<R>(route(), ...currentHrefArgs()));
+  let anchorElement: HTMLAnchorElement | undefined;
+  const assignAnchorRef = (element: HTMLAnchorElement): void => {
+    anchorElement = element;
+    const ref = anchorProps.ref;
+    if (typeof ref === "function") {
+      ref(element);
+    }
+  };
   const preloader = makeBrowserRouterLinkPreloader({
     runtime: router.runtime,
     enabled: () =>
@@ -91,6 +99,12 @@ export const RouterLink = <R extends AnyRoute>(
     preloadEffect: () => router.preloadEffect<R>(route(), ...currentHrefArgs())
   });
 
+  createRenderEffect(() => {
+    preloader.bindTarget(href());
+  });
+  createRenderEffect(() => {
+    anchorElement?.setAttribute("href", href());
+  });
   onCleanup(preloader.interrupt);
 
   const onMouseEnter: JSX.EventHandler<HTMLAnchorElement, MouseEvent> = (event) => {
@@ -127,6 +141,7 @@ export const RouterLink = <R extends AnyRoute>(
   const dynamicProps = {
     ...anchorProps,
     component: "a",
+    ref: assignAnchorRef,
     get href() {
       return href();
     },

@@ -200,6 +200,52 @@ describe("browser router kernel", () => {
       )
     ));
 
+  it("interrupts router link hover preloads when the target changes", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+          const starts: Array<number> = [];
+          const finalizers: Array<number> = [];
+          let revision = 0;
+          const preloader = makeBrowserRouterLinkPreloader({
+            runtime,
+            enabled: () => true,
+            preloadEffect: () => {
+              const current = ++revision;
+              return Effect.sync(() => {
+                starts.push(current);
+              }).pipe(
+                Effect.andThen(Effect.never),
+                Effect.ensuring(Effect.sync(() => {
+                  finalizers.push(current);
+                }))
+              );
+            }
+          });
+
+          preloader.bindTarget("/projects/atlas");
+          preloader.preload();
+          yield* Effect.promise(() => vi.waitFor(() => expect(starts).toEqual([1])));
+
+          preloader.bindTarget("/projects/curie");
+          yield* Effect.promise(() =>
+            vi.waitFor(() => {
+              expect(starts).toEqual([1]);
+              expect(finalizers).toEqual([1]);
+            })
+          );
+
+          preloader.preload();
+          yield* Effect.promise(() => vi.waitFor(() => expect(starts).toEqual([1, 2])));
+          preloader.bindTarget("/projects/curie");
+          yield* Effect.sleep("20 millis");
+          expect(finalizers).toEqual([1]);
+        })
+      )
+    ));
+
   it("centralizes browser history adapter commit and popstate policy", () => {
     let href = "/initial";
     const pushes: string[] = [];

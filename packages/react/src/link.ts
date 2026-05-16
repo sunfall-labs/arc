@@ -85,6 +85,9 @@ export const RouterLink = <R extends AnyRoute>(
     [router.runtime]
   );
 
+  useEffect(() => {
+    preloader.bindTarget(href);
+  }, [href, preloader]);
   useEffect(() => preloader.interrupt, [preloader]);
 
   return createElement("a", {

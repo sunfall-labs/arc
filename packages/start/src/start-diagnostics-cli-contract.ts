@@ -23,7 +23,7 @@ const shellFlag = (
 ): string =>
   value === undefined
     ? ""
-    : ` --${name} ${shellArg(value === false ? "false" : value)}`;
+    : ` --${name}=${shellArg(value === false ? "false" : value)}`;
 
 const diagnosticsLoadCommandOptions = (
   options: StartAgentGraphImpactOptions

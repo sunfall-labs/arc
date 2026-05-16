@@ -188,13 +188,13 @@ export class DevtoolsActionInvalidationPlanConflict extends Data.TaggedError(
   readonly guidance: string;
 }> {}
 
-/** Header captured for request inspection; sensitive values should already be redacted upstream. */
+/** Header captured for request inspection; Devtools serialization redacts sensitive names and values before storage/projection. */
 export interface DevtoolsRequestTraceHeader {
   readonly name: string;
   readonly value: string;
 }
 
-/** Cookie fact captured for request inspection; values should be redacted before recording. */
+/** Cookie fact captured for request inspection; Devtools serialization redacts values and sensitive names before storage/projection. */
 export interface DevtoolsRequestTraceCookie {
   readonly name: string;
   readonly value: string;
@@ -1294,7 +1294,7 @@ export interface DevtoolsPanelBootOptions extends DevtoolsPanelMountOptions {
    * Window whose page lifecycle should interrupt the panel fiber. Pass the host
    * window from browser or extension entrypoints.
    */
-  readonly lifecycleWindow?: Pick<Window, "addEventListener">;
+  readonly lifecycleWindow?: Pick<Window, "addEventListener" | "removeEventListener">;
 }
 
 /** Running Devtools panel boot fiber plus its Effect-first interrupt hook. */
