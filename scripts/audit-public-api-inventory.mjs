@@ -97,6 +97,47 @@ const publicHoverDocs = [
     ]
   },
   {
+    file: "packages/start/src/app-graph.ts",
+    declarations: [
+      "StartAppGraphDiagnosticsRuntimeCandidates",
+      "StartAppGraphWireSchemaPolicy",
+      "StartAppGraphActionBehaviorPolicy",
+      "decodeStartAppGraphDiagnosticsEffect",
+      "decodeStartAppGraphDiagnosticsPolicyViolationsEffect",
+      "decodeStartAppGraphDiagnosticsDtoEffect",
+      "createStartAppGraph",
+      "serializeStartAppGraph",
+      "unknownRoutePreloadResourcesForDiagnostics",
+      "unknownRoutePreloadCollectionsForDiagnostics",
+      "describeStartAppGraph",
+      "describeStartAppGraphRuntimeDiagnostics",
+      "describeStartAppGraphEffect",
+      "validateStartAppGraphWireSchemasEffect",
+      "validateStartAppGraphActionBehaviorEffect"
+    ]
+  },
+  {
+    file: "packages/start/src/start-app-graph-diagnostics-policy.ts",
+    declarations: [
+      "StartAppGraphRoutePreloadResourcesPolicy",
+      "StartAppGraphRoutePreloadCollectionsPolicy",
+      "StartAppGraphDiagnosticsPolicy",
+      "StartAppGraphUnknownRoutePreloadResources",
+      "StartAppGraphUnknownRoutePreloadCollections",
+      "StartAppGraphDiagnosticsPolicyError",
+      "StartAppGraphDiagnosticsPolicyViolation",
+      "StartAppGraphDiagnosticsPolicyException",
+      "validateStartAppGraphRoutePreloadResourcesDiagnosticsEffect",
+      "collectStartAppGraphDiagnosticsPolicyViolations",
+      "formatStartAppGraphDiagnosticsPolicyViolation",
+      "createStartAppGraphDiagnosticsPolicyException",
+      "enforceStartAppGraphDiagnosticsPolicy",
+      "validateStartAppGraphDiagnosticsPolicyExceptionEffect",
+      "validateStartAppGraphRoutePreloadCollectionsDiagnosticsEffect",
+      "validateStartAppGraphDiagnosticsPolicyEffect"
+    ]
+  },
+  {
     file: "packages/start/src/start-vite-diagnostics-loader.ts",
     declarations: [
       "StartAppGraphDiagnosticsLoadError"

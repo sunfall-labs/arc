@@ -1160,10 +1160,13 @@ interruption.
   the focused Effect-first audit green over 246 auditable
   package/example/script/type-test files. The Module owns typed policy errors
   and validation Effects without adding Promise-shaped host work.
-- The latest full `pnpm verify` passed after the Review 131 public hover
-  completion slice: 11 package builds, workspace typecheck,
-  type tests, public API inventory audit, Effect-first audit over 245
-  package/example/script/type-test files, 53 root test files / 873 tests,
+- Review 133 added docs/type-test/CLI verification hooks for public app graph
+  diagnostics and kept the focused Effect-first audit green over the same 246
+  auditable files.
+- The latest full `pnpm verify` passed after the Review 132 Start Diagnostics
+  Policy Module slice: 11 package builds, workspace typecheck,
+  type tests, public API inventory audit, Effect-first audit over 246
+  package/example/script/type-test files, 53 root test files / 875 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
   verify with 1 starter test file / 2 tests, React starter verify with 1
@@ -1178,8 +1181,8 @@ interruption.
   127 expanded it to 242 files, Review 128 expanded it to 243 files, Review
   129 focused audit expanded it to 244 files, Review 130 focused audit
   expanded it to 245 files, Review 131 kept that 245-file scope green after
-  hover-only public docs changes, and Review 132 expanded it to 246 files while
-  keeping the scope green.
+  hover-only public docs changes, Review 132 expanded it to 246 files while
+  keeping the scope green, and Review 133 kept that 246-file scope green.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

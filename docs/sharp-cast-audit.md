@@ -134,12 +134,13 @@ zero hits.
 
 ## Verification Evidence
 
-The latest full verification gate is recorded in the Review 92 ledgers: 11
+The latest full verification gate is recorded in the Review 132 ledgers: 11
 package builds, workspace typecheck, type tests, public API inventory audit,
-Effect-first audit over 221 files, 52 root test files / 856 tests,
+Effect-first audit over 246 files, 53 root test files / 875 tests,
 devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
-basic starter verify, React starter verify, project-console
-packaging/typecheck/tests/build with 4 files / 27 tests, and leak scans. The
+basic starter verify with 2 tests, React starter verify with 3 tests,
+project-console packaging/typecheck/tests/build with 4 files / 27 tests, and
+leak scans. The
 remaining command-result bullets in this section are historical evidence for the
 individual cleanup slices that produced this audit.
 

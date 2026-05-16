@@ -257,6 +257,7 @@ export interface StartAppGraphRouteDiagnosticsRuntimeCandidate {
   readonly preloadCollections: import("@effect-ui/core").Route.PreloadCollectionDiagnostics;
 }
 
+/** Runtime diagnostics facts merged into static Start app graph diagnostics. */
 export interface StartAppGraphDiagnosticsRuntimeCandidates {
   readonly routeModules?: Iterable<StartAppGraphRouteDiagnosticsRuntimeCandidate>;
   readonly resourceFamilies?: readonly StartAppGraphResourceFamilyDiagnostics[];
@@ -264,12 +265,14 @@ export interface StartAppGraphDiagnosticsRuntimeCandidates {
   readonly collectionDefinitions?: readonly StartAppGraphCollectionDiagnostics[];
 }
 
+/** Build policy for required server-function/action wire schemas. */
 export interface StartAppGraphWireSchemaPolicy {
   readonly requireInput?: boolean;
   readonly requireOutput?: boolean;
   readonly requireError?: boolean;
 }
 
+/** Build policy for required action behavior metadata. */
 export interface StartAppGraphActionBehaviorPolicy {
   readonly requireInvalidates?: boolean;
   readonly requireOptimistic?: boolean;
@@ -637,6 +640,7 @@ const isStartAppGraphDiagnosticsPolicyViolation = (
         value.routes.every(isUnknownRoutePreloadCollectionsDiagnostics)
   );
 
+/** Decodes a resolved app graph diagnostics DTO before tooling consumes it. */
 export const decodeStartAppGraphDiagnosticsEffect = (
   value: unknown
 ): Effect.Effect<StartAppGraphDiagnostics, StartAppGraphDiagnosticsDtoError> =>
@@ -649,6 +653,7 @@ export const decodeStartAppGraphDiagnosticsEffect = (
         )
       );
 
+/** Decodes diagnostics policy violations loaded from runtime diagnostics modules. */
 export const decodeStartAppGraphDiagnosticsPolicyViolationsEffect = (
   value: unknown
 ): Effect.Effect<readonly StartAppGraphDiagnosticsPolicyViolation[], StartAppGraphDiagnosticsDtoError> =>
@@ -661,6 +666,7 @@ export const decodeStartAppGraphDiagnosticsPolicyViolationsEffect = (
         )
       );
 
+/** Decodes the complete Vite-loaded diagnostics payload. */
 export const decodeStartAppGraphDiagnosticsDtoEffect = (
   input: StartAppGraphDiagnosticsDtoInput
 ): Effect.Effect<StartAppGraphDiagnosticsDto, StartAppGraphDiagnosticsDtoError> =>
@@ -676,6 +682,7 @@ export const decodeStartAppGraphDiagnosticsDtoEffect = (
     };
   });
 
+/** Creates a static Start app graph from route, server-function, and action manifests. */
 export const createStartAppGraph = (
   options: StartAppGraphOptions
 ): StartAppGraph => ({
@@ -685,6 +692,7 @@ export const createStartAppGraph = (
   actions: options.actions
 });
 
+/** Serializes a Start app graph while preserving nested manifest validation shape. */
 export const serializeStartAppGraph = (graph: StartAppGraph): string =>
   JSON.stringify({
     version: 1,
@@ -853,6 +861,7 @@ const schemaCoverage = (
   };
 };
 
+/** Finds route diagnostics whose preload resource declarations are unknown. */
 export const unknownRoutePreloadResourcesForDiagnostics = (
   diagnostics: Pick<StartAppGraphDiagnostics, "routeModules">
 ): readonly StartAppGraphUnknownRoutePreloadResourcesEntry[] =>
@@ -871,6 +880,7 @@ export const unknownRoutePreloadResourcesForDiagnostics = (
       preloadResources: routeModule.preloadResources
     }));
 
+/** Finds route diagnostics whose preload collection declarations are unknown. */
 export const unknownRoutePreloadCollectionsForDiagnostics = (
   diagnostics: Pick<StartAppGraphDiagnostics, "routeModules">
 ): readonly StartAppGraphUnknownRoutePreloadCollectionsEntry[] =>
@@ -889,6 +899,7 @@ export const unknownRoutePreloadCollectionsForDiagnostics = (
       preloadCollections: routeModule.preloadCollections
     }));
 
+/** Projects static manifests into Start app graph diagnostics for CI and tools. */
 export const describeStartAppGraph = (
   graph: StartAppGraph
 ): StartAppGraphDiagnostics => {
@@ -1018,6 +1029,7 @@ export const describeStartAppGraphRuntimeDiagnostics = (
   };
 };
 
+/** Effect wrapper for static Start app graph diagnostics projection. */
 export const describeStartAppGraphEffect = (
   graph: StartAppGraph
 ): Effect.Effect<StartAppGraphDiagnostics> =>
@@ -1031,6 +1043,7 @@ const shouldReportMissingSchema = (
   (policy.requireOutput && !missing.output) ||
   (policy.requireError && !missing.error);
 
+/** Validates server-function and action wire-schema coverage against policy. */
 export const validateStartAppGraphWireSchemasEffect = (
   graph: StartAppGraph,
   policy: StartAppGraphWireSchemaPolicy = {}
@@ -1058,6 +1071,7 @@ const shouldReportUnknownActionBehavior = (
   (policy.requireRetry && entry.retry === "unknown") ||
   (policy.requireConcurrency && entry.concurrency === "unknown");
 
+/** Validates action invalidation/optimistic/retry/concurrency metadata against policy. */
 export const validateStartAppGraphActionBehaviorEffect = (
   graph: StartAppGraph,
   policy: StartAppGraphActionBehaviorPolicy = {}

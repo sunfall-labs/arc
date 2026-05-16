@@ -11,15 +11,49 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 132, immediately after Review 131. Some older review
+The newest review is Review 133, immediately after Review 132. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 133: App Graph Public Hover and CLI Vocabulary Seams
+
+Status: fixed for the fresh post-Review132 docs/LSP and test-gap sweeps.
+Focused verification is green, but the Thirty-Sweep clean counter remains at 0
+until a fresh sweep after this slice finds no actionable work.
+
+- App Graph public hover coverage: `packages/start/src/app-graph.ts` now
+  documents the important public diagnostics candidates, policy inputs,
+  decoders, graph constructors, diagnostics projectors, unknown-preload
+  classifiers, and policy validators. `scripts/audit-public-api-inventory.mjs`
+  now enforces JSDoc for those declarations and the extracted diagnostics
+  policy Module.
+- Public package-boundary assertions: `type-tests/start.test-d.ts` now imports
+  the public app graph diagnostics and policy APIs from `@effect-ui/start`,
+  pinning package-export drift instead of relying only on source-local tests.
+- Diagnostics policy opt-out semantics:
+  `packages/start/test/app-graph.test.ts` now asserts top-level disabled
+  policy, `null`, section-level `false`, and `requireDeclaredForPreload: false`
+  all suppress unknown preload diagnostics.
+- CLI query vocabulary seam: `packages/start/test/start.test.ts` now
+  table-tests every `startAgentGraphQueryKinds` value through
+  `parseStartDiagnosticsCliArgs(...)` and `runStartDiagnosticsCliEffect(...)`,
+  including hyphenated `resource-tag`, for both graph and impact commands.
+- Verification snapshots: current-facing docs that still pointed at old Review
+  86/92/120 full gates now point at the Review 132 full `pnpm verify` result.
+
+Focused verification passed: `pnpm audit:public-api`, `pnpm --filter
+@effect-ui/start typecheck`, `pnpm typecheck:types`, `pnpm audit:effect-first`
+over 246 files, and `pnpm exec vitest run packages/start/test/app-graph.test.ts
+packages/start/test/start.test.ts -t "policy|query kind|parser/runtime seam|parses and runs"`
+(2 files / 11 selected tests), and `git diff --check`. Full `pnpm verify` is
+pending after this docs/test slice.
 
 ## Review 132: Start Diagnostics Policy Module and Regression Hooks
 
 Status: fixed for the fresh post-Review131 architecture, docs/LSP, and test-gap
-sweeps. Focused verification is green, but the Thirty-Sweep clean counter
-remains at 0 until a fresh sweep after this slice finds no actionable work.
+sweeps. Full verification passed, but fresh post-fix docs/LSP and test-gap
+sweeps found the public app graph hover and CLI seam gaps fixed in Review 133,
+so the Thirty-Sweep clean counter remains at 0.
 
 - Start App Graph Diagnostics Policy: added
   `packages/start/src/start-app-graph-diagnostics-policy.ts` as the focused
@@ -47,8 +81,13 @@ Focused verification passed: `pnpm audit:public-api`, `pnpm --filter
 typecheck:types`, `pnpm audit:effect-first` over 246 files, `pnpm exec vitest
 run packages/db/test/live-query-collection.test.ts` (1 file / 29 tests), and
 `pnpm exec vitest run packages/start/test/app-graph.test.ts` (1 file / 17
-tests), and `git diff --check`. Full `pnpm verify` is pending after this
-architecture/test slice.
+tests), and `git diff --check`.
+Full `pnpm verify` passed after the slice: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 246 files, 53 root test files / 875 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, project-console packaging/typecheck/
+tests/build with 4 files / 27 tests, and leak scans.
 
 ## Review 131: Public Hover Completion
 

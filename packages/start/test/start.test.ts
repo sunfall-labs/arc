@@ -72,6 +72,12 @@ import {
   runStartDiagnosticsCli,
   runStartDiagnosticsCliEffect
 } from "../src/cli.js";
+import type {
+  StartAgentGraphQueryKind
+} from "../src/start-agent-graph-contract.js";
+import {
+  startAgentGraphQueryKinds
+} from "../src/start-agent-graph-vocabulary.js";
 import {
   actionManifestVirtualModuleId,
   appGraphRuntimeDiagnosticsVirtualModuleId,
@@ -116,6 +122,19 @@ const runInRuntime = <A, E, R, RuntimeError>(
   effect: Effect.Effect<A, E, R>
 ): Promise<A> =>
   Effect.runPromise(runtime.provide(effect));
+
+const startAgentGraphCliQueryTextByKind = {
+  action: "Project.rename",
+  collection: "ProjectRows",
+  endpoint: "rpc",
+  finding: "wire-schema",
+  module: "project.server",
+  node: "Project",
+  resource: "Project.byId",
+  "resource-tag": "Project.updated",
+  route: "/projects/:id",
+  "server-function": "Project.load"
+} satisfies Record<StartAgentGraphQueryKind, string>;
 
 const makeStreamHydrationElement = (script: string, sequence: number) => {
   const attributes = new Map<string, string>([
@@ -5640,6 +5659,47 @@ describe("Effect UI Start", () => {
         pretty: false
       }
     });
+    for (const kind of startAgentGraphQueryKinds) {
+      expect(
+        parseStartDiagnosticsCliArgs([
+          "graph",
+          kind,
+          startAgentGraphCliQueryTextByKind[kind],
+          "--json"
+        ])
+      ).toEqual({
+        _tag: "Graph",
+        options: {
+          query: {
+            kind,
+            text: startAgentGraphCliQueryTextByKind[kind]
+          },
+          json: true,
+          pretty: false,
+          verbose: false
+        }
+      });
+      expect(
+        parseStartDiagnosticsCliArgs([
+          "impact",
+          kind,
+          startAgentGraphCliQueryTextByKind[kind],
+          "--root",
+          "app"
+        ])
+      ).toEqual({
+        _tag: "Impact",
+        options: {
+          root: "app",
+          query: {
+            kind,
+            text: startAgentGraphCliQueryTextByKind[kind]
+          },
+          json: false,
+          pretty: false
+        }
+      });
+    }
     expect(parseStartDiagnosticsCliArgs([])).toEqual({ _tag: "Help" });
     expect(parseStartDiagnosticsCliArgs(["diagnostics", "--help"])).toEqual({ _tag: "Help" });
 
@@ -5813,6 +5873,231 @@ describe("Effect UI Start", () => {
     expect(stdout.join("\n")).toContain("Preloads: resources Project.byId; collections ProjectRows");
     expect(stdout.join("\n")).toContain("Related: module: src/routes/projects/$id.tsx");
     expect(stdout.join("\n")).not.toContain("route:route_projects_$id");
+  });
+
+  it("runs every Start agent graph query kind through the CLI parser/runtime seam", async () => {
+    const loadDiagnosticsEffect = () => Effect.succeed({
+      graph: {
+        version: 1 as const,
+        routes: { version: 1 as const, entries: [], modules: [], routeDirectory: "src/routes" },
+        serverFunctions: { version: 1 as const, rpcPath: "/__effect-ui/rpc", entries: [] },
+        actions: { version: 1 as const, actionPath: "/__effect-ui/action", entries: [] }
+      },
+      diagnostics: {
+        version: 1 as const,
+        routeCount: 1,
+        serverFunctionCount: 1,
+        actionCount: 1,
+        routePaths: ["/projects/:id"],
+        routeModules: [
+          {
+            routeId: "route_projects_$id",
+            routePath: "/projects/:id",
+            moduleId: "src/routes/projects/$id.tsx",
+            filePath: "src/routes/projects/$id.tsx",
+            pathParamCount: 1,
+            hasPathParams: true,
+            params: [{ name: "id", optional: false }],
+            paramsSchema: "present" as const,
+            searchSchema: "absent" as const,
+            preload: "present" as const,
+            preloadResources: {
+              status: "declared" as const,
+              families: ["Project.byId"]
+            },
+            preloadCollections: {
+              status: "declared" as const,
+              collections: ["ProjectRows"]
+            },
+            component: "present" as const
+          }
+        ],
+        serverFunctionModules: [
+          {
+            id: "sf_project-load",
+            name: "Project.load",
+            server: {
+              module: "/src/project/project.server.ts",
+              exportName: "loadProject",
+              moduleKind: "server-only" as const
+            },
+            client: {
+              _tag: "Import" as const,
+              module: "/src/project/project.contract.ts",
+              exportName: "loadProject"
+            },
+            wire: {
+              inputSchema: true,
+              outputSchema: true,
+              errorSchema: false,
+              complete: false
+            }
+          }
+        ],
+        actionModules: [
+          {
+            id: "act_project-rename",
+            name: "Project.rename",
+            server: {
+              module: "/src/project/project.actions.ts",
+              exportName: "RenameProject",
+              moduleKind: "shared" as const
+            },
+            client: {
+              _tag: "Import" as const,
+              module: "/src/project/project.actions.ts",
+              exportName: "RenameProject"
+            },
+            wire: {
+              inputSchema: true,
+              outputSchema: true,
+              errorSchema: true,
+              complete: true
+            },
+            behavior: {
+              invalidates: true,
+              optimistic: false,
+              retry: true,
+              concurrency: "latest" as const
+            }
+          }
+        ],
+        resourceFamilies: [
+          {
+            name: "Project.byId",
+            inputSchema: true,
+            outputSchema: true,
+            errorSchema: false,
+            providesTags: true,
+            policy: {
+              retry: false
+            }
+          }
+        ],
+        resourceTags: [
+          {
+            name: "Project.updated",
+            keyed: true
+          }
+        ],
+        collectionDefinitions: [
+          {
+            name: "ProjectRows",
+            inputSchema: false,
+            outputSchema: false,
+            initialData: false,
+            indexes: [],
+            load: false,
+            handlers: {
+              insert: false,
+              update: false,
+              delete: false
+            },
+            policy: {
+              retry: false
+            },
+            persistence: {
+              enabled: false,
+              hydrate: false,
+              restoreOnPreload: false,
+              loadAfterRestore: false,
+              persistOnLoad: false,
+              persistOnMutation: false,
+              persistOnWrite: false
+            }
+          }
+        ],
+        serverOnlyModules: ["/src/project/project.server.ts"],
+        browserClientModules: [
+          "/src/project/project.contract.ts",
+          "/src/project/project.actions.ts"
+        ],
+        rpcPath: "/__effect-ui/rpc",
+        actionPath: "/__effect-ui/action",
+        schemaCoverage: {
+          serverFunctions: { total: 1, input: 1, output: 1, error: 0 },
+          actions: { total: 1, input: 1, output: 1, error: 1 }
+        },
+        missingSchemas: [
+          {
+            kind: "serverFunction" as const,
+            name: "Project.load",
+            input: true,
+            output: true,
+            error: false
+          }
+        ],
+        unknownActionBehavior: [],
+        unknownRoutePreloadResources: [],
+        unknownRoutePreloadCollections: []
+      },
+      diagnosticsPolicyViolations: []
+    });
+
+    for (const kind of startAgentGraphQueryKinds) {
+      const graphStdout: string[] = [];
+      const graphStderr: string[] = [];
+      const graphResult = await Effect.runPromise(
+        runStartDiagnosticsCliEffect([
+          "graph",
+          kind,
+          startAgentGraphCliQueryTextByKind[kind],
+          "--json"
+        ], {
+          stdout: (text) => graphStdout.push(text),
+          stderr: (text) => graphStderr.push(text),
+          loadDiagnosticsEffect
+        })
+      );
+      const graphPayload = JSON.parse(graphStdout[0] ?? "{}") as {
+        readonly result?: {
+          readonly query?: {
+            readonly kind?: string;
+          };
+          readonly nodes?: readonly unknown[];
+        };
+      };
+
+      expect(graphResult.exitCode).toBe(0);
+      expect(graphStderr).toEqual([]);
+      expect(graphPayload.result?.query?.kind).toBe(kind);
+      expect(graphPayload.result?.nodes?.length).toBeGreaterThan(0);
+
+      const impactStdout: string[] = [];
+      const impactStderr: string[] = [];
+      const impactResult = await Effect.runPromise(
+        runStartDiagnosticsCliEffect([
+          "impact",
+          kind,
+          startAgentGraphCliQueryTextByKind[kind],
+          "--root",
+          "examples/project-console",
+          "--json"
+        ], {
+          stdout: (text) => impactStdout.push(text),
+          stderr: (text) => impactStderr.push(text),
+          loadDiagnosticsEffect
+        })
+      );
+      const impactPayload = JSON.parse(impactStdout[0] ?? "{}") as {
+        readonly query?: {
+          readonly kind?: string;
+        };
+        readonly matches?: number;
+        readonly items?: readonly {
+          readonly verify?: readonly string[];
+        }[];
+      };
+
+      expect(impactResult.exitCode).toBe(0);
+      expect(impactStderr).toEqual([]);
+      expect(impactPayload.query?.kind).toBe(kind);
+      expect(impactPayload.matches).toBeGreaterThan(0);
+      expect(impactPayload.items?.[0]?.verify).toEqual([
+        "effect-ui-start diagnostics --root examples/project-console",
+        `effect-ui-start graph ${kind} ${startAgentGraphCliQueryTextByKind[kind]} --root examples/project-console`
+      ]);
+    }
   });
 
   it("prints a high-signal Start impact brief from the CLI", async () => {

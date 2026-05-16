@@ -2,6 +2,7 @@ import { Cause, Effect, Exit } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   createStartAppGraph,
+  collectStartAppGraphDiagnosticsPolicyViolations,
   decodeStartAppGraphDiagnosticsDtoEffect,
   deserializeStartAppGraph,
   describeStartAppGraphRuntimeDiagnostics,
@@ -608,6 +609,74 @@ describe("Start app graph", () => {
             requireDeclaredForPreload: true
           }
         });
+      })
+    );
+  });
+
+  it("allows diagnostics preload policy to be disabled at each policy seam", () => {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const graph = yield* makeGraphEffect();
+        const diagnostics = describeStartAppGraph(graph);
+        const routeModules = diagnostics.routeModules.map((routeModule) =>
+          routeModule.routeId === "route_projects_$id"
+            ? {
+                ...routeModule,
+                preload: "present" as const,
+                preloadResources: {
+                  status: "unknown" as const,
+                  families: []
+                },
+                preloadCollections: {
+                  status: "unknown" as const,
+                  collections: []
+                }
+              }
+            : routeModule
+        );
+        const withUnknownPreloads = {
+          ...diagnostics,
+          routeModules,
+          unknownRoutePreloadResources: unknownRoutePreloadResourcesForDiagnostics({
+            routeModules
+          }),
+          unknownRoutePreloadCollections: unknownRoutePreloadCollectionsForDiagnostics({
+            routeModules
+          })
+        };
+
+        expect(withUnknownPreloads.unknownRoutePreloadResources).toHaveLength(1);
+        expect(withUnknownPreloads.unknownRoutePreloadCollections).toHaveLength(1);
+        expect(collectStartAppGraphDiagnosticsPolicyViolations(
+          withUnknownPreloads,
+          false
+        )).toEqual([]);
+        expect(collectStartAppGraphDiagnosticsPolicyViolations(
+          withUnknownPreloads,
+          null
+        )).toEqual([]);
+        expect(collectStartAppGraphDiagnosticsPolicyViolations(
+          withUnknownPreloads,
+          {
+            routePreloadResources: false,
+            routePreloadCollections: false
+          }
+        )).toEqual([]);
+        expect(collectStartAppGraphDiagnosticsPolicyViolations(
+          withUnknownPreloads,
+          {
+            routePreloadResources: {
+              requireDeclaredForPreload: false
+            },
+            routePreloadCollections: {
+              requireDeclaredForPreload: false
+            }
+          }
+        )).toEqual([]);
+        yield* validateStartAppGraphDiagnosticsPolicyExceptionEffect(
+          withUnknownPreloads,
+          false
+        );
       })
     );
   });
