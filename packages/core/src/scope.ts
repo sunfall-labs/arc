@@ -1,7 +1,7 @@
 import { Data, Effect, Exit, Fiber, Scope } from "effect";
 import type { EffectInput } from "./effect-like.js";
 import { invokeEffectInput } from "./effect-like.js";
-import { runFork, type AnyEffectUiRuntime } from "./runtime.js";
+import { runFork, runWithRuntime, type AnyEffectUiRuntime } from "./runtime.js";
 
 /** Options controlling how forked scoped Effects are started. */
 export interface ForkScopedOptions {
@@ -18,10 +18,12 @@ export interface UiScopeOptions {
   readonly runLateFinalizer?: (effect: Effect.Effect<void>) => void;
 }
 
+/** Error thrown when scoped UI work runs without an active `UiScope`. */
 export class UiScopeMissing extends Data.TaggedError("UiScopeMissing")<{
   readonly operation: string;
 }> {}
 
+/** Error thrown when work is forked into a `UiScope` that has already disposed. */
 export class UiScopeDisposed extends Data.TaggedError("UiScopeDisposed")<{
   readonly operation: string;
 }> {}
@@ -118,10 +120,36 @@ export const makeRuntimeUiScope = <ER>(runtime: AnyEffectUiRuntime<ER>): UiScope
     }
   });
 
+/** Runtime-owned UI frame used by framework adapters during one render lifetime. */
+export interface RuntimeUiScopeFrame<ER = unknown> {
+  /** Runtime Spine that owns Effect execution for this frame. */
+  readonly runtime: AnyEffectUiRuntime<ER>;
+  /** Ambient UI scope for component or route construction. */
+  readonly scope: UiScope;
+  /** Runs synchronous construction with both runtime and UI scope installed. */
+  run<A>(f: () => A): A;
+  /** Runtime-bound, failure-swallowing disposal for host cleanup hooks. */
+  disposeEffect(): Effect.Effect<void>;
+}
+
+/** Creates a runtime-owned UI frame for adapter component or route lifetimes. */
+export const makeRuntimeUiScopeFrame = <ER>(runtime: AnyEffectUiRuntime<ER>): RuntimeUiScopeFrame<ER> => {
+  const scope = makeRuntimeUiScope(runtime);
+  return {
+    runtime,
+    scope,
+    run: (f) => runWithRuntime(runtime, () => runWithScope(scope, f)),
+    disposeEffect: () =>
+      runtime.provide(scope.disposeEffect()).pipe(Effect.catchCause(() => Effect.void))
+  };
+};
+
 let currentScope: UiScope | undefined;
 
+/** Returns the ambient `UiScope`, when framework construction installed one. */
 export const getCurrentScope = (): UiScope | undefined => currentScope;
 
+/** Runs synchronous construction while `scope` is the ambient UI scope. */
 export const runWithScope = <A>(scope: UiScope, f: () => A): A => {
   const previous = currentScope;
   currentScope = scope;

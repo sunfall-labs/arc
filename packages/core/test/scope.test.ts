@@ -2,8 +2,10 @@ import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   forkScoped,
+  getCurrentScope,
   makeRuntime,
   makeRuntimeUiScope,
+  makeRuntimeUiScopeFrame,
   onScopeDispose,
   read,
   runWithScope,
@@ -178,6 +180,37 @@ describe("UiScope", () => {
           yield* Effect.sleep("10 millis");
 
           expect(events).toEqual(["late"]);
+        })
+      )
+    ));
+
+  it("creates Runtime Spine-bound scope frames for adapter render lifetimes", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+          const frame = makeRuntimeUiScopeFrame(runtime);
+          const events: Array<string> = [];
+
+          const value = frame.run(() => {
+            expect(getCurrentScope()).toBe(frame.scope);
+            onScopeDispose(() => Effect.sync(() => {
+              events.push("dispose");
+            }));
+            return "rendered";
+          });
+
+          expect(value).toBe("rendered");
+          yield* frame.disposeEffect();
+          frame.scope.addFinalizer(() =>
+            Effect.sync(() => {
+              events.push("late");
+            })
+          );
+          yield* Effect.sleep("10 millis");
+
+          expect(events).toEqual(["dispose", "late"]);
         })
       )
     ));

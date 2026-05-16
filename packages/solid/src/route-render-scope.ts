@@ -1,9 +1,7 @@
 import {
   browserRouteRenderIdentity,
   browserRouteRenderDecision,
-  makeRuntimeUiScope,
-  runWithRuntime,
-  runWithScope,
+  makeRuntimeUiScopeFrame,
   type AnyEffectUiRuntime,
   type AnyBrowserRoute,
   type BrowserRouterState,
@@ -58,35 +56,31 @@ const renderInRouteScope = <ER>(
   runtime: AnyEffectUiRuntime<ER>,
   render: () => JSX.Element
 ): { readonly node: JSX.Element; readonly dispose: Effect.Effect<void, never, never> } => {
-  const routeScope = makeRuntimeUiScope(runtime);
+  const frame = makeRuntimeUiScopeFrame(runtime);
   let disposeSolid: (() => void) | undefined;
   let renderFailure: { readonly error: unknown } | undefined;
   const cleanupFailedRender = (): void => {
     try {
-      runWithRuntime(runtime, () =>
-        runWithScope(routeScope, () => {
-          disposeSolid?.();
-        })
-      );
+      frame.run(() => {
+        disposeSolid?.();
+      });
     } catch {
       // Preserve the original render error for the host ErrorBoundary.
     }
-    void runtime.runFork(routeScope.disposeEffect().pipe(Effect.catchCause(() => Effect.void)));
+    void runtime.runFork(frame.disposeEffect());
   };
   let node: JSX.Element;
   try {
     node = createRoot((disposeRoot) => {
       disposeSolid = disposeRoot;
-      return runWithRuntime(runtime, () =>
-        runWithScope(routeScope, () => {
-          try {
-            return render();
-          } catch (error) {
-            renderFailure = { error };
-            return undefined;
-          }
-        })
-      );
+      return frame.run(() => {
+        try {
+          return render();
+        } catch (error) {
+          renderFailure = { error };
+          return undefined;
+        }
+      });
     });
   } catch (error) {
     cleanupFailedRender();
@@ -98,13 +92,11 @@ const renderInRouteScope = <ER>(
   }
   const dispose = Effect.andThen(
     Effect.sync(() => {
-      runWithRuntime(runtime, () =>
-        runWithScope(routeScope, () => {
-          disposeSolid?.();
-        })
-      );
+      frame.run(() => {
+        disposeSolid?.();
+      });
     }),
-    runtime.provide(routeScope.disposeEffect()).pipe(Effect.catchCause(() => Effect.void))
+    frame.disposeEffect()
   ).pipe(Effect.catchCause(() => Effect.void));
 
   return { node, dispose };

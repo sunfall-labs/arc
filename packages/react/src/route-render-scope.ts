@@ -1,16 +1,13 @@
 import {
   browserRouteRenderDecision,
   browserRouteRenderIdentity,
-  makeRuntimeUiScope,
-  runWithRuntime,
-  runWithScope,
+  makeRuntimeUiScopeFrame,
   type AnyEffectUiRuntime,
   type AnyBrowserRoute,
   type BrowserRouterState,
   type BrowserRouteOutletRenderers,
-  type UiScope
+  type RuntimeUiScopeFrame
 } from "@effect-ui/core";
-import { Effect } from "effect";
 import {
   createElement,
   useEffect,
@@ -48,39 +45,29 @@ interface RouteRenderFrameProps<ER> {
 const RouteRenderFrame = <ER,>(props: RouteRenderFrameProps<ER>): ReactNode => {
   const scopeRef = useRef<{
     readonly runtime: AnyEffectUiRuntime<ER>;
-    readonly scope: UiScope;
+    readonly frame: RuntimeUiScopeFrame<ER>;
   } | undefined>(undefined);
 
   if (scopeRef.current === undefined || scopeRef.current.runtime !== props.runtime) {
     scopeRef.current = {
       runtime: props.runtime,
-      scope: makeRuntimeUiScope(props.runtime)
+      frame: makeRuntimeUiScopeFrame(props.runtime)
     };
   }
 
-  const scope = scopeRef.current.scope;
+  const frame = scopeRef.current.frame;
 
   useEffect(() => {
     return () => {
-      void props.runtime.runFork(
-        props.runtime.provide(scope.disposeEffect()).pipe(
-          Effect.catch(() => Effect.void)
-        )
-      );
+      void props.runtime.runFork(frame.disposeEffect());
     };
-  }, [props.runtime, scope]);
+  }, [props.runtime, frame]);
 
   try {
-    return runWithRuntime(props.runtime, () =>
-      runWithScope(scope, props.render)
-    );
+    return frame.run(props.render);
   } catch (error) {
     scopeRef.current = undefined;
-    void props.runtime.runFork(
-      props.runtime.provide(scope.disposeEffect()).pipe(
-        Effect.catchCause(() => Effect.void)
-      )
-    );
+    void props.runtime.runFork(frame.disposeEffect());
     throw error;
   }
 };

@@ -42,6 +42,7 @@ import {
   makeBrowserRouterLinkPreloader,
   makeRuntime,
   makeRuntimeUiScope,
+  makeRuntimeUiScopeFrame,
   matchRoutePath,
   onDispose,
   onScopeDispose,
@@ -93,7 +94,8 @@ import {
   type ResourceUiPreloadFailure,
   type ResourceUiSuspensePreloadController,
   type ResourceUiSuspensePreloadFiber,
-  type ResourceUiSuspensePreloadOptions
+  type ResourceUiSuspensePreloadOptions,
+  type RuntimeUiScopeFrame
 } from "@effect-ui/core";
 
 const runtime = makeRuntime();
@@ -318,6 +320,7 @@ const counterInstance: Program.Instance<
 
 const uiScope = new UiScope();
 const runtimeUiScope = makeRuntimeUiScope(browserRouterKernelRuntime);
+const runtimeUiScopeFrame: RuntimeUiScopeFrame = makeRuntimeUiScopeFrame(browserRouterKernelRuntime);
 const scopedValue = scoped(() => "scoped");
 onScopeDispose(() => Effect.void);
 onDispose(() => undefined);
@@ -443,6 +446,7 @@ void counterDispatchError;
 void counterInstance;
 void uiScope;
 void runtimeUiScope;
+void runtimeUiScopeFrame;
 void scopedValue;
 void requestContext;
 void requestContextEffect;

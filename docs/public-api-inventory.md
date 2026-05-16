@@ -121,10 +121,11 @@ Release decisions:
   adapter and hook authors that must bridge into the active Runtime Spine. App
   code should use explicit runtime providers, `makeRuntime`, `runWithRuntime`,
   or adapter hooks such as Solid's `useRuntime`.
-- `makeRuntimeUiScope(...)` is the expert-public UI lifetime factory for
-  framework adapters. It creates a `UiScope` whose late finalizers run through
-  the owning Runtime Spine, keeping component, route, and preload cleanup on
-  the same Effect runner as the work they own.
+- `makeRuntimeUiScope(...)` and `makeRuntimeUiScopeFrame(...)` are the
+  expert-public UI lifetime factories for framework adapters. They create
+  `UiScope` lifetimes whose late finalizers and disposal run through the owning
+  Runtime Spine, keeping component, route, and preload cleanup on the same
+  Effect runner as the work they own.
 - `EffectUiRuntime<R, ER>` is the typed Runtime Spine: `provide(...)` removes
   only services actually present in `R` plus the Resource Store, and
   `runFork(...)`/`runSync(...)` only accept Effects whose requirements are

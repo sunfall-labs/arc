@@ -1,10 +1,9 @@
 import {
   currentOrDefaultRuntime,
   invokeEffectInput,
-  makeRuntimeUiScope,
+  makeRuntimeUiScopeFrame,
   makeRuntime,
   runWithRuntime,
-  runWithScope,
   type AnyEffectUiRuntime,
   type EffectInput,
   type EffectUiRuntime,
@@ -155,9 +154,9 @@ const RuntimeProviderInstance = <ER>(
 /** Creates a `UiScope` bound to the current Solid owner cleanup. */
 export const createComponentScope = <A>(f: (scope: UiScope) => A): A => {
   const runtime = useRuntime();
-  const scope = makeRuntimeUiScope(runtime);
+  const frame = makeRuntimeUiScopeFrame(runtime);
   onCleanup(() => {
-    void runtime.runFork(scope.disposeEffect().pipe(Effect.catch(() => Effect.void)));
+    void runtime.runFork(frame.disposeEffect());
   });
-  return runWithScope(scope, () => f(scope));
+  return frame.run(() => f(frame.scope));
 };

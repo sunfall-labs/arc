@@ -12,10 +12,56 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review176, after the Review175 Browser Router Link Preload Identity cleanup.
+Review177, after the Review176 Public Hover Symbol Coverage cleanup.
 Some older review entries remain below
 it from prior ledger merges; use this tip rather than file order alone when
 looking for the latest architecture sweep.
+
+## Review 177: Runtime UI Scope Frame
+
+Review177 fixed the remaining route-owned `UiScope` lifecycle finding from the
+fresh post-Review173 architecture sweep.
+
+1. Runtime UI Scope Frame
+   - Status: fixed.
+   - Files: `packages/core/src/scope.ts`,
+     `packages/core/test/scope.test.ts`,
+     `packages/react/src/route-render-scope.ts`,
+     `packages/react/src/runtime.ts`,
+     `packages/solid/src/route-render-scope.ts`,
+     `packages/solid/src/runtime.ts`,
+     `type-tests/core.test-d.ts`, `type-tests/framework.test-d.ts`,
+     `docs/public-api-inventory.md`, `CONTEXT.md`,
+     `scripts/public-api-symbol-policy.mjs`.
+   - Problem: React and Solid route render controllers both had to remember how
+     to create a runtime-owned `UiScope`, install runtime and scope during
+     synchronous route construction, and dispose finalizers through the owning
+     Runtime Spine. Component scopes in the runtime adapters carried the same
+     shape.
+   - Fix: added the Core `RuntimeUiScopeFrame` Interface and
+     `makeRuntimeUiScopeFrame(...)` helper. React and Solid route render
+     controllers and component-scope helpers now consume the shared frame while
+     keeping host-specific render/error/cleanup ordering local.
+   - Benefits: runtime-owned UI lifetimes now have one Core Seam. Adapters get
+     better Locality for host behavior, while Core owns the ambient runtime,
+     ambient `UiScope`, late finalizer, and runtime-bound disposal policy.
+
+Focused verification passed for Review177: Core, React, and Solid typechecks;
+public type tests; public API inventory audit; Core scope tests 1 file / 9
+tests; React router tests 1 file / 14 tests; Solid router tests 1 file / 31
+tests; React/Solid hook tests 2 files / 40 tests; Effect-first audit over 403
+physical/virtual files; and `git diff --check`.
+
+Full `pnpm verify` passed after Review177 through the Effect-driven runner: 11
+package builds, workspace typecheck, public type tests, public API inventory
+audit, Effect-first audit over 403 physical/virtual
+package/example/config/script/type-test/generated/docs files, 53 root test
+files / 1029 tests, devtools-panel verify with 2 tests, devtools-extension
+verify with 20 tests, basic starter verify with 2 tests, React starter verify
+with 3 tests, starter package generation for basic/react/project-console at
+19/24/30 app files with 5/4/6 local packages, 16-target package dry-run gate,
+project-console typecheck, 4 project-console test files / 27 tests,
+project-console build, and leak scans.
 
 ## Review 176: Public Hover Symbol Coverage
 

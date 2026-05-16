@@ -79,6 +79,25 @@ export const publicHoverDocGroups = [
     ]
   },
   {
+    file: "packages/core/src/scope.ts",
+    declarations: [
+      "ForkScopedOptions",
+      "UiScopeOptions",
+      "UiScopeMissing",
+      "UiScopeDisposed",
+      "UiScope",
+      "makeRuntimeUiScope",
+      "RuntimeUiScopeFrame",
+      "makeRuntimeUiScopeFrame",
+      "getCurrentScope",
+      "runWithScope",
+      "scoped",
+      "onScopeDispose",
+      "onDispose",
+      "forkScoped"
+    ]
+  },
+  {
     file: "packages/core/src/browser-router-link.ts",
     declarations: [
       "BrowserRouterClickEvent",

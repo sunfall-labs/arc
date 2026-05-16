@@ -32,6 +32,7 @@ import {
   makeResourceStore,
   makeRuntime,
   makeRuntimeUiScope,
+  makeRuntimeUiScopeFrame,
   makeWindowBrowserHistoryAdapter,
   matchRoutePath,
   parseRoutePathSegments,
@@ -58,6 +59,7 @@ import {
   type ParamsForPath,
   type ResourceSnapshotCodecOperation,
   type ResourceStore,
+  type RuntimeUiScopeFrame,
   type UiScope
 } from "@effect-ui/core";
 // @ts-expect-error MutableResourceStore is an internal store implementation, not a root export.
@@ -2332,7 +2334,9 @@ const erasedRuntimeProvidedEffect: Effect.Effect<string> = erasedRuntime.provide
 );
 erasedRuntime.runSync(RuntimeMissingService.useSync((service) => service.readMissing()));
 const runtimeUiScope: UiScope = makeRuntimeUiScope(erasedRuntime);
+const runtimeUiScopeFrame: RuntimeUiScopeFrame = makeRuntimeUiScopeFrame(erasedRuntime);
 void runtimeUiScope;
+void runtimeUiScopeFrame;
 const viteDevServer = startDevServerFromVite({
   ssrLoadModule: () => promisedStartDevModule,
   transformIndexHtml: () => promisedString

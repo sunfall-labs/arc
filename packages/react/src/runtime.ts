@@ -1,12 +1,13 @@
 import {
   currentOrDefaultRuntime,
   invokeEffectInput,
-  makeRuntimeUiScope,
+  makeRuntimeUiScopeFrame,
   makeRuntime,
   runWithScope,
   type AnyEffectUiRuntime,
   type EffectInput,
   type EffectUiRuntime,
+  type RuntimeUiScopeFrame,
   type UiScope
 } from "@effect-ui/core";
 import { Effect, Layer, ManagedRuntime } from "effect";
@@ -135,25 +136,25 @@ export const useComponentScope = (): UiScope => {
   const runtime = useRuntime();
   const scopeRef = useRef<{
     readonly runtime: AnyEffectUiRuntime<unknown>;
-    readonly scope: UiScope;
+    readonly frame: RuntimeUiScopeFrame<unknown>;
   } | undefined>(undefined);
 
   if (scopeRef.current === undefined || scopeRef.current.runtime !== runtime) {
     scopeRef.current = {
       runtime,
-      scope: makeRuntimeUiScope(runtime)
+      frame: makeRuntimeUiScopeFrame(runtime)
     };
   }
 
-  const scope = scopeRef.current.scope;
+  const frame = scopeRef.current.frame;
 
   useEffect(() => {
     return () => {
-      void runtime.runFork(scope.disposeEffect().pipe(Effect.catch(() => Effect.void)));
+      void runtime.runFork(frame.disposeEffect());
     };
-  }, [runtime, scope]);
+  }, [runtime, frame]);
 
-  return scope;
+  return frame.scope;
 };
 
 /** Runs synchronous construction while the component `UiScope` is ambient. */
