@@ -12,10 +12,63 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review173, after the Review172 stale-doc cleanup and Review171 public-symbol
-policy closure. Some older review entries remain below
+Review174, after the Review173 Start virtual declaration artifact guardrail.
+Some older review entries remain below
 it from prior ledger merges; use this tip rather than file order alone when
 looking for the latest architecture sweep.
+
+## Review 174: Collection Policy Cleanup
+
+Review174 fixed two DB findings from the fresh post-Review173 architecture
+sweep.
+
+1. Stale Collection State Implementation
+   - Status: fixed.
+   - Files: `packages/db/src/collection-state.ts`.
+   - Problem: `replaceCollectionRows(...)` was exported but unused after the
+     newer Collection Row Ingress and Collection Sync Load Policy Modules took
+     over row replacement. Keeping it around created a stale Implementation
+     that bypassed schema decode, `EffectInputCallbackError` normalization,
+     row-value detachment, and optimistic rebase policy.
+   - Fix: deleted the helper. Remote row replacement now stays local to the
+     Collection Sync Load Policy path that already ingests, validates, detaches,
+     replaces, rebases, persists, and publishes load events.
+   - Benefits: Collection State has better Locality. It owns state shape and
+     small state mutations, while load-owned remote replacement policy remains
+     behind the load Module's Interface.
+
+2. Collection Policy Module
+   - Status: fixed.
+   - Files: `packages/db/src/collection-policy.ts`,
+     `packages/db/src/collection-sync-load-policy.ts`,
+     `packages/db/src/collection-mutation-workflow.ts`, `CONTEXT.md`,
+     `docs/db.md`.
+   - Problem: `policy.retry` was documented as one Collection Definition
+     execution policy, but load and mutation work each carried a private retry
+     wrapper. That shallow duplication made the Interface look unified while
+     the Implementation could drift.
+   - Fix: added an internal Collection Policy Module that applies
+     `policy.retry` to load and mutation Effects. Collection Sync Load Policy
+     and Collection Mutation Workflow now consume the same retry Seam.
+   - Benefits: retry semantics gain Depth and Locality. The public policy
+     Interface has one implementation point, and future load/mutation policy
+     changes can be tested through the shared Module instead of paired copies.
+
+Focused verification passed for Review174: `pnpm --filter @effect-ui/db
+typecheck`, `pnpm --filter @effect-ui/db build`, and `pnpm exec vitest run
+packages/db/test/collection.test.ts` with 139 tests.
+
+Full `pnpm verify` passed after Review174 through the Effect-driven runner: 11
+package builds, workspace typecheck, public type tests, public API inventory
+audit, Effect-first audit over 403 physical/virtual
+package/example/config/script/type-test/generated/docs files, 53 root test
+files / 1028 tests, devtools-panel verify with 2 tests, devtools-extension
+verify with 20 tests, basic starter verify with 2 tests, React starter verify
+with 3 tests, starter package generation for basic/react/project-console at
+19/24/30 app files with 5/4/6 local packages, 16-target package dry-run gate
+including the 149-file `@effect-ui/db` package rehearsal, project-console
+typecheck, 4 project-console test files / 27 tests, project-console build, and
+leak scans.
 
 ## Review 173: Start Virtual Declaration Artifact Adapter
 

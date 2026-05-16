@@ -1,5 +1,5 @@
 import { EffectInputCallbackError } from "@effect-ui/core";
-import { Clock, Deferred, Effect, Exit, type Schedule } from "effect";
+import { Clock, Deferred, Effect, Exit } from "effect";
 import { CollectionRowKeyChanged, CollectionRowNotFound } from "./collection-errors.js";
 import {
   dequeuePendingMutation,
@@ -46,8 +46,8 @@ import {
   collectionStoreEffect,
   type RuntimeCollectionStore
 } from "./runtime-collection-store.js";
+import { withCollectionPolicyRetry } from "./collection-policy.js";
 import type {
-  AnyCollection,
   CollectionDefinition,
   CollectionKey,
   CollectionMutation,
@@ -72,14 +72,6 @@ const persistMutationEffect = <A extends object, K extends CollectionKey, E, R>(
   store: RuntimeCollectionStore
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
   persistCollectionForReasonEffect(definition, store, collectionStoreEffect, "mutation");
-
-const withCollectionMutationRetry = <A, E, R>(
-  definition: AnyCollection,
-  effect: Effect.Effect<A, E, R>
-): Effect.Effect<A, E, R> => {
-  const retry = definition.options.policy?.retry;
-  return retry ? Effect.retry(effect, retry as Schedule.Schedule<unknown, E>) : effect;
-};
 
 const collectionMutationHandlerEffect = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
@@ -251,7 +243,7 @@ const runPendingMutation = <A extends object, K extends CollectionKey, E, R>(
       });
 
       const exit = yield* Effect.exit(
-        withCollectionMutationRetry(definition, handler).pipe(
+        withCollectionPolicyRetry(definition, handler).pipe(
           Effect.matchEffect({
             onFailure: (error: E | EffectInputCallbackError) =>
               rollbackPendingMutation(definition, state, store, pending, mutation, error),

@@ -306,7 +306,8 @@ descriptor do not share derived query state.
 ## Effect Policies
 
 Remote collection work uses Effect policy, not a framework retry DSL. The same
-`policy.retry` schedule is applied to collection loads and mutation handlers:
+`policy.retry` schedule is applied to collection loads and mutation handlers
+through the internal Collection Policy Module:
 
 ```ts
 const Projects = Collection.define<Project>({

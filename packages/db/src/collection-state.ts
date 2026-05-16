@@ -104,31 +104,6 @@ export const augmentCollectionRow = <A extends object, K extends CollectionKey>(
     origin: row.origin
   });
 
-export const replaceCollectionRows = <A extends object, K extends CollectionKey>(
-  definition: CollectionDefinition<A, K, any, any>,
-  state: CollectionState<A, K, any>,
-  values: ReadonlyArray<A>
-): void => {
-  const pending = Array.from(state.rows.values()).filter((row) => !row.synced);
-  state.rows.clear();
-
-  for (const value of values) {
-    const key = definition.getKey(value);
-    state.rows.set(key, {
-      key,
-      value,
-      synced: true,
-      origin: "remote"
-    });
-  }
-
-  for (const row of pending) {
-    state.rows.set(row.key, row);
-  }
-
-  bumpCollectionState(state);
-};
-
 export const markStoredRowsSynced = <A extends object, K extends CollectionKey>(
   state: CollectionState<A, K, any>,
   keys: ReadonlyArray<K>

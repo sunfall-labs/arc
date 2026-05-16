@@ -1,5 +1,5 @@
 import { EffectInputCallbackError, type EffectInput } from "@effect-ui/core";
-import { Cause, Clock, Deferred, Effect, Exit, type Schedule } from "effect";
+import { Cause, Clock, Deferred, Effect, Exit } from "effect";
 import type {
   AnyCollection,
   CollectionDefinition,
@@ -40,6 +40,7 @@ import {
 import {
   collectionSnapshotFromState
 } from "./collection-snapshot-codec.js";
+import { withCollectionPolicyRetry } from "./collection-policy.js";
 
 /** Options for one Collection Sync Load Policy invocation. */
 export interface CollectionSyncLoadPolicyOptions {
@@ -82,14 +83,6 @@ const replaceLoadedCollectionRows = <A extends object, K extends CollectionKey, 
   }
 
   rebaseCollectionBaseRows(state, rebaseKeys);
-};
-
-const withCollectionLoadRetry = <A, E, R>(
-  definition: AnyCollection,
-  effect: Effect.Effect<A, E, R>
-): Effect.Effect<A, E, R> => {
-  const retry = definition.options.policy?.retry;
-  return retry ? Effect.retry(effect, retry as Schedule.Schedule<unknown, E>) : effect;
 };
 
 const isInterruptedCause = <E>(cause: Cause.Cause<E>): boolean =>
@@ -421,7 +414,7 @@ export const runCollectionSyncLoadPolicyEffect = <A extends object, K extends Co
       if (isCurrentLoadAttempt(state, attempt)) {
         state.loadState.set({ _tag: "Pending", waiting: true });
       }
-      const values = yield* withCollectionLoadRetry(definition, load).pipe(
+      const values = yield* withCollectionPolicyRetry(definition, load).pipe(
         Effect.catch((error: E | EffectInputCallbackError) => failCurrentLoad(error))
       );
       const rows = yield* ingestCollectionOutputRowsEffect(definition, values, {

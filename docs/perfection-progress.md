@@ -41,15 +41,16 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest focused Review173 slice is green for the Start Virtual Declaration
-  Artifact Adapter dry-run guardrail. The clean-sweep counter has not started
-  because fresh post-Review171 sweeps still found actionable work.
-- The latest recorded full verification gate is green after Review173:
+- The latest focused Review174 slice is green for the Collection Policy Module
+  and stale Collection State row-replacement cleanup. The clean-sweep counter
+  has not started because fresh post-Review173 sweeps still have actionable
+  Core/React/Solid and public-symbol work.
+- The latest recorded full verification gate is green after Review174:
   `pnpm verify` completed with 53 root test files / 1028 tests, public API
-  inventory audit, Effect-first audit over 402 physical/virtual files,
+  inventory audit, Effect-first audit over 403 physical/virtual files,
   parallel example package verifies and leak scans, generated starter
   packaging, and the 16-target package dry-run gate with the Start virtual
-  declaration byte check active.
+  declaration byte check and 149-file `@effect-ui/db` package rehearsal active.
 - The latest focused Review166 slice is green for mounted Resource UI retention
   through `gcFor`, Solid route render updates keyed by state plus renderer
   identity, DB no-op writes and single-tick hydration, observable change-feed
@@ -614,6 +615,7 @@ or command result that proves it.
 | 411 | Review 171 public API symbol policy | `CONTEXT.md`; `docs/architecture-deepening-review.md`; `docs/perfection-progress.md`; `docs/public-api-inventory.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md`; `scripts/audit-public-api-inventory.mjs`; `scripts/public-api-symbol-policy.mjs` | Added the Public API Symbol Policy Module so curated LSP hover declaration pins and namespace-backed source-module allowances live behind one Interface. The Public API Inventory Audit now consumes that Module and rejects hover policy files that are not reachable from package exports or re-exported public source Modules. The compiled Query Execution Plan candidate was re-reviewed and closed as already handled by the existing Query Execution Plan Module. | Focused verification passed: `pnpm audit:public-api`; `pnpm audit:effect-first` over 402 files. Full `pnpm verify` passed: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 402 files, 53 root test files / 1028 tests, devtools-panel verify with 2 tests, devtools-extension verify with 20 tests, basic starter verify with 2 tests, React starter verify with 3 tests, project-console verify with 4 files / 27 tests plus build/leak scan, starter package generation, and the 16-target package dry-run gate. |
 | 412 | Review 172 stale carry-forward docs | `docs/architecture-deepening-review.md`; `docs/release-notes.md` | Updated current-facing Review167 carry-forward language after Reviews168-171 closed the broader candidates or re-reviewed them as already handled. | Focused verification passed: `pnpm audit:effect-first` over 402 files and `git diff --check`. |
 | 413 | Review 173 Start virtual declaration artifact | `CONTEXT.md`; `docs/architecture-deepening-review.md`; `docs/generated-artifact-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md`; `packages/start/src/virtual-modules.d.ts`; `scripts/verify-package-dry-runs.mjs` | Added explicit package dry-run policy for the copied `@effect-ui/start/virtual` declaration Adapter. The gate now requires `dist/virtual.d.ts` to be packed, compares it byte-for-byte against `src/virtual-modules.d.ts`, rejects stale `dist/virtual.d.ts.map`, and self-tests the copied-declaration policy. The virtual declaration source indentation was normalized for LSP readability. | Focused verification passed: `node --check scripts/verify-package-dry-runs.mjs`; `pnpm --filter @effect-ui/start build`; `pnpm example:pack-dry-run`. Full `pnpm verify` passed: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 402 files, 53 root test files / 1028 tests, devtools-panel verify with 2 tests, devtools-extension verify with 20 tests, basic starter verify with 2 tests, React starter verify with 3 tests, project-console verify with 4 files / 27 tests plus build/leak scan, starter package generation, and the 16-target package dry-run gate. |
+| 414 | Review 174 collection policy cleanup | `CONTEXT.md`; `docs/architecture-deepening-review.md`; `docs/db.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md`; `packages/db/src/collection-policy.ts`; `packages/db/src/collection-state.ts`; `packages/db/src/collection-sync-load-policy.ts`; `packages/db/src/collection-mutation-workflow.ts` | Deleted stale `replaceCollectionRows(...)` from Collection State and added a focused Collection Policy Module so load and mutation retry both consume one `policy.retry` implementation Seam. Collection State now avoids carrying obsolete remote-row replacement policy that bypassed the newer row-ingress/load path. | Focused verification passed: DB typecheck, DB build, and DB collection tests 1 file / 139 tests. Full `pnpm verify` passed: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 403 files, 53 root test files / 1028 tests, devtools-panel verify with 2 tests, devtools-extension verify with 20 tests, basic starter verify with 2 tests, React starter verify with 3 tests, project-console verify with 4 files / 27 tests plus build/leak scan, starter package generation, and the 16-target package dry-run gate. |
 
 ## Thirty-Sweep Gate
 
