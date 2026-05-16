@@ -19,12 +19,24 @@ export interface ResourceUiSuccessMeta<A, E> {
   readonly state: ResourceState<A, E>;
 }
 
+/** Metadata passed to Resource UI pending render branches. */
+export interface ResourceUiPendingMeta<A, E> {
+  readonly hasPrevious: boolean;
+  readonly state: Extract<ResourceState<A, E>, { readonly _tag: "Pending" }>;
+}
+
+/** Metadata passed to Resource UI failure render branches. */
+export interface ResourceUiFailureMeta<A, E> {
+  readonly hasPrevious: boolean;
+  readonly state: Extract<ResourceState<A, E>, { readonly _tag: "Failure" }>;
+}
+
 /** Exhaustive render cases for Resource UI handles. */
 export interface ResourceUiMatch<A, E, B> {
   readonly initial: () => B;
-  readonly pending: (previous: A | undefined) => B;
+  readonly pending: (previous: A | undefined, meta: ResourceUiPendingMeta<A, E>) => B;
   readonly success: (value: A, meta: ResourceUiSuccessMeta<A, E>) => B;
-  readonly failure: (error: E, previous: A | undefined) => B;
+  readonly failure: (error: E, previous: A | undefined, meta: ResourceUiFailureMeta<A, E>) => B;
 }
 
 /** Failure from an automatic UI preload, keyed to the Resource ref that caused it. */
@@ -141,12 +153,16 @@ export const resourceUiMatchState = <A, E, B>(
   switch (state._tag) {
     case "Initial":
       return cases.initial();
-    case "Pending":
-      return cases.pending(state.previous);
+    case "Pending": {
+      const hasPrevious = "previous" in state;
+      return cases.pending(state.previous, { hasPrevious, state });
+    }
     case "Success":
       return cases.success(state.value, { refreshing: false, state });
-    case "Failure":
-      return cases.failure(state.error, state.previous);
+    case "Failure": {
+      const hasPrevious = "previous" in state;
+      return cases.failure(state.error, state.previous, { hasPrevious, state });
+    }
   }
 };
 

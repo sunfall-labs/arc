@@ -31,43 +31,43 @@ const frameworkPackageTargets = [
   payload: "dist-package",
 }));
 
-const copyablePackageTargets = [
+const sourcePackageTargets = [
   {
-    label: "basic starter",
+    label: "basic starter source package",
     filter: "@effect-ui/starter-basic",
-    payload: "copyable-source",
+    payload: "source-package",
     requiresGitignore: true,
   },
   {
-    label: "React starter",
+    label: "React starter source package",
     filter: "@effect-ui/starter-react",
-    payload: "copyable-source",
+    payload: "source-package",
     requiresGitignore: true,
   },
   {
-    label: "project-console example",
+    label: "project-console example source package",
     filter: "@effect-ui/example-project-console",
-    payload: "copyable-source",
+    payload: "source-package",
     requiresGitignore: true,
   },
   {
-    label: "devtools panel example",
+    label: "devtools panel workspace example package",
     filter: "@effect-ui/example-devtools-panel",
-    payload: "copyable-source",
+    payload: "source-package",
     requiresGitignore: true,
   },
   {
-    label: "devtools extension example",
+    label: "devtools extension workspace example package",
     filter: "@effect-ui/example-devtools-extension",
-    payload: "copyable-source",
+    payload: "source-package",
     requiresGitignore: true,
   },
 ];
 
-const packageTargets = [...frameworkPackageTargets, ...copyablePackageTargets];
+const packageTargets = [...frameworkPackageTargets, ...sourcePackageTargets];
 
 const forbiddenGeneratedSegments = new Set([".test-dist", "node_modules"]);
-const forbiddenCopyableSegments = new Set(["dist", ...forbiddenGeneratedSegments]);
+const forbiddenSourcePackageSegments = new Set(["dist", ...forbiddenGeneratedSegments]);
 const forbiddenFileNames = new Set([
   ".DS_Store",
   "bun.lock",
@@ -165,7 +165,7 @@ const hasForbiddenPath = (target, filePath) => {
   const segments = filePath.split("/");
   const forbiddenSegments = target.payload === "dist-package"
     ? forbiddenGeneratedSegments
-    : forbiddenCopyableSegments;
+    : forbiddenSourcePackageSegments;
   return (
     segments.some((segment) => forbiddenSegments.has(segment)) ||
     forbiddenFileNames.has(segments.at(-1) ?? "") ||

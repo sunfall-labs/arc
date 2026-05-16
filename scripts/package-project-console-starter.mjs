@@ -176,6 +176,68 @@ export default defineConfig({
 });
 `;
 
+const basicStarterReadme = `# Effect UI Basic Starter
+
+This is the smallest checked starter path for a full-stack Effect UI app. It
+keeps the same shape as the project console without the local-first DB, actions,
+or diagnostics demo data.
+
+## Commands
+
+\`\`\`sh
+pnpm install
+pnpm dev
+pnpm verify
+\`\`\`
+
+The starter includes:
+
+- Start SSR with an Effect-returning request handler;
+- browser hydration through \`hydrateFromDocument\`;
+- a route-owned Resource preload declared in file route metadata;
+- a production leak scan for server-only module sentinels.
+`;
+
+const reactStarterReadme = `# Effect UI React Starter
+
+React + Vite starter for Effect UI with Tailwind v4, Base UI, and a
+shadcn-compatible project shape.
+
+## Commands
+
+\`\`\`sh
+pnpm install
+pnpm dev
+pnpm verify
+\`\`\`
+
+The starter includes a shadcn CLI-installed \`Badge\`, a Base UI primitive, file
+routes, route-owned Resource preload, SSR, browser hydration, and a production
+leak scan for server-only sentinels.
+`;
+
+const projectConsoleStarterReadme = `# Effect UI Project Console Starter
+
+This is the larger checked starter path for Effect UI. It exercises branded
+routes, file-route generation, Resources, Collections, Start server functions,
+Start actions, no-JS form fallback, SSR, hydration, capability-based mocking,
+and a production server-only leak scan.
+
+## Commands
+
+\`\`\`sh
+pnpm install
+pnpm dev
+pnpm verify
+\`\`\`
+
+Keep \`src/domain.contract.ts\` browser-safe. Put server implementations and
+seed data in \`src/domain.server.ts\`. Keep \`src/start-options.ts\` explicit;
+it is the app graph source for server functions, actions, file routes,
+diagnostics, and generated route output. Keep \`src/routeTree.gen.ts\`
+generated, not hand-edited.
+`;
+
 const starterDefinitions = [
   {
     id: "basic",
@@ -185,6 +247,7 @@ const starterDefinitions = [
     packageName: "effect-ui-basic-starter",
     viteConfig: solidStarterViteConfig("starterStartOptions"),
     tsConfig: solidStarterTsConfig,
+    readme: basicStarterReadme,
   },
   {
     id: "react",
@@ -194,6 +257,7 @@ const starterDefinitions = [
     packageName: "effect-ui-react-starter",
     viteConfig: reactStarterViteConfig,
     tsConfig: reactStarterTsConfig,
+    readme: reactStarterReadme,
   },
   {
     id: "project-console",
@@ -203,6 +267,7 @@ const starterDefinitions = [
     packageName: "effect-ui-project-console-starter",
     viteConfig: solidStarterViteConfig("projectConsoleStartOptions"),
     tsConfig: solidStarterTsConfig,
+    readme: projectConsoleStarterReadme,
   },
 ];
 
@@ -213,6 +278,21 @@ const forbiddenSourceSegments = new Set([
   localPackagesDirectoryName,
 ]);
 const forbiddenGeneratedAppSegments = new Set(["node_modules", "dist", ".test-dist"]);
+const forbiddenGeneratedLocalPackageSegments = new Set(["node_modules", ".test-dist"]);
+const forbiddenGeneratedPackageFileNames = new Set([
+  ".DS_Store",
+  "bun.lock",
+  "bun.lockb",
+  "package-lock.json",
+  localLockfileName,
+  "yarn.lock",
+]);
+const forbiddenGeneratedReadmeFragments = [
+  "pnpm --filter @effect-ui",
+  "pnpm example:",
+  "pnpm starter:package",
+  ".test-dist/starters",
+];
 const generatedAppContentFiles = ["src/routeTree.gen.ts"];
 
 const toPosixPath = (filePath) => filePath.split(sep).join("/");
@@ -641,6 +721,26 @@ const assertGeneratedAppContentMatchesSource = (starter) =>
     }
   });
 
+const assertStandaloneReadme = (starter) =>
+  Effect.gen(function* () {
+    const readmePath = resolve(starter.outputDir, "README.md");
+    const text = yield* fsEffect(
+      `read generated ${starter.displayName} README`,
+      () => readFile(readmePath, "utf8"),
+    );
+    const forbidden = forbiddenGeneratedReadmeFragments.filter((fragment) =>
+      text.includes(fragment)
+    );
+    if (forbidden.length > 0) {
+      return yield* Effect.fail(
+        fail(
+          `Generated ${starter.displayName} README still contains workspace-only instructions.`,
+          `Rewrite README.md for standalone use; remove: ${forbidden.join(", ")}.`,
+        ),
+      );
+    }
+  });
+
 const parsePackDryRunOutput = (starter, stdout) =>
   Effect.gen(function* () {
     const parsed = yield* Effect.try({
@@ -666,6 +766,7 @@ const parsePackDryRunOutput = (starter, stdout) =>
 
 const assertGeneratedStarterPackageDryRun = (starter, internalPackageNames) =>
   Effect.gen(function* () {
+    const packageJson = yield* readPackageJson(resolve(starter.outputDir, "package.json"));
     const { stdout } = yield* commandEffect(
       `${starter.displayName} package dry-run`,
       "pnpm",
@@ -674,19 +775,81 @@ const assertGeneratedStarterPackageDryRun = (starter, internalPackageNames) =>
     );
     const pack = yield* parsePackDryRunOutput(starter, stdout);
     const files = pack.files.map((file) => file.path);
-    const localPackageManifests = files.filter((file) =>
-      file.startsWith(`${localPackagesDirectoryName}/`) && file.endsWith("/package.json")
-    );
     const forbidden = files.filter((file) =>
       !file.startsWith(`${localPackagesDirectoryName}/`) &&
       hasForbiddenSegment(file, forbiddenGeneratedAppSegments)
     );
+    const forbiddenLocalPackageFiles = files.filter((file) =>
+      file.startsWith(`${localPackagesDirectoryName}/`) &&
+      (
+        hasForbiddenSegment(file, forbiddenGeneratedLocalPackageSegments) ||
+        forbiddenGeneratedPackageFileNames.has(file.split("/").at(-1) ?? "") ||
+        file.endsWith(".tsbuildinfo")
+      )
+    );
+    const expectedLocalPackageDirectories = internalPackageNames
+      .map(localPackageDirectoryName)
+      .sort((left, right) => left.localeCompare(right));
+    const actualLocalPackageDirectories = [...new Set(
+      files
+        .filter((file) => file.startsWith(`${localPackagesDirectoryName}/`))
+        .map((file) => file.split("/")[1])
+        .filter((directory) => directory !== undefined)
+    )].sort((left, right) => left.localeCompare(right));
+    const actualLocalPackageDirectorySet = new Set(actualLocalPackageDirectories);
+    const missingLocalPackages = expectedLocalPackageDirectories.filter((directory) =>
+      !actualLocalPackageDirectorySet.has(directory)
+    );
+    const expectedLocalPackageDirectorySet = new Set(expectedLocalPackageDirectories);
+    const unexpectedLocalPackages = actualLocalPackageDirectories.filter((directory) =>
+      !expectedLocalPackageDirectorySet.has(directory)
+    );
+    const missingLocalPackageFiles = expectedLocalPackageDirectories.flatMap((directory) =>
+      [
+        `${localPackagesDirectoryName}/${directory}/package.json`,
+        `${localPackagesDirectoryName}/${directory}/dist/index.js`,
+        `${localPackagesDirectoryName}/${directory}/dist/index.d.ts`,
+      ].filter((file) => !files.includes(file))
+    );
+    const referencedLocalPackageDirectories = localPackageReferences(packageJson)
+      .sort((left, right) => left.localeCompare(right));
+    const referencedLocalPackageDirectorySet = new Set(referencedLocalPackageDirectories);
+    const unreferencedLocalPackages = expectedLocalPackageDirectories.filter((directory) =>
+      !referencedLocalPackageDirectorySet.has(directory)
+    );
+    const unknownLocalPackageReferences = referencedLocalPackageDirectories.filter((directory) =>
+      !expectedLocalPackageDirectorySet.has(directory)
+    );
 
-    if (internalPackageNames.length > 0 && localPackageManifests.length === 0) {
+    if (missingLocalPackages.length > 0 || unexpectedLocalPackages.length > 0) {
       return yield* Effect.fail(
         fail(
-          `Generated ${starter.displayName} package dry-run omits local file package adapters.`,
-          `Include ${localPackagesDirectoryName} in the generated starter package files allowlist.`,
+          `Generated ${starter.displayName} package dry-run has incomplete local file package adapters.`,
+          [
+            "Keep generated starter package payloads aligned with local file dependencies.",
+            missingLocalPackages.length > 0 ? `Missing: ${missingLocalPackages.join(", ")}` : undefined,
+            unexpectedLocalPackages.length > 0 ? `Unexpected: ${unexpectedLocalPackages.join(", ")}` : undefined,
+          ].filter(Boolean).join(" "),
+        ),
+      );
+    }
+    if (missingLocalPackageFiles.length > 0) {
+      return yield* Effect.fail(
+        fail(
+          `Generated ${starter.displayName} package dry-run omits required local package files.`,
+          `Include these local package files in the tarball payload: ${missingLocalPackageFiles.join(", ")}.`,
+        ),
+      );
+    }
+    if (unreferencedLocalPackages.length > 0 || unknownLocalPackageReferences.length > 0) {
+      return yield* Effect.fail(
+        fail(
+          `Generated ${starter.displayName} package.json local file references do not match the packaged adapters.`,
+          [
+            "Keep dependencies and pnpm overrides aligned with the generated local package payload.",
+            unreferencedLocalPackages.length > 0 ? `Unreferenced adapters: ${unreferencedLocalPackages.join(", ")}` : undefined,
+            unknownLocalPackageReferences.length > 0 ? `Unknown references: ${unknownLocalPackageReferences.join(", ")}` : undefined,
+          ].filter(Boolean).join(" "),
         ),
       );
     }
@@ -698,7 +861,31 @@ const assertGeneratedStarterPackageDryRun = (starter, internalPackageNames) =>
         ),
       );
     }
+    if (forbiddenLocalPackageFiles.length > 0) {
+      return yield* Effect.fail(
+        fail(
+          `Generated ${starter.displayName} package dry-run includes forbidden local package artifacts.`,
+          `Remove these local package paths from the tarball payload: ${forbiddenLocalPackageFiles.join(", ")}.`,
+        ),
+      );
+    }
   });
+
+const localPackageReferencesFromMap = (dependencies) =>
+  Object.values(dependencies ?? {})
+    .filter((value) => typeof value === "string")
+    .flatMap((value) => {
+      const prefix = `file:${localPackagesDirectoryName}/`;
+      return value.startsWith(prefix) ? [value.slice(prefix.length)] : [];
+    });
+
+const localPackageReferences = (packageJson) =>
+  [
+    ...localPackageReferencesFromMap(packageJson.dependencies),
+    ...localPackageReferencesFromMap(packageJson.peerDependencies),
+    ...localPackageReferencesFromMap(packageJson.devDependencies),
+    ...localPackageReferencesFromMap(packageJson.pnpm?.overrides),
+  ];
 
 const verifyStandaloneConfigs = (starter) =>
   Effect.gen(function* () {
@@ -822,6 +1009,9 @@ const rewriteMonorepoConfig = (starter) =>
     yield* fsEffect(`write standalone ${starter.displayName} tsconfig`, () =>
       writeFile(resolve(starter.outputDir, "tsconfig.json"), stringifyJson(starter.tsConfig)),
     );
+    yield* fsEffect(`write standalone ${starter.displayName} README`, () =>
+      writeFile(resolve(starter.outputDir, "README.md"), starter.readme),
+    );
   });
 
 const packageStarter = (workspacePackages, starter) =>
@@ -865,12 +1055,14 @@ const packageStarter = (workspacePackages, starter) =>
     yield* assertSameFileManifest(starter, expectedFiles, generatedAppFiles);
     yield* assertNoForbiddenGeneratedAppSegments(starter, generatedAppFiles);
     yield* verifyStandaloneConfigs(starter);
+    yield* assertStandaloneReadme(starter);
     yield* assertNoWorkspaceProtocol(starter);
     yield* verifyInstallableStarter(starter);
     const verifiedGeneratedAppFiles = yield* collectGeneratedAppFiles();
     yield* assertSameFileManifest(starter, expectedFiles, verifiedGeneratedAppFiles);
     yield* assertNoForbiddenGeneratedAppSegments(starter, verifiedGeneratedAppFiles);
     yield* assertGeneratedAppContentMatchesSource(starter);
+    yield* assertStandaloneReadme(starter);
     yield* assertNoWorkspaceProtocol(starter);
     yield* assertGeneratedStarterPackageDryRun(starter, internalPackageNames);
 

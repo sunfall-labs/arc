@@ -37,13 +37,15 @@ exports. It supports the release-engineering charter workstream.
   - `@effect-ui/start-node`: `@effect-ui/start`
   - `@effect-ui/tsrx`: `@tsrx/vite-plugin-solid`, `vite-plugin-solid`, with
     `vite` as a peer dependency.
-- Review149 added `pnpm example:pack-dry-run` as the current copyable package
+- Review149 added `pnpm example:pack-dry-run` as the current source package
   payload gate, and Review150 expanded it to all 11 framework packages plus the
-  five copyable starter/example packages. Framework package payloads must be
-  `package.json` plus `dist/*`; copyable payloads must stay source-only and
-  reject generated output, dependency directories, lockfiles, build info, local
-  metadata, and missing `.gitignore` files. Root `pnpm verify` includes this
-  gate.
+  five starter/example source packages. Framework package payloads must be
+  `package.json` plus `dist/*`; source package payloads must stay source-only
+  and reject generated output, dependency directories, lockfiles, build info,
+  local metadata, and missing `.gitignore` files. The basic, React, and
+  generated project-console starters are the standalone copyable paths; the
+  devtools panel and extension are workspace examples. Root `pnpm verify`
+  includes this gate.
 
 ## Verification Evidence
 

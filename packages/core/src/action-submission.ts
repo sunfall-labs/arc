@@ -19,9 +19,9 @@ export class ActionInterrupted extends Data.TaggedError("ActionInterrupted")<{
 /** Visible submission state exposed by action client instances. */
 export type ActionSubmissionState<I, A, E = never, P = ResourceInvalidationPlan> =
   | { readonly _tag: "Idle" }
-  | { readonly _tag: "Pending"; readonly input: I; readonly previous?: A }
+  | { readonly _tag: "Pending"; readonly input: I; readonly previous: A | undefined; readonly hasPrevious: boolean }
   | { readonly _tag: "Success"; readonly value: A; readonly input: I; readonly invalidationPlan?: P }
-  | { readonly _tag: "Failure"; readonly error: E; readonly input: I; readonly previous?: A };
+  | { readonly _tag: "Failure"; readonly error: E; readonly input: I; readonly previous: A | undefined; readonly hasPrevious: boolean };
 
 export type ActionSubmissionFiber<A, E> = Fiber.Fiber<A, E | ActionInterrupted>;
 
@@ -89,15 +89,17 @@ export interface ActionSubmissionControllerOptions {
   readonly concurrency?: ActionSubmissionConcurrency | undefined;
 }
 
-const previousFromState = <I, A, E, P>(state: ActionSubmissionState<I, A, E, P>): A | undefined => {
+const previousFromState = <I, A, E, P>(
+  state: ActionSubmissionState<I, A, E, P>
+): { readonly present: boolean; readonly value: A | undefined } => {
   switch (state._tag) {
     case "Success":
-      return state.value;
+      return { present: true, value: state.value };
     case "Failure":
     case "Pending":
-      return state.previous;
+      return { present: state.hasPrevious, value: state.previous };
     case "Idle":
-      return undefined;
+      return { present: false, value: undefined };
   }
 };
 
@@ -175,7 +177,8 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
         state.set({
           _tag: "Pending",
           input,
-          ...(previous === undefined ? {} : { previous })
+          previous: previous.value,
+          hasPrevious: previous.present
         });
       }),
     interruptStaleEffect: (submission) =>
@@ -210,7 +213,8 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
           _tag: "Failure",
           error,
           input,
-          ...(previous === undefined ? {} : { previous })
+          previous: previous.value,
+          hasPrevious: previous.present
         });
       }),
     clearCurrentEffect: (token) =>

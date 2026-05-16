@@ -239,6 +239,14 @@ export const makeRuntime = <R = never, ER = never>(
   );
 };
 
+/**
+ * Creates a Runtime Spine Adapter that reuses `runtime` services with a
+ * specific Resource Store.
+ *
+ * Start request runtimes and tests use this expert-public seam when they need
+ * request-local Resource state without taking ownership of the managed service
+ * runtime itself.
+ */
 export const withResourceStore = <R, ER>(
   runtime: EffectUiRuntime<R, ER>,
   resourceStore: ResourceStoreState = makeResourceStore()

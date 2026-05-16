@@ -38,6 +38,51 @@ describe("Action", () => {
     });
   });
 
+  it("preserves successful undefined as previous action state", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const release = yield* Deferred.make<void>();
+        const Complete = Action.define<string, void, "failed">({
+          name: "action.undefined-previous",
+          run: (mode) =>
+            mode === "wait"
+              ? Deferred.await(release)
+              : mode === "fail"
+                ? Effect.fail("failed" as const)
+                : Effect.void
+        });
+        const action = Action.use(Complete);
+
+        yield* action.submitEffect("success");
+
+        const pendingFiber = yield* action.submitEffect("wait").pipe(
+          Effect.forkChild({ startImmediately: true })
+        );
+        yield* Effect.sync(() => {
+          expect(action.state.get()).toEqual({
+            _tag: "Pending",
+            input: "wait",
+            previous: undefined,
+            hasPrevious: true
+          });
+        });
+        yield* Deferred.succeed(release, undefined);
+        yield* Fiber.join(pendingFiber);
+
+        const exit = yield* Effect.exit(action.submitEffect("fail"));
+        yield* Effect.sync(() => {
+          expect(exit._tag).toBe("Failure");
+          expect(action.state.get()).toEqual({
+            _tag: "Failure",
+            input: "fail",
+            error: "failed",
+            previous: undefined,
+            hasPrevious: true
+          });
+        });
+      })
+    ));
+
   it("captures synchronous run throws in the Effect error channel", async () => {
     const Rename = Action.define<string, string>({
       name: "rename.sync-throw",

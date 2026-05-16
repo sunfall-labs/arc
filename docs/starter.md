@@ -69,7 +69,7 @@ The generated package manifests include `.effect-ui-packages`, and the packager
 dry-runs each generated starter tarball to prove those local file-package
 Adapters are actually included while generated app artifacts stay out.
 
-Verify package payloads for the copyable examples:
+Verify package payloads for source examples and starter packages:
 
 ```sh
 pnpm example:pack-dry-run
@@ -77,6 +77,8 @@ pnpm example:pack-dry-run
 
 That gate checks all 11 framework packages plus the basic starter, React
 starter, project console, devtools panel, and devtools extension. Framework
-packages must contain only `package.json` and `dist/*`; copyable starter/example
-packages must contain source/config assets, local `.gitignore` coverage, and no
-generated output or dependency artifacts.
+packages must contain only `package.json` and `dist/*`; source packages must
+contain source/config assets, local `.gitignore` coverage, and no generated
+output or dependency artifacts. The basic, React, and generated project-console
+starters are the standalone copyable paths; the devtools panel and extension
+packages are workspace examples with source-only package payload gates.

@@ -4,7 +4,8 @@ import {
   makeResourceUiBindingController,
   makeResourceUiSuspensePreloadController,
   makeRuntime,
-  Resource
+  Resource,
+  resourceUiMatchState
 } from "../src/index.js";
 
 interface Project {
@@ -19,6 +20,33 @@ interface ProjectApi {
 const ProjectApi = Context.Service<ProjectApi>("@effect-ui/core/test/ResourceUiProjectApi");
 
 describe("Resource UI Binding Controller", () => {
+  it("passes previous-value presence through match metadata", () => {
+    const pending = resourceUiMatchState<void, string, string>({
+      _tag: "Pending",
+      waiting: true,
+      previous: undefined
+    }, {
+      initial: () => "initial",
+      pending: (previous, meta) => `pending:${String(previous)}:${String(meta.hasPrevious)}`,
+      success: () => "success",
+      failure: () => "failure"
+    });
+    const failure = resourceUiMatchState<void, string, string>({
+      _tag: "Failure",
+      waiting: false,
+      error: "failed",
+      previous: undefined
+    }, {
+      initial: () => "initial",
+      pending: () => "pending",
+      success: () => "success",
+      failure: (_error, previous, meta) => `failure:${String(previous)}:${String(meta.hasPrevious)}`
+    });
+
+    expect(pending).toBe("pending:undefined:true");
+    expect(failure).toBe("failure:undefined:true");
+  });
+
   it("binds refresh and prefetch effects to the supplied runtime", () => {
     const runtime = makeRuntime(
       Layer.succeed(ProjectApi)({

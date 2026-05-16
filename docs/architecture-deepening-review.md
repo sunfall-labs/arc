@@ -32,10 +32,13 @@ the clean-sweep counter can start.
   declarations instead of scanning raw text. String literals, comments, and
   templates can no longer accidentally satisfy the coverage Interface.
 - Package payload wall: `pnpm example:pack-dry-run` now covers all 11 framework
-  packages plus the five copyable packages. Framework packages must ship only
-  `package.json` and `dist/*`, while copyable starter/example packages stay
+  packages plus the five starter/example source packages. Framework packages
+  must ship only `package.json` and `dist/*`, while source packages stay
   source-only with `.gitignore` coverage and no generated output, lockfiles,
-  dependency directories, build info, or local metadata.
+  dependency directories, build info, or local metadata. The generated basic,
+  React, and project-console starters are the standalone copyable paths; the
+  devtools panel and extension remain workspace examples with source package
+  gates.
 - Effect-first Promise factory guardrail: the audit now rejects
   `Promise.try(...)`, `Promise.withResolvers(...)`, and extracted forms through
   dot, bracket, and template-literal static member access, keeping new Promise
