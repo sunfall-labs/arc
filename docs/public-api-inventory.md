@@ -517,10 +517,9 @@ Release decisions:
 The root export includes:
 
 - Local source modules: `change-feed-dispatcher`, `collection-contract`,
-  `collection-definition-snapshot`, `collection-errors`, `collection-ids`,
-  `collection-index-materialization`, `collection-persistence`, `collection-preload`,
-  `collection-reactive-binding`, `collection-registry`,
-  `collection-snapshot-codec`, `collection-state`, `flush-policy`,
+  `collection-errors`, `collection-ids`, `collection-index-materialization`,
+  `collection-persistence`, `collection-preload`, `collection-reactive-binding`,
+  `collection-registry`, `collection-snapshot-codec`, `flush-policy`,
   `live-query-collection`, `query-builder`, `query-plan`, `server-collection`,
   `sync-adapter`, and `sqlite-persistence`.
 - `Collection`, `Query`, live query types, collection snapshots, hydration, and

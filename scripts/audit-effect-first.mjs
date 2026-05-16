@@ -102,8 +102,8 @@ const printScopeSummary = () => {
   console.log("Effect-first host-seam allowances:");
   for (const check of allowed) {
     console.log(`- ${check.name}: ${check.seams.size} explicit file seams`);
-    for (const [file, maximum] of check.seams) {
-      console.log(`  - ${file}: <= ${maximum}`);
+    for (const [file, expected] of check.seams) {
+      console.log(`  - ${file}: = ${expected}`);
     }
   }
   for (const check of banned) {
@@ -392,10 +392,10 @@ for (const file of sourceFiles) {
 }
 
 for (const check of allowed) {
-  for (const [file, maximum] of check.seams) {
+  for (const [file, expected] of check.seams) {
     const count = counts.get(`${check.name}\0${file}`) ?? 0;
-    if (count > maximum) {
-      failures.push(`${file} has ${count} ${check.name} occurrences; expected at most ${maximum}`);
+    if (count !== expected) {
+      failures.push(`${file} has ${count} ${check.name} occurrences; expected exactly ${expected}`);
     }
   }
 }

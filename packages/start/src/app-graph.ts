@@ -731,6 +731,7 @@ export const serializeStartAppGraph = (graph: StartAppGraph): string =>
 const uniqueSorted = (values: Iterable<string>): readonly string[] =>
   Array.from(new Set(values)).sort();
 
+/** Describes one file-route manifest entry as app graph route diagnostics. */
 export const describeFileRouteManifestEntry = (
   entry: FileRouteManifest["entries"][number],
   moduleFeatures: {
@@ -768,6 +769,7 @@ const runtimeFeaturePresence = (
 ): StartAppGraphRouteFeaturePresence =>
   value === undefined ? "absent" : "present";
 
+/** Describes one loaded route module candidate with runtime preload facts. */
 export const describeStartAppGraphRouteDiagnosticsRuntimeCandidate = (
   candidate: StartAppGraphRouteDiagnosticsRuntimeCandidate
 ): StartAppGraphRouteDiagnostics =>
@@ -811,6 +813,7 @@ const describeWireContract = (
   };
 };
 
+/** Describes one server-function manifest entry as app graph diagnostics. */
 export const describeServerFunctionManifestEntry = (
   entry: ServerFunctionManifest["entries"][number]
 ): StartAppGraphServerFunctionDiagnostics => ({
@@ -837,6 +840,7 @@ export const describeServerFunctionManifestEntry = (
   wire: describeWireContract(entry.wire)
 });
 
+/** Describes one action manifest entry as app graph diagnostics. */
 export const describeActionManifestEntry = (
   entry: ActionManifest["entries"][number]
 ): StartAppGraphActionDiagnostics => ({

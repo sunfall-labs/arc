@@ -184,8 +184,8 @@ Last evidence pass: May 15, 2026.
     validation stays on static app graph facts, and
     Start agent graph constructors, diagnostics failures, and Core `Program`
     namespace aliases/direct contracts plus app graph DTO/errors/deserializer
-    declarations have declaration-site JSDoc pinned by the public API audit for
-    LSP hovers.
+    declarations and exported app-graph helper projectors have declaration-site
+    JSDoc pinned by the public API audit for LSP hovers.
 - [x] Core runtime service erasure is named at the runtime value boundary.
   - Evidence: `packages/core/src/runtime.ts` erases ManagedRuntime services at
     the `ManagedRuntime<any, ER>` value boundary, so runtime helpers no longer

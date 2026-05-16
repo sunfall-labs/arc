@@ -11,15 +11,39 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 135, immediately after Review 134. Some older review
+The newest review is Review 136, immediately after Review 135. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 136: Exact Effect Audit and Public Inventory Drift
+
+Status: fixed for the fresh post-Review135 test-gap and docs/LSP findings.
+Focused verification is green. Full verification is still inherited from
+Review 135 until the next single-command gate runs.
+
+- Effect-first audit exactness: approved host seams in
+  `scripts/audit-effect-first.mjs` now require an exact occurrence count and
+  print `= N`, so a moved or deleted host seam cannot pass under an old
+  at-most allowance. Banned-pattern exceptions still use upper-bound counts.
+- DB public inventory: `docs/public-api-inventory.md` no longer claims
+  internal `collection-definition-snapshot` or `collection-state` modules are
+  part of the `@effect-ui/db` root export surface.
+- Start app graph helper hovers: `describeFileRouteManifestEntry(...)`,
+  `describeStartAppGraphRouteDiagnosticsRuntimeCandidate(...)`,
+  `describeServerFunctionManifestEntry(...)`, and
+  `describeActionManifestEntry(...)` now have declaration-site JSDoc and are
+  pinned by the public hover audit.
+
+Focused verification passed: `pnpm audit:effect-first`, `pnpm
+audit:public-api`, `pnpm --filter @effect-ui/start typecheck`, and `git diff
+--check`.
 
 ## Review 135: Store-Explicit Hydration Apply and Strict Diagnostics DTOs
 
 Status: fixed for the fresh post-Review134 architecture, Effect/Promise,
-docs/LSP, and test-gap sweeps. Full verification passed. A fresh post-fix sweep
-is still required before the clean-sweep counter can start.
+docs/LSP, and test-gap sweeps. Full verification passed, but fresh post-fix
+sweeps found the Review 136 docs/LSP and test-gap issues, so the Thirty-Sweep
+clean counter remains at 0.
 
 - DB store-explicit hydration: `StoreExplicitCollectionSnapshotDefinition` now
   includes `hydrateWithStoreEffect(...)`, and Collection Persistence applies

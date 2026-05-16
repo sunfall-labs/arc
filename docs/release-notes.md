@@ -184,6 +184,10 @@ Latest full gate on May 15, 2026:
   type test pins diagnostics/build-policy exports and static-only
   `StartBuildPolicyError`, `StartBuildPolicyError` hovers are audit-pinned, and
   the Start fetch Promise-return allowance is exact.
+- Review 136 closed fresh docs/test drift: approved host seams in the
+  Effect-first audit now require exact counts, DB public inventory no longer
+  lists internal store modules as root exports, and exported Start app-graph
+  helper hovers are audit-pinned.
 - Review 85 extracted the internal Solid Route Render Scope Controller:
   `RouterOutlet` now delegates route branch rendering, route-owned `UiScope`
   creation, Solid root cleanup, runtime-bound route finalizers, transition

@@ -68,8 +68,9 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     store-explicit collection snapshot Interface extraction, and Review 131
     public hover completion, and Review 132 start diagnostics policy Module and
     regression hooks, Review 133 app graph public hover and CLI vocabulary
-    seams, Review 134 runtime diagnostics policy and audit drift closure, and
-    Review 135 store-explicit hydrate apply and strict diagnostics DTOs.
+    seams, Review 134 runtime diagnostics policy and audit drift closure,
+    Review 135 store-explicit hydrate apply and strict diagnostics DTOs, and
+    Review 136 exact Effect audit and public inventory drift.
 
 ## Current Sweep Results
 
@@ -92,6 +93,9 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   full `pnpm verify` gate and recorded the store-explicit hydrate apply seam,
   strict diagnostics DTO enum validation, Vite subpath type-test pins, and
   exact fetch adapter Promise allowance.
+- Corrected the DB public API inventory so internal store-explicit/state modules
+  are not listed as root exports, and pinned exported Start app-graph helper
+  hovers after the fresh Review136 docs/LSP sweep.
 - Updated the cleanup backlog so the generated artifact determinism audit points
   at the completed audit artifact instead of remaining unchecked.
 - Updated final handoff evidence to point at the latest full `pnpm verify`

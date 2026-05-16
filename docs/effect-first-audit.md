@@ -35,6 +35,8 @@ interruption.
     `request-runtime-response.ts` to the single remaining host seam.
   - The Review 135 pass tightened the Start fetch adapter `Promise<Response>`
     return-type allowance to the single public host facade.
+  - The Review 136 pass made approved host seams exact-count checks, so moved
+    or deleted seams fail until the audit contract is updated.
 - `packages/start/src/start-fetch.ts` and `packages/start/src/file-route.ts`
   - Custom Start fetchers and file-route preload helpers now reject
     Promise-shaped erased JavaScript values before they cross deeper runtime
