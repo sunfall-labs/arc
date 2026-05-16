@@ -534,6 +534,24 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
     }
   };
 
+  const visitAssignment = (node) => {
+    if (node.operatorToken.kind !== ts.SyntaxKind.EqualsToken) {
+      ts.forEachChild(node, visit);
+      return;
+    }
+
+    const member = promiseStaticMemberAccess(node.right);
+    if (member !== undefined) {
+      addFinding(node.right, promiseStaticExtractionName(member));
+    }
+
+    if (ts.isIdentifier(node.left)) {
+      setBinding(node.left.text, isPromiseConstructorExpression(node.right));
+    }
+
+    visit(node.right);
+  };
+
   const visitImportDeclaration = (node) => {
     const importClause = node.importClause;
     if (importClause?.name !== undefined) {
@@ -573,6 +591,10 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
     }
     if (ts.isVariableDeclaration(node)) {
       visitVariableDeclaration(node);
+      return;
+    }
+    if (ts.isBinaryExpression(node)) {
+      visitAssignment(node);
       return;
     }
     if (ts.isNewExpression(node) && isPromiseConstructorExpression(node.expression)) {
@@ -803,6 +825,8 @@ assertPromiseStaticBans("const P = Promise; P.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("const P = globalThis.Promise; P.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("const P = window.Promise; const Q = P; Q.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("const P = self.Promise; const Q = P; Q.all([]);", ["Promise.all"]);
+assertPromiseStaticBans("let P; P = self.Promise; P.all([]);", ["Promise.all"]);
+assertPromiseStaticBans("let P; P = globalThis.Promise; new P(() => undefined);", ["new Promise"]);
 assertPromiseStaticBans("const P = Promise; function run(P) { P.all([]); } P.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("const Promise = { all() {} }; Promise.all([]);", []);
 assertPromiseStaticBans("Promise.allSettled([]);", ["Promise.allSettled"]);
@@ -818,6 +842,7 @@ assertPromiseStaticBans("Promise.all.call(Promise, []);", ["Promise.all"]);
 assertPromiseStaticBans("Promise.all.apply(Promise, [[]]);", ["Promise.all"]);
 assertPromiseStaticBans("Promise.all.bind(Promise);", ["Promise.all"]);
 assertPromiseStaticBans("const all = Promise.all; all([]);", ["Promise.all.extraction"]);
+assertPromiseStaticBans("let all; all = Promise.all;", ["Promise.all.extraction"]);
 assertPromiseStaticBans("const all = Promise[\"all\"]; all([]);", ["Promise.all.extraction"]);
 assertPromiseStaticBans("const all = Promise[`all`]; all([]);", ["Promise.all.extraction"]);
 assertPromiseStaticBans("const all = Promise[\"all\" as const]; all([]);", ["Promise.all.extraction"]);

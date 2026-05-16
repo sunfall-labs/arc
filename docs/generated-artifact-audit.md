@@ -47,22 +47,19 @@ repeating stale package/test totals.
   - `effectUiStart(...)` rewrites the generated route definitions file and
     invalidates route/app-graph virtual modules when route files under the
     configured route directory change during dev.
+  - Review163 covers Vite 8's `hotUpdate(...)` create/delete path in addition
+    to the legacy `handleHotUpdate(...)` path, so modern dev sessions refresh
+    `routeTree.gen.ts` and virtual modules after route creation and removal.
 
 ## Verification Evidence
 
 - `pnpm exec vitest run packages/start/test/file-routes.test.ts packages/start/test/file-route-modules.test.ts packages/start/test/server-function-manifest.test.ts packages/start/test/action-manifest.test.ts packages/start/test/app-graph.test.ts`
   passed after the audit.
 - `pnpm --filter @effect-ui/start typecheck` passed after the audit.
-- Review161 full `pnpm verify` passed after the generated-artifact
-  guardrail refresh: 11 package builds, workspace typecheck, public type tests,
-  public API inventory audit, Effect-first audit over 274 files, 53 root test
-  files / 977 tests, devtools-panel and devtools-extension verifies, starter
-  verifies, generated starter-suite packaging/verifies, 16-target package
-  dry-run gate, project-console typecheck/tests/build, and leak scans.
-- Review162 focused Start verification added the dev hot-update artifact
-  regression: 5 Start test files / 215 tests plus Start package typecheck and
-  public type tests.
-- Review162 full `pnpm verify` passed with 53 root test files / 987 tests,
+- Review163 focused Start verification covered the Vite 8 `hotUpdate(...)`
+  create/delete artifact regression among 1 Start test file / 8 selected tests
+  plus Start package typecheck and public type tests.
+- Review163 full `pnpm verify` passed with 53 root test files / 991 tests,
   generated starter-suite packaging/verifies at 19/24/30 app files, and the
   16-target package dry-run gate.
 

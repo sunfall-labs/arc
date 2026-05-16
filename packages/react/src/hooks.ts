@@ -17,6 +17,7 @@ import {
   type ActionState,
   type ActionInstance,
   type ActionResultInvalidationRequirements,
+  type EffectInput,
   type EffectInputCallbackError,
   type EffectUiRuntime,
   type ForkScopedOptions,
@@ -67,7 +68,7 @@ export interface UseResourceOptions<E = never, ER = never> {
    * channel. If this observer throws, the hook ignores that throw after
    * updating `preloadFailure`.
    */
-  readonly onPreloadFailure?: (error: Resource.LoadError<E> | ER) => void;
+  readonly onPreloadFailure?: (error: Resource.LoadError<E> | ER) => EffectInput<void, unknown>;
 }
 
 /**

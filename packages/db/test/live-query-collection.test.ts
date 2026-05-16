@@ -1510,6 +1510,41 @@ describe("Collection.liveQuery", () => {
     );
   });
 
+  it("collects live query collection preloads as hydrateable source collections", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const Projects = Collection.define<Project>({
+          name: "Projects.live-query-collection.collect-source",
+          getKey: (project) => project.id,
+          load: () =>
+            Effect.succeed([
+              { id: "atlas", name: "Atlas", status: "active", progress: 72 },
+              { id: "lumen", name: "Lumen", status: "blocked", progress: 34 }
+            ])
+        });
+        const ActiveProjectCards = Collection.liveQuery<ProjectCard, string>({
+          name: "ProjectCards.live-query-collection.collect-derived",
+          getKey: (project) => project.id,
+          query: (query) =>
+            query
+              .from({ project: Projects })
+              .where(({ project }) => eq(project.status, "active"))
+              .select(({ project }) => ({
+                id: project.id,
+                name: project.name,
+                progress: project.progress
+              }))
+        });
+
+        const collected = yield* Collection.collectEffect(ActiveProjectCards.preloadEffect());
+        const payload = yield* Collection.dehydrateEffect(collected.definitions);
+
+        expect(collected.definitions.map((definition) => definition.name)).toEqual([Projects.name]);
+        expect(payload.collections.map((snapshot) => snapshot.name)).toEqual([Projects.name]);
+        yield* Collection.validateHydrationPayloadEffect(collected.definitions, payload);
+      })
+    ));
+
   it("rejects namespace change application because derived collections are read-only", () =>
     Effect.runPromise(
       Effect.scoped(

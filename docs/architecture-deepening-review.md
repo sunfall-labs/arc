@@ -12,9 +12,133 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review162, immediately after Review161. Some older review entries remain below
+Review163, immediately after Review162. Some older review entries remain below
 it from prior ledger merges; use this tip rather than file order alone when
 looking for the latest architecture sweep.
+
+## Review 163: Solid Action Handles, Hydrateable DB Snapshots, Vite 8 HMR, And Guardrails
+
+Review163 fixed fresh findings from the post-Review162 clean-sweep subagents
+across Core/UI, DB, Start, and public guardrails.
+
+1. Solid Action Handle Adaptation
+   - Status: fixed.
+   - Files: `packages/solid/src/hooks.ts`,
+     `packages/solid/test/hooks.test.ts`, `type-tests/solid.test-d.ts`,
+     `type-tests/public-api.manifest.json`,
+     `docs/public-api-inventory.md`.
+   - Problem: Solid `useAction(...)` returned the raw Core `ActionInstance`,
+     exposing Core `Signal` objects where Solid callers expect Accessor-shaped
+     state.
+   - Fix: Solid now returns an `ActionHandle` with `state()` and
+     `invalidationPlan()` accessors, runtime-bound `submitEffect(...)` and
+     `resetEffect(...)`, and an explicit `instance` escape hatch for advanced
+     integration work.
+   - Benefits: React and Solid both adapt Core Action state to their host
+     reactivity model while preserving the Effect-first action methods.
+
+2. Resource Preload Failure Observer Shape
+   - Status: fixed.
+   - Files: `packages/core/src/resource-ui-binding.ts`,
+     `packages/core/test/resource-ui-binding.test.ts`,
+     `packages/react/src/hooks.ts`, `packages/solid/src/hooks.ts`,
+     `type-tests/core.test-d.ts`, `type-tests/framework.test-d.ts`,
+     `docs/public-api-inventory.md`.
+   - Problem: `onPreloadFailure(...)` was typed as `void`, which allowed
+     Promise-returning observers to sneak into the automatic preload seam.
+   - Fix: Core and adapter options now require `EffectInput<void, unknown>`;
+     observer callbacks run through the same EffectInput guard as other public
+     callbacks, and observer failures are swallowed after the preload failure
+     is recorded.
+   - Benefits: UI preload observers remain Effect-shaped without making
+     observer failures mask the Resource failure they are observing.
+
+3. DB Live Query Collection Snapshot Collection
+   - Status: fixed.
+   - Files: `packages/db/src/live-query-collection.ts`,
+     `packages/db/test/live-query-collection.test.ts`.
+   - Problem: `Collection.collectEffect(...)` could record a derived
+     live-query collection definition that `dehydrateEffect(...)` could
+     snapshot but `hydrateEffect(...)` intentionally rejects.
+   - Fix: live-query collection preload/refetch work delegates collection
+     recording to its concrete source collection preloads instead of recording
+     the derived collection definition itself.
+   - Benefits: SSR collection collection now produces hydrateable source
+     collection payloads rather than unhydrateable derived snapshots.
+
+4. Query Factory Error Normalization
+   - Status: fixed.
+   - Files: `packages/db/src/query-builder.ts`,
+     `packages/db/test/collection.test.ts`.
+   - Problem: synchronous throws while building a `Query.onceEffect(...)`
+     factory bypassed the DB query diagnostics seam.
+   - Fix: query factory construction is wrapped in Effect and normalized as a
+     `QueryEvaluationError` with operation `evaluate`.
+   - Benefits: one-shot query callers see the same typed evaluation failure
+     shape whether the defect happens while building or evaluating the query.
+
+5. Start Vite 8 Route Hot Updates
+   - Status: fixed.
+   - Files: `packages/start/src/vite.ts`, `packages/start/test/start.test.ts`,
+     `docs/generated-artifact-audit.md`.
+   - Problem: the Start Vite plugin refreshed generated route artifacts through
+     legacy `handleHotUpdate(...)`, but Vite 8 create/delete notifications use
+     the newer `hotUpdate(...)` hook.
+   - Fix: the plugin now supports `hotUpdate(...)` for create/delete route
+     changes while keeping the legacy hook path, refreshing `routeTree.gen.ts`
+     and invalidating route/app-graph virtual modules.
+   - Benefits: generated route artifacts and virtual modules stay aligned in
+     modern Vite dev sessions.
+
+6. Start Dev SSR Body Read Cancellation
+   - Status: fixed.
+   - Files: `packages/start/src/start-vite-dev-ssr.ts`,
+     `packages/start/test/start.test.ts`.
+   - Problem: interrupting the dev SSR Effect did not cancel a pending
+     `response.text()` Promise while reading the HTML body.
+   - Fix: dev SSR HTML reads now use an Effect-owned stream reader that checks
+     the request `AbortSignal`, cancels the reader on abort/interruption, and
+     reports failures as `StartDevServerError` operation `read-html`.
+   - Benefits: Vite dev SSR no longer leaves body reads detached from the
+     request lifecycle.
+
+7. Public Guardrail Drift
+   - Status: fixed.
+   - Files: `scripts/verify-package-dry-runs.mjs`,
+     `scripts/audit-effect-first.mjs`,
+     `type-tests/public-api.manifest.json`, `docs/release-notes.md`,
+     `docs/effect-first-audit.md`, `docs/package-hygiene-audit.md`,
+     `docs/perfection-progress.md`, `docs/sharp-cast-audit.md`,
+     `docs/ultimate-goal-checklist.md`.
+   - Problem: source-package dry-runs could miss payload drift, the
+     Effect-first Promise scanner missed assignment aliases, the public API
+     manifest under-pinned new hook symbols, and several release-facing docs
+     still pointed at older verification gates.
+   - Fix: source-package dry-runs now compare the packed payload exactly
+     against the source manifest after excluding generated/dependency/local
+     metadata paths; the Effect-first audit tracks Promise assignment aliases
+     and static extraction assignments; the manifest pins React/Solid
+     `useProgram(...)`, `useResourceSuspense(...)`, and Solid `ActionHandle`;
+     current-facing docs now point at this Review163 gate.
+   - Benefits: packaging, Promise, public API, and docs guardrails all describe
+     the same release reality.
+
+Focused verification passed across the Review163 slices: Core, Solid, DB, and
+Start package typechecks; public type tests; public API inventory audit;
+Effect-first audit over 274 files; 16-target package dry-run gate; Core/Solid
+focused tests 2 files / 23 tests; DB focused tests 2 files / 7 selected tests;
+Start focused tests 1 file / 8 selected tests; and `git diff --check`.
+
+Full `pnpm verify` passed after Review163: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 274 files, 53 root test files / 991 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, generated starter-suite
+packaging/verifies for basic/react/project-console at 19/24/30 app files with
+5/4/6 local packages, 16-target package dry-run gate, project-console
+typecheck, 4 project-console test files / 27 tests, project-console build, and
+leak scans. Fresh post-fix sweeps still need to run before the clean-sweep
+counter can start.
 
 ## Review 162: Resource Lifetimes, DB Snapshot Planning, Start Host Cancellation, And Docs
 

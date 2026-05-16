@@ -5983,6 +5983,24 @@ describe("Query", () => {
     });
   });
 
+  it("normalizes query factory throws as query evaluation errors", async () => {
+    const thrown = new Error("factory failed");
+
+    const onceExit = await Effect.runPromiseExit(Query.onceEffect(() => {
+      throw thrown;
+    }));
+
+    expect(Exit.isFailure(onceExit)).toBe(true);
+    if (Exit.isFailure(onceExit)) {
+      const error = onceExit.cause.reasons.find(Cause.isFailReason)?.error;
+      expect(error).toBeInstanceOf(QueryEvaluationError);
+      expect(error).toMatchObject({
+        operation: "evaluate",
+        cause: thrown
+      });
+    }
+  });
+
   it("rejects non-finite and fractional query windows consistently", async () => {
     const Projects = Collection.define<Project>({
       name: "Projects.invalid-query-window",

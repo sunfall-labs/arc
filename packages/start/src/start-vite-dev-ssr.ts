@@ -106,7 +106,107 @@ const tryViteDevPromise = <A>(
   Effect.tryPromise({
     try: f,
     catch: (error) => new StartDevServerError({ operation, error })
+	  });
+
+const devServerError = (
+  operation: StartDevServerError["operation"],
+  error: unknown
+): StartDevServerError =>
+  new StartDevServerError({ operation, error });
+
+const requestAbortError = (signal: AbortSignal): StartDevServerError =>
+  devServerError("read-html", signal.reason ?? new Error("Request aborted while reading dev SSR HTML."));
+
+const failIfRequestAborted = (signal: AbortSignal): Effect.Effect<void, StartDevServerError> =>
+  signal.aborted ? Effect.fail(requestAbortError(signal)) : Effect.void;
+
+const cancelResponseReaderEffect = (
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  reason: unknown
+): Effect.Effect<void> =>
+  Effect.tryPromise({
+    try: () => reader.cancel(reason),
+    catch: () => undefined
+  }).pipe(
+    Effect.catchCause(() => Effect.void),
+    Effect.asVoid
+  );
+
+const installRequestAbortReaderCancel = (
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  signal: AbortSignal
+): Effect.Effect<void, never, Scope.Scope> =>
+  Effect.acquireRelease(
+    Effect.sync(() => {
+      const cancel = (): void => {
+        void reader.cancel(signal.reason ?? "request-aborted");
+      };
+      if (signal.aborted) {
+        cancel();
+      } else {
+        signal.addEventListener("abort", cancel, { once: true });
+      }
+      return cancel;
+    }),
+    (cancel) =>
+      Effect.sync(() => {
+        signal.removeEventListener("abort", cancel);
+      })
+  ).pipe(Effect.asVoid);
+
+const readResponseChunkEffect = (
+  reader: ReadableStreamDefaultReader<Uint8Array>
+): Effect.Effect<ReadableStreamReadResult<Uint8Array>, StartDevServerError> =>
+  Effect.tryPromise({
+    try: () => reader.read(),
+    catch: (error) => devServerError("read-html", error)
   });
+
+const releaseResponseReaderLockEffect = (
+  reader: ReadableStreamDefaultReader<Uint8Array>
+): Effect.Effect<void> =>
+  Effect.try({
+    try: () => {
+      reader.releaseLock();
+    },
+    catch: () => undefined
+  }).pipe(
+    Effect.catchCause(() => Effect.void),
+    Effect.asVoid
+  );
+
+const readResponseTextEffect = (
+  response: Response,
+  signal: AbortSignal
+): Effect.Effect<string, StartDevServerError> =>
+  response.body === null
+    ? Effect.succeed("")
+    : Effect.scoped(
+        Effect.gen(function* () {
+          const reader = response.body!.getReader();
+          const decoder = new TextDecoder();
+          let html = "";
+          yield* installRequestAbortReaderCancel(reader, signal);
+
+          const readLoop = Effect.gen(function* () {
+            while (true) {
+              yield* failIfRequestAborted(signal);
+              const chunk = yield* readResponseChunkEffect(reader);
+              yield* failIfRequestAborted(signal);
+              if (chunk.done) {
+                break;
+              }
+              html += decoder.decode(chunk.value, { stream: true });
+            }
+            return html + decoder.decode();
+          });
+
+          return yield* readLoop.pipe(
+            Effect.onInterrupt(() => cancelResponseReaderEffect(reader, "dev-ssr-read-interrupted")),
+            Effect.ensuring(releaseResponseReaderLockEffect(reader))
+          );
+        })
+      );
 
 /** Adapts Vite's Promise-based dev server API to Start's Effect-first seam. */
 export const startDevServerFromVite = (server: StartViteDevServer): StartDevServer => ({
@@ -296,9 +396,9 @@ export const handleSsrDevRequestEffect = <R = never>(
     const transformedResponse = yield* suspendResponseStreamSuccessFinalizerEffect(
       response,
       Effect.gen(function* () {
-        const url = new URL(request.url);
-        const html = yield* tryViteDevPromise("read-html", () => response.text());
-        const transformed = yield* server.transformIndexHtml(`${url.pathname}${url.search}`, html);
+	        const url = new URL(request.url);
+	        const html = yield* readResponseTextEffect(response, request.signal);
+	        const transformed = yield* server.transformIndexHtml(`${url.pathname}${url.search}`, html);
         const headers = new Headers(response.headers);
         headers.delete("content-length");
 

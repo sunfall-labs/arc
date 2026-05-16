@@ -1,5 +1,6 @@
 import {
   Action,
+  ActionInterrupted,
   Program,
   Resource,
   Signal,
@@ -23,6 +24,7 @@ import {
   useRuntimeEffect,
   useSignal,
   useStream,
+  type ActionHandle,
   type BrowserRouter,
   type BrowserRouterOptions,
   type ProgramHandle,
@@ -93,7 +95,21 @@ const SolidAction = Action.define<{ readonly id: string }, { readonly ok: boolea
   run: ({ id }) => Effect.succeed({ ok: id.length > 0 })
 });
 const solidAction = useAction(SolidAction);
-const solidActionSubmit = solidAction.submitEffect({ id: "atlas" });
+const solidActionHandle: ActionHandle<
+  { readonly id: string },
+  { readonly ok: boolean }
+> = solidAction;
+const solidActionSubmit: Effect.Effect<
+  { readonly ok: boolean },
+  EffectInputCallbackError | ActionInterrupted
+> = solidAction.submitEffect({ id: "atlas" });
+const solidActionStateTag:
+  | "Idle"
+  | "Pending"
+  | "Success"
+  | "Failure" = solidAction.state()._tag;
+solidAction.instance.state.get()._tag;
+solidAction.invalidationPlan()?.entries.map((entry) => entry.ref.key);
 const solidExports: Array<unknown> = [
   RouterProvider,
   RuntimeProvider,
@@ -120,14 +136,16 @@ const solidExports: Array<unknown> = [
   solidResourceHandle.match(solidResourceMatch),
   solidSignalValue,
   solidStreamValue,
-  solidAction,
+  solidActionHandle,
   solidActionSubmit,
+  solidActionStateTag,
   solidBrowserOptions,
   solidProviderProps
 ];
 type SolidRouter = BrowserRouter | RouterOutletProps;
 type SolidBrowserRouterOptions = BrowserRouterOptions;
 type SolidRouterProviderProps = RouterProviderProps<typeof solidRoutes>;
+type SolidActionHandle = ActionHandle<{ readonly id: string }, { readonly ok: boolean }>;
 type SolidProgramHandle = ProgramHandle<number, "tick", EffectInputCallbackError>;
 type SolidResourceHandle = ResourceHandle<string, SolidProject, never>;
 type SolidUseResourceOptions = UseResourceOptions<never>;
@@ -136,6 +154,7 @@ void solidExports;
 type _SolidRouter = SolidRouter;
 type _SolidBrowserRouterOptions = SolidBrowserRouterOptions;
 type _SolidRouterProviderProps = SolidRouterProviderProps;
+type _SolidActionHandle = SolidActionHandle;
 type _SolidProgramHandle = SolidProgramHandle;
 type _SolidResourceHandle = SolidResourceHandle;
 type _SolidUseResourceOptions = SolidUseResourceOptions;

@@ -953,9 +953,10 @@ describe("Effect UI Start", () => {
     );
 
     expect(result.collectionPreload.routeTouchedCollections.map((collection) => collection.name)).toEqual([
-      "Start.Collection.live-query-derived.cards",
       "Start.Collection.live-query-source.projects"
     ]);
+    expect(result.collectionPreload.routeTouchedCollections.some((collection) => collection.name === ProjectCards.name))
+      .toBe(false);
     expect(result.collectionPreload.dehydratedCollections.map((collection) => collection.name)).toEqual([
       "Start.Collection.live-query-source.projects"
     ]);
@@ -6258,7 +6259,8 @@ describe("Effect UI Start", () => {
       const invalidated: Array<{ readonly id: string }> = [];
 
       writeFileSync(join(root, "src/routes/projects/$id.tsx"), "export default null;\n");
-      plugin.handleHotUpdate?.({
+      plugin.hotUpdate?.({
+        type: "create",
         file: join(root, "src/routes/projects/$id.tsx"),
         server: {
           moduleGraph: {
@@ -6278,6 +6280,26 @@ describe("Effect UI Start", () => {
       const resolved = plugin.resolveId(fileRouteDefinitionsVirtualModuleId);
       const loaded = resolved === null ? undefined : plugin.load(resolved);
       expect(String(loaded)).toContain("route_projects_$id");
+
+      rmSync(join(root, "src/routes/projects/$id.tsx"), { force: true });
+      invalidated.length = 0;
+      plugin.hotUpdate?.({
+        type: "delete",
+        file: join(root, "src/routes/projects/$id.tsx"),
+        server: {
+          moduleGraph: {
+            getModuleById: (id) => modules.get(id),
+            invalidateModule: (module) => {
+              invalidated.push(module as { readonly id: string });
+            }
+          }
+        }
+      });
+
+      const regenerated = readFileSync(generatedPath, "utf8");
+      expect(regenerated).not.toContain('import { Route as route_projects_$id }');
+      expect(regenerated).not.toContain('  "/projects/:id": route_projects_$id');
+      expect(invalidated.map((module) => module.id)).toEqual(resolvedIds);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -8272,6 +8294,50 @@ describe("Effect UI Start", () => {
         reason: "dev-ssr-host-transform"
       }
     });
+  });
+
+  it("cancels dev SSR HTML body reads when the request aborts", async () => {
+    const controller = new AbortController();
+    const started = Effect.runSync(Deferred.make<void>());
+    const cancelled = Effect.runSync(Deferred.make<unknown>());
+    const server = {
+      ssrLoadModule: (_id: string) =>
+        Effect.succeed({
+          default: () =>
+            new Response(
+              new ReadableStream<Uint8Array>({
+                start(stream) {
+                  stream.enqueue(new TextEncoder().encode("<html><body>loading"));
+                  Effect.runSync(Deferred.succeed(started, undefined).pipe(Effect.ignore));
+                },
+                cancel(reason) {
+                  Effect.runSync(Deferred.succeed(cancelled, reason).pipe(Effect.ignore));
+                }
+              }),
+              {
+                headers: { "content-type": "text/html" }
+              }
+            )
+        }),
+      transformIndexHtml: (_url: string, html: string) => Effect.succeed(html)
+    };
+
+    const fiber = Effect.runFork(
+      handleSsrDevRequestEffect(
+        server,
+        new Request("https://example.com/slow", { signal: controller.signal })
+      )
+    );
+
+    await Effect.runPromise(Deferred.await(started));
+    controller.abort("dev-client-disconnect");
+    const cancelReason = await Effect.runPromise(Deferred.await(cancelled).pipe(Effect.timeout("1 second")));
+    const exit = await Effect.runPromise(Fiber.await(fiber));
+    const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
+
+    expect(cancelReason).toBe("dev-client-disconnect");
+    expect(failure).toBeInstanceOf(StartDevServerError);
+    expect(failure).toMatchObject({ operation: "read-html" });
   });
 
   it("provides a request Scope to Vite dev SSR handler Effects", async () => {

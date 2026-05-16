@@ -2476,6 +2476,10 @@ const solidProjectResourceWithRuntimeError = useResource<
     void typedError;
   }
 });
+useResource(ProjectById("atlas"), {
+  // @ts-expect-error resource preload failure observers must return values or Effects, not Promises
+  onPreloadFailure: () => promisedVoid
+});
 const solidProjectResourceRuntimeErrorPrefetch: Effect.Effect<
   Project,
   Resource.LoadError<ProjectError | Server.ClientError> | SolidRuntimeStartupError
@@ -2513,6 +2517,10 @@ const reactProjectResourceWithRuntimeError = useReactResource<
     const typedError: Resource.LoadError<ProjectError | Server.ClientError> | ReactRuntimeStartupError = error;
     void typedError;
   }
+});
+useReactResource(ProjectById("atlas"), {
+  // @ts-expect-error resource preload failure observers must return values or Effects, not Promises
+  onPreloadFailure: () => promisedVoid
 });
 const reactProjectResourceRuntimeErrorPrefetch: Effect.Effect<
   Project,

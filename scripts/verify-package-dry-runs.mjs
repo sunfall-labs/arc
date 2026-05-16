@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
-import { dirname } from "node:path";
+import { readdir, stat } from "node:fs/promises";
+import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Data, Effect } from "effect";
 import { manifestTargetValidationFailures } from "./package-manifest-targets.mjs";
@@ -156,6 +157,8 @@ const forbiddenFileNames = new Set([
   "yarn.lock",
 ]);
 
+const toPosixPath = (filePath) => filePath.split(sep).join("/");
+
 const isNonEmptyString = (value) =>
   typeof value === "string" && value.trim().length > 0;
 
@@ -220,6 +223,23 @@ const packagePayloadValidationFailures = (target, files) => {
   return failures;
 };
 
+const sourcePackageManifestValidationFailures = (target, expectedFiles, actualFiles) => {
+  const expectedSet = new Set(expectedFiles);
+  const actualSet = new Set(actualFiles);
+  const missing = expectedFiles.filter((file) => !actualSet.has(file));
+  const extra = actualFiles.filter((file) => !expectedSet.has(file));
+  const failures = [];
+
+  if (missing.length > 0) {
+    failures.push(`${target.label} package dry-run is missing source manifest files: ${missing.join(", ")}.`);
+  }
+  if (extra.length > 0) {
+    failures.push(`${target.label} package dry-run includes files outside the source manifest: ${extra.join(", ")}.`);
+  }
+
+  return failures;
+};
+
 const failSelfTest = (message) => {
   console.error(message);
   process.exit(1);
@@ -252,6 +272,22 @@ const assertPackagePayloadPolicy = (name, target, files, expectedFragments) => {
     if (!failures.some((failure) => failure.includes(expectedFragment))) {
       failSelfTest(
         `${name} package payload self-test did not find expected failure fragment ${expectedFragment}: ${failures.join(" ")}`
+      );
+    }
+  }
+};
+
+const assertSourcePackageManifestPolicy = (name, target, expectedFiles, actualFiles, expectedFragments) => {
+  const failures = sourcePackageManifestValidationFailures(target, expectedFiles, actualFiles);
+  if (failures.length !== expectedFragments.length) {
+    failSelfTest(
+      `${name} source package manifest self-test expected ${expectedFragments.length} failures but found ${failures.length}: ${failures.join(" ")}`
+    );
+  }
+  for (const expectedFragment of expectedFragments) {
+    if (!failures.some((failure) => failure.includes(expectedFragment))) {
+      failSelfTest(
+        `${name} source package manifest self-test did not find expected failure fragment ${expectedFragment}: ${failures.join(" ")}`
       );
     }
   }
@@ -321,6 +357,20 @@ assertPackagePayloadPolicy(
   [".gitignore", "src/styles.css"],
   ["README.md", "index.html", "src/main.ts"],
 );
+assertSourcePackageManifestPolicy(
+  "source package manifest matches",
+  sourcePackageSelfTest,
+  ["README.md", "index.html", "package.json", "src/main.ts"],
+  ["README.md", "index.html", "package.json", "src/main.ts"],
+  [],
+);
+assertSourcePackageManifestPolicy(
+  "source package manifest drift",
+  sourcePackageSelfTest,
+  ["README.md", "index.html", "package.json", "src/main.ts", "src/styles.css"],
+  ["README.md", "index.html", "package.json", "src/main.ts", "src/old.css"],
+  ["src/styles.css", "src/old.css"],
+);
 
 const workspacePackageTargets = collectWorkspacePackageManifests(workspaceRoot).pipe(
   Effect.flatMap((manifests) =>
@@ -358,6 +408,7 @@ const workspacePackageTargets = collectWorkspacePackageManifests(workspaceRoot).
       return manifests.map((manifest) => ({
         label: manifest.packageJson.name,
         filter: manifest.packageJson.name,
+        directory: manifest.directory,
         packageJson: manifest.packageJson,
         ...packagePayloadPolicies.get(manifest.packageJson.name),
       }));
@@ -461,6 +512,55 @@ const hasForbiddenPath = (target, filePath) => {
   );
 };
 
+const fsEffect = (description, evaluate) =>
+  Effect.tryPromise({
+    try: evaluate,
+    catch: (cause) =>
+      fail(
+        `Failed to ${description}.`,
+        "Run from the repository root and check filesystem permissions.",
+        cause,
+      ),
+  });
+
+const collectSourcePackageFiles = (target) =>
+  Effect.gen(function* () {
+    const files = [];
+    const visit = (directory) => Effect.gen(function* () {
+      const entries = yield* fsEffect(
+        `read ${relative(workspaceRoot, directory)}`,
+        () => readdir(directory, { withFileTypes: true }),
+      );
+      for (const entry of entries) {
+        const fullPath = join(directory, entry.name);
+        const relativePath = toPosixPath(relative(target.directory, fullPath));
+        if (hasForbiddenPath(target, relativePath)) {
+          continue;
+        }
+        if (entry.isDirectory()) {
+          yield* visit(fullPath);
+          continue;
+        }
+        if (entry.isFile()) {
+          files.push(relativePath);
+          continue;
+        }
+        if (entry.isSymbolicLink()) {
+          const linkStat = yield* fsEffect(
+            `stat ${relative(workspaceRoot, fullPath)}`,
+            () => stat(fullPath),
+          );
+          if (linkStat.isFile()) {
+            files.push(relativePath);
+          }
+        }
+      }
+    });
+
+    yield* visit(target.directory);
+    return files.sort((left, right) => left.localeCompare(right));
+  });
+
 const verifyPackageTarget = (target) =>
   Effect.gen(function* () {
     const manifestMetadataFailures = manifestMetadataValidationFailures(target);
@@ -482,6 +582,9 @@ const verifyPackageTarget = (target) =>
     const files = pack.files.map((file) => file.path).sort((left, right) => left.localeCompare(right));
     const forbidden = files.filter((file) => hasForbiddenPath(target, file));
     const missingRequiredPayload = packagePayloadValidationFailures(target, files);
+    const sourceManifestDrift = target.payload === "source-package"
+      ? sourcePackageManifestValidationFailures(target, yield* collectSourcePackageFiles(target), files)
+      : [];
     const missingManifestTargets = manifestTargetValidationFailures({
       packageName: target.label,
       packageJson: target.packageJson,
@@ -515,6 +618,17 @@ const verifyPackageTarget = (target) =>
           [
             "Keep source package files allowlists aligned with copyable app and example contracts.",
             ...missingRequiredPayload,
+          ].join(" "),
+        ),
+      );
+    }
+    if (sourceManifestDrift.length > 0) {
+      return yield* Effect.fail(
+        fail(
+          `${target.label} package dry-run does not match the source package file manifest.`,
+          [
+            "Keep source package files allowlists aligned with the copyable source tree.",
+            ...sourceManifestDrift,
           ].join(" "),
         ),
       );

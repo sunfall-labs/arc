@@ -226,6 +226,9 @@ const resourceUiAutoPreloadOptions: ResourceUiAutoPreloadOptions<string, never> 
   preload: true,
   onPreloadFailure: () => undefined
 };
+const resourceUiAutoPreloadEffectOptions: ResourceUiAutoPreloadOptions<string, never> = {
+  onPreloadFailure: () => Effect.void
+};
 const resourceUiPreloadFailure: ResourceUiPreloadFailure<string, string, string, never, never> = {
   ref: typeTestResourceRef,
   error: "failed"
@@ -404,6 +407,7 @@ void matchedResourceState;
 void typeTestResourceRef;
 void resourceUiBindingController;
 void resourceUiAutoPreloadOptions;
+void resourceUiAutoPreloadEffectOptions;
 void resourceUiPreloadFailure;
 void resourceUiSuspensePreloadFiber;
 void actionFailure;

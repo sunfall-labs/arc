@@ -65,14 +65,14 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 161:
+Latest full gate on May 16, 2026 after Review 163:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
 - Effect-first audit over 274 package/example/config/script/type-test/generated
   template files;
-- 53 root test files / 977 tests;
+- 53 root test files / 991 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
 - basic starter verify with 1 starter test file / 2 tests;
@@ -87,6 +87,15 @@ Latest full gate on May 16, 2026 after Review 161:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 163 closed Solid action accessor adaptation, EffectInput preload
+  failure observers, hydrateable live-query collection SSR collection, query
+  factory error normalization, Vite 8 route hot-update create/delete support,
+  cancellable dev SSR HTML body reads, exact source-package dry-run manifests,
+  assignment-alias Promise scanning, and fresh public API/docs guardrails.
+- Review 162 closed Resource result lifetime stability, React failed-render
+  route scope disposal, package-local hook type pins, shared DB durable snapshot
+  planning, DB snapshot diagnostics, Start host disconnect cancellation, dev
+  route artifact refresh, and current-facing guardrails.
 - Review 161 closed DB durable write interruption gaps, transitive live-query
   snapshot permits, authoritative Start transport diagnostics, typed
   stable-stringify host failures, React action value adaptation, Start/Vite
@@ -883,13 +892,14 @@ Latest full gate on May 16, 2026 after Review 161:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 161 closed DB durable write
-  interruption gaps, transitive live-query snapshot permits, authoritative
-  Start transport diagnostics, typed stable-stringify host failures, React
-  action value adaptation, Start/Vite route writer public pins, and the
-  `self.Promise` Effect-first guardrail: 11 package
-  builds, workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 274 files, 53 root test files / 977 tests,
+- The latest full `pnpm verify` passed after Review 163 closed Solid action
+  accessor adaptation, EffectInput preload failure observers, hydrateable
+  live-query collection SSR collection, query factory error normalization,
+  Vite 8 route hot-update create/delete support, cancellable dev SSR HTML body
+  reads, exact source-package dry-run manifests, assignment-alias Promise
+  scanning, and fresh public API/docs guardrails: 11 package builds, workspace
+  typecheck, public type tests, public API inventory audit,
+  Effect-first audit over 274 files, 53 root test files / 991 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,
   generated starter-suite packaging/verifies for basic/react/project-console,

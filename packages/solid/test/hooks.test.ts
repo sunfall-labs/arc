@@ -554,6 +554,47 @@ describe("solid hooks", () => {
       })
     ));
 
+  it("bridges Solid action state through accessors", () =>
+    {
+      const runtime = makeRuntime();
+      let dispose: (() => void) | undefined;
+      let action: ReturnType<typeof useAction<string, string, never, never>> | undefined;
+      const release = Effect.runSync(Deferred.make<void>());
+      const Save = Action.define<string, string>({
+        name: "SolidHooks.action-accessor-state",
+        run: (input) =>
+          Deferred.await(release).pipe(
+            Effect.as(`saved:${input}`)
+          )
+      });
+      return Effect.runPromise(
+        Effect.gen(function* () {
+          runWithRuntime(runtime, () =>
+            createRoot((rootDispose) => {
+              dispose = rootDispose;
+              action = useAction(Save);
+            })
+          );
+
+          yield* Effect.sleep(0);
+          expect(action?.state()._tag).toBe("Idle");
+
+          const fiber = runtime.runFork(action!.submitEffect("atlas"));
+          yield* Effect.sleep(0);
+          expect(action?.state()._tag).toBe("Pending");
+          yield* Deferred.succeed(release, undefined);
+          const saved = yield* Fiber.join(fiber);
+
+          expect(saved).toBe("saved:atlas");
+          expect(action?.state()._tag).toBe("Success");
+          expect(action?.instance.state.get()._tag).toBe("Success");
+        }).pipe(
+          Effect.ensuring(Effect.sync(() => dispose?.())),
+          Effect.ensuring(runtime.disposeEffect)
+        )
+      );
+    });
+
   it("interrupts useRuntimeEffect fibers on component cleanup", async () => {
     let dispose: (() => void) | undefined;
     const runtime = makeRuntime();

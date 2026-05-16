@@ -897,10 +897,12 @@ Release decisions:
   rendering, keyed route frame remounting, runtime provider re-entry, and route
   finalizer policy while the public router surface stays unchanged.
 - `useResource<..., ER>(...)` exposes `preloadFailure` and accepts
-  `onPreloadFailure(...)` for automatic mount-time preloads. Returned
-  `prefetchEffect(...)` and `refreshEffect(...)` remain Effect-returning and
-  runtime-bound; `preloadFailure` is only the observable result of the hook's
-  fire-and-forget preload fiber.
+  `onPreloadFailure(...)` for automatic mount-time preloads. The observer may
+  return a plain value or an EffectInput, but Promise-shaped observers are
+  rejected at the EffectInput boundary. Returned `prefetchEffect(...)` and
+  `refreshEffect(...)` remain Effect-returning and runtime-bound;
+  `preloadFailure` is only the observable result of the hook's fire-and-forget
+  preload fiber.
 - React resource hooks consume Core's Resource UI Binding Controller for shared
   Resource ref identity, automatic preload, preload failure keying, and
   Suspense preload-token dedupe. React remains responsible for
@@ -976,10 +978,13 @@ Release decisions:
   ordering, and stale queued-render suppression to the internal Solid Route
   Render Scope Controller. This keeps the public Solid router surface stable
   while making route render lifetime policy local.
-- `useAction(...)` binds submissions to the nearest Solid runtime while keeping
-  the underlying action definition type intact. Apps with a fallible Solid
-  Runtime Provider can pass the hook's `ER` generic to expose the runtime error
-  channel on `submitEffect(...)`.
+- `useAction(...)` returns a Solid `ActionHandle`: `state()` and
+  `invalidationPlan()` are Solid accessors, while `submitEffect(...)` and
+  `resetEffect(...)` stay runtime-bound Effect methods. The underlying Core
+  `ActionInstance` remains available at `handle.instance` for advanced
+  integration work. Apps with a fallible Solid Runtime Provider can pass the
+  hook's `ER` generic to expose the runtime error channel on
+  `submitEffect(...)`.
 - `useProgram(...)` starts a Core `Program` under the nearest Solid runtime and
   owner scope, exposing `model()`, `state()`, `failures()`, `dispatch(...)`, and
   `dispatchEffect(...)`. This is the simple model/message/update surface for
@@ -990,9 +995,10 @@ Release decisions:
   Resource Store-owned; Solid owner cleanup and reactive ref changes detach the
   UI joiner, while Resource deletion/invalidation/runtime disposal cancel the
   underlying load. The handle also exposes `preloadFailure()` and accepts
-  `onPreloadFailure(...)`, so automatic preload failures and Runtime Spine
-  startup/provision failures are visible without changing the Effect-returning
-  public methods.
+  `onPreloadFailure(...)`; the observer may return a plain value or an
+  EffectInput, while Promise-shaped observers are rejected. Automatic preload
+  failures and Runtime Spine startup/provision failures are visible without
+  changing the Effect-returning public methods.
 - Solid resource hooks consume Core's Resource UI Binding Controller for shared
   Resource ref identity, automatic preload, preload failure keying, and
   Suspense preload-token dedupe. Solid remains responsible for Accessor-shaped

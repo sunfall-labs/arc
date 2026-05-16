@@ -1,6 +1,8 @@
 import { Effect, Fiber } from "effect";
 import type { AnyEffectUiRuntime } from "./runtime.js";
 import { runWithRuntime } from "./runtime.js";
+import type { EffectInput } from "./effect-like.js";
+import { invokeEffectInput } from "./effect-like.js";
 import type { ResourceLoadError, ResourceRef, ResourceState } from "./resource.js";
 import {
   prefetchResourceEffect,
@@ -49,8 +51,14 @@ export interface ResourceUiPreloadFailure<I, A, E, R, ER> {
 export interface ResourceUiAutoPreloadOptions<E, ER> {
   /** Start loading when the bound ref is still initial. Defaults to true. */
   readonly preload?: boolean;
-  /** Observe automatic preload failures without failing the fire-and-forget preload fiber. */
-  readonly onPreloadFailure?: (error: ResourceLoadError<E> | ER) => void;
+  /**
+   * Observe automatic preload failures without failing the fire-and-forget preload fiber.
+   *
+   * Return a plain value or an Effect. Promise-shaped observers are rejected at
+   * the EffectInput seam; adapt host Promise work explicitly with
+   * `Effect.tryPromise(...)` before returning it.
+   */
+  readonly onPreloadFailure?: (error: ResourceLoadError<E> | ER) => EffectInput<void, unknown>;
 }
 
 /** Options for a Resource UI Binding Controller. */
@@ -218,6 +226,17 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
   const refreshEffect = (ref: ResourceRef<I, A, E, R>): Effect.Effect<A, ResourceLoadError<E> | ER> =>
     resourceUiBindRuntimeEffect(options.runtime, refreshResourceEffect(ref));
 
+  const notifyPreloadFailure = (
+    observer: ResourceUiAutoPreloadOptions<E, ER>["onPreloadFailure"],
+    error: ResourceLoadError<E> | ER
+  ): Effect.Effect<void> =>
+    observer === undefined
+      ? Effect.void
+      : invokeEffectInput("ResourceUiBinding.onPreloadFailure", observer, error).pipe(
+          Effect.catchCause(() => Effect.void),
+          Effect.asVoid
+        );
+
   const startInitialPreload = (
     ref: ResourceRef<I, A, E, R>,
     preloadOptions: ResourceUiAutoPreloadOptions<E, ER> = {}
@@ -237,14 +256,9 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
         Effect.catch((error) =>
           Effect.sync(() => {
             setPreloadFailure({ ref, error });
-            if (preloadOptions.onPreloadFailure !== undefined) {
-              try {
-                preloadOptions.onPreloadFailure(error);
-              } catch {
-                // Observer callbacks must not fail the fire-and-forget preload fiber.
-              }
-            }
-          })
+          }).pipe(
+            Effect.andThen(notifyPreloadFailure(preloadOptions.onPreloadFailure, error))
+          )
         ),
         Effect.ensuring(
           Effect.sync(() => {

@@ -184,6 +184,16 @@ export interface EffectUiStartPlugin {
       };
     };
   }) => void;
+  readonly hotUpdate?: (context: {
+    readonly type: "create" | "update" | "delete";
+    readonly file: string;
+    readonly server: {
+      readonly moduleGraph: {
+        getModuleById(id: string): unknown;
+        invalidateModule(module: unknown): void;
+      };
+    };
+  }) => void;
 }
 
 /** Error thrown when a browser build imports a `.server.*` module. */
@@ -377,6 +387,11 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
           });
         });
       };
+	    },
+    hotUpdate(context) {
+      if (isFileRouteUpdate(context.file)) {
+        refreshFileRouteArtifacts(context.server);
+      }
     },
     handleHotUpdate(context) {
       if (isFileRouteUpdate(context.file)) {

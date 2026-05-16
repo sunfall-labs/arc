@@ -12,9 +12,6 @@ import {
   type StoreExplicitCollectionSnapshotImplementation
 } from "./collection-definition-snapshot.js";
 import { persistCollectionSnapshotEffect } from "./collection-persistence.js";
-import {
-  recordCollectionPreload
-} from "./collection-runtime.js";
 import { makeLiveQueryCollectionMaterialization } from "./live-query-collection-materialization.js";
 import {
   collectionStoreEffect,
@@ -122,16 +119,8 @@ export const makeLiveQueryCollectionDefinition = <
       materialization.index(index, value),
     firstByIndex: (index, value) =>
       materialization.firstByIndex(index, value),
-    preloadEffect: () =>
-      Effect.gen(function* () {
-        yield* recordCollectionPreload(definition);
-        yield* live.preloadEffect();
-      }),
-    refetchEffect: () =>
-      Effect.gen(function* () {
-        yield* recordCollectionPreload(definition);
-        yield* live.refetchEffect();
-      }),
+    preloadEffect: () => live.preloadEffect(),
+    refetchEffect: () => live.refetchEffect(),
     pendingMutationsEffect: () => Effect.succeed([]),
     pendingMutations: () => [],
     flushPendingMutationsEffect: () => Effect.succeed([]),

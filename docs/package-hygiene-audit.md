@@ -62,6 +62,10 @@ exports. It supports the release-engineering charter workstream.
   concrete entrypoint files: app/server/route/virtual-module/leak-scan files for
   starters, panel/extension runtime files for devtools examples, and the config
   files required to copy and verify each source package.
+- Review163 tightened the source-package payload gate from required-file checks
+  to exact manifest comparison: each source package dry-run must match the
+  source tree after excluding generated output, dependency directories,
+  lockfiles, build info, and local metadata.
 
 ## Verification Evidence
 
@@ -111,11 +115,13 @@ exports. It supports the release-engineering charter workstream.
   all 16 package payloads: 11 framework dist packages, 19 basic starter files,
   24 React starter files, 30 project-console files, 10 devtools panel files,
   and 15 devtools extension files.
-- The latest full `pnpm verify` passed after Review161 with 11 package builds,
+- The latest full `pnpm verify` passed after Review163 with 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 274 files, 53 root test files / 977 tests,
+  Effect-first audit over 274 files, 53 root test files / 991 tests,
   devtools verifies, generated starter packaging, the 16-target dry-run gate,
   project-console typecheck/tests/build, and leak scan.
+- Review163 focused `pnpm example:pack-dry-run` passed across all 16 package
+  payloads after adding exact source-package manifest comparison.
 - Review155 focused `pnpm example:pack-dry-run` passed across all 16 package
   payloads after adding manifest metadata enforcement to the dry-run gate.
 - Review156 focused `pnpm example:pack-dry-run` passed across all 16 package

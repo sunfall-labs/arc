@@ -14,9 +14,12 @@ import {
   resourceUiSameRef,
   resourceUiStateHasValue,
   Signal,
+  type ActionState,
   type ActionInstance,
   type ActionResultInvalidationRequirements,
   type AnyEffectUiRuntime,
+  type EffectInput,
+  type EffectInputCallbackError,
   type EffectUiRuntime,
   type ForkScopedOptions,
   type ProgramEvent,
@@ -27,6 +30,7 @@ import {
   type ResourceUiMatch,
   type ResourceUiPreloadFailure,
   type ResourceUiSuccessMeta,
+  type ResourceInvalidationPlan,
   type ResourceRef,
   type ResourceStore,
   type ResourceState
@@ -61,7 +65,7 @@ export interface UseResourceOptions<E = never, ER = never> {
    * channel. If this observer throws, the hook ignores that throw after
    * updating `preloadFailure`.
    */
-  readonly onPreloadFailure?: (error: Resource.LoadError<E> | ER) => void;
+  readonly onPreloadFailure?: (error: Resource.LoadError<E> | ER) => EffectInput<void, unknown>;
 }
 
 /**
@@ -121,6 +125,50 @@ export interface ProgramHandle<Model, Message, E = never> {
   dispatchEffect(message: Message): Effect.Effect<void, ProgramFailure<Message, E>>;
   /** Clears accumulated failures. */
   clearFailures(): void;
+}
+
+type SolidActionInvalidationRequirements<A, R> =
+  R | ActionResultInvalidationRequirements<A>;
+
+type SolidActionRemainingRequirements<A, R> =
+  Exclude<SolidActionInvalidationRequirements<A, R>, R | ResourceStore>;
+
+type SolidActionInstance<I, A, E, R, ER> = ActionInstance<
+  I,
+  A,
+  E | ER,
+  SolidActionRemainingRequirements<A, R>,
+  E,
+  R,
+  SolidActionInvalidationRequirements<A, R>
+>;
+
+/**
+ * Solid-facing handle for an Effect UI Action.
+ *
+ * `state` and `invalidationPlan` are Solid accessors bridged from Core signals;
+ * `instance` keeps the lower-level Core controller available for integrations.
+ */
+export interface ActionHandle<I, A, E = never, R = never, ER = never> {
+  /** Underlying Core action instance for advanced integrations. */
+  readonly instance: SolidActionInstance<I, A, E, R, ER>;
+  /** Action definition used to create this instance. */
+  readonly definition: Action.Definition<I, A, E, R>;
+  /** Current action submission state as a Solid accessor. */
+  readonly state: Accessor<ActionState<
+    I,
+    A,
+    E | ER | EffectInputCallbackError,
+    ResourceInvalidationPlan<SolidActionInvalidationRequirements<A, R>>
+  >>;
+  /** Latest successful invalidation plan as a Solid accessor. */
+  readonly invalidationPlan: Accessor<ResourceInvalidationPlan<SolidActionInvalidationRequirements<A, R>> | undefined>;
+  /** Runs the action workflow as an Effect bound to the nearest Solid runtime. */
+  readonly submitEffect: SolidActionInstance<I, A, E, R, ER>["submitEffect"];
+  /** Resets the action state as an Effect. */
+  readonly resetEffect: SolidActionInstance<I, A, E, R, ER>["resetEffect"];
+  /** Synchronously resets the action state. */
+  readonly reset: SolidActionInstance<I, A, E, R, ER>["reset"];
 }
 
 interface ResourceBinding<I, A, E, R, ER> {
@@ -401,21 +449,23 @@ export const useResourceSuspense = <I, A, E, R = unknown>(ref: ResourceInput<I, 
  */
 export const useAction = <I, A, E, R, ER = never>(
   definition: Action.Definition<I, A, E, R>
-): ActionInstance<
-  I,
-  A,
-  E | ER,
-  Exclude<R | ActionResultInvalidationRequirements<A>, R | ResourceStore>,
-  E,
-  R,
-  R | ActionResultInvalidationRequirements<A>
-> => {
+): ActionHandle<I, A, E, R, ER> => {
   const runtime = useRuntime() as EffectUiRuntime<R, ER>;
   const instance = Action.use(definition, { runtime });
+  const state = useSignal(instance.state);
+  const invalidationPlan = useSignal(instance.invalidationPlan);
 
   onCleanup(() => {
     void runtime.runFork(instance.resetEffect().pipe(Effect.catch(() => Effect.void)));
   });
 
-  return instance;
+  return {
+    instance,
+    definition: instance.definition,
+    state,
+    invalidationPlan,
+    submitEffect: instance.submitEffect,
+    resetEffect: instance.resetEffect,
+    reset: instance.reset
+  };
 };

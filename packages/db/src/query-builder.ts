@@ -508,7 +508,10 @@ export namespace Query {
     factory: QueryFactory<T, E, R>
   ): Effect.Effect<ReadonlyArray<T>, E | QueryEvaluationError, R> =>
     Effect.gen(function* () {
-      const builder = build(factory);
+      const builder = yield* Effect.try({
+        try: () => build(factory),
+        catch: (cause) => toQueryEvaluationError("evaluate", cause)
+      });
       yield* preloadQueryExecutionPlanEffect<E, R>(builder, false);
       const store = yield* collectionStoreEffect;
       return yield* Effect.try({

@@ -90,6 +90,7 @@ describe("Resource UI Binding Controller", () => {
     const okRef = ProjectById("atlas");
     const changes: Array<typeof failure | undefined> = [];
     const observed: Array<typeof failure> = [];
+    const observedThroughEffect: Array<typeof failure> = [];
     const controller = makeResourceUiBindingController<string, Project, typeof failure, never, never>({
       runtime,
       onPreloadFailureChange: (next) => {
@@ -114,6 +115,18 @@ describe("Resource UI Binding Controller", () => {
 
         expect(controller.preloadFailureFor(okRef)).toBeUndefined();
         expect(changes.at(-1)).toBeUndefined();
+
+        yield* runtime.provide(Resource.deleteEffect(failedRef));
+        controller.startInitialPreload(failedRef, {
+          onPreloadFailure: (error) =>
+            Effect.sync(() => {
+              observedThroughEffect.push(error);
+            }).pipe(Effect.andThen(Effect.fail("observer effect failed")))
+        });
+        yield* Effect.sleep("20 millis");
+
+        expect(controller.preloadFailureFor(failedRef)).toBe(failure);
+        expect(observedThroughEffect).toEqual([failure]);
       }).pipe(
         Effect.ensuring(Effect.sync(() => controller.dispose())),
         Effect.ensuring(runtime.disposeEffect)
