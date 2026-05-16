@@ -35,7 +35,7 @@ yet.
 - Starter paths: `examples/basic-starter` for the smallest full-stack shell,
   `examples/react-starter` for the React-focused starter,
   `examples/project-console` for the golden-path app, and
-  `pnpm starter:project-console:package` for a generated rich starter payload.
+  `pnpm starter:package` for generated standalone starter payloads.
 
 ## Experimental Or Expert-Public
 
@@ -65,26 +65,28 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 144:
+Latest full gate on May 16, 2026 after Review 145:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 250 package/example/script/type-test files;
-- 53 root test files / 892 tests;
+- Effect-first audit over 255 package/example-config/script/type-test files;
+- 53 root test files / 893 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
 - basic starter verify with 1 starter test file / 2 tests;
 - React starter verify with 1 starter test file / 3 tests;
-- project console starter packaging with 27 files verified;
+- starter-suite packaging for basic (16 app files / 5 local packages), React
+  (21 app files / 4 local packages), and project console (27 app files / 6
+  local packages);
 - project console typecheck;
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
 - `pnpm benchmark` refreshed the SSR, route preload, Resource, live query, and
   RPC transport baselines.
-- The latest `pnpm verify` includes the rich project-console starter packaging
-  gate and the devtools extension verify gate.
+- The latest `pnpm verify` includes the starter-suite packaging gate and the
+  devtools extension verify gate.
 - Review 81 extracted the expert-public Core Resource UI Binding Controller:
   React and Solid resource hooks now share Resource ref identity,
   runtime-bound refresh/prefetch Effects, automatic preload fibers, keyed
@@ -227,6 +229,12 @@ Latest full gate on May 16, 2026 after Review 144:
   hover-audit and type pinned; the Effect-first scanner covers package
   declaration files, optional Promise calls, and structural thenable type
   surfaces; and stale current-facing docs now use historical wording.
+- Review 145 closed fresh Effect/runtime/docs/starter gaps: the Effect-first
+  scanner catches parenthesized and extracted Promise choreography plus example
+  Vite configs; runtime provision carries the active runtime through Effect v4
+  fiber-local context for returned render Effects; Start render/fetch/node
+  type-test pins now match their docs; and `pnpm starter:package` proves basic,
+  React, and project-console starter payloads install outside the workspace.
 - Review 85 extracted the internal Solid Route Render Scope Controller:
   `RouterOutlet` now delegates route branch rendering, route-owned `UiScope`
   creation, Solid root cleanup, runtime-bound route finalizers, transition
@@ -856,14 +864,15 @@ Latest full gate on May 16, 2026 after Review 144:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 144 closed the collection
-  store sync locality, public kernel pin, and Effect-first audit tranche:
+- The latest full `pnpm verify` passed after Review 145 closed the
+  Effect-first guardrail, ambient runtime, public type-pin, and starter
+  copyability tranche:
   11 package builds, workspace typecheck, public type tests, public API
-  inventory audit, Effect-first audit over 250 files, 53 root test
-  files / 892 tests,
+  inventory audit, Effect-first audit over 255 files, 53 root test
+  files / 893 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,
-  project-console starter packaging with 27 files verified, project-console
+  starter-suite packaging for basic/react/project-console, project-console
   typecheck, 4 project-console test files / 27 tests, build, and leak scans.
 - The previous full `pnpm verify` passed after Review 64 store-owned Resource
   load ownership, Start stream/manifest walls, DB hydration/dehydrate preflight,
@@ -952,8 +961,9 @@ Latest full gate on May 16, 2026 after Review 144:
 - The browser extension live bridge expects the inspected app to expose
   `globalThis.__EFFECT_UI_DEVTOOLS__`; automatic injection is not part of the
   checked shell.
-- The generated rich starter rewrites workspace protocol dependencies from the
-  workspace package manifest versions; final public npm repository/license
-  decisions are still tracked separately from starter generation.
+- Generated starter payloads currently include local `.effect-ui-packages/*`
+  file dependencies because packages remain private; final public npm
+  repository/license decisions are still tracked separately from starter
+  generation.
 - Cloudflare, Vercel, Netlify, Bun, and static deployment currently use recipes
   over Node/fetch facades rather than dedicated packages.

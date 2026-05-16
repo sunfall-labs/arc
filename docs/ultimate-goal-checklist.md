@@ -648,7 +648,7 @@ Last evidence pass: May 16, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Evidence: `pnpm verify` ran all root package tests: 53 test files, 892
+  - Evidence: `pnpm verify` ran all root package tests: 53 test files, 893
     tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
@@ -664,10 +664,11 @@ Last evidence pass: May 16, 2026.
 - [x] Example leak scan passes.
   - Evidence: example-local `pnpm leak-scan` returned no matches for
     server-only seed data or server module sentinels.
-- [x] Rich project-console starter packaging passes.
-  - Evidence: `pnpm starter:project-console:package` completed inside
-    `pnpm verify`; the latest focused packaging run verified the full
-    27-file generated starter manifest against the copyable source manifest.
+- [x] Copyable starter-suite packaging passes.
+  - Evidence: `pnpm starter:package` verifies basic, React, and
+    project-console generated starters, rewrites workspace dependencies to local
+    file packages, removes monorepo aliases, and dry-runs package installation
+    outside the workspace.
 - [x] Starter packaging script host reporting stays Effect-driven.
   - Evidence: `scripts/package-project-console-starter.mjs` reports success and
     failure inside the Effect pipeline, with top-level await kept as the Node
@@ -790,21 +791,22 @@ Last evidence pass: May 16, 2026.
   - Evidence: no new ADR required for the Start Action Response Codec
     extraction.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 144
-    collection store sync locality and public kernel pin slice: 11 package builds,
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 145
+    Effect guardrail, ambient runtime, and starter copyability slice: 11 package builds,
     workspace typecheck, type tests, public API inventory audit, Effect-first
-    audit over 250 files, 53 root test files / 892 tests,
+    audit over 255 files, 53 root test files / 893 tests,
     devtools-panel verify with 1 panel test file / 2 tests, devtools-extension
     verify with 1 extension test file / 20 tests, basic starter verify with 1
     starter test file / 2 tests, React starter verify with 1 starter test file
-    / 3 tests, project-console starter packaging with 27 files verified,
+    / 3 tests, starter-suite packaging for basic/react/project-console,
     project-console typecheck, 4 project-console test files / 27 tests,
     project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 144 records focused DB, Core, public API, Effect-first,
-    type-test, docs drift, and full verification after the fresh collection
-    locality and audit-guardrail sweep. A fresh post-fix sweep is still required
-    before the clean-sweep counter can start.
+  - Evidence: Review 145 records focused Core/Start/Solid, public API,
+    Effect-first, type-test, starter packaging, package dry-run, touched-test,
+    docs drift, and full verification after the fresh runtime and
+    copyability sweep. A fresh post-fix sweep is still required before the
+    clean-sweep counter can start.
 
 ## Remaining Winning-Bar Items
 
@@ -821,12 +823,13 @@ Last evidence pass: May 16, 2026.
     manifest shape, reads live inspected-page payloads from
     `globalThis.__EFFECT_UI_DEVTOOLS__` when present, and
     `pnpm devtools-extension:verify` passed.
-- [x] Add richer starter packaging for the project console.
+- [x] Add copyable starter-suite packaging.
   - Evidence: `scripts/package-project-console-starter.mjs` generates
+    `.test-dist/starters/basic`, `.test-dist/starters/react`, and
     `.test-dist/starters/project-console`, rewrites workspace protocol
-    dependencies from workspace package manifest versions, removes monorepo
-    Vite aliases, writes a standalone `tsconfig.json`, and verifies the exact
-    27-file starter payload through `pnpm starter:project-console:package`.
+    dependencies to local `.effect-ui-packages/*` file dependencies, removes
+    monorepo Vite aliases, writes standalone `tsconfig.json` files, verifies app
+    manifests, and dry-runs installation through `pnpm starter:package`.
 - [ ] Add broader host-specific adapter packages when real host behavior is
   needed beyond the generic Node/fetch facades.
   - Evidence: current Node/fetch deployment guidance exists in

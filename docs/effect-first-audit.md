@@ -53,6 +53,9 @@ interruption.
   - The Review 144 pass added package-source declaration files to scope, caught
     optional Promise statics/member calls, and anchored structural thenable type
     surfaces to runtime guard seams.
+  - The Review 145 pass added example Vite configs to scope and catches
+    parenthesized/extracted Promise choreography such as `(Promise.all)(...)`,
+    `(client.then)(...)`, and `client.then.call(...)`.
 - `packages/start/src/start-fetch.ts` and `packages/start/src/file-route.ts`
   - Custom Start fetchers and file-route preload helpers now reject
     Promise-shaped erased JavaScript values before they cross deeper runtime
@@ -334,6 +337,9 @@ interruption.
   - The CLI entrypoint now reports success and failure from inside the Effect
     pipeline instead of using a top-level `try`/`catch` around
     `Effect.runPromise(...)`.
+  - Starter install dry-runs now use `Effect.callback(...)` around the Node
+    child-process host seam, keeping command success and failure inside the
+    Effect error channel.
 - `examples/project-console/src/App.tsx`
   - UI fire-and-forget effects now use a generic runtime helper and
     `Effect.catch(...)` directly instead of erasing Effect errors and
@@ -373,8 +379,8 @@ interruption.
   - Node listener/close and timer test helpers use `Effect.callback(...)` and
     `Effect.sleep(...)` instead of raw `new Promise(...)` wrappers.
 - Tooling scripts:
-  - The project-console starter packaging script keeps filesystem checks inside
-    Effect programs; no raw async or Promise method chains remain there.
+  - The starter packaging script keeps filesystem and child-process checks
+    inside Effect programs; no raw async or Promise method chains remain there.
   - The Effect-first audit script now matches spaced `Promise <T>` return
     shapes and unapproved `PromiseLike<T>` return seams, with self-tests for
     both patterns before scanning workspace files.
@@ -414,14 +420,17 @@ interruption.
   files after adding package-source `.d.ts` files to scope, catching optional
   Promise statics/member calls, and anchoring structural thenable type surfaces
   to runtime guard seams.
+- Review 145 focused verification kept `pnpm audit:effect-first` green over 255
+  files after adding example Vite configs to scope and catching parenthesized or
+  extracted Promise statics/member calls.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The latest full gate is the Review 144 `pnpm verify` run: 11 package builds,
+- The latest full gate is the Review 145 `pnpm verify` run: 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 250 files, 53 root test files / 892 tests,
-  devtools-panel/devtools-extension/starter/project-console gates, and leak
-  scans.
+  Effect-first audit over 255 files, 53 root test files / 893 tests,
+  devtools-panel/devtools-extension/starter-suite/project-console gates, and
+  leak scans.
 - `pnpm exec vitest run packages/core/test/runtime.test.ts packages/start/test/start.test.ts`
   passed after the first cleanup pass.
 - `pnpm exec vitest run packages/db/test/live-query-collection.test.ts packages/solid-db/test/solid-db.test.ts`
@@ -1216,16 +1225,16 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The latest full `pnpm verify` passed after the Review 144 Collection Store
-  Sync Locality and Public Kernel Pins slice: 11 package builds, workspace
-  typecheck, type tests, public API inventory audit, Effect-first audit over 250
-  package/example/script/type-test files, 53 root test files / 892 tests,
+- The latest full `pnpm verify` passed after the Review 145 Effect Guardrails,
+  Ambient Runtime, and Starter Copyability slice: 11 package builds, workspace
+  typecheck, type tests, public API inventory audit, Effect-first audit over 255
+  package/example/config/script/type-test files, 53 root test files / 893 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
   verify with 1 starter test file / 2 tests, React starter verify with 1
-  starter test file / 3 tests, project-console starter packaging with 27 files
-  verified, typecheck, 4 project-console test files / 27 tests, build, and leak
-  scans. Review 75
+  starter test file / 3 tests, starter-suite packaging for
+  basic/react/project-console, project-console typecheck, 4 project-console test
+  files / 27 tests, build, and leak scans. Review 75
   added the public API inventory audit to the full gate, Review 86 kept the
   scanner green over the expanded public type-test scope, Review 113 expanded
   the scanner to 226 files, Review 115 expanded it to 227 files, Review 116
@@ -1243,7 +1252,9 @@ interruption.
   Review 143 kept it green while broadening `PromiseLike<T>` and
   bracket/multiline Promise detection, and Review 144 expanded it to 250 files
   by adding package-source declaration files while catching optional Promise
-  calls and structural thenable type surfaces.
+  calls and structural thenable type surfaces, and Review 145 expanded it to
+  255 files by adding example Vite configs while catching parenthesized and
+  extracted Promise choreography.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

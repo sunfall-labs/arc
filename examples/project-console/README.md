@@ -14,7 +14,7 @@ pnpm example:dev
 pnpm example:test
 pnpm example:build
 pnpm example:leak-scan
-pnpm starter:project-console:package
+pnpm starter:package
 ```
 
 From this example directory:
@@ -29,13 +29,14 @@ pnpm verify
 
 ## Copying The Example
 
-- Run `pnpm starter:project-console:package` from the repository root to
-  generate a standalone starter payload at
-  `.test-dist/starters/project-console`. The generated payload rewrites
-  workspace protocol dependencies to the versions declared by the workspace
-  package manifests, removes monorepo Vite aliases, writes a standalone
-  `tsconfig.json`, and verifies the 27-file generated manifest against the
-  copyable source manifest.
+- Run `pnpm starter:package` from the repository root to generate standalone
+  starter payloads at `.test-dist/starters/basic`,
+  `.test-dist/starters/react`, and `.test-dist/starters/project-console`. The
+  generated payloads rewrite workspace protocol dependencies to local
+  `.effect-ui-packages/*` file dependencies, remove monorepo Vite aliases,
+  write standalone `tsconfig.json` files, verify app manifests against their
+  copyable source manifests, and dry-run package installation outside the
+  workspace.
 - Keep `src/domain.contract.ts` browser-safe. Put server implementations and
   seed data in `src/domain.server.ts`.
 - Keep `src/start-options.ts` explicit. It is the app graph source for server
@@ -45,5 +46,5 @@ pnpm verify
   server-only module names and seed-data strings.
 - The source `vite.config.ts` in this example points at workspace source
   packages for framework development. The generated starter strips those
-  aliases so copied apps depend on versioned `@effect-ui/*` package entries
-  derived from workspace package manifests instead.
+  aliases so copied apps depend on generated local `@effect-ui/*` file package
+  entries instead.

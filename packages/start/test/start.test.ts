@@ -1690,6 +1690,31 @@ describe("Effect UI Start", () => {
     await expect(response.text()).resolves.toContain("context");
   });
 
+  it("runs returned Start render effects with the request runtime as ambient", async () => {
+    const Project = Resource.family<string, { readonly id: string; readonly name: string }>({
+      name: "Start.render.ambient.project",
+      load: (id) => Effect.succeed({ id, name: `Project ${id}` })
+    });
+    const ProjectRoute = route("/projects/:id", {
+      preload: ({ params }) => Resource.prefetchEffect(Project(params.id))
+    });
+    const app = defineApp({
+      routes: [ProjectRoute] as const,
+      client: {}
+    });
+    const handler = createRequestHandler(app, {
+      render: () =>
+        Effect.sync(() => {
+          const project = Resource.read(Project("atlas"));
+          return `<html><body>${project.name}</body></html>`;
+        })
+    });
+
+    const response = await Effect.runPromise(handler(new Request("https://example.com/projects/atlas")));
+
+    await expect(response.text()).resolves.toContain("Project atlas");
+  });
+
   it("serves server functions over the Start RPC endpoint", async () => {
     const Echo = Server.contract<{ readonly value: string }, { readonly value: string }>("Start.echo.rpc", {
       input: Schema.Struct({ value: Schema.String }),

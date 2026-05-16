@@ -75,8 +75,10 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     exactness, Review 139 endpoint runner, query seams, and audit anchors, and
     Review 140 router history projection and Program runtime scheduling,
     Review 141 Project Console runtime store and starter manifest gate, Review
-    142 runtime locality and verification pin closure, and Review 143 stale
-    StartAction invalidation and audit guardrails.
+    142 runtime locality and verification pin closure, Review 143 stale
+    StartAction invalidation and audit guardrails, Review 144 collection
+    locality and router type pins, and Review 145 starter copyability/runtime
+    guardrails.
 
 ## Current Sweep Results
 
@@ -139,6 +141,14 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   package imports without monorepo aliases.
 - Updated current-facing verification snapshots after the Review144 full
   `pnpm verify` gate: 53 root test files / 892 tests and the 250-file
+  Effect-first audit.
+- Recorded Review145 docs drift fixes: starter docs now describe the generated
+  basic/React/project-console suite and local file-package dependencies,
+  release/checklist snapshots use the 255-file Effect-first audit and 893-test
+  root suite, and Start render/fetch/node type-test coverage claims now point at
+  focused package pins.
+- Updated current-facing verification snapshots after the Review145 full
+  `pnpm verify` gate: 53 root test files / 893 tests and the 255-file
   Effect-first audit.
 - Updated the cleanup backlog so the generated artifact determinism audit points
   at the completed audit artifact instead of remaining unchecked.

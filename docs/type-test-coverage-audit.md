@@ -39,10 +39,11 @@ are easiest to regress while refactoring internals toward Effect primitives.
   channel when the app server runtime does not provide them, and remove them
   when it does. Review 68 also pins file-route preload helpers accepting stable
   collection names, while runtime tests cover registry/resolver-only hydration.
-- Start render context coverage now includes the streamed
-  `hydrationRootScript` Interface. Type hovers distinguish it from the full
-  `hydrationScript` so streaming renderers can avoid duplicating route resource
-  hydration in the root payload.
+- Start render context coverage now pins the non-streaming
+  `legacyHydrationScript`, the deprecated `hydrationScript` alias, the
+  streamed `hydrationRootScript`, and the `StartRenderHydrationPlan` Interface.
+  Type hovers distinguish the full payload from the root-only streamed script
+  so renderers can avoid duplicating route resource hydration.
 - Effect-first Start fetch and Node adapter type tests pin that route preload
   services remain visible through adapter conversion, including negative tests
   for partial generics that would otherwise collapse requirements to `unknown`;

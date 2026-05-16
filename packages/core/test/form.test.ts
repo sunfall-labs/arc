@@ -2,6 +2,15 @@ import { Context, Data, Deferred, Effect, Exit, Fiber, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import { EffectInputCallbackError, Form, read } from "../src/index.js";
 
+type DeepMutable<T> =
+  T extends Map<infer K, infer V> ? Map<K, DeepMutable<V>>
+    : T extends Set<infer V> ? Set<DeepMutable<V>>
+      : T extends object ? { -readonly [K in keyof T]: DeepMutable<T[K]> }
+        : T;
+
+const mutableSnapshot = <A>(value: A): DeepMutable<A> =>
+  value as DeepMutable<A>;
+
 describe("Form", () => {
   const RenameInput = Schema.Struct({
     id: Schema.String,
@@ -334,7 +343,7 @@ describe("Form", () => {
     expect(read(form.state).initial.details.name).toBe("Atlas Billing");
     expect(read(form.state).values.details.name).toBe("Atlas Billing");
 
-    const exposed = read(form.state) as any;
+    const exposed = mutableSnapshot(read(form.state));
     exposed.initial.details.name = "Externally Mutated";
     exposed.values.details.name = "Externally Mutated";
     expect(read(form.state).initial.details.name).toBe("Atlas Billing");
@@ -346,7 +355,7 @@ describe("Form", () => {
     expect(read(form.state).initial.details.name).toBe("Phoenix Ops");
     expect(read(form.state).values.details.name).toBe("Phoenix Ops");
 
-    const exposedAfterReset = read(form.state) as any;
+    const exposedAfterReset = mutableSnapshot(read(form.state));
     exposedAfterReset.initial.details.name = "Externally Mutated Reset";
     form.reset();
     expect(read(form.state).initial.details.name).toBe("Phoenix Ops");
@@ -356,6 +365,12 @@ describe("Form", () => {
   it("detaches Map, Set, and custom object form snapshots", () => {
     class Owner {
       constructor(readonly name: string) {}
+    }
+
+    interface FlexibleValues {
+      readonly meta: Map<string, { readonly name: string }>;
+      readonly labels: Set<{ readonly id: string }>;
+      readonly owner: Owner;
     }
 
     const FlexibleInput = Schema.Struct({
@@ -371,12 +386,12 @@ describe("Form", () => {
       labels: new Set<{ id: string }>([label]),
       owner
     };
-    const form = Form.make({
+    const form = Form.make<typeof FlexibleInput, never, never, FlexibleValues>({
       schema: FlexibleInput,
       initial
     });
 
-    const state = read(form.state) as any;
+    const state = read(form.state);
     expect(state.initial.meta).toBeInstanceOf(Map);
     expect(state.initial.meta).not.toBe(initial.meta);
     expect(state.initial.meta.get("team")).not.toBe(team);
@@ -389,22 +404,24 @@ describe("Form", () => {
     team.name = "Mutated";
     label.id = "mutated";
     (owner as { name: string }).name = "Grace";
-    expect((read(form.state) as any).initial.meta.get("team").name).toBe("Core");
-    expect((Array.from((read(form.state) as any).initial.labels)[0] as { id: string }).id).toBe("atlas");
-    expect((read(form.state) as any).initial.owner.name).toBe("Ada");
+    expect(read(form.state).initial.meta.get("team")?.name).toBe("Core");
+    expect(Array.from(read(form.state).initial.labels)[0]?.id).toBe("atlas");
+    expect(read(form.state).initial.owner.name).toBe("Ada");
 
-    const exposed = read(form.state) as any;
-    exposed.initial.meta.get("team").name = "Externally Mutated";
+    const exposed = mutableSnapshot(read(form.state));
+    const exposedTeam = exposed.initial.meta.get("team");
+    expect(exposedTeam).toBeDefined();
+    exposedTeam!.name = "Externally Mutated";
     exposed.initial.labels.add({ id: "external" });
     exposed.initial.owner.name = "External";
-    expect((read(form.state) as any).initial.meta.get("team").name).toBe("Core");
-    expect((read(form.state) as any).initial.labels.size).toBe(1);
-    expect((read(form.state) as any).initial.owner.name).toBe("Ada");
+    expect(read(form.state).initial.meta.get("team")?.name).toBe("Core");
+    expect(read(form.state).initial.labels.size).toBe(1);
+    expect(read(form.state).initial.owner.name).toBe("Ada");
 
     form.setField("meta", new Map([["team", { name: "Core" }]]));
-    expect((read(form.state) as any).dirty.meta).toBe(false);
+    expect(read(form.state).dirty.meta).toBe(false);
     form.setField("meta", new Map([["team", { name: "Runtime" }]]));
-    expect((read(form.state) as any).dirty.meta).toBe(true);
+    expect(read(form.state).dirty.meta).toBe(true);
   });
 
   it("snapshots values passed to in-flight validation and returned validation values", () => {
@@ -435,12 +452,12 @@ describe("Form", () => {
         yield* Deferred.await(started);
 
         initial.details.name = "Mutated Initial";
-        const exposed = read(form.state) as any;
+        const exposed = mutableSnapshot(read(form.state));
         exposed.values.details.name = "Mutated Exposed";
         yield* Deferred.succeed(release, undefined);
 
         const value = yield* Fiber.join(validation);
-        (value as any).details.name = "Mutated Return";
+        mutableSnapshot(value).details.name = "Mutated Return";
 
         expect(validatedName).toBe("Atlas Billing");
         expect(read(form.state).values.details.name).toBe("Atlas Billing");

@@ -4,6 +4,15 @@
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
+  "files": [
+    "README.md",
+    "devtools.html",
+    "panel.html",
+    "public",
+    "src",
+    "tsconfig.json",
+    "vite.config.ts"
+  ],
   "scripts": {
     "build": "tsc -p tsconfig.json --noEmit && vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",

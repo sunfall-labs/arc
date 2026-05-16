@@ -4,6 +4,14 @@
   "private": true,
   "license": "UNLICENSED",
   "type": "module",
+  "files": [
+    "README.md",
+    "components.json",
+    "index.html",
+    "src",
+    "tsconfig.json",
+    "vite.config.ts"
+  ],
   "scripts": {
     "dev": "vite --host 127.0.0.1",
     "build": "tsc -p tsconfig.json --noEmit && vite build",

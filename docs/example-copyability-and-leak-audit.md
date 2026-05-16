@@ -1,9 +1,9 @@
 # Example Copyability And Leak Audit
 
-Last updated: 2026-05-14.
+Last updated: 2026-05-16.
 
-This audit checks whether the project console example can be copied as a
-starter and whether browser/server boundaries remain explicit.
+This audit checks whether the basic, React, and project-console examples can be
+copied as starters and whether browser/server boundaries remain explicit.
 
 ## Current Sweep Results
 
@@ -22,11 +22,12 @@ starter and whether browser/server boundaries remain explicit.
   `StartAction.submitEffect`, and advance uses `Action.submitEffect`.
 - Added `examples/basic-starter` as the minimal copyable app shell with SSR,
   hydration, a route-owned Resource preload, and its own server-only leak scan.
-- Added `scripts/package-project-console-starter.mjs`, an Effect-backed
-  generator for `.test-dist/starters/project-console`. The generated rich
-  starter rewrites workspace protocol dependencies, removes monorepo Vite
-  aliases, writes a standalone `tsconfig.json`, and verifies the expected
-  starter payload.
+- Extended `scripts/package-project-console-starter.mjs` into an Effect-backed
+  generator for `.test-dist/starters/basic`, `.test-dist/starters/react`, and
+  `.test-dist/starters/project-console`. Generated starters rewrite workspace
+  protocol dependencies to local `.effect-ui-packages/*` file dependencies,
+  remove monorepo Vite aliases, write standalone `tsconfig.json` files, verify
+  source app manifests, and dry-run package installation outside the workspace.
 
 ## Verification Evidence
 
@@ -42,9 +43,15 @@ starter and whether browser/server boundaries remain explicit.
   moving UI event handlers onto Effect-native APIs.
 - `pnpm starter:verify` passed for `@effect-ui/starter-basic`: typecheck, 1
   starter test, production build, and leak scan.
-- `pnpm starter:project-console:package` passed and verified the exact
-  generated project-console starter manifest: 27 files, with workspace protocol
-  dependencies rewritten from workspace package manifest versions.
+- `pnpm starter:package` passed and verified generated basic, React, and
+  project-console starter manifests: 16, 21, and 27 app files respectively,
+  with 5, 4, and 6 local `@effect-ui/*` file packages.
+- `pnpm --filter @effect-ui/starter-basic pack --dry-run`,
+  `pnpm --filter @effect-ui/starter-react pack --dry-run`,
+  `pnpm --filter @effect-ui/example-project-console pack --dry-run`,
+  `pnpm --filter @effect-ui/example-devtools-panel pack --dry-run`, and
+  `pnpm --filter @effect-ui/example-devtools-extension pack --dry-run` showed
+  only source/config/README assets, with no `dist` or `.test-dist` artifacts.
 
 ## Follow-Up
 

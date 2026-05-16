@@ -1,4 +1,4 @@
-import { Effect, Exit, Fiber, Layer, ManagedRuntime } from "effect";
+import { Context, Effect, Exit, Fiber, Layer, ManagedRuntime, Redactable } from "effect";
 import {
   disposeResourceStoreEffect,
   makeMutableResourceStore,
@@ -94,12 +94,27 @@ export const isEffectUiRuntime = (value: unknown): value is AnyEffectUiRuntime<n
   value !== null &&
   (value as { [RuntimeTypeId]?: unknown })[RuntimeTypeId] === RuntimeTypeId;
 
+const AmbientRuntime = Context.Reference<CurrentRuntimeBoundary | undefined>("@effect-ui/core/AmbientRuntime", {
+  defaultValue: () => undefined
+});
+
+const currentFiberContextProbe: Redactable.Redactable = {
+  [Redactable.symbolRedactable]: (context) => context
+};
+
+const currentFiberRuntime = (): CurrentRuntimeBoundary | undefined =>
+  Context.getReferenceUnsafe(
+    Redactable.getRedacted(currentFiberContextProbe) as Context.Context<never>,
+    AmbientRuntime
+  );
+
 const fromManagedRuntime = <R, ER>(
   managed: ManagedRuntime.ManagedRuntime<R, ER>,
   resourceStore: MutableResourceStore = makeMutableResourceStore(),
   options: { readonly disposeManaged: boolean } = { disposeManaged: true }
 ): EffectUiRuntime<R, ER> => {
   const managedRuntime: RuntimeManagedBoundary<ER> = managed;
+  let runtime: EffectUiRuntime<R, ER>;
 
   const provideStore = <A, E, RIn>(
     effect: Effect.Effect<A, E, RIn>,
@@ -117,11 +132,15 @@ const fromManagedRuntime = <R, ER>(
     provideOptions?: RuntimeProvideOptions
   ): Effect.Effect<A, E | ER, RuntimeRemainingRequirements<RIn, R>> =>
     Effect.flatMap(managedRuntime.contextEffect, (context) =>
-      provideStore(
-        Effect.provideContext(effect, context),
-        provideOptions?.resourceStore === undefined
-          ? undefined
-          : unsafeMutableResourceStore(provideOptions.resourceStore)
+      Effect.provideService(
+        provideStore(
+          Effect.provideContext(effect, context),
+          provideOptions?.resourceStore === undefined
+            ? undefined
+            : unsafeMutableResourceStore(provideOptions.resourceStore)
+        ),
+        AmbientRuntime,
+        runtime as AnyEffectUiRuntime<any>
       )
     ) as Effect.Effect<A, E | ER, RuntimeRemainingRequirements<RIn, R>>;
 
@@ -138,7 +157,7 @@ const fromManagedRuntime = <R, ER>(
         }
       })
     : disposeStore;
-  const runtime: EffectUiRuntime<R, ER> = {
+  runtime = {
     [RuntimeTypeId]: RuntimeTypeId,
     managed: managedRuntime,
     resourceStore,
@@ -200,10 +219,11 @@ export const defaultRuntime: EffectUiRuntime<never, never> = makeRuntime(Layer.e
 
 let currentRuntime: CurrentRuntimeBoundary | undefined;
 
-export const getCurrentRuntime = (): CurrentRuntimeBoundary | undefined => currentRuntime;
+export const getCurrentRuntime = (): CurrentRuntimeBoundary | undefined =>
+  currentRuntime ?? currentFiberRuntime();
 
 export const currentOrDefaultRuntime = (): CurrentRuntimeBoundary =>
-  (currentRuntime ?? defaultRuntime) as CurrentRuntimeBoundary;
+  (getCurrentRuntime() ?? defaultRuntime) as CurrentRuntimeBoundary;
 
 /**
  * Runs synchronous work while making `runtime` the ambient runtime for core helpers.

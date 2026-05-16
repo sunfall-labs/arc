@@ -176,9 +176,9 @@ Goal: prove that a user can copy the framework's intended path.
 - Turn the project console into the canonical starter-quality example.
 - Add a minimal starter or starter recipe.
   - Evidence: `examples/basic-starter` and `docs/starter.md`.
-- Add a richer starter package path for the project console.
+- Add copyable package paths for the basic, React, and project-console starters.
   - Evidence: `scripts/package-project-console-starter.mjs` and
-    `pnpm starter:project-console:package`.
+    `pnpm starter:package`.
 - Add deployment docs for Node/fetch hosts currently supported.
   - Evidence: `docs/deployment.md`.
 - Add host-specific package facades for the currently tested Node/fetch

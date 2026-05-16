@@ -1,6 +1,6 @@
 # Sharp Cast Audit
 
-Last updated: 2026-05-15.
+Last updated: 2026-05-16.
 
 This audit records sharp-cast cleanup evidence and the remaining named
 type-erasure boundaries after the typed-error, route decode, action-result,
@@ -35,8 +35,9 @@ zero hits.
   interface, so Start tests call Vite plugin hooks directly instead of
   re-narrowing a broad `PluginOption` with `as never` hook-context casts.
 - No package, example, script, or type-test source currently contains `as any`
-  or `@ts-ignore`; negative tests use explicit `@ts-expect-error` or
-  `unknown`-to-contract casts for runtime validation shapes.
+  or `@ts-ignore`; the latest touched form/router negative tests use explicit
+  `@ts-expect-error`, and form snapshots use a precise mutable helper instead
+  of a broad cast.
 - The current broad sharp-cast grep still reports named Adapter seams in Core
   runtime/action/effect-input helpers, Solid runtime/router/link JSX bridges,
   Start request-runtime/preload/handler/transport host boundaries, Devtools
@@ -134,12 +135,12 @@ zero hits.
 
 ## Verification Evidence
 
-The latest full verification gate is recorded in the Review 144 ledgers: 11
+The latest full verification gate is recorded in the Review 145 ledgers: 11
 package builds, workspace typecheck, type tests, public API inventory audit,
-Effect-first audit over 250 files, 53 root test files / 892 tests,
+Effect-first audit over 255 files, 53 root test files / 893 tests,
 devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
 basic starter verify with 2 tests, React starter verify with 3 tests,
-project-console starter packaging with 27 files verified, project-console
+starter-suite packaging for basic/react/project-console, project-console
 typecheck, 4 project-console test files / 27 tests, build, and leak scans. The
 remaining command-result bullets in this section are historical evidence for the
 individual cleanup slices that produced this audit.

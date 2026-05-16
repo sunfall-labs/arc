@@ -34,6 +34,8 @@ import {
   type StartAppGraphRoutePreloadResourcesPolicy,
   type StartFetch,
   type StartAppGraphWireSchemaPolicy,
+  type StartRenderContext,
+  type StartRenderHydrationPlan,
   type StartRequestHandler,
   type StartRequestTrace
 } from "@effect-ui/start";
@@ -76,7 +78,20 @@ type StartTypes =
   | StartAppGraphRoutePreloadResourcesPolicy
   | StartAppGraphWireSchemaPolicy
   | StartFetch
+  | StartRenderContext
+  | StartRenderHydrationPlan
   | StartRequestHandler
   | StartRequestTrace;
 void startExports;
 type _StartTypes = StartTypes;
+
+declare const startRenderContext: StartRenderContext;
+const legacyHydrationScript: string = startRenderContext.legacyHydrationScript;
+/** @deprecated pinned so the LSP keeps showing the migration target. */
+const deprecatedHydrationScript: string = startRenderContext.hydrationScript;
+const hydrationRootScript: string = startRenderContext.hydrationRootScript;
+const hydrationPlan: StartRenderHydrationPlan = startRenderContext.hydrationPlan;
+void legacyHydrationScript;
+void deprecatedHydrationScript;
+void hydrationRootScript;
+void hydrationPlan;

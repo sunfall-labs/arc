@@ -507,7 +507,8 @@ describe("browser router kernel", () => {
           yield* Effect.addFinalizer(() => Effect.sync(() => router.dispose()));
 
           const preloadExit = yield* Effect.exit(
-            (router.preloadEffect as any)(Outside, { params: { id: "atlas" } })
+            // @ts-expect-error outside route intentionally violates the configured router tuple
+            router.preloadEffect(Outside, { params: { id: "atlas" } })
           );
           expect(preloaded).toEqual([]);
           expect(preloadExit._tag).toBe("Failure");
@@ -517,7 +518,8 @@ describe("browser router kernel", () => {
             expect((error as RouteNavigationError).cause).toBeInstanceOf(RouterRouteNotRegistered);
           }
 
-          (router.navigate as any)(Outside, router.navigateHref, { params: { id: "atlas" } });
+          // @ts-expect-error outside route intentionally violates the configured router tuple
+          router.navigate(Outside, router.navigateHref, { params: { id: "atlas" } });
           expect(preloaded).toEqual([]);
           const state = router.state.get();
           expect(state._tag).toBe("Failure");

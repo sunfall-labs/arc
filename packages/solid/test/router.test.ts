@@ -492,7 +492,8 @@ describe("createBrowserRouter", () => {
           yield* Effect.addFinalizer(() => Effect.sync(dispose));
 
           const exit = yield* Effect.exit(
-            (router.preloadEffect as any)(OutsideRoute, { params: { id: "atlas" } })
+            // @ts-expect-error outside route intentionally violates the configured router tuple
+            router.preloadEffect(OutsideRoute, { params: { id: "atlas" } })
           );
 
           expect(preloaded).toEqual([]);
@@ -501,7 +502,8 @@ describe("createBrowserRouter", () => {
             expect(exit.cause.reasons.find(Cause.isFailReason)?.error).toBeInstanceOf(RouteNavigationError);
           }
 
-          (router.navigate as any)(OutsideRoute, { params: { id: "atlas" } });
+          // @ts-expect-error outside route intentionally violates the configured router tuple
+          router.navigate(OutsideRoute, { params: { id: "atlas" } });
           expect(preloaded).toEqual([]);
           const state = router.state();
           expect(state._tag).toBe("Failure");
@@ -511,7 +513,8 @@ describe("createBrowserRouter", () => {
           }
 
           const pathExit = yield* Effect.exit(
-            (router.preloadByPathEffect as any)("/outside-projects/:id", { params: { id: "atlas" } })
+            // @ts-expect-error outside route path intentionally violates the configured router tuple
+            router.preloadByPathEffect("/outside-projects/:id", { params: { id: "atlas" } })
           );
           expect(preloaded).toEqual([]);
           expect(pathExit._tag).toBe("Failure");
@@ -519,7 +522,8 @@ describe("createBrowserRouter", () => {
             expect(pathExit.cause.reasons.find(Cause.isFailReason)?.error).toBeInstanceOf(RouteNavigationError);
           }
 
-          (router.navigateByPath as any)("/outside-projects/:id", { params: { id: "atlas" } });
+          // @ts-expect-error outside route path intentionally violates the configured router tuple
+          router.navigateByPath("/outside-projects/:id", { params: { id: "atlas" } });
           expect(preloaded).toEqual([]);
           const pathState = router.state();
           expect(pathState._tag).toBe("Failure");
@@ -689,10 +693,11 @@ describe("createBrowserRouter", () => {
           const LinkView = () => {
             router = useRouter<readonly [typeof ProjectRoute]>();
             return createComponent(RouterLink, {
-              route: OutsideRoute as any,
+              // @ts-expect-error outside route intentionally violates the provider route tuple
+              route: OutsideRoute,
               options: { params: { id: "atlas" } },
               children: "Atlas"
-            } as any);
+            });
           };
           const dispose = render(
             () =>

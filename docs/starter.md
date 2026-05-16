@@ -49,14 +49,16 @@ you need the shadcn/Base UI ecosystem path.
 See [Solid and React adapters](adapter-differences.md) for the renderer-level
 API differences.
 
-Package the richer project-console starter:
+Package the copyable starter suite:
 
 ```sh
-pnpm starter:project-console:package
+pnpm starter:package
 ```
 
-That command writes `.test-dist/starters/project-console` from
-`examples/project-console`, rewrites workspace protocol dependencies to the
-versions declared by the workspace package manifests, removes monorepo Vite
-aliases, writes a standalone `tsconfig.json`, and verifies the generated file
-manifest matches the copyable source manifest.
+That command writes `.test-dist/starters/basic`, `.test-dist/starters/react`,
+and `.test-dist/starters/project-console` from their example sources. Each
+generated starter rewrites workspace protocol dependencies to local
+`.effect-ui-packages/*` file dependencies, removes monorepo Vite aliases, writes
+a standalone `tsconfig.json`, verifies the app file manifest against the
+copyable source manifest, and dry-runs package installation outside the
+workspace.

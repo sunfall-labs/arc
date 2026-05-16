@@ -38,6 +38,14 @@ const auditableRoots = [
       typeScriptSourceExtensions.has(extensionOf(entry.name))
   },
   {
+    name: "example configs",
+    directory: join(root, "examples"),
+    description: "examples/*/vite.config.ts build entrypoints",
+    include: (relativeFile, entry) =>
+      entry.isFile() &&
+      /^examples\/[^/]+\/vite\.config\.ts$/.test(relativeFile)
+  },
+  {
     name: "workspace scripts",
     directory: join(root, "scripts"),
     description: "scripts/*.mjs release and audit entrypoints",
@@ -188,11 +196,17 @@ const allowed = [
   }
 ];
 
+const memberAccessPattern = (member) =>
+  "(?:(?:\\?\\.\\s*|\\.\\s*)" + member + "\\b|(?:\\?\\.\\s*)?\\[\\s*['\"]" + member + "['\"]\\s*\\])";
+
+const memberCallSuffixPattern =
+  "(?:\\s*(?:\\?\\.\\s*)?(?:<[^>]+>\\s*)?\\(|\\s*\\)\\s*(?:\\?\\.\\s*)?(?:<[^>]+>\\s*)?\\(|\\s*\\)?\\s*(?:\\?\\.\\s*|\\.\\s*)(?:call|apply|bind)\\s*(?:\\?\\.\\s*)?\\()";
+
 const promiseStaticPattern = (member) =>
-  new RegExp("\\bPromise\\s*(?:(?:\\?\\.\\s*|\\.\\s*)" + member + "\\b|(?:\\?\\.\\s*)?\\[\\s*['\"]" + member + "['\"]\\s*\\])\\s*(?:\\?\\.\\s*)?\\(", "g");
+  new RegExp("(?:\\bPromise\\b|\\(\\s*Promise\\s*\\))\\s*" + memberAccessPattern(member) + memberCallSuffixPattern, "g");
 
 const memberCallPattern = (member) =>
-  new RegExp("(?:(?:\\?\\.\\s*|\\.\\s*)" + member + "\\b|(?:\\?\\.\\s*)?\\[\\s*['\"]" + member + "['\"]\\s*\\])\\s*(?:\\?\\.\\s*)?(?:<[^>]+>\\s*)?\\(", "g");
+  new RegExp(memberAccessPattern(member) + memberCallSuffixPattern, "g");
 
 const receiverBeforeMemberAccess = (line, memberIndex) => {
   let end = memberIndex;
@@ -390,24 +404,32 @@ assertAuditPattern("structural thenable type surface", "type Token<T> = { readon
 assertBannedPattern("Promise.all", "Promise\n.all([]);", 1);
 assertBannedPattern("Promise.all", "Promise[\"all\"]([]);", 1);
 assertBannedPattern("Promise.all", "Promise?.[\"all\"]?.([]);", 1);
+assertBannedPattern("Promise.all", "(Promise).all([]);", 1);
+assertBannedPattern("Promise.all", "(Promise.all)([]);", 1);
 assertBannedPattern("Promise.allSettled", "Promise.allSettled([]);", 1);
 assertBannedPattern("Promise.any", "Promise.any([]);", 1);
 assertBannedPattern("Promise.resolve", "Promise?.resolve(value);", 1);
 assertBannedPattern("Promise.resolve", "Promise.resolve?.(value);", 1);
+assertBannedPattern("Promise.resolve", "(Promise).resolve(value);", 1);
 assertBannedPattern(".then(...)", "client.then<string>(() => undefined);", 1);
 assertBannedPattern(".then(...)", "client[\"then\"](() => undefined);", 1);
 assertBannedPattern(".then(...)", "client.then\n<string>(() => undefined);", 1);
 assertBannedPattern(".then(...)", "client.then?.(() => undefined);", 1);
 assertBannedPattern(".then(...)", "client[\"then\"]?.(() => undefined);", 1);
+assertBannedPattern(".then(...)", "(client.then)(() => undefined);", 1);
+assertBannedPattern(".then(...)", "(client[\"then\"])(() => undefined);", 1);
+assertBannedPattern(".then(...)", "client.then.call(client, () => undefined);", 1);
 assertBannedPattern("non-Effect .catch(...)", "Effect.catch(() => Effect.void);", 0);
 assertBannedPattern("non-Effect .catch(...)", "Effect.catch<Error>(() => Effect.void);", 0);
 assertBannedPattern("non-Effect .catch(...)", "Effect\n.catch<Error>(() => Effect.void);", 0);
 assertBannedPattern("non-Effect .catch(...)", "client.catch(() => undefined);", 1);
 assertBannedPattern("non-Effect .catch(...)", "client.catch<Error>(() => undefined);", 1);
 assertBannedPattern("non-Effect .catch(...)", "client[\"catch\"](() => undefined);", 1);
+assertBannedPattern("non-Effect .catch(...)", "client.catch.call(client, () => undefined);", 1);
 assertBannedPattern("non-Effect .catch(...)", codeLines("`${client.catch(() => undefined)}`;")[0], 1);
 assertBannedPattern(".finally(...)", "client.finally<void>(() => undefined);", 1);
 assertBannedPattern(".finally(...)", "client[\"finally\"](() => undefined);", 1);
+assertBannedPattern(".finally(...)", "client.finally.call(client, () => undefined);", 1);
 assertBannedPattern("async function syntax", "async function run() {}", 1);
 assertBannedPattern("await keyword", "await run();", 1);
 assertBannedPattern("await keyword", "Deferred.await(done);", 0);

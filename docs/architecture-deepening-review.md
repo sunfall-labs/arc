@@ -11,9 +11,58 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 144, immediately after Review 143. Some older review
+The newest review is Review 145, immediately after Review 144. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 145: Effect Guardrails, Ambient Runtime, And Starter Copyability
+
+Status: fixed for the fresh post-Review144 architecture/locality, docs/LSP,
+Effect-first guardrail, and starter-copyability sweeps. Focused and full
+verification are green. Fresh post-fix sweeps must still run before the
+clean-sweep counter can be considered.
+
+- Effect-first audit guardrails: the scanner now catches parenthesized and
+  extracted Promise statics/member calls such as `(Promise).all(...)`,
+  `(Promise.all)(...)`, `(client.then)(...)`, and
+  `client.then.call(...)`. Example Vite configs are now inside the audited
+  scope, raising the checked set to 255 files.
+- Start render runtime locality: `EffectUiRuntime.provide(...)` now installs the
+  active runtime in an Effect v4 fiber-local `Context.Reference`, so synchronous
+  helpers such as `Resource.read(...)` see the request runtime while returned
+  render Effects execute. A Start regression proves a returned render Effect can
+  read a route-preloaded Resource from the request store.
+- Public type/docs pins: Start render context type tests now pin
+  `legacyHydrationScript`, the deprecated `hydrationScript` alias,
+  `hydrationRootScript`, and `StartRenderHydrationPlan`. Focused
+  `@effect-ui/start-fetch` and `@effect-ui/start-node` package type tests now
+  cover Effect handlers, host facades, runtime-required options, and low-level
+  adapter aliases.
+- Starter copyability: `pnpm starter:package` now generates basic, React, and
+  project-console starter payloads with local `.effect-ui-packages/*` file
+  dependencies, standalone Vite/tsconfig files, no workspace protocols, no
+  monorepo aliases, and install dry-runs outside the workspace. Example package
+  manifests now have `files` allowlists so dry-runs exclude `dist` and
+  `.test-dist` artifacts.
+- Test sharp-cast cleanup: form and router negative tests no longer use `as any`;
+  invalid public API calls are marked with `@ts-expect-error`, while form
+  snapshots use precise mutable helper types.
+
+Focused verification passed: Core/Start/Solid typechecks, public type tests,
+public API audit, Effect-first audit over 255 files, starter-suite packaging,
+example package dry-runs, and focused touched tests
+`packages/core/test/form.test.ts`, `packages/core/test/browser-router.test.ts`,
+`packages/solid/test/router.test.ts`, and `packages/start/test/start.test.ts`
+(4 files / 192 tests).
+
+Full `pnpm verify` passed after Review 145: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 255 files, 53 root test files / 893 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, starter-suite packaging for basic
+(16 app files / 5 local packages), React (21 app files / 4 local packages), and
+project-console (27 app files / 6 local packages), project-console typecheck,
+4 project-console test files / 27 tests, project-console build, and leak scan.
 
 ## Review 144: Collection Store Sync Locality And Public Kernel Pins
 

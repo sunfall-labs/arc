@@ -56,9 +56,10 @@ section, and that Source Surface local-module lists do not name modules the root
 barrel does not export. Curated namespace-backed source modules must have an
 explicit audit allowance and a root-barrel import. Together these checks keep
 hover/LSP docs from drifting away from exported source files. The audit also
-enforces JSDoc on selected public hover declarations for the Core Program and
-Start diagnostics surfaces. The broad `type-tests/framework.test-d.ts` file
-remains as cross-package integration coverage.
+enforces JSDoc on curated public hover declarations for the Core Program,
+browser-router/router Adapter, and Start diagnostics surfaces. The broad
+`type-tests/framework.test-d.ts` file remains as cross-package integration
+coverage.
 
 ## Source Surface By Package
 
