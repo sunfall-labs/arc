@@ -170,6 +170,12 @@ Last evidence pass: May 15, 2026.
     `dispatchEffect(...)` acknowledgements with `Deferred`, completes them
     during disposal, restarts subscriptions from committed model changes, and
     uses subscription generations to drop stale emissions.
+- [x] Start agent graph CLI semantics and formatting are separated.
+  - Evidence: `packages/start/src/start-agent-graph-contract.ts`,
+    `start-agent-graph-query.ts`, `start-agent-graph-display.ts`,
+    `start-agent-graph-formatter.ts`, and `start-agent-graph-impact.ts` own
+    DTO contracts, query matching, display policy, text formatting, and impact
+    planning behind the stable `agent-graph.ts` facade.
 - [x] Core runtime service erasure is named at the runtime value boundary.
   - Evidence: `packages/core/src/runtime.ts` erases ManagedRuntime services at
     the `ManagedRuntime<any, ER>` value boundary, so runtime helpers no longer

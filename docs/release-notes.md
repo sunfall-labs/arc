@@ -140,6 +140,11 @@ Latest full gate on May 15, 2026:
   signal observers, stale subscription generations cannot emit follow-up
   messages or timeline facts, and post-dispose update continuations cannot
   mutate model state or run commands.
+- Review 127 split Start Agent Graph query, display, formatting, and impact
+  planning out of `agent-graph.ts`: the public facade keeps diagnostics-to-graph
+  projection while focused internal Modules own DTO contracts, query matching,
+  shared display policy, graph/impact text, semantic impact relations, warnings,
+  and verify-command injection.
 - Review 85 extracted the internal Solid Route Render Scope Controller:
   `RouterOutlet` now delegates route branch rendering, route-owned `UiScope`
   creation, Solid root cleanup, runtime-bound route finalizers, transition
@@ -769,11 +774,11 @@ Latest full gate on May 15, 2026:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 126 hardened the internal
-  Core Program Runtime Coordinator lifecycle while keeping public package
+- The latest full `pnpm verify` passed after Review 127 split the internal
+  Start Agent Graph formatter and impact Modules while keeping public package
   exports stable:
   11 package builds, workspace typecheck, public type tests, public API
-  inventory audit, Effect-first audit over 237 files, 52 root test
+  inventory audit, Effect-first audit over 242 files, 52 root test
   files / 867 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,

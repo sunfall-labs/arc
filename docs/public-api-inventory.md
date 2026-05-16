@@ -406,7 +406,10 @@ Subpath exports:
   validation text, and shell-safe impact verify commands, while the Start
   Diagnostics CLI Runner Module owns parsed command execution, app graph
   diagnostics loading, agent graph/impact projection, output formatting, and
-  failure reporting. The
+  failure reporting. Internally, Start Agent Graph Contract, Query, Formatter,
+  Display, and Impact Planner Modules keep DTO vocabulary, query matching,
+  text presentation, and impact semantics separate while `agent-graph.ts`
+  remains the public facade. The
   diagnostics loader acquires the temporary Vite server with
   `Effect.acquireRelease(...)` inside `Effect.scoped(...)`, so CLI and CI
   diagnostics close the Vite resource on success, typed failure, or

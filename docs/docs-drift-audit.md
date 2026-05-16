@@ -457,8 +457,12 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   Current docs now record that Program dispatch acknowledgements, subscription
   restart ownership, subscription generations, and post-dispose update guards
   live inside the Runtime Coordinator.
-- Updated current-facing verification snapshots after Review 126 full
-  verification so the latest gate points at the 237-file Effect-first audit and
+- Added Review 127 evidence for Start Agent Graph formatter and impact Module
+  extraction. Current docs now record that graph DTO contracts, query matching,
+  shared display policy, graph/impact text formatting, and semantic impact
+  planning live in focused internal Modules.
+- Updated current-facing verification snapshots after Review 127 full
+  verification so the latest gate points at the 242-file Effect-first audit and
   52 root test files / 867 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are
   wrapped with `Effect.tryPromise(...)` at the Adapter seam.

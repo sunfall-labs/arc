@@ -11,9 +11,41 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 126, immediately after Review 125. Some older review
+The newest review is Review 127, immediately after Review 126. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 127: Start Agent Graph Formatter and Impact Modules
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Start Agent Graph Contract: added
+  `packages/start/src/start-agent-graph-contract.ts` for graph node, edge,
+  query, impact, and formatting DTO Interfaces while `agent-graph.ts` remains
+  the public package facade.
+- Start Agent Graph Query: added
+  `packages/start/src/start-agent-graph-query.ts` for query-kind matching,
+  text search, result edge selection, and Effect wrappers.
+- Start Agent Graph Display/Formatter: added
+  `packages/start/src/start-agent-graph-display.ts` and
+  `packages/start/src/start-agent-graph-formatter.ts` so concise/verbose graph
+  text, impact text, display titles, truncation, and no-match copy no longer
+  live beside semantic graph projection.
+- Start Agent Graph Impact Planner: added
+  `packages/start/src/start-agent-graph-impact.ts` for edit targets,
+  contracts, dependencies, may-affect relations, warnings, and shell-safe
+  verify command injection from the Start Diagnostics CLI Contract.
+- Facade locality: `packages/start/src/agent-graph.ts` now owns graph
+  projection from diagnostics and re-exports the focused internal Modules.
+
+Focused verification passed: `pnpm --filter @effect-ui/start build`, `pnpm
+exec vitest run packages/start/test/app-graph.test.ts` (1 file / 16 tests),
+`pnpm exec vitest run packages/start/test/start.test.ts` (1 file / 130 tests),
+`pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first` over
+242 files, and `git diff --check`.
+Full `pnpm verify` also passed after the slice.
 
 ## Review 126: Core Program Runtime Lifecycle Hardening
 
