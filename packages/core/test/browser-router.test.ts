@@ -1,6 +1,8 @@
 import { Cause, Context, Deferred, Effect, Layer } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import {
+  browserRouteRenderDecision,
+  browserRouteRenderKey,
   createBrowserRouterHostController,
   createBrowserRouterKernel,
   isPlainLeftClick,
@@ -42,6 +44,47 @@ describe("browser router kernel", () => {
     expect(opensOutsideRouter("_blank", undefined)).toBe(true);
     expect(opensOutsideRouter("_self", undefined)).toBe(false);
     expect(opensOutsideRouter(undefined, "")).toBe(true);
+  });
+
+  it("shares route render decisions across framework adapters", () => {
+    const component = () => undefined;
+    const Project = route("/render-projects/:id", { component });
+    const Empty = route("/empty-render-route");
+    const projectMatch = Project.match("/render-projects/atlas");
+    const emptyMatch = Empty.match("/empty-render-route");
+
+    if (!projectMatch || !emptyMatch) {
+      expect.fail("Expected test routes to match.");
+    }
+
+    const ready = {
+      _tag: "Ready",
+      href: "/render-projects/atlas",
+      match: projectMatch
+    } as const;
+    const readyDecision = browserRouteRenderDecision(ready);
+
+    expect(browserRouteRenderKey(ready)).toBe("Ready:/render-projects/atlas:/render-projects/:id");
+    expect(readyDecision).toMatchObject({
+      _tag: "Ready",
+      component,
+      props: {
+        params: { id: "atlas" },
+        search: {}
+      }
+    });
+
+    const emptyDecision = browserRouteRenderDecision({
+      _tag: "Ready",
+      href: "/empty-render-route",
+      match: emptyMatch
+    });
+    expect(emptyDecision).toMatchObject({ _tag: "Empty" });
+
+    expect(browserRouteRenderDecision({
+      _tag: "NotFound",
+      href: "/missing"
+    })).toMatchObject({ _tag: "NotFound" });
   });
 
   it("shares router link hover preload interruption across framework adapters", () =>

@@ -1102,10 +1102,13 @@ interruption.
   including in-flight `Deferred` ownership/joining, forced-refetch generation
   freshness, restore-before-load, load/refetch selection, retry, row
   replacement, lifecycle events, and load persistence.
-- The latest full `pnpm verify` passed after the Review 116 DB Collection Sync
-  Load Policy Module slice: 11 package builds, workspace typecheck, type tests,
+- Browser Route Render Decision now lives in Core browser-router, so React and
+  Solid route outlets share one adapter-neutral decision for pending, failure,
+  not-found, ready component props, empty ready routes, and stable render keys.
+- The latest full `pnpm verify` passed after the Review 117 Browser Route Render
+  Decision Module slice: 11 package builds, workspace typecheck, type tests,
   public API inventory audit, Effect-first audit over 228
-  package/example/script/type-test files, 52 root test files / 860 tests,
+  package/example/script/type-test files, 52 root test files / 861 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
   verify with 1 starter test file / 2 tests, React starter verify with 1
@@ -1113,8 +1116,8 @@ interruption.
   4 project-console test files / 27 tests, build, and leak scans. Review 75
   added the public API inventory audit to the full gate, Review 86 kept the
   scanner green over the expanded public type-test scope, Review 113 expanded
-  the scanner to 226 files, Review 115 expanded it to 227 files, and Review 116
-  kept it green over its expanded 228-file scope.
+  the scanner to 226 files, Review 115 expanded it to 227 files, Review 116
+  expanded it to 228 files, and Review 117 kept it green over that scope.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

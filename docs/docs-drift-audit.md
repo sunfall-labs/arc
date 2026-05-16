@@ -53,8 +53,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     sweeps, Review 112 core action workflow resource runtime locality, Review
     113 start action request codec module extraction, Review 114 start
     diagnostics CLI query kind subcommands, Review 115 start vite diagnostics
-    loader module extraction, and Review 116 db collection sync load policy
-    module extraction.
+    loader module extraction, Review 116 db collection sync load policy module
+    extraction, and Review 117 browser route render decision module extraction.
 
 ## Current Sweep Results
 
@@ -420,9 +420,12 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Added Review 116 and progress entry 355 evidence for the DB Collection Sync
   Load Policy extraction. Current docs now record that load/refetch orchestration
   lives in `collection-sync-load-policy.ts`.
-- Updated current-facing verification snapshots after Review 116 full
+- Added Review 117 and progress entry 356 evidence for the Browser Route Render
+  Decision extraction. Current docs now record that route outlet state decisions
+  live in Core while React and Solid keep framework rendering local.
+- Updated current-facing verification snapshots after Review 117 full
   verification so the latest gate points at the 228-file Effect-first audit and
-  52 root test files / 860 tests.
+  52 root test files / 861 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are
   wrapped with `Effect.tryPromise(...)` at the Adapter seam.
 - Clarified that `virtual:effect-ui/routes` exposes runtime helpers while the

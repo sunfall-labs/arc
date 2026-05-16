@@ -134,6 +134,12 @@ Release decisions:
   `createBrowserRouterHostController(...)`,
   `makeMemoryBrowserHistoryAdapter(...)`,
   `makeWindowBrowserHistoryAdapter(...)`, and the browser-router types directly.
+- Browser route render decisions live in Core so framework adapters share the
+  same outlet state meaning. `browserRouteRenderDecision(...)`,
+  `browserRouteRenderKey(...)`, `BrowserRouteOutletRenderers`,
+  `BrowserRouteReadyRenderProps`, and `BrowserRouteRenderDecision` are
+  expert-public for React, Solid, tests, and future adapters; app code should
+  normally keep using framework router outlets.
 - `Action.use(definition, { runtime })` is a runtime-bound action instance:
   services provided by the explicit runtime are removed from `submitEffect(...)`
   requirements, and the runtime error channel is added to the action error

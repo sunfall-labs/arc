@@ -232,6 +232,10 @@ Latest full gate on May 15, 2026:
   workflow for in-flight `Deferred` ownership/joining, forced-refetch generation
   freshness, restore-before-load, load/refetch selection, retry, row
   replacement, lifecycle events, and load persistence.
+- Review 117 moved browser route outlet decisions into Core. React and Solid
+  now consume `browserRouteRenderDecision(...)` and `browserRouteRenderKey(...)`
+  while keeping component invocation, default fallback rendering, and `UiScope`
+  lifetime local to their adapters.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime
@@ -720,11 +724,11 @@ Latest full gate on May 15, 2026:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 116 extracted the DB
-  Collection Sync Load Policy while keeping public package exports unchanged:
+- The latest full `pnpm verify` passed after Review 117 extracted the Browser
+  Route Render Decision while keeping public package exports stable:
   11 package builds, workspace typecheck, public type tests, public API
   inventory audit, Effect-first audit over 228 files, 52 root test
-  files / 860 tests,
+  files / 861 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,
   project-console packaging/typecheck/tests/build with 4 files / 27 tests, and

@@ -1,10 +1,12 @@
 import {
+  browserRouteRenderDecision,
   makeRuntimeUiScope,
   runWithRuntime,
   runWithScope,
   type AnyEffectUiRuntime,
+  type AnyBrowserRoute,
   type BrowserRouterState,
-  type Route
+  type BrowserRouteOutletRenderers
 } from "@effect-ui/core";
 import { Effect, Fiber } from "effect";
 import {
@@ -15,13 +17,10 @@ import {
 } from "solid-js";
 import { createComponent } from "solid-js/web";
 
-type AnyRoute = Route.Definition<string, unknown, unknown, any>;
+type AnyRoute = AnyBrowserRoute;
 
-export type SolidRouteOutletRenderers<Routes extends readonly AnyRoute[], ER> = {
-  readonly pending?: (state: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Pending" }>) => JSX.Element;
-  readonly failure?: (state: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Failure" }>) => JSX.Element;
-  readonly notFound?: (state: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "NotFound" }>) => JSX.Element;
-};
+export type SolidRouteOutletRenderers<Routes extends readonly AnyRoute[], ER> =
+  BrowserRouteOutletRenderers<Routes, ER, JSX.Element>;
 
 export interface SolidRouteRenderScopeController<Routes extends readonly AnyRoute[], ER> {
   update(state: BrowserRouterState<Routes, ER>): void;
@@ -74,25 +73,20 @@ const renderRouteState = <Routes extends readonly AnyRoute[], ER>(
   renderers: SolidRouteOutletRenderers<Routes, ER>,
   runtime: AnyEffectUiRuntime<ER>
 ): RenderedRouteScope => {
-  switch (state._tag) {
+  const decision = browserRouteRenderDecision(state);
+  switch (decision._tag) {
     case "Pending":
-      return renderInRouteScope(runtime, () => (renderers.pending ?? defaultPending)(state));
+      return renderInRouteScope(runtime, () => (renderers.pending ?? defaultPending)(decision.state));
     case "Failure":
-      return renderInRouteScope(runtime, () => (renderers.failure ?? defaultFailure)(state));
+      return renderInRouteScope(runtime, () => (renderers.failure ?? defaultFailure)(decision.state));
     case "NotFound":
-      return renderInRouteScope(runtime, () => (renderers.notFound ?? defaultNotFound)(state));
+      return renderInRouteScope(runtime, () => (renderers.notFound ?? defaultNotFound)(decision.state));
+    case "Empty":
+      return { node: undefined };
     case "Ready": {
-      const component = state.match.route.options.component as Component<Record<string, unknown>> | undefined;
-      if (!component) {
-        return { node: undefined };
-      }
-
+      const component = decision.component as Component<Record<string, unknown>>;
       return renderInRouteScope(runtime, () =>
-        createComponent(component, {
-          params: state.match.params,
-          search: state.match.search,
-          match: state.match
-        })
+        createComponent(component, decision.props as unknown as Record<string, unknown>)
       );
     }
   }

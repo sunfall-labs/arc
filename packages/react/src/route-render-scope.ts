@@ -1,10 +1,13 @@
 import {
+  browserRouteRenderDecision,
+  browserRouteRenderKey,
   makeRuntimeUiScope,
   runWithRuntime,
   runWithScope,
   type AnyEffectUiRuntime,
+  type AnyBrowserRoute,
   type BrowserRouterState,
-  type Route,
+  type BrowserRouteOutletRenderers,
   type UiScope
 } from "@effect-ui/core";
 import { Effect } from "effect";
@@ -16,13 +19,10 @@ import {
 } from "react";
 import { RuntimeContext } from "./runtime.js";
 
-type AnyRoute = Route.Definition<string, unknown, unknown, any>;
+type AnyRoute = AnyBrowserRoute;
 
-export type ReactRouteOutletRenderers<Routes extends readonly AnyRoute[], ER> = {
-  readonly pending?: (state: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Pending" }>) => ReactNode;
-  readonly failure?: (state: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Failure" }>) => ReactNode;
-  readonly notFound?: (state: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "NotFound" }>) => ReactNode;
-};
+export type ReactRouteOutletRenderers<Routes extends readonly AnyRoute[], ER> =
+  BrowserRouteOutletRenderers<Routes, ER, ReactNode>;
 
 const defaultPending = (): ReactNode => undefined;
 
@@ -69,22 +69,6 @@ const RouteRenderFrame = <ER,>(props: RouteRenderFrameProps<ER>): ReactNode => {
   );
 };
 
-const routeRenderKey = <Routes extends readonly AnyRoute[], ER>(
-  routeState: BrowserRouterState<Routes, ER>
-): string => {
-  switch (routeState._tag) {
-    case "Pending":
-    case "Ready":
-      return `${routeState._tag}:${routeState.href}:${routeState.match.route.path}`;
-    case "Failure":
-      return routeState.match
-        ? `${routeState._tag}:${routeState.href}:${routeState.match.route.path}`
-        : `${routeState._tag}:${routeState.href}`;
-    case "NotFound":
-      return `${routeState._tag}:${routeState.href}`;
-  }
-};
-
 const renderInRouteScope = <Routes extends readonly AnyRoute[], ER>(
   runtime: AnyEffectUiRuntime<ER>,
   routeState: BrowserRouterState<Routes, ER>,
@@ -93,7 +77,7 @@ const renderInRouteScope = <Routes extends readonly AnyRoute[], ER>(
   createElement(RuntimeContext.Provider, {
     value: runtime as AnyEffectUiRuntime<never>,
     children: createElement(RouteRenderFrame, {
-      key: routeRenderKey(routeState),
+      key: browserRouteRenderKey(routeState),
       runtime,
       render
     })
@@ -104,33 +88,26 @@ export const renderReactRouteState = <Routes extends readonly AnyRoute[], ER>(
   renderers: ReactRouteOutletRenderers<Routes, ER>,
   runtime: AnyEffectUiRuntime<ER>
 ): ReactNode => {
-  switch (routeState._tag) {
+  const decision = browserRouteRenderDecision(routeState);
+  switch (decision._tag) {
     case "Pending":
-      return renderInRouteScope(runtime, routeState, () =>
-        (renderers.pending ?? defaultPending)(routeState)
+      return renderInRouteScope(runtime, decision.state, () =>
+        (renderers.pending ?? defaultPending)(decision.state)
       );
     case "Failure":
-      return renderInRouteScope(runtime, routeState, () =>
-        (renderers.failure ?? defaultFailure)(routeState)
+      return renderInRouteScope(runtime, decision.state, () =>
+        (renderers.failure ?? defaultFailure)(decision.state)
       );
     case "NotFound":
-      return renderInRouteScope(runtime, routeState, () =>
-        (renderers.notFound ?? defaultNotFound)(routeState)
+      return renderInRouteScope(runtime, decision.state, () =>
+        (renderers.notFound ?? defaultNotFound)(decision.state)
       );
+    case "Empty":
+      return undefined;
     case "Ready": {
-      const component = routeState.match.route.options.component as
-        | ((props: Record<string, unknown>) => ReactNode)
-        | undefined;
-      if (!component) {
-        return undefined;
-      }
-
-      return renderInRouteScope(runtime, routeState, () =>
-        component({
-          params: routeState.match.params,
-          search: routeState.match.search,
-          match: routeState.match
-        })
+      const component = decision.component as (props: Record<string, unknown>) => ReactNode;
+      return renderInRouteScope(runtime, decision.state, () =>
+        component(decision.props as unknown as Record<string, unknown>)
       );
     }
   }

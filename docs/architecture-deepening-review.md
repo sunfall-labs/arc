@@ -11,9 +11,43 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 116, immediately after Review 115. Some older review
+The newest review is Review 117, immediately after Review 116. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 117: Browser Route Render Decision Module
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Browser Route Render Decision: `packages/core/src/browser-router.ts` now owns
+  adapter-neutral outlet decisions for `Pending`, `Failure`, `NotFound`, ready
+  component props, empty ready routes, and stable route-render keys.
+- Adapter locality: `packages/react/src/route-render-scope.ts` and
+  `packages/solid/src/route-render-scope.ts` consume the Core decision while
+  keeping framework component invocation, default fallback rendering, and
+  `UiScope` lifetime local to each Adapter.
+- LSP surface: Core now exports `BrowserRouteOutletRenderers`,
+  `BrowserRouteReadyRenderProps`, `BrowserRouteRenderDecision`,
+  `browserRouteRenderDecision(...)`, and `browserRouteRenderKey(...)` with
+  hover docs, so outlet state meaning is described in one place.
+- Regression coverage: Core browser-router tests now pin ready, empty, and
+  not-found route render decisions in addition to existing React/Solid router
+  outlet coverage.
+
+Focused verification: `pnpm --filter @effect-ui/core typecheck`, `pnpm --filter
+@effect-ui/react typecheck`, `pnpm --filter @effect-ui/solid typecheck`, and
+`pnpm exec vitest run packages/core/test/browser-router.test.ts
+packages/react/test/router.test.ts packages/solid/test/router.test.ts` (3 files
+/ 44 tests), `pnpm audit:public-api`, `pnpm typecheck:types`, `pnpm
+audit:effect-first` over 228 files, and `git diff --check` passed. Full `pnpm
+verify` passed: 11 package builds, workspace typecheck, public type tests,
+public API inventory audit, Effect-first audit over 228 files, 52 root test
+files / 861 tests, devtools-panel verify with 2 tests, devtools-extension
+verify with 20 tests, basic starter verify with 2 tests, React starter verify
+with 3 tests, project-console packaging/typecheck/tests/build with 4 files / 27
+tests, and leak scans.
 
 ## Review 116: DB Collection Sync Load Policy Module
 
