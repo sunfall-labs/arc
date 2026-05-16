@@ -11,11 +11,10 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review157, immediately after Review156.
-The newest full verification checkpoint is still Review156 until a fresh full
-`pnpm verify` run is recorded after Review157. Some older review entries remain
-below it from prior ledger merges; use this tip rather than file order alone
-when looking for the latest architecture sweep.
+The newest completed focused review and full verification checkpoint is
+Review157, immediately after Review156. Some older review entries remain below
+it from prior ledger merges; use this tip rather than file order alone when
+looking for the latest architecture sweep.
 
 ## Review 157: Durable Commit Locality, Devtools Secrets, And Public CLI Surface
 
@@ -106,10 +105,16 @@ public type tests, public API audit, Effect-first audit over 273 files,
 122 tests, React router tests 1 file / 11 tests, Devtools tests 1 file / 76
 tests, package build, script syntax checks, and `git diff --check`.
 
-Full `pnpm verify` still needs to be rerun after Review157 before this slice
-can replace Review156 as the newest full verification checkpoint. Fresh
-post-fix sweeps still need to complete before the clean-sweep counter can
-start.
+Full `pnpm verify` passed after Review157: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 273 files, 53 root test files / 954 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, generated starter-suite
+packaging/verifies for basic/react/project-console at 19/24/30 app files with
+5/4/6 local packages, 16-target package dry-run gate, project-console
+typecheck, 4 project-console test files / 27 tests, project-console build, and
+leak scans. Fresh post-fix sweeps still need to complete before the clean-sweep
+counter can start.
 
 ## Review 156: Durable Commit Races, Query Redaction, And Guardrail Pins
 

@@ -469,12 +469,14 @@ interruption.
 - Review 156 focused verification kept `pnpm audit:effect-first` green over 272
   files after adding object-binding extraction checks for Promise constructors
   destructured from `globalThis` and `window`.
+- Review 157 focused verification kept `pnpm audit:effect-first` green over 273
+  files after adding nested and computed global Promise extraction checks.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The latest full gate is the Review 156 `pnpm verify` run: 11 package builds,
+- The latest full gate is the Review 157 `pnpm verify` run: 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 272 files, 53 root test files / 949 tests,
+  Effect-first audit over 273 files, 53 root test files / 954 tests,
   devtools-panel/devtools-extension/starter-suite/16-target package-dry-run/
   project-console gates, and leak scans.
 - `pnpm exec vitest run packages/core/test/runtime.test.ts packages/start/test/start.test.ts`
@@ -1271,11 +1273,11 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The latest full `pnpm verify` passed after the Review 156 Durable Commit
-  Races, Query Redaction, And Guardrail Pins slice: 11 package builds, workspace
-  typecheck, type tests, public API inventory audit, Effect-first audit over 272
-  package/example/config/script/type-test/generated-template files, 53 root test
-  files / 949 tests,
+- The latest full `pnpm verify` passed after the Review 157 Durable Restore
+  Locality, Devtools Secrets, And Public CLI Surface slice: 11 package builds,
+  workspace typecheck, type tests, public API inventory audit,
+  Effect-first audit over 273 package/example/config/script/type-test/generated
+  template files, 53 root test files / 954 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
   verify with 1 starter test file / 2 tests, React starter verify with 1
