@@ -783,7 +783,14 @@ Release decisions:
   adapters. They own collection source subscription, runtime-bound Effects,
   preload controller generation checks, live-query state error extraction, and
   live-query input/dependency selection; app code should prefer the framework
-  adapter hooks.
+  adapter hooks. They are pinned in the focused DB type test and required by
+  the public hover-doc audit so adapter-facing LSP vocabulary cannot drift.
+- DB public hover docs are now curated for Collection contract types, Query
+  plan diagnostics, flush/background-sync result types, collection reactive
+  binding helpers, server collection adapters, and SQLite persistence helpers.
+  These are the expert-public seams most likely to show up in adapter, tooling,
+  and recipe code, so missing JSDoc on those declarations fails
+  `pnpm audit:public-api`.
 
 ### `@effect-ui/devtools`
 

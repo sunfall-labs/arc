@@ -42,12 +42,14 @@ export interface FlushCollectionsPendingMutationsOptions<SkipError = never, Skip
 
 type AnyCollectionTransaction = CollectionTransaction<any, any>;
 
+/** Result entry for a collection whose queued mutations were flushed. */
 export interface FlushCollectionPendingMutationsFlushedResult {
   readonly _tag: "Flushed";
   readonly collection: string;
   readonly transactions: ReadonlyArray<AnyCollectionTransaction>;
 }
 
+/** Result entry for a collection skipped by the flush policy. */
 export interface FlushCollectionPendingMutationsSkippedResult {
   readonly _tag: "Skipped";
   readonly collection: string;
@@ -61,11 +63,13 @@ export type FlushCollectionPendingMutationsResult =
   | FlushCollectionPendingMutationsFlushedResult
   | FlushCollectionPendingMutationsSkippedResult;
 
+/** Error channel for flushing pending mutations across a collection iterable. */
 export type FlushCollectionsPendingMutationsError<
   Collections extends Iterable<AnyCollection>,
   SkipError = never
 > = CollectionRuntimeError<CollectionError<IterableCollection<Collections>>> | SkipError | EffectInputCallbackError;
 
+/** Requirement channel for flushing pending mutations across a collection iterable. */
 export type FlushCollectionsPendingMutationsRequirements<
   Collections extends Iterable<AnyCollection>,
   SkipRequirements = never
@@ -120,6 +124,7 @@ export interface CollectionBackgroundSyncOptions<
   readonly flushEmpty?: boolean;
 }
 
+/** Background sync decision when there are no pending mutations to flush. */
 export interface CollectionBackgroundSyncIdleResult {
   readonly _tag: "Idle";
   readonly trigger: CollectionBackgroundSyncTrigger;
@@ -127,6 +132,7 @@ export interface CollectionBackgroundSyncIdleResult {
   readonly results: ReadonlyArray<never>;
 }
 
+/** Background sync decision when an adapter chose not to flush yet. */
 export interface CollectionBackgroundSyncDeferredResult {
   readonly _tag: "Deferred";
   readonly trigger: CollectionBackgroundSyncTrigger;
@@ -135,6 +141,7 @@ export interface CollectionBackgroundSyncDeferredResult {
   readonly results: ReadonlyArray<never>;
 }
 
+/** Background sync decision after pending mutations were flushed. */
 export interface CollectionBackgroundSyncFlushedResult {
   readonly _tag: "Flushed";
   readonly trigger: CollectionBackgroundSyncTrigger;
@@ -143,17 +150,20 @@ export interface CollectionBackgroundSyncFlushedResult {
   readonly results: ReadonlyArray<FlushCollectionPendingMutationsResult>;
 }
 
+/** Union result for background sync pending-mutation evaluation. */
 export type CollectionBackgroundSyncResult =
   | CollectionBackgroundSyncIdleResult
   | CollectionBackgroundSyncDeferredResult
   | CollectionBackgroundSyncFlushedResult;
 
+/** Error channel for background sync pending-mutation evaluation. */
 export type CollectionBackgroundSyncError<
   Collections extends Iterable<AnyCollection>,
   AdapterError = never,
   SkipError = never
 > = FlushCollectionsPendingMutationsError<Collections, SkipError> | AdapterError | EffectInputCallbackError;
 
+/** Requirement channel for background sync pending-mutation evaluation. */
 export type CollectionBackgroundSyncRequirements<
   Collections extends Iterable<AnyCollection>,
   AdapterRequirements = never,

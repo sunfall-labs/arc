@@ -8,7 +8,9 @@ import { CollectionStoreTypeId, CollectionTypeId } from "./collection-ids.js";
 import type { CollectionRowKeyChanged, CollectionRowNotFound } from "./collection-errors.js";
 import type { CollectionSnapshotCodecError } from "./collection-snapshot-codec.js";
 
+/** Stable row identity accepted by Collection definitions and snapshots. */
 export type CollectionKey = string | number;
+/** Source of the latest row value visible in the in-memory Collection Store. */
 export type CollectionOrigin = "local" | "remote";
 
 /**
@@ -61,11 +63,13 @@ export interface CollectionTransaction<A extends object, K extends CollectionKey
   readonly mutations: ReadonlyArray<CollectionMutation<A, K>>;
 }
 
+/** Row snapshot saved before an optimistic mutation so rollback can restore state. */
 export interface CollectionRollbackRow<A extends object, K extends CollectionKey> {
   readonly key: K;
   readonly row?: CollectionRowSnapshot<A, K>;
 }
 
+/** Queued optimistic transaction waiting for its mutation handler to commit. */
 export interface CollectionPendingMutation<A extends object, K extends CollectionKey> {
   readonly transaction: CollectionTransaction<A, K>;
   readonly rollbackRows: ReadonlyArray<CollectionRollbackRow<A, K>>;
@@ -73,6 +77,7 @@ export interface CollectionPendingMutation<A extends object, K extends Collectio
   readonly attempts: number;
 }
 
+/** Context passed to collection mutation handlers. */
 export interface CollectionMutationContext<A extends object, K extends CollectionKey> {
   readonly transaction: CollectionTransaction<A, K>;
 }
@@ -87,11 +92,14 @@ export interface CollectionPolicy<E = never> {
   readonly retry?: Schedule.Schedule<unknown, E>;
 }
 
+/** Diagnostic label for the sync adapter currently backing a collection. */
 export interface CollectionSyncDiagnostics {
   readonly adapter: string;
 }
 
+/** Value that can be normalized into a stable secondary-index bucket key. */
 export type CollectionIndexValue = string | number | boolean | Date | null | undefined;
+/** One or more bucket keys emitted for a row by a secondary index. */
 export type CollectionIndexResult = CollectionIndexValue | ReadonlyArray<CollectionIndexValue>;
 
 /**
@@ -105,10 +113,12 @@ export interface CollectionIndexDefinition<A extends object> {
   readonly unique?: boolean;
 }
 
+/** Shorthand accepted by Collection options for secondary index declarations. */
 export type CollectionIndexInput<A extends object> =
   | ((value: A) => CollectionIndexResult)
   | CollectionIndexDefinition<A>;
 
+/** Named secondary index map attached to a Collection definition. */
 export type CollectionIndexRecord<A extends object> = Record<string, CollectionIndexInput<A>>;
 
 /**
@@ -245,13 +255,21 @@ export interface CollectionDefinition<A extends object, K extends CollectionKey 
   writeDelete(key: K): void;
 }
 
+/**
+ * Erased Collection definition used by adapters over heterogeneous collection
+ * lists while preserving error and requirement channels where possible.
+ */
 export type AnyCollection<E = any, R = any> =
   Omit<CollectionDefinition<any, any, E, R>, "options"> & {
     readonly options: any;
   };
+/** Extracts the domain value type from a Collection definition. */
 export type CollectionValue<C> = C extends CollectionDefinition<infer A, infer _K, infer _E, infer _R> ? A : never;
+/** Extracts the public row type, including `$key` metadata, from a Collection definition. */
 export type CollectionRowValue<C> = C extends CollectionDefinition<infer A, infer K, infer _E, infer _R> ? CollectionRow<A, K> : never;
+/** Extracts the declared loader/mutation error channel from a Collection definition. */
 export type CollectionError<C> = C extends CollectionDefinition<infer _A, infer _K, infer E, infer _R> ? E : never;
+/** Extracts the declared service requirements from a Collection definition. */
 export type CollectionRequirements<C> = C extends CollectionDefinition<infer _A, infer _K, infer _E, infer R> ? R : never;
 
 /**
@@ -273,6 +291,7 @@ export type CollectionChange<A extends object, K extends CollectionKey> =
   | { readonly _tag: "Upsert"; readonly value: A }
   | { readonly _tag: "Delete"; readonly key: K };
 
+/** Serializable row record used by Collection snapshots and hydration payloads. */
 export interface CollectionRowSnapshot<A extends object, K extends CollectionKey> {
   readonly key: K;
   readonly value: A;
@@ -315,6 +334,7 @@ export interface CollectionPersistenceStorage<E = never, R = never> {
   readonly removeItem?: (key: string) => EffectInput<void, E, R>;
 }
 
+/** Shared key options for collection persistence, restore, and hydration. */
 export interface CollectionPersistOptions {
   readonly key?: string;
 }
@@ -409,6 +429,7 @@ export interface CollectionDefinitionDiagnostics {
   };
 }
 
+/** Static diagnostic inventory for registered Collection definitions. */
 export interface CollectionDiagnostics {
   readonly collections: readonly CollectionDefinitionDiagnostics[];
 }
@@ -457,6 +478,14 @@ export interface CollectionStoreDiagnostics {
   readonly snapshotEffect: Effect.Effect<CollectionStoreDiagnosticsSnapshot>;
 }
 
+/**
+ * Runtime-local Collection Store contract.
+ *
+ * Stores own collection rows, pending mutation queues, lifecycle events, and
+ * diagnostics for one Effect UI Runtime Spine or request scope. External code
+ * should read this through `Collection.storeEffect()` or
+ * `Collection.currentStore()` instead of constructing stores directly.
+ */
 export interface CollectionStore {
   readonly [CollectionStoreTypeId]: typeof CollectionStoreTypeId;
   readonly disposeEffect: Effect.Effect<void>;

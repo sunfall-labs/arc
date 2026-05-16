@@ -52,6 +52,7 @@ export interface SQLitePersistenceDriver<E = never, R = never> {
  */
 export type SQLiteStatementValue = string | number | null;
 
+/** Positional parameter list accepted by generated SQLite persistence SQL. */
 export type SQLiteStatementParams = ReadonlyArray<SQLiteStatementValue>;
 
 /**

@@ -21,6 +21,7 @@ export class UnsupportedLiveQuery extends Data.TaggedError("UnsupportedLiveQuery
   readonly reason: string;
 }> {}
 
+/** Query pipeline phase where a synchronous callback failure occurred. */
 export type QueryEvaluationOperation =
   | "source"
   | "filter"
@@ -44,25 +45,36 @@ export class QueryEvaluationError extends Data.TaggedError("QueryEvaluationError
   readonly cause: unknown;
 }> {}
 
+/** Sort direction accepted by Query order clauses. */
 export type QuerySortDirection = "asc" | "desc";
+/** Comparable scalar value accepted by Query ordering. */
 export type QuerySortValue = string | number | boolean | Date | null | undefined;
+/** Scalar join key before stable string normalization. */
 export type QueryJoinKey = string | number | boolean | Date | null | undefined;
+/** Execution strategy selected for one Query join. */
 export type QueryJoinStrategy = "collection-scan" | "collection-index";
 
+/** Named collection source map supplied to Query execution. */
 export type SourceRecord = Record<string, AnyCollection>;
+/** Erased row context carried through query filter/join/project stages. */
 export type AnyQueryContext = Record<string, any>;
+/** Erased Collection row used by query joins. */
 export type AnyCollectionRow = CollectionRow<any, any>;
 
+/** Union of source collection runtime errors for a query source map. */
 export type QuerySourcesError<Sources extends SourceRecord> =
   CollectionRuntimeError<CollectionError<Sources[keyof Sources]>>;
 
+/** Union of source collection service requirements for a query source map. */
 export type QuerySourcesRequirements<Sources extends SourceRecord> =
   CollectionRequirements<Sources[keyof Sources]>;
 
+/** Row context produced from the source alias map. */
 export type QueryContext<Sources extends SourceRecord> = {
   readonly [Key in keyof Sources]: CollectionRowValue<Sources[Key]>;
 };
 
+/** Row context after joining collection `C` under alias `Alias`. */
 export type QueryJoinedContext<
   TContext extends AnyQueryContext,
   Alias extends string,
@@ -71,6 +83,7 @@ export type QueryJoinedContext<
   readonly [Key in Alias]: CollectionRowValue<C>;
 };
 
+/** Result context chosen after a join projection. */
 export type QueryJoinResult<TContext, TResult, TNextContext> =
   [TResult] extends [TContext]
     ? [TContext] extends [TResult]
@@ -78,11 +91,13 @@ export type QueryJoinResult<TContext, TResult, TNextContext> =
       : TResult
     : TResult;
 
+/** Compiled order clause used by the query execution plan. */
 export interface QueryOrder<TContext> {
   readonly direction: QuerySortDirection;
   readonly selector: (row: TContext) => QuerySortValue;
 }
 
+/** Compiled join clause used by the query execution plan. */
 export interface QueryJoin {
   readonly alias: string;
   readonly collection: AnyCollection;
@@ -91,12 +106,14 @@ export interface QueryJoin {
   readonly rightIndex?: string;
 }
 
+/** Runtime diagnostics for one source collection in a query plan. */
 export interface QueryPlanSourceDiagnostics {
   readonly alias: string;
   readonly collection: string;
   readonly rows: number;
 }
 
+/** Runtime diagnostics for one join stage in a query plan. */
 export interface QueryPlanJoinDiagnostics {
   readonly alias: string;
   readonly collection: string;
@@ -108,6 +125,7 @@ export interface QueryPlanJoinDiagnostics {
   readonly estimatedComparisons: number;
 }
 
+/** Query plan execution summary exposed to diagnostics and LSP hovers. */
 export interface QueryPlanDiagnostics {
   readonly sources: ReadonlyArray<QueryPlanSourceDiagnostics>;
   readonly joins: ReadonlyArray<QueryPlanJoinDiagnostics>;
@@ -119,6 +137,7 @@ export interface QueryPlanDiagnostics {
   readonly contextRows: number;
 }
 
+/** Query execution result plus diagnostics for the evaluated context rows. */
 export interface QueryExecution<TContext> {
   readonly contexts: Array<TContext>;
   readonly diagnostics: QueryPlanDiagnostics;
