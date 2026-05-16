@@ -11,9 +11,38 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 100, immediately after Review 99. Some older review
+The newest review is Review 101, immediately after Review 100. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 101: Start Transport Body Readers
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Start body readers: added `packages/start/src/start-transport-body.ts` as the
+  internal Module for one-shot JSON, form-data, and response-text reads behind
+  Effect v4 helpers.
+- Protocol locality: `packages/start/src/start-transport-protocol.ts` now asks
+  that Module to read request and response bodies, while keeping request shape,
+  status, schema, and JSON parse policy in the transport protocol.
+- Typed failures: request body read failures become `ServerRpcProtocolError`
+  protocol failures; response body stream failures become `ServerTransportError`
+  invalid-response failures before JSON decoding begins.
+- Regression coverage: `packages/start/test/rpc.test.ts` now covers failing
+  RPC JSON request reads, action form reads, RPC response text reads, and action
+  response text reads without adding host async test bodies.
+
+Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm vitest
+run packages/start/test/rpc.test.ts packages/start/test/start.test.ts` (2 files
+/ 143 tests), `pnpm audit:effect-first` over 225 files, and `git diff --check`
+passed. Full `pnpm verify` passed: 11 package builds, workspace typecheck,
+public type tests, public API inventory audit, Effect-first audit over 225
+files, 52 root test files / 859 tests, devtools-panel verify with 2 tests,
+devtools-extension verify with 20 tests, basic starter verify with 2 tests,
+React starter verify with 3 tests, project-console packaging/typecheck/tests/
+build with 4 files / 27 tests, and leak scans.
 
 ## Review 100: Start Default Fetch Abort Signal
 

@@ -43,6 +43,11 @@ import {
   type StartTransportEndpointManifestSource,
   type StartTransportEndpointSource
 } from "./start-transport-endpoints.js";
+import {
+  readStartTransportFormDataBodyEffect,
+  readStartTransportJsonBodyEffect,
+  readStartTransportResponseTextEffect
+} from "./start-transport-body.js";
 import type { StartRequestTraceFailureKind } from "./request-trace.js";
 import type { ServerRpcClientOptions } from "./start-fetch.js";
 
@@ -349,14 +354,10 @@ const actionJson = (body: StartActionResponseBody, status = 200): Response =>
   startTransportJson(body, status);
 
 export const readJsonEffect = (request: Request): Effect.Effect<unknown, ServerRpcProtocolError> =>
-  Effect.tryPromise({
-    try: () => request.json(),
-    catch: (cause) =>
-      new ServerRpcProtocolError({
-        message: "Expected a JSON server function request body.",
-        payload: Server.serializeDefect(cause)
-      })
-  });
+  readStartTransportJsonBodyEffect(
+    request,
+    "Expected a JSON server function request body."
+  );
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
@@ -600,14 +601,10 @@ const formDataToObject = (formData: FormData): Record<string, unknown> => {
 
 const readActionFormEffect = (request: Request): Effect.Effect<StartActionRequest, ServerRpcProtocolError> =>
   Effect.gen(function* () {
-    const formData = yield* Effect.tryPromise({
-      try: () => request.formData(),
-      catch: (cause) =>
-        new ServerRpcProtocolError({
-          message: "Expected an action form body.",
-          payload: Server.serializeDefect(cause)
-        })
-    });
+    const formData = yield* readStartTransportFormDataBodyEffect(
+      request,
+      "Expected an action form body."
+    );
     const name = formData.get(startActionNameField);
     if (typeof name !== "string" || name.length === 0) {
       return yield* new ServerRpcProtocolError({
@@ -1144,16 +1141,10 @@ export const parseRpcResponse = (
 ): Effect.Effect<Server.RpcResponse, ServerTransportError | Schema.SchemaError> =>
   Effect.gen(function* () {
     yield* validateStartRpcResponseEffect(response);
-    const text = yield* Effect.tryPromise({
-      try: () => response.text(),
-      catch: (cause) =>
-        new ServerTransportError({
-          reason: "InvalidResponse",
-          status: response.status,
-          message: "Could not read the server function response body.",
-          cause
-        })
-    });
+    const text = yield* readStartTransportResponseTextEffect(
+      response,
+      "Could not read the server function response body."
+    );
     const payload = yield* Effect.try({
       try: () => JSON.parse(text),
       catch: (cause) =>
@@ -1337,16 +1328,10 @@ export const parseStartActionResponse = (
 ): Effect.Effect<StartActionResponseBody, ServerTransportError> =>
   Effect.gen(function* () {
     yield* validateStartActionResponseEffect(response);
-    const text = yield* Effect.tryPromise({
-      try: () => response.text(),
-      catch: (cause) =>
-        new ServerTransportError({
-          reason: "InvalidResponse",
-          status: response.status,
-          message: "Could not read the action response body.",
-          cause
-        })
-    });
+    const text = yield* readStartTransportResponseTextEffect(
+      response,
+      "Could not read the action response body."
+    );
     const payload = yield* Effect.try({
       try: () => JSON.parse(text) as unknown,
       catch: (cause) =>

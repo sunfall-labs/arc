@@ -379,6 +379,10 @@ Subpath exports:
   parsing, status policy, and decoding; response application owns invalidation
   target validation, Resource Tag/Ref resolution, hydration, hydrated-ref
   filtering, and malformed metadata transport errors.
+- Start Transport Body Readers own the internal Effect v4 boundary around
+  one-shot JSON, form-data, and response-text reads for RPC/action transports.
+  Transport Protocol consumes those helpers so body stream failures are typed
+  before JSON decoding or action form parsing begins.
 
 Release decisions:
 

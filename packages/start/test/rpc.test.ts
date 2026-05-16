@@ -51,6 +51,21 @@ class RpcFailureBodyReadError extends Data.TaggedError("RpcFailureBodyReadError"
   readonly cause: unknown;
 }> {}
 
+const erroringBodyStream = (): ReadableStream<Uint8Array> =>
+  new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.error(new Error("body read failed"));
+    }
+  });
+
+const requestStreamInit = (
+  init: Omit<RequestInit, "body"> & { readonly body: ReadableStream<Uint8Array> }
+): RequestInit =>
+  ({
+    ...init,
+    duplex: "half"
+  }) as RequestInit;
+
 const readRpcFailureBodyEffect = (response: Response): Effect.Effect<RpcFailureBody, RpcFailureBodyReadError> =>
   Effect.tryPromise({
     try: () => response.json() as Promise<RpcFailureBody>,
@@ -213,6 +228,89 @@ describe("Start RPC transport", () => {
       )
     );
   });
+
+  it("maps request and response body reader failures as typed transport errors", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const rpcRequestResponse = yield* createServerRpcResponseEffect(
+          app,
+          new Request(
+            `https://example.com${serverRpcPath}`,
+            requestStreamInit({
+              method: "POST",
+              headers: {
+                accept: startJsonMediaType,
+                "content-type": startJsonMediaType
+              },
+              body: erroringBodyStream()
+            })
+          )
+        );
+        const actionRequestResponse = yield* createServerActionResponseEffect(
+          app,
+          new Request(
+            `https://example.com${serverActionPath}`,
+            requestStreamInit({
+              method: "POST",
+              headers: {
+                accept: startJsonMediaType,
+                "content-type": "application/x-www-form-urlencoded"
+              },
+              body: erroringBodyStream()
+            })
+          ),
+          []
+        );
+        const rpcRequestFailureBody = yield* readRpcFailureBodyEffect(rpcRequestResponse);
+        const actionRequestFailureBody = yield* readRpcFailureBodyEffect(actionRequestResponse);
+        const rpcResponseExit = yield* Effect.exit(
+          parseRpcResponse(
+            new Response(erroringBodyStream(), {
+              status: 200,
+              headers: { "content-type": startJsonMediaType }
+            })
+          )
+        );
+        const actionResponseExit = yield* Effect.exit(
+          parseStartActionResponse(
+            new Response(erroringBodyStream(), {
+              status: 200,
+              headers: { "content-type": startJsonMediaType }
+            })
+          )
+        );
+
+        yield* Effect.sync(() => {
+          const rpcResponseFailure = Exit.isFailure(rpcResponseExit)
+            ? firstFailure(rpcResponseExit.cause)
+            : undefined;
+          const actionResponseFailure = Exit.isFailure(actionResponseExit)
+            ? firstFailure(actionResponseExit.cause)
+            : undefined;
+
+          expect(rpcRequestFailureBody.error).toMatchObject({
+            _tag: "ServerRpcProtocolError",
+            message: "Expected a JSON server function request body."
+          });
+          expect(actionRequestFailureBody.error).toMatchObject({
+            _tag: "ServerRpcProtocolError",
+            message: "Expected an action form body."
+          });
+          expect(rpcResponseFailure).toBeInstanceOf(ServerTransportError);
+          expect(rpcResponseFailure).toMatchObject({
+            reason: "InvalidResponse",
+            status: 200,
+            message: "Could not read the server function response body."
+          });
+          expect(actionResponseFailure).toBeInstanceOf(ServerTransportError);
+          expect(actionResponseFailure).toMatchObject({
+            reason: "InvalidResponse",
+            status: 200,
+            message: "Could not read the action response body."
+          });
+        });
+      })
+    ));
 
   it("rejects malformed JSON action payloads as typed protocol failures", () => {
     return Effect.runPromise(

@@ -69,8 +69,8 @@ Latest full gate on May 15, 2026:
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 224 package/example/script/type-test files;
-- 52 root test files / 858 tests;
+- Effect-first audit over 225 package/example/script/type-test files;
+- 52 root test files / 859 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
 - basic starter verify with 1 starter test file / 2 tests;
@@ -178,6 +178,9 @@ Latest full gate on May 15, 2026:
   interruption: the `AbortSignal` from `Effect.tryPromise(...)` is merged with
   any request/init signal before calling `globalThis.fetch`, so interrupting
   browser RPC/action client fibers aborts the underlying fetch.
+- Review 101 extracted Start transport body readers into an internal Effect v4
+  Module: JSON request, action form, and response text reads now share typed
+  body-failure mapping before transport protocol parsing continues.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime
