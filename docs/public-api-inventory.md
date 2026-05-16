@@ -346,7 +346,10 @@ Subpath exports:
   `writeFileRouteDefinitionsFile(...)` for Vite sync hooks and
   `writeFileRouteDefinitionsFileEffect(...)` plus
   `FileRouteDefinitionsFileWriteFailure` for typed route-generation and
-  filesystem diagnostics.
+  filesystem diagnostics. Its diagnostics loading exports are implemented by
+  the internal Start Vite Diagnostics Loader Module, so CLI/CI/build-gate
+  temporary Vite server lifetime and diagnostics DTO decoding share one
+  Effect-first policy while the public `./vite` Interface stays stable.
 - `./diagnostics-report` owns grouped repair reports with owner/edit guidance.
 - `createStartAgentGraph(...)`, `queryStartAgentGraph(...)`,
   `createStartAgentGraphImpact(...)`, `formatStartAgentGraphImpact(...)`, and

@@ -1090,12 +1090,16 @@ interruption.
   `Command` subcommands, with graph `--verbose` inherited through
   `Command.withSharedFlags(...)` and kind query text still validated by Effect
   `Argument` parsers.
+- Start Vite Diagnostics Loader now owns temporary Vite server acquire/release,
+  diagnostics virtual-module loading, graph DTO decoding, and diagnostics gate
+  execution in `start-vite-diagnostics-loader.ts`; the Vite facade re-exports
+  the public Interface.
 - Start Action Request Codec now owns schema-backed JSON/form request encoding
   and decoding in `start-action-request-codec.ts`; Start Transport Protocol
   keeps response/status/failure policy and compatibility re-exports.
-- The latest full `pnpm verify` passed after the Review 114 Start Diagnostics
-  CLI Query Kind Subcommands slice: 11 package builds, workspace typecheck, type
-  tests, public API inventory audit, Effect-first audit over 226
+- The latest full `pnpm verify` passed after the Review 115 Start Vite
+  Diagnostics Loader Module slice: 11 package builds, workspace typecheck, type
+  tests, public API inventory audit, Effect-first audit over 227
   package/example/script/type-test files, 52 root test files / 860 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
@@ -1103,8 +1107,9 @@ interruption.
   starter test file / 3 tests, project-console starter packaging, typecheck,
   4 project-console test files / 27 tests, build, and leak scans. Review 75
   added the public API inventory audit to the full gate, Review 86 kept the
-  scanner green over the expanded public type-test scope, and Reviews 113-114
-  kept the Effect-first scanner green over its expanded 226-file scope.
+  scanner green over the expanded public type-test scope, Review 113 expanded
+  the scanner to 226 files, and Review 115 kept it green over its expanded
+  227-file scope.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

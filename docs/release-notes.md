@@ -223,6 +223,10 @@ Latest full gate on May 15, 2026:
   subcommands while keeping query text validation in Effect `Argument`
   parsers; graph `--verbose` is now inherited through the graph command's
   shared flag context.
+- Review 115 extracted the Start Vite Diagnostics Loader Module, so temporary
+  Vite server acquire/release, diagnostics virtual-module loading, graph DTO
+  decoding, and build-gate diagnostics execution live behind a focused
+  Effect-first loader re-exported by `@effect-ui/start/vite`.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime
@@ -711,10 +715,10 @@ Latest full gate on May 15, 2026:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 114 made Start diagnostics
-  CLI query kinds real Effect v4 subcommands while keeping public package
+- The latest full `pnpm verify` passed after Review 115 extracted the Start
+  Vite Diagnostics Loader while keeping public package
   exports unchanged: 11 package builds, workspace typecheck, public type tests,
-  public API inventory audit, Effect-first audit over 226 files, 52 root test
+  public API inventory audit, Effect-first audit over 227 files, 52 root test
   files / 860 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,

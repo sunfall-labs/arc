@@ -11,9 +11,46 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 114, immediately after Review 113. Some older review
+The newest review is Review 115, immediately after Review 114. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 115: Start Vite Diagnostics Loader Module
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Start Vite Diagnostics Loader: added
+  `packages/start/src/start-vite-diagnostics-loader.ts` as the focused Module
+  for temporary Vite server acquire/release, Start diagnostics virtual-module
+  plugin setup, app graph DTO decoding, diagnostics policy exception mapping,
+  `loadStartAppGraphDiagnosticsEffect(...)`, and
+  `runStartViteDiagnosticsGateEffect(...)`.
+- Vite facade locality: `packages/start/src/vite.ts` now keeps the public Vite
+  plugin, sync hook facades, server-only transform guard, file-route generation,
+  and dev SSR middleware wiring while re-exporting the diagnostics loader
+  Interface for the public `@effect-ui/start/vite` subpath.
+- CLI locality: `start-diagnostics-cli-runner.ts` imports diagnostics loading
+  from the focused loader Module instead of depending on the broad Vite plugin
+  Module.
+- Audit shape: the Effect-first source scope expanded to 227 auditable files
+  after the new Start source Module.
+
+Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm
+--filter @effect-ui/start build`, `pnpm exec vitest run
+packages/start/test/start.test.ts -t "loads resolved app graph diagnostics
+through Vite|rejects resolved app graph diagnostics policy violations through
+Vite|fails the Vite build diagnostics gate|Start diagnostics CLI"` (1 file / 6
+selected tests), `pnpm exec vitest run packages/start/test/start.test.ts` (1
+file / 130 tests), `pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm
+audit:effect-first` over 227 files, and `git diff --check` passed. Full `pnpm
+verify` passed: 11 package builds, workspace typecheck, public type tests,
+public API inventory audit, Effect-first audit over 227 files, 52 root test
+files / 860 tests, devtools-panel verify with 2 tests, devtools-extension
+verify with 20 tests, basic starter verify with 2 tests, React starter verify
+with 3 tests, project-console packaging/typecheck/tests/build with 4 files / 27
+tests, and leak scans.
 
 ## Review 114: Start Diagnostics CLI Query Kind Subcommands
 

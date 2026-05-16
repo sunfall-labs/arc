@@ -17,7 +17,7 @@ import {
   type LoadedStartAppGraphDiagnostics,
   type LoadStartAppGraphDiagnosticsOptions,
   type StartAppGraphDiagnosticsLoadError
-} from "./vite.js";
+} from "./start-vite-diagnostics-loader.js";
 import type {
   StartCliCommand,
   StartDiagnosticsCliIo,

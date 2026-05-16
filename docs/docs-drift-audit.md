@@ -51,8 +51,9 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     109 start diagnostics CLI runtime dispatch, Review 110 start diagnostics
     CLI parser compatibility, and Review 111 query execution ordering parity
     sweeps, Review 112 core action workflow resource runtime locality, Review
-    113 start action request codec module extraction, and Review 114 start
-    diagnostics CLI query kind subcommands.
+    113 start action request codec module extraction, Review 114 start
+    diagnostics CLI query kind subcommands, and Review 115 start vite
+    diagnostics loader module extraction.
 
 ## Current Sweep Results
 
@@ -412,8 +413,11 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Added Review 114 and progress entry 353 evidence for the Start diagnostics
   CLI query-kind subcommand cleanup. Current docs now record that graph/impact
   query kinds are real nested Effect v4 `Command` values.
-- Updated current-facing verification snapshots after Review 114 full
-  verification so the latest gate points at the 226-file Effect-first audit and
+- Added Review 115 and progress entry 354 evidence for the Start Vite
+  Diagnostics Loader extraction. Current docs now record that temporary Vite
+  diagnostics loading lives in `start-vite-diagnostics-loader.ts`.
+- Updated current-facing verification snapshots after Review 115 full
+  verification so the latest gate points at the 227-file Effect-first audit and
   52 root test files / 860 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are
   wrapped with `Effect.tryPromise(...)` at the Adapter seam.
