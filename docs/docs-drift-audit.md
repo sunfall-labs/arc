@@ -571,6 +571,10 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Clarified that `virtual:effect-ui/routes` exposes runtime helpers while the
   precise route id/params/search/href type maps live in the generated
   `src/routeTree.gen.ts` module.
+- Added Review 147 evidence for Resource runtime fiber cleanup,
+  undefined-previous Resource state, root Resource Store export hygiene, typed
+  Start fetch invalid-return failures, root Start adapter type pins, clean
+  package builds, and generated starter `.gitignore`/post-verify cleanup.
 - Left older checkpoint counts in place only where they explicitly describe
   historical evidence from that checkpoint; current verification counts are
   recorded in the verification gate and progress ledger.

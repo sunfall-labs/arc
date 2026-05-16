@@ -13,7 +13,22 @@ export * from "./request-context.js";
 export * from "./resource.js";
 export * from "./resource-registry.js";
 export * from "./resource-snapshot-codec.js";
-export * from "./resource-store.js";
+export {
+  disposeResourceStoreEffect,
+  makeResourceStore,
+  ResourceStore,
+  ResourceStoreTypeId,
+  type ResourceStore as ResourceStoreState,
+  type ResourceStoreDiagnostics,
+  type ResourceStoreDiagnosticsSnapshot,
+  type ResourceStoreEvent,
+  type ResourceStoreEventBus,
+  type ResourceStoreFiber,
+  type ResourceStoreFiberRegistry,
+  type ResourceStoreInvalidationCause,
+  type ResourceStoreModule,
+  type ResourceStoreModuleRegistry
+} from "./resource-store.js";
 export * from "./resource-ui-binding.js";
 export * from "./route-grammar.js";
 export * from "./route.js";

@@ -29,6 +29,12 @@ copied as starters and whether browser/server boundaries remain explicit.
   remove monorepo Vite aliases, write standalone `tsconfig.json` files, verify
   source app manifests, install outside the workspace, and run each generated
   starter's own `verify` script before cleaning install/build artifacts.
+- Generated starters now carry their own `.gitignore`, and the packager
+  removes generated `.test-dist` output in addition to `node_modules`, `dist`,
+  and the temporary lockfile before rechecking the manifest after verify.
+- Workspace package builds clean both `dist` and `.tsbuildinfo` before
+  compiling, and starter packaging rejects copied local package `dist` files
+  that no longer have a source module.
 
 ## Verification Evidence
 
@@ -45,7 +51,7 @@ copied as starters and whether browser/server boundaries remain explicit.
 - `pnpm starter:verify` passed for `@effect-ui/starter-basic`: typecheck, 1
   starter test, production build, and leak scan.
 - `pnpm starter:package` passed and verified generated basic, React, and
-  project-console starter manifests: 18, 23, and 29 app files respectively,
+  project-console starter manifests: 19, 24, and 30 app files respectively,
   with 5, 4, and 6 local `@effect-ui/*` file packages; each generated starter
   completed typecheck, tests, production build, and leak scan after an isolated
   non-workspace install.
@@ -55,6 +61,10 @@ copied as starters and whether browser/server boundaries remain explicit.
   `pnpm --filter @effect-ui/example-devtools-panel pack --dry-run`, and
   `pnpm --filter @effect-ui/example-devtools-extension pack --dry-run` showed
   only source/config/README assets, with no `dist` or `.test-dist` artifacts.
+- `find .test-dist/starters -maxdepth 2 \( -name node_modules -o -name dist
+  -o -name pnpm-lock.yaml -o -name .test-dist \) -print` returned no output,
+  and `find .test-dist/starters -maxdepth 2 -name .gitignore -print` listed all
+  three generated starters.
 
 ## Follow-Up
 

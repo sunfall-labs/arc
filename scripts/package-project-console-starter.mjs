@@ -423,6 +423,64 @@ const rewritePackageDependencies = (packageJson, workspacePackages, toFileRefere
     };
   });
 
+const distSourceStem = (relativeDistFile) => {
+  const withoutMap = relativeDistFile.endsWith(".map")
+    ? relativeDistFile.slice(0, -".map".length)
+    : relativeDistFile;
+  if (withoutMap.endsWith(".d.ts")) {
+    return withoutMap.slice(0, -".d.ts".length);
+  }
+  if (withoutMap.endsWith(".js")) {
+    return withoutMap.slice(0, -".js".length);
+  }
+  return undefined;
+};
+
+const packageSourceExistsForDistFile = (workspacePackage, relativeDistFile) =>
+  Effect.gen(function* () {
+    const sourceStem = distSourceStem(relativeDistFile);
+    if (sourceStem === undefined) {
+      return false;
+    }
+
+    const sourceDir = resolve(workspacePackage.directory, "src");
+    const candidates = [
+      resolve(sourceDir, `${sourceStem}.ts`),
+      resolve(sourceDir, `${sourceStem}.tsx`),
+      resolve(sourceDir, `${sourceStem}.d.ts`),
+    ];
+    for (const candidate of candidates) {
+      if (yield* pathExists(candidate)) {
+        return true;
+      }
+    }
+    return false;
+  });
+
+const assertNoStalePackageDistArtifacts = (workspacePackage, sourceDist) =>
+  Effect.gen(function* () {
+    const distFiles = yield* collectFiles(sourceDist);
+    const staleFiles = [];
+    for (const distFile of distFiles) {
+      const hasSource = yield* packageSourceExistsForDistFile(workspacePackage, distFile);
+      if (!hasSource) {
+        staleFiles.push(distFile);
+      }
+    }
+
+    if (staleFiles.length > 0) {
+      return yield* Effect.fail(
+        fail(
+          `${workspacePackage.packageJson.name} dist contains stale files with no source module.`,
+          [
+            `Stale files: ${staleFiles.join(", ")}`,
+            "Run the package build script so dist is removed before compilation, then package the starter again.",
+          ].join(" "),
+        ),
+      );
+    }
+  });
+
 const writeLocalWorkspacePackage = (starter, workspacePackages, packageName) =>
   Effect.gen(function* () {
     const workspacePackage = workspacePackages.get(packageName);
@@ -445,6 +503,7 @@ const writeLocalWorkspacePackage = (starter, workspacePackages, packageName) =>
         ),
       );
     }
+    yield* assertNoStalePackageDistArtifacts(workspacePackage, sourceDist);
 
     const localPackageDir = resolve(
       starter.outputDir,
@@ -584,6 +643,10 @@ const cleanupGeneratedInstallArtifacts = (starter) =>
       () => rm(resolve(starter.outputDir, "dist"), { force: true, recursive: true }),
     );
     yield* fsEffect(
+      `remove generated ${starter.displayName} test output`,
+      () => rm(resolve(starter.outputDir, ".test-dist"), { force: true, recursive: true }),
+    );
+    yield* fsEffect(
       `remove generated ${starter.displayName} install lockfile`,
       () => rm(resolve(starter.outputDir, localLockfileName), { force: true }),
     );
@@ -691,21 +754,26 @@ const packageStarter = (workspacePackages, starter) =>
     const expectedFiles = yield* collectFiles(starter.sourceDir, {
       filter: shouldCopySourcePath(starter.sourceDir),
     });
-    const generatedAppFiles = yield* collectFiles(starter.outputDir, {
+    const collectGeneratedAppFiles = () => collectFiles(starter.outputDir, {
       filter: (filePath) =>
         !relativeTo(starter.outputDir, filePath).startsWith(`${localPackagesDirectoryName}/`),
     });
+    const generatedAppFiles = yield* collectGeneratedAppFiles();
 
     yield* assertSameFileManifest(starter, expectedFiles, generatedAppFiles);
     yield* assertNoForbiddenGeneratedAppSegments(starter, generatedAppFiles);
     yield* verifyStandaloneConfigs(starter);
     yield* assertNoWorkspaceProtocol(starter);
     yield* verifyInstallableStarter(starter);
+    const verifiedGeneratedAppFiles = yield* collectGeneratedAppFiles();
+    yield* assertSameFileManifest(starter, expectedFiles, verifiedGeneratedAppFiles);
+    yield* assertNoForbiddenGeneratedAppSegments(starter, verifiedGeneratedAppFiles);
+    yield* assertNoWorkspaceProtocol(starter);
 
     return {
       id: starter.id,
       outputDir: starter.outputDir,
-      appFiles: generatedAppFiles.length,
+      appFiles: verifiedGeneratedAppFiles.length,
       localPackages: internalPackageNames.length,
     };
   });

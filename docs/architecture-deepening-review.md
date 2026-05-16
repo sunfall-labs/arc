@@ -11,9 +11,66 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 146, immediately after Review 145. Some older review
+The newest review is Review 147, immediately after Review 146. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 147: Resource Runtime Cleanup And Starter Package Hygiene
+
+Status: fixed for the fresh post-Review146 runtime-spine, docs/LSP,
+Effect-first guardrail, DB, and starter/devtools sweeps. Focused and full
+verification are green. Fresh post-fix sweeps still found actionable work, so
+the clean-sweep counter has not started.
+
+- Resource Runtime lifetime cleanup: stale `Resource.readEffect(...)` refreshes
+  now fork through a tracked detached-fiber helper that unregisters completed
+  fibers from the owning `ResourceStore`. A regression proves stale read
+  refresh work raises the diagnostic fiber count while active and returns it to
+  zero after completion.
+- Resource previous-value presence: the Resource Lifetime Module now carries a
+  presence-bearing previous-value snapshot instead of using `undefined` as the
+  absence sentinel. Resources whose successful value is actually `undefined`
+  retain `previous` state during refresh and failure, so read boundaries and UI
+  status report `hasPrevious`/`hasValue` correctly.
+- Public Resource Store surface: the Core root barrel now explicitly exports
+  supported Resource Store Interfaces and constructors instead of wildcard
+  re-exporting mutable internals. Type tests reject root imports of
+  `MutableResourceStore` and `unsafeMutableResourceStore(...)`.
+- Start fetch guardrail: invalid custom Start fetch hooks now fail with a typed
+  `Data.TaggedError` value mapped into `ServerTransportError`, avoiding a raw
+  `TypeError` throw inside package source while preserving the Effect-first
+  guidance.
+- Starter/package hygiene: every package build removes both `dist` and
+  `.tsbuildinfo` before compiling, preventing stale package artifacts from
+  shipping. The starter packager also rejects dist files without a source
+  module before copying local packages.
+- Generated starter cleanliness: basic, React, and project-console starters now
+  include their own `.gitignore`; generated verification cleans
+  `node_modules`, `dist`, `.test-dist`, and the lockfile, then re-runs manifest
+  and forbidden-output checks after each standalone verify. The verified
+  generated app manifests are now 19, 24, and 30 app files.
+- Public Start adapter type coverage: the root `@effect-ui/start/adapters`
+  facade now pins `createFetchHandler(...)` and the same serviceful-runtime
+  negative assertion as the fetch subpath.
+
+Focused verification passed: Core/Start typechecks, public type tests, public
+API audit, Effect-first audit over 258 files, Core Resource/ResourceStore/UI
+and React/Solid hook tests 5 files / 94 tests, Start RPC tests 1 file / 14
+tests, Start package clean build, Start pack dry-run stale-generator grep,
+starter package dry-runs including `.gitignore`, generated starter-suite
+packaging/verifies for basic (19 app files / 5 local packages), React
+(24 app files / 4 local packages), and project-console (30 app files / 6 local
+packages), generated-output cleanup checks, raw throw/subclass grep, and direct
+Promise fixture grep.
+
+Full `pnpm verify` passed after Review 147: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 258 files, 53 root test files / 897 tests, devtools-panel verify with
+2 tests, devtools-extension verify with 20 tests, basic starter verify with
+2 tests, React starter verify with 3 tests, starter-suite packaging for basic
+(19 app files / 5 local packages), React (24 app files / 4 local packages), and
+project-console (30 app files / 6 local packages), project-console typecheck,
+4 project-console test files / 27 tests, project-console build, and leak scan.
 
 ## Review 146: Runtime Store Override And Generated Starter Verification
 

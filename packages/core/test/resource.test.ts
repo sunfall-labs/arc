@@ -10,10 +10,10 @@ import {
   ResourcePending,
   ResourceSnapshotCodecError,
   runWithRuntime,
-  unsafeMutableResourceStore,
   validateResourceHydrationSnapshots
 } from "../src/index.js";
 import { parseDuration } from "../src/resource-duration.js";
+import { unsafeMutableResourceStore } from "../src/resource-store.js";
 
 describe("Resource", () => {
   it("parses the full numeric duration strings accepted by the public type", () => {
@@ -723,6 +723,57 @@ describe("Resource", () => {
       value: 2,
       isRefreshing: false
     });
+  });
+
+  it("preserves undefined as a previous value during refresh and failure", async () => {
+    const releaseRefresh = Effect.runSync(Deferred.make<void>());
+    let shouldFail = false;
+    let loads = 0;
+    const MaybeValue = Resource.family<void, undefined, Error>({
+      name: "MaybeValue.previous-undefined",
+      load: () =>
+        Effect.gen(function* () {
+          loads++;
+          if (loads === 2) {
+            yield* Deferred.await(releaseRefresh);
+          }
+          if (shouldFail) {
+            return yield* Effect.fail(new Error("refresh failed"));
+          }
+          return undefined;
+        })
+    });
+    const ref = MaybeValue(undefined);
+
+    await Effect.runPromise(Resource.prefetchEffect(ref));
+    const refreshing = Effect.runFork(Resource.refreshEffect(ref));
+
+    const pending = Resource.status(ref);
+    expect(pending).toMatchObject({
+      _tag: "Pending",
+      value: undefined,
+      previous: undefined,
+      hasValue: true,
+      hasPrevious: true,
+      isLoading: false,
+      isRefreshing: true
+    });
+    expect("previous" in pending.state).toBe(true);
+    expect(read(ref)).toBeUndefined();
+
+    shouldFail = true;
+    await Effect.runPromise(Deferred.succeed(releaseRefresh, undefined));
+    await expect(Effect.runPromise(Fiber.join(refreshing))).rejects.toThrow("refresh failed");
+
+    const failed = Resource.status(ref);
+    expect(failed).toMatchObject({
+      _tag: "Failure",
+      value: undefined,
+      previous: undefined,
+      hasValue: true,
+      hasPrevious: true
+    });
+    expect("previous" in failed.state).toBe(true);
   });
 
   it("dedupes Effect prefetch through one in-flight fiber", async () => {

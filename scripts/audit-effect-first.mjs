@@ -366,15 +366,20 @@ const codeLines = (source) => {
 const lineNumberAt = (source, offset) =>
   source.slice(0, offset).split(/\r?\n/).length;
 
+const failSelfTest = (message) => {
+  console.error(message);
+  process.exit(1);
+};
+
 const assertAuditPattern = (checkName, source, expectedMatches) => {
   const check = allowed.find((candidate) => candidate.name === checkName);
   if (check === undefined) {
-    throw new Error(`Missing audit pattern self-test target: ${checkName}`);
+    failSelfTest(`Missing audit pattern self-test target: ${checkName}`);
   }
   check.pattern.lastIndex = 0;
   const matches = source.match(check.pattern)?.length ?? 0;
   if (matches !== expectedMatches) {
-    throw new Error(
+    failSelfTest(
       `${checkName} audit pattern self-test expected ${expectedMatches} matches but found ${matches}`
     );
   }
@@ -398,11 +403,11 @@ const bannedMatches = (check, line) => {
 const assertBannedPattern = (checkName, source, expectedMatches) => {
   const check = banned.find((candidate) => candidate.name === checkName);
   if (check === undefined) {
-    throw new Error(`Missing banned audit pattern self-test target: ${checkName}`);
+    failSelfTest(`Missing banned audit pattern self-test target: ${checkName}`);
   }
   const matches = bannedMatches(check, source).length;
   if (matches !== expectedMatches) {
-    throw new Error(
+    failSelfTest(
       `${checkName} banned audit pattern self-test expected ${expectedMatches} matches but found ${matches}`
     );
   }

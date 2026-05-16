@@ -426,12 +426,16 @@ interruption.
 - Review 146 focused verification kept `pnpm audit:effect-first` green over 258
   files after adding copyable starter leak-scan scripts to scope and anchoring
   their top-level Node host runners.
+- Review 147 focused verification kept `pnpm audit:effect-first` green over 258
+  files after replacing the remaining Start fetch raw invalid-return throw with
+  a typed Effect failure and replacing raw audit self-test throws with explicit
+  process-failure reporting.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The latest full gate is the Review 146 `pnpm verify` run: 11 package builds,
+- The latest full gate is the Review 147 `pnpm verify` run: 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 258 files, 53 root test files / 894 tests,
+  Effect-first audit over 258 files, 53 root test files / 897 tests,
   devtools-panel/devtools-extension/starter-suite/project-console gates, and
   leak scans.
 - `pnpm exec vitest run packages/core/test/runtime.test.ts packages/start/test/start.test.ts`
@@ -1228,11 +1232,11 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The latest full `pnpm verify` passed after the Review 146 Runtime Store
-  Override and Generated Starter Verification slice: 11 package builds,
+- The latest full `pnpm verify` passed after the Review 147 Resource Runtime
+  Cleanup and Starter Package Hygiene slice: 11 package builds,
   workspace typecheck, type tests, public API inventory audit, Effect-first
   audit over 258 package/example/config/script/type-test files, 53 root test
-  files / 894 tests,
+  files / 897 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
   verify with 1 starter test file / 2 tests, React starter verify with 1

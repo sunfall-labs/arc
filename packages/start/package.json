@@ -45,7 +45,7 @@
     }
   },
   "scripts": {
-    "build": "tsgo -p tsconfig.json && cp src/virtual-modules.d.ts dist/virtual.d.ts",
+    "build": "rm -rf dist .tsbuildinfo && tsgo -p tsconfig.json && cp src/virtual-modules.d.ts dist/virtual.d.ts",
     "typecheck": "tsgo -b tsconfig.json --pretty false"
   },
   "dependencies": {

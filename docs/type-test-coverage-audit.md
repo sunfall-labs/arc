@@ -51,6 +51,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
   response writer, Promise facade option, runtime-option, and handler alias
   surfaces from the root compatibility facade, the fetch/node subpaths, and the
   `@effect-ui/start-fetch` / `@effect-ui/start-node` packages.
+- The root `@effect-ui/start/adapters` compatibility facade now has an explicit
+  `createFetchHandler(...)` type pin and the same serviceful-handler
+  runtime-required negative assertion as `@effect-ui/start/fetch-adapter`.
 - Promise/callback-shaped Start host facade type tests pin that non-Scope
   handler requirements require a typed runtime, while request Scope remains
   facade-owned.

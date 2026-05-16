@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Deferred, Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   disposeResourceStoreEffect,
@@ -76,6 +76,76 @@ describe("Resource Store disposal", () => {
         expect(runtime.resourceStore.diagnostics.snapshotUnsafe()).toEqual(snapshot);
         expect(snapshot).not.toHaveProperty("families");
         expect(snapshot).not.toHaveProperty("tagIndex");
+      }).pipe(Effect.ensuring(runtime.disposeEffect))
+    );
+  });
+
+  it("untracks stale readEffect refresh fibers when they complete", () => {
+    const runtime = makeRuntime();
+    const secondStarted = Effect.runSync(Deferred.make<void>());
+    const releaseSecond = Effect.runSync(Deferred.make<void>());
+    let loads = 0;
+    const Count = Resource.family({
+      name: "ResourceStore.stale-read-fiber-cleanup",
+      load: () =>
+        Effect.gen(function* () {
+          loads++;
+          if (loads === 2) {
+            yield* Deferred.succeed(secondStarted, undefined);
+            yield* Deferred.await(releaseSecond);
+          }
+          return loads;
+      }),
+      policy: {
+        staleFor: "1 millisecond"
+      }
+    });
+    const ref = Count(undefined);
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* runtime.provide(Resource.prefetchEffect(ref));
+        yield* Effect.sleep("5 millis");
+
+        const staleValue = yield* runtime.provide(Resource.readEffect(ref));
+        expect(staleValue).toBe(1);
+
+        yield* Deferred.await(secondStarted);
+        const duringRefresh = yield* runtime.resourceStore.diagnostics.fiberCountEffect;
+        expect(duringRefresh).toBe(2);
+
+        yield* Deferred.succeed(releaseSecond, undefined);
+        yield* Effect.sleep("10 millis");
+
+        const afterRefresh = yield* runtime.resourceStore.diagnostics.fiberCountEffect;
+        expect(afterRefresh).toBe(0);
+      }).pipe(Effect.ensuring(runtime.disposeEffect))
+    );
+  });
+
+  it("does not retain synchronously completed stale readEffect refresh fibers", () => {
+    const runtime = makeRuntime();
+    let loads = 0;
+    const Count = Resource.family({
+      name: "ResourceStore.sync-stale-read-fiber-cleanup",
+      load: () => Effect.succeed(++loads),
+      policy: {
+        staleFor: "1 millisecond"
+      }
+    });
+    const ref = Count(undefined);
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* runtime.provide(Resource.prefetchEffect(ref));
+        yield* Effect.sleep("5 millis");
+
+        const staleValue = yield* runtime.provide(Resource.readEffect(ref));
+        expect(staleValue).toBe(1);
+        expect(loads).toBe(2);
+
+        const afterRefresh = yield* runtime.resourceStore.diagnostics.fiberCountEffect;
+        expect(afterRefresh).toBe(0);
       }).pipe(Effect.ensuring(runtime.disposeEffect))
     );
   });

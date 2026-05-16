@@ -57,6 +57,10 @@ import {
   type ResourceSnapshotCodecOperation,
   type UiScope
 } from "@effect-ui/core";
+// @ts-expect-error MutableResourceStore is an internal store implementation, not a root export.
+import type { MutableResourceStore } from "@effect-ui/core";
+// @ts-expect-error unsafeMutableResourceStore is an internal store implementation escape hatch, not a root export.
+import { unsafeMutableResourceStore } from "@effect-ui/core";
 import {
   Collection,
   CollectionRowKeyChanged,

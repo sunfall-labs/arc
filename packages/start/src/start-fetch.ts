@@ -4,13 +4,21 @@ import {
   type AnyEffectUiRuntime,
   type EffectUiRuntime
 } from "@effect-ui/core";
-import { Effect } from "effect";
+import { Data, Effect } from "effect";
 import {
   makeStartRequestIdEffect,
   startJsonMediaType,
   startRequestIdHeader
 } from "./rpc.js";
 import type { StartTransportEndpointSource } from "./start-transport-endpoints.js";
+
+const invalidStartFetchReturnMessage =
+  "Start fetch hooks must return an Effect. Wrap host Promise work with Effect.tryPromise(...) at the fetch Adapter seam.";
+
+class StartFetchInvalidReturn extends Data.TaggedError("StartFetchInvalidReturn")<{
+  readonly message: string;
+  readonly received: unknown;
+}> {}
 
 /** Input accepted by the Start client transport fetch hook. */
 export type StartFetchInput = Parameters<typeof globalThis.fetch>[0];
@@ -83,18 +91,16 @@ export const callStartFetchEffect = <FetchError, FetchRequirements>(
 ): Effect.Effect<Response, ServerTransportError, FetchRequirements> =>
   Effect.flatMap(
     Effect.try({
-      try: () => {
-        const result = fetcher(input, init) as unknown;
-        if (!isEffectLike(result)) {
-          throw new TypeError(
-            "Start fetch hooks must return an Effect. Wrap host Promise work with Effect.tryPromise(...) at the fetch Adapter seam."
-          );
-        }
-        return result as Effect.Effect<Response, FetchError, FetchRequirements>;
-      },
+      try: () => fetcher(input, init) as unknown,
       catch: onError
     }),
-    (effect) => effect.pipe(Effect.mapError(onError))
+    (result) =>
+      isEffectLike(result)
+        ? (result as Effect.Effect<Response, FetchError, FetchRequirements>).pipe(Effect.mapError(onError))
+        : Effect.fail(onError(new StartFetchInvalidReturn({
+            message: invalidStartFetchReturnMessage,
+            received: result
+          })))
   );
 
 const mergeAbortSignals = (

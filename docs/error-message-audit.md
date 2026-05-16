@@ -1,6 +1,6 @@
 # Error Message Audit
 
-Last updated: 2026-05-14.
+Last updated: 2026-05-16.
 
 This audit supports the charter requirement that public failures include owner,
 cause, and repair guidance. The current pass focused on package source errors
@@ -44,6 +44,12 @@ that were still raw `Error` or `TypeError` throws.
     CLI usage guidance.
   - Invalid CLI input now stays on the Effect runner path and returns a
     structured usage result instead of relying on an untyped exception shape.
+- `packages/start/src/start-fetch.ts`
+  - Replaced the invalid custom fetch-hook `TypeError` path with
+    `StartFetchInvalidReturn`, a tagged failure that is mapped through the
+    normal `ServerTransportError` seam.
+  - Guidance tells adapter authors to wrap host Promise work with
+    `Effect.tryPromise(...)` at the fetch Adapter boundary.
 
 ## Verification Evidence
 
@@ -61,6 +67,8 @@ that were still raw `Error` or `TypeError` throws.
 - `rg -n "throw new Error|throw new TypeError|extends Error" packages examples scripts -g '*.ts' -g '*.tsx' -g '*.mjs'`
   found no remaining raw package, example, or script throws/subclasses after
   replacing negative-test sentinels with `expect.fail(...)`.
+- Review 147 kept that raw throw/subclass grep clean after replacing the Start
+  fetch invalid-return throw and audit self-test raw throws.
 - `pnpm --filter @effect-ui/start typecheck` and
   `pnpm exec vitest run packages/start/test/start.test.ts -t "Start diagnostics
   CLI"` passed after the CLI usage-error sweep.

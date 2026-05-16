@@ -23,6 +23,7 @@ import {
 } from "./resource-snapshot-codec.js";
 import {
   clearResourceInFlight,
+  forkTrackedDetachedResourceEffect,
   inspectResourceStatus,
   interruptResourceGc,
   interruptResourceInFlight,
@@ -36,11 +37,11 @@ import {
   setResourcePending,
   setResourceSuccess,
   shouldShowResourcePending,
+  trackResourceFiber,
   type ResourceLifetimeEntry as ResourceEntry
 } from "./resource-lifetime.js";
 import {
   ResourceStore,
-  resourceStoreFiber,
   unsafeMutableResourceStore,
   type MutableResourceStore as ResourceStoreState,
   type ResourceStoreEvent
@@ -302,7 +303,7 @@ export const runResourceEffect = <I, A, E, R>(
           name: ref.family.options.name,
           key: ref.key,
           force: options.force,
-          previous: previousResourceValue(current) !== undefined
+          previous: previousResourceValue(current).present
         });
       }
 
@@ -337,7 +338,7 @@ export const runResourceEffect = <I, A, E, R>(
             name: ref.family.options.name,
             key: ref.key,
             error,
-            previous: previous !== undefined
+            previous: previous.present
           });
           return yield* Effect.fail(error);
         })
@@ -350,7 +351,7 @@ export const runResourceEffect = <I, A, E, R>(
       force: options.force,
       fiber
     };
-    store.fiberRegistry.track(resourceStoreFiber(fiber));
+    yield* trackResourceFiber(store, fiber);
     if (fiber.pollUnsafe() !== undefined) {
       yield* clearResourceInFlight(entry, store, token);
     }
@@ -502,11 +503,10 @@ export const readResourceEffect = <I, A, E, R>(
         return yield* Effect.fail(decision.failure);
       case "Value":
         if (decision.refresh) {
-          const fiber = yield* Effect.forkDetach(
-            refreshResourceEffect(ref).pipe(Effect.catch(() => Effect.void)),
-            { startImmediately: true }
+          yield* forkTrackedDetachedResourceEffect(
+            store,
+            refreshResourceEffect(ref).pipe(Effect.catch(() => Effect.void))
           );
-          store.fiberRegistry.track(resourceStoreFiber(fiber));
         }
         return decision.value;
     }

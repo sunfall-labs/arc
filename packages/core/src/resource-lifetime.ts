@@ -17,21 +17,32 @@ export interface ResourceLifetimeEntry<A, E> {
   gcFiber: Fiber.Fiber<void, never> | undefined;
 }
 
+export type PreviousResourceValue<A> =
+  | {
+      readonly present: true;
+      readonly value: A;
+    }
+  | {
+      readonly present: false;
+    };
+
 export const makeResourceEntry = <A, E>(): ResourceLifetimeEntry<A, E> => ({
   state: Signal.make<ResourceState<A, E>>({ _tag: "Initial", waiting: false }),
   inFlight: undefined,
   gcFiber: undefined
 });
 
-export const previousResourceValue = <A, E>(state: ResourceState<A, E>): A | undefined => {
+export const previousResourceValue = <A, E>(state: ResourceState<A, E>): PreviousResourceValue<A> => {
   switch (state._tag) {
     case "Success":
-      return state.value;
+      return { present: true, value: state.value };
     case "Pending":
     case "Failure":
-      return state.previous;
+      return "previous" in state
+        ? { present: true, value: state.previous as A }
+        : { present: false };
     case "Initial":
-      return undefined;
+      return { present: false };
   }
 };
 
@@ -201,6 +212,35 @@ export const interruptResourceInFlight = <A, E>(
     return Fiber.interrupt(inFlight.fiber).pipe(Effect.as(true));
   });
 
+export const trackResourceFiber = <A, E>(
+  store: ResourceStoreState,
+  fiber: Fiber.Fiber<A, E>
+): Effect.Effect<void> =>
+  Effect.sync(() => {
+    const trackedFiber = resourceStoreFiber(fiber);
+    if (fiber.pollUnsafe() !== undefined) {
+      return;
+    }
+    store.fiberRegistry.track(trackedFiber);
+    const removeObserver = fiber.addObserver(() => {
+      store.fiberRegistry.untrack(trackedFiber);
+    });
+    if (fiber.pollUnsafe() !== undefined) {
+      removeObserver();
+      store.fiberRegistry.untrack(trackedFiber);
+    }
+  });
+
+export const forkTrackedDetachedResourceEffect = <A, E, R>(
+  store: ResourceStoreState,
+  effect: Effect.Effect<A, E, R>
+): Effect.Effect<Fiber.Fiber<A, E>, never, R> =>
+  Effect.gen(function* () {
+    const fiber = yield* Effect.forkDetach(effect, { startImmediately: true });
+    yield* trackResourceFiber(store, fiber);
+    return fiber;
+  });
+
 export const scheduleResourceGc = <I, A, E, R, RefError = E>(
   ref: ResourceRef<I, A, RefError, R>,
   entry: ResourceLifetimeEntry<A, E>,
@@ -249,7 +289,7 @@ export const setResourcePending = <A, E>(entry: ResourceLifetimeEntry<A, E>): vo
   entry.state.set({
     _tag: "Pending",
     waiting: true,
-    ...(previous === undefined ? {} : { previous })
+    ...(previous.present ? { previous: previous.value } : {})
   });
 };
 
@@ -275,7 +315,7 @@ export const setResourceFailure = <A, E>(
     _tag: "Failure",
     waiting: false,
     error,
-    ...(previous === undefined ? {} : { previous })
+    ...(previous.present ? { previous: previous.value } : {})
   });
 };
 

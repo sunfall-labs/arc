@@ -61,4 +61,7 @@ generated starter rewrites workspace protocol dependencies to local
 `.effect-ui-packages/*` file dependencies, removes monorepo Vite aliases, writes
 a standalone `tsconfig.json`, verifies the app file manifest against the
 copyable source manifest, installs outside the workspace, runs the generated
-starter's own `verify` script, and removes generated install/build artifacts.
+starter's own `verify` script, removes generated install/build/test artifacts,
+and rechecks the manifest after verification. Each generated app also carries a
+starter-local `.gitignore` for `node_modules`, `dist`, `.test-dist`, build info,
+and macOS metadata.

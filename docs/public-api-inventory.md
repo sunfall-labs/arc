@@ -121,7 +121,9 @@ Release decisions:
   `eventBus`, `moduleRegistry`, `fiberRegistry`, and `diagnostics` seams for
   tests, adapters, and devtools-style inspection. Raw entry, input, cache,
   module, tag index, event queue, and fiber collections are intentionally
-  internal implementation state.
+  internal implementation state; the Core root barrel intentionally does not
+  export `MutableResourceStore`, `makeMutableResourceStore(...)`, or
+  `unsafeMutableResourceStore(...)`.
 - `Route.preloadEffect(...)`, `Route.planPreloadEffect(...)`, and
   `Route.planNavigationEffect(...)` preserve the service requirements declared
   by route preload Effects. Planning Effects also expose
