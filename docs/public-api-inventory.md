@@ -348,8 +348,8 @@ The root export includes:
 - `StartActionFormEncodeError` is public hover vocabulary for the synchronous
   progressive form facade when schema-backed defaults cannot be encoded.
 - request trace types: `StartRequestTrace`, request/response/resource/
-  collection/action/server-function/fiber/stream trace records, and
-  `StartRequestTraceHandler`.
+  collection/action/server-function/fiber/stream/teardown trace records,
+  cleanup failure summaries, and `StartRequestTraceHandler`.
 - Effect-native observability metrics:
   `startRequestCountMetric`, `startRequestDurationMetric`, and
   `startRequestStatusMetric`.

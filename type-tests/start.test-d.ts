@@ -53,6 +53,7 @@ import {
   type StartRequestTraceAction,
   type StartRequestTraceCollection,
   type StartRequestTraceCookie,
+  type StartRequestTraceCleanupFailure,
   type StartRequestTraceFailureKind,
   type StartRequestTraceFiber,
   type StartRequestTraceFiberStatus,
@@ -131,6 +132,7 @@ type StartTypes =
   | StartRequestTraceAction
   | StartRequestTraceCollection
   | StartRequestTraceCookie
+  | StartRequestTraceCleanupFailure
   | StartRequestTraceFailureKind
   | StartRequestTraceFiber
   | StartRequestTraceFiberStatus
@@ -247,14 +249,15 @@ const traceTeardownSnapshot: StartRequestTraceTeardownSnapshot = {
   moduleCount: 0,
   tagCount: 0
 };
+const traceCleanupFailure: StartRequestTraceCleanupFailure = {
+  _tag: "Failure",
+  message: "cleanup failed"
+};
 const traceTeardown: StartRequestTraceTeardown = {
   runtimeDisposed: true,
   beforeDispose: traceTeardownSnapshot,
   afterDispose: traceTeardownSnapshot,
-  cleanupFailure: {
-    _tag: "Failure",
-    message: "cleanup failed"
-  }
+  cleanupFailure: traceCleanupFailure
 };
 const traceRoutePlan: StartRequestTraceRoutePlan = {
   _tag: "Matched",

@@ -152,8 +152,8 @@ export interface StartRequestTraceStream {
 /** Resource Store diagnostics snapshot captured during request runtime teardown. */
 export interface StartRequestTraceTeardownSnapshot extends ResourceStoreDiagnosticsSnapshot {}
 
-/** Request runtime teardown summary captured before and after disposal. */
-interface StartRequestTraceCleanupFailure {
+/** Best-effort summary recorded when request runtime cleanup fails. */
+export interface StartRequestTraceCleanupFailure {
   /** Best-effort cleanup failure category. */
   readonly _tag: "Failure" | "Defect" | "Interruption";
   /** Stringified cleanup failure safe for diagnostics logs. */

@@ -223,6 +223,7 @@ const publicHoverDocs = [
       "StartRequestTraceFiber",
       "StartRequestTraceStream",
       "StartRequestTraceTeardownSnapshot",
+      "StartRequestTraceCleanupFailure",
       "StartRequestTraceTeardown",
       "StartRequestTrace",
       "StartRequestTraceRoutePlan",

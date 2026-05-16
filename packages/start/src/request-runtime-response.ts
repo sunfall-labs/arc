@@ -6,7 +6,7 @@ import { Effect } from "effect";
 import {
   invokeStartEffectInputCallbackEffect,
   requestRuntimeDisposeTraceEffect,
-  type StartRequestTraceTeardown,
+  type StartRequestTraceCleanupFailure,
   type StartRequestTraceStatus,
   type StartRequestTraceStream,
   type StartRequestTraceTeardownSnapshot
@@ -15,8 +15,6 @@ import {
   responseWithStreamFinalizer,
   type StartResponseStreamFinalizeEvent
 } from "./streaming.js";
-
-type StartRequestTraceCleanupFailure = NonNullable<StartRequestTraceTeardown["cleanupFailure"]>;
 
 export interface RequestRuntimeFinalizeState {
   readonly stream?: StartRequestTraceStream;

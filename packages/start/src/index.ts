@@ -119,6 +119,7 @@ export type {
   StartRequestTraceAction,
   StartRequestTraceCollection,
   StartRequestTraceCookie,
+  StartRequestTraceCleanupFailure,
   StartRequestTraceFiber,
   StartRequestTraceFiberStatus,
   StartRequestTraceFailureKind,
