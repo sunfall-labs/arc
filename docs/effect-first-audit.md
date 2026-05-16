@@ -459,15 +459,20 @@ interruption.
     both patterns before scanning workspace files.
 - Source grep follow-up:
   - `rg -n "\\basync\\b|new Promise|Promise\\.resolve|\\.then\\(|\\.finally\\(" packages/*/src -g '*.ts'`
-    currently finds no package source hits. Raw `scripts/` hits are expected in
+    currently reports only prose/comment guidance containing the word `async`;
+    it finds no package implementation Promise choreography or async callback
+    syntax. Raw `scripts/` hits are expected in
     `scripts/audit-effect-first.mjs` scanner fixture strings; this audit is the
-    authoritative guardrail for distinguishing those fixtures from
-    implementation Promise choreography.
+    authoritative guardrail for distinguishing those fixtures and prose hits
+    from implementation Promise choreography.
   - `rg -n "\\.catch\\(" packages/*/src scripts -g '*.ts' -g '*.mjs' | rg -v "Effect\\.catch"`
-    currently finds no non-Effect catch hits.
+    currently finds no package-source non-Effect catch hits; raw `scripts/`
+    hits are expected in `scripts/audit-effect-first.mjs` scanner fixture
+    strings.
   - `rg -n "\\.catch\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs' | rg -v "Effect\\.catch"`
-    currently finds no direct Promise catch hits outside the docs that record
-    historical evidence.
+    currently reports only scanner fixture strings in
+    `scripts/audit-effect-first.mjs` outside the docs that record historical
+    evidence.
   - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(" packages examples type-tests -g '*.ts' -g '*.tsx'`
     currently finds no package, example, or type-test implementation hits.
     Raw `scripts/` hits are expected in `scripts/audit-effect-first.mjs`
@@ -533,7 +538,7 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 189 `pnpm verify` run recorded in
+- The current full gate is the Review 190 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
   over 404 files, 53 root test files / 1033 tests, package-level verifies,
@@ -747,7 +752,8 @@ interruption.
   project-console build, and leak scan.
 - `pnpm typecheck:types` passed after replacing type-test `async` negative
   cases with declared Promise values. The async/Promise-method grep over
-  package source, scripts, and type tests now reports no hits.
+  package source and type tests reports no implementation hits; raw script hits
+  are the Effect-first audit scanner fixtures.
 - Full `pnpm verify` passed after the type-test async callback cleanup: 9
   package builds, workspace typecheck, type tests, 38 root test files / 320
   tests, devtools-panel verify, devtools-extension verify with 1 extension test
@@ -1335,8 +1341,9 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The current full `pnpm verify` passed after the Review 189 Promise-method
-  audit fixture docs refresh: 11 package builds, workspace typecheck, type tests,
+- The current full `pnpm verify` passed after the Review 190 Server
+  union-Promise, query window, and audit-fixture docs refresh: 11 package
+  builds, workspace typecheck, type tests,
   public API inventory audit, Effect-first audit over 404
   package/example/config/script/type-test/generated/docs files, 53 root test
   files / 1033 tests, package-level verifies for copyable/source packages,

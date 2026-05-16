@@ -478,6 +478,7 @@ interface Project {
 
 declare const promisedProject: Promise<Project>;
 declare const promisedProjects: Promise<ReadonlyArray<Project>>;
+declare const maybePromisedProject: Project | Promise<Project>;
 declare const promisedString: Promise<string>;
 declare const promisedNumber: Promise<number>;
 declare const promisedVoid: Promise<void>;
@@ -1300,9 +1301,14 @@ Server.implement(LooseServerContract, () => promisedString);
 // @ts-expect-error broad server mocks must still reject Promise-shaped values
 Server.mock(LooseServerContract, () => promisedString);
 
+// @ts-expect-error unannotated server functions must return Effect or a pure value, not Promise
 Server.fn("Project.promiseServer", {
-  // @ts-expect-error unannotated server functions must return Effect or a pure value, not Promise
   handler: () => promisedProject
+});
+
+// @ts-expect-error unannotated server functions must not return unions containing Promise
+Server.fn("Project.unionPromiseServer", {
+  handler: () => maybePromisedProject
 });
 
 const ProjectTag = Resource.tag<{ readonly id: string }>("Project", {

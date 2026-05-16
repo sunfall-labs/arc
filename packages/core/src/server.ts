@@ -11,6 +11,7 @@ import type {
   EffectInput,
   EffectInputError,
   EffectInputRequirements,
+  EnsureEffectInput,
   EnsureEffectInputValue
 } from "./effect-like.js";
 import { EffectInputCallbackError, invokeEffectInput } from "./effect-like.js";
@@ -173,10 +174,9 @@ type FromContract<T> = [T][T extends unknown ? 0 : never];
 type CheckedServerFunctionHandler<I, Definition> = Definition extends {
   readonly handler: (input: I) => infer Out;
 }
-  ? Out extends PromiseLike<unknown>
-    ? { readonly handler: (input: I) => never }
-    : unknown
+  ? RejectPromiseEffectInput<Out>
   : never;
+type RejectPromiseEffectInput<Out> = EnsureEffectInput<Out> extends never ? never : unknown;
 type ServerContractInput<Contract> =
   Contract extends ServerFunctionContract<infer I, infer _A, infer _E> ? I : never;
 type ServerContractOutput<Contract> =

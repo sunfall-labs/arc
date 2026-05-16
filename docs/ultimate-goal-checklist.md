@@ -283,6 +283,10 @@ Last evidence pass: May 16, 2026.
     async/Promise-method grep over package source and type tests reports no
     implementation hits. Raw `scripts/` hits are the Effect-first audit
     scanner fixtures. Full `pnpm verify` passed after this cleanup.
+- [x] Compile-time Promise rejection catches union-shaped server handlers.
+  - Evidence: `Server.fn(...)` uses the shared EffectInput guard, and
+    `type-tests/framework.test-d.ts` rejects `Project | Promise<Project>`
+    handler returns. `pnpm typecheck:types` passed.
 - [x] Runtime lifecycle guarantees have behavioral tests.
   - Evidence: core runtime/resource/action/scope/server/route tests in
     `packages/core/test`.
@@ -655,11 +659,13 @@ Last evidence pass: May 16, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 189 ran Promise-method raw grep review,
-    `pnpm audit:effect-first`, current-gate wording grep, and
-    `git diff --check` after clarifying audit fixture docs.
+  - Latest focused evidence: Review 190 ran Core/DB typechecks, public type
+    tests, DB collection regressions, public API audit, Effect-first audit,
+    current-gate/audit-fixture wording greps, and `git diff --check` after
+    tightening Server union-Promise rejection, query window validation, and
+    audit-fixture docs.
     Latest full evidence:
-    `pnpm verify` ran after Review 189 with 53 test files / 1033 tests.
+    `pnpm verify` ran after Review 190 with 53 test files / 1033 tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.
@@ -798,12 +804,12 @@ Last evidence pass: May 16, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 189 Promise-method audit
-    fixture docs refresh. Future architecture sweeps remain tracked in
+  - Evidence: no new ADR required for the Review 190 Server union-Promise,
+    query window, and audit-fixture docs refresh. Future architecture sweeps remain tracked in
     `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 189
-    Promise-method audit fixture docs refresh:
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 190
+    Server union-Promise, query window, and audit-fixture docs refresh:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
     404 physical/virtual files, 53 root test files / 1033 tests,
@@ -812,8 +818,9 @@ Last evidence pass: May 16, 2026.
     16-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 189 records Promise-method raw grep review,
-    Effect-first audit, current-gate wording grep, and whitespace check.
+  - Evidence: Review 190 records Core/DB typechecks, public type tests, DB
+    collection regressions, public API audit, Effect-first audit,
+    current-gate/audit-fixture wording greps, and whitespace check.
     Full verification is recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items

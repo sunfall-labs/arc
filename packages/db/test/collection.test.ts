@@ -6361,6 +6361,14 @@ describe("Query", () => {
       {
         factory: (query: Query.Root) => query.from({ project: Projects }).limit(1.5),
         reason: "Query limit must be a finite non-negative safe integer."
+      },
+      {
+        factory: (query: Query.Root) => query.from({ project: Projects }).limit(-1),
+        reason: "Query limit must be a finite non-negative safe integer."
+      },
+      {
+        factory: (query: Query.Root) => query.from({ project: Projects }).offset(-0.5),
+        reason: "Query offset must be a finite non-negative safe integer."
       }
     ];
 

@@ -20,7 +20,6 @@ import {
   type QueryPlanDiagnostics,
   type QueryPlanJoinDiagnostics,
   type QueryPlanSourceDiagnostics,
-  type QueryProjectOptions,
   type QuerySourcesError,
   type QuerySourcesRequirements,
   type QuerySortDirection,
@@ -31,7 +30,6 @@ import {
 import {
   executeQueryPlan,
   preloadQueryExecutionPlanEffect,
-  projectQueryContexts,
   queryExecutionPlanDiagnostics
 } from "./query-execution-plan.js";
 import { makeQuerySourceAdapter } from "./query-source-adapter.js";
@@ -253,21 +251,31 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
     );
   }
 
-  /** Skips the first `count` results after filtering and sorting. */
+  /**
+   * Skips the first `count` results after filtering and sorting.
+   *
+   * `count` must be a finite, non-negative safe integer. Invalid windows are
+   * rejected when the query is executed or inspected with diagnostics.
+   */
   offset(count: number): QueryBuilder<TContext, TResult, E, R> {
     return new QueryBuilder<TContext, TResult, E, R>(
       this.sources,
       this.filters,
       this.projector,
       this.orders,
-      Math.max(0, count),
+      count,
       this.limitCount,
       this.joins,
       this.grouping
     );
   }
 
-  /** Limits the number of results after filtering, sorting, and offset. */
+  /**
+   * Limits the number of results after filtering, sorting, and offset.
+   *
+   * `count` must be a finite, non-negative safe integer. Invalid windows are
+   * rejected when the query is executed or inspected with diagnostics.
+   */
   limit(count: number): QueryBuilder<TContext, TResult, E, R> {
     return new QueryBuilder<TContext, TResult, E, R>(
       this.sources,
@@ -275,7 +283,7 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
       this.projector,
       this.orders,
       this.offsetCount,
-      Math.max(0, count),
+      count,
       this.joins,
       this.grouping
     );
@@ -284,10 +292,6 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
   /** Synchronously evaluates the query against the current collection state. */
   execute(): ReadonlyArray<TResult> {
     return executeQueryPlan(this);
-  }
-
-  projectContexts(contexts: ReadonlyArray<TContext>, options: QueryProjectOptions = {}): ReadonlyArray<TResult> {
-    return projectQueryContexts(this, contexts, options);
   }
 }
 

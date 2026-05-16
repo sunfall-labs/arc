@@ -30,8 +30,10 @@ zero hits.
   syntax or Promise method choreography; example test files keep `async` only
   at test/host boundaries, and `scripts/audit-effect-first.mjs` keeps Promise
   method fixture strings for scanner self-tests.
-- No package, example, script, or type-test source currently contains direct
-  Promise `.catch(...)` outside Effect's `Effect.catch(...)` operator.
+- No package, example, or type-test implementation source currently contains
+  direct Promise `.catch(...)` outside Effect's `Effect.catch(...)` operator.
+  Raw `scripts/` hits are expected in `scripts/audit-effect-first.mjs` scanner
+  fixture strings for banned catch forms.
 - The devtools extension transport structurally validates inspected-window
   `DevtoolsPanels` payloads before rendering them, so the bridge normalizer no
   longer needs a raw panel payload cast.
@@ -141,7 +143,7 @@ zero hits.
 
 ## Verification Evidence
 
-The current full verification gate is recorded in the Review 189 ledgers: 11
+The current full verification gate is recorded in the Review 190 ledgers: 11
 package builds, workspace typecheck, type tests, public API inventory audit,
 Effect-first audit over 404 files, 53 root test files / 1033 tests,
 package-level verifies, generated starter-suite packaging/verifies for
@@ -171,6 +173,9 @@ static extraction guardrails.
     scanner fixture strings; keep them covered by `pnpm audit:effect-first`.
 - Promise-catch grep:
   - `rg -n "\\.catch\\(" packages examples scripts type-tests -g '*.ts' -g '*.tsx' -g '*.mjs' | rg -v "Effect\\.catch"`
+  - Raw `scripts/` hits are expected in `scripts/audit-effect-first.mjs`
+    scanner fixture strings; `pnpm audit:effect-first` is the authoritative
+    guardrail for distinguishing those fixtures from implementation usage.
 - Historical `pnpm verify` passed after the cast/fire-and-forget cleanup stack: 9
   package builds, workspace typecheck, type tests, 38 root test files / 320
   tests, devtools-panel verify, devtools-extension verify with 1 extension test

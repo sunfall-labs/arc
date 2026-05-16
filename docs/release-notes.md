@@ -65,7 +65,7 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 189:
+Latest full gate on May 16, 2026 after Review 190:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
@@ -86,6 +86,11 @@ Latest full gate on May 16, 2026 after Review 189:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 190 tightened `Server.fn(...)` so union-shaped Promise handler returns
+  are rejected at the public type surface, preserved negative query window
+  values until validator rejection, removed the accidental public query
+  projection helper, and clarified raw `.catch(...)`/`async` audit evidence
+  around scanner fixture strings and prose-only hits.
 - Review 189 clarified Promise-method audit evidence: raw grep hits in
   `scripts/audit-effect-first.mjs` are scanner fixture strings for banned
   Promise forms, while `pnpm audit:effect-first` is the authoritative
@@ -1013,8 +1018,9 @@ Latest full gate on May 16, 2026 after Review 189:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 189 clarified
-  Promise-method audit fixture docs. A fresh
+- The latest full `pnpm verify` passed after Review 190 tightened Server
+  union-Promise rejection, query window validation, and audit-fixture docs. A
+  fresh
   no-actionable-findings sweep still
   needs to run before any clean-sweep count can start.
   Verification covered 11 package builds, workspace

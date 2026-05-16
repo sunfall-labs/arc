@@ -12,8 +12,9 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review189, the Promise-method audit fixture docs refresh found by the first
-post-Review188 clean-sweep candidate. Some older review entries remain below
+Review190, the Server union-Promise, query window, and audit-fixture docs
+refresh found by the first post-Review189 clean-sweep candidate. Some older
+review entries remain below
 this tip from prior ledger merges; use this tip rather than file order alone
 when looking for the latest architecture sweep.
 
@@ -23,10 +24,72 @@ The docs preparation pass found the Review186 stale ledger sentence, the broader
 audit-doc scan found the Review187 current-gate drift, the first
 post-Review187 clean-sweep candidate found the Review188 sharp-cast docs drift,
 and the first post-Review188 candidate found the Review189 Promise-method audit
-fixture docs drift below. Do not start the clean-sweep counter until a fresh
-full sweep after Review189 finds no
+fixture docs drift below. The first post-Review189 candidate found the
+Review190 Server union-Promise, query window, and audit-fixture docs drift. Do
+not start the clean-sweep counter until a fresh full sweep after Review190 finds
+no
 actionable Module, Interface, Seam, Adapter, Locality, Depth, Leverage, typed
 error, or docs drift work.
+
+## Review 190: Server Union-Promise, Query Windows, And Audit-Fixture Docs
+
+Review190 fixed the actionable findings from the first fresh post-Review189
+clean-sweep candidate.
+
+1. Server Union-Promise Handler Gate
+   - Status: fixed.
+   - Files: `packages/core/src/server.ts`, `type-tests/framework.test-d.ts`,
+     `scripts/audit-effect-first.mjs`.
+   - Problem: `Server.fn(...)` rejected direct Promise handler returns but did
+     not reject union-shaped returns such as `Project | Promise<Project>`,
+     because its local check tested the whole output type instead of using the
+     shared EffectInput Promise-member guard.
+   - Fix: changed `Server.fn(...)` to use `EnsureEffectInput<Out>`, matching
+     Action, Resource, and Route callback gates, and added a public negative
+     type test for union-shaped Promise handler returns.
+   - Benefits: public callable server functions cannot smuggle Promise work
+     through union inference; host Promise work must still enter through
+     explicit Effect adapters.
+
+2. Query Window Contract
+   - Status: fixed.
+   - Files: `packages/db/src/query-builder.ts`, `packages/db/test/collection.test.ts`.
+   - Problem: `QueryBuilder.offset(...)` and `limit(...)` clamped negative
+     values to zero before validation, bypassing the documented finite
+     non-negative safe-integer contract.
+   - Fix: preserve the caller-provided window count until Query Plan
+     validation, add negative and negative-fractional regression cases, and
+     update LSP hover docs for the validation timing.
+   - Benefits: invalid query windows fail consistently in diagnostics and
+     Effect execution instead of silently changing query semantics.
+
+3. Promise Catch And Async-Prose Audit Docs
+   - Status: fixed.
+   - Files: `docs/effect-first-audit.md`, `docs/sharp-cast-audit.md`,
+     `docs/architecture-deepening-review.md`, `docs/package-hygiene-audit.md`,
+     `docs/perfection-progress.md`, `docs/release-notes.md`,
+     `docs/ultimate-goal-checklist.md`.
+   - Problem: after Review189 clarified Promise constructor/method scanner
+     fixtures, current docs still described raw non-Effect `.catch(...)` and
+     broad `async` greps as zero-hit even though the raw output includes
+     scanner fixture strings and prose-only guidance text.
+   - Fix: changed current-facing evidence to distinguish implementation hits
+     from audit fixture/prose hits and to treat `pnpm audit:effect-first` as the
+     authoritative async/Promise guardrail.
+   - Benefits: reviewers can run the documented greps without rediscovering a
+     docs mismatch.
+
+Focused verification after the patch: Core and DB typechecks passed, public
+type tests passed, DB collection regressions passed, public API audit passed,
+Effect-first audit passed over 404 files, current-gate/audit-fixture wording
+greps passed, and `git diff --check` passed. Full `pnpm verify` passed after
+Review190 through the Effect-driven runner: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 404 physical/virtual files, 53 root test files / 1033 tests,
+package-level verifies, generated starter packaging, 16-target package dry-run
+gate, project-console checks, and leak scans. This sweep found actionable
+implementation and docs drift, so the Thirty-Sweep clean counter remains
+unstarted.
 
 ## Review 189: Promise-Method Audit Fixture Docs
 
@@ -4969,7 +5032,7 @@ counter remains at 0.
   remaining projection stages for filtering, ordering, windowing, and
   projection.
 - Query/Live Query: `QueryBuilder` now stays focused on immutable DSL and
-  aggregate helpers while delegating `execute(...)`, `projectContexts(...)`,
+  aggregate helpers while delegating query execution internals,
   `Query.onceEffect(...)`, and `Query.diagnostics(...)` to the plan Module.
   Live Query State uses the same source-adapter and preload policy, and Live
   Query Runtime keeps IVM graph mechanics while delegating final projection

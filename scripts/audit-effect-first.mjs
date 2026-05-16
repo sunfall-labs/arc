@@ -290,6 +290,7 @@ const allowed = [
       seam("packages/start/src/vite.ts", "Vite diagnostics gate Promise hook", /const runCurrentDiagnosticsGate\s*=\s*\(\):\s*Promise<void>\s*=>/),
       seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedProject", /declare const promisedProject:\s*Promise<Project>;/),
       seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedProjects", /declare const promisedProjects:\s*Promise<ReadonlyArray<Project>>;/),
+      seam("type-tests/framework.test-d.ts", "Promise negative fixture maybePromisedProject", /declare const maybePromisedProject:\s*Project\s*\|\s*Promise<Project>;/),
       seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedString", /declare const promisedString:\s*Promise<string>;/),
       seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedNumber", /declare const promisedNumber:\s*Promise<number>;/),
       seam("type-tests/framework.test-d.ts", "Promise negative fixture promisedVoid", /declare const promisedVoid:\s*Promise<void>;/),
@@ -315,7 +316,6 @@ const allowed = [
       seam("packages/core/src/action-result.ts", "ActionResult validation Promise rejection parameter", /effect:\s*EffectInput<Values,\s*FormValidationError<Values,\s*E>,\s*R>\s*&\s*\n\s*\(Values extends PromiseLike<unknown> \? never : unknown\)/),
       seam("packages/core/src/capability.ts", "Capability public useEffect Promise rejection overload", /export interface Capability[\s\S]*?readonly useEffect:[\s\S]*?f:\s*\(service:\s*Shape\)\s*=>\s*A extends PromiseLike<unknown> \? never : A/),
       seam("packages/core/src/capability.ts", "Capability namespace useEffect Promise rejection overload", /function useEffect<A>\(\s*\n\s*f:\s*\(service:\s*Shape\)\s*=>\s*A extends PromiseLike<unknown> \? never : A/),
-      seam("packages/core/src/server.ts", "Server handler Promise rejection conditional", /type CheckedServerFunctionHandler[\s\S]*?Out extends PromiseLike<unknown>/),
       seam("packages/start/src/file-route.ts", "File route preload runtime Promise-like guard", /const isPromiseLike\s*=\s*\(value:\s*unknown\):\s*value is PromiseLike<unknown>/),
       seam("packages/start/src/streaming.ts", "ReadableStream finalizer host return contract", /export type StartResponseStreamRunner[\s\S]*?PromiseLike<A>;/)
     ]
