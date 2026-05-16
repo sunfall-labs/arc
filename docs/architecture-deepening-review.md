@@ -11,11 +11,10 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review 156, immediately after Review
-155. The latest full `pnpm verify` checkpoint remains Review 155 until the next
-full gate is rerun. Some older review entries remain below it from prior ledger
-merges; use this tip rather than file order alone when looking for the latest
-architecture sweep.
+The newest completed focused review and full verification checkpoint is Review
+156, immediately after Review 155. Some older review entries remain below it
+from prior ledger merges; use this tip rather than file order alone when
+looking for the latest architecture sweep.
 
 ## Review 156: Durable Commit Races, Query Redaction, And Guardrail Pins
 
@@ -105,8 +104,18 @@ typechecks, public type tests, public API audit, Effect-first audit over 272
 files, 16-target package dry-run metadata/payload gate, DB collection tests 1
 file / 119 tests, Devtools tests 1 file / 75 tests, Start start/app-graph tests
 2 files / 170 tests, Core/React/Solid hook/router tests 5 files / 79 tests,
-script syntax checks, and `git diff --check`. Full `pnpm verify` has not yet
-been rerun after Review156; the latest full gate remains Review155.
+script syntax checks, and `git diff --check`.
+
+Full `pnpm verify` passed after Review156: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 272 files, 53 root test files / 949 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, generated starter-suite
+packaging/verifies for basic/react/project-console at 19/24/30 app files with
+5/4/6 local packages, 16-target package dry-run gate, project-console
+typecheck, 4 project-console test files / 27 tests, project-console build, and
+leak scans. Fresh post-fix sweeps still need to complete before the clean-sweep
+counter can start.
 
 ## Review 155: Runtime Identity, Persistence Commit, And Guardrail Depth
 

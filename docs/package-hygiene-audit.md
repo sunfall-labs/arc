@@ -107,9 +107,9 @@ exports. It supports the release-engineering charter workstream.
   all 16 package payloads: 11 framework dist packages, 19 basic starter files,
   24 React starter files, 30 project-console files, 10 devtools panel files,
   and 15 devtools extension files.
-- The latest full `pnpm verify` passed after Review155 with 11 package builds,
+- The latest full `pnpm verify` passed after Review156 with 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 272 files, 53 root test files / 941 tests,
+  Effect-first audit over 272 files, 53 root test files / 949 tests,
   devtools verifies, generated starter packaging, the 16-target dry-run gate,
   project-console typecheck/tests/build, and leak scan.
 - Review155 focused `pnpm example:pack-dry-run` passed across all 16 package
