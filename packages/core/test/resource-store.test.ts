@@ -47,7 +47,7 @@ describe("Resource Store disposal", () => {
     );
   });
 
-  it("exposes stable diagnostics count snapshots without private store maps", async () => {
+  it("exposes stable diagnostics count snapshots without private store maps", () => {
     const runtime = makeRuntime();
     const ProjectTag = Resource.tag("ResourceStore.diagnostics.project");
     const Project = Resource.family({
@@ -58,32 +58,25 @@ describe("Resource Store disposal", () => {
 
     runtime.resourceStore.moduleRegistry.register(Symbol("diagnostics-module"), {});
 
-    try {
-      await Effect.runPromise(
-        runtime.provide(Resource.prefetchEffect(Project("atlas")))
-      );
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* runtime.provide(Resource.prefetchEffect(Project("atlas")));
+        const snapshot = yield* runtime.resourceStore.diagnostics.snapshotEffect;
+        const familyCount = yield* runtime.resourceStore.diagnostics.familyCountEffect;
+        const tagCount = yield* runtime.resourceStore.diagnostics.tagCountEffect;
 
-      const snapshot = await Effect.runPromise(
-        runtime.resourceStore.diagnostics.snapshotEffect
-      );
-
-      expect(snapshot).toEqual({
-        fiberCount: 0,
-        familyCount: 1,
-        moduleCount: 1,
-        tagCount: 1
-      });
-      await expect(
-        Effect.runPromise(runtime.resourceStore.diagnostics.familyCountEffect)
-      ).resolves.toBe(1);
-      await expect(
-        Effect.runPromise(runtime.resourceStore.diagnostics.tagCountEffect)
-      ).resolves.toBe(1);
-      expect(runtime.resourceStore.diagnostics.snapshotUnsafe()).toEqual(snapshot);
-      expect(snapshot).not.toHaveProperty("families");
-      expect(snapshot).not.toHaveProperty("tagIndex");
-    } finally {
-      await Effect.runPromise(runtime.disposeEffect);
-    }
+        expect(snapshot).toEqual({
+          fiberCount: 0,
+          familyCount: 1,
+          moduleCount: 1,
+          tagCount: 1
+        });
+        expect(familyCount).toBe(1);
+        expect(tagCount).toBe(1);
+        expect(runtime.resourceStore.diagnostics.snapshotUnsafe()).toEqual(snapshot);
+        expect(snapshot).not.toHaveProperty("families");
+        expect(snapshot).not.toHaveProperty("tagIndex");
+      }).pipe(Effect.ensuring(runtime.disposeEffect))
+    );
   });
 });

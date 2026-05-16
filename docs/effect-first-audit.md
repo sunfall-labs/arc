@@ -1039,8 +1039,11 @@ interruption.
   The broad framework type test keeps only Core/DB/Start compatibility checks,
   including Start traces, Start app graph diagnostics, DB collection events, and
   Start action invalidation plans.
-- The latest full `pnpm verify` passed after the Review 97 Devtools Public
-  Type-Test Ownership slice: 11 package builds, workspace typecheck, type
+- The Core Resource Store diagnostics test now keeps prefetch, diagnostics
+  reads, assertions, and runtime disposal inside one Effect program with
+  `Effect.ensuring(...)`; Vitest remains the only Promise runner seam.
+- The latest full `pnpm verify` passed after the Review 98 Core Resource Store
+  Test Effect Boundary slice: 11 package builds, workspace typecheck, type
   tests, public API inventory audit, Effect-first audit over 224
   package/example/script/type-test files, 52 root test files / 857 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
@@ -1049,7 +1052,7 @@ interruption.
   starter test file / 3 tests, project-console starter packaging, typecheck,
   4 project-console test files / 27 tests, build, and leak scans. Review 75
   added the public API inventory audit to the full gate, Review 86 kept the
-  scanner green over the expanded public type-test scope, and Review 97 kept
+  scanner green over the expanded public type-test scope, and Review 98 kept
   the Effect-first scanner green over its expanded 224-file scope.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core

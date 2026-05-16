@@ -11,9 +11,36 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 97, immediately after Review 96. Some older review
+The newest review is Review 98, immediately after Review 97. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 98: Core Resource Store Test Effect Boundary
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Core tests: converted the Resource Store diagnostics snapshot test from an
+  `async` Vitest body with multiple `Effect.runPromise(...)` calls and a host
+  `finally` cleanup into one returned `Effect.runPromise(Effect.gen(...))`
+  program.
+- Cleanup locality: runtime disposal now runs through `Effect.ensuring(...)`,
+  so the test's setup, Resource preload, diagnostics reads, assertions, and
+  cleanup stay inside one Effect-owned workflow. The only Promise boundary left
+  is the Vitest host runner.
+- Review cleanup: this closes the small async test-boundary candidate from the
+  fresh test seam scan.
+
+Focused verification: `pnpm --filter @effect-ui/core typecheck`, `pnpm vitest
+run packages/core/test/resource-store.test.ts` (1 file / 3 tests), `pnpm
+audit:effect-first` over 224 files, and `git diff --check` passed. Full `pnpm
+verify` passed: 11 package builds, workspace typecheck, public type tests,
+public API inventory audit, Effect-first audit over 224 files, 52 root test
+files / 857 tests, devtools-panel verify with 2 tests, devtools-extension
+verify with 20 tests, basic starter verify with 2 tests, React starter verify
+with 3 tests, project-console packaging/typecheck/tests/build with 4 files / 27
+tests, and leak scans.
 
 ## Review 97: Devtools Public Type-Test Ownership
 

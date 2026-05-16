@@ -39,8 +39,9 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     index materialization, Review 91 start diagnostics CLI runner, Review
     92 start action response application, Review 93 collection change feed
     runtime, Review 94 browser router host controller, Review 95 core action
-    execution workflow, Review 96 devtools public contract, and Review 97
-    devtools public type-test ownership sweeps.
+    execution workflow, Review 96 devtools public contract, Review 97 devtools
+    public type-test ownership, and Review 98 core resource-store test effect
+    boundary sweeps.
 
 ## Current Sweep Results
 
@@ -338,7 +339,11 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   ownership. The public API inventory now records that pure Devtools assertions
   belong in `type-tests/devtools.test-d.ts` while the framework type test keeps
   only Core/DB/Start compatibility checks.
-- Updated current-facing verification snapshots after Review 97 full
+- Added Review 98 and progress entry 337 evidence for the Core Resource Store
+  test Effect boundary cleanup. Current docs now record the diagnostics test
+  moving host `async`/`finally` cleanup into `Effect.gen(...)` plus
+  `Effect.ensuring(...)`.
+- Updated current-facing verification snapshots after Review 98 full
   verification so the latest gate points at the 224-file Effect-first audit and
   52 root test files / 857 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are

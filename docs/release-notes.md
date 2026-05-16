@@ -166,6 +166,10 @@ Latest full gate on May 15, 2026:
   `type-tests/devtools.test-d.ts` owner. The broad framework type test now keeps
   only Devtools compatibility checks that cross Core, DB, or Start boundaries,
   which makes LSP-facing Devtools docs harder to regress by accident.
+- Review 98 tightened the Core Resource Store diagnostics test boundary: setup,
+  Resource preload, diagnostics reads, assertions, and runtime disposal now run
+  through one Effect program with `Effect.ensuring(...)`, leaving only the
+  Vitest host runner as a Promise seam.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime
