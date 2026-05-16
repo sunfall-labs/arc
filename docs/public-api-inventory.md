@@ -754,6 +754,9 @@ Release decisions:
   rather than their own event-array positions, and causal edge ids are derived
   from edge semantics plus duplicate ordinal. Unrelated earlier graph facts
   should not churn stable edge ids or synthesize phantom target nodes.
+- Fact Identity stays internal, but Store and Summary share its first-match
+  fact index helpers so duplicate invalidation and route-plan facts resolve
+  through one Devtools Serialization Policy fingerprint.
 - Devtools Store plain methods intentionally remain sync host facades over the
   Effect-first store implementation methods. Do not split them unless a new host
   package needs a distinct seam.

@@ -10,7 +10,11 @@ import {
   devtoolsRuntimeEventSummaryId as runtimeEventSummaryId,
   devtoolsRuntimeTargetLabel as runtimeTargetLabel
 } from "./graph-ids.js";
-import { normalizeRequestTraceFacts, stableFactFingerprint } from "./fact-identity.js";
+import {
+  firstDevtoolsFactIndexes,
+  matchingDevtoolsFactIndex,
+  normalizeRequestTraceFacts
+} from "./fact-identity.js";
 import { normalizeDevtoolsAppGraphDiagnostics } from "./app-graph-normalizer.js";
 import { toDevtoolsSerializableValue } from "./serialization.js";
 import type {
@@ -219,27 +223,6 @@ const emptyRuntimeEventFactIndexes = (): RuntimeEventFactIndexes => ({
   routePlanCount: 0
 });
 
-const firstFactIndexes = <Fact>(
-  facts: ReadonlyArray<Fact>
-): ReadonlyMap<string, number> => {
-  const indexes = new Map<string, number>();
-  facts.forEach((fact, index) => {
-    const fingerprint = stableFactFingerprint(fact);
-    if (fingerprint !== undefined && !indexes.has(fingerprint)) {
-      indexes.set(fingerprint, index);
-    }
-  });
-  return indexes;
-};
-
-const matchingFactIndex = <Fact>(
-  indexes: ReadonlyMap<string, number>,
-  fact: Fact
-): number | undefined => {
-  const fingerprint = stableFactFingerprint(fact);
-  return fingerprint === undefined ? undefined : indexes.get(fingerprint);
-};
-
 const programEventName = (
   event: DevtoolsRuntimeEvent & { readonly _tag: "ProgramEvent" }
 ): string =>
@@ -325,7 +308,7 @@ export const summarizeRuntimeEvent = (
       };
     case "Invalidation":
       const invalidationIndex =
-        event.invalidationIndex ?? matchingFactIndex(factIndexes.invalidations, event.plan);
+        event.invalidationIndex ?? matchingDevtoolsFactIndex(factIndexes.invalidations, event.plan);
       const invalidationTargetIndex = invalidationIndex ?? factIndexes.invalidationCount + index;
       const invalidationPlan = summarizeInvalidationPlan(event.plan, invalidationTargetIndex);
       return {
@@ -348,7 +331,7 @@ export const summarizeRuntimeEvent = (
       };
     case "RoutePlan":
       const routePlanIndex =
-        event.routePlanIndex ?? matchingFactIndex(factIndexes.routePlans, event.plan);
+        event.routePlanIndex ?? matchingDevtoolsFactIndex(factIndexes.routePlans, event.plan);
       const routePlanTargetIndex = routePlanIndex ?? factIndexes.routePlanCount + index;
       const routePlan = summarizeRoutePlan(event.plan, routePlanTargetIndex);
       return {
@@ -557,9 +540,9 @@ export const summarizeRuntimeEvents = (
   routePlans: ReadonlyArray<DevtoolsRoutePlan> = []
 ): ReadonlyArray<DevtoolsSummaryRuntimeEvent> => {
   const factIndexes = {
-    invalidations: firstFactIndexes(invalidations),
+    invalidations: firstDevtoolsFactIndexes(invalidations),
     invalidationCount: invalidations.length,
-    routePlans: firstFactIndexes(routePlans),
+    routePlans: firstDevtoolsFactIndexes(routePlans),
     routePlanCount: routePlans.length
   };
   return events.map((event, index) =>

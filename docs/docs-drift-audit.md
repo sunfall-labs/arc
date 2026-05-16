@@ -54,7 +54,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     113 start action request codec module extraction, Review 114 start
     diagnostics CLI query kind subcommands, Review 115 start vite diagnostics
     loader module extraction, Review 116 db collection sync load policy module
-    extraction, and Review 117 browser route render decision module extraction.
+    extraction, Review 117 browser route render decision module extraction, and
+    Review 118 devtools fact identity index helper extraction.
 
 ## Current Sweep Results
 
@@ -423,7 +424,11 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Added Review 117 and progress entry 356 evidence for the Browser Route Render
   Decision extraction. Current docs now record that route outlet state decisions
   live in Core while React and Solid keep framework rendering local.
-- Updated current-facing verification snapshots after Review 117 full
+- Added Review 118 and progress entry 357 evidence for the Devtools Fact
+  Identity index helper cleanup. Current docs now record that Store and Summary
+  share first-match fact index helpers backed by the Devtools Serialization
+  Policy fingerprint.
+- Updated current-facing verification snapshots after Review 118 full
   verification so the latest gate points at the 228-file Effect-first audit and
   52 root test files / 861 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are

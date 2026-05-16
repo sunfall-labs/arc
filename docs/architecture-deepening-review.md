@@ -11,9 +11,31 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 117, immediately after Review 116. Some older review
+The newest review is Review 118, immediately after Review 117. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 118: Devtools Fact Identity Index Helpers
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Fact Identity: `packages/devtools/src/fact-identity.ts` now owns first-match
+  fact index helpers for Devtools invalidation and route-plan facts, using the
+  same bounded Devtools Serialization Policy fingerprint as other identity
+  repairs.
+- Interface narrowing: removed unused `normalizeImportedRequestTraceFacts(...)`
+  from the internal Fact Identity Interface. Imported snapshots still normalize
+  request trace facts through `normalizeRequestTraceFacts(...)`, which is the
+  function Store and Summary actually consume.
+- Store/Summary locality: `packages/devtools/src/store.ts` and
+  `packages/devtools/src/summary-facts.ts` now consume the shared first-match
+  helpers instead of duplicating fingerprint lookup policy at each Seam.
+
+Focused verification: `pnpm --filter @effect-ui/devtools typecheck` and `pnpm
+exec vitest run packages/devtools/test/devtools.test.ts` (1 file / 70 tests)
+passed. Full `pnpm verify` also passed after the slice.
 
 ## Review 117: Browser Route Render Decision Module
 

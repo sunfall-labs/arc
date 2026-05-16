@@ -3,7 +3,6 @@ import type {
   DevtoolsRequestTraceAction,
   DevtoolsRuntimeEvent,
   DevtoolsSerializationPolicy,
-  DevtoolsSnapshot,
   DevtoolsSnapshotAction
 } from "./devtools-contract.js";
 import { toDevtoolsSerializableFingerprint } from "./serialization.js";
@@ -14,9 +13,21 @@ const factIdentitySerializationPolicy = {
   maxStringLength: 1_000
 } satisfies DevtoolsSerializationPolicy;
 
+/**
+ * Converts a Devtools fact into the bounded fingerprint used for internal fact
+ * identity repair.
+ *
+ * The fingerprint deliberately goes through the Devtools Serialization Policy
+ * so Store, Summary, and causal graph code agree on how deep, wide, and long a
+ * comparable inspection value may be.
+ */
 export const toDevtoolsFactIdentity = (fact: unknown): string =>
   toDevtoolsSerializableFingerprint(fact, factIdentitySerializationPolicy);
 
+/**
+ * Attempts to fingerprint a Devtools fact without letting hostile inspection
+ * values or trap-shaped inputs break snapshot repair.
+ */
 export const stableFactFingerprint = (fact: unknown): string | undefined => {
   try {
     return toDevtoolsFactIdentity(fact);
@@ -24,6 +35,51 @@ export const stableFactFingerprint = (fact: unknown): string | undefined => {
     return undefined;
   }
 };
+
+/**
+ * Builds first-seen indexes for facts using the shared Devtools identity policy.
+ *
+ * Duplicate facts intentionally point at their first retained occurrence so
+ * bounded history trimming cannot retarget runtime events to later duplicates.
+ */
+export const firstDevtoolsFactIndexes = <Fact>(
+  facts: ReadonlyArray<Fact>
+): ReadonlyMap<string, number> => {
+  const indexes = new Map<string, number>();
+  facts.forEach((fact, index) => {
+    const fingerprint = stableFactFingerprint(fact);
+    if (fingerprint !== undefined && !indexes.has(fingerprint)) {
+      indexes.set(fingerprint, index);
+    }
+  });
+  return indexes;
+};
+
+/**
+ * Looks up a fact index from a precomputed Devtools fact index map.
+ *
+ * Use this when many runtime events need to target the same retained fact
+ * arrays; it keeps the fingerprint policy shared while avoiding repeated scans.
+ */
+export const matchingDevtoolsFactIndex = <Fact>(
+  indexes: ReadonlyMap<string, number>,
+  fact: Fact
+): number | undefined => {
+  const fingerprint = stableFactFingerprint(fact);
+  return fingerprint === undefined ? undefined : indexes.get(fingerprint);
+};
+
+/**
+ * Finds the first matching fact index in a fact array.
+ *
+ * This is the convenience form for Store call sites that perform occasional
+ * record-time deduplication and do not already own a precomputed index map.
+ */
+export const findMatchingDevtoolsFactIndex = <Fact>(
+  facts: ReadonlyArray<Fact>,
+  fact: Fact
+): number | undefined =>
+  matchingDevtoolsFactIndex(firstDevtoolsFactIndexes(facts), fact);
 
 export const rebaseInvalidationIndexes = (
   indexes: ReadonlyArray<number> | undefined,
@@ -234,6 +290,14 @@ const consumeImportedRequestTraceId = (
   return imported.id;
 };
 
+/**
+ * Normalizes request trace facts that may have been captured before trace ids
+ * existed.
+ *
+ * Snapshot traces receive deterministic fallback ids, matching runtime
+ * `RequestTrace` events reuse those ids when their fingerprints line up, and
+ * the returned sequence lets the Store allocate later ids without collisions.
+ */
 export const normalizeRequestTraceFacts = (
   requestTraceInputs: ReadonlyArray<DevtoolsRequestTrace> = [],
   eventInputs: ReadonlyArray<DevtoolsRuntimeEvent> = []
@@ -313,33 +377,5 @@ export const normalizeRequestTraceFacts = (
     requestTraces: Array.from(tracesById.values()),
     events,
     nextRequestTraceSequence: sequence
-  };
-};
-
-/**
- * Normalizes imported snapshot facts whose request traces were captured before
- * trace ids existed.
- *
- * Snapshot request traces and runtime `RequestTrace` events describe the same
- * host request facts but can arrive without ids. This Adapter seeds the next
- * trace sequence from existing ids, assigns ids to imported trace snapshots,
- * and reuses those ids for matching imported runtime events when the request
- * fingerprint matches.
- */
-export const normalizeImportedRequestTraceFacts = (
-  copied: DevtoolsSnapshot
-): {
-  readonly snapshot: DevtoolsSnapshot;
-  readonly nextRequestTraceSequence: number;
-} => {
-  const normalized = normalizeRequestTraceFacts(copied.requestTraces ?? [], copied.events ?? []);
-
-  return {
-    snapshot: {
-      ...copied,
-      ...(copied.requestTraces === undefined ? {} : { requestTraces: normalized.requestTraces }),
-      ...(copied.events === undefined ? {} : { events: normalized.events })
-    },
-    nextRequestTraceSequence: normalized.nextRequestTraceSequence
   };
 };

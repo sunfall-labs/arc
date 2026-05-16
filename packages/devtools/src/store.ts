@@ -26,13 +26,13 @@ import type {
 } from "./devtools-contract.js";
 import {
   ensureRequestTraceId,
+  findMatchingDevtoolsFactIndex,
   normalizeRequestTraceFacts,
   rebaseRequestTraceInvalidations,
   rebaseRuntimeEventInvalidations,
   rebaseRuntimeEventRoutePlans,
   rebaseSnapshotActionInvalidations,
-  requestTraceSequence,
-  stableFactFingerprint
+  requestTraceSequence
 } from "./fact-identity.js";
 import {
   copyAppGraphDiagnostics,
@@ -66,19 +66,6 @@ const actionStateInput = <I>(state: { readonly _tag: string }): I | undefined =>
 
 type AnyActionInstance = ActionInstance<any, any, any, any>;
 type AnyStartActionInstance = DevtoolsStartActionInstance<any, any, any, any>;
-
-const matchingFactIndex = <Fact>(
-  facts: ReadonlyArray<Fact>,
-  fact: Fact
-): number | undefined => {
-  const fingerprint = stableFactFingerprint(fact);
-  if (fingerprint === undefined) {
-    return undefined;
-  }
-
-  const index = facts.findIndex((candidate) => stableFactFingerprint(candidate) === fingerprint);
-  return index >= 0 ? index : undefined;
-};
 
 const normalizeHistoryLimit = (
   value: number | undefined,
@@ -237,7 +224,7 @@ export const makeDevtoolsStoreWithRuntime = (
           return event;
         }
 
-        const invalidationIndex = matchingFactIndex(snapshot.invalidations, event.plan);
+        const invalidationIndex = findMatchingDevtoolsFactIndex(snapshot.invalidations, event.plan);
         return invalidationIndex === undefined
           ? event
           : {
@@ -250,7 +237,7 @@ export const makeDevtoolsStoreWithRuntime = (
           return event;
         }
 
-        const routePlanIndex = matchingFactIndex(snapshot.routePlans, event.plan);
+        const routePlanIndex = findMatchingDevtoolsFactIndex(snapshot.routePlans, event.plan);
         return routePlanIndex === undefined
           ? event
           : {
@@ -277,7 +264,7 @@ export const makeDevtoolsStoreWithRuntime = (
     recordSerializedInvalidationPlan(runtime.describeInvalidationPlan(plan));
 
   const recordSerializedInvalidationPlan = (plan: DevtoolsInvalidationPlan): number => {
-    const existing = matchingFactIndex(snapshot.invalidations, plan);
+    const existing = findMatchingDevtoolsFactIndex(snapshot.invalidations, plan);
     if (existing !== undefined) {
       return existing;
     }
