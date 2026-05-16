@@ -11,9 +11,29 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 118, immediately after Review 117. Some older review
+The newest review is Review 119, immediately after Review 118. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 119: Devtools Runtime Seam Collapse
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Panels locality: `packages/devtools/src/panels.ts` now owns its summary and
+  serialization dependencies directly. The removed `DevtoolsPanelsRuntime`
+  Interface had one Adapter and did not represent real variation.
+- Store locality: `packages/devtools/src/store.ts` now owns invalidation,
+  route-plan, request-trace, summary, panel, and causal-graph dependencies
+  directly. The removed `DevtoolsStoreRuntime` Interface had one Adapter and
+  made the root facade know too much about Store internals.
+- Facade depth: `packages/devtools/src/index.ts` now wires the public facade to
+  the owning Modules instead of constructing one-off runtime objects.
+
+Focused verification: `pnpm --filter @effect-ui/devtools typecheck` and `pnpm
+exec vitest run packages/devtools/test/devtools.test.ts` (1 file / 70 tests)
+passed. Full `pnpm verify` also passed after the slice.
 
 ## Review 118: Devtools Fact Identity Index Helpers
 

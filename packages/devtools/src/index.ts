@@ -4,21 +4,9 @@ import {
   mountDevtoolsPanelsWithResolver,
   renderDevtoolsPanelsHtmlWithResolver
 } from "./panel-renderer.js";
-import { describeDevtoolsPanelsWithRuntime } from "./panels.js";
+import { describeDevtoolsPanels as describeDevtoolsPanelsInternal } from "./panels.js";
 import { resolveDevtoolsPanelsInput } from "./panel-contract.js";
-import {
-  copyInvalidationPlan,
-  copyRequestTrace,
-  describeInvalidationPlan,
-  describeRoutePlan,
-  toDevtoolsSerializableValue
-} from "./serialization.js";
-import {
-  describeDevtoolsCausalGraph,
-  describeDevtoolsSummary
-} from "./summary.js";
-import { makeDevtoolsStoreWithRuntime } from "./store.js";
-import { DevtoolsActionInvalidationPlanConflict } from "./devtools-contract.js";
+import { makeDevtoolsStore as makeDevtoolsStoreInternal } from "./store.js";
 import type {
   DevtoolsPanelBoot,
   DevtoolsPanelBootOptions,
@@ -76,16 +64,11 @@ export type {
   DevtoolsPanelContractResolution
 } from "./panel-contract.js";
 
-const devtoolsPanelsRuntime = {
-  describeSummary: describeDevtoolsSummary,
-  toSerializableValue: toDevtoolsSerializableValue
-};
-
 /** Projects snapshots, diagnostics, and runtime facts into stable panel data. */
 export const describeDevtoolsPanels = (
   input: DevtoolsPanelsInput = {}
 ): DevtoolsPanels =>
-  describeDevtoolsPanelsWithRuntime(input, devtoolsPanelsRuntime);
+  describeDevtoolsPanelsInternal(input);
 
 /** Effect wrapper for `describeDevtoolsPanels(...)`. */
 export const describeDevtoolsPanelsEffect = (
@@ -170,19 +153,6 @@ export const bootDevtoolsPanels = (
   return boot;
 };
 
-const devtoolsStoreRuntime = {
-  describeInvalidationPlan,
-  copyInvalidationPlan,
-  copyRequestTrace,
-  describeRoutePlan,
-  throwActionInvalidationPlanConflict: (guidance: string): never => {
-    throw new DevtoolsActionInvalidationPlanConflict({ guidance });
-  },
-  describeSummary: describeDevtoolsSummary,
-  describePanels: describeDevtoolsPanels,
-  describeCausalGraph: describeDevtoolsCausalGraph
-};
-
 /** Creates a bounded, detached Devtools Store for snapshots, traces, panels, and causal graphs. */
 export const makeDevtoolsStore = (options: DevtoolsStoreOptions = {}): DevtoolsStore =>
-  makeDevtoolsStoreWithRuntime(options, devtoolsStoreRuntime);
+  makeDevtoolsStoreInternal(options);

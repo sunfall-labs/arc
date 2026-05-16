@@ -7,11 +7,10 @@ import type {
   Route
 } from "@effect-ui/core";
 import { Effect } from "effect";
+import { DevtoolsActionInvalidationPlanConflict } from "./devtools-contract.js";
 import type {
-  DevtoolsCausalGraph,
   DevtoolsCollectionStoreEvent,
   DevtoolsInvalidationPlan,
-  DevtoolsPanels,
   DevtoolsRecordActionStateOptions,
   DevtoolsRequestTrace,
   DevtoolsRoutePlan,
@@ -21,8 +20,7 @@ import type {
   DevtoolsStartActionInstance,
   DevtoolsStartAppGraphDiagnostics,
   DevtoolsStore,
-  DevtoolsStoreOptions,
-  DevtoolsSummary
+  DevtoolsStoreOptions
 } from "./devtools-contract.js";
 import {
   ensureRequestTraceId,
@@ -38,25 +36,17 @@ import {
   copyAppGraphDiagnostics,
   copyDevtoolsRoutePlan,
   copyDevtoolsRuntimeEvent,
-  copyDevtoolsSnapshot
+  copyDevtoolsSnapshot,
+  copyInvalidationPlan,
+  copyRequestTrace,
+  describeInvalidationPlan,
+  describeRoutePlan
 } from "./serialization.js";
-
-export interface DevtoolsStoreRuntime {
-  readonly describeInvalidationPlan: (plan: ResourceInvalidationPlan<any>) => DevtoolsInvalidationPlan;
-  readonly copyInvalidationPlan: (
-    plan: DevtoolsInvalidationPlan,
-    policy?: DevtoolsSerializationPolicy
-  ) => DevtoolsInvalidationPlan;
-  readonly copyRequestTrace: (
-    trace: DevtoolsRequestTrace,
-    policy?: DevtoolsSerializationPolicy
-  ) => DevtoolsRequestTrace;
-  readonly describeRoutePlan: (plan: Route.NavigationPlan) => DevtoolsRoutePlan;
-  readonly throwActionInvalidationPlanConflict: (guidance: string) => never;
-  readonly describeSummary: (input: { readonly snapshot: DevtoolsSnapshot }) => DevtoolsSummary;
-  readonly describePanels: (input: { readonly snapshot: DevtoolsSnapshot }) => DevtoolsPanels;
-  readonly describeCausalGraph: (input: { readonly snapshot: DevtoolsSnapshot }) => DevtoolsCausalGraph;
-}
+import { describeDevtoolsPanels } from "./panels.js";
+import {
+  describeDevtoolsCausalGraph,
+  describeDevtoolsSummary
+} from "./summary.js";
 
 const actionStateTag = (state: { readonly _tag: string }): string =>
   state._tag;
@@ -81,9 +71,8 @@ const boundedHistory = <A>(
 ): ReadonlyArray<A> =>
   entries.length <= limit ? entries : entries.slice(entries.length - limit);
 
-export const makeDevtoolsStoreWithRuntime = (
-  options: DevtoolsStoreOptions = {},
-  runtime: DevtoolsStoreRuntime
+export const makeDevtoolsStore = (
+  options: DevtoolsStoreOptions = {}
 ): DevtoolsStore => {
   const invalidationLimit = normalizeHistoryLimit(options.invalidationLimit, 50);
   const routePlanLimit = normalizeHistoryLimit(options.routePlanLimit, 50);
@@ -261,7 +250,7 @@ export const makeDevtoolsStoreWithRuntime = (
   };
 
   const recordInvalidationPlan = (plan: ResourceInvalidationPlan<any>): number =>
-    recordSerializedInvalidationPlan(runtime.describeInvalidationPlan(plan));
+    recordSerializedInvalidationPlan(describeInvalidationPlan(plan));
 
   const recordSerializedInvalidationPlan = (plan: DevtoolsInvalidationPlan): number => {
     const existing = findMatchingDevtoolsFactIndex(snapshot.invalidations, plan);
@@ -271,7 +260,7 @@ export const makeDevtoolsStoreWithRuntime = (
 
     const nextInvalidations = [
       ...snapshot.invalidations,
-        runtime.copyInvalidationPlan(plan, serializationPolicy)
+      copyInvalidationPlan(plan, serializationPolicy)
     ];
     const dropped = Math.max(0, nextInvalidations.length - invalidationLimit);
     const invalidations = boundedHistory(nextInvalidations, invalidationLimit);
@@ -320,9 +309,9 @@ export const makeDevtoolsStoreWithRuntime = (
       actionOptions.invalidationPlan !== undefined &&
       actionOptions.serializedInvalidationPlan !== undefined
     ) {
-      runtime.throwActionInvalidationPlanConflict(
-        "Pass invalidationPlan for local refs or serializedInvalidationPlan for transport-provided snapshots."
-      );
+      throw new DevtoolsActionInvalidationPlanConflict({
+        guidance: "Pass invalidationPlan for local refs or serializedInvalidationPlan for transport-provided snapshots."
+      });
     }
 
     if (actionOptions.invalidationPlan !== undefined) {
@@ -337,7 +326,7 @@ export const makeDevtoolsStoreWithRuntime = (
   };
 
   const recordRequestTrace = (trace: DevtoolsRequestTrace): void => {
-    const copiedInput = runtime.copyRequestTrace(trace, serializationPolicy);
+    const copiedInput = copyRequestTrace(trace, serializationPolicy);
     const existingSequence = requestTraceSequence(copiedInput.request.id);
     if (existingSequence !== undefined) {
       nextRequestTraceSequence = Math.max(nextRequestTraceSequence, existingSequence + 1);
@@ -506,7 +495,7 @@ export const makeDevtoolsStoreWithRuntime = (
 	      (unsubscribe) => Effect.sync(unsubscribe)
 	    ).pipe(Effect.asVoid);
   const recordRoutePlanEffect = (plan: Route.NavigationPlan) =>
-    Effect.sync(() => recordSerializedRoutePlan(runtime.describeRoutePlan(plan)));
+    Effect.sync(() => recordSerializedRoutePlan(describeRoutePlan(plan)));
   const recordSerializedRoutePlanEffect = (plan: DevtoolsRoutePlan) =>
     Effect.sync(() => recordSerializedRoutePlan(plan));
   const recordResourceEventEffect = (event: ResourceStoreEvent) =>
@@ -560,9 +549,9 @@ export const makeDevtoolsStoreWithRuntime = (
   const summaryInput = (): { readonly snapshot: DevtoolsSnapshot } => ({
     snapshot: copyDevtoolsSnapshot(snapshot, serializationPolicy)
   });
-  const getSummaryEffect = () => Effect.sync(() => runtime.describeSummary(summaryInput()));
-  const getPanelsEffect = () => Effect.sync(() => runtime.describePanels(summaryInput()));
-  const getCausalGraphEffect = () => Effect.sync(() => runtime.describeCausalGraph(summaryInput()));
+  const getSummaryEffect = () => Effect.sync(() => describeDevtoolsSummary(summaryInput()));
+  const getPanelsEffect = () => Effect.sync(() => describeDevtoolsPanels(summaryInput()));
+  const getCausalGraphEffect = () => Effect.sync(() => describeDevtoolsCausalGraph(summaryInput()));
 
   const store = {
     getSnapshot: () => Effect.runSync(getSnapshotEffect()),

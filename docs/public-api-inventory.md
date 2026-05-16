@@ -760,6 +760,9 @@ Release decisions:
 - Devtools Store plain methods intentionally remain sync host facades over the
   Effect-first store implementation methods. Do not split them unless a new host
   package needs a distinct seam.
+- The root Devtools module remains the public facade; internal Panels and Store
+  modules own their concrete projection/copy dependencies directly instead of
+  exposing single-adapter runtime injection Interfaces.
 - Focused Devtools public type coverage lives in `type-tests/devtools.test-d.ts`.
   Keep pure Devtools Store, panel, bridge, serialization, DTO, and lifecycle
   assertions there; `type-tests/framework.test-d.ts` should keep only

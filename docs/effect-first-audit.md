@@ -1108,8 +1108,11 @@ interruption.
 - Devtools Fact Identity now owns first-match fact index helpers for Store and
   Summary matching. The cleanup is pure identity policy, so no Promise-shaped
   host boundary or Effect runtime seam was added.
-- The latest full `pnpm verify` passed after the Review 118 Devtools Fact
-  Identity Index Helpers slice: 11 package builds, workspace typecheck, type tests,
+- Devtools Panels and Store no longer expose internal single-adapter runtime
+  injection seams. Effect wrappers and store Effect methods stay intact while
+  pure projection dependencies live in the owning Modules.
+- The latest full `pnpm verify` passed after the Review 119 Devtools Runtime
+  Seam Collapse slice: 11 package builds, workspace typecheck, type tests,
   public API inventory audit, Effect-first audit over 228
   package/example/script/type-test files, 52 root test files / 861 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
@@ -1120,7 +1123,7 @@ interruption.
   added the public API inventory audit to the full gate, Review 86 kept the
   scanner green over the expanded public type-test scope, Review 113 expanded
   the scanner to 226 files, Review 115 expanded it to 227 files, Review 116
-  expanded it to 228 files, and Review 118 kept it green over that scope.
+  expanded it to 228 files, and Review 119 kept it green over that scope.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

@@ -729,11 +729,10 @@ Last evidence pass: May 15, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Devtools Fact Identity index helper
-    cleanup.
+  - Evidence: no new ADR required for the Devtools runtime seam collapse.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 15, 2026 after the Review 118
-    Devtools Fact Identity Index Helpers slice: 11 package builds, workspace
+  - Evidence: root `pnpm verify` passed on May 15, 2026 after the Review 119
+    Devtools Runtime Seam Collapse slice: 11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
     228 files,
     52 root test files / 861 tests,

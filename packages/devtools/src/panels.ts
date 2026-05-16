@@ -11,6 +11,8 @@ import {
   devtoolsUnknownRoutePreloadCollectionsPanelItemId,
   devtoolsUnknownRoutePreloadResourcesPanelItemId
 } from "./graph-ids.js";
+import { toDevtoolsSerializableValue } from "./serialization.js";
+import { describeDevtoolsSummary } from "./summary.js";
 import type {
   DevtoolsPanel,
   DevtoolsPanelId,
@@ -21,16 +23,10 @@ import type {
   DevtoolsPanelsInput,
   DevtoolsSerializableValue,
   DevtoolsSummary,
-  DevtoolsSummaryInput,
   DevtoolsSummaryRequestTrace
 } from "./devtools-contract.js";
 import { devtoolsPanelIds } from "./panel-contract.js";
 import { routeModulePreloadCollections } from "./summary-app-graph.js";
-
-export interface DevtoolsPanelsRuntime {
-  readonly describeSummary: (input: DevtoolsSummaryInput) => DevtoolsSummary;
-  readonly toSerializableValue: (value: unknown) => DevtoolsSerializableValue;
-}
 
 const panelMetric = (
   label: string,
@@ -147,11 +143,10 @@ const diagnosticsSeverity = (summary: DevtoolsSummary): DevtoolsPanelSeverity =>
     : "ok";
 };
 
-export const describeDevtoolsPanelsWithRuntime = (
-  input: DevtoolsPanelsInput,
-  runtime: DevtoolsPanelsRuntime
+export const describeDevtoolsPanels = (
+  input: DevtoolsPanelsInput = {}
 ): DevtoolsPanels => {
-  const summary = input.summary ?? runtime.describeSummary(input);
+  const summary = input.summary ?? describeDevtoolsSummary(input);
   const graphAvailable = summary.graph._tag === "Available";
   const diagnosticsPanelSeverity = diagnosticsSeverity(summary);
   const requestDurations = summary.requests.traces.flatMap((trace) =>
@@ -283,7 +278,7 @@ export const describeDevtoolsPanelsWithRuntime = (
           panelMetric("messages", runtimeEvents.messages),
           panelMetric("failures", runtimeEvents.failures)
         ],
-        data: runtime.toSerializableValue({
+        data: toDevtoolsSerializableValue({
           tags: Array.from(runtimeEvents.tags).sort()
         })
       })
@@ -469,7 +464,7 @@ export const describeDevtoolsPanelsWithRuntime = (
               panelMetric("before tags", trace.beforeDispose?.tagCount ?? "unknown"),
               panelMetric("after tags", trace.afterDispose?.tagCount ?? "unknown")
             ],
-            data: runtime.toSerializableValue({
+            data: toDevtoolsSerializableValue({
               id: trace.id,
               failureKind: trace.failureKind,
               routeHref: trace.routeHref,
@@ -506,7 +501,7 @@ export const describeDevtoolsPanelsWithRuntime = (
                   label: schema.name,
                   detail: schema.kind,
                   severity: "error",
-                  data: runtime.toSerializableValue(schema)
+                  data: toDevtoolsSerializableValue(schema)
                 })
               ),
               ...summary.graph.actions.unknownBehavior.map((entry) =>
@@ -515,7 +510,7 @@ export const describeDevtoolsPanelsWithRuntime = (
                   label: entry.name,
                   detail: "unknown action behavior",
                   severity: "warning",
-                  data: runtime.toSerializableValue(entry)
+                  data: toDevtoolsSerializableValue(entry)
                 })
               ),
               ...summary.graph.routes.unknownPreloadResources.map((entry) =>
@@ -524,7 +519,7 @@ export const describeDevtoolsPanelsWithRuntime = (
                   label: entry.routePath,
                   detail: "unknown preload resources",
                   severity: "warning",
-                  data: runtime.toSerializableValue(entry)
+                  data: toDevtoolsSerializableValue(entry)
                 })
               ),
               ...summary.graph.routes.unknownPreloadCollections.map((entry) =>
@@ -533,7 +528,7 @@ export const describeDevtoolsPanelsWithRuntime = (
                   label: entry.routePath,
                   detail: "unknown preload collections",
                   severity: "warning",
-                  data: runtime.toSerializableValue(entry)
+                  data: toDevtoolsSerializableValue(entry)
                 })
               )
             ]

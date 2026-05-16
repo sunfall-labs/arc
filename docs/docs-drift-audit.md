@@ -54,8 +54,9 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     113 start action request codec module extraction, Review 114 start
     diagnostics CLI query kind subcommands, Review 115 start vite diagnostics
     loader module extraction, Review 116 db collection sync load policy module
-    extraction, Review 117 browser route render decision module extraction, and
-    Review 118 devtools fact identity index helper extraction.
+    extraction, Review 117 browser route render decision module extraction,
+    Review 118 devtools fact identity index helper extraction, and Review 119
+    devtools runtime seam collapse.
 
 ## Current Sweep Results
 
@@ -428,7 +429,10 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   Identity index helper cleanup. Current docs now record that Store and Summary
   share first-match fact index helpers backed by the Devtools Serialization
   Policy fingerprint.
-- Updated current-facing verification snapshots after Review 118 full
+- Added Review 119 and progress entry 358 evidence for the Devtools runtime
+  seam collapse. Current docs now record that Panels and Store own their single
+  concrete dependencies and the root devtools Module stays a facade.
+- Updated current-facing verification snapshots after Review 119 full
   verification so the latest gate points at the 228-file Effect-first audit and
   52 root test files / 861 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are
