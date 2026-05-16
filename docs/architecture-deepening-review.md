@@ -11,10 +11,10 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review159. The newest full verification
-checkpoint is Review158, immediately before Review159. Some older review
-entries remain below it from prior ledger merges; use this tip rather than file
-order alone when looking for the latest architecture sweep.
+The newest completed focused review and full verification checkpoint is
+Review159, immediately after Review158. Some older review entries remain below
+it from prior ledger merges; use this tip rather than file order alone when
+looking for the latest architecture sweep.
 
 ## Review 159: Action Response Resource Identity
 
@@ -43,8 +43,18 @@ findings.
 Focused verification passed: Start package typecheck, Start/app-graph/adapters
 plus Devtools tests 4 files / 268 tests, DB reviewer verification 5 files / 190
 tests, public API audit, Effect-first audit over 273 files, and
-`git diff --check`. Full `pnpm verify` still needs to be rerun for Review159
-before the full checkpoint tip can advance.
+`git diff --check`.
+
+Full `pnpm verify` passed after Review159: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 273 files, 53 root test files / 966 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, generated starter-suite
+packaging/verifies for basic/react/project-console at 19/24/30 app files with
+5/4/6 local packages, 16-target package dry-run gate, project-console
+typecheck, 4 project-console test files / 27 tests, project-console build, and
+leak scans. Fresh post-fix sweeps still need to run before the clean-sweep
+counter can start.
 
 ## Review 158: Scoped UI Preloads, Durable Restore Liveness, And Trace Defects
 

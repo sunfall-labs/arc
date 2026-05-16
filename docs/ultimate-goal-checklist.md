@@ -799,11 +799,10 @@ Last evidence pass: May 16, 2026.
   - Evidence: no new ADR required for the Start Action Response Codec
     extraction.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 158
-    scoped UI preload, DB durable restore liveness, Start trace defect, and
-    agent graph query robustness slice: 11 package builds, workspace
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 159
+    Start action response resource identity slice: 11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
-    273 files, 53 root test files / 965 tests, devtools-panel verify with 1
+    273 files, 53 root test files / 966 tests, devtools-panel verify with 1
     panel test file / 2 tests,
     devtools-extension verify with 1 extension test file / 20 tests, basic
     starter verify with 1 starter test file / 2 tests, React starter verify
@@ -815,9 +814,8 @@ Last evidence pass: May 16, 2026.
   - Evidence: Review 159 records Start package typecheck,
     Start/app-graph/adapters plus Devtools tests 4 files / 268 tests, DB
     reviewer verification 5 files / 190 tests, public API audit, Effect-first
-    audit over 273 files, and `git diff --check`. Full verification is still
-    recorded in the Review158 full gate above until the next root `pnpm verify`
-    pass completes.
+    audit over 273 files, and `git diff --check`. Full verification is
+    recorded in the Review159 full gate above.
 
 ## Remaining Winning-Bar Items
 
