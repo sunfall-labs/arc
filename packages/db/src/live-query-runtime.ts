@@ -17,7 +17,6 @@ import {
 import type { AnyCollection, CollectionKey } from "./collection-contract.js";
 import {
   UnsupportedLiveQuery,
-  compareRows,
   compareValue,
   evaluateQueryOperation,
   joinKey,
@@ -31,7 +30,10 @@ import {
   type QueryProjectOptions
 } from "./query-plan.js";
 import {
+  compareQueryOrderedContexts,
+  mergeQueryContextIdentities,
   projectQueryContexts,
+  querySourceContextIdentity,
   type QueryExecutionPlanBuilder
 } from "./query-execution-plan.js";
 import {
@@ -49,14 +51,10 @@ export interface LiveQueryRuntime<TResult> {
 const compareIvmContexts = <TContext extends AnyQueryContext>(
   orders: ReadonlyArray<QueryOrder<TContext>>
 ) => (left: TContext, right: TContext): number => {
-  const comparison = compareRows(left, right, 0, 0, orders);
-  if (comparison !== 0) {
-    return comparison;
-  }
-
-  return compareValue(
-    (left as IvmContext)[contextKeySymbol],
-    (right as IvmContext)[contextKeySymbol]
+  return compareQueryOrderedContexts(
+    { row: left, index: 0, identity: (left as IvmContext)[contextKeySymbol] },
+    { row: right, index: 0, identity: (right as IvmContext)[contextKeySymbol] },
+    orders
   );
 };
 
@@ -65,9 +63,6 @@ const crossJoinKey = "__effect_ui_db_all__";
 
 const collectionRowIdentity = (key: CollectionKey): string =>
   stableStringify([typeof key, key]);
-
-const sourceContextIdentity = (alias: string, key: CollectionKey): string =>
-  stableStringify([alias, typeof key, key]);
 
 type IvmRuntimeOperator = IOperator<unknown>;
 
@@ -373,7 +368,7 @@ const sourceContext = (
   crossJoinKey,
   {
     [alias]: row,
-    [contextKeySymbol]: sourceContextIdentity(alias, row.$key)
+    [contextKeySymbol]: querySourceContextIdentity(alias, row.$key)
   }
 ];
 
@@ -383,7 +378,7 @@ const mergeContexts = (left: IvmContext | null, right: IvmContext | null): IvmCo
   return {
     ...(left ?? {}),
     ...(right ?? {}),
-    [contextKeySymbol]: stableStringify([leftKey, rightKey])
+    [contextKeySymbol]: mergeQueryContextIdentities(leftKey, rightKey)
   };
 };
 

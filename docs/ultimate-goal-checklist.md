@@ -731,11 +731,11 @@ Last evidence pass: May 15, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 15, 2026 after the Review 110
-    Start Diagnostics CLI Parser Compatibility slice: 11 package builds, workspace
+  - Evidence: root `pnpm verify` passed on May 15, 2026 after the Review 111
+    Query Execution Ordering Parity slice: 11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
     225 files,
-    52 root test files / 859 tests,
+    52 root test files / 860 tests,
     devtools-panel verify with 1 panel test file / 2 tests, devtools-extension
     verify with 1 extension test file / 20 tests, basic starter verify with 1
     starter test file / 2 tests, React starter verify with 1 starter test file

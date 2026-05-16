@@ -4143,6 +4143,25 @@ describe("Query", () => {
     expect(live.evaluate()).toEqual(["Numeric Updated", "String"]);
   });
 
+  it("keeps one-shot and live ordering parity for equal sort keys", () => {
+    const Projects = Collection.define<Project>({
+      name: "Projects.query-order-parity",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "zeta", name: "Zeta", status: "active", progress: 10 },
+        { id: "alpha", name: "Alpha", status: "active", progress: 10 }
+      ]
+    });
+    const factory: Query.Factory<string> = (query) =>
+      query
+        .from({ project: Projects })
+        .orderBy(({ project }) => project.progress)
+        .select(({ project }) => project.name);
+
+    expect(Query.build(factory).execute()).toEqual(["Alpha", "Zeta"]);
+    expect(Query.live(factory).evaluate()).toEqual(["Alpha", "Zeta"]);
+  });
+
   it("deduplicates live query source ownership for self joins", () => {
     const Projects = Collection.define<Project>({
       name: "Projects.live-self-join-sources",

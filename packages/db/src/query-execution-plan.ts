@@ -1,8 +1,10 @@
+import { stableStringify } from "@effect-ui/core";
 import { Effect } from "effect";
 import {
   buildQueryContexts,
   buildQueryExecution,
   compareRows,
+  compareValue,
   evaluateQueryOperation,
   projectCurrentContext,
   querySourceAdapters,
@@ -14,6 +16,7 @@ import {
   type QueryPlanDiagnostics,
   type QueryProjectOptions
 } from "./query-plan.js";
+import type { CollectionKey } from "./collection-contract.js";
 import type { QueryCollectionSourceAdapter } from "./query-source-adapter.js";
 
 export interface QueryExecutionPlanBuilder<TContext extends AnyQueryContext, TResult>
@@ -26,6 +29,78 @@ export const queryExecutionPlanSourceAdapters = (
   builder: QueryPlanBuilder<any>
 ): ReadonlyArray<QueryCollectionSourceAdapter> =>
   querySourceAdapters(builder);
+
+export interface QueryOrderedContext<TContext extends AnyQueryContext> {
+  readonly row: TContext;
+  readonly index: number;
+  readonly identity?: string;
+}
+
+export const querySourceContextIdentity = (alias: string, key: CollectionKey): string =>
+  stableStringify([alias, typeof key, key]);
+
+export const mergeQueryContextIdentities = (
+  left: string,
+  right: string
+): string =>
+  stableStringify([left, right]);
+
+const queryContextOrderAliases = (
+  builder: QueryPlanBuilder<any>
+): ReadonlyArray<string> => {
+  const joinAliases = new Set(builder.joins.map((join) => join.alias));
+  return [
+    ...builder.sources
+      .filter(([alias]) => !joinAliases.has(alias))
+      .map(([alias]) => alias),
+    ...builder.joins.map((join) => join.alias)
+  ];
+};
+
+const rowKey = (value: unknown): CollectionKey | undefined =>
+  typeof value === "object" && value !== null && "$key" in value
+    ? (value as { readonly $key: CollectionKey }).$key
+    : undefined;
+
+export const queryContextOrderIdentity = (
+  builder: QueryPlanBuilder<any>,
+  context: AnyQueryContext
+): string | undefined => {
+  let identity: string | undefined;
+  for (const alias of queryContextOrderAliases(builder)) {
+    const key = rowKey(context[alias]);
+    if (key === undefined) {
+      continue;
+    }
+
+    const sourceIdentity = querySourceContextIdentity(alias, key);
+    identity = identity === undefined
+      ? sourceIdentity
+      : mergeQueryContextIdentities(identity, sourceIdentity);
+  }
+
+  return identity;
+};
+
+export const compareQueryOrderedContexts = <TContext extends AnyQueryContext>(
+  left: QueryOrderedContext<TContext>,
+  right: QueryOrderedContext<TContext>,
+  orders: ReadonlyArray<QueryPlanBuilder<TContext>["orders"][number]>
+): number => {
+  const ordered = compareRows(left.row, right.row, 0, 0, orders);
+  if (ordered !== 0) {
+    return ordered;
+  }
+
+  if (left.identity !== undefined && right.identity !== undefined) {
+    const identity = compareValue(left.identity, right.identity);
+    if (identity !== 0) {
+      return identity;
+    }
+  }
+
+  return left.index - right.index;
+};
 
 /** Projects already-built query contexts through the plan's remaining stages. */
 export const projectQueryContexts = <TContext extends AnyQueryContext, TResult>(
@@ -44,8 +119,13 @@ export const projectQueryContexts = <TContext extends AnyQueryContext, TResult>(
 
   if (shouldOrder && builder.orders.length > 0) {
     filtered = filtered
-      .map((row, index) => ({ row, index }))
-      .sort((left, right) => compareRows(left.row, right.row, left.index, right.index, builder.orders))
+      .map((row, index) => {
+        const identity = queryContextOrderIdentity(builder, row);
+        return identity === undefined
+          ? { row, index }
+          : { row, index, identity };
+      })
+      .sort((left, right) => compareQueryOrderedContexts(left, right, builder.orders))
       .map(({ row }) => row);
   }
 

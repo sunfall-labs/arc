@@ -11,9 +11,45 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 110, immediately after Review 109. Some older review
+The newest review is Review 111, immediately after Review 110. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 111: Query Execution Ordering Parity
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- DB Query Execution Plan: `packages/db/src/query-execution-plan.ts` now owns
+  the stable tie-break identity used when explicit `orderBy(...)` selectors
+  compare equal. The identity is built from collection alias and row key in the
+  same base-source/join order that the live IVM graph uses.
+- Live Query Runtime: `packages/db/src/live-query-runtime.ts` now delegates
+  equal-order comparison, source context identity, and merged context identity
+  to the Query Execution Plan Module instead of keeping a live-only fallback
+  that could drift from one-shot execution.
+- Behavior fix: one-shot `Query.build(...).execute()` and
+  `Query.live(...).evaluate()` now agree for equal sort keys. Callers that need
+  domain-specific ordering should add another `orderBy(...)`; otherwise both
+  engines use the same deterministic row-identity fallback.
+- Regression coverage: added a DB query test that previously failed with
+  `["Zeta", "Alpha"]` for one-shot execution while live evaluation produced
+  `["Alpha", "Zeta"]`.
+
+Focused verification: `pnpm --filter @effect-ui/db typecheck`, `pnpm
+--filter @effect-ui/db build`, `pnpm vitest run
+packages/db/test/collection.test.ts -t "one-shot and live ordering
+parity|ordered live query windows|grouped aggregate ordered windows"` (1 file /
+3 selected tests), `pnpm vitest run packages/db/test/collection.test.ts` (1 file
+/ 102 tests), `pnpm vitest run packages/db/test/live-query-collection.test.ts`
+(1 file / 27 tests), `pnpm audit:effect-first` over 225 files, and `git diff
+--check` passed. Full `pnpm verify` passed: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 225 files, 52 root test files / 860 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, project-console packaging/typecheck/
+tests/build with 4 files / 27 tests, and leak scans.
 
 ## Review 110: Start Diagnostics CLI Parser Compatibility
 

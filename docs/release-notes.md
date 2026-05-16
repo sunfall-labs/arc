@@ -70,7 +70,7 @@ Latest full gate on May 15, 2026:
 - workspace typecheck and public type tests;
 - public API inventory audit;
 - Effect-first audit over 225 package/example/script/type-test files;
-- 52 root test files / 859 tests;
+- 52 root test files / 860 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
 - basic starter verify with 1 starter test file / 2 tests;
@@ -104,6 +104,9 @@ Latest full gate on May 15, 2026:
   one-shot execution, diagnostics, live-query source/preload policy, and final
   projection stages now share one plan policy while Query Builder remains the
   immutable DSL and Live Query Runtime remains focused on IVM graph mechanics.
+- Review 111 deepened that Query Execution Plan seam so one-shot and live
+  queries share the same deterministic row-identity tie-break when explicit
+  `orderBy(...)` selectors compare equal.
 - Review 85 extracted the internal Solid Route Render Scope Controller:
   `RouterOutlet` now delegates route branch rendering, route-owned `UiScope`
   creation, Solid root cleanup, runtime-bound route finalizers, transition
