@@ -648,7 +648,7 @@ Last evidence pass: May 16, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Evidence: `pnpm verify` ran all root package tests: 53 test files, 901
+  - Evidence: `pnpm verify` ran all root package tests: 53 test files, 908
     tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
@@ -791,10 +791,10 @@ Last evidence pass: May 16, 2026.
   - Evidence: no new ADR required for the Start Action Response Codec
     extraction.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 150
-    public Adapter hover and package payload gate slice: 11 package builds,
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 151
+    Core state presence, source package gate, and DB/Start seam slice: 11 package builds,
     workspace typecheck, type tests, public API inventory audit, Effect-first
-    audit over 259 files, 53 root test files / 901 tests,
+    audit over 259 files, 53 root test files / 908 tests,
     devtools-panel verify with 1 panel test file / 2 tests, devtools-extension
     verify with 1 extension test file / 20 tests, basic starter verify with 1
     starter test file / 2 tests, React starter verify with 1 starter test file

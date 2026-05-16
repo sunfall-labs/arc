@@ -78,8 +78,9 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     142 runtime locality and verification pin closure, Review 143 stale
     StartAction invalidation and audit guardrails, Review 144 collection
     locality and router type pins, and Review 145 starter copyability/runtime
-    guardrails, through Review 150 public adapter hovers and package payload
-    gates.
+    guardrails, Review 150 public adapter hovers and package payload gates,
+    and Review 151 Core state presence, source package gates, and DB/Start
+    seams.
 
 ## Current Sweep Results
 
@@ -589,6 +590,11 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   AST-based public type-test coverage, `Promise.try`/`Promise.withResolvers`
   guardrails, generated starter tarball dry-runs with local package Adapters,
   and the expanded 16-target package payload gate.
+- Added Review 151 evidence for standalone generated starter READMEs,
+  workspace-only devtools source package wording, package-root SQLite helpers
+  and `SQLitePersistenceInvalidRow`, duplicate collection-definition failures,
+  root-contained generated route output, the Effect RPC endpoint descriptor,
+  React/React-DB package hygiene coverage, and the 908-test root suite count.
 - Left older checkpoint counts in place only where they explicitly describe
   historical evidence from that checkpoint; current verification counts are
   recorded in the verification gate and progress ledger.

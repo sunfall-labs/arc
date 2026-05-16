@@ -4985,6 +4985,97 @@ project-console build, and leak scan. The DB/Solid DB raw schema-error grep,
 source Promise-method grep, and immutable flag audit were clean after
 verification.
 
+## Review 151: Core State Presence, Source Package Gates, And DB/Start Seams
+
+Review151 fixed the next set of fresh sweep findings from the Core, DB, Start,
+docs/LSP, and example packaging passes.
+
+1. Generated Starter And Source Package Gates
+   - Status: fixed.
+   - Files: `scripts/package-project-console-starter.mjs`,
+     `scripts/verify-package-dry-runs.mjs`, `docs/starter.md`,
+     `docs/example-copyability-and-leak-audit.md`.
+   - Problem: generated starter READMEs still described workspace workflows,
+     generated starter tarball checks only proved that some local package was
+     present, and the package dry-run gate called devtools examples copyable
+     even though they remain workspace examples.
+   - Fix: generated basic, React, and project-console starter READMEs now use
+     standalone commands. Starter tarball dry-runs prove the exact expected
+     `.effect-ui-packages/*` directories and required `dist/index.*` files are
+     present, and reject unknown/unreferenced local adapters. Devtools panel and
+     extension dry-runs are labeled workspace source packages.
+
+2. Core Previous-Value Presence And Runtime Store Hover
+   - Status: fixed.
+   - Files: `packages/core/src/action-submission.ts`,
+     `packages/core/src/resource-ui-binding.ts`, `packages/core/src/runtime.ts`,
+     `type-tests/core.test-d.ts`.
+   - Problem: `undefined` successful values were indistinguishable from no
+     previous action/resource value, and `withResourceStore(...)` was an
+     expert-public request-runtime seam without LSP-facing docs/type pins.
+   - Fix: action pending/failure state and Resource UI pending/failure metadata
+     now carry `hasPrevious`. `withResourceStore(...)` has hover docs and type
+     tests that pin the request-local Resource Store Adapter seam.
+
+3. DB/Start Collection Identity And SQLite Row Validation
+   - Status: fixed.
+   - Files: `packages/db/src/collection-persistence.ts`,
+     `packages/db/src/sqlite-persistence.ts`,
+     `packages/start/src/start-collection-resolution.ts`,
+     `packages/start/src/start-request-preload.ts`,
+     `packages/start/src/hydration.ts`, `docs/db.md`.
+   - Problem: duplicate collection names could silently select the wrong
+     definition during Start preload/hydration, and SQLite statement rows were
+     coerced with `String(...)`/`Number(...)` instead of validated at the
+     Adapter boundary.
+   - Fix: DB hydration planning and Start collection resolution now reject
+     duplicate same-name definitions before applying payloads. SQLite statement
+     rows fail as `SQLitePersistenceInvalidRow` unless string and finite-number
+     fields match the persistence row contract exactly.
+
+4. Start Route Output, Hydration Generics, And Effect RPC Hovers
+   - Status: fixed.
+   - Files: `packages/start/src/generated-route-definitions.ts`,
+     `packages/start/src/start-manifest-wall.ts`,
+     `packages/start/src/vite.ts`,
+     `packages/start/src/effect-rpc-compat.ts`,
+     `type-tests/start.test-d.ts`, `type-tests/start-vite.test-d.ts`.
+   - Problem: generated route output could escape the Vite root, the streamed
+     hydration sync facade put runtime services in the runtime-error generic,
+     and the Effect RPC endpoint/procedure descriptor seam was under-documented.
+   - Fix: generated route file writes reject outside-root output paths with
+     `FileRouteDefinitionsOutputPathError`. `hydrateStartHydrationChunks(...)`
+     now preserves runtime services and runtime errors separately. Effect RPC
+     endpoint, procedure, and artifact descriptors carry field-level JSDoc and
+     public type pins.
+
+5. Adapter, Package Hygiene, And Docs Coverage
+   - Status: fixed.
+   - Files: `type-tests/start-adapters.test-d.ts`,
+     `type-tests/db.test-d.ts`, `docs/package-hygiene-audit.md`,
+     `docs/public-api-inventory.md`, `docs/type-test-coverage-audit.md`.
+   - Problem: root Start adapter facade type coverage did not pin low-level
+     Node/fetch paths, DB SQLite package-root exports were thinner than docs
+     implied, and package hygiene docs omitted React and React-DB direct import
+     sweeps.
+   - Fix: Start adapter type tests now cover Effect handlers and Node callback
+     facade runtime requirements. DB type tests pin package-root SQLite helpers
+     and errors. Package hygiene docs name React and React-DB dependencies.
+
+Focused verification passed: Core/DB/Start typechecks, public type tests,
+public API audit, Effect-first audit over 259 files, Core action/resource UI
+tests 2 files / 38 tests, DB collection/SQLite tests 2 files / 118 tests,
+Start tests 1 file / 140 tests, generated starter packaging/verifies at
+19/24/30 app files with 5/4/6 local packages, generated README workspace-token
+grep, 16-target package dry-run gate, and `git diff --check`. Full `pnpm
+verify` passed: 11 package builds, workspace typecheck, public type tests,
+public API audit, Effect-first audit over 259 files, 53 root test files / 908
+tests, devtools-panel verify with 2 tests, devtools-extension verify with 20
+tests, basic starter verify with 2 tests, React starter verify with 3 tests,
+generated starter-suite packaging/verifies for basic/react/project-console,
+16-target package dry-run gate, project-console typecheck, 4 project-console
+test files / 27 tests, project-console build, and leak scan.
+
 ## Review 30: Transport Requirements, Resource Load Errors, And Detached Panels
 
 1. Start Action Transport Status And Runtime Locality

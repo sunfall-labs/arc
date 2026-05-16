@@ -65,13 +65,13 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 150:
+Latest full gate on May 16, 2026 after Review 151:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
 - Effect-first audit over 259 package/example/config/script/type-test files;
-- 53 root test files / 901 tests;
+- 53 root test files / 908 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
 - basic starter verify with 1 starter test file / 2 tests;
@@ -874,13 +874,12 @@ Latest full gate on May 16, 2026 after Review 150:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 150 closed Start Adapter
-  hovers, AST-based public type-test coverage, Promise factory guardrails,
-  generated starter tarball local-package inclusion, and the 16-target package
-  payload gate:
+- The latest full `pnpm verify` passed after Review 151 closed Core state
+  presence, source package gates, DB/Start collection identity, SQLite row
+  validation, generated route output containment, and Effect RPC hover coverage:
   11 package builds, workspace typecheck, public type tests, public API
   inventory audit, Effect-first audit over 259 files, 53 root test
-  files / 901 tests,
+  files / 908 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,
   generated starter-suite packaging/verifies for basic/react/project-console,

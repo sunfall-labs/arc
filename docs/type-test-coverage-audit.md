@@ -40,6 +40,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
   out of the root export. Resource read-boundary type tests also pin
   `ResourcePending.hasPrevious` and `ResourceFailure.hasPrevious` so LSP hovers
   distinguish a successful `undefined` previous value from no previous value.
+- Core action/resource UI type tests now pin `withResourceStore(...)` as the
+  expert-public request-runtime seam, `ActionSubmissionState.hasPrevious` for
+  successful `undefined` previous values, and `ResourceUiMatch` pending/failure
+  metadata for renderer adapters.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them
@@ -60,6 +64,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
 - The root `@effect-ui/start/adapters` compatibility facade now has an explicit
   `createFetchHandler(...)` type pin and the same serviceful-handler
   runtime-required negative assertion as `@effect-ui/start/fetch-adapter`.
+- The root `@effect-ui/start/adapters` facade also pins low-level Fetch and
+  Node Effect handlers plus Node callback facades, including the runtime option
+  requirement for serviceful Node server handlers.
 - Promise/callback-shaped Start host facade type tests pin that non-Scope
   handler requirements require a typed runtime, while request Scope remains
   facade-owned.
@@ -103,6 +110,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
   their `E/R` parameters are explicit.
 - DB multi-collection flush and background sync type tests pin
   `CollectionSnapshotCodecError` in the coordination error channel.
+- DB root type tests pin package-root SQLite helpers, the `SQLitePersistence`
+  namespace, statement database contracts, persisted row shape, and
+  `SQLitePersistenceInvalidRow` so adapter packages can import the SQLite seam
+  without relying on `Collection.*` aliases.
 - Start request traces remain structurally assignable to
   `DevtoolsRequestTrace`, including the richer teardown timestamps, duration,
   and before/after Resource Store snapshots added during the request trace
@@ -112,6 +123,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
   feed devtools without introducing a package dependency.
 - Start endpoint type tests pin the shared transport endpoint helpers used by
   request handlers, RPC clients, action clients, and progressive action forms.
+- Start hydration and Effect RPC type tests pin
+  `hydrateStartHydrationChunks(...)` runtime-service generics,
+  `startEffectRpcEndpointDescriptor(...)`, endpoint descriptors, and procedure
+  schema-presence descriptors.
 - Start action form type tests pin schema-backed form input encoding and the
   `StartActionFormEncodeError` sync facade.
 - Devtools panel contract type tests pin `normalizeDevtoolsPanels(...)`, the
