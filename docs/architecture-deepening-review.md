@@ -12,9 +12,163 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review161, immediately after Review160. Some older review entries remain below
+Review162, immediately after Review161. Some older review entries remain below
 it from prior ledger merges; use this tip rather than file order alone when
 looking for the latest architecture sweep.
+
+## Review 162: Resource Lifetimes, DB Snapshot Planning, Start Host Cancellation, And Docs
+
+Review162 fixed fresh findings from post-Review161 subagent sweeps across
+Core/UI, DB, Start, and public guardrails.
+
+1. Core Resource Result Lifetime
+   - Status: fixed.
+   - Files: `packages/core/src/resource-runtime.ts`,
+     `packages/core/src/resource-ui-binding.ts`,
+     `packages/core/test/resource.test.ts`,
+     `packages/core/test/resource-ui-binding.test.ts`,
+     `packages/react/test/hooks.test.ts`,
+     `packages/solid/test/hooks.test.ts`.
+   - Problem: deleting or garbage-collecting a Resource entry reset and then
+     removed the entry. Existing `Resource.result(ref)` subscribers in React
+     and Solid stayed attached to the orphaned signal when the same ref loaded
+     again.
+   - Fix: Core now keeps the public result signal stable for a ref while
+     clearing the owned lifecycle work around it. The shared Suspense preload
+     controller also clears completed same-ref host tokens before a reload.
+   - Benefits: adapter subscriptions follow the Resource Interface by ref
+     identity instead of leaking the internal store-entry lifetime Seam.
+
+2. React Route Render Scope Failures
+   - Status: fixed.
+   - Files: `packages/react/src/route-render-scope.ts`,
+     `packages/react/test/router.test.ts`.
+   - Problem: React route render created a route `UiScope` during render and
+     only disposed it from effect cleanup, which never runs when render throws
+     before commit.
+   - Fix: the React Route Render Scope Controller now disposes the route scope
+     through the runtime when branch render throws, then rethrows to the host
+     ErrorBoundary.
+   - Benefits: React matches Solid's route lifetime Locality and does not leak
+     route-owned finalizers from failed render attempts.
+
+3. React/Solid Public Hook Type Pins
+   - Status: fixed.
+   - Files: `type-tests/react.test-d.ts`, `type-tests/solid.test-d.ts`,
+     `type-tests/public-api.manifest.json`,
+     `docs/public-api-inventory.md`.
+   - Problem: focused package type tests under-pinned public hook Interfaces,
+     relying too much on a broad cross-package framework test for LSP-facing
+     coverage.
+   - Fix: package-local type tests now directly import and exercise action,
+     resource, program, signal, stream, runtime, handle, and options symbols
+     required by the public API manifest.
+   - Benefits: CI keeps hover/discoverability coverage local to the adapter
+     package that owns each Interface.
+
+4. DB Durable Snapshot Planning
+   - Status: fixed.
+   - Files: `packages/db/src/collection-definition-snapshot.ts`,
+     `packages/db/src/collection-persistence.ts`,
+     `packages/db/src/live-query-collection.ts`,
+     `packages/db/src/live-query-collection-materialization.ts`,
+     `packages/db/test/live-query-collection.test.ts`.
+   - Problem: multi-collection dehydration and live-query collection
+     materialization flattened/acquired durable source permits in separate
+     places and orders. Public snapshot payloads could drift from the single
+     durable snapshot Interface.
+   - Fix: a shared durable snapshot planning Module now expands transitive
+     writable sources, dedupes by definition identity, sorts permits
+     deterministically, and is used by public snapshot/dehydrate/persist paths.
+   - Benefits: source snapshot ordering lives behind one Seam and concurrent
+     derived snapshots cannot acquire the same source permits in opposite order.
+
+5. DB Snapshot Interface And Diagnostics
+   - Status: fixed.
+   - Files: `packages/db/src/collection-change-feed-runtime.ts`,
+     `packages/db/src/query-plan.ts`,
+     `packages/db/src/live-query-runtime.ts`,
+     `packages/db/src/index.ts`,
+     `packages/db/src/collection-contract.ts`,
+     `docs/db.md`,
+     `packages/db/test/collection.test.ts`,
+     `packages/db/test/sync-adapter.test.ts`.
+   - Problem: synchronous `snapshot()`/`dehydrate()` docs overstated durable
+     persistence semantics, change-feed defect/interruption failures could
+     publish `undefined`, and invalid query key encoding could escape the
+     expected join/aggregate operation error Seam.
+   - Fix: sync snapshot docs now describe inspection-only semantics while
+     Effect forms are named as durable workflows. Change-feed failure events
+     squash non-fail Causes into meaningful diagnostics. Join and group key
+     encoding are wrapped as `QueryEvaluationError` with the correct operation.
+   - Benefits: DB Interfaces now describe their durability boundary honestly
+     and diagnostics preserve the operation that owns failures.
+
+6. Start Host Disconnect Cancellation
+   - Status: fixed.
+   - Files: `packages/start/src/start-host-runtime-runner.ts`,
+     `packages/start/src/node-web-exchange.ts`,
+     `packages/start/src/node-adapter.ts`,
+     `packages/start/src/vite.ts`,
+     `packages/start/test/adapters.test.ts`.
+   - Problem: Node/Vite callback Adapters forked request Effects without
+     retaining a typed fiber handle, and Node request conversion did not attach
+     an `AbortSignal`. Client disconnects before response creation could leave
+     SSR/RPC/action work running detached.
+   - Fix: the Start host fork runner now returns typed fibers, Node exchanges
+     create per-request lifecycle signals, and Node/Vite callback Adapters
+     interrupt the forked Effect on disconnect with listener cleanup on normal
+     completion.
+   - Benefits: pre-response request lifecycle is owned by the host Adapter
+     instead of being a detached fire-and-forget Effect.
+
+7. Start Route Artifact Hot Updates
+   - Status: fixed.
+   - Files: `packages/start/src/vite.ts`, `packages/start/test/start.test.ts`,
+     `docs/generated-artifact-audit.md`.
+   - Problem: the written `routeTree.gen.ts` artifact updated at startup/build
+     but did not refresh or invalidate related virtual modules when file routes
+     were added, removed, or renamed during a Vite dev session.
+   - Fix: the Vite plugin now refreshes generated route artifacts from the same
+     lifecycle helper and invalidates Start route/app-graph virtual modules from
+     `handleHotUpdate(...)` when files under the configured route directory
+     change.
+   - Benefits: generated file and virtual route Modules now stay aligned during
+     dev, preserving the editor-facing route Interface.
+
+8. Current-Facing Guardrails
+   - Status: fixed.
+   - Files: `docs/generated-artifact-audit.md`,
+     `docs/public-api-inventory.md`,
+     `docs/sharp-cast-audit.md`,
+     `scripts/verify-package-dry-runs.mjs`,
+     `type-tests/public-api.manifest.json`.
+   - Problem: current-facing docs and package dry-run pins lagged the Review161
+     verification reality and did not fully pin generated starter/project
+     artifacts or React action handle docs.
+   - Fix: generated artifact, public API, and sharp-cast docs now point at the
+     current review ledgers; package dry-runs require project-console's
+     load-bearing generated/support files; React `ActionHandle` is manifest
+     pinned.
+   - Benefits: review and packaging guardrails now describe the files and
+     Interfaces CI actually protects.
+
+Focused verification passed across the Review162 slices: Core, React, Solid,
+DB, and Start package typechecks; public type tests; public API inventory
+audit; Effect-first audit over 274 files; Core/React/Solid focused tests 5
+files / 109 tests; DB focused tests 3 files / 183 tests; Start focused tests 5
+files / 215 tests; package dry-run gate; and `git diff --check`.
+
+Full `pnpm verify` passed after Review162: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 274 files, 53 root test files / 987 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, generated starter-suite
+packaging/verifies for basic/react/project-console at 19/24/30 app files with
+5/4/6 local packages, 16-target package dry-run gate, project-console
+typecheck, 4 project-console test files / 27 tests, project-console build, and
+leak scans. Fresh post-fix sweeps still need to run before the clean-sweep
+counter can start.
 
 ## Review 161: Durability, Diagnostics, React Action Values, And Guardrails
 

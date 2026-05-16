@@ -43,18 +43,28 @@ repeating stale package/test totals.
   - The project-console source payload also pins the generated manifest support
     module `src/virtual-manifest-types.ts` plus the Start/domain files that make
     those generated artifacts meaningful to editors and starter consumers.
+- Vite dev route updates
+  - `effectUiStart(...)` rewrites the generated route definitions file and
+    invalidates route/app-graph virtual modules when route files under the
+    configured route directory change during dev.
 
 ## Verification Evidence
 
 - `pnpm exec vitest run packages/start/test/file-routes.test.ts packages/start/test/file-route-modules.test.ts packages/start/test/server-function-manifest.test.ts packages/start/test/action-manifest.test.ts packages/start/test/app-graph.test.ts`
   passed after the audit.
 - `pnpm --filter @effect-ui/start typecheck` passed after the audit.
-- Review161 full `pnpm verify` passed after the latest generated-artifact
+- Review161 full `pnpm verify` passed after the generated-artifact
   guardrail refresh: 11 package builds, workspace typecheck, public type tests,
   public API inventory audit, Effect-first audit over 274 files, 53 root test
   files / 977 tests, devtools-panel and devtools-extension verifies, starter
   verifies, generated starter-suite packaging/verifies, 16-target package
   dry-run gate, project-console typecheck/tests/build, and leak scans.
+- Review162 focused Start verification added the dev hot-update artifact
+  regression: 5 Start test files / 215 tests plus Start package typecheck and
+  public type tests.
+- Review162 full `pnpm verify` passed with 53 root test files / 987 tests,
+  generated starter-suite packaging/verifies at 19/24/30 app files, and the
+  16-target package dry-run gate.
 
 ## Follow-Up
 
