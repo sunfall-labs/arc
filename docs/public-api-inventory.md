@@ -70,8 +70,10 @@ declaration groups must be reachable from a package export or re-exported
 source module, and those declarations must keep JSDoc for LSP hovers. Together
 these checks keep hover/LSP docs from drifting away from exported source files.
 The curated hover declarations currently cover the Core Program,
-browser-router/router Adapter, Start diagnostics surfaces, and every curated
-Start fetch/Node Adapter overload/implementation declaration. The broad
+browser-router/router Adapter, Start diagnostics surfaces, every curated Start
+fetch/Node Adapter overload/implementation declaration, and the DB Collection
+contract, Query plan, flush/background-sync, reactive binding, server
+collection, and SQLite persistence seams. The broad
 `type-tests/framework.test-d.ts` file remains as cross-package integration
 coverage.
 

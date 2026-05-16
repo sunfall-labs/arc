@@ -65,18 +65,16 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 178:
+Latest full gate on May 16, 2026 after Review 182:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 403 package/example/config/script/type-test/generated
+- Effect-first audit over 404 package/example/config/script/type-test/generated
   template/docs-snippet physical and virtual files;
-- 53 root test files / 1031 tests;
-- devtools panel verify with 1 panel test file / 2 tests;
-- devtools extension verify with 1 extension test file / 20 tests;
-- basic starter verify with 1 starter test file / 2 tests;
-- React starter verify with 1 starter test file / 3 tests;
+- 53 root test files / 1033 tests;
+- package-level verifies for the devtools panel, devtools extension, basic
+  starter, React starter, and project console packages;
 - starter-suite packaging for basic (19 app files / 5 local packages), React
   (24 app files / 4 local packages), and project console (30 app files / 6
   local packages);
@@ -131,6 +129,22 @@ Latest full gate on May 16, 2026 after Review 178:
   React and Solid now consume Core `browserRouterInitialMatchedState(...)` so
   server rendering and host hydration start matched routes ready, while
   client-only browser mounts can still start pending.
+- Review 179 closed verification guardrail gaps: the Effect-driven root
+  verifier now derives package-level verify targets from package manifests,
+  package dry-runs require concrete source-map artifacts, source packages must
+  declare `verify` scripts, and public subpath `sourceSurface` manifests are
+  checked.
+- Review 180 classified the DB top-level creation helpers as compatibility
+  aliases for the namespace-owned `Collection` and `Query` APIs, with
+  deprecation JSDoc plus public type-test and manifest pins.
+- Review 181 closed adapter runtime locality blockers: React `useScoped(...)`
+  now runs construction inside the active Runtime Spine, and Solid browser
+  routers no longer start browser preload/navigation work during non-browser
+  construction.
+- Review 182 closed the DB public hover-doc and expert Interface pins:
+  Collection contract types, Query plan diagnostics, flush/background-sync
+  results, reactive binding helpers, server collection adapters, and SQLite
+  persistence helpers are now covered by LSP docs and focused public API pins.
 - Review 167 closed shared Core route render identity for React/Solid route
   `UiScope` lifetimes, same-ref Resource preload failure cleanup after manual
   prefetch/refresh retry, detached Start agent graph facts, and React/Solid DB
@@ -964,17 +978,16 @@ Latest full gate on May 16, 2026 after Review 178:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 178 closed the Browser
-  Router Initial Matched State cleanup. Fresh no-new-improvement sweeps still
-  need to start before any clean-sweep count can start.
+- The latest full `pnpm verify` passed after Review 182 closed the DB public
+  hover-doc and expert Interface pins. A fresh no-actionable-findings sweep
+  still needs to run before any clean-sweep count can start.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 403 physical/virtual files, 53 root test files / 1031 tests,
-  devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
-  basic starter verify with 2 tests, React starter verify with 3 tests,
+  Effect-first audit over 404 physical/virtual files, 53 root test files / 1033
+  tests, package-level verifies for the devtools/starter/example packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
-  16-target package dry-run gate, project-console typecheck, 4 project-console test
-  files / 27 tests, build, and leak scans.
+  16-target package dry-run gate, project-console typecheck, 4 project-console
+  test files / 27 tests, build, and leak scans.
 - The previous full `pnpm verify` passed after Review 64 store-owned Resource
   load ownership, Start stream/manifest walls, DB hydration/dehydrate preflight,
   Devtools runtime-only causal facts, and panel row identity fixes: 9 package

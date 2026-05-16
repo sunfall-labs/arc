@@ -12,10 +12,197 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review178, after the Review177 Runtime UI Scope Frame cleanup.
-Some older review entries remain below
-it from prior ledger merges; use this tip rather than file order alone when
-looking for the latest architecture sweep.
+Review182, the DB Hover Docs and Expert Interface Pins cleanup. Some older
+review entries remain below it from prior ledger merges; use this tip rather
+than file order alone when looking for the latest architecture sweep.
+
+The latest subagent sweep closed all findings it raised: the Start,
+verification, and docs pass reported no actionable issue; the Core/React/Solid
+pass raised the two Review181 blockers; and the DB pass raised the public DB
+Interface and LSP hover-doc coverage closed in Review182. Do not start the
+clean-sweep counter until a fresh full sweep finds no actionable Module,
+Interface, Seam, Adapter, Locality, Depth, or Leverage work.
+
+## Review 182: DB Hover Docs And Expert Interface Pins
+
+Review182 fixed the DB public Interface and LSP hover-doc findings from the
+fresh post-Review180 subagent sweep.
+
+1. DB Public Hover Docs
+   - Status: fixed.
+   - Files: `packages/db/src/collection-contract.ts`,
+     `packages/db/src/query-plan.ts`, `packages/db/src/flush-policy.ts`,
+     `packages/db/src/sqlite-persistence.ts`,
+     `scripts/public-api-symbol-policy.mjs`, `docs/public-api-inventory.md`.
+   - Problem: important public DB contract declarations were exported and
+     type-tested, but many of the types users and agents hover in editors did
+     not explain their role. Collection keys/origins, pending mutations,
+     store/diagnostic records, Query plan diagnostics, flush/background-sync
+     result types, and SQLite statement params were public Interfaces without
+     enough declaration-site guidance.
+   - Fix: added concise JSDoc to the public Collection contract, Query plan,
+     flush/background-sync, and SQLite persistence declarations. The public
+     symbol policy now curates DB hover-doc groups for Collection contract
+     types, Query plan diagnostics, flush/background-sync result types,
+     collection reactive binding helpers, server collection adapters, and
+     SQLite persistence helpers.
+   - Benefits: the DB root has better Locality for LSP documentation. Editors,
+     generated docs, and agent tools now see the purpose of the expert-public
+     Interfaces at the declaration that owns them.
+
+2. DB Expert-Public Adapter Pins
+   - Status: fixed.
+   - Files: `type-tests/db.test-d.ts`,
+     `type-tests/public-api.manifest.json`, `docs/public-api-inventory.md`.
+   - Problem: reactive binding, server collection, background flush, and
+     SQLite adapter exports were public enough for integrations, but the
+     focused DB type test did not pin the full expert-public surface. That made
+     accidental API drift easier than it should be for downstream adapter
+     authors.
+   - Fix: expanded the DB type test and public API manifest to directly import
+     and exercise collection reactive binding helpers, server collection
+     helpers/errors/options, flush/background-sync result surfaces, and SQLite
+     prepared-statement helpers.
+   - Benefits: the DB package now has stronger executable coverage for its
+     public Adapter seams. Release decisions in the inventory match the actual
+     import surface.
+
+Focused verification passed for Review182: `pnpm audit:public-api`, `pnpm
+typecheck:types`, `pnpm --filter @effect-ui/db typecheck`, and `pnpm
+audit:effect-first`.
+
+Full `pnpm verify` passed after Review182 through the Effect-driven runner: 11
+package builds, workspace typecheck, public type tests, public API inventory
+audit, Effect-first audit over 404 physical/virtual
+package/example/config/script/type-test/generated/docs files, 53 root test
+files / 1033 tests, package-level verifies, generated starter packaging for
+basic/react/project-console, 16-target package dry-run gate, project-console
+typecheck, 4 project-console test files / 27 tests, project-console build, and
+leak scans.
+
+## Review 181: Adapter Runtime Locality
+
+Review181 fixed the Core/React/Solid blockers from the fresh post-Review180
+subagent sweep.
+
+1. React Scoped Hook Runtime Spine
+   - Status: fixed.
+   - Files: `packages/react/src/runtime.ts`,
+     `packages/react/test/hooks.test.ts`.
+   - Problem: `useScoped(...)` installed only the `UiScope` while constructing
+     scoped work. Work created during that synchronous construction could miss
+     the React provider's Runtime Spine even though it lived inside the adapter
+     scope.
+   - Fix: `useScoped(...)` now captures the active React runtime and runs the
+     construction callback inside both `runWithRuntime(...)` and
+     `runWithScope(...)`. The regression proves a scoped construction can read
+     provider-owned Resource state.
+   - Benefits: React component scopes now keep runtime ownership local to the
+     React Adapter. Callers do not have to re-provide services that the
+     provider already owns.
+
+2. Solid Browser Router Server Construction
+   - Status: fixed.
+   - Files: `packages/solid/src/router.ts`,
+     `packages/solid/test/router.test.ts`.
+   - Problem: `createBrowserRouter(...)` started navigation/preload work during
+     server or non-browser construction. That leaked Browser Router host work
+     across the Adapter boundary before a browser host existed.
+   - Fix: the Solid adapter starts the browser-router controller only when
+     `canUseBrowser()` is true. In non-browser construction the controller
+     remains ready and inert, with a no-op stop function.
+   - Benefits: browser-only navigation and preload Effects stay local to the
+     browser Adapter. Server construction can create router state without
+     performing host work.
+
+Focused verification passed for Review181: React and Solid hook/router
+regressions with `pnpm exec vitest run packages/react/test/hooks.test.ts
+packages/solid/test/router.test.ts`, `pnpm typecheck:types`, React and Solid
+package typechecks, and `pnpm audit:effect-first`.
+
+Full `pnpm verify` passed after Review181 through the Effect-driven runner: 11
+package builds, workspace typecheck, public type tests, public API inventory
+audit, Effect-first audit, 53 root test files / 1033 tests, package-level
+verifies, generated starter packaging, 16-target package dry-run gate,
+project-console checks, and leak scans.
+
+## Review 180: DB Interface Pins
+
+Review180 fixed the first DB public Interface finding from the fresh
+post-Review179 review.
+
+1. DB Namespace Alias Decision
+   - Status: fixed.
+   - Files: `packages/db/src/index.ts`, `type-tests/db.test-d.ts`,
+     `type-tests/public-api.manifest.json`, `docs/public-api-inventory.md`.
+   - Problem: `createCollection`, `createLiveQuery`, and
+     `createLiveQueryCollection` existed as top-level public aliases, but the
+     docs and focused type tests did not clearly classify them. That made the
+     DB Interface shallower than the namespace-owned `Collection` and `Query`
+     APIs users should discover first.
+   - Fix: documented the aliases as compatibility exports with deprecation
+     JSDoc pointing to `Collection.define(...)`, `Query.live(...)`, and
+     `Collection.liveQuery(...)`. The DB type test and public API manifest now
+     pin those aliases directly.
+   - Benefits: the namespace-owned APIs keep better Depth and LSP discoverable
+     ownership, while existing app code keeps a tested compatibility path.
+
+Focused verification for the DB Interface pins was covered by the public API
+audit and type-test gates, and the later Review182 full `pnpm verify` covered
+the resulting DB root surface.
+
+## Review 179: Verification Guardrails
+
+Review179 fixed the verification and package-gate findings from the fresh
+post-Review178 review.
+
+1. Workspace Verification Plan
+   - Status: fixed.
+   - Files: `scripts/workspace-verification-plan.mjs`,
+     `scripts/verify.mjs`, `docs/public-api-inventory.md`.
+   - Problem: the Effect-driven root verifier still hard-coded the list of
+     example/starter package verifies. A new copyable package with a local
+     `verify` script could be skipped unless the root plan was manually
+     updated.
+   - Fix: added an Effect-backed Workspace Verification Plan Module that
+     discovers package manifests, selects packages with non-empty `verify`
+     scripts, applies stable display labels, and feeds that list into
+     `scripts/verify.mjs`.
+   - Benefits: package-level verification has better Leverage and Locality.
+     Adding a package-level verify script now automatically includes the
+     package in the root Effect v4 verification command.
+
+2. Package Dry-Run Artifact Guardrails
+   - Status: fixed.
+   - Files: `scripts/verify-package-dry-runs.mjs`,
+     `docs/package-hygiene-audit.md`.
+   - Problem: dist package rehearsal checked source stems, but did not require
+     concrete `*.js.map` and `*.d.ts.map` artifacts for every source stem.
+     Source packages also did not require a local `verify` script, so copyable
+     apps could drift outside the main verification command.
+   - Fix: the dry-run gate now validates concrete JavaScript, declaration, and
+     source-map artifacts for framework packages, keeps explicit allowances for
+     copied declarations such as Start's virtual module, and requires
+     source-package verify scripts.
+   - Benefits: package rehearsal now catches stale or incomplete publication
+     payloads earlier, and copyable packages must prove how they are verified.
+
+3. Public API Subpath Surface Guard
+   - Status: fixed.
+   - Files: `scripts/audit-public-api-inventory.mjs`,
+     `type-tests/public-api.manifest.json`, `docs/public-api-inventory.md`.
+   - Problem: public subpath entrypoints could re-export local Modules without
+     the manifest naming that source surface explicitly. That left expert
+     subpaths less auditable than root package barrels.
+   - Fix: the public API inventory audit now validates manifest `sourceSurface`
+     entries for subpath entrypoints against their local re-exported Modules.
+   - Benefits: public subpath Interfaces now have the same executable inventory
+     pressure as root package Interfaces.
+
+Focused verification passed for Review179: package dry-runs, public API audit,
+Effect-first audit over 404 files, and the updated Effect-driven workspace
+verification plan self-test. The later Review182 full `pnpm verify` covered the
+same root verification path.
 
 ## Review 178: Browser Router Initial Matched State
 
