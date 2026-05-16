@@ -56,7 +56,10 @@ pnpm starter:package
 ```
 
 That command writes `.test-dist/starters/basic`, `.test-dist/starters/react`,
-and `.test-dist/starters/project-console` from their example sources. Each
+and `.test-dist/starters/project-console` from their example sources. The
+Starter Catalog Manifest in `scripts/starter-catalog.mjs` is the source of
+truth for starter ids, source package names, generated package names, generated
+Vite/TypeScript/README content, and generated route/virtual artifact lists. Each
 generated starter rewrites workspace protocol dependencies to local
 `.effect-ui-packages/*` file dependencies, removes monorepo Vite aliases, writes
 a standalone `tsconfig.json`, verifies the app file manifest against the

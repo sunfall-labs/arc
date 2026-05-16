@@ -12,9 +12,69 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review169, immediately after Review168. Some older review entries remain below
+Review170, immediately after Review169. Some older review entries remain below
 it from prior ledger merges; use this tip rather than file order alone when
 looking for the latest architecture sweep.
+
+## Review 170: Starter Catalog Manifest And Effect Verify Runner
+
+Review170 fixed the starter/catalog Seam carried forward from Review169 and
+adopted the Effect-driven workspace verify runner that was already present in
+the worktree.
+
+1. Starter Catalog Manifest Module
+   - Status: fixed.
+   - Files: `scripts/starter-catalog.mjs`,
+     `scripts/package-project-console-starter.mjs`,
+     `scripts/verify-package-dry-runs.mjs`,
+     `scripts/generated-starter-artifacts.mjs`,
+     `scripts/starter-template-content.mjs`,
+     `scripts/audit-effect-first.mjs`, `docs/starter.md`, `CONTEXT.md`.
+   - Problem: copyable starter identity lived in several shallow
+     Implementations: packaging owned generated starter definitions, package
+     dry-run verification owned source package payload policy, generated
+     artifact drift checks owned route/virtual artifact lists, and the
+     Effect-first audit owned generated starter virtual template descriptors.
+   - Fix: added the Starter Catalog Manifest Module. It owns starter ids,
+     source package names, generated package names, source/output directories,
+     generated Vite/tsconfig/README content, source-package required files, and
+     generated route/virtual artifacts with a pure consistency self-test.
+     Packaging, generated artifact checks, source package dry-runs, and
+     Effect-first virtual template audits now consume the catalog Interface.
+   - Benefits: the starter/catalog Seam has more Depth and better Locality.
+     Adding or renaming a starter changes one catalog Module instead of several
+     script-local copies.
+
+2. Effect-Driven Workspace Verify Runner
+   - Status: fixed.
+   - Files: `package.json`, `scripts/verify.mjs`,
+     `scripts/audit-effect-first.mjs`.
+   - Problem: the root `verify` command was a long package-script chain, so
+     gate grouping, concurrency, output labeling, and failure reporting were
+     shell-string policy rather than an Effect Module.
+   - Fix: adopted `scripts/verify.mjs` as the root verify runner and kept the
+     old chain as `verify:serial`. The runner uses Effect callbacks for host
+     process execution, `Effect.all` for source and example lanes, typed
+     command failures, prefixed output, and a prebuilt-package Adapter for
+     starter packaging after the package build lane. The Effect-first audit
+     now treats that runner as an explicit script-runner Adapter seam.
+   - Benefits: verification orchestration gets better Leverage from one Effect
+     Interface, while the serial shell chain remains available as a fallback.
+
+Focused verification passed for Review170: catalog import self-test,
+`pnpm audit:effect-first` over 401 files, `pnpm example:pack-dry-run`, and
+`pnpm starter:package`.
+
+Full `pnpm verify` passed after Review170 through the Effect-driven runner: 11
+package builds, workspace typecheck, public type tests, public API inventory
+audit, Effect-first audit over 401 physical/virtual
+package/example/config/script/type-test/generated/docs files, 53 root test
+files / 1028 tests, devtools-panel verify with 2 tests, devtools-extension
+verify with 20 tests, basic starter verify with 2 tests, React starter verify
+with 3 tests, starter-suite packaging/verifies for basic/react/project-console
+at 19/24/30 app files with 5/4/6 local packages, 16-target package dry-run
+gate, project-console typecheck, 4 project-console test files / 27 tests,
+project-console build, and leak scans.
 
 ## Review 169: Start Abort Lifecycle And Host Response Cancellation
 

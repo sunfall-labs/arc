@@ -5,17 +5,11 @@ import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promi
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Data, Effect } from "effect";
-import { generatedStarterArtifactsFor } from "./generated-starter-artifacts.mjs";
 import { manifestTargetValidationFailures } from "./package-manifest-targets.mjs";
 import {
-  basicStarterReadme,
-  projectConsoleStarterReadme,
-  reactStarterReadme,
-  reactStarterTsConfig,
-  reactStarterViteConfig,
-  solidStarterTsConfig,
-  solidStarterViteConfig,
-} from "./starter-template-content.mjs";
+  copyableStarterEntries,
+  generatedStarterArtifactsFor,
+} from "./starter-catalog.mjs";
 import {
   collectWorkspacePackageManifests,
   localPackageDirectoryName,
@@ -23,9 +17,10 @@ import {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = resolve(__dirname, "..");
-const startersOutputRoot = resolve(workspaceRoot, ".test-dist/starters");
 const localPackagesDirectoryName = ".effect-ui-packages";
 const localLockfileName = "pnpm-lock.yaml";
+const usePrebuiltWorkspacePackages = process.env.EFFECT_UI_VERIFY_PREBUILT_PACKAGES === "1";
+const useFastWorkspaceStarterVerify = process.env.EFFECT_UI_VERIFY_FAST_STARTERS === "1";
 
 class StarterPackageError extends Data.TaggedError("StarterPackageError") {}
 
@@ -113,38 +108,7 @@ const parseJsonEffect = (filePath, text) =>
 
 const stringifyJson = (value) => `${JSON.stringify(value, null, 2)}\n`;
 
-const starterDefinitions = [
-  {
-    id: "basic",
-    displayName: "basic starter",
-    sourceDir: resolve(workspaceRoot, "examples/basic-starter"),
-    outputDir: resolve(startersOutputRoot, "basic"),
-    packageName: "effect-ui-basic-starter",
-    viteConfig: solidStarterViteConfig("starterStartOptions"),
-    tsConfig: solidStarterTsConfig,
-    readme: basicStarterReadme,
-  },
-  {
-    id: "react",
-    displayName: "react starter",
-    sourceDir: resolve(workspaceRoot, "examples/react-starter"),
-    outputDir: resolve(startersOutputRoot, "react"),
-    packageName: "effect-ui-react-starter",
-    viteConfig: reactStarterViteConfig,
-    tsConfig: reactStarterTsConfig,
-    readme: reactStarterReadme,
-  },
-  {
-    id: "project-console",
-    displayName: "project-console starter",
-    sourceDir: resolve(workspaceRoot, "examples/project-console"),
-    outputDir: resolve(startersOutputRoot, "project-console"),
-    packageName: "effect-ui-project-console-starter",
-    viteConfig: solidStarterViteConfig("projectConsoleStartOptions"),
-    tsConfig: solidStarterTsConfig,
-    readme: projectConsoleStarterReadme,
-  },
-];
+const starterDefinitions = copyableStarterEntries;
 
 const forbiddenSourceSegments = new Set([
   "node_modules",
@@ -521,6 +485,10 @@ const ensureFreshWorkspacePackage = (builtPackageNames, workspacePackage) =>
   Effect.gen(function* () {
     const packageName = workspacePackage.packageJson.name;
     if (builtPackageNames.has(packageName)) {
+      return;
+    }
+    if (usePrebuiltWorkspacePackages) {
+      builtPackageNames.add(packageName);
       return;
     }
 
@@ -1007,12 +975,39 @@ const verifyInstallableStarter = (starter) =>
         { cwd: starter.outputDir },
       );
       yield* assertNoWorkspaceProtocol(starter);
-      yield* commandEffect(
-        `${starter.displayName} generated starter verify`,
-        "pnpm",
-        ["--ignore-workspace", "verify"],
-        { cwd: starter.outputDir },
-      );
+      if (useFastWorkspaceStarterVerify) {
+        yield* commandEffect(
+          `${starter.displayName} generated starter typecheck`,
+          "pnpm",
+          ["--ignore-workspace", "typecheck"],
+          { cwd: starter.outputDir },
+        );
+        yield* commandEffect(
+          `${starter.displayName} generated starter tests`,
+          "pnpm",
+          ["--ignore-workspace", "test"],
+          { cwd: starter.outputDir },
+        );
+        yield* commandEffect(
+          `${starter.displayName} generated starter Vite build`,
+          "pnpm",
+          ["--ignore-workspace", "exec", "vite", "build"],
+          { cwd: starter.outputDir },
+        );
+        yield* commandEffect(
+          `${starter.displayName} generated starter leak scan`,
+          "pnpm",
+          ["--ignore-workspace", "leak-scan"],
+          { cwd: starter.outputDir },
+        );
+      } else {
+        yield* commandEffect(
+          `${starter.displayName} generated starter verify`,
+          "pnpm",
+          ["--ignore-workspace", "verify"],
+          { cwd: starter.outputDir },
+        );
+      }
       yield* assertNoWorkspaceProtocol(starter);
     }).pipe(Effect.ensuring(cleanupGeneratedInstallArtifacts(starter)));
   });
@@ -1140,8 +1135,14 @@ const packageStarters = Effect.gen(function* () {
   const workspacePackages = yield* collectWorkspacePackages;
   yield* assertStarterLeakScanParity(starterDefinitions);
   const builtPackageNames = new Set();
-  const results = yield* Effect.forEach(starterDefinitions, (starter) =>
-    packageStarter(workspacePackages, builtPackageNames, starter)
+  const starterConcurrency =
+    usePrebuiltWorkspacePackages && useFastWorkspaceStarterVerify
+      ? starterDefinitions.length
+      : 1;
+  const results = yield* Effect.forEach(
+    starterDefinitions,
+    (starter) => packageStarter(workspacePackages, builtPackageNames, starter),
+    { concurrency: starterConcurrency },
   );
 
   return results;

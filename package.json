@@ -41,7 +41,8 @@
     "test": "vitest run",
     "typecheck": "tsgo -b tsconfig.json --pretty false && pnpm typecheck:types",
     "typecheck:types": "tsgo -p tsconfig.type-tests.json --noEmit --pretty false",
-    "verify": "pnpm build && pnpm typecheck && pnpm audit:public-api && pnpm audit:effect-first && pnpm test && pnpm devtools-panel:verify && pnpm devtools-extension:verify && pnpm starter:verify && pnpm react-starter:verify && pnpm starter:package && pnpm example:pack-dry-run && pnpm example:typecheck && pnpm example:test && pnpm example:build && pnpm example:leak-scan"
+    "verify": "node scripts/verify.mjs",
+    "verify:serial": "pnpm build && pnpm typecheck && pnpm audit:public-api && pnpm audit:effect-first && pnpm test && pnpm devtools-panel:verify && pnpm devtools-extension:verify && pnpm starter:verify && pnpm react-starter:verify && pnpm starter:package && pnpm example:pack-dry-run && pnpm example:typecheck && pnpm example:test && pnpm example:build && pnpm example:leak-scan"
   },
   "dependencies": {
     "effect": "^4.0.0-beta.66"

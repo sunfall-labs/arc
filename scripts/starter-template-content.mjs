@@ -136,33 +136,3 @@ it is the app graph source for server functions, actions, file routes,
 diagnostics, and generated route output. Keep \`src/routeTree.gen.ts\`
 generated, not hand-edited.
 `;
-
-export const generatedStarterEffectFirstTemplates = [
-  {
-    file: "generated-starter-templates/basic/vite.config.ts",
-    source: solidStarterViteConfig("starterStartOptions"),
-  },
-  {
-    file: "generated-starter-templates/react/vite.config.ts",
-    source: reactStarterViteConfig,
-  },
-  {
-    file: "generated-starter-templates/project-console/vite.config.ts",
-    source: solidStarterViteConfig("projectConsoleStartOptions"),
-  },
-];
-
-export const generatedStarterReadmeTemplates = [
-  {
-    file: "generated-starter-templates/basic/README.md",
-    source: basicStarterReadme,
-  },
-  {
-    file: "generated-starter-templates/react/README.md",
-    source: reactStarterReadme,
-  },
-  {
-    file: "generated-starter-templates/project-console/README.md",
-    source: projectConsoleStarterReadme,
-  },
-];

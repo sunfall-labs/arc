@@ -6,6 +6,7 @@ import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Data, Effect } from "effect";
 import { manifestTargetValidationFailures } from "./package-manifest-targets.mjs";
+import { starterSourcePackagePayloadPolicies } from "./starter-catalog.mjs";
 import { collectWorkspacePackageManifests } from "./workspace-package-discovery.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -64,84 +65,7 @@ const packagePayloadPolicies = new Map([
       requiredDirectories: ["src"],
     },
   ],
-  [
-    "@effect-ui/example-project-console",
-    {
-      payload: "source-package",
-      requiresGitignore: true,
-      requiredFiles: [
-        "README.md",
-        "index.html",
-        "scripts/leak-scan.mjs",
-        "src/App.tsx",
-        "src/app-definition.ts",
-        "src/domain.contract.ts",
-        "src/domain.server.ts",
-        "src/domain.ts",
-        "src/effect-ui-start-virtual.d.ts",
-        "src/main.tsx",
-        "src/project-collections.ts",
-        "src/project-error.ts",
-        "src/routeTree.gen.ts",
-        "src/routes/index.ts",
-        "src/server.tsx",
-        "src/start-graph.ts",
-        "src/start-options.ts",
-        "src/virtual-manifest-types.ts",
-        "tsconfig.json",
-        "vite.config.ts",
-      ],
-      requiredDirectories: ["scripts", "src"],
-    },
-  ],
-  [
-    "@effect-ui/starter-basic",
-    {
-      payload: "source-package",
-      requiresGitignore: true,
-      requiredFiles: [
-        "README.md",
-        "index.html",
-        "scripts/leak-scan.mjs",
-        "src/App.tsx",
-        "src/app-definition.ts",
-        "src/effect-ui-start-virtual.d.ts",
-        "src/main.tsx",
-        "src/routeTree.gen.ts",
-        "src/routes/index.ts",
-        "src/server.tsx",
-        "src/start-options.ts",
-        "tsconfig.json",
-        "vite.config.ts",
-      ],
-      requiredDirectories: ["scripts", "src"],
-    },
-  ],
-  [
-    "@effect-ui/starter-react",
-    {
-      payload: "source-package",
-      requiresGitignore: true,
-      requiredFiles: [
-        "README.md",
-        "components.json",
-        "index.html",
-        "scripts/leak-scan.mjs",
-        "src/App.tsx",
-        "src/HomePage.tsx",
-        "src/app-definition.ts",
-        "src/effect-ui-start-virtual.d.ts",
-        "src/main.tsx",
-        "src/routeTree.gen.ts",
-        "src/routes/index.ts",
-        "src/server.tsx",
-        "src/start-options.ts",
-        "tsconfig.json",
-        "vite.config.ts",
-      ],
-      requiredDirectories: ["scripts", "src"],
-    },
-  ],
+  ...starterSourcePackagePayloadPolicies,
 ]);
 
 const knownPayloadPolicies = new Set(["dist-package", "source-package"]);

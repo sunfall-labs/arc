@@ -4,7 +4,7 @@ import ts from "typescript";
 import {
   generatedStarterEffectFirstTemplates,
   generatedStarterReadmeTemplates
-} from "./starter-template-content.mjs";
+} from "./starter-catalog.mjs";
 
 const root = process.cwd();
 
@@ -259,6 +259,7 @@ const allowed = [
       seam("packages/start/src/start-host-runtime-runner.ts", "Start host Promise runtime runner", /export const runStartHostPromise[\s\S]*?Effect\.runPromise\(/),
       seam("packages/start/src/cli.ts", "Start diagnostics CLI bin runner", /void Effect\.runPromise\(runStartDiagnosticsCliMainEffect\(\)\);/),
       seam("scripts/package-project-console-starter.mjs", "Project console starter packaging script runner", /await Effect\.runPromise\(/),
+      seam("scripts/verify.mjs", "Workspace verify orchestration script runner", /Effect\.runPromise\(/),
       seam("scripts/verify-package-dry-runs.mjs", "Package dry-run verification script runner", /await Effect\.runPromise\(/),
       seam("examples/basic-starter/scripts/leak-scan.mjs", "Basic starter leak-scan script runner", /await Effect\.runPromise\(/),
       seam("examples/react-starter/scripts/leak-scan.mjs", "React starter leak-scan script runner", /await Effect\.runPromise\(/),
