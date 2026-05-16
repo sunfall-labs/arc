@@ -186,6 +186,9 @@ const preloadRouteDeclaredCollectionsEffect = (
     }
   }) as Effect.Effect<void, StartPreloadError>;
 
+const startCollectionCanHydrate = (collection: AnyCollection): boolean =>
+  collection.readOnly !== true;
+
 const startCollectionPreloadEffect = (
   routeTouchedCollections: ReadonlyArray<AnyCollection>,
   routeDeclaredCollections: ReadonlyArray<AnyCollection>,
@@ -198,11 +201,14 @@ const startCollectionPreloadEffect = (
     ).pipe(
       Effect.mapError(duplicateRouteCollection)
     );
-    const dehydratedCollections = yield* uniqueStartCollectionsEffect([
-      ...registeredCollections,
-      ...routeDeclaredCollections,
-      ...routeTouchedCollections
-    ], "hydration").pipe(
+    const dehydratedCollections = yield* uniqueStartCollectionsEffect(
+      [
+        ...registeredCollections,
+        ...routeDeclaredCollections,
+        ...routeTouchedCollections
+      ].filter(startCollectionCanHydrate),
+      "hydration"
+    ).pipe(
       Effect.mapError(duplicateRouteCollection)
     );
     const hydration = dehydratedCollections.length > 0

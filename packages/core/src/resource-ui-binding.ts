@@ -299,7 +299,7 @@ export const makeResourceUiSuspensePreloadController = <I, A, E, R = unknown, ER
 
       interrupt();
       const fiber = options.fork === undefined
-        ? runtime.runFork(runtime.provide(prefetchResourceEffect(ref)))
+        ? runtime.runFork(Effect.scoped(runtime.provide(prefetchResourceEffect(ref))))
         : options.fork(prefetchResourceEffect(ref));
       const token = options.toHostToken(fiber);
       preload = { ref, fiber, token };

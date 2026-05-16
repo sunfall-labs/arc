@@ -1,7 +1,7 @@
 import { Action, makeRuntime, Program, Resource, Signal } from "@effect-ui/core";
 import { Window } from "happy-dom";
-import { Context, Deferred, Effect, Fiber, Layer } from "effect";
-import { act, createElement, useEffect, useState } from "react";
+import { Context, Deferred, Effect, Fiber, Layer, Scope } from "effect";
+import { Suspense, act, createElement, useEffect, useState } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { describe, expect, it } from "vitest";
 import {
@@ -467,6 +467,52 @@ describe("react hooks", () => {
         });
       }).pipe(Effect.ensuring(runtime.disposeEffect))
     );
+  });
+
+  it("loads unprefetched scoped suspense resources with the default preload", async () => {
+    let project: Project | undefined;
+    let releases = 0;
+    const runtime = makeRuntime();
+    const ProjectById = Resource.family<string, Project, never, Scope.Scope>({
+      name: "ReactHooks.suspense-default-scoped",
+      load: (id) =>
+        Effect.acquireRelease(
+          Effect.succeed({ id, name: "Atlas" }),
+          () => Effect.sync(() => {
+            releases++;
+          })
+        )
+    });
+
+    try {
+      await withReactRoot(async (root, container) => {
+        function Capture() {
+          project = useResourceSuspense(ProjectById("atlas"));
+          return createElement("span", null, project.name);
+        }
+
+        await act(async () => {
+          root.render(
+            createElement(
+              RuntimeProvider,
+              { runtime },
+              createElement(
+                Suspense,
+                { fallback: createElement("span", null, "loading") },
+                createElement(Capture)
+              )
+            )
+          );
+        });
+        await flushReact();
+
+        expect(project).toEqual({ id: "atlas", name: "Atlas" });
+        expect(container.textContent).toBe("Atlas");
+        expect(releases).toBe(1);
+      });
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
   });
 
   it("detaches pending suspense preload work on component cleanup", () =>

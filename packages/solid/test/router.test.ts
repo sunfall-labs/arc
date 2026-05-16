@@ -8,7 +8,7 @@ import type { BrowserRouter, BrowserRouterState } from "../src/index.js";
 vi.doMock("solid-js", () => import("solid-js/dist/solid.js"));
 vi.doMock("solid-js/web", () => import("solid-js/web/dist/web.js"));
 
-const { Show, createRoot, createSignal, onCleanup, sharedConfig } = await import("solid-js");
+const { ErrorBoundary, Show, createRoot, createSignal, onCleanup, sharedConfig } = await import("solid-js");
 const { createComponent, render } = await import("solid-js/web");
 const { createBrowserRouter, RouterLink, RouterOutlet, RouterProvider, RouterRouteNotRegistered, RuntimeProvider, useRouter } = await import("../src/index.js");
 
@@ -1184,6 +1184,136 @@ describe("createBrowserRouter", () => {
           yield* Effect.promise(() => vi.waitFor(() => expect(router!.state()).toMatchObject({ href: "/new" })));
           yield* Effect.promise(() =>
             vi.waitFor(() => expect(events).toEqual(["old:setup", "old:cleanup", "new:setup"]))
+          );
+        })
+      )
+    ));
+
+  it("surfaces route render errors after navigation to the host ErrorBoundary", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+
+          const renderError = new Error("route render failed");
+          const GoodRoute = route("/render-good", {
+            component: () => "good"
+          });
+          const ThrowingRoute = route("/render-throw", {
+            component: () => {
+              throw renderError;
+            }
+          });
+          const routes = [GoodRoute, ThrowingRoute] as const;
+
+          let router: BrowserRouter<typeof routes> | undefined;
+          let caught: unknown;
+          const CaptureRouter = () => {
+            router = useRouter<typeof routes>();
+            return createComponent(ErrorBoundary, {
+              fallback: (error) => {
+                caught = error;
+                return "caught";
+              },
+              get children() {
+                return createComponent(RouterOutlet, {});
+              }
+            });
+          };
+          const container = document.createElement("div");
+          const dispose = render(
+            () =>
+              createComponent(RouterProvider, {
+                routes,
+                initialHref: "/render-good",
+                runtime,
+                get children() {
+                  return createComponent(CaptureRouter, {});
+                }
+              }),
+            container
+          );
+          yield* Effect.addFinalizer(() => Effect.sync(dispose));
+
+          yield* Effect.promise(() => vi.waitFor(() => expect(container.textContent).toBe("good")));
+          router!.navigateHref("/render-throw");
+
+          yield* Effect.promise(() =>
+            vi.waitFor(() => {
+              expect(router!.state()).toMatchObject({
+                _tag: "Ready",
+                href: "/render-throw"
+              });
+              expect(caught).toBe(renderError);
+            })
+          );
+        })
+      )
+    ));
+
+  it("surfaces failed preload navigation without a failure renderer to the host ErrorBoundary", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+
+          const preloadFailure = "missing-project" as const;
+          const GoodRoute = route("/preload-good", {
+            component: () => "good"
+          });
+          const FailingRoute = route("/preload-fail", {
+            preload: () => Effect.fail(preloadFailure),
+            component: () => "never"
+          });
+          const routes = [GoodRoute, FailingRoute] as const;
+
+          let router: BrowserRouter<typeof routes, RoutePreloadError> | undefined;
+          let caught: unknown;
+          const CaptureRouter = () => {
+            router = useRouter<typeof routes, RoutePreloadError>();
+            return createComponent(ErrorBoundary, {
+              fallback: (error) => {
+                caught = error;
+                return "failed";
+              },
+              get children() {
+                return createComponent(RouterOutlet, {});
+              }
+            });
+          };
+          const container = document.createElement("div");
+          const dispose = render(
+            () =>
+              createComponent(RouterProvider, {
+                routes,
+                initialHref: "/preload-good",
+                runtime,
+                get children() {
+                  return createComponent(CaptureRouter, {});
+                }
+              }),
+            container
+          );
+          yield* Effect.addFinalizer(() => Effect.sync(dispose));
+
+          yield* Effect.promise(() => vi.waitFor(() => expect(container.textContent).toBe("good")));
+          router!.navigateHref("/preload-fail");
+
+          yield* Effect.promise(() =>
+            vi.waitFor(() => {
+              const state = router!.state();
+              expect(state).toMatchObject({
+                _tag: "Failure",
+                href: "/preload-fail"
+              });
+              expect(state._tag === "Failure" ? state.error : undefined).toBeInstanceOf(RoutePreloadError);
+              expect(caught).toBeInstanceOf(Error);
+              expect(caught instanceof Error ? caught.cause : undefined).toBe(
+                state._tag === "Failure" ? state.cause : undefined
+              );
+            })
           );
         })
       )

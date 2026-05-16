@@ -35,6 +35,8 @@ import {
   makeResponseContext,
   makeMemoryBrowserHistoryAdapter,
   makeWindowBrowserHistoryAdapter,
+  makeResourceUiBindingController,
+  makeResourceUiSuspensePreloadController,
   makeResourceStore,
   makeBrowserRouterLinkPreloader,
   makeRuntime,
@@ -82,7 +84,14 @@ import {
   type ParamsForPath,
   type MemoryBrowserHistoryAdapter,
   type ResourceSnapshotCodecOperation,
-  type ResourceUiMatch
+  type ResourceUiAutoPreloadOptions,
+  type ResourceUiBindingController,
+  type ResourceUiBindingControllerOptions,
+  type ResourceUiMatch,
+  type ResourceUiPreloadFailure,
+  type ResourceUiSuspensePreloadController,
+  type ResourceUiSuspensePreloadFiber,
+  type ResourceUiSuspensePreloadOptions
 } from "@effect-ui/core";
 
 const runtime = makeRuntime();
@@ -146,6 +155,8 @@ const coreExports: Array<unknown> = [
   makeResponseContext,
   makeMemoryBrowserHistoryAdapter,
   makeWindowBrowserHistoryAdapter,
+  makeResourceUiBindingController,
+  makeResourceUiSuspensePreloadController,
   route,
   makeRuntimeUiScope,
   matchRoutePath,
@@ -200,6 +211,45 @@ const matchedResourceState = resourceUiMatchState<void, string, string>({
   waiting: true,
   previous: undefined
 }, resourceUiMatchCases);
+const typeTestResource = Resource.family<string, string, string>({
+  name: "type-tests/core-resource-ui",
+  load: (id) => Effect.succeed(id)
+});
+const typeTestResourceRef = typeTestResource("atlas");
+const resourceUiBindingControllerOptions: ResourceUiBindingControllerOptions<string, string, string, never, never> = {
+  runtime: browserRouterKernelRuntime,
+  onPreloadFailureChange: () => undefined
+};
+const resourceUiBindingController: ResourceUiBindingController<string, string, string, never, never> =
+  makeResourceUiBindingController(resourceUiBindingControllerOptions);
+const resourceUiAutoPreloadOptions: ResourceUiAutoPreloadOptions<string, never> = {
+  preload: true,
+  onPreloadFailure: () => undefined
+};
+const resourceUiPreloadFailure: ResourceUiPreloadFailure<string, string, string, never, never> = {
+  ref: typeTestResourceRef,
+  error: "failed"
+};
+const resourceUiSuspensePreloadController: ResourceUiSuspensePreloadController<
+  string,
+  string,
+  string,
+  never,
+  never,
+  ResourceUiSuspensePreloadFiber<string, string, never>
+> = makeResourceUiSuspensePreloadController(browserRouterKernelRuntime);
+const resourceUiSuspensePreloadOptions: ResourceUiSuspensePreloadOptions<
+  string,
+  string,
+  string,
+  never,
+  never,
+  ResourceUiSuspensePreloadFiber<string, string, never>
+> = {
+  toHostToken: (fiber) => fiber
+};
+const resourceUiSuspensePreloadFiber =
+  resourceUiSuspensePreloadController.hostToken(typeTestResourceRef, resourceUiSuspensePreloadOptions);
 type RuntimeShape = EffectUiRuntime;
 type AnyRuntimeShape = AnyEffectUiRuntime;
 type RouterKernelShape = BrowserRouterKernel<typeof coreRoutes>;
@@ -351,6 +401,11 @@ void coreExports;
 void actionPendingWithUndefinedPrevious;
 void actionFailureWithUndefinedPrevious;
 void matchedResourceState;
+void typeTestResourceRef;
+void resourceUiBindingController;
+void resourceUiAutoPreloadOptions;
+void resourceUiPreloadFailure;
+void resourceUiSuspensePreloadFiber;
 void actionFailure;
 void actionRedirect;
 void actionBoundary;

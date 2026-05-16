@@ -920,6 +920,64 @@ describe("Effect UI Start", () => {
     expect(html).not.toContain("Start.Collection.route-touched.tasks");
   });
 
+  it("excludes route-touched live query collections from hydration payloads", async () => {
+    const Projects = Collection.define<{ readonly id: string; readonly name: string; readonly progress: number }>({
+      name: "Start.Collection.live-query-source.projects",
+      getKey: (project) => project.id,
+      load: () => Effect.succeed([{ id: "atlas", name: "Atlas", progress: 72 }])
+    });
+    const ProjectCards = Collection.liveQuery<{ readonly id: string; readonly name: string }, string>({
+      name: "Start.Collection.live-query-derived.cards",
+      getKey: (project) => project.id,
+      query: (query) =>
+        query
+          .from({ project: Projects })
+          .select(({ project }) => ({
+            id: project.id,
+            name: project.name
+          }))
+    });
+    const ProjectRoute = route("/live-query-projects", {
+      preload: () => ProjectCards.preloadEffect()
+    });
+    const app = defineApp({
+      routes: [ProjectRoute] as const,
+      client: {}
+    });
+
+    const result = await Effect.runPromise(
+      preloadRequest(app, new Request("https://example.com/live-query-projects"))
+    );
+
+    expect(result.collectionPreload.routeTouchedCollections.map((collection) => collection.name)).toEqual([
+      "Start.Collection.live-query-derived.cards",
+      "Start.Collection.live-query-source.projects"
+    ]);
+    expect(result.collectionPreload.dehydratedCollections.map((collection) => collection.name)).toEqual([
+      "Start.Collection.live-query-source.projects"
+    ]);
+    expect(result.hydration.collections?.map((snapshot) => snapshot.name)).toEqual([
+      "Start.Collection.live-query-source.projects"
+    ]);
+    expect(result.hydration.collections?.some((snapshot) => snapshot.name === ProjectCards.name)).toBe(false);
+
+    const clientRuntime = makeRuntime();
+    try {
+      await Effect.runPromise(
+        clientRuntime.provide(
+          hydrateStartPayloadEffect(result.hydration, {
+            collections: [Projects, ProjectCards]
+          })
+        )
+      );
+      expect(runWithRuntime(clientRuntime, () => ProjectCards.rows().map((project) => project.name))).toEqual([
+        "Atlas"
+      ]);
+    } finally {
+      await Effect.runPromise(clientRuntime.disposeEffect);
+    }
+  });
+
   it("preloads and dehydrates matched route-declared collections", async () => {
     let projectLoads = 0;
     const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
@@ -2712,6 +2770,107 @@ describe("Effect UI Start", () => {
             name: ActionFailsDomain.name,
             state: "Failure",
             failureKind: "validation"
+          }
+        ]
+      })
+    ]);
+  });
+
+  it("classifies Start action response encoding and hydration metadata defects in request traces", async () => {
+    const traces: DevtoolsRequestTrace[] = [];
+    const ProjectSchema = Schema.Struct({
+      id: Schema.String,
+      name: Schema.String
+    });
+    const Project = Resource.family({
+      name: "Start.trace.action.meta-defect.Project",
+      input: Schema.String,
+      output: ProjectSchema,
+      load: (id) =>
+        Effect.succeed({
+          id,
+          name: 1
+        } as unknown as typeof ProjectSchema.Type)
+    });
+    const BadOutput = Action.define<{ readonly value: string }, { readonly value: string }>({
+      name: "Start.trace.action.output-defect",
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+      run: () =>
+        Effect.succeed({
+          value: 1
+        } as unknown as { readonly value: string })
+    });
+    const BadMeta = Action.define<{ readonly id: string }, { readonly ok: boolean }>({
+      name: "Start.trace.action.meta-defect",
+      input: Schema.Struct({ id: Schema.String }),
+      output: Schema.Struct({ ok: Schema.Boolean }),
+      run: ({ id }) =>
+        Effect.gen(function* () {
+          yield* Resource.prefetchEffect(Project(id));
+          return { ok: true };
+        }),
+      invalidates: (_result, input) => [Project(input.id)]
+    });
+    const app = defineApp({
+      routes: [route("/", {})] as const,
+      client: {}
+    });
+    const handler = createRequestHandler(app, {
+      actions: [BadOutput, BadMeta],
+      onRequestTrace: (trace) =>
+        Effect.sync(() => {
+          traces.push(trace);
+        })
+    });
+    const actionRequest = (id: string, name: string, input: unknown) =>
+      new Request(`https://example.com${serverActionPath}`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+          "x-effect-ui-request-id": id
+        },
+        body: JSON.stringify({ name, input })
+      });
+
+    const outputResponse = await Effect.runPromise(
+      handler(actionRequest("req-action-output-defect", BadOutput.name, { value: "ok" }))
+    );
+    expect(outputResponse.status).toBe(500);
+    await expect(outputResponse.json()).resolves.toMatchObject({
+      _tag: "Defect"
+    });
+
+    const metaResponse = await Effect.runPromise(
+      handler(actionRequest("req-action-meta-defect", BadMeta.name, { id: "atlas" }))
+    );
+    expect(metaResponse.status).toBe(500);
+    await expect(metaResponse.json()).resolves.toMatchObject({
+      _tag: "Defect"
+    });
+
+    expect(traces).toEqual([
+      expect.objectContaining({
+        request: expect.objectContaining({ id: "req-action-output-defect", transport: "action" }),
+        status: "failure",
+        failureKind: "defect",
+        actions: [
+          {
+            name: BadOutput.name,
+            state: "Failure",
+            failureKind: "defect"
+          }
+        ]
+      }),
+      expect.objectContaining({
+        request: expect.objectContaining({ id: "req-action-meta-defect", transport: "action" }),
+        status: "failure",
+        failureKind: "defect",
+        actions: [
+          {
+            name: BadMeta.name,
+            state: "Failure",
+            failureKind: "defect"
           }
         ]
       })

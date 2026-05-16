@@ -11,10 +11,101 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review and full verification checkpoint is
-Review157, immediately after Review156. Some older review entries remain below
-it from prior ledger merges; use this tip rather than file order alone when
-looking for the latest architecture sweep.
+The newest completed focused review is Review158. The newest full verification
+checkpoint is Review157, immediately before Review158. Some older review
+entries remain below it from prior ledger merges; use this tip rather than file
+order alone when looking for the latest architecture sweep.
+
+## Review 158: Scoped UI Preloads, Durable Restore Liveness, And Trace Defects
+
+Review158 fixed fresh DB, Core/React/Solid, Start, public type, and trace
+findings from the post-Review157 sweeps.
+
+1. Resource UI And Solid Route Error Lifecycle
+   - Status: fixed.
+   - Files: `packages/core/src/resource-ui-binding.ts`,
+     `packages/core/test/resource-ui-binding.test.ts`,
+     `packages/react/test/hooks.test.ts`,
+     `packages/solid/src/route-render-scope.ts`,
+     `packages/solid/src/router.ts`, `packages/solid/test/router.test.ts`,
+     `type-tests/core.test-d.ts`.
+   - Problem: default Suspense resource preloads ran outside a Scope, so
+     scoped resource acquire/release lifecycles depended on host adapter luck.
+     Solid route render failures that happened after navigation were captured
+     by the host ErrorBoundary callback but could leave the previous route DOM
+     mounted.
+   - Fix: default Resource UI Suspense preloads fork
+     `Effect.scoped(...)` work in the bound runtime. Solid route rendering now
+     cleans up failed route scopes, clears stale route nodes, and schedules
+     current-transition render errors after Solid commits the cleared node so
+     the host ErrorBoundary owns the fallback DOM.
+   - Benefits: resource UI preloads keep Effect Scope lifetime guarantees, and
+     Solid route outlets no longer strand stale UI when async route rendering
+     fails.
+
+2. DB Durable Restore, Public Hydration, And Mutation Joiners
+   - Status: fixed.
+   - Files: `packages/db/src/collection-persistence.ts`,
+     `packages/db/src/collection-state.ts`,
+     `packages/db/src/collection-sync-load-policy.ts`,
+     `packages/db/src/collection-write-commit.ts`,
+     `packages/db/test/collection.test.ts`.
+   - Problem: restore-before-preload could either clobber a newer write with a
+     stale persisted snapshot or over-serialize by holding the durable commit
+     permit while waiting on storage reads. Rollback snapshots also dropped
+     active mutation attempts, so pending flush joiners could start duplicate
+     mutation owner work. Public `persistEffect(...)` and `hydrateEffect(...)`
+     could observe transient state while a failing durable write was rolling
+     back.
+   - Fix: restore-before-preload captures the collection version, performs the
+     storage read outside the commit permit, then acquires the durable permit
+     only for hydrate/publish after rechecking active load attempt and version.
+     State snapshots preserve active mutation attempts when rollback restores
+     pending state. Public persist, hydrate, restore, and dehydrate Effect paths
+     serialize against the same durable commit permit for normal collections.
+   - Benefits: slow cache reads no longer stall newer forced refetches or
+     direct writes, stale snapshots cannot overwrite fresher state, mutation
+     joiners stay attached to the active owner, and public persistence Effects
+     see committed collection state.
+
+3. Start Hydration Payload And Request Trace Failure Classification
+   - Status: fixed.
+   - Files: `packages/start/src/start-request-endpoints.ts`,
+     `packages/start/src/start-request-preload.ts`,
+     `packages/start/test/start.test.ts`.
+   - Problem: Start request preloads could include read-only live-query
+     collections in hydration payloads even though those derived collections
+     reject direct hydrate. Start Action traces could record success when output
+     encoding or hydration metadata generation failed into an HTTP 500 Defect
+     response.
+   - Fix: request preload hydration filters out read-only live-query
+     collections while still tracking their source collections. Action response
+     construction records metadata/output failures as trace failures, preserving
+     interruption semantics and marking 500+ defect responses as defects.
+   - Benefits: SSR hydration payloads contain only hydratable collections, and
+     Start request traces now tell the truth about response-construction
+     defects.
+
+4. Start Agent Graph Query Robustness
+   - Status: fixed.
+   - Files: `packages/start/src/start-agent-graph-query.ts`,
+     `packages/start/test/app-graph.test.ts`.
+   - Problem: public agent graph queries used raw `JSON.stringify(...)` on
+     graph facts, so BigInt values, cycles, hostile getters, or deep structures
+     could defect instead of producing bounded searchable text.
+   - Fix: graph fact search now uses bounded structural text extraction with
+     depth, entry, and length limits plus cycle, BigInt, symbol, function, and
+     thrown-access handling.
+   - Benefits: agent graph queries stay total over public graph facts while
+     preserving useful search signal for diagnostics and repair workflows.
+
+Focused verification passed: Core/React/Solid/DB/Start package typechecks,
+public type tests, public API audit, Effect-first audit over 273 files, DB
+collection tests 1 file / 126 tests, Start request/app-graph tests 2 files /
+173 tests, Core/React/Solid resource and router tests 3 files / 48 tests, and
+focused stale-restore/mutation/persist/hydrate DB regressions. Full
+`pnpm verify` still needs to be rerun for Review158 before the full checkpoint
+tip can advance.
 
 ## Review 157: Durable Commit Locality, Devtools Secrets, And Public CLI Surface
 

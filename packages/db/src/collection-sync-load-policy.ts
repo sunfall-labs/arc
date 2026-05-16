@@ -219,13 +219,16 @@ const restoreBeforePreloadEffect = <A extends object, K extends CollectionKey, E
   store: RuntimeCollectionStore,
   attempt: CollectionLoadAttempt
 ): Effect.Effect<boolean, CollectionRuntimeError<E>, R> =>
-  restoreCollectionBeforePreloadEffect(
-    definition,
-    state,
-    store,
-    collectionStoreEffect,
-    () => isCurrentLoadAttempt(state, attempt)
-  );
+  Effect.suspend(() => {
+    const restoreVersion = state.version.get();
+    return restoreCollectionBeforePreloadEffect(
+      definition,
+      state,
+      store,
+      collectionStoreEffect,
+      () => isCurrentLoadAttempt(state, attempt) && state.version.get() === restoreVersion
+    );
+  });
 
 const shouldPersistLoad = (definition: AnyCollection): boolean => {
   const config = collectionPersistenceConfig(definition);

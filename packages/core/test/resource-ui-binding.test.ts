@@ -1,4 +1,4 @@
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, Fiber, Layer, Scope } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   makeResourceUiBindingController,
@@ -141,5 +141,44 @@ describe("Resource UI Binding Controller", () => {
 
     controller.dispose();
     return Effect.runPromise(runtime.disposeEffect);
+  });
+
+  it("runs default Suspense preload fibers in a Scope", () => {
+    const runtime = makeRuntime();
+    let releases = 0;
+    const ProjectById = Resource.family<string, Project, never, Scope.Scope>({
+      name: "ResourceUiBinding.suspense-default-scoped",
+      load: (id) =>
+        Effect.acquireRelease(
+          Effect.succeed({ id, name: "Atlas" }),
+          () => Effect.sync(() => {
+            releases++;
+          })
+        )
+    });
+    const controller = makeResourceUiSuspensePreloadController<
+      string,
+      Project,
+      never,
+      Scope.Scope,
+      never,
+      Fiber.Fiber<Project, Resource.LoadError<never>>
+    >(runtime);
+    const ref = ProjectById("atlas");
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const fiber = controller.hostToken(ref, {
+          toHostToken: (preloadFiber) => preloadFiber
+        });
+        const project = yield* Fiber.join(fiber);
+
+        expect(project).toEqual({ id: "atlas", name: "Atlas" });
+        expect(releases).toBe(1);
+      }).pipe(
+        Effect.ensuring(Effect.sync(() => controller.dispose())),
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
   });
 });

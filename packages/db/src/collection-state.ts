@@ -168,7 +168,8 @@ export const cloneOptimisticRowStack = <A extends object, K extends CollectionKe
 });
 
 export const clonePendingMutationEntry = <A extends object, K extends CollectionKey>(
-  entry: PendingMutationEntry<A, K>
+  entry: PendingMutationEntry<A, K>,
+  options: { readonly preserveActiveAttempt?: boolean } = {}
 ): PendingMutationEntry<A, K> => ({
   transaction: cloneCollectionTransaction(entry.transaction),
   rollbackRows: new Map(
@@ -176,7 +177,7 @@ export const clonePendingMutationEntry = <A extends object, K extends Collection
   ),
   createdAt: entry.createdAt,
   attempts: entry.attempts,
-  activeAttempt: undefined
+  activeAttempt: options.preserveActiveAttempt === true ? entry.activeAttempt : undefined
 });
 
 export const restoreStoredRows = <A extends object, K extends CollectionKey>(
@@ -206,7 +207,7 @@ export const restoreOptimisticState = <A extends object, K extends CollectionKey
 
   state.pendingMutations.clear();
   for (const [id, entry] of pendingMutations) {
-    state.pendingMutations.set(id, clonePendingMutationEntry(entry));
+    state.pendingMutations.set(id, clonePendingMutationEntry(entry, { preserveActiveAttempt: true }));
   }
 
   state.optimisticRows.clear();

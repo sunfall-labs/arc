@@ -30,9 +30,11 @@ import {
   createStartAgentGraphImpact,
   createStartAgentGraph,
   formatStartAgentGraphImpact,
-  queryStartAgentGraph
+  queryStartAgentGraph,
+  queryStartAgentGraphEffect
 } from "../src/agent-graph.js";
 import type {
+  StartAgentGraph,
   StartAgentGraphNodeKind,
   StartAgentGraphQueryKind
 } from "../src/start-agent-graph-contract.js";
@@ -1009,6 +1011,74 @@ describe("Start app graph", () => {
         });
       })
     );
+  });
+
+  it("queries agent graph nodes whose facts contain BigInt and circular values", async () => {
+    const circularFacts: Record<string, unknown> = {
+      reason: "cycle"
+    };
+    circularFacts.self = circularFacts;
+
+    const graph: StartAgentGraph = {
+      version: 1,
+      summary: {
+        nodes: 2,
+        edges: 0,
+        routes: 1,
+        serverFunctions: 0,
+        actions: 1,
+        resourceFamilies: 0,
+        resourceTags: 0,
+        collections: 0,
+        findings: 0
+      },
+      selfReview: {
+        status: "pass",
+        policyClean: true,
+        wireComplete: true,
+        actionBehaviorKnown: true,
+        routePreloadsDeclared: true,
+        findingCount: 0
+      },
+      nodes: [
+        {
+          id: "action:Project.bigint",
+          kind: "Action",
+          label: "Project.bigint",
+          status: "known",
+          owner: "src/project/actions.ts",
+          facts: {
+            submittedAt: 1n
+          }
+        },
+        {
+          id: "route:route_circular",
+          kind: "Route",
+          label: "Circular Route",
+          status: "known",
+          owner: "src/routes/circular.tsx",
+          facts: circularFacts
+        }
+      ],
+      edges: [],
+      findings: []
+    };
+
+    const byId = queryStartAgentGraph(graph, {
+      text: "action:Project.bigint"
+    });
+    const byOwner = queryStartAgentGraph(graph, {
+      text: "src/project/actions.ts"
+    });
+    const byLabel = await Effect.runPromise(
+      queryStartAgentGraphEffect(graph, {
+        text: "Circular Route"
+      })
+    );
+
+    expect(byId.nodes.map((node) => node.id)).toEqual(["action:Project.bigint"]);
+    expect(byOwner.nodes.map((node) => node.owner)).toEqual(["src/project/actions.ts"]);
+    expect(byLabel.nodes.map((node) => node.label)).toEqual(["Circular Route"]);
   });
 
   it("derives a concise edit impact brief from the semantic graph", () => {

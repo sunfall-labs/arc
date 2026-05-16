@@ -812,13 +812,13 @@ Last evidence pass: May 16, 2026.
     dry-run gate, project-console typecheck, 4 project-console test files / 27
     tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 157 records focused DB/React/Devtools/Start package
+  - Evidence: Review 158 records focused Core/React/Solid/DB/Start package
     typechecks, public type tests, public API audit, Effect-first audit over
-    273 files, DB collection tests 1 file / 122 tests, React router tests 1
-    file / 11 tests, Devtools tests 1 file / 76 tests, package build, script
-    syntax checks, the 16-target package dry-run metadata/payload gate, and
-    `git diff --check`. Full verification is recorded in the Review157 full
-    gate above.
+    273 files, DB collection tests 1 file / 126 tests, Start request/app-graph
+    tests 2 files / 173 tests, Core/React/Solid resource/router tests 3 files
+    / 48 tests, and focused stale-restore/mutation/persist/hydrate DB
+    regressions. Full verification is still recorded in the Review157 full
+    gate above until the next root `pnpm verify` pass completes.
 
 ## Remaining Winning-Bar Items
 

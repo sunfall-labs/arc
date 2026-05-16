@@ -15,7 +15,7 @@ import {
   type Route,
   type ResponseContext
 } from "@effect-ui/core";
-import { Effect, Exit, type Scope } from "effect";
+import { Cause, Effect, Exit, type Scope } from "effect";
 import {
   validateStartActionRequestEffect,
   validateStartRpcRequestEffect
@@ -27,7 +27,8 @@ import {
 import {
   withStartActionObservability,
   withStartRpcObservability,
-  type StartRequestTraceFacts
+  type StartRequestTraceFacts,
+  type StartRequestTraceFailureKind
 } from "./request-trace.js";
 import {
   recordStartRequestTraceAction,
@@ -61,6 +62,16 @@ import {
   type StartActionDefinition
 } from "./start-action-request-codec.js";
 import { runStartTransportEndpointEffect } from "./start-transport-endpoint-runner.js";
+
+const actionResponseTraceFailureKind = (
+  failureKind: StartRequestTraceFailureKind | undefined,
+  response: Response
+): StartRequestTraceFailureKind | undefined =>
+  failureKind === "interruption"
+    ? failureKind
+    : response.status >= 500
+      ? "defect"
+      : failureKind;
 
 export const createServerRpcResponseEffectWithRuntime = <
   const Routes extends readonly Route.Definition<string, unknown, unknown, any>[],
@@ -297,14 +308,34 @@ export const createServerActionResponseEffectWithRuntime = <
           const exit = yield* Effect.exit(
             withStartActionObservability(action.name, instance.submitEffect(input))
           );
-          const meta = yield* actionResponseMetaEffect(instance.invalidationPlan.get());
           const failureKind = yield* actionFailureKindEffect(action, exit);
+          const metaExit = yield* Effect.exit(actionResponseMetaEffect(instance.invalidationPlan.get()));
+          if (Exit.isFailure(metaExit)) {
+            const metaInterrupted = metaExit.cause.reasons.some(Cause.isInterruptReason);
+            const metaFailureKind = failureKind === "interruption" || metaInterrupted
+              ? "interruption"
+              : "defect";
+            recordStartRequestTraceAction(traceFacts, {
+              name: action.name,
+              state: "Failure",
+              failureKind: metaFailureKind
+            });
+            if (failureKind === "interruption") {
+              return yield* actionExitResponseEffect(action, exit, {}, actionResponseMode(request));
+            }
+            if (metaInterrupted) {
+              return yield* Effect.failCause(metaExit.cause);
+            }
+            return actionRuntimeFailureResponse(Cause.squash(metaExit.cause));
+          }
+          const response = yield* actionExitResponseEffect(action, exit, metaExit.value, actionResponseMode(request));
+          const responseFailureKind = actionResponseTraceFailureKind(failureKind, response);
           recordStartRequestTraceAction(traceFacts, {
             name: action.name,
-            state: failureKind === undefined ? "Success" : "Failure",
-            ...(failureKind === undefined ? {} : { failureKind })
+            state: responseFailureKind === undefined ? "Success" : "Failure",
+            ...(responseFailureKind === undefined ? {} : { failureKind: responseFailureKind })
           });
-          return yield* actionExitResponseEffect(action, exit, meta, actionResponseMode(request));
+          return response;
         })
     }
   }) as Effect.Effect<

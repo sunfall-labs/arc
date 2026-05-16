@@ -2127,10 +2127,11 @@ describe("Collection", () => {
       getItem: (storageKey) => {
         gets++;
         if (gets === 1) {
+          const encoded = persisted.get(storageKey) ?? null;
           return Effect.gen(function* () {
             yield* Deferred.succeed(firstRestoreStarted, undefined).pipe(Effect.ignore);
             yield* Deferred.await(releaseFirstRestore);
-            return persisted.get(storageKey) ?? null;
+            return encoded;
           });
         }
         return null;
@@ -2153,11 +2154,13 @@ describe("Collection", () => {
       }
     });
     let preload: Fiber.Fiber<unknown, unknown> | undefined;
+    let refetch: Fiber.Fiber<unknown, unknown> | undefined;
 
     try {
       preload = runtime.runFork(Projects.preloadEffect());
       await Effect.runPromise(Deferred.await(firstRestoreStarted));
-      await Effect.runPromise(runtime.provide(Projects.refetchEffect()));
+      refetch = runtime.runFork(Projects.refetchEffect());
+      await Effect.runPromise(Fiber.join(refetch));
 
       Effect.runSync(Deferred.succeed(releaseFirstRestore, undefined));
       await Effect.runPromise(Fiber.join(preload));
@@ -2172,6 +2175,92 @@ describe("Collection", () => {
       Effect.runSync(Deferred.succeed(releaseFirstRestore, undefined).pipe(Effect.ignore));
       if (preload !== undefined) {
         await Effect.runPromise(Fiber.await(preload).pipe(Effect.timeoutOption("100 millis")));
+      }
+      if (refetch !== undefined) {
+        await Effect.runPromise(Fiber.await(refetch).pipe(Effect.timeoutOption("100 millis")));
+      }
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("serializes restore-before-preload with direct writes", async () => {
+    const runtime = makeRuntime();
+    const key = "projects-restore-write-serialization-cache";
+    const restoreStarted = Effect.runSync(Deferred.make<void>());
+    const releaseRestore = Effect.runSync(Deferred.make<void>());
+    const oldSnapshot = JSON.stringify({
+      name: "Projects.restore-write-serialization",
+      rows: [
+        {
+          key: "atlas",
+          value: { id: "atlas", name: "Restored Old", status: "blocked", progress: 1 },
+          synced: true,
+          origin: "remote"
+        }
+      ],
+      pendingMutations: [],
+      updatedAt: 1
+    });
+    const persisted = new Map<string, string>([[key, oldSnapshot]]);
+    let gets = 0;
+    const storage: Collection.PersistenceStorage = {
+      getItem: (storageKey) => {
+        gets++;
+        if (gets === 1) {
+          const encoded = persisted.get(storageKey) ?? null;
+          return Effect.gen(function* () {
+            yield* Deferred.succeed(restoreStarted, undefined).pipe(Effect.ignore);
+            yield* Deferred.await(releaseRestore);
+            return encoded;
+          });
+        }
+        return persisted.get(storageKey) ?? null;
+      },
+      setItem: (storageKey, value) =>
+        Effect.sync(() => {
+          persisted.set(storageKey, value);
+        })
+    };
+    const Projects = Collection.define<Project>({
+      name: "Projects.restore-write-serialization",
+      getKey: (project) => project.id,
+      persistence: {
+        storage,
+        key,
+        restoreOnPreload: true,
+        persistOnWrite: true
+      }
+    });
+    let preload: Fiber.Fiber<unknown, unknown> | undefined;
+    let write: Fiber.Fiber<unknown, unknown> | undefined;
+
+    try {
+      preload = runtime.runFork(Projects.preloadEffect());
+      await Effect.runPromise(Deferred.await(restoreStarted));
+      write = runtime.runFork(Projects.writeInsertEffect({
+        id: "atlas",
+        name: "Fresh Write",
+        status: "active",
+        progress: 42
+      }));
+      await Effect.runPromise(Fiber.join(write));
+
+      Effect.runSync(Deferred.succeed(releaseRestore, undefined));
+      await Effect.runPromise(Fiber.join(preload));
+
+      const snapshot = JSON.parse(persisted.get(key) ?? "{}") as Collection.Snapshot<Project, string>;
+      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
+        name: "Fresh Write",
+        progress: 42
+      });
+      expect(snapshot.rows.map((row) => row.value.name)).toEqual(["Fresh Write"]);
+    } finally {
+      Effect.runSync(Deferred.succeed(releaseRestore, undefined).pipe(Effect.ignore));
+      if (preload !== undefined) {
+        await Effect.runPromise(Fiber.await(preload).pipe(Effect.timeoutOption("100 millis")));
+      }
+      if (write !== undefined) {
+        await Effect.runPromise(Fiber.await(write).pipe(Effect.timeoutOption("100 millis")));
       }
       await Effect.runPromise(runtime.disposeEffect);
     }
@@ -4104,6 +4193,249 @@ describe("Collection", () => {
       }
       if (flush !== undefined) {
         await Effect.runPromise(Fiber.await(flush).pipe(Effect.timeoutOption("100 millis")));
+      }
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("preserves active mutation joiners when rollback restores pending state", async () => {
+    const runtime = makeRuntime();
+    const entered = Effect.runSync(Deferred.make<void>());
+    const release = Effect.runSync(Deferred.make<void>());
+    let writes = 0;
+    let handlerCalls = 0;
+    const storage: Collection.PersistenceStorage<"persist-failed"> = {
+      getItem: () => null,
+      setItem: () => {
+        writes += 1;
+        return writes === 2 ? Effect.fail("persist-failed" as const) : Effect.void;
+      }
+    };
+    const Projects = Collection.define<Project, string, "persist-failed">({
+      name: "Projects.rollback-preserves-active-attempt",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+      ],
+      persistence: {
+        storage,
+        persistOnMutation: true,
+        persistOnWrite: true
+      },
+      onUpdate: () =>
+        Effect.gen(function* () {
+          handlerCalls += 1;
+          yield* Deferred.succeed(entered, undefined).pipe(Effect.ignore);
+          yield* Deferred.await(release);
+        })
+    });
+    let update: Fiber.Fiber<unknown, unknown> | undefined;
+    let flush: Fiber.Fiber<unknown, unknown> | undefined;
+
+    try {
+      await Effect.runPromise(
+        runtime.provide(
+          Effect.scoped(
+            Effect.gen(function* () {
+              const subscription = yield* Collection.subscribeEventsEffect();
+              update = runtime.runFork(Projects.updateEffect("atlas", { progress: 90 }));
+              yield* Deferred.await(entered);
+
+              const writeFailure = yield* Effect.flip(
+                runtime.provide(Projects.writeUpdateEffect("atlas", { name: "Direct Write" }))
+              );
+              flush = runtime.runFork(Projects.flushPendingMutationsEffect());
+              yield* Effect.sleep("20 millis");
+
+              expect(writeFailure).toBe("persist-failed");
+              expect(handlerCalls).toBe(1);
+
+              yield* Deferred.succeed(release, undefined);
+              const owner = yield* Fiber.await(update).pipe(Effect.timeoutOption("1 second"));
+              const joiner = yield* Fiber.await(flush).pipe(Effect.timeoutOption("1 second"));
+              if (Option.isNone(owner) || Option.isNone(joiner)) {
+                expect.fail("Expected mutation owner and flush joiner to terminate.");
+              }
+
+              const events: Array<Collection.StoreEvent> = [];
+              for (let index = 0; index < 8; index++) {
+                const event = yield* PubSub.take(subscription).pipe(
+                  Effect.timeoutOption("20 millis")
+                );
+                if (Option.isNone(event)) {
+                  break;
+                }
+                events.push(event.value);
+              }
+              const started = events.filter((event) => event._tag === "CollectionMutateStarted");
+
+              expect(handlerCalls).toBe(1);
+              expect(started).toHaveLength(1);
+              expect(writes).toBe(3);
+              expect(runWithRuntime(runtime, () => Projects.pendingMutations())).toEqual([]);
+              expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
+                progress: 90,
+                $synced: true
+              });
+            })
+          )
+        )
+      );
+    } finally {
+      Effect.runSync(Deferred.succeed(release, undefined).pipe(Effect.ignore));
+      if (update !== undefined) {
+        await Effect.runPromise(Fiber.await(update).pipe(Effect.timeoutOption("100 millis")));
+      }
+      if (flush !== undefined) {
+        await Effect.runPromise(Fiber.await(flush).pipe(Effect.timeoutOption("100 millis")));
+      }
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("serializes public persist snapshots behind failing durable writes", async () => {
+    const runtime = makeRuntime();
+    const key = "projects-public-persist-serialization-cache";
+    const writeStarted = Effect.runSync(Deferred.make<void>());
+    const releaseWrite = Effect.runSync(Deferred.make<void>());
+    const persisted = new Map<string, string>();
+    let writes = 0;
+    const storage: Collection.PersistenceStorage<"persist-failed"> = {
+      getItem: () => persisted.get(key) ?? null,
+      setItem: (storageKey, value) => {
+        writes += 1;
+        if (writes === 1) {
+          return Effect.gen(function* () {
+            yield* Deferred.succeed(writeStarted, undefined).pipe(Effect.ignore);
+            yield* Deferred.await(releaseWrite);
+            return yield* Effect.fail("persist-failed" as const);
+          });
+        }
+        return Effect.sync(() => {
+          persisted.set(storageKey, value);
+        });
+      }
+    };
+    const Projects = Collection.define<Project, string, "persist-failed">({
+      name: "Projects.public-persist-serialization",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+      ],
+      persistence: {
+        storage,
+        key,
+        persistOnWrite: true
+      }
+    });
+    let write: Fiber.Fiber<unknown, unknown> | undefined;
+    let persist: Fiber.Fiber<unknown, unknown> | undefined;
+
+    try {
+      write = runtime.runFork(Projects.writeUpdateEffect("atlas", { progress: 90 }));
+      await Effect.runPromise(Deferred.await(writeStarted));
+      persist = runtime.runFork(Projects.persistEffect(storage, { key }));
+      await Effect.runPromise(Effect.sleep("10 millis"));
+
+      Effect.runSync(Deferred.succeed(releaseWrite, undefined));
+      const writeExit = await Effect.runPromise(Fiber.await(write).pipe(Effect.timeoutOption("1 second")));
+      const persistExit = await Effect.runPromise(Fiber.await(persist).pipe(Effect.timeoutOption("1 second")));
+      if (Option.isNone(writeExit) || Option.isNone(persistExit)) {
+        expect.fail("Expected write and public persist to terminate.");
+      }
+
+      const writeFailure = Exit.isFailure(writeExit.value)
+        ? writeExit.value.cause.reasons.find(Cause.isFailReason)?.error
+        : undefined;
+      const snapshot = JSON.parse(persisted.get(key) ?? "{}") as Collection.Snapshot<Project, string>;
+      expect(writeFailure).toBe("persist-failed");
+      expect(snapshot.rows.map((row) => row.value.progress)).toEqual([72]);
+      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
+        progress: 72
+      });
+    } finally {
+      Effect.runSync(Deferred.succeed(releaseWrite, undefined).pipe(Effect.ignore));
+      if (write !== undefined) {
+        await Effect.runPromise(Fiber.await(write).pipe(Effect.timeoutOption("100 millis")));
+      }
+      if (persist !== undefined) {
+        await Effect.runPromise(Fiber.await(persist).pipe(Effect.timeoutOption("100 millis")));
+      }
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("serializes public hydrate behind failing durable writes", async () => {
+    const runtime = makeRuntime();
+    const writeStarted = Effect.runSync(Deferred.make<void>());
+    const releaseWrite = Effect.runSync(Deferred.make<void>());
+    let writes = 0;
+    const storage: Collection.PersistenceStorage<"persist-failed"> = {
+      getItem: () => null,
+      setItem: () => {
+        writes += 1;
+        return Effect.gen(function* () {
+          yield* Deferred.succeed(writeStarted, undefined).pipe(Effect.ignore);
+          yield* Deferred.await(releaseWrite);
+          return yield* Effect.fail("persist-failed" as const);
+        });
+      }
+    };
+    const Projects = Collection.define<Project, string, "persist-failed">({
+      name: "Projects.public-hydrate-serialization",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+      ],
+      persistence: {
+        storage,
+        persistOnWrite: true
+      }
+    });
+    const hydratedSnapshot: Collection.Snapshot<Project, string> = {
+      name: "Projects.public-hydrate-serialization",
+      rows: [
+        {
+          key: "atlas",
+          value: { id: "atlas", name: "Hydrated", status: "active", progress: 11 },
+          synced: true,
+          origin: "remote"
+        }
+      ],
+      pendingMutations: [],
+      updatedAt: 123
+    };
+    let write: Fiber.Fiber<unknown, unknown> | undefined;
+    let hydrate: Fiber.Fiber<unknown, unknown> | undefined;
+
+    try {
+      write = runtime.runFork(Projects.writeUpdateEffect("atlas", { progress: 90 }));
+      await Effect.runPromise(Deferred.await(writeStarted));
+      hydrate = runtime.runFork(Projects.hydrateEffect(hydratedSnapshot));
+      await Effect.runPromise(Effect.sleep("10 millis"));
+
+      Effect.runSync(Deferred.succeed(releaseWrite, undefined));
+      const writeExit = await Effect.runPromise(Fiber.await(write).pipe(Effect.timeoutOption("1 second")));
+      const hydrateExit = await Effect.runPromise(Fiber.await(hydrate).pipe(Effect.timeoutOption("1 second")));
+      if (Option.isNone(writeExit) || Option.isNone(hydrateExit)) {
+        expect.fail("Expected write and public hydrate to terminate.");
+      }
+
+      const writeFailure = Exit.isFailure(writeExit.value)
+        ? writeExit.value.cause.reasons.find(Cause.isFailReason)?.error
+        : undefined;
+      expect(writeFailure).toBe("persist-failed");
+      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
+        name: "Hydrated",
+        progress: 11
+      });
+    } finally {
+      Effect.runSync(Deferred.succeed(releaseWrite, undefined).pipe(Effect.ignore));
+      if (write !== undefined) {
+        await Effect.runPromise(Fiber.await(write).pipe(Effect.timeoutOption("100 millis")));
+      }
+      if (hydrate !== undefined) {
+        await Effect.runPromise(Fiber.await(hydrate).pipe(Effect.timeoutOption("100 millis")));
       }
       await Effect.runPromise(runtime.disposeEffect);
     }

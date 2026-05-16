@@ -48,12 +48,42 @@ const renderInRouteScope = <ER>(
 ): { readonly node: JSX.Element; readonly dispose: Effect.Effect<void, never, never> } => {
   const routeScope = makeRuntimeUiScope(runtime);
   let disposeSolid: (() => void) | undefined;
-  const node = createRoot((disposeRoot) => {
-    disposeSolid = disposeRoot;
-    return runWithRuntime(runtime, () =>
-      runWithScope(routeScope, render)
-    );
-  });
+  let renderFailure: { readonly error: unknown } | undefined;
+  const cleanupFailedRender = (): void => {
+    try {
+      runWithRuntime(runtime, () =>
+        runWithScope(routeScope, () => {
+          disposeSolid?.();
+        })
+      );
+    } catch {
+      // Preserve the original render error for the host ErrorBoundary.
+    }
+    void runtime.runFork(routeScope.disposeEffect().pipe(Effect.catchCause(() => Effect.void)));
+  };
+  let node: JSX.Element;
+  try {
+    node = createRoot((disposeRoot) => {
+      disposeSolid = disposeRoot;
+      return runWithRuntime(runtime, () =>
+        runWithScope(routeScope, () => {
+          try {
+            return render();
+          } catch (error) {
+            renderFailure = { error };
+            return undefined;
+          }
+        })
+      );
+    });
+  } catch (error) {
+    cleanupFailedRender();
+    throw error;
+  }
+  if (renderFailure !== undefined) {
+    cleanupFailedRender();
+    throw renderFailure.error;
+  }
   const dispose = Effect.andThen(
     Effect.sync(() => {
       runWithRuntime(runtime, () =>
@@ -97,11 +127,27 @@ const disposeRenderedRoute = (
 ): Effect.Effect<void> =>
   dispose ?? Effect.void;
 
+const scheduleRouteRenderError = (
+  onCurrentTransition: () => boolean,
+  setRenderError: Setter<unknown>,
+  error: unknown
+): void => {
+  queueMicrotask(() => {
+    // Let Solid commit the cleared route node before the host ErrorBoundary renders.
+    queueMicrotask(() => {
+      if (onCurrentTransition()) {
+        setRenderError(() => error);
+      }
+    });
+  });
+};
+
 export const makeSolidRouteRenderScopeController = <Routes extends readonly AnyRoute[], ER>(options: {
   readonly initialState: BrowserRouterState<Routes, ER>;
   readonly renderers: SolidRouteOutletRenderers<Routes, ER>;
   readonly runtime: AnyEffectUiRuntime<ER>;
   readonly setNode: Setter<JSX.Element>;
+  readonly setRenderError: Setter<unknown>;
 }): SolidRouteRenderScopeController<Routes, ER> => {
   let renderedState = options.initialState;
   const initial = renderRouteState(renderedState, options.renderers, options.runtime);
@@ -109,6 +155,12 @@ export const makeSolidRouteRenderScopeController = <Routes extends readonly AnyR
   let disposeRoute: Effect.Effect<void, never, never> | undefined = initial.dispose;
   let transitionVersion = 0;
   let disposalFiber: Fiber.Fiber<void, unknown> | undefined;
+
+  const disposeStaleRenderedRoute = (rendered: RenderedRouteScope): void => {
+    void options.runtime.runFork(
+      disposeRenderedRoute(rendered.dispose).pipe(Effect.catchCause(() => Effect.void))
+    );
+  };
 
   const disposeCurrentRoute = (): void => {
     const previousDisposalFiber = disposalFiber;
@@ -133,6 +185,7 @@ export const makeSolidRouteRenderScopeController = <Routes extends readonly AnyR
       renderedState = state;
       const transition = ++transitionVersion;
       options.setNode(() => undefined);
+      options.setRenderError(() => undefined);
       disposeCurrentRoute();
       const transitionDisposalFiber = disposalFiber;
       void options.runtime.runFork(
@@ -144,9 +197,29 @@ export const makeSolidRouteRenderScopeController = <Routes extends readonly AnyR
             return;
           }
 
-          const next = renderRouteState(state, options.renderers, options.runtime);
-          options.setNode(() => next.node);
+          let next: RenderedRouteScope;
+          try {
+            next = renderRouteState(state, options.renderers, options.runtime);
+          } catch (error) {
+            if (transition === transitionVersion) {
+              options.setNode(() => undefined);
+              scheduleRouteRenderError(
+                () => transition === transitionVersion,
+                options.setRenderError,
+                error
+              );
+            }
+            return;
+          }
+
+          if (transition !== transitionVersion) {
+            disposeStaleRenderedRoute(next);
+            return;
+          }
+
           disposeRoute = next.dispose;
+          options.setRenderError(() => undefined);
+          options.setNode(() => next.node);
         })
       );
     },

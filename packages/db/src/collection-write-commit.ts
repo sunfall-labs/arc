@@ -27,7 +27,10 @@ export const snapshotCollectionState = <A extends object, K extends CollectionKe
 ): CollectionStateSnapshot<A, K> => ({
   rows: new Map(Array.from(state.rows, ([key, row]) => [key, cloneStoredRow(row)])),
   pendingMutations: new Map(
-    Array.from(state.pendingMutations, ([id, entry]) => [id, clonePendingMutationEntry(entry)])
+    Array.from(state.pendingMutations, ([id, entry]) => [
+      id,
+      clonePendingMutationEntry(entry, { preserveActiveAttempt: true })
+    ])
   ),
   optimisticRows: new Map(
     Array.from(state.optimisticRows, ([key, stack]) => [key, cloneOptimisticRowStack(stack)])

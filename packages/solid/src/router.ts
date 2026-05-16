@@ -272,11 +272,13 @@ export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
   const router = useRouter<Routes, Error>();
   const runtime = router.runtime as AnyEffectUiRuntime<Error>;
   const [node, setNode] = createSignal<JSX.Element>();
+  const [renderError, setRenderError] = createSignal<unknown>();
   const routeRenderScope = makeSolidRouteRenderScopeController({
     initialState: router.state(),
     renderers: typedProps,
     runtime,
-    setNode
+    setNode,
+    setRenderError
   });
 
   createRenderEffect(() => {
@@ -287,7 +289,15 @@ export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
     routeRenderScope.dispose();
   });
 
-  return node as unknown as JSX.Element;
+  const view = createMemo(() => {
+    const error = renderError();
+    if (error !== undefined) {
+      throw error;
+    }
+    return node();
+  });
+
+  return view as unknown as JSX.Element;
 };
 
 /**
