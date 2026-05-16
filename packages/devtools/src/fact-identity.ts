@@ -2,13 +2,11 @@ import type {
   DevtoolsRequestTrace,
   DevtoolsRequestTraceAction,
   DevtoolsRuntimeEvent,
+  DevtoolsSerializationPolicy,
   DevtoolsSnapshot,
   DevtoolsSnapshotAction
 } from "./devtools-contract.js";
-import {
-  toDevtoolsSerializableFingerprint,
-  type DevtoolsSerializationPolicy
-} from "./serialization.js";
+import { toDevtoolsSerializableFingerprint } from "./serialization.js";
 
 const factIdentitySerializationPolicy = {
   maxDepth: 8,

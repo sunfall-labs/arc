@@ -649,7 +649,9 @@ Release decisions:
 - `devtools-contract` owns the public Devtools DTO and Interface vocabulary
   that renderers, stores, summaries, bridges, and agents share. The root
   import path re-exports it, while internal Devtools modules import the
-  contract directly instead of depending on the root facade.
+  contract directly instead of depending on the root facade. Serialization
+  policy belongs to this contract too; `serialization.ts` re-exports
+  `DevtoolsSerializationPolicy` only as a compatibility alias.
 - `DevtoolsInvalidationPlan` is public as an inspection data contract. Start
   emits a compatible `StartActionInvalidationPlan`, and type tests pin the
   structural compatibility so devtools can consume full-stack action metadata

@@ -40,8 +40,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
     92 start action response application, Review 93 collection change feed
     runtime, Review 94 browser router host controller, Review 95 core action
     execution workflow, Review 96 devtools public contract, Review 97 devtools
-    public type-test ownership, and Review 98 core resource-store test effect
-    boundary sweeps.
+    public type-test ownership, Review 98 core resource-store test effect
+    boundary, and Review 99 devtools serialization policy contract edge sweeps.
 
 ## Current Sweep Results
 
@@ -343,7 +343,11 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   test Effect boundary cleanup. Current docs now record the diagnostics test
   moving host `async`/`finally` cleanup into `Effect.gen(...)` plus
   `Effect.ensuring(...)`.
-- Updated current-facing verification snapshots after Review 98 full
+- Added Review 99 and progress entry 338 evidence for the Devtools serialization
+  policy contract edge cleanup. Public API docs now record that
+  `DevtoolsSerializationPolicy` belongs to `devtools-contract.ts` and is only
+  re-exported from `serialization.ts` for compatibility.
+- Updated current-facing verification snapshots after Review 99 full
   verification so the latest gate points at the 224-file Effect-first audit and
   52 root test files / 857 tests.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are

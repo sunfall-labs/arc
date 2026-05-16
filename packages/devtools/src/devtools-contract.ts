@@ -10,7 +10,6 @@ import {
   type Route
 } from "@effect-ui/core";
 import { Data, type Effect, type Fiber, type Scope } from "effect";
-import type { DevtoolsSerializationPolicy } from "./serialization.js";
 
 /**
  * JSON-safe value shape used by Devtools DTOs.
@@ -387,6 +386,18 @@ export interface DevtoolsSnapshot {
   readonly routePlans: ReadonlyArray<DevtoolsRoutePlan>;
   readonly requestTraces?: ReadonlyArray<DevtoolsRequestTrace>;
   readonly events?: ReadonlyArray<DevtoolsRuntimeEvent>;
+}
+
+/** Controls how unknown runtime values are projected into JSON-safe Devtools data. */
+export interface DevtoolsSerializationPolicy {
+  /** Maximum object/array nesting depth before values become a `MaxDepth` marker. */
+  readonly maxDepth?: number;
+  /** Maximum entries copied from arrays, maps, sets, and plain records. */
+  readonly maxEntries?: number;
+  /** Maximum string length before values become a `TruncatedString` marker. */
+  readonly maxStringLength?: number;
+  /** Record keys that should be replaced by a `Redacted` marker before storage or rendering. */
+  readonly redactKeys?: ReadonlyArray<string | RegExp>;
 }
 
 /** Limits applied by the bounded in-memory Devtools Store. */
@@ -1295,4 +1306,3 @@ export interface DevtoolsPanelBoot {
   /** Host callback facade for page lifecycle handlers. */
   readonly interrupt: () => void;
 }
-

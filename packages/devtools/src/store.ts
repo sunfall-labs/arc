@@ -16,6 +16,7 @@ import type {
   DevtoolsRequestTrace,
   DevtoolsRoutePlan,
   DevtoolsRuntimeEvent,
+  DevtoolsSerializationPolicy,
   DevtoolsSnapshot,
   DevtoolsStartActionInstance,
   DevtoolsStartAppGraphDiagnostics,
@@ -37,8 +38,7 @@ import {
   copyAppGraphDiagnostics,
   copyDevtoolsRoutePlan,
   copyDevtoolsRuntimeEvent,
-  copyDevtoolsSnapshot,
-  type DevtoolsSerializationPolicy
+  copyDevtoolsSnapshot
 } from "./serialization.js";
 
 export interface DevtoolsStoreRuntime {

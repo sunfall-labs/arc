@@ -11,9 +11,37 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 98, immediately after Review 97. Some older review
+The newest review is Review 99, immediately after Review 98. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 99: Devtools Serialization Policy Contract Edge
+
+Status: fixed for this fresh post-Review86 sweep and fully verified in the
+current worktree. Fresh sweeps still found actionable candidates, so the
+Thirty-Sweep clean counter remains at 0.
+
+- Devtools contract: moved `DevtoolsSerializationPolicy` into
+  `packages/devtools/src/devtools-contract.ts`, so the public contract owns the
+  Store serialization/redaction policy it references.
+- Serialization implementation: `packages/devtools/src/serialization.ts` now
+  imports the policy from the contract and re-exports it for compatibility.
+  The dependency arrow is one-way: serialization depends on the public
+  contract, while the contract no longer imports the serialization
+  implementation.
+- Internal locality: Store and fact-identity helpers now import the policy from
+  the contract module, closing the small back-edge left after Review 96.
+
+Focused verification: `pnpm --filter @effect-ui/devtools typecheck`, `pnpm
+vitest run packages/devtools/test/devtools.test.ts` (1 file / 70 tests), `pnpm
+typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first` over 224
+files, and `git diff --check` passed. Full `pnpm verify` passed: 11 package
+builds, workspace typecheck, public type tests, public API inventory audit,
+Effect-first audit over 224 files, 52 root test files / 857 tests,
+devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
+basic starter verify with 2 tests, React starter verify with 3 tests,
+project-console packaging/typecheck/tests/build with 4 files / 27 tests, and
+leak scans.
 
 ## Review 98: Core Resource Store Test Effect Boundary
 

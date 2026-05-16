@@ -731,8 +731,8 @@ Last evidence pass: May 15, 2026.
 - [x] Architectural decisions needing ADRs or docs updates listed.
   - Evidence: no new ADR required for the browser devtools renderer slice.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 15, 2026 after the Review 98
-    Core Resource Store Test Effect Boundary slice: 11 package builds, workspace
+  - Evidence: root `pnpm verify` passed on May 15, 2026 after the Review 99
+    Devtools Serialization Policy Contract Edge slice: 11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
     224 files,
     52 root test files / 857 tests,

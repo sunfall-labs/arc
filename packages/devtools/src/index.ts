@@ -46,7 +46,6 @@ export {
   describeRoutePlan,
   toDevtoolsSerializableValue
 } from "./serialization.js";
-export type { DevtoolsSerializationPolicy } from "./serialization.js";
 export {
   describeDevtoolsCausalGraph,
   describeDevtoolsCausalGraphEffect,

@@ -170,6 +170,10 @@ Latest full gate on May 15, 2026:
   Resource preload, diagnostics reads, assertions, and runtime disposal now run
   through one Effect program with `Effect.ensuring(...)`, leaving only the
   Vitest host runner as a Promise seam.
+- Review 99 closed the Devtools serialization policy contract back-edge:
+  `DevtoolsSerializationPolicy` now lives with the public Devtools contract,
+  while `serialization.ts` re-exports it for compatibility and depends on the
+  contract instead of the other way around.
 - Review 80 extracted the internal Request Runtime Lifecycle Module: selected
   Start response Effects now share one lifecycle path for failure/interruption
   teardown, ResponseContext application, request trace emission, Request Runtime

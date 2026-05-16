@@ -20,11 +20,14 @@ import type {
   DevtoolsRequestTraceTeardown,
   DevtoolsRoutePlan,
   DevtoolsRuntimeEvent,
+  DevtoolsSerializationPolicy,
   DevtoolsSerializableValue,
   DevtoolsSnapshot,
   DevtoolsStartAppGraphDiagnostics
 } from "./devtools-contract.js";
 import { normalizeDevtoolsAppGraphDiagnostics } from "./app-graph-normalizer.js";
+
+export type { DevtoolsSerializationPolicy } from "./devtools-contract.js";
 
 export class DevtoolsUnknownInvalidationTarget extends Data.TaggedError(
   "DevtoolsUnknownInvalidationTarget"
@@ -89,18 +92,6 @@ const objectTag = (tag: string, value?: string): { readonly [key: string]: Devto
         _tag: tag,
         value
       };
-
-/** Controls how unknown runtime values are projected into JSON-safe Devtools data. */
-export interface DevtoolsSerializationPolicy {
-  /** Maximum object/array nesting depth before values become a `MaxDepth` marker. */
-  readonly maxDepth?: number;
-  /** Maximum entries copied from arrays, maps, sets, and plain records. */
-  readonly maxEntries?: number;
-  /** Maximum string length before values become a `TruncatedString` marker. */
-  readonly maxStringLength?: number;
-  /** Record keys that should be replaced by a `Redacted` marker before storage or rendering. */
-  readonly redactKeys?: ReadonlyArray<string | RegExp>;
-}
 
 const defaultSerializationPolicy = {
   maxDepth: 8,
