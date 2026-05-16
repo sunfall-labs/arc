@@ -649,14 +649,12 @@ Last evidence pass: May 16, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 185 ran script syntax checks, raw
-    package/example/script throw grep, stale current-gate wording grep,
-    `pnpm starter:package`, `pnpm example:pack-dry-run`,
-    `pnpm audit:effect-first`, and `git diff --check` after moving starter
-    catalog validation to typed Effect seams and refreshing audit-doc current
-    full-gate wording.
+  - Latest focused evidence: Review 186 ran current-gate wording grep,
+    `pnpm audit:effect-first`, and `git diff --check` after fixing a stale
+    Review185 ledger sentence that still named Review184 as the current full
+    gate.
     Latest full evidence:
-    `pnpm verify` ran after Review 185 with 53 test files / 1033 tests.
+    `pnpm verify` ran after Review 186 with 53 test files / 1033 tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.
@@ -795,12 +793,12 @@ Last evidence pass: May 16, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 185 starter catalog typed-error
-    and audit-doc current-gate cleanup. Future architecture sweeps remain tracked in
+  - Evidence: no new ADR required for the Review 186 ledger current-gate
+    sentence cleanup. Future architecture sweeps remain tracked in
     `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 185
-    starter catalog typed-error and audit-doc current-gate cleanup:
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 186
+    ledger current-gate sentence cleanup:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
     404 physical/virtual files, 53 root test files / 1033 tests,
@@ -809,9 +807,8 @@ Last evidence pass: May 16, 2026.
     16-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 185 records script syntax checks, raw throw grep,
-    current-gate wording grep, starter packaging, package dry-runs,
-    Effect-first audit, and whitespace check.
+  - Evidence: Review 186 records current-gate wording grep, Effect-first audit,
+    and whitespace check.
     Full verification is recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items

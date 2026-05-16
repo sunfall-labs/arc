@@ -65,7 +65,7 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 185:
+Latest full gate on May 16, 2026 after Review 186:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
@@ -86,6 +86,11 @@ Latest full gate on May 16, 2026 after Review 185:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 186 closed a stale Review185 ledger sentence that still named
+  Review184 as the current full gate. The post-Review185 subagents found no
+  actionable code/API/script issues, but this docs drift means the
+  Thirty-Sweep clean counter remains unstarted until the next fresh sweep is
+  clean.
 - Review 168 closed Markdown TypeScript/JavaScript snippet coverage in the
   Effect-first Source Audit and Devtools app graph repair for stale public
   Store/Bridge inputs.
@@ -986,10 +991,9 @@ Latest full gate on May 16, 2026 after Review 185:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 185 closed the starter
-  catalog typed-error and audit-doc current-gate cleanup. A fresh
-  no-actionable-findings sweep still needs to run before any clean-sweep count
-  can start.
+- The latest full `pnpm verify` passed after Review 186 closed the stale
+  Review185 current-gate sentence. A fresh no-actionable-findings sweep still
+  needs to run before any clean-sweep count can start.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
   Effect-first audit over 404 physical/virtual files, 53 root test files / 1033

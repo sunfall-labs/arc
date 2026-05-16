@@ -12,17 +12,50 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review185, the starter catalog typed-error and audit-doc current-gate cleanup
-found by the fresh post-Review184 sweep. Some older review entries remain below
-this tip from prior ledger merges; use this tip rather than file order alone
-when looking for the latest architecture sweep.
+Review186, the Review185 ledger current-gate sentence cleanup found while
+preparing the post-Review185 clean-sweep record. Some older review entries
+remain below this tip from prior ledger merges; use this tip rather than file
+order alone when looking for the latest architecture sweep.
 
-The fresh post-Review184 subagent sweep reported no actionable Core/React/Solid
-or DB/public API findings after focused verification. The Start/devtools/scripts
-pass found the Review185 script-error and audit-doc drift below. Do not start
-the clean-sweep counter until a fresh full sweep after Review185 finds no
-actionable Module, Interface, Seam, Adapter, Locality, Depth, Leverage, typed
-error, or docs drift work.
+The fresh post-Review185 subagent sweep reported no actionable Core/React/Solid,
+DB/public API, or Start/devtools/scripts findings after focused verification.
+The docs preparation pass found the Review186 stale current-gate sentence below.
+Do not start the clean-sweep counter until a fresh full sweep after Review186
+finds no actionable Module, Interface, Seam, Adapter, Locality, Depth, Leverage,
+typed error, or docs drift work.
+
+## Review 186: Review185 Ledger Current-Gate Sentence
+
+Review186 fixed one stale sentence found while preparing to record the first
+post-Review185 clean-sweep candidate.
+
+1. Review185 Current-Gate Sentence
+   - Status: fixed.
+   - Files: `docs/architecture-deepening-review.md`,
+     `docs/perfection-progress.md`, `docs/release-notes.md`,
+     `docs/ultimate-goal-checklist.md`.
+   - Problem: the Review185 entry correctly closed the starter catalog typed
+     error and audit-doc current-gate drift, but one sentence inside that entry
+     still said the audit docs were changed to name Review184 as the current
+     full gate. The progress ledger and release snapshot already named
+     Review185, so the stale sentence reintroduced a small docs Locality gap.
+   - Fix: updated the Review185 entry to say the audit docs point at Review185
+     as the current full gate, and moved the current readiness docs to Review186
+     while keeping the Thirty-Sweep clean counter unstarted.
+   - Benefits: the architecture ledger, progress ledger, release notes, and
+     final checklist now agree on the latest verified gate and the clean-sweep
+     state.
+
+Focused verification after the patch: current-gate wording grep, `pnpm
+audit:effect-first`, and `git diff --check` passed. Full `pnpm verify` passed
+after Review186 through the Effect-driven runner: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 404 physical/virtual files, 53 root test files / 1033 tests,
+package-level verifies, generated starter packaging, 16-target package dry-run
+gate, project-console checks, and leak scans. The post-Review185 subagents
+reported no actionable code/API/script findings, but this docs drift means the
+Thirty-Sweep clean counter remains unstarted until the next fresh sweep is
+clean.
 
 ## Review 185: Starter Catalog Typed Error And Audit Docs Current Gate
 
@@ -55,7 +88,7 @@ subagent sweep.
    - Problem: current-facing audit docs still called older Review165 and
      Review179 gates "latest" even though Review184 was the current full gate.
      That recreated the docs drift pattern fixed in Review184.
-   - Fix: changed those audit docs to name Review184 as the current full gate
+   - Fix: changed those audit docs to name Review185 as the current full gate
      and demoted Review165/179 to historical focused evidence for their slices.
    - Benefits: audit docs now have one current verification story, so future
      sweeps do not need to reconcile competing "latest full gate" claims.
