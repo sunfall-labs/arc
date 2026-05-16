@@ -859,6 +859,93 @@ describe("Collection.liveQuery", () => {
       })
     ));
 
+  it("serializes nested live query collection snapshots behind transitive source durable writes", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const runtime = makeRuntime();
+        const writeStarted = yield* Deferred.make<void>();
+        const releaseWrite = yield* Deferred.make<void>();
+        const storage = Collection.memoryStorage();
+        const failingStorage: Collection.PersistenceStorage<"persist-failed"> = {
+          getItem: () => storage.getItem("source-cache"),
+          setItem: (key, value) =>
+            Effect.gen(function* () {
+              yield* Deferred.succeed(writeStarted, undefined).pipe(Effect.ignore);
+              yield* Deferred.await(releaseWrite);
+              storage.values.set(key, value);
+              return yield* Effect.fail("persist-failed" as const);
+            })
+        };
+        const Projects = Collection.define<Project, string, "persist-failed">({
+          name: "Projects.live-query-nested-snapshot-source-durable-write",
+          getKey: (project) => project.id,
+          initialData: [
+            { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+          ],
+          persistence: {
+            storage: failingStorage,
+            key: "source-cache",
+            persistOnWrite: true
+          }
+        });
+        const ActiveProjectCards = Collection.liveQuery<ProjectCard>({
+          name: "ProjectCards.live-query-nested-snapshot-source-durable-write",
+          getKey: (project) => project.id,
+          query: (query) =>
+            query
+              .from({ project: Projects })
+              .where(({ project }) => eq(project.status, "active"))
+              .select(({ project }) => ({
+                id: project.id,
+                name: project.name,
+                progress: project.progress
+              }))
+        });
+        const ProjectSummaries = Collection.liveQuery<ProjectCard>({
+          name: "ProjectSummaries.live-query-nested-snapshot-source-durable-write",
+          getKey: (project) => project.id,
+          query: (query) =>
+            query
+              .from({ card: ActiveProjectCards })
+              .select(({ card }) => ({
+                id: card.id,
+                name: card.name,
+                progress: card.progress
+              }))
+        });
+        let write: Fiber.Fiber<Exit.Exit<void, "persist-failed">, never> | undefined;
+        let snapshot: Fiber.Fiber<Exit.Exit<Collection.Snapshot<ProjectCard, string>, unknown>, never> | undefined;
+
+        try {
+          write = runtime.runFork(Projects.writeUpdateEffect("atlas", { progress: 90 }).pipe(Effect.exit));
+          yield* Deferred.await(writeStarted);
+
+          snapshot = runtime.runFork(ProjectSummaries.snapshotEffect().pipe(Effect.exit));
+          const earlySnapshot = yield* Fiber.await(snapshot).pipe(Effect.timeoutOption("20 millis"));
+          expect(Option.isNone(earlySnapshot)).toBe(true);
+
+          yield* Deferred.succeed(releaseWrite, undefined).pipe(Effect.ignore);
+          const writeExit = yield* Fiber.join(write);
+          const snapshotExit = yield* Fiber.join(snapshot);
+
+          expect(Exit.isFailure(writeExit)).toBe(true);
+          if (Exit.isFailure(snapshotExit)) {
+            expect.fail("Expected nested live query snapshot to succeed after source write rollback.");
+          }
+          expect(snapshotExit.value.rows.map((row) => row.value.progress)).toEqual([72]);
+        } finally {
+          yield* Deferred.succeed(releaseWrite, undefined).pipe(Effect.ignore);
+          if (write !== undefined) {
+            yield* Fiber.await(write).pipe(Effect.timeoutOption("100 millis"), Effect.ignore);
+          }
+          if (snapshot !== undefined) {
+            yield* Fiber.await(snapshot).pipe(Effect.timeoutOption("100 millis"), Effect.ignore);
+          }
+          yield* runtime.disposeEffect;
+        }
+      })
+    ));
+
   it("rejects incomplete store-explicit snapshot markers instead of using the ambient store", () =>
     Effect.runPromise(
       Effect.gen(function* () {
@@ -1432,6 +1519,48 @@ describe("Collection.liveQuery", () => {
           expect(Option.isNone(event)).toBe(true);
           expect(ActiveProjectCards.rows().map((project) => project.id)).toEqual(["atlas"]);
           expect(Projects.rows().map((project) => project.id)).toEqual(["atlas"]);
+        })
+      )
+    ));
+
+  it("rejects change-feed subscriptions before subscribing derived read-only collections", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const Projects = Collection.define<Project>({
+            name: "Projects.live-query-collection.readonly-subscribe-source",
+            getKey: (project) => project.id,
+            initialData: [
+              { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+            ]
+          });
+          const ActiveProjectCards = Collection.liveQuery<ProjectCard, string>({
+            name: "ProjectCards.live-query-collection.readonly-subscribe",
+            getKey: (project) => project.id,
+            query: (query) =>
+              query
+                .from({ project: Projects })
+                .select(({ project }) => ({
+                  id: project.id,
+                  name: project.name,
+                  progress: project.progress
+                }))
+          });
+          let subscribed = false;
+
+          const failure = yield* Effect.flip(Collection.subscribeChangesEffect(ActiveProjectCards, {
+            name: "ProjectCards.live-query-collection.readonly-subscribe-feed",
+            subscribe: () => {
+              subscribed = true;
+            }
+          }));
+
+          expect(failure).toBeInstanceOf(ReadonlyCollectionMutation);
+          expect(failure).toMatchObject({
+            collection: "ProjectCards.live-query-collection.readonly-subscribe",
+            operation: "subscribeChangesEffect"
+          });
+          expect(subscribed).toBe(false);
         })
       )
     ));

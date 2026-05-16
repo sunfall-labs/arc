@@ -61,6 +61,7 @@ export interface StoreExplicitCollectionSnapshotDefinition<
     snapshot: CollectionSnapshot<A, K>,
     options: CollectionHydrateOptions
   ) => Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError>;
+  readonly durableSnapshotSources?: () => ReadonlyArray<AnyCollection>;
 }
 
 /** Implementation fields required before the non-enumerable marker is applied. */
@@ -204,3 +205,33 @@ export const hydrateStoreExplicitCollectionSnapshotEffect = (
     yield* snapshotDefinition.hydratePreflightEffect(snapshot, options);
     yield* snapshotDefinition.hydrateWithStoreEffect(store, snapshot, options);
   });
+
+export const collectionDurableSnapshotSources = (
+  definition: AnyCollection
+): ReadonlyArray<AnyCollection> => {
+  const visited = new Set<AnyCollection>();
+  const sources: AnyCollection[] = [];
+
+  const visit = (current: AnyCollection): void => {
+    if (visited.has(current)) {
+      return;
+    }
+    visited.add(current);
+
+    const explicit = current as Partial<StoreExplicitCollectionSnapshotDefinition>;
+    if (
+      hasStoreExplicitCollectionSnapshotMarker(current) &&
+      typeof explicit.durableSnapshotSources === "function"
+    ) {
+      for (const source of explicit.durableSnapshotSources()) {
+        visit(source);
+      }
+      return;
+    }
+
+    sources.push(current);
+  };
+
+  visit(definition);
+  return sources;
+};

@@ -17,6 +17,7 @@ import {
 } from "./collection-value-detachment.js";
 import { CollectionSnapshotCodecError } from "./collection-snapshot-codec.js";
 import { withCollectionDurableCommitPermit } from "./collection-write-commit.js";
+import { collectionDurableSnapshotSources } from "./collection-definition-snapshot.js";
 import { ingestCollectionOutputRowsSync } from "./collection-row-ingress.js";
 import {
   currentCollectionStore,
@@ -159,7 +160,9 @@ export const makeLiveQueryCollectionMaterialization = <
   options: LiveQueryCollectionMaterializationOptions<A, K, E, R>
 ): LiveQueryCollectionMaterialization<A, K, E> => {
   const storeAdapters = new WeakMap<RuntimeCollectionStore, LiveQueryCollectionStoreMaterialization<A, K, E>>();
-  const sourceCollections = Array.from(new Set(options.live.sources));
+  const sourceCollections = Array.from(new Set(
+    options.live.sources.flatMap((source) => collectionDurableSnapshotSources(source))
+  ));
   const currentRuntimeCollectionStore = (): RuntimeCollectionStore =>
     currentCollectionStore() as RuntimeCollectionStore;
   const withStore = <Out>(store: RuntimeCollectionStore, evaluate: () => Out): Out =>

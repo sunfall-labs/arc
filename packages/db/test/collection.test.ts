@@ -4365,6 +4365,94 @@ describe("Collection", () => {
     }
   });
 
+  it("restores direct-write state when write persistence is interrupted", async () => {
+    const runtime = makeRuntime();
+    const key = "projects-direct-write-interrupt-cache";
+    const writeStarted = Effect.runSync(Deferred.make<void>());
+    const storage: Collection.PersistenceStorage = {
+      getItem: () => null,
+      setItem: () =>
+        Effect.gen(function* () {
+          yield* Deferred.succeed(writeStarted, undefined).pipe(Effect.ignore);
+          return yield* Effect.never;
+        })
+    };
+    const Projects = Collection.define<Project>({
+      name: "Projects.direct-write-interrupt-rollback",
+      getKey: (project) => project.id,
+      persistence: {
+        storage,
+        key,
+        persistOnWrite: true
+      }
+    });
+    let write: Fiber.Fiber<void, unknown> | undefined;
+
+    try {
+      write = runtime.runFork(Projects.writeInsertEffect({
+        id: "atlas",
+        name: "Atlas",
+        status: "active",
+        progress: 72
+      }));
+      await Effect.runPromise(Deferred.await(writeStarted));
+
+      await Effect.runPromise(Fiber.interrupt(write));
+
+      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toBeUndefined();
+      expect(runWithRuntime(runtime, () => Projects.rows())).toEqual([]);
+    } finally {
+      if (write !== undefined) {
+        await Effect.runPromise(Fiber.await(write).pipe(Effect.timeoutOption("100 millis"), Effect.ignore));
+      }
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("restores optimistic mutation state when initial mutation persistence is interrupted", async () => {
+    const runtime = makeRuntime();
+    const key = "projects-mutation-enqueue-interrupt-cache";
+    const persistStarted = Effect.runSync(Deferred.make<void>());
+    const storage: Collection.PersistenceStorage = {
+      getItem: () => null,
+      setItem: () =>
+        Effect.gen(function* () {
+          yield* Deferred.succeed(persistStarted, undefined).pipe(Effect.ignore);
+          return yield* Effect.never;
+        })
+    };
+    const Projects = Collection.define<Project>({
+      name: "Projects.mutation-enqueue-interrupt-rollback",
+      getKey: (project) => project.id,
+      persistence: {
+        storage,
+        key,
+        persistOnMutation: true
+      }
+    });
+    let mutation: Fiber.Fiber<Collection.Transaction<Project, string>, unknown> | undefined;
+
+    try {
+      mutation = runtime.runFork(Projects.insertEffect({
+        id: "atlas",
+        name: "Atlas",
+        status: "active",
+        progress: 72
+      }));
+      await Effect.runPromise(Deferred.await(persistStarted));
+
+      await Effect.runPromise(Fiber.interrupt(mutation));
+
+      expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toBeUndefined();
+      expect(runWithRuntime(runtime, () => Projects.pendingMutations())).toEqual([]);
+    } finally {
+      if (mutation !== undefined) {
+        await Effect.runPromise(Fiber.await(mutation).pipe(Effect.timeoutOption("100 millis"), Effect.ignore));
+      }
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
   it("serializes public hydrate behind failing durable writes", async () => {
     const runtime = makeRuntime();
     const writeStarted = Effect.runSync(Deferred.make<void>());

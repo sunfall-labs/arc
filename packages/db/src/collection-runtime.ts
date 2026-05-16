@@ -228,6 +228,13 @@ export const subscribeCollectionChangesEffect = <
   options: CollectionChangeFeedSubscribeOptions = {}
 ): Effect.Effect<void, CollectionRuntimeError<E> | FeedError, R | FeedRequirements | Scope.Scope> =>
   Effect.gen(function* () {
+    if (definition.readOnly === true) {
+      return yield* Effect.fail(new ReadonlyCollectionMutation({
+        collection: definition.name,
+        operation: "subscribeChangesEffect"
+      }) as CollectionRuntimeError<E>);
+    }
+
     const dbStore = yield* collectionStoreEffect;
     yield* subscribeCollectionChangeFeedRuntimeEffect({
       collection: definition.name,

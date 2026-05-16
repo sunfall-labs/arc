@@ -91,18 +91,20 @@ export const commitCollectionWriteEffect = <A extends object, K extends Collecti
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
   withCollectionDurableCommitPermit(
     options.state,
-    Effect.gen(function* () {
-      const previousState = snapshotCollectionState(options.state);
-      options.apply();
-      const persistExit = yield* Effect.exit(options.persistEffect);
-      if (Exit.isFailure(persistExit)) {
-        restoreCollectionStateSnapshot(options.state, previousState);
-        return yield* Effect.failCause(persistExit.cause);
-      }
-      yield* options.publishEffect({
-        _tag: "CollectionWritten",
-        collection: options.collection,
-        mutations: options.mutations
-      });
-    })
+    Effect.uninterruptibleMask((restore) =>
+      Effect.gen(function* () {
+        const previousState = snapshotCollectionState(options.state);
+        options.apply();
+        const persistExit = yield* restore(options.persistEffect).pipe(Effect.exit);
+        if (Exit.isFailure(persistExit)) {
+          restoreCollectionStateSnapshot(options.state, previousState);
+          return yield* Effect.failCause(persistExit.cause);
+        }
+        yield* options.publishEffect({
+          _tag: "CollectionWritten",
+          collection: options.collection,
+          mutations: options.mutations
+        });
+      })
+    )
   );
