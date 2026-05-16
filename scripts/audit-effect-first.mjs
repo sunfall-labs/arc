@@ -24,7 +24,7 @@ const auditableRoots = [
       entry.isFile() &&
       relativeFile.startsWith("packages/") &&
       relativeFile.includes("/src/") &&
-      typeScriptSourceExtensions.has(extensionOf(entry.name))
+      typeScriptDeclarationExtensions.has(extensionOf(entry.name))
   },
   {
     name: "example sources",
@@ -177,14 +177,22 @@ const allowed = [
       seam("packages/start/src/file-route.ts", "File route preload runtime Promise-like guard", /const isPromiseLike\s*=\s*\(value:\s*unknown\):\s*value is PromiseLike<unknown>/),
       seam("packages/start/src/streaming.ts", "ReadableStream finalizer host return contract", /export type StartResponseStreamRunner[\s\S]*?PromiseLike<A>;/)
     ]
+  },
+  {
+    pattern: /(?:^|[;{\n]\s*)(?:readonly\s+)?then\s*\??\s*(?:\(|:)/gm,
+    name: "structural thenable type surface",
+    seams: [
+      seam("packages/core/src/effect-like.ts", "EffectInput runtime thenable guard property", /value as \{ readonly then\?: unknown \}/),
+      seam("packages/start/src/file-route.ts", "File route preload runtime thenable guard property", /value as \{ readonly then\?: unknown \}/)
+    ]
   }
 ];
 
 const promiseStaticPattern = (member) =>
-  new RegExp("\\bPromise\\s*(?:\\.\\s*|\\[\\s*['\"])" + member + "(?:\\b|['\"]\\s*\\])\\s*\\(", "g");
+  new RegExp("\\bPromise\\s*(?:(?:\\?\\.\\s*|\\.\\s*)" + member + "\\b|(?:\\?\\.\\s*)?\\[\\s*['\"]" + member + "['\"]\\s*\\])\\s*(?:\\?\\.\\s*)?\\(", "g");
 
 const memberCallPattern = (member) =>
-  new RegExp("(?:\\.\\s*" + member + "|\\[\\s*['\"]" + member + "['\"]\\s*\\])\\s*(?:<[^>]+>\\s*)?\\(", "g");
+  new RegExp("(?:(?:\\?\\.\\s*|\\.\\s*)" + member + "\\b|(?:\\?\\.\\s*)?\\[\\s*['\"]" + member + "['\"]\\s*\\])\\s*(?:\\?\\.\\s*)?(?:<[^>]+>\\s*)?\\(", "g");
 
 const receiverBeforeMemberAccess = (line, memberIndex) => {
   let end = memberIndex;
@@ -377,13 +385,20 @@ assertAuditPattern("Promise return type", "const value: Promise\n<string> = prom
 assertAuditPattern("PromiseLike return type", ") => void | PromiseLike <string>;", 1);
 assertAuditPattern("PromiseLike return type", "type Bad<T> = PromiseLike<T>;", 1);
 assertAuditPattern("PromiseLike return type", "interface Bad<T> extends PromiseLike<T> {}", 1);
+assertAuditPattern("structural thenable type surface", "interface Token<T> { then(resolve: (value: T) => void): void }", 1);
+assertAuditPattern("structural thenable type surface", "type Token<T> = { readonly then: (resolve: (value: T) => void) => void }", 1);
 assertBannedPattern("Promise.all", "Promise\n.all([]);", 1);
 assertBannedPattern("Promise.all", "Promise[\"all\"]([]);", 1);
+assertBannedPattern("Promise.all", "Promise?.[\"all\"]?.([]);", 1);
 assertBannedPattern("Promise.allSettled", "Promise.allSettled([]);", 1);
 assertBannedPattern("Promise.any", "Promise.any([]);", 1);
+assertBannedPattern("Promise.resolve", "Promise?.resolve(value);", 1);
+assertBannedPattern("Promise.resolve", "Promise.resolve?.(value);", 1);
 assertBannedPattern(".then(...)", "client.then<string>(() => undefined);", 1);
 assertBannedPattern(".then(...)", "client[\"then\"](() => undefined);", 1);
 assertBannedPattern(".then(...)", "client.then\n<string>(() => undefined);", 1);
+assertBannedPattern(".then(...)", "client.then?.(() => undefined);", 1);
+assertBannedPattern(".then(...)", "client[\"then\"]?.(() => undefined);", 1);
 assertBannedPattern("non-Effect .catch(...)", "Effect.catch(() => Effect.void);", 0);
 assertBannedPattern("non-Effect .catch(...)", "Effect.catch<Error>(() => Effect.void);", 0);
 assertBannedPattern("non-Effect .catch(...)", "Effect\n.catch<Error>(() => Effect.void);", 0);

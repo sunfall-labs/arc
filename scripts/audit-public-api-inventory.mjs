@@ -97,9 +97,12 @@ const publicHoverDocs = [
       "BrowserHistoryWindow",
       "BrowserHistoryAdapter",
       "MemoryBrowserHistoryAdapter",
+      "BrowserRouterKernelOptions",
+      "BrowserRouterKernel",
       "BrowserRouterHostController",
       "makeWindowBrowserHistoryAdapter",
       "makeMemoryBrowserHistoryAdapter",
+      "createBrowserRouterKernel",
       "createBrowserRouterHostController"
     ]
   },

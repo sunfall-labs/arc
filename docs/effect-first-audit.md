@@ -50,6 +50,9 @@ interruption.
     type surface, including aliases and `extends`, and moved banned Promise
     member scans over sanitized joined source so bracket and multiline
     choreography cannot evade line-local checks.
+  - The Review 144 pass added package-source declaration files to scope, caught
+    optional Promise statics/member calls, and anchored structural thenable type
+    surfaces to runtime guard seams.
 - `packages/start/src/start-fetch.ts` and `packages/start/src/file-route.ts`
   - Custom Start fetchers and file-route preload helpers now reject
     Promise-shaped erased JavaScript values before they cross deeper runtime
@@ -407,12 +410,16 @@ interruption.
   files after anchoring all approved `PromiseLike<T>` type seams and adding
   self-tests for alias, `extends`, bracket member, multiline static, and split
   typed member-chain forms.
+- Review 144 focused verification kept `pnpm audit:effect-first` green over 250
+  files after adding package-source `.d.ts` files to scope, catching optional
+  Promise statics/member calls, and anchoring structural thenable type surfaces
+  to runtime guard seams.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The latest full gate is the Review 143 `pnpm verify` run: 11 package builds,
+- The latest full gate is the Review 144 `pnpm verify` run: 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 249 files, 53 root test files / 891 tests,
+  Effect-first audit over 250 files, 53 root test files / 892 tests,
   devtools-panel/devtools-extension/starter/project-console gates, and leak
   scans.
 - `pnpm exec vitest run packages/core/test/runtime.test.ts packages/start/test/start.test.ts`
@@ -1209,10 +1216,10 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The latest full `pnpm verify` passed after the Review 143 Stale StartAction
-  Invalidation and Audit Guardrails slice: 11 package builds, workspace
-  typecheck, type tests, public API inventory audit, Effect-first audit over 249
-  package/example/script/type-test files, 53 root test files / 891 tests,
+- The latest full `pnpm verify` passed after the Review 144 Collection Store
+  Sync Locality and Public Kernel Pins slice: 11 package builds, workspace
+  typecheck, type tests, public API inventory audit, Effect-first audit over 250
+  package/example/script/type-test files, 53 root test files / 892 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
   verify with 1 starter test file / 2 tests, React starter verify with 1
@@ -1232,9 +1239,11 @@ interruption.
   keeping the scope green, Review 133 kept that 246-file scope green, Review
   139 expanded it to 248 files with exact seam anchors, Review 140 expanded it
   to 249 files with the Program Runtime Scheduler Module, Review 142 kept that
-  249-file scope green while tightening Promise member-pattern detection, and
+  249-file scope green while tightening Promise member-pattern detection,
   Review 143 kept it green while broadening `PromiseLike<T>` and
-  bracket/multiline Promise detection.
+  bracket/multiline Promise detection, and Review 144 expanded it to 250 files
+  by adding package-source declaration files while catching optional Promise
+  calls and structural thenable type surfaces.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

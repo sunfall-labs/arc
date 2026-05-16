@@ -57,9 +57,9 @@ Effect UI is ready when all of these are true:
 - Make diagnostics and devtools consume public facts, not private maps.
 - Mark uncertainty as unfinished work.
 
-## Current Overnight Operating Requirement
+## Historical Overnight Operating Requirement
 
-For the current push, keep working until 8:00 AM America/Denver on May 14,
+For the May 14, 2026 push, keep working until 8:00 AM America/Denver on May 14,
 2026, unless blocked by required user input or an environment limitation. The
 local timezone is MDT (`America/Denver`, UTC-06:00) on this date; use the
 concrete timezone instead of the ambiguous "MST" label when recording evidence.

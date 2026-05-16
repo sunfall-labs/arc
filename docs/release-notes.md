@@ -65,13 +65,13 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 143:
+Latest full gate on May 16, 2026 after Review 144:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 249 package/example/script/type-test files;
-- 53 root test files / 891 tests;
+- Effect-first audit over 250 package/example/script/type-test files;
+- 53 root test files / 892 tests;
 - devtools panel verify with 1 panel test file / 2 tests;
 - devtools extension verify with 1 extension test file / 20 tests;
 - basic starter verify with 1 starter test file / 2 tests;
@@ -221,6 +221,12 @@ Latest full gate on May 16, 2026 after Review 143:
   stale hydration, public browser-history pins cover React/Solid provider and
   option surfaces, the Effect-first scanner catches broad `PromiseLike<T>` and
   bracket/multiline Promise choreography, and starter/checklist docs are current.
+- Review 144 closed fresh DB/browser-router/audit/docs gaps: synchronous
+  collection pending-mutation, snapshot, and dehydration reads now honor the
+  active Collection Store override; the browser-router kernel surface is
+  hover-audit and type pinned; the Effect-first scanner covers package
+  declaration files, optional Promise calls, and structural thenable type
+  surfaces; and stale current-facing docs now use historical wording.
 - Review 85 extracted the internal Solid Route Render Scope Controller:
   `RouterOutlet` now delegates route branch rendering, route-owned `UiScope`
   creation, Solid root cleanup, runtime-bound route finalizers, transition
@@ -850,11 +856,11 @@ Latest full gate on May 16, 2026 after Review 143:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 143 closed the stale
-  StartAction invalidation and audit guardrail tranche:
+- The latest full `pnpm verify` passed after Review 144 closed the collection
+  store sync locality, public kernel pin, and Effect-first audit tranche:
   11 package builds, workspace typecheck, public type tests, public API
-  inventory audit, Effect-first audit over 249 files, 53 root test
-  files / 891 tests,
+  inventory audit, Effect-first audit over 250 files, 53 root test
+  files / 892 tests,
   devtools-panel verify with 2 tests, devtools-extension verify with 20 tests,
   basic starter verify with 2 tests, React starter verify with 3 tests,
   project-console starter packaging with 27 files verified, project-console

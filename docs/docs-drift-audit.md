@@ -132,6 +132,14 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Updated current-facing verification snapshots after the Review143 full
   `pnpm verify` gate while keeping the 53 root test files / 891 tests and
   249-file Effect-first audit counts current.
+- Recorded Review144 docs drift fixes: the historical May 14 overnight
+  requirement no longer reads as current on May 16, the active checklist now
+  names latest focused verification instead of implying a clean post-verify
+  sweep, and the project-console starter repair text describes versioned
+  package imports without monorepo aliases.
+- Updated current-facing verification snapshots after the Review144 full
+  `pnpm verify` gate: 53 root test files / 892 tests and the 250-file
+  Effect-first audit.
 - Updated the cleanup backlog so the generated artifact determinism audit points
   at the completed audit artifact instead of remaining unchecked.
 - Updated final handoff evidence to point at the latest full `pnpm verify`

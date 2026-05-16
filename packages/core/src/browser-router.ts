@@ -476,6 +476,14 @@ export class RouterRouteNotRegistered extends Data.TaggedError("RouterRouteNotRe
   readonly path: string;
 }> {}
 
+/**
+ * Framework-neutral Browser Router Kernel construction options.
+ *
+ * Framework adapters pass their Effect UI runtime and initial URL here before
+ * projecting the kernel's signals into React, Solid, or another host
+ * lifecycle. `initialMatchedState` lets an adapter preserve SSR hydration
+ * semantics without changing the shared navigation kernel.
+ */
 export interface BrowserRouterKernelOptions<
   Routes extends readonly AnyBrowserRoute[],
   ER
@@ -488,6 +496,13 @@ export interface BrowserRouterKernelOptions<
   ) => Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Pending" | "Ready" }>;
 }
 
+/**
+ * Framework-neutral Browser Router Kernel shared by host adapters.
+ *
+ * The kernel owns route matching, href construction, navigation state,
+ * membership validation, preload execution, and disposal. Host integrations
+ * should wrap this contract instead of duplicating router mechanics.
+ */
 export interface BrowserRouterKernel<
   Routes extends readonly AnyBrowserRoute[] = readonly AnyBrowserRoute[],
   ER = never
@@ -677,6 +692,12 @@ const defaultInitialMatchedState = <Routes extends readonly AnyBrowserRoute[], E
   match
 });
 
+/**
+ * Create the framework-neutral Browser Router Kernel for a route list.
+ *
+ * The returned kernel exposes Effect-backed preload helpers and synchronous
+ * route helpers while keeping host history commits supplied by the adapter.
+ */
 export const createBrowserRouterKernel = <
   const Routes extends readonly AnyBrowserRoute[],
   ER = never

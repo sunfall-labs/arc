@@ -6,6 +6,10 @@ import {
   markStoreExplicitCollectionSnapshotDefinition,
   type StoreExplicitCollectionSnapshotImplementation
 } from "../src/collection-definition-snapshot.js";
+import {
+  collectionStoreEffect,
+  runWithCollectionStore
+} from "../src/collection-runtime.js";
 import { CollectionSnapshotCodecError } from "../src/collection-snapshot-codec.js";
 
 interface Project {
@@ -920,6 +924,90 @@ describe("Collection", () => {
       rowCount: 0,
       pendingMutationCount: 0
     });
+  });
+
+  it("uses the active Collection store override for synchronous snapshots", async () => {
+    const first = makeRuntime();
+    const second = makeRuntime();
+    const initialProject: Project = {
+      id: "atlas",
+      name: "Atlas",
+      status: "active",
+      progress: 72
+    };
+    const updatedProject: Project = {
+      ...initialProject,
+      progress: 80
+    };
+    const Projects = Collection.define<Project>({
+      name: "Projects.collection-store-sync-override",
+      getKey: (project) => project.id
+    });
+    const pendingSnapshot: Collection.Snapshot<Project, string> = {
+      name: Projects.name,
+      rows: [
+        {
+          key: "atlas",
+          value: initialProject,
+          synced: true,
+          origin: "remote"
+        }
+      ],
+      pendingMutations: [
+        {
+          transaction: {
+            id: "ctx_1",
+            collection: Projects.name,
+            mutations: [
+              {
+                _tag: "Update",
+                key: "atlas",
+                previous: initialProject,
+                value: updatedProject,
+                changes: { progress: 80 }
+              }
+            ]
+          },
+          rollbackRows: [
+            {
+              key: "atlas",
+              row: {
+                key: "atlas",
+                value: initialProject,
+                synced: true,
+                origin: "remote"
+              }
+            }
+          ],
+          createdAt: 1,
+          attempts: 1
+        }
+      ],
+      updatedAt: 1
+    };
+
+    try {
+      const firstCollectionStore = await runInRuntime(first, collectionStoreEffect);
+      const secondCollectionStore = await runInRuntime(second, collectionStoreEffect);
+
+      await runInRuntime(first, Projects.hydrateEffect(pendingSnapshot));
+
+      expect(runWithCollectionStore(firstCollectionStore, () => Projects.pendingMutations())).toHaveLength(1);
+      expect(runWithCollectionStore(secondCollectionStore, () => Projects.pendingMutations())).toEqual([]);
+      expect(runWithCollectionStore(firstCollectionStore, () =>
+        Projects.snapshot().rows.map((row) => row.key)
+      )).toEqual(["atlas"]);
+      expect(runWithCollectionStore(secondCollectionStore, () => Projects.snapshot().rows)).toEqual([]);
+      expect(runWithCollectionStore(firstCollectionStore, () =>
+        Collection.dehydrate([Projects]).collections[0]?.rows.map((row) => row.key)
+      )).toEqual(["atlas"]);
+      expect(runWithCollectionStore(secondCollectionStore, () =>
+        Collection.dehydrate([Projects]).collections[0]?.rows
+      )).toEqual([]);
+    } finally {
+      await Effect.runPromise(first.disposeEffect);
+      await Effect.runPromise(second.disposeEffect);
+    }
   });
 
   it("publishes collection events through the active Collection store", async () => {

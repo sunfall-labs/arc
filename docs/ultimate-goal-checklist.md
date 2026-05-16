@@ -648,7 +648,7 @@ Last evidence pass: May 16, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Evidence: `pnpm verify` ran all root package tests: 53 test files, 891
+  - Evidence: `pnpm verify` ran all root package tests: 53 test files, 892
     tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
@@ -790,20 +790,21 @@ Last evidence pass: May 16, 2026.
   - Evidence: no new ADR required for the Start Action Response Codec
     extraction.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 143
-    stale StartAction invalidation and audit guardrail slice: 11 package builds,
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 144
+    collection store sync locality and public kernel pin slice: 11 package builds,
     workspace typecheck, type tests, public API inventory audit, Effect-first
-    audit over 249 files, 53 root test files / 891 tests,
+    audit over 250 files, 53 root test files / 892 tests,
     devtools-panel verify with 1 panel test file / 2 tests, devtools-extension
     verify with 1 extension test file / 20 tests, basic starter verify with 1
     starter test file / 2 tests, React starter verify with 1 starter test file
     / 3 tests, project-console starter packaging with 27 files verified,
     project-console typecheck, 4 project-console test files / 27 tests,
     project-console build, and leak scans.
-- [x] Latest focused post-verify sweep recorded.
-  - Evidence: Review 143 records focused Start, React, Solid, public API,
-    Effect-first, type-test, docs drift, and full verification after the fresh
-    stale-invalidation and audit-guardrail sweep.
+- [x] Latest focused verification recorded.
+  - Evidence: Review 144 records focused DB, Core, public API, Effect-first,
+    type-test, docs drift, and full verification after the fresh collection
+    locality and audit-guardrail sweep. A fresh post-fix sweep is still required
+    before the clean-sweep counter can start.
 
 ## Remaining Winning-Bar Items
 

@@ -60,7 +60,6 @@ import { runCollectionSyncLoadPolicyEffect } from "./collection-sync-load-policy
 import {
   collectionStoreEffect,
   currentCollectionStore,
-  defaultRuntimeCollectionStore,
   runWithCollectionStore,
   subscribeCollectionEventsEffect,
   type RuntimeCollectionStore
@@ -131,7 +130,7 @@ const rowsByIndex = <A extends object, K extends CollectionKey, E, R>(
 
 const collectionPendingMutations = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
-  store: RuntimeCollectionStore = defaultRuntimeCollectionStore()
+  store: RuntimeCollectionStore = currentCollectionStore() as RuntimeCollectionStore
 ): ReadonlyArray<CollectionPendingMutation<A, K>> => {
   const state = collectionState(definition, store);
   state.version.get();
@@ -145,7 +144,7 @@ const collectionPendingMutationsEffect = <A extends object, K extends Collection
 
 const snapshotCollection = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
-  store: RuntimeCollectionStore = defaultRuntimeCollectionStore(),
+  store: RuntimeCollectionStore = currentCollectionStore() as RuntimeCollectionStore,
   updatedAt = Date.now()
 ): CollectionSnapshot<A, K> =>
   snapshotCollectionWithStore(definition, store, updatedAt);
@@ -193,7 +192,7 @@ const persistForReasonEffect = <A extends object, K extends CollectionKey, E, R>
 
 export const dehydrateCollections = (
   collections: Iterable<AnyCollection>,
-  store: RuntimeCollectionStore = defaultRuntimeCollectionStore()
+  store: RuntimeCollectionStore = currentCollectionStore() as RuntimeCollectionStore
 ): CollectionHydrationPayload =>
   dehydrateCollectionsWithStore(collections, store);
 

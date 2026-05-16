@@ -11,9 +11,47 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 143, immediately after Review 142. Some older review
+The newest review is Review 144, immediately after Review 143. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 144: Collection Store Sync Locality And Public Kernel Pins
+
+Status: fixed for the fresh post-Review143 architecture/locality, docs/LSP, and
+Effect-first guardrail sweeps. Focused and full verification are green. Fresh
+post-fix sweeps must still run before the clean-sweep counter can be considered.
+
+- DB collection-store sync locality: `pendingMutations()`, `snapshot()`, and
+  `Collection.dehydrate(...)` now default to the active `currentCollectionStore`
+  override, matching `rows()` and `state()`. A collection regression hydrates
+  one runtime store with pending optimistic state, leaves a second store empty,
+  and proves all three synchronous reads honor the explicit store override.
+- Browser-router public kernel pins: `BrowserRouterKernelOptions`,
+  `BrowserRouterKernel`, and `createBrowserRouterKernel` now have public hover
+  docs, are covered by the public API hover audit, and are asserted in the Core
+  public type tests.
+- Effect-first audit hardening: package-source declaration files are now in the
+  audit scope, bringing `packages/start/src/virtual-modules.d.ts` under the
+  scanner. The audit catches optional Promise statics/member calls and anchors
+  structural thenable type surfaces to the two runtime guard seams.
+- Docs drift: the historical overnight requirement is no longer worded as a
+  current May 16 requirement, the active checklist wording distinguishes latest
+  verification from a clean post-fix sweep, and the project-console starter
+  repair text names versioned package imports without monorepo aliases.
+
+Focused verification passed: `pnpm --filter @effect-ui/db typecheck`, `pnpm
+--filter @effect-ui/core typecheck`, `pnpm typecheck:types`, `pnpm
+audit:public-api`, `pnpm audit:effect-first`, `pnpm exec vitest run
+packages/db/test/collection.test.ts` (1 file / 105 tests), and `git diff
+--check`.
+
+Full `pnpm verify` passed after Review 144: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 250 files, 53 root test files / 892 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, project-console starter packaging
+with 27 files verified, project-console typecheck, 4 project-console test files
+/ 27 tests, project-console build, and leak scan.
 
 ## Review 143: Stale StartAction Invalidation And Audit Guardrails
 

@@ -316,7 +316,7 @@ const verifyGeneratedStarter = Effect.gen(function* () {
     return yield* Effect.fail(
       fail(
         "Generated project-console starter Vite config still contains monorepo aliases.",
-        "Rewrite the generated Vite config so it imports published @effect-ui packages directly.",
+        "Rewrite the generated Vite config so it uses versioned @effect-ui package imports without monorepo aliases.",
       ),
     );
   }
