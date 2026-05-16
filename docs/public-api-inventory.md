@@ -516,8 +516,8 @@ Release decisions:
 The root export includes:
 
 - Local source modules: `change-feed-dispatcher`, `collection-contract`,
-  `collection-errors`, `collection-ids`, `collection-index-materialization`,
-  `collection-persistence`, `collection-preload`,
+  `collection-definition-snapshot`, `collection-errors`, `collection-ids`,
+  `collection-index-materialization`, `collection-persistence`, `collection-preload`,
   `collection-reactive-binding`, `collection-registry`,
   `collection-snapshot-codec`, `collection-state`, `flush-policy`,
   `live-query-collection`, `query-builder`, `query-plan`, `server-collection`,

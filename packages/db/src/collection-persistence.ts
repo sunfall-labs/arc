@@ -4,7 +4,14 @@ import {
   bumpCollectionState,
   type CollectionState
 } from "./collection-state.js";
-import { CollectionDefinitionSnapshotTypeId } from "./collection-ids.js";
+import {
+  hasStoreExplicitCollectionSnapshotMarker,
+  hydrateStoreExplicitCollectionSnapshotPreflightEffect,
+  snapshotStoreExplicitCollection,
+  snapshotStoreExplicitCollectionEffect,
+  type CollectionPersistenceStore
+} from "./collection-definition-snapshot.js";
+export type { CollectionPersistenceStore } from "./collection-definition-snapshot.js";
 import {
   advanceCollectionTransactionIdentity
 } from "./collection-mutation-queue.js";
@@ -33,19 +40,8 @@ import type {
   CollectionPersistenceStorage,
   CollectionPolicy,
   CollectionSnapshot,
-  CollectionStorageLike,
-  CollectionStoreEvent
+  CollectionStorageLike
 } from "./collection-contract.js";
-
-export interface CollectionPersistenceStore {
-  state(
-    definition: AnyCollection
-  ): CollectionState<any, any, any>;
-  state<A extends object, K extends CollectionKey, E, R>(
-    definition: CollectionDefinition<A, K, E, R>
-  ): CollectionState<A, K, E>;
-  publish(event: CollectionStoreEvent): Effect.Effect<void>;
-}
 
 /** Error raised by the sync Web Storage Adapter when a host method throws. */
 export class CollectionStorageError extends Data.TaggedError(
@@ -60,51 +56,6 @@ const storageInputCallbackEffect = <A, E, R>(
   callback: () => EffectInput<A, E, R>
 ): Effect.Effect<A, E | EffectInputCallbackError, R> =>
   invokeEffectInput("collection persistence storage callback", callback);
-
-const usesDefinitionSnapshot = (
-  definition: AnyCollection
-): boolean =>
-  (definition as { readonly [CollectionDefinitionSnapshotTypeId]?: unknown })[CollectionDefinitionSnapshotTypeId] === CollectionDefinitionSnapshotTypeId;
-
-type DefinitionSnapshotWithStore = {
-  readonly snapshotWithStore?: (
-    store: CollectionPersistenceStore,
-    updatedAt: number
-  ) => CollectionSnapshot<any, any>;
-  readonly snapshotWithStoreEffect?: (
-    store: CollectionPersistenceStore,
-    updatedAt: number
-  ) => Effect.Effect<CollectionSnapshot<any, any>, CollectionSnapshotCodecError | EffectInputCallbackError>;
-  readonly hydratePreflightEffect?: (
-    snapshot: CollectionSnapshot<any, any>,
-    options: CollectionHydrateOptions
-  ) => Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError>;
-};
-
-const snapshotWithExplicitStore = (
-  definition: AnyCollection,
-  store: CollectionPersistenceStore,
-  updatedAt: number
-): CollectionSnapshot<any, any> =>
-  (definition as DefinitionSnapshotWithStore).snapshotWithStore?.(store, updatedAt) ?? definition.snapshot();
-
-const snapshotWithExplicitStoreEffect = (
-  definition: AnyCollection,
-  store: CollectionPersistenceStore,
-  updatedAt: number
-): Effect.Effect<CollectionSnapshot<any, any>, CollectionSnapshotCodecError | EffectInputCallbackError> => {
-  const snapshotEffect = (definition as DefinitionSnapshotWithStore).snapshotWithStoreEffect;
-  return snapshotEffect === undefined
-    ? definition.snapshotEffect()
-    : snapshotEffect(store, updatedAt);
-};
-
-const hydrateDefinitionPreflightEffect = (
-  definition: AnyCollection,
-  snapshot: CollectionSnapshot<any, any>,
-  options: CollectionHydrateOptions
-): Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError> =>
-  (definition as DefinitionSnapshotWithStore).hydratePreflightEffect?.(snapshot, options) ?? Effect.void;
 
 interface CollectionHydrationPlanEntry {
   readonly collection: AnyCollection;
@@ -131,8 +82,8 @@ const snapshotCollectionForEffect = (
   store: CollectionPersistenceStore,
   updatedAt: number
 ): Effect.Effect<CollectionSnapshot<any, any>, CollectionSnapshotCodecError | EffectInputCallbackError> =>
-  usesDefinitionSnapshot(definition)
-    ? snapshotWithExplicitStoreEffect(definition, store, updatedAt)
+  hasStoreExplicitCollectionSnapshotMarker(definition)
+    ? snapshotStoreExplicitCollectionEffect(definition, store, updatedAt)
     : Effect.try({
         try: () => snapshotCollection(definition, store, updatedAt),
         catch: (cause) => snapshotCallbackError(definition, cause)
@@ -153,8 +104,8 @@ export function snapshotCollection(
   store: CollectionPersistenceStore,
   updatedAt = Date.now()
 ): CollectionSnapshot<any, any> {
-  if (usesDefinitionSnapshot(definition)) {
-    return snapshotWithExplicitStore(definition, store, updatedAt);
+  if (hasStoreExplicitCollectionSnapshotMarker(definition)) {
+    return snapshotStoreExplicitCollection(definition, store, updatedAt);
   }
   const state = store.state(definition);
   return collectionSnapshotFromState(definition, state, updatedAt);
@@ -192,9 +143,9 @@ export function hydrateCollectionEffect(
   store?: CollectionPersistenceStore
 ): Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError> {
   return Effect.gen(function* () {
-    if (usesDefinitionSnapshot(definition)) {
+    if (hasStoreExplicitCollectionSnapshotMarker(definition)) {
       const validatedSnapshot = yield* validateCollectionSnapshotDefinitionEffect(definition, snapshot);
-      yield* hydrateDefinitionPreflightEffect(definition, validatedSnapshot, options);
+      yield* hydrateStoreExplicitCollectionSnapshotPreflightEffect(definition, validatedSnapshot, options);
       yield* definition.hydrateEffect(validatedSnapshot, options);
       return;
     }
@@ -477,15 +428,15 @@ const planCollectionsHydrationEffect = (
         }));
       }
       const validatedSnapshot = yield* validateCollectionSnapshotDefinitionEffect(collection, snapshot);
-      if (usesDefinitionSnapshot(collection)) {
-        yield* hydrateDefinitionPreflightEffect(collection, validatedSnapshot, options);
+      if (hasStoreExplicitCollectionSnapshotMarker(collection)) {
+        yield* hydrateStoreExplicitCollectionSnapshotPreflightEffect(collection, validatedSnapshot, options);
       }
       entries.push({ collection, snapshot: validatedSnapshot });
     }
 
     const store = yield* storeEffect;
     for (const { collection, snapshot } of entries) {
-      if (!usesDefinitionSnapshot(collection)) {
+      if (!hasStoreExplicitCollectionSnapshotMarker(collection)) {
         yield* validateCollectionSnapshotStateHydrationEffect(store.state(collection), snapshot, options);
       }
     }

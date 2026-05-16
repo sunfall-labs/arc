@@ -2,6 +2,7 @@ import { EffectInputCallbackError, makeRuntime, runWithRuntime } from "@effect-u
 import { Collection, CollectionSnapshotCodecError, Query, QueryEvaluationError, ReadonlyCollectionMutation, eq } from "@effect-ui/db";
 import { Effect, Exit, Option, PubSub } from "effect";
 import { describe, expect, it, vi } from "vitest";
+import { markStoreExplicitCollectionSnapshotDefinition } from "../src/collection-definition-snapshot.js";
 
 interface Project {
   readonly id: string;
@@ -774,6 +775,31 @@ describe("Collection.liveQuery", () => {
           yield* firstRuntime.disposeEffect;
           yield* secondRuntime.disposeEffect;
         }
+      })
+    ));
+
+  it("rejects incomplete store-explicit snapshot markers instead of using the ambient store", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const Projects = Collection.define<Project>({
+          name: "Projects.live-query-collection.incomplete-store-explicit-snapshot",
+          getKey: (project) => project.id,
+          initialData: [
+            { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+          ]
+        });
+        markStoreExplicitCollectionSnapshotDefinition(Projects);
+
+        const failure = yield* Effect.flip(Collection.dehydrateEffect([Projects]));
+
+        expect(failure).toBeInstanceOf(CollectionSnapshotCodecError);
+        expect(failure).toMatchObject({
+          operation: "snapshot",
+          path: "$"
+        });
+        expect((failure as CollectionSnapshotCodecError).reason).toContain("snapshotWithStore");
+        expect((failure as CollectionSnapshotCodecError).reason).toContain("snapshotWithStoreEffect");
+        expect((failure as CollectionSnapshotCodecError).reason).toContain("hydratePreflightEffect");
       })
     ));
 

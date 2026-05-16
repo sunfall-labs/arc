@@ -11,15 +11,49 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest review is Review 129, immediately after Review 128. Some older review
+The newest review is Review 130, immediately after Review 129. Some older review
 entries remain below it from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
+
+## Review 130: DB Store-Explicit Collection Snapshot Interface
+
+Status: fixed for the DB candidate found by the fresh Review 129 sweep and
+focused verification is green. The Thirty-Sweep clean counter remains at 0 until
+a fresh post-fix sweep finds no actionable work.
+
+- Store-Explicit Collection Snapshot: added
+  `packages/db/src/collection-definition-snapshot.ts` as the focused internal
+  Module for the snapshot marker, store-explicit snapshot Interface, guard,
+  snapshot dispatch, hydrate preflight dispatch, and incomplete-marker errors.
+- Collection Persistence: `packages/db/src/collection-persistence.ts` now
+  consumes the store-explicit snapshot Module instead of owning duplicate
+  structural casts. Marked definitions fail with a typed
+  `CollectionSnapshotCodecError` when their explicit-store implementation is
+  incomplete rather than falling back to `definition.snapshot()`.
+- Live Query Collection: `packages/db/src/live-query-collection.ts` now
+  registers its read-only derived collection snapshot implementation through the
+  store-explicit Module, keeping runtime-store projection locality inside the
+  materialization path.
+- Regression coverage: `packages/db/test/live-query-collection.test.ts` now
+  pins that an incomplete store-explicit marker fails during dehydrate instead
+  of reading the ambient Collection Store.
+
+Focused verification passed: `pnpm --filter @effect-ui/db typecheck`, `pnpm
+exec vitest run packages/db/test/live-query-collection.test.ts` (1 file / 28
+tests), `pnpm exec vitest run packages/db/test/collection.test.ts
+packages/db/test/live-query-collection.test.ts packages/db/test/sync-adapter.test.ts
+packages/db/test/server-collection.test.ts packages/db/test/sqlite-persistence.test.ts`
+(5 files / 160 tests), `pnpm typecheck:types`, `pnpm audit:public-api`, and
+`pnpm audit:effect-first` over 245 files, and `git diff --check`.
+Full `pnpm verify` is pending after the slice.
 
 ## Review 129: Start Graph Vocabulary, Diagnostics DTO Depth, and LSP Docs
 
 Status: fixed for the Start/docs findings from the fresh Review 129 sweep and
 focused verification is green. The same sweep found a DB store-explicit
-snapshot Interface candidate, so the Thirty-Sweep clean counter remains at 0.
+snapshot Interface candidate, which is fixed in Review 130 below; the
+Thirty-Sweep clean counter remains at 0 until a fresh post-fix sweep finds no
+actionable work.
 
 - Start Agent Graph Vocabulary: added
   `packages/start/src/start-agent-graph-vocabulary.ts` as the semantic catalog
@@ -46,7 +80,7 @@ run packages/start/test/start.test.ts -t 'diagnostics CLI|agent graph|app graph
 diagnostics|diagnostics report'` (1 file / 7 selected tests), `pnpm
 typecheck:types`, `pnpm audit:public-api`, and `pnpm audit:effect-first` over
 244 files.
-Full `pnpm verify` is pending until the DB Review 129 follow-up is fixed.
+Full `pnpm verify` remained pending until the DB Review 130 follow-up.
 
 ## Review 128: DB Query Context Identity Module
 

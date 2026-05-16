@@ -3,9 +3,13 @@ import {
   EffectInputCallbackError
 } from "@effect-ui/core";
 import { Clock, Effect } from "effect";
-import { CollectionDefinitionSnapshotTypeId, CollectionTypeId } from "./collection-ids.js";
+import { CollectionTypeId } from "./collection-ids.js";
 import { ReadonlyCollectionMutation } from "./collection-errors.js";
 import { CollectionSnapshotCodecError } from "./collection-snapshot-codec.js";
+import {
+  markStoreExplicitCollectionSnapshotDefinition,
+  type StoreExplicitCollectionSnapshotImplementation
+} from "./collection-definition-snapshot.js";
 import { persistCollectionSnapshotEffect } from "./collection-persistence.js";
 import {
   recordCollectionPreload
@@ -23,8 +27,7 @@ import type {
   CollectionIndexRecord,
   CollectionKey,
   CollectionPersistOptions,
-  CollectionPersistenceStorage,
-  CollectionSnapshot
+  CollectionPersistenceStorage
 } from "./collection-contract.js";
 
 /**
@@ -89,17 +92,9 @@ export const makeLiveQueryCollectionDefinition = <
       guidance: "Collection snapshot key callbacks must be synchronous, pure, and total. Move Effectful work into collection loaders or mutation handlers."
     });
 
-  type LiveQueryCollectionDefinition = CollectionDefinition<A, K, E | QueryEvaluationError | ReadonlyCollectionMutation, R> & {
-    readonly snapshotWithStore: (
-      store: RuntimeCollectionStore,
-      updatedAt: number
-    ) => CollectionSnapshot<A, K>;
-    readonly snapshotWithStoreEffect: (
-      store: RuntimeCollectionStore,
-      updatedAt: number
-    ) => Effect.Effect<CollectionSnapshot<A, K>, CollectionSnapshotCodecError | EffectInputCallbackError>;
-    readonly hydratePreflightEffect: () => Effect.Effect<void, CollectionSnapshotCodecError>;
-  };
+  type LiveQueryCollectionDefinition =
+    CollectionDefinition<A, K, E | QueryEvaluationError | ReadonlyCollectionMutation, R> &
+    StoreExplicitCollectionSnapshotImplementation<A, K>;
   let definition: LiveQueryCollectionDefinition;
   const materialization = makeLiveQueryCollectionMaterialization<A, K, E, R>({
     name: options.name,
@@ -146,9 +141,10 @@ export const makeLiveQueryCollectionDefinition = <
         return yield* materialization.snapshotWithStoreEffect(store, updatedAt);
       }),
     snapshot: () => materialization.snapshot(Date.now()),
-    snapshotWithStore: materialization.snapshotWithStore,
-    snapshotWithStoreEffect: (store: RuntimeCollectionStore, updatedAt: number) =>
-      materialization.snapshotWithStoreEffect(store, updatedAt),
+    snapshotWithStore: (store, updatedAt) =>
+      materialization.snapshotWithStore(store as RuntimeCollectionStore, updatedAt),
+    snapshotWithStoreEffect: (store, updatedAt) =>
+      materialization.snapshotWithStoreEffect(store as RuntimeCollectionStore, updatedAt),
     hydratePreflightEffect: () => Effect.fail(readonlySnapshotCodecFailure("hydrate")),
     hydrateEffect: () => Effect.fail(readonlySnapshotCodecFailure("hydrate")),
     hydrate: (snapshot, hydrateOptions) => {
@@ -188,10 +184,7 @@ export const makeLiveQueryCollectionDefinition = <
       void runFork(definition.writeDeleteEffect(key));
     }
   };
-  Object.defineProperty(definition, CollectionDefinitionSnapshotTypeId, {
-    value: CollectionDefinitionSnapshotTypeId,
-    enumerable: false
-  });
+  markStoreExplicitCollectionSnapshotDefinition(definition);
 
   register(options.name, definition as AnyCollection);
 

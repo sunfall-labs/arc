@@ -1,0 +1,182 @@
+import type { EffectInputCallbackError } from "@effect-ui/core";
+import { Effect } from "effect";
+import { CollectionDefinitionSnapshotTypeId } from "./collection-ids.js";
+import type {
+  AnyCollection,
+  CollectionDefinition,
+  CollectionHydrateOptions,
+  CollectionKey,
+  CollectionSnapshot,
+  CollectionStoreEvent
+} from "./collection-contract.js";
+import {
+  CollectionSnapshotCodecError
+} from "./collection-snapshot-codec.js";
+import type {
+  CollectionState
+} from "./collection-state.js";
+
+/**
+ * Store operations needed by persistence and store-explicit snapshot adapters.
+ *
+ * Implementations are runtime/request-local so dehydration, persistence, and
+ * derived live-query collections never read another runtime's collection rows.
+ */
+export interface CollectionPersistenceStore {
+  state(
+    definition: AnyCollection
+  ): CollectionState<any, any, any>;
+  state<A extends object, K extends CollectionKey, E, R>(
+    definition: CollectionDefinition<A, K, E, R>
+  ): CollectionState<A, K, E>;
+  publish(event: CollectionStoreEvent): Effect.Effect<void>;
+}
+
+/**
+ * Collection Definition extension for snapshots that must use a supplied store.
+ *
+ * A marked definition must provide all three methods. Missing implementations
+ * fail with `CollectionSnapshotCodecError` instead of falling back to the
+ * ambient store.
+ */
+export interface StoreExplicitCollectionSnapshotDefinition<
+  A extends object = object,
+  K extends CollectionKey = CollectionKey
+> {
+  readonly [CollectionDefinitionSnapshotTypeId]: typeof CollectionDefinitionSnapshotTypeId;
+  readonly snapshotWithStore: (
+    store: CollectionPersistenceStore,
+    updatedAt: number
+  ) => CollectionSnapshot<A, K>;
+  readonly snapshotWithStoreEffect: (
+    store: CollectionPersistenceStore,
+    updatedAt: number
+  ) => Effect.Effect<CollectionSnapshot<A, K>, CollectionSnapshotCodecError | EffectInputCallbackError>;
+  readonly hydratePreflightEffect: (
+    snapshot: CollectionSnapshot<A, K>,
+    options: CollectionHydrateOptions
+  ) => Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError>;
+}
+
+/** Implementation fields required before the non-enumerable marker is applied. */
+export type StoreExplicitCollectionSnapshotImplementation<
+  A extends object = object,
+  K extends CollectionKey = CollectionKey
+> = Omit<
+  StoreExplicitCollectionSnapshotDefinition<A, K>,
+  typeof CollectionDefinitionSnapshotTypeId
+>;
+
+/** Marks a Collection Definition as requiring store-explicit snapshot dispatch. */
+export function markStoreExplicitCollectionSnapshotDefinition<Definition extends object>(
+  definition: Definition
+): asserts definition is Definition & {
+  readonly [CollectionDefinitionSnapshotTypeId]: typeof CollectionDefinitionSnapshotTypeId;
+} {
+  Object.defineProperty(definition, CollectionDefinitionSnapshotTypeId, {
+    value: CollectionDefinitionSnapshotTypeId,
+    enumerable: false
+  });
+}
+
+/** Checks only for the marker; callers should still validate implementation fields. */
+export const hasStoreExplicitCollectionSnapshotMarker = (
+  definition: AnyCollection
+): boolean =>
+  (definition as {
+    readonly [CollectionDefinitionSnapshotTypeId]?: unknown;
+  })[CollectionDefinitionSnapshotTypeId] ===
+  CollectionDefinitionSnapshotTypeId;
+
+/** Checks that a marked Collection Definition has the full store-explicit Interface. */
+export const isStoreExplicitCollectionSnapshotDefinition = (
+  definition: AnyCollection
+): definition is AnyCollection & StoreExplicitCollectionSnapshotDefinition =>
+  hasStoreExplicitCollectionSnapshotMarker(definition) &&
+  typeof (definition as Partial<StoreExplicitCollectionSnapshotImplementation>)
+    .snapshotWithStore === "function" &&
+  typeof (definition as Partial<StoreExplicitCollectionSnapshotImplementation>)
+    .snapshotWithStoreEffect === "function" &&
+  typeof (definition as Partial<StoreExplicitCollectionSnapshotImplementation>)
+    .hydratePreflightEffect === "function";
+
+const missingStoreExplicitSnapshotMethods = (
+  definition: AnyCollection
+): readonly string[] => {
+  const candidate = definition as Partial<StoreExplicitCollectionSnapshotImplementation>;
+  return [
+    ...(typeof candidate.snapshotWithStore === "function" ? [] : ["snapshotWithStore"]),
+    ...(typeof candidate.snapshotWithStoreEffect === "function" ? [] : ["snapshotWithStoreEffect"]),
+    ...(typeof candidate.hydratePreflightEffect === "function" ? [] : ["hydratePreflightEffect"])
+  ];
+};
+
+const incompleteStoreExplicitSnapshotError = (
+  definition: AnyCollection,
+  operation: "hydrate" | "snapshot"
+): CollectionSnapshotCodecError =>
+  new CollectionSnapshotCodecError({
+    operation,
+    path: "$",
+    reason: `Collection "${definition.name}" is marked as owning store-explicit snapshots but is missing ${
+      missingStoreExplicitSnapshotMethods(definition).join(", ")
+    }.`
+  });
+
+const requireStoreExplicitCollectionSnapshotDefinition = (
+  definition: AnyCollection,
+  operation: "hydrate" | "snapshot"
+): AnyCollection & StoreExplicitCollectionSnapshotDefinition => {
+  if (isStoreExplicitCollectionSnapshotDefinition(definition)) {
+    return definition;
+  }
+  throw incompleteStoreExplicitSnapshotError(definition, operation);
+};
+
+const requireStoreExplicitCollectionSnapshotDefinitionEffect = (
+  definition: AnyCollection,
+  operation: "hydrate" | "snapshot"
+): Effect.Effect<
+  AnyCollection & StoreExplicitCollectionSnapshotDefinition,
+  CollectionSnapshotCodecError
+> =>
+  isStoreExplicitCollectionSnapshotDefinition(definition)
+    ? Effect.succeed(definition)
+    : Effect.fail(incompleteStoreExplicitSnapshotError(definition, operation));
+
+/** Runs the synchronous store-explicit snapshot implementation. */
+export const snapshotStoreExplicitCollection = (
+  definition: AnyCollection,
+  store: CollectionPersistenceStore,
+  updatedAt: number
+): CollectionSnapshot<any, any> =>
+  requireStoreExplicitCollectionSnapshotDefinition(definition, "snapshot")
+    .snapshotWithStore(store, updatedAt);
+
+/** Runs the Effect-backed store-explicit snapshot implementation. */
+export const snapshotStoreExplicitCollectionEffect = (
+  definition: AnyCollection,
+  store: CollectionPersistenceStore,
+  updatedAt: number
+): Effect.Effect<CollectionSnapshot<any, any>, CollectionSnapshotCodecError | EffectInputCallbackError> =>
+  Effect.gen(function* () {
+    const snapshotDefinition = yield* requireStoreExplicitCollectionSnapshotDefinitionEffect(
+      definition,
+      "snapshot"
+    );
+    return yield* snapshotDefinition.snapshotWithStoreEffect(store, updatedAt);
+  });
+
+/** Runs hydrate preflight for a store-explicit snapshot definition. */
+export const hydrateStoreExplicitCollectionSnapshotPreflightEffect = (
+  definition: AnyCollection,
+  snapshot: CollectionSnapshot<any, any>,
+  options: CollectionHydrateOptions
+): Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError> =>
+  Effect.gen(function* () {
+    const snapshotDefinition = yield* requireStoreExplicitCollectionSnapshotDefinitionEffect(
+      definition,
+      "hydrate"
+    );
+    yield* snapshotDefinition.hydratePreflightEffect(snapshot, options);
+  });

@@ -154,6 +154,12 @@ Latest full gate on May 15, 2026:
   Start diagnostics DTO decoding validates resource/tag/collection registry
   diagnostics structurally, and public Start graph/diagnostics plus Core
   Program namespace hovers now explain their agent-facing purpose.
+- Review 130 fixed the DB store-explicit snapshot Interface candidate from the
+  same fresh sweep: Collection Persistence now consumes one internal Module for
+  marked definitions, Live Query Collections register their runtime-store
+  snapshot implementation through that Module, and incomplete markers fail as
+  typed `CollectionSnapshotCodecError`s instead of silently using ambient
+  snapshots.
 - Review 85 extracted the internal Solid Route Render Scope Controller:
   `RouterOutlet` now delegates route branch rendering, route-owned `UiScope`
   creation, Solid root cleanup, runtime-bound route finalizers, transition

@@ -216,6 +216,13 @@ Last evidence pass: May 15, 2026.
     `AnyQueryBuilder` aliases around live-query joins, group-by, and IVM
     execution; DB typecheck, public type tests, DB Vitest files, and full
     `pnpm verify` passed.
+- [x] DB store-explicit collection snapshots have one Interface.
+  - Evidence: `packages/db/src/collection-definition-snapshot.ts` owns the
+    marker, guard, store-explicit snapshot Interface, snapshot dispatch, hydrate
+    preflight dispatch, and incomplete-marker error; `collection-persistence.ts`
+    and `live-query-collection.ts` consume it, and
+    `packages/db/test/live-query-collection.test.ts` pins incomplete markers as
+    typed snapshot failures.
 - [x] Core runtime and optimistic signal erasure boundaries are named.
   - Evidence: `packages/core/src/action.ts` names optimistic signal patch
     storage with `AnyWritableSignal` and `AnySignalPatchState`;
