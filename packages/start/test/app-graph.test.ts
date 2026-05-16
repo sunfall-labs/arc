@@ -1277,6 +1277,7 @@ describe("Start app graph", () => {
           collectionDefinitions: [
             {
               name: "ProjectRows",
+              readOnly: false,
               inputSchema: false,
               outputSchema: false,
               initialData: false,

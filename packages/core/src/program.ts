@@ -5,6 +5,7 @@ import {
   type ProgramCommandInput,
   type ProgramCommandStartedEvent,
   type ProgramDefinition,
+  type ProgramDispatchError,
   type ProgramDisposedEvent,
   type ProgramEvent,
   type ProgramEventBase,
@@ -12,6 +13,7 @@ import {
   type ProgramInstance,
   type ProgramMessageEvent,
   type ProgramPhase,
+  ProgramDisposed,
   type ProgramRuntimeError,
   type ProgramStep,
   type ProgramStory,
@@ -30,6 +32,7 @@ import {
   ProgramSubscriptionTypeId
 } from "./program-contract.js";
 export {
+  ProgramDisposed,
   ProgramCommandTypeId,
   ProgramStepTypeId,
   ProgramSubscriptionTypeId,
@@ -39,6 +42,7 @@ export {
   type ProgramCommandInput,
   type ProgramCommandStartedEvent,
   type ProgramDefinition,
+  type ProgramDispatchError,
   type ProgramDisposedEvent,
   type ProgramEvent,
   type ProgramEventBase,
@@ -116,7 +120,7 @@ type ProgramRuntimeBoundStartOptions<R, RRuntime, ER> = {
  */
 export function startProgram<Model, Message, E = never>(
   definition: ProgramDefinition<Model, Message, E, never>
-): ProgramInstance<Model, Message, ProgramRuntimeError<E>>;
+): ProgramInstance<Model, Message, ProgramRuntimeError<E>, ProgramDispatchError<E>>;
 /**
  * Starts a Program on an explicit typed Runtime Spine.
  *
@@ -134,7 +138,7 @@ export function startProgram<
 >(
   definition: ProgramDefinition<Model, Message, E, R>,
   options: ProgramRuntimeBoundStartOptions<R, RRuntime, ER>
-): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>>;
+): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>>;
 export function startProgram<
   Model,
   Message,
@@ -145,7 +149,7 @@ export function startProgram<
 >(
   definition: ProgramDefinition<Model, Message, E, R>,
   options?: ProgramRuntimeBoundStartOptions<R, RRuntime, ER>
-): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>> {
+): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>> {
   const runtime = (options?.runtime ?? currentOrDefaultRuntime()) as AnyEffectUiRuntime<ER>;
   const scope = getCurrentScope();
   return makeProgramRuntimeInstance<Model, Message, E, R, ER>({
@@ -161,7 +165,7 @@ export function startProgram<
  */
 export function startProgramWithRuntimeError<Model, Message, E = never>(
   definition: ProgramDefinition<Model, Message, E, never>
-): ProgramInstance<Model, Message, ProgramRuntimeError<E>>;
+): ProgramInstance<Model, Message, ProgramRuntimeError<E>, ProgramDispatchError<E>>;
 export function startProgramWithRuntimeError<
   Model,
   Message,
@@ -172,7 +176,7 @@ export function startProgramWithRuntimeError<
 >(
   definition: ProgramDefinition<Model, Message, E, R>,
   options: ProgramRuntimeBoundStartOptions<R, RRuntime, ER>
-): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>>;
+): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>>;
 export function startProgramWithRuntimeError<
   Model,
   Message,
@@ -183,7 +187,7 @@ export function startProgramWithRuntimeError<
 >(
   definition: ProgramDefinition<Model, Message, E, R>,
   options?: ProgramRuntimeBoundStartOptions<R, RRuntime, ER>
-): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>> {
+): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>> {
   return startProgram(definition, options as ProgramRuntimeBoundStartOptions<R, RRuntime, ER>);
 }
 
@@ -192,11 +196,15 @@ export namespace Program {
   /** Definition for a headless model/message loop with Effect-owned work. */
   export type Definition<Model, Message, E = never, R = never> = ProgramDefinition<Model, Message, E, R>;
   /** Running Program handle with model, dispatch, timeline, and disposal state. */
-  export type Instance<Model, Message, E = never> = ProgramInstance<Model, Message, E>;
+  export type Instance<Model, Message, E = never, DispatchE = E> = ProgramInstance<Model, Message, E, DispatchE>;
   /** Captured update, command, or subscription failure with triggering message context. */
   export type Failure<Message, E> = ProgramFailure<Message, E>;
   /** Program failure channel plus Runtime Spine provision/startup failures. */
   export type RuntimeError<E, ER = never> = ProgramRuntimeError<E, ER>;
+  /** Live dispatch failure channel, including disposal drops. */
+  export type DispatchError<E, ER = never> = ProgramDispatchError<E, ER>;
+  /** Error reported when an Effect dispatch cannot apply because the Program was disposed. */
+  export type Disposed = ProgramDisposed;
   /** Options for starting a Program on an explicit typed Runtime Spine. */
   export type StartOptions<RRuntime = never, ER = never> = ProgramStartOptions<RRuntime, ER>;
   /** Services still required after applying a typed Runtime Spine to a Program. */

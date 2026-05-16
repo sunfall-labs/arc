@@ -7,6 +7,7 @@ import {
   type LiveQueryState,
   type QueryEvaluationError
 } from "@effect-ui/db";
+import type { EffectInput } from "@effect-ui/core";
 import { useRuntime } from "@effect-ui/solid";
 import { Effect } from "effect";
 import { createMemo, type Accessor } from "solid-js";
@@ -21,10 +22,11 @@ export interface UseLiveQueryOptions<E = never, ER = never> {
   /**
    * Observe failures from the automatic mount-time source preload.
    *
-   * If this observer throws, the hook ignores that throw after updating
-   * `preloadFailure`.
+   * If this observer fails, the hook ignores that failure after updating
+   * `preloadFailure`. Promise-shaped observers are rejected at the EffectInput
+   * seam; adapt host Promise work explicitly with `Effect.tryPromise(...)`.
    */
-  readonly onPreloadFailure?: (error: E | QueryEvaluationError | ER) => void;
+  readonly onPreloadFailure?: (error: E | QueryEvaluationError | ER) => EffectInput<void, unknown>;
 }
 
 /**

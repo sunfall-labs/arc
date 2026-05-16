@@ -242,6 +242,37 @@ describe("file route manifest generation", () => {
     );
   });
 
+  it("scopes group and pathless support modules by source directory", () => {
+    const manifest = generateFileRouteManifestArtifact(
+      [
+        "src/routes/layout.tsx",
+        "src/routes/index.tsx",
+        "src/routes/(admin)/_layout.tsx",
+        "src/routes/(admin)/dashboard.tsx",
+        "src/routes/(marketing)/about.tsx",
+        "src/routes/_auth/_layout.tsx",
+        "src/routes/_auth/settings.tsx"
+      ],
+      options
+    );
+    const descriptions = describeFileRouteManifest(manifest);
+    const dashboard = descriptions.find((entry) => entry.routePath === "/dashboard");
+    const about = descriptions.find((entry) => entry.routePath === "/about");
+    const settings = descriptions.find((entry) => entry.routePath === "/settings");
+
+    expect(dashboard?.layouts.map((layout) => layout.id)).toEqual([
+      "layout",
+      "(admin)/_layout"
+    ]);
+    expect(about?.layouts.map((layout) => layout.id)).toEqual([
+      "layout"
+    ]);
+    expect(settings?.layouts.map((layout) => layout.id)).toEqual([
+      "layout",
+      "_auth/_layout"
+    ]);
+  });
+
   it("rejects duplicate support modules for the same route scope", () => {
     return Effect.runPromise(
       Effect.exit(
@@ -256,6 +287,30 @@ describe("file route manifest generation", () => {
       ).pipe(
         Effect.tap((duplicate) =>
           Effect.sync(() => expect(firstFailure(duplicate)).toBeInstanceOf(FileRouteManifestDuplicateModuleRole))
+        ),
+        Effect.asVoid
+      )
+    );
+  });
+
+  it("allows sibling group support modules with the same URL scope", () => {
+    return Effect.runPromise(
+      generateValidatedFileRouteManifestArtifactEffect(
+        [
+          "src/routes/(admin)/_layout.tsx",
+          "src/routes/(admin)/dashboard.tsx",
+          "src/routes/(marketing)/_layout.tsx",
+          "src/routes/(marketing)/about.tsx"
+        ],
+        options
+      ).pipe(
+        Effect.tap((manifest) =>
+          Effect.sync(() => {
+            expect(manifest.modules.filter((module) => module.kind === "Layout").map((module) => module.id)).toEqual([
+              "(admin)/_layout",
+              "(marketing)/_layout"
+            ]);
+          })
         ),
         Effect.asVoid
       )

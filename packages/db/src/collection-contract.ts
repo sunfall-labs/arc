@@ -375,6 +375,11 @@ export interface CollectionMemoryStorage extends CollectionPersistenceStorage<ne
  */
 export interface CollectionDefinitionDiagnostics {
   readonly name: string;
+  /**
+   * True for derived/live-query collections that reject direct writes and
+   * change-feed application. Concrete writable definitions report `false`.
+   */
+  readonly readOnly: boolean;
   readonly inputSchema: boolean;
   readonly outputSchema: boolean;
   readonly initialData: boolean;

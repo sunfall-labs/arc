@@ -7,7 +7,7 @@ import {
   type ReadableSignal,
   runFork
 } from "@effect-ui/core";
-import { Effect, PubSub, Schema, Scope } from "effect";
+import { Effect, Option, PubSub, Schema, Scope } from "effect";
 import {
   backgroundSyncCollectionsPendingMutationsEffect,
   flushCollectionsPendingMutationsEffect,
@@ -667,16 +667,23 @@ export namespace Collection {
    * Run an Effect and collect any collections it preloads.
    *
    * Useful for SSR or route loaders that need data plus a hydration payload.
+   * The returned definitions are ordered preload facts. Nested collection
+   * collectors propagate their facts to the parent collector; dehydration
+   * dedupes identical definitions and rejects distinct same-name definitions.
    */
   export const collectEffect = <A, E, R>(
     effect: Effect.Effect<A, E, R>
   ): Effect.Effect<CollectionPreloadCollected<A>, E, R> =>
     Effect.gen(function* () {
-      const collector: CollectionPreloadCollectorState = { definitions: new Map() };
+      const parentCollector = yield* Effect.serviceOption(CollectionPreloadCollector);
+      const collector: CollectionPreloadCollectorState = { definitions: [] };
       const value = yield* Effect.provideService(effect, CollectionPreloadCollector, collector);
+      if (Option.isSome(parentCollector)) {
+        parentCollector.value.definitions.push(...collector.definitions);
+      }
       return {
         value,
-        definitions: Array.from(collector.definitions.values())
+        definitions: collector.definitions.slice()
       };
     });
 

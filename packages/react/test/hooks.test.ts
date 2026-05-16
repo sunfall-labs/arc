@@ -10,6 +10,7 @@ import {
   useProgram,
   useResource,
   useResourceSuspense,
+  useRuntime,
   useRuntimeEffect,
   useSignal,
   type ResourceHandle
@@ -539,6 +540,13 @@ describe("react hooks", () => {
           await Effect.runPromise(program!.dispatchEffect("go"));
         });
         expect(program?.model).toEqual({ name: "first" });
+        expect(program?.timeline.map((event) => event._tag)).toContain("Message");
+
+        await act(async () => {
+          program!.clearTimeline();
+        });
+        expect(program?.timeline).toEqual([]);
+        expect(program?.model).toEqual({ name: "first" });
 
         await act(async () => {
           useSecond?.();
@@ -984,5 +992,46 @@ describe("react hooks", () => {
         catch: (error) => error
       })
     );
+  });
+
+  it("reports provider-owned React runtime disposal failures to Effect observers", async () => {
+    const observed = await Effect.runPromise(Deferred.make<unknown>());
+    const cleanupDom = installDom();
+    const container = document.createElement("div");
+    document.body.appendChild(container);
+    const root = createRoot(container);
+
+    function Worker() {
+      const runtime = useRuntime();
+      useEffect(() => {
+        runtime.resourceStore.moduleRegistry.register(Symbol("react-provider-dispose-failure"), {
+          disposeEffect: Effect.fail("react dispose failed")
+        });
+      }, [runtime]);
+      return null;
+    }
+
+    try {
+      await act(async () => {
+        root.render(createElement(
+          RuntimeProvider,
+          {
+            onDisposeFailure: (error) => Deferred.succeed(observed, error)
+          },
+          createElement(Worker)
+        ));
+      });
+      await flushReact();
+
+      await act(async () => {
+        root.unmount();
+      });
+
+      await expect(Effect.runPromise(
+        Deferred.await(observed).pipe(Effect.timeout("1 second"))
+      )).resolves.toBe("react dispose failed");
+    } finally {
+      cleanupDom();
+    }
   });
 });

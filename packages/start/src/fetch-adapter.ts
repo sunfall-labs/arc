@@ -7,9 +7,10 @@ import {
   type StartRequestHandlerRequirements
 } from "./start-host-adapter.js";
 import {
-  runStartHostResponsePromise,
+  runStartHostPromise,
   type StartHostPromiseRunnerOptions
 } from "./start-host-runtime-runner.js";
+import { responseWithScopeLifetimeEffect } from "./response-lifetime.js";
 
 export { StartRequestHandlerError } from "./start-request-handler-error.js";
 
@@ -49,11 +50,78 @@ type StartFetchPromiseHandlerOptionsArgs<
   ? [options?: StartFetchPromiseHandlerOptions<RuntimeError>]
   : [options: StartFetchPromiseHandlerRuntimeOptions<Requirements, RuntimeError>];
 
+const abortSignalAny = (
+  signals: readonly AbortSignal[]
+): AbortSignal | undefined => {
+  const any = (AbortSignal as typeof AbortSignal & {
+    readonly any?: (signals: AbortSignal[]) => AbortSignal;
+  }).any;
+  return typeof any === "function" ? any([...signals]) : undefined;
+};
+
+const mergeAbortSignals = (
+  hostSignal: AbortSignal | undefined,
+  requestSignal: AbortSignal
+): { readonly signal: AbortSignal; readonly cleanup: () => void } => {
+  if (hostSignal === undefined || hostSignal === requestSignal) {
+    return { signal: requestSignal, cleanup: () => undefined };
+  }
+
+  const merged = abortSignalAny([hostSignal, requestSignal]);
+  if (merged !== undefined) {
+    return { signal: merged, cleanup: () => undefined };
+  }
+
+  const controller = new AbortController();
+  const cleanupHandlers: Array<() => void> = [];
+  const abortFrom = (signal: AbortSignal): void => {
+    if (!controller.signal.aborted) {
+      controller.abort(signal.reason);
+    }
+  };
+  for (const signal of [hostSignal, requestSignal]) {
+    if (signal.aborted) {
+      abortFrom(signal);
+      continue;
+    }
+    const abort = (): void => abortFrom(signal);
+    signal.addEventListener("abort", abort, { once: true });
+    cleanupHandlers.push(() => signal.removeEventListener("abort", abort));
+  }
+
+  return {
+    signal: controller.signal,
+    cleanup: () => {
+      for (const cleanup of cleanupHandlers) {
+        cleanup();
+      }
+    }
+  };
+};
+
+const runOptionsForRequest = (
+  runOptions: Effect.RunOptions | undefined,
+  requestSignal: AbortSignal
+): { readonly runOptions: Effect.RunOptions; readonly cleanup: () => void } => {
+  const merged = mergeAbortSignals(runOptions?.signal, requestSignal);
+  return {
+    runOptions: {
+      ...runOptions,
+      signal: merged.signal
+    },
+    cleanup: merged.cleanup
+  };
+};
+
 /**
  * Compatibility handler type for Fetch-native hosts.
  *
  * This is a host adapter contract, not the canonical Effect UI programming
- * model.
+ * model. `createFetchHandler(...)` wires the incoming `Request.signal` into
+ * Effect v4 run options, merging it with `options.runOptions.signal` and
+ * cleaning fallback abort listeners, so host aborts interrupt the underlying
+ * request Effect. The request `Scope` remains open until the returned response
+ * body closes, errors, or is cancelled.
  */
 export type StartFetchPromiseHandler = (request: Request) => Promise<Response>;
 
@@ -122,5 +190,16 @@ export function createFetchHandler<Handler extends StartRequestHandlerInput<any,
 ): StartFetchPromiseHandler {
   const options = args[0] ?? {};
   const effectHandler = toFetchHandlerEffect(handler);
-  return (request) => runStartHostResponsePromise(effectHandler(request), options);
+  return (request) => {
+    const merged = runOptionsForRequest(options.runOptions, request.signal);
+    return runStartHostPromise(
+      responseWithScopeLifetimeEffect(effectHandler(request)).pipe(
+        Effect.ensuring(Effect.sync(merged.cleanup))
+      ),
+      {
+        ...options,
+        runOptions: merged.runOptions
+      }
+    );
+  };
 }

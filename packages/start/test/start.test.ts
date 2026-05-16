@@ -923,6 +923,42 @@ describe("Effect UI Start", () => {
     expect(html).not.toContain("Start.Collection.route-touched.tasks");
   });
 
+  it("dehydrates route collection preloads captured inside nested collectors", async () => {
+    let projectLoads = 0;
+    const Projects = Collection.define<{ readonly id: string; readonly name: string }>({
+      name: "Start.Collection.route-nested-collector.projects",
+      getKey: (project) => project.id,
+      load: () =>
+        Effect.sync(() => {
+          projectLoads += 1;
+          return [{ id: "atlas", name: "Atlas" }];
+        })
+    });
+    const ProjectRoute = route("/nested-collector-projects", {
+      preload: () =>
+        Collection.collectEffect(Projects.preloadEffect()).pipe(Effect.asVoid)
+    });
+    const app = defineApp({
+      routes: [ProjectRoute] as const,
+      client: {}
+    });
+
+    const result = await Effect.runPromise(
+      preloadRequest(app, new Request("https://example.com/nested-collector-projects"))
+    );
+
+    expect(projectLoads).toBe(1);
+    expect(result.collectionPreload.routeTouchedCollections.map((collection) => collection.name)).toEqual([
+      "Start.Collection.route-nested-collector.projects"
+    ]);
+    expect(result.collections.collections.map((snapshot) => snapshot.name)).toEqual([
+      "Start.Collection.route-nested-collector.projects"
+    ]);
+    expect(result.hydration.collections?.map((snapshot) => snapshot.name)).toEqual([
+      "Start.Collection.route-nested-collector.projects"
+    ]);
+  });
+
   it("excludes route-touched live query collections from hydration payloads", async () => {
     const Projects = Collection.define<{ readonly id: string; readonly name: string; readonly progress: number }>({
       name: "Start.Collection.live-query-source.projects",
@@ -7406,6 +7442,7 @@ describe("Effect UI Start", () => {
         collectionDefinitions: [
           {
             name: "ProjectRows",
+            readOnly: false,
             inputSchema: false,
             outputSchema: false,
             initialData: false,
@@ -8277,6 +8314,133 @@ describe("Effect UI Start", () => {
 
     const exit = await Effect.runPromiseExit(
       handleSsrDevRequestEffect(server, new Request("https://example.com/"))
+    );
+    const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
+
+    expect(failure).toBeInstanceOf(StartDevServerError);
+    expect(failure).toMatchObject({ operation: "transform-html" });
+    expect(traces.map((trace) => trace.status)).toEqual(["failure"]);
+    expect(traces[0]).toMatchObject({
+      streams: [
+        {
+          name: "response",
+          state: "errored"
+        }
+      ],
+      teardown: {
+        reason: "dev-ssr-host-transform"
+      }
+    });
+  });
+
+  it("reports dev SSR request aborts as cancelled traces while reading HTML", async () => {
+    const controller = new AbortController();
+    const started = Effect.runSync(Deferred.make<void>());
+    const cancelled = Effect.runSync(Deferred.make<unknown>());
+    const traces: DevtoolsRequestTrace[] = [];
+    const app = defineApp({
+      routes: [route("/", {})] as const,
+      client: {}
+    });
+    const handler = createRequestHandler(app, {
+      onRequestTrace: (trace) =>
+        Effect.sync(() => {
+          traces.push(trace);
+        }),
+      render: () =>
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(stream) {
+              stream.enqueue(new TextEncoder().encode("<html><body>loading"));
+              Effect.runSync(Deferred.succeed(started, undefined).pipe(Effect.ignore));
+            },
+            cancel(reason) {
+              Effect.runSync(Deferred.succeed(cancelled, reason).pipe(Effect.ignore));
+            }
+          }),
+          {
+            headers: { "content-type": "text/html" }
+          }
+        )
+    });
+    const server = {
+      ssrLoadModule: (_id: string) =>
+        Effect.succeed({
+          default: handler
+        }),
+      transformIndexHtml: (_url: string, html: string) => Effect.succeed(html)
+    };
+
+    const fiber = Effect.runFork(
+      handleSsrDevRequestEffect(
+        server,
+        new Request("https://example.com/", { signal: controller.signal })
+      )
+    );
+
+    await Effect.runPromise(Deferred.await(started));
+    controller.abort("dev-client-disconnect");
+    await expect(Effect.runPromise(
+      Deferred.await(cancelled).pipe(Effect.timeout("1 second"))
+    )).resolves.toBe("dev-client-disconnect");
+    const exit = await Effect.runPromise(Fiber.await(fiber));
+    const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
+
+    expect(failure).toBeInstanceOf(StartDevServerError);
+    expect(failure).toMatchObject({ operation: "read-html" });
+    expect(traces.map((trace) => trace.status)).toEqual(["cancelled"]);
+    expect(traces[0]).toMatchObject({
+      streams: [
+        {
+          name: "response",
+          state: "cancelled"
+        }
+      ],
+      teardown: {
+        reason: "dev-client-disconnect"
+      }
+    });
+  });
+
+  it("keeps dev SSR transform failures as failures when abort happens after HTML read", async () => {
+    const controller = new AbortController();
+    const traces: DevtoolsRequestTrace[] = [];
+    const app = defineApp({
+      routes: [route("/", {})] as const,
+      client: {}
+    });
+    const handler = createRequestHandler(app, {
+      onRequestTrace: (trace) =>
+        Effect.sync(() => {
+          traces.push(trace);
+        }),
+      render: () => "<html><body>home</body></html>"
+    });
+    const server = {
+      ssrLoadModule: (_id: string) =>
+        Effect.succeed({
+          default: handler
+        }),
+      transformIndexHtml: (_url: string, _html: string) =>
+        Effect.sync(() => {
+          controller.abort("abort-after-read");
+        }).pipe(
+          Effect.flatMap(() =>
+            Effect.fail(
+              new StartDevServerError({
+                operation: "transform-html",
+                error: new Error("vite transform failed")
+              })
+            )
+          )
+        )
+    };
+
+    const exit = await Effect.runPromiseExit(
+      handleSsrDevRequestEffect(
+        server,
+        new Request("https://example.com/", { signal: controller.signal })
+      )
     );
     const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
 

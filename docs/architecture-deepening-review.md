@@ -12,9 +12,155 @@ explicitly scoped future work.
 ## Current Review Tip
 
 The newest completed focused review and full verification checkpoint is
-Review163, immediately after Review162. Some older review entries remain below
+Review164, immediately after Review163. Some older review entries remain below
 it from prior ledger merges; use this tip rather than file order alone when
 looking for the latest architecture sweep.
+
+## Review 164: Program Disposal, DB Diagnostics, Start Abort Semantics, And Guardrails
+
+Review164 fixed fresh findings from the post-Review163 clean-sweep subagents
+across Core/UI, DB, Start, and release guardrails.
+
+1. Program Disposal Contract
+   - Status: fixed.
+   - Files: `packages/core/src/program-contract.ts`,
+     `packages/core/src/program-runtime.ts`, `packages/core/src/program.ts`,
+     `packages/core/test/program.test.ts`,
+     `packages/react/src/hooks.ts`, `packages/solid/src/hooks.ts`,
+     `type-tests/react.test-d.ts`, `type-tests/solid.test-d.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: `dispatchEffect(...)` could be dropped by disposal without an
+     explicit dispatch-disposal failure, and React/Solid Program handles
+     exposed timeline reads but not the timeline-clearing command.
+   - Fix: pending dispatch acknowledgements now fail with
+     `ProgramDisposed` when disposal drops the update, committed updates still
+     acknowledge successfully, `Program.DispatchError` keeps disposal drops out
+     of deterministic step/story errors, and adapter Program handles expose
+     `clearTimeline()`.
+   - Benefits: Program dispatch remains an Effect-owned workflow with a typed
+     disposal outcome, and UI adapters no longer hide timeline management.
+
+2. Provider-Owned Runtime Disposal Observers
+   - Status: fixed.
+   - Files: `packages/react/src/runtime.ts`,
+     `packages/solid/src/runtime.ts`, `packages/react/test/hooks.test.ts`,
+     `packages/solid/test/hooks.test.ts`, `type-tests/react.test-d.ts`,
+     `type-tests/solid.test-d.ts`.
+   - Problem: provider-owned runtime disposal failures had no Effect-shaped
+     observer seam, while host-owned runtimes should not gain lifecycle
+     callbacks the provider does not own.
+   - Fix: React and Solid `RuntimeProvider` accept `onDisposeFailure(...)` only
+     when the provider creates/owns the runtime. The observer is an
+     `EffectInput<void, unknown>` and Promise-shaped observers remain rejected.
+   - Benefits: app roots can report provider-owned teardown failures without
+     turning runtime ownership into a Promise callback surface.
+
+3. DB Collection And Query Diagnostics
+   - Status: fixed.
+   - Files: `packages/db/src/collection-preload.ts`,
+     `packages/db/src/collection-runtime.ts`,
+     `packages/db/src/collection-persistence.ts`,
+     `packages/db/src/collection-registry.ts`,
+     `packages/db/src/query-builder.ts`,
+     `packages/db/test/collection.test.ts`,
+     `packages/start/src/app-graph.ts`,
+     `packages/devtools/src/app-graph-normalizer.ts`.
+   - Problem: nested `Collection.collectEffect(...)` calls could lose preload
+     facts, duplicate collection names were under-specified at dehydration, live
+     query/read diagnostics could leak raw factory throws, and collection
+     diagnostics did not tell tooling whether a definition was read-only.
+   - Fix: preload collection now preserves nested facts, dehydration dedupes
+     identical definitions while rejecting distinct same-name definitions,
+     `Query.live(...)` and `Query.diagnostics(...)` normalize factory throws as
+     `QueryEvaluationError`, and collection diagnostics include `readOnly`.
+   - Benefits: SSR collection payloads, Start diagnostics, and devtools now
+     agree on concrete collection identity and writeability facts.
+
+4. DB Adapter Preload Observers
+   - Status: fixed.
+   - Files: `packages/db/src/collection-reactive-binding.ts`,
+     `packages/react-db/src/shared.ts`, `packages/solid-db/src/shared.ts`,
+     `packages/react-db/test/react-db.test.ts`,
+     `packages/solid-db/test/solid-db.test.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: automatic collection/live-query preload observers were still a
+     Promise-shaped escape hatch.
+   - Fix: shared React/Solid DB preload observers now accept
+     `EffectInput<void, unknown>`, run through the DB-owned binding, and swallow
+     observer failures after recording the preload failure.
+   - Benefits: DB UI adapters match the Resource observer contract and keep
+     automatic preload reporting Effect-first.
+
+5. Start Abort And Stream Finalization Semantics
+   - Status: fixed.
+   - Files: `packages/start/src/fetch-adapter.ts`,
+     `packages/start/src/streaming.ts`,
+     `packages/start/src/start-vite-dev-ssr.ts`,
+     `packages/start/test/adapters.test.ts`,
+     `packages/start/test/start.test.ts`.
+   - Problem: Fetch host abort signals were not wired into the underlying
+     Effect run options, and dev SSR aborts during HTML body reads could be
+     reported as transform failures instead of request cancellations.
+   - Fix: `createFetchHandler(...)` merges the incoming `Request.signal` with
+     host run options and uses the Start host Promise runner once around the
+     scoped response Effect. Stream success finalizers can now be replaced by a
+     failure event derived from the host Effect exit, so dev SSR reports request
+     aborts as cancelled traces.
+   - Benefits: Start host facades still return the platform-required Promise at
+     the edge, but cancellation, teardown, and traces stay inside Effect v4.
+
+6. Source-Scoped File Route Support Modules
+   - Status: fixed.
+   - Files: `packages/start/src/file-routes.ts`,
+     `packages/start/test/file-routes.test.ts`.
+   - Problem: pathless/grouped file-route support modules with the same URL
+     prefix could be associated by URL shape alone, making sibling layout,
+     error, and metadata scopes ambiguous.
+   - Fix: support module identity and manifest description now use the source
+     module id scope, sorted by source depth and file path.
+   - Benefits: generated route support maps follow file ownership, not only URL
+     segments, while allowing valid sibling route groups.
+
+7. Public Guardrail Hardening
+   - Status: fixed.
+   - Files: `scripts/audit-effect-first.mjs`,
+     `scripts/audit-public-api-inventory.mjs`,
+     `scripts/verify-package-dry-runs.mjs`,
+     `type-tests/start-virtual.test-d.ts`,
+     `type-tests/public-api.manifest.json`,
+     `docs/public-api-inventory.md`.
+   - Problem: Effect-first scanning could miss assignment destructuring aliases,
+     public API inventory did not verify manifest source targets against
+     package export/bin targets, virtual route type coverage under-pinned
+     generated route modules, and package dry-run checks could miss stale
+     generated dist artifacts.
+   - Fix: the Effect-first audit now catches direct, aliased, nested, and
+     computed assignment extraction of Promise constructors/statics; the public
+     API audit ties package targets to manifest source entries; virtual route
+     types are exhaustively pinned; and package dry-runs compare dist JS/d.ts
+     stems to source stems.
+   - Benefits: Promise, package export, virtual-module, and dist-artifact drift
+     are now checked by executable guardrails instead of release notes memory.
+
+Focused verification passed across the Review164 slices: Core, DB, React,
+Solid, Start, Devtools, React-DB, and Solid-DB package typechecks; public type
+tests; public API inventory audit; Effect-first audit over 274 files; 16-target
+package dry-run gate; Core Program focused tests 1 file / 13 tests; DB
+collection focused tests 1 file / 136 tests; React/Solid hook focused tests 2
+files / 36 tests; Start adapters/file-routes focused tests 2 files / 39 tests;
+Start integration tests 1 file / 160 tests; root tests 53 files / 1003 tests;
+package build; and `git diff --check`.
+
+Full `pnpm verify` passed after Review164: 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 274 files, 53 root test files / 1003 tests, devtools-panel verify with 2
+tests, devtools-extension verify with 20 tests, basic starter verify with 2
+tests, React starter verify with 3 tests, generated starter-suite
+packaging/verifies for basic/react/project-console at 19/24/30 app files with
+5/4/6 local packages, 16-target package dry-run gate, project-console
+typecheck, 4 project-console test files / 27 tests, project-console build, and
+leak scans. Fresh post-fix sweeps still need to run before the clean-sweep
+counter can start.
 
 ## Review 163: Solid Action Handles, Hydrateable DB Snapshots, Vite 8 HMR, And Guardrails
 

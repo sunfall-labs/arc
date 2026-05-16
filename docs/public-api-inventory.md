@@ -197,14 +197,19 @@ Release decisions:
   Started Programs report typed update/command/subscription failures through a
   signal, expose a bounded `timeline` signal for message, command,
   subscription, failure, and disposal events, and keep `dispatchEffect(...)`
-  composable for tests and workflows. Definitions may set `name` and
-  `timeline.limit` for devtools-friendly retention. Runtime timeline retention
-  and disabled timeline behavior are implemented by the internal Program
-  Runtime Timeline Module, while the public Program facade keeps queue,
-  command, subscription, failure, and disposal orchestration. Runtime
-  lifecycle policy also stays internal: disposal completes pending
-  `dispatchEffect(...)` acknowledgements, committed model changes own
-  subscription restarts, and stale subscription generations cannot emit
+  composable for tests and workflows. When disposal drops a queued update
+  before it commits, `dispatchEffect(...)` fails with a `ProgramFailure` whose
+  error is `ProgramDisposed`; updates that already committed still acknowledge
+  successfully. Definitions may set `name` and `timeline.limit` for
+  devtools-friendly retention, and handles expose `clearTimeline()` for UI and
+  test reset flows. Runtime timeline retention and disabled timeline behavior
+  are implemented by the internal Program Runtime Timeline Module, while the
+  public Program facade keeps queue, command, subscription, failure, and
+  disposal orchestration. Runtime lifecycle policy also stays internal:
+  disposal fails pending or queued `dispatchEffect(...)` acknowledgements with
+  `ProgramFailure<..., ProgramDisposed>` when the update has not committed;
+  already committed updates acknowledge successfully. Committed model changes
+  own subscription restarts, and stale subscription generations cannot emit
   follow-up messages or timeline facts.
   Internally, Program Contract, Program Primitives, Program Story Harness, and
   Program Runtime Coordinator Modules separate public data Interfaces, pure
@@ -212,8 +217,9 @@ Release decisions:
   Queue/Fiber/Scope execution while the public export surface stays anchored at
   `program.ts`.
   `Program.RuntimeError<E, ER = never>` separates Program-domain failures from
-  Runtime Spine startup/provision failures; Solid and React adapters expose the
-  same `ER` parameter on `useProgram(...)`.
+  Runtime Spine startup/provision failures. `Program.DispatchError<E, ER>` adds
+  `ProgramDisposed` for live `dispatchEffect(...)` acknowledgement drops; Solid
+  and React adapters expose the same `ER` parameter on `useProgram(...)`.
   `Program.step(...)` and `Program.story(...)` are the deterministic test
   surface: they run updates as Effects, expose returned commands without running
   them implicitly, and let tests resolve commands back into typed messages.
@@ -292,6 +298,10 @@ The root export includes:
   `StartResponseStreamFinalizeEvent` for adapters that need to observe Web
   response body close/error/cancel without mixing `ReadableStream` mechanics
   into request-runtime lifecycle code.
+  `StartResponseStreamFinalizeFailureEvent` may derive the replacement
+  finalizer event from the failed/interrupted `Exit`, allowing adapters to
+  report request aborts as `cancelled` instead of generic host transform
+  failures.
 - streamed render helpers include `StartRenderHydrationPlan` and
   `createStartRenderHydrationPlanEffect(...)`, the supported Interface for
   root hydration payload/script plus streamed resource chunks.
@@ -437,7 +447,9 @@ Subpath exports:
   Node imports. `toFetchHandlerEffect(...)` is the canonical Effect v4 adapter
   and preserves handler service requirements. `createFetchHandler(...)` remains
   a compatibility host facade for Fetch-style platforms that require
-  `(request) => Promise<Response>`.
+  `(request) => Promise<Response>`; it wires the incoming `Request.signal` into
+  Effect run options so host aborts interrupt request Effects instead of
+  leaving detached work behind.
 - `./node-adapter` owns Start Node handler invocation and Node HTTP server
   callback wiring. It re-exports expert-public Node Web Exchange helpers for
   compatibility: Node request origin reconstruction, Web Request conversion,
@@ -550,7 +562,10 @@ The root export includes the generic Fetch-host adapter facade:
   the Effect-first handler on the configured runtime; library internals should
   continue to use `toFetchHandlerEffect` when they can stay inside Effect. The
   facade provides request `Scope.Scope` itself, but requires a typed runtime
-  when the handler still needs non-Scope services.
+  when the handler still needs non-Scope services. It merges `request.signal`
+  with `options.runOptions.signal`, cleans fallback abort listeners, and holds
+  the request Scope until the returned response body closes, errors, or is
+  cancelled.
 
 Release decisions:
 
@@ -696,7 +711,10 @@ Release decisions:
   `Collection.applyChangesEffect(...)` fails with `ReadonlyCollectionMutation`
   before mutating rows, writing persistence, or publishing write events. Their
   persistence path still shares the normal snapshot helper and emits
-  `CollectionPersisted` for devtools and sync observers.
+  `CollectionPersisted` for devtools and sync observers. Collection definition
+  diagnostics expose this as `readOnly`, so Start diagnostics, devtools, and
+  LSP hovers can distinguish concrete writable collections from derived
+  read-only projections without touching private collection values.
 - Change-feed host callbacks run through scoped dispatchers owned by the
   Collection Change Feed Runtime. After the subscription scope releases, late
   `emitChanges(...)` calls are deterministically dropped instead of enqueueing
@@ -722,6 +740,9 @@ Release decisions:
   channels to `never`, not `any`. Serviceful query factories must spell their
   `E`/`R` parameters so `Query.onceEffect(...)`, `Query.live(...)`, and live
   query collections cannot hide collection failures or service requirements.
+  `Query.diagnostics(...)` and `Query.live(...)` normalize synchronous factory
+  throws as `QueryEvaluationError` values, matching the one-shot query
+  diagnostic seam instead of leaking raw defects through tooling.
 - The collection reactive binding helpers exported from the DB root are
   expert-public Adapter helpers for React DB, Solid DB, and future framework
   adapters. They own collection source subscription, runtime-bound Effects,
@@ -883,6 +904,12 @@ Release decisions:
 - React hooks expose current values directly, such as `resource.value` and
   `program.model`, instead of Solid-style accessor functions. Effect-returning
   methods remain the shared cross-adapter composition surface.
+- React `RuntimeProvider` accepts `onDisposeFailure(...)` only when it owns the
+  runtime through `source` or the default runtime path. The observer is
+  `EffectInput<void, unknown>`: observers may return pure values or Effects,
+  Promise-shaped observers are rejected, observer failures are swallowed after
+  the disposal failure is observed, and the prop is intentionally unavailable
+  for host-owned `runtime` props.
 - React router helpers mirror the Solid route helper surface while exposing
   state through Effect UI `Signal` values that React components consume via
   `useSignal(...)`.
@@ -913,6 +940,12 @@ Release decisions:
   `resetEffect(...)` stay runtime-bound Effect methods. The underlying Core
   `ActionInstance` remains available at `handle.instance` for advanced
   integration work.
+- `useProgram(...)` returns a React `ProgramHandle`: `model`, `state`,
+  `failures`, and `timeline` are current React values; `dispatchEffect(...)`
+  remains Effect-returning and uses `Program.DispatchError` so
+  `ProgramDisposed` appears only when disposal drops a queued update;
+  `clearTimeline()` clears retained timeline events without touching model or
+  failures.
 
 ### `@effect-ui/react-db`
 
@@ -933,6 +966,9 @@ Release decisions:
   Effect-returning and runtime-bound.
 - The shared React DB binding owns runtime capture, collection subscriptions,
   component cleanup, automatic preload, and runtime-bound returned Effects.
+  Automatic preload failure observers may return a plain value or an
+  EffectInput, while Promise-shaped observers are rejected at the EffectInput
+  seam.
 
 ### `@effect-ui/solid`
 
@@ -952,6 +988,12 @@ Release decisions:
 - Keep core re-exports for Solid ergonomics. Documentation should still name
   `@effect-ui/core` as the owner of Resource, Action, Route, Signal, Form,
   Capability, and runtime semantics so app code can move across adapters.
+- Solid `RuntimeProvider` accepts `onDisposeFailure(...)` only when it owns the
+  runtime through `source` or the default runtime path. The observer is
+  `EffectInput<void, unknown>`: observers may return pure values or Effects,
+  Promise-shaped observers are rejected, observer failures are swallowed after
+  the disposal failure is observed, and the prop is intentionally unavailable
+  for host-owned `runtime` props.
 - `createBrowserRouter(...)` and `RouterProvider` intentionally own browser
   `location`, `history`, `popstate`, route preload, and route scope lifecycle as
   one Solid browser Adapter. Core remains responsible for route definitions,
@@ -987,9 +1029,12 @@ Release decisions:
   `submitEffect(...)`.
 - `useProgram(...)` starts a Core `Program` under the nearest Solid runtime and
   owner scope, exposing `model()`, `state()`, `failures()`, `dispatch(...)`, and
-  `dispatchEffect(...)`. This is the simple model/message/update surface for
-  views that want Elm/Foldkit-style clarity without giving up Effect services,
-  commands, streams, fibers, or scoped cleanup.
+  `dispatchEffect(...)`. It also exposes `timeline()` and `clearTimeline()`;
+  `dispatchEffect(...)` uses `Program.DispatchError` so `ProgramDisposed`
+  appears only when disposal drops a queued update. This is the simple
+  model/message/update surface for views that want Elm/Foldkit-style clarity
+  without giving up Effect services, commands, streams, fibers, or scoped
+  cleanup.
 - `useResource<..., ER>(...)` follows the same runtime-bound pattern for
   `prefetchEffect(...)` and `refreshEffect(...)`. Automatic prefetches are
   Resource Store-owned; Solid owner cleanup and reactive ref changes detach the
@@ -1030,6 +1075,9 @@ Release decisions:
   callers do not need to rebind the raw Collection Definition for mutation work.
 - Automatic Solid DB preloads are owner-scoped fibers. Disposing the Solid owner
   interrupts any in-flight mount preload before it can report a late failure.
+  Automatic preload failure observers may return a plain value or an
+  EffectInput, while Promise-shaped observers are rejected at the EffectInput
+  seam.
 
 ### `@effect-ui/tsrx`
 

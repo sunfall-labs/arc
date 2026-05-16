@@ -649,13 +649,15 @@ Last evidence pass: May 16, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 163 ran Core, Solid, DB, and Start package
-    typechecks; public type tests; public API audit; Effect-first audit over
-    274 files; the 16-target package dry-run gate; Core/Solid focused tests 2
-    files / 23 tests; DB focused tests 2 files / 7 selected tests; Start
-    focused tests 1 file / 8 selected tests; and `git diff --check`. Latest
-    full evidence: `pnpm verify` ran all root package tests after Review 163:
-    53 test files / 991 tests.
+  - Latest focused evidence: Review 164 ran Core, DB, React, Solid, Start,
+    Devtools, React-DB, and Solid-DB package typechecks; public type tests;
+    package build; public API audit; Effect-first audit over 274 files; the
+    16-target package dry-run gate; Core Program tests 1 file / 13 tests; DB
+    collection tests 1 file / 136 tests; React/Solid hooks 2 files / 36 tests;
+    Start adapters/file-routes 2 files / 39 tests; Start integration 1 file /
+    160 tests; root tests 53 files / 1003 tests; and `git diff --check`.
+    Latest full evidence: `pnpm verify` ran after Review 164 with 53 test
+    files / 1003 tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.
@@ -794,15 +796,14 @@ Last evidence pass: May 16, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 163 Solid action Adapter, DB
-    snapshot collection, Start Vite/dev SSR, and guardrail fixes.
+  - Evidence: no new ADR required for the Review 164 Program disposal, DB
+    diagnostics, Start abort, and guardrail fixes.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 163
-    Solid action handles, hydrateable DB snapshots, Vite 8 HMR, and guardrail
-    slice:
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 164
+    Program disposal, DB diagnostics, Start abort, and guardrail slice:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
-    274 files, 53 root test files / 991 tests, devtools-panel verify with 1
+    274 files, 53 root test files / 1003 tests, devtools-panel verify with 1
     panel test file / 2 tests,
     devtools-extension verify with 1 extension test file / 20 tests, basic
     starter verify with 1 starter test file / 2 tests, React starter verify
@@ -811,12 +812,12 @@ Last evidence pass: May 16, 2026.
     dry-run gate, project-console typecheck, 4 project-console test files / 27
     tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 163 records Core, Solid, DB, and Start package
-    typechecks; public type tests; public API audit; Effect-first audit over
-    274 files; the 16-target package dry-run gate; Core/Solid focused tests 2
-    files / 23 tests; DB focused tests 2 files / 7 selected tests; Start
-    focused tests 1 file / 8 selected tests; and `git diff --check`. Full
-    verification is recorded in the Review163 full gate above.
+  - Evidence: Review 164 records Core, DB, React, Solid, Start, Devtools,
+    React-DB, and Solid-DB package typechecks; public type tests; public API
+    audit; Effect-first audit over 274 files; the 16-target package dry-run
+    gate; package build; focused Core/DB/React/Solid/Start tests; root tests 53
+    files / 1003 tests; and `git diff --check`. Full verification is recorded
+    in the Review164 full gate above.
 
 ## Remaining Winning-Bar Items
 

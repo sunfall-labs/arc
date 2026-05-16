@@ -66,6 +66,11 @@ exports. It supports the release-engineering charter workstream.
   to exact manifest comparison: each source package dry-run must match the
   source tree after excluding generated output, dependency directories,
   lockfiles, build info, and local metadata.
+- Review164 tightened the framework dist-package dry-run gate: package payload
+  validation now compares packed `dist/*.js`, `dist/*.d.ts`, and source-map
+  stems against `src/**/*.ts(x)` source stems, with the Start virtual module
+  handled explicitly. Stale generated dist artifacts and missing built
+  declaration/JavaScript files now fail the release rehearsal.
 
 ## Verification Evidence
 
@@ -115,13 +120,18 @@ exports. It supports the release-engineering charter workstream.
   all 16 package payloads: 11 framework dist packages, 19 basic starter files,
   24 React starter files, 30 project-console files, 10 devtools panel files,
   and 15 devtools extension files.
-- The latest full `pnpm verify` passed after Review163 with 11 package builds,
+- The latest full `pnpm verify` passed after Review164 with 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 274 files, 53 root test files / 991 tests,
+  Effect-first audit over 274 files, 53 root test files / 1003 tests,
   devtools verifies, generated starter packaging, the 16-target dry-run gate,
   project-console typecheck/tests/build, and leak scan.
 - Review163 focused `pnpm example:pack-dry-run` passed across all 16 package
   payloads after adding exact source-package manifest comparison.
+- Review164 focused `pnpm example:pack-dry-run` passed across all 16 package
+  payloads after adding dist artifact/source-stem validation: core 201 files,
+  db 145, devtools 65, devtools-extension 15, devtools-panel 10,
+  project-console 30, react 25, react-db 17, solid 25, solid-db 17, start 260,
+  start-fetch 5, start-node 5, starter-basic 19, starter-react 24, and tsrx 5.
 - Review155 focused `pnpm example:pack-dry-run` passed across all 16 package
   payloads after adding manifest metadata enforcement to the dry-run gate.
 - Review156 focused `pnpm example:pack-dry-run` passed across all 16 package

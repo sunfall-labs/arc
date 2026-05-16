@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { basename, join } from "node:path";
+import { basename, join, relative } from "node:path";
 import ts from "typescript";
 
 const root = process.cwd();
@@ -463,6 +463,91 @@ const expectedBins = new Map();
 const importSpecifierFor = (packageName, exportPath) =>
   exportPath === "." ? packageName : `${packageName}${exportPath.slice(1)}`;
 
+const stripTypeScriptExtension = (path) =>
+  path
+    .replace(/\.d\.ts$/, "")
+    .replace(/\.[cm]?tsx?$/, "");
+
+const packageDirectoryForName = (packageName) =>
+  packageDirectories.find((directory) =>
+    readJson(join(directory, "package.json")).name === packageName
+  );
+
+const manifestSourceDistStem = (entry, packageDirectory) => {
+  const packageRelativeDirectory = relative(root, packageDirectory).split("\\").join("/");
+  const sourcePrefix = `${packageRelativeDirectory}/src/`;
+  if (typeof entry.source !== "string" || !entry.source.startsWith(sourcePrefix)) {
+    failures.push(`${entry.package} export ${entry.export} source ${entry.source} must live under ${sourcePrefix}`);
+    return undefined;
+  }
+
+  if (entry.package === "@effect-ui/start" && entry.export === "./virtual") {
+    return "virtual";
+  }
+
+  return stripTypeScriptExtension(entry.source.slice(sourcePrefix.length));
+};
+
+const expectedManifestTargets = (entry, packageDirectory) => {
+  const stem = manifestSourceDistStem(entry, packageDirectory);
+  if (stem === undefined) {
+    return undefined;
+  }
+  return {
+    types: `./dist/${stem}.d.ts`,
+    default: `./dist/${stem}.js`
+  };
+};
+
+const assertManifestExportTargets = (entry, packageManifest, packageDirectory) => {
+  const exportValue = packageManifest.exports?.[entry.export];
+  if (exportValue === undefined) {
+    return;
+  }
+  const expected = expectedManifestTargets(entry, packageDirectory);
+  if (expected === undefined) {
+    return;
+  }
+
+  if (entry.export === ".") {
+    if (packageManifest.main !== expected.default) {
+      failures.push(`${entry.package} main must target ${expected.default} because public-api.manifest.json maps root source to ${entry.source}`);
+    }
+    if (packageManifest.types !== expected.types) {
+      failures.push(`${entry.package} types must target ${expected.types} because public-api.manifest.json maps root source to ${entry.source}`);
+    }
+  }
+
+  if (typeof exportValue === "string") {
+    if (exportValue !== expected.default) {
+      failures.push(`${entry.package} export ${entry.export} must target ${expected.default} because public-api.manifest.json maps it to ${entry.source}`);
+    }
+    return;
+  }
+  if (typeof exportValue !== "object" || exportValue === null || Array.isArray(exportValue)) {
+    return;
+  }
+
+  if (exportValue.types !== expected.types) {
+    failures.push(`${entry.package} export ${entry.export} types target must be ${expected.types} because public-api.manifest.json maps it to ${entry.source}`);
+  }
+  if (exportValue.default !== expected.default) {
+    failures.push(`${entry.package} export ${entry.export} default target must be ${expected.default} because public-api.manifest.json maps it to ${entry.source}`);
+  }
+};
+
+const assertManifestBinTarget = (entry, packageManifest, packageDirectory) => {
+  const stem = manifestSourceDistStem({ ...entry, export: `<bin:${entry.bin}>` }, packageDirectory);
+  if (stem === undefined) {
+    return;
+  }
+  const expected = `./dist/${stem}.js`;
+  const actual = packageManifest.bin?.[entry.bin];
+  if (actual !== expected) {
+    failures.push(`${entry.package} bin ${entry.bin} target must be ${expected} because public-api.manifest.json maps it to ${entry.source}`);
+  }
+};
+
 const assertRelativeFile = (label, path) => {
   if (typeof path !== "string" || path.length === 0) {
     failures.push(`${label} must be a non-empty relative path`);
@@ -646,9 +731,7 @@ for (const packageDirectory of packageDirectories) {
 
 for (const [key, entry] of expectedEntrypoints) {
   const [packageName, exportPath] = key.split("\0");
-  const packageDirectory = packageDirectories.find((directory) =>
-    readJson(join(directory, "package.json")).name === packageName
-  );
+  const packageDirectory = packageDirectoryForName(packageName);
   if (!packageDirectory) {
     failures.push(`${entry.package} export ${entry.export} in type-tests/public-api.manifest.json has no workspace package`);
     continue;
@@ -657,14 +740,14 @@ for (const [key, entry] of expectedEntrypoints) {
   const packageManifest = readJson(join(packageDirectory, "package.json"));
   if (!(exportPath in (packageManifest.exports ?? {}))) {
     failures.push(`${entry.package} export ${entry.export} in type-tests/public-api.manifest.json is not a package export`);
+  } else {
+    assertManifestExportTargets(entry, packageManifest, packageDirectory);
   }
 }
 
 for (const [key, entry] of expectedBins) {
   const [packageName, binName] = key.split("\0");
-  const packageDirectory = packageDirectories.find((directory) =>
-    readJson(join(directory, "package.json")).name === packageName
-  );
+  const packageDirectory = packageDirectoryForName(packageName);
   if (!packageDirectory) {
     failures.push(`${entry.package} bin ${entry.bin} in type-tests/public-api.manifest.json has no workspace package`);
     continue;
@@ -673,6 +756,8 @@ for (const [key, entry] of expectedBins) {
   const packageManifest = readJson(join(packageDirectory, "package.json"));
   if (!(binName in (packageManifest.bin ?? {}))) {
     failures.push(`${entry.package} bin ${entry.bin} in type-tests/public-api.manifest.json is not a package bin`);
+  } else {
+    assertManifestBinTarget(entry, packageManifest, packageDirectory);
   }
 }
 

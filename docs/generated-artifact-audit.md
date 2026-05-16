@@ -50,6 +50,16 @@ repeating stale package/test totals.
   - Review163 covers Vite 8's `hotUpdate(...)` create/delete path in addition
     to the legacy `handleHotUpdate(...)` path, so modern dev sessions refresh
     `routeTree.gen.ts` and virtual modules after route creation and removal.
+- Source-scoped support modules
+  - Review164 scopes file-route layout, error-boundary, and metadata support
+    modules by source module id rather than URL prefix alone. Pathless and
+    grouped sibling routes can share a URL scope while generated support maps
+    still follow file ownership.
+- Package dist artifact drift
+  - Review164 extends `pnpm example:pack-dry-run` so framework dist packages
+    compare packed JS/declaration/map stems to source stems. Generated or stale
+    dist files now fail the same release rehearsal as source-package payload
+    drift.
 
 ## Verification Evidence
 
@@ -59,7 +69,12 @@ repeating stale package/test totals.
 - Review163 focused Start verification covered the Vite 8 `hotUpdate(...)`
   create/delete artifact regression among 1 Start test file / 8 selected tests
   plus Start package typecheck and public type tests.
-- Review163 full `pnpm verify` passed with 53 root test files / 991 tests,
+- Review164 focused Start artifact verification covered source-scoped
+  pathless/group support modules and duplicate sibling URL scopes in
+  `packages/start/test/file-routes.test.ts`; Start adapters/file-routes focused
+  tests passed at 2 files / 39 tests, and `pnpm example:pack-dry-run` passed
+  with dist artifact/source-stem validation.
+- Review164 full `pnpm verify` passed with 53 root test files / 1003 tests,
   generated starter-suite packaging/verifies at 19/24/30 app files, and the
   16-target package dry-run gate.
 

@@ -99,7 +99,7 @@ export const recordCollectionPreload = (
   Effect.gen(function* () {
     const collector = yield* Effect.serviceOption(CollectionPreloadCollector);
     if (Option.isSome(collector)) {
-      collector.value.definitions.set(definition.name, definition);
+      collector.value.definitions.push(definition);
     }
   });
 

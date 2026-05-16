@@ -35,15 +35,15 @@ export const hrefByPath = <Path extends RoutePath>(
   ...args: Route.HrefArgs<RouteByPath[Path]>
 ): string => Route.href(routeByPath[path], ...args);
 
-/** Layout modules that wrap each generated route, ordered from root to leaf. */
+/** Layout modules that wrap each generated route, ordered from source-scope root to leaf. */
 export const fileRouteLayoutsById = {
   "route_root": []
 } as const;
-/** Nearest error boundary module for each generated route, when one exists. */
+/** Nearest source-scoped error boundary module for each generated route, when one exists. */
 export const fileRouteErrorBoundaryById = {
 
 } as const;
-/** Metadata modules scoped to each generated route, ordered from root to leaf. */
+/** Metadata modules scoped to each generated route by source id, ordered from root to leaf. */
 export const fileRouteMetadataById = {
   "route_root": []
 } as const;

@@ -240,6 +240,94 @@ const sourcePackageManifestValidationFailures = (target, expectedFiles, actualFi
   return failures;
 };
 
+const stripSourceExtension = (filePath) =>
+  filePath
+    .replace(/\.d\.ts$/, "")
+    .replace(/\.[cm]?tsx?$/, "");
+
+const stripDistArtifactExtension = (filePath) =>
+  filePath
+    .replace(/\.d\.ts\.map$/, "")
+    .replace(/\.d\.ts$/, "")
+    .replace(/\.js\.map$/, "")
+    .replace(/\.js$/, "");
+
+const distArtifactStem = (filePath) => {
+  if (!filePath.startsWith("dist/")) {
+    return undefined;
+  }
+  if (
+    !filePath.endsWith(".js") &&
+    !filePath.endsWith(".js.map") &&
+    !filePath.endsWith(".d.ts") &&
+    !filePath.endsWith(".d.ts.map")
+  ) {
+    return undefined;
+  }
+  return stripDistArtifactExtension(filePath.slice("dist/".length));
+};
+
+const distArtifactKind = (filePath) => {
+  if (filePath.endsWith(".js")) {
+    return "js";
+  }
+  if (filePath.endsWith(".d.ts")) {
+    return "types";
+  }
+  return undefined;
+};
+
+const collectDistPackageSourceStems = (target) =>
+  Effect.gen(function* () {
+    const stems = new Set();
+    const sourceDirectory = join(target.directory, "src");
+    const visit = (directory) => Effect.gen(function* () {
+      const entries = yield* fsEffect(
+        `read ${relative(workspaceRoot, directory)}`,
+        () => readdir(directory, { withFileTypes: true }),
+      );
+      for (const entry of entries) {
+        const fullPath = join(directory, entry.name);
+        if (entry.isDirectory()) {
+          yield* visit(fullPath);
+          continue;
+        }
+        if (
+          entry.isFile() &&
+          !entry.name.endsWith(".d.ts") &&
+          /\.[cm]?tsx?$/.test(entry.name)
+        ) {
+          stems.add(stripSourceExtension(toPosixPath(relative(sourceDirectory, fullPath))));
+        }
+      }
+    });
+
+    yield* visit(sourceDirectory);
+    return stems;
+  });
+
+const distPackageArtifactDriftFailures = (target, files, sourceStems) => {
+  const artifactStems = new Set(files.map(distArtifactStem).filter(Boolean));
+  const jsStems = new Set(files.filter((file) => distArtifactKind(file) === "js").map(distArtifactStem));
+  const typeStems = new Set(files.filter((file) => distArtifactKind(file) === "types").map(distArtifactStem));
+  const extra = [...artifactStems]
+    .filter((stem) => !sourceStems.has(stem))
+    .sort((left, right) => left.localeCompare(right));
+  const missing = [...sourceStems]
+    .filter((stem) => !jsStems.has(stem) || !typeStems.has(stem))
+    .sort((left, right) => left.localeCompare(right));
+  const failures = [];
+
+  if (extra.length > 0) {
+    failures.push(`${target.label} package dry-run includes stale dist artifacts without matching src files: ${extra.map((stem) => "dist/" + stem).join(", ")}.`);
+  }
+  if (missing.length > 0) {
+    failures.push(`${target.label} package dry-run is missing built JS or declaration artifacts for src files: ${missing.map((stem) => "src/" + stem).join(", ")}.`);
+  }
+
+  return failures;
+};
+
 const failSelfTest = (message) => {
   console.error(message);
   process.exit(1);
@@ -371,6 +459,37 @@ assertSourcePackageManifestPolicy(
   ["README.md", "index.html", "package.json", "src/main.ts", "src/old.css"],
   ["src/styles.css", "src/old.css"],
 );
+
+const distSourceStemsSelfTest = new Set(["index", "feature"]);
+const distArtifactFilesSelfTest = [
+  "package.json",
+  "dist/index.js",
+  "dist/index.d.ts",
+  "dist/feature.js",
+  "dist/feature.d.ts",
+];
+const distArtifactDriftSelfTest = [
+  ...distArtifactFilesSelfTest,
+  "dist/stale.js",
+  "dist/stale.d.ts",
+];
+const distArtifactMissingSelfTest = distArtifactFilesSelfTest.filter((file) => file !== "dist/feature.d.ts");
+assertSourcePackageManifestPolicy(
+  "dist artifact drift self-test helper baseline",
+  sourcePackageSelfTest,
+  [],
+  [],
+  [],
+);
+if (distPackageArtifactDriftFailures(validDistPackageSelfTest, distArtifactFilesSelfTest, distSourceStemsSelfTest).length !== 0) {
+  failSelfTest("dist artifact drift self-test expected the baseline payload to pass.");
+}
+if (!distPackageArtifactDriftFailures(validDistPackageSelfTest, distArtifactDriftSelfTest, distSourceStemsSelfTest).some((failure) => failure.includes("stale dist artifacts"))) {
+  failSelfTest("dist artifact drift self-test did not catch stale dist artifacts.");
+}
+if (!distPackageArtifactDriftFailures(validDistPackageSelfTest, distArtifactMissingSelfTest, distSourceStemsSelfTest).some((failure) => failure.includes("missing built JS or declaration"))) {
+  failSelfTest("dist artifact drift self-test did not catch missing dist artifacts.");
+}
 
 const workspacePackageTargets = collectWorkspacePackageManifests(workspaceRoot).pipe(
   Effect.flatMap((manifests) =>
@@ -585,6 +704,9 @@ const verifyPackageTarget = (target) =>
     const sourceManifestDrift = target.payload === "source-package"
       ? sourcePackageManifestValidationFailures(target, yield* collectSourcePackageFiles(target), files)
       : [];
+    const distArtifactDrift = target.payload === "dist-package"
+      ? distPackageArtifactDriftFailures(target, files, yield* collectDistPackageSourceStems(target))
+      : [];
     const missingManifestTargets = manifestTargetValidationFailures({
       packageName: target.label,
       packageJson: target.packageJson,
@@ -629,6 +751,17 @@ const verifyPackageTarget = (target) =>
           [
             "Keep source package files allowlists aligned with the copyable source tree.",
             ...sourceManifestDrift,
+          ].join(" "),
+        ),
+      );
+    }
+    if (distArtifactDrift.length > 0) {
+      return yield* Effect.fail(
+        fail(
+          `${target.label} package dry-run dist artifacts do not match source files.`,
+          [
+            "Run a clean build or remove stale dist files before packing framework packages.",
+            ...distArtifactDrift,
           ].join(" "),
         ),
       );

@@ -997,12 +997,25 @@ describe("Collection", () => {
         persistOnWrite: true
       }
     });
+    const ProjectCards = Collection.liveQuery<ProjectCard, string>({
+      name: "ProjectCards.collection-diagnostics",
+      getKey: (project) => project.id,
+      query: (query) =>
+        query
+          .from({ project: Projects })
+          .select(({ project }) => ({
+            id: project.id,
+            name: project.name,
+            progress: project.progress
+          }))
+    });
 
     expect(Collection.definitions().get("Projects.collection-diagnostics")).toBe(Projects);
     expect(Collection.diagnostics().collections).toEqual(
       expect.arrayContaining([
         {
           name: "Projects.collection-diagnostics",
+          readOnly: false,
           inputSchema: true,
           outputSchema: true,
           initialData: true,
@@ -1029,8 +1042,108 @@ describe("Collection", () => {
             persistOnMutation: true,
             persistOnWrite: true
           }
-        }
+        },
+        expect.objectContaining({
+          name: "ProjectCards.collection-diagnostics",
+          readOnly: true
+        })
       ])
+    );
+    expect(Collection.definitions().get("ProjectCards.collection-diagnostics")).toBe(ProjectCards);
+  });
+
+  it("collects nested collection preloads into the parent collector", () => {
+    const runtime = makeRuntime();
+    const Projects = Collection.define<Project>({
+      name: "Projects.collect-nested",
+      getKey: (project) => project.id
+    });
+    const Tasks = Collection.define<Task>({
+      name: "Tasks.collect-nested",
+      getKey: (task) => task.id
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const collected = yield* runtime.provide(
+          Collection.collectEffect(
+            Effect.gen(function* () {
+              yield* Projects.preloadEffect();
+              const nested = yield* Collection.collectEffect(Tasks.preloadEffect());
+              expect(nested.definitions).toEqual([Tasks]);
+            })
+          )
+        );
+
+        expect(collected.definitions).toEqual([Projects, Tasks]);
+      }).pipe(
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
+  it("preserves duplicate-name preload facts and rejects ambiguous dehydration", () => {
+    const runtime = makeRuntime();
+    const FirstProjects = Collection.define<Project>({
+      name: "Projects.collect-duplicate-name",
+      getKey: (project) => project.id
+    });
+    const SecondProjects = Collection.define<Project>({
+      name: "Projects.collect-duplicate-name",
+      getKey: (project) => project.id
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const collected = yield* runtime.provide(
+          Collection.collectEffect(
+            Effect.all([
+              FirstProjects.preloadEffect(),
+              SecondProjects.preloadEffect()
+            ], { discard: true })
+          )
+        );
+
+        expect(collected.definitions).toEqual([FirstProjects, SecondProjects]);
+        const failure = yield* Effect.flip(runtime.provide(Collection.dehydrateEffect(collected.definitions)));
+        expect(failure).toBeInstanceOf(CollectionSnapshotCodecError);
+        expect(failure).toMatchObject({
+          _tag: "CollectionSnapshotCodecError",
+          operation: "snapshot",
+          path: "$.collections"
+        });
+      }).pipe(
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
+  it("deduplicates identical preload facts during dehydration", () => {
+    const runtime = makeRuntime();
+    const Projects = Collection.define<Project>({
+      name: "Projects.collect-duplicate-identity",
+      getKey: (project) => project.id
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const collected = yield* runtime.provide(
+          Collection.collectEffect(
+            Effect.all([
+              Projects.preloadEffect(),
+              Projects.refetchEffect()
+            ], { discard: true })
+          )
+        );
+
+        expect(collected.definitions).toEqual([Projects, Projects]);
+        const payload = yield* runtime.provide(Collection.dehydrateEffect(collected.definitions));
+        expect(payload.collections.map((snapshot) => snapshot.name)).toEqual([
+          "Projects.collect-duplicate-identity"
+        ]);
+      }).pipe(
+        Effect.ensuring(runtime.disposeEffect)
+      )
     );
   });
 
@@ -5816,6 +5929,29 @@ describe("Collection", () => {
 });
 
 describe("Query", () => {
+  it("normalizes live and diagnostics factory throws to QueryEvaluationError", () => {
+    const thrown = new Error("query factory failed");
+    const factory: Query.Factory<string> = () => {
+      throw thrown;
+    };
+
+    for (const evaluate of [
+      () => Query.live(factory),
+      () => Query.diagnostics(factory)
+    ]) {
+      expect(evaluate).toThrow(QueryEvaluationError);
+      try {
+        evaluate();
+      } catch (error) {
+        expect(error).toMatchObject({
+          _tag: "QueryEvaluationError",
+          operation: "evaluate",
+          cause: thrown
+        });
+      }
+    }
+  });
+
   it("keeps a live single-collection query updated through the IVM adapter", async () => {
     const Projects = Collection.define<Project>({
       name: "Projects.live-filter",

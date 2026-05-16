@@ -61,7 +61,9 @@ const SolidProgram = Program.define<number, "tick">({
   initial: 0,
   update: (model) => Program.next(model + 1)
 });
-const solidProgramHandle: ProgramHandle<number, "tick", EffectInputCallbackError> = useProgram(SolidProgram);
+const solidProgramHandle: ProgramHandle<number, "tick", EffectInputCallbackError, EffectInputCallbackError | Program.Disposed> =
+  useProgram<number, "tick">(SolidProgram);
+solidProgramHandle.clearTimeline();
 const SolidProjectById = Resource.family<string, SolidProject>({
   name: "Solid.type-test.project",
   load: (id) => Effect.succeed({ id, name: "Atlas" })
@@ -146,7 +148,7 @@ type SolidRouter = BrowserRouter | RouterOutletProps;
 type SolidBrowserRouterOptions = BrowserRouterOptions;
 type SolidRouterProviderProps = RouterProviderProps<typeof solidRoutes>;
 type SolidActionHandle = ActionHandle<{ readonly id: string }, { readonly ok: boolean }>;
-type SolidProgramHandle = ProgramHandle<number, "tick", EffectInputCallbackError>;
+type SolidProgramHandle = ProgramHandle<number, "tick", EffectInputCallbackError, EffectInputCallbackError | Program.Disposed>;
 type SolidResourceHandle = ResourceHandle<string, SolidProject, never>;
 type SolidUseResourceOptions = UseResourceOptions<never>;
 type SolidRuntimeEffectRunner = RuntimeEffectRunner;

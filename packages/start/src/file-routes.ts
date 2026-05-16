@@ -35,7 +35,13 @@ export type FileRouteSegment = RoutePathSegment;
 /** Decoded path parameter used by file-route manifests. */
 export type FileRouteParam = RoutePathParam;
 
-/** File-route module roles discovered from file names such as route/layout/error/metadata. */
+/**
+ * File-route module roles discovered from file names such as route/layout/error/metadata.
+ *
+ * Layout, error-boundary, and metadata modules are scoped by source id
+ * directory, not URL path alone. Sibling route groups may share the same route
+ * path while keeping support modules isolated by source scope.
+ */
 export type FileRouteModuleKind = "Route" | "Layout" | "ErrorBoundary" | "Metadata";
 
 /** One module discovered from the file-route tree. */
@@ -349,6 +355,46 @@ const compareManifestModules = (
   return compareString(left.filePath, right.filePath);
 };
 
+const fileRouteSourceSegments = (
+  value: { readonly id: FileRouteSourceId }
+): readonly string[] =>
+  String(value.id).split("/").filter((segment) => segment.length > 0);
+
+const fileRouteSourceScope = (
+  value: { readonly id: FileRouteSourceId; readonly kind?: FileRouteModuleKind }
+): readonly string[] => {
+  const segments = fileRouteSourceSegments(value);
+  const leaf = segments.at(-1);
+  if (leaf === undefined) {
+    return [];
+  }
+
+  const kind = value.kind ?? "Route";
+  return kind !== "Route" || leaf === "index"
+    ? segments.slice(0, -1)
+    : segments;
+};
+
+const isFileRouteSourceScopePrefix = (
+  parent: readonly string[],
+  child: readonly string[]
+): boolean =>
+  parent.length <= child.length &&
+  parent.every((segment, index) => child[index] === segment);
+
+const fileRouteSourceScopeKey = (
+  value: { readonly id: FileRouteSourceId; readonly kind?: FileRouteModuleKind }
+): string =>
+  fileRouteSourceScope(value).join("/");
+
+const compareBySourceScopeDepthThenPath = (
+  left: { readonly id: FileRouteSourceId; readonly filePath: string; readonly kind?: FileRouteModuleKind },
+  right: { readonly id: FileRouteSourceId; readonly filePath: string; readonly kind?: FileRouteModuleKind }
+): number => {
+  const depth = fileRouteSourceScope(left).length - fileRouteSourceScope(right).length;
+  return depth === 0 ? compareString(left.filePath, right.filePath) : depth;
+};
+
 const fileRouteModuleToManifestEntry = (
   module: FileRouteManifestModule | undefined
 ): FileRouteManifestEntry | undefined => {
@@ -497,7 +543,12 @@ export const generateFileRouteModules = (
     .filter((module): module is FileRouteManifestModule => module !== undefined)
     .sort(compareManifestModules);
 
-/** Validates duplicate route paths and route/module consistency. */
+/**
+ * Validates duplicate route paths and route/module consistency.
+ *
+ * Duplicate support modules are duplicate only within the same module kind,
+ * route path, and source-id scope.
+ */
 export const validateFileRouteManifestEffect = (
   entries: Iterable<FileRouteManifestEntry>,
   modules?: Iterable<FileRouteManifestModule>
@@ -541,7 +592,7 @@ export const validateFileRouteManifestEffect = (
         continue;
       }
 
-      const key = `${module.kind}:${module.routePath}`;
+      const key = `${module.kind}:${module.routePath}:${fileRouteSourceScopeKey(module)}`;
       const existing = byModuleRole.get(key);
       if (existing) {
         return yield* Effect.fail(
@@ -852,7 +903,13 @@ const compareByDepthThenPath = (
   return depth === 0 ? compareString(left.filePath, right.filePath) : depth;
 };
 
-/** Projects a manifest into per-route metadata including parent/layout/error relationships. */
+/**
+ * Projects a manifest into per-route metadata including parent/layout/error relationships.
+ *
+ * Support modules are inherited by source-id scope, so pathless/grouped
+ * siblings with the same URL path do not accidentally share layout, error, or
+ * metadata modules.
+ */
 export const describeFileRouteManifest = (
   manifest: FileRouteManifest
 ): readonly FileRouteRouteMetadata[] => {
@@ -872,8 +929,10 @@ export const describeFileRouteManifest = (
       )
       .sort((left, right) => compareByDepthThenPath(right, left))[0];
     const scopedModules = modules
-      .filter((module) => isRoutePathSegmentPrefix(module.segments, entry.segments))
-      .sort(compareByDepthThenPath);
+      .filter((module) =>
+        isFileRouteSourceScopePrefix(fileRouteSourceScope(module), fileRouteSourceScope(entry))
+      )
+      .sort(compareBySourceScopeDepthThenPath);
     const layouts = scopedModules.filter((module) => module.kind === "Layout");
     const errorBoundary = scopedModules
       .filter((module) => module.kind === "ErrorBoundary")

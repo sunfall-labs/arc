@@ -1,4 +1,4 @@
-import { runWithRuntime, type AnyEffectUiRuntime } from "@effect-ui/core";
+import { invokeEffectInput, runWithRuntime, type AnyEffectUiRuntime, type EffectInput } from "@effect-ui/core";
 import { Effect, Fiber } from "effect";
 import type { AnyCollection, CollectionLoadState } from "./collection-contract.js";
 import { Query, type LiveQuery, type LiveQueryState, type QueryFactory } from "./query-builder.js";
@@ -115,10 +115,22 @@ export interface CollectionReactivePreloadController<E, ER = never> {
 export interface CollectionReactivePreloadControllerOptions<E, ER = never> {
   /** Runtime that owns preload execution and interruption. */
   readonly runtime: AnyEffectUiRuntime<ER>;
-  /** Called when the latest preload succeeds. */
-  readonly onSuccess: () => void;
-  /** Called when the latest preload fails. */
-  readonly onFailure: (error: E | ER) => void;
+  /**
+   * Called when the latest preload succeeds.
+   *
+   * Return a plain value or an Effect. Promise-shaped observers are rejected at
+   * the EffectInput seam; adapt host Promise work explicitly with
+   * `Effect.tryPromise(...)` before returning it.
+   */
+  readonly onSuccess: () => EffectInput<void, unknown>;
+  /**
+   * Called when the latest preload fails.
+   *
+   * Return a plain value or an Effect. Promise-shaped observers are rejected at
+   * the EffectInput seam; adapt host Promise work explicitly with
+   * `Effect.tryPromise(...)` before returning it.
+   */
+  readonly onFailure: (error: E | ER) => EffectInput<void, unknown>;
 }
 
 /**
@@ -157,18 +169,20 @@ export const makeCollectionReactivePreloadController = <E, ER = never>(
     preloadFiber = options.runtime.runFork(
       bindCollectionRuntimeEffect(options.runtime, preloadEffect).pipe(
         Effect.tap(() =>
-          Effect.sync(() => {
-            if (isCurrentGeneration()) {
-              options.onSuccess();
-            }
-          })
+          isCurrentGeneration()
+            ? invokeEffectInput("CollectionReactivePreload.onSuccess", options.onSuccess).pipe(
+                Effect.catchCause(() => Effect.void),
+                Effect.asVoid
+              )
+            : Effect.void
         ),
         Effect.catch((error) =>
-          Effect.sync(() => {
-            if (isCurrentGeneration()) {
-              options.onFailure(error);
-            }
-          })
+          isCurrentGeneration()
+            ? invokeEffectInput("CollectionReactivePreload.onFailure", options.onFailure, error).pipe(
+                Effect.catchCause(() => Effect.void),
+                Effect.asVoid
+              )
+            : Effect.void
         )
       )
     );

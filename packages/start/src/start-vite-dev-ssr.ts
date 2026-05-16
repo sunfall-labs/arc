@@ -1,4 +1,4 @@
-import { Cause, Data, Effect, Scope } from "effect";
+import { Cause, Data, Effect, Exit, Scope } from "effect";
 import { toEffect, type EffectInput } from "@effect-ui/core";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
@@ -265,6 +265,41 @@ const devSsrHostTransformFailureEvent = {
   teardownReason: "dev-ssr-host-transform"
 } as const;
 
+const devSsrExitFailure = (
+  exit: Exit.Exit<unknown, unknown>
+): unknown =>
+  Exit.isFailure(exit)
+    ? exit.cause.reasons.find(Cause.isFailReason)?.error
+    : undefined;
+
+const devSsrHostReadFailureEvent = (
+  request: Request,
+  exit: Exit.Exit<unknown, unknown>
+): typeof devSsrHostTransformFailureEvent | {
+  readonly stream: {
+    readonly name: "response";
+    readonly state: "cancelled";
+  };
+  readonly status: "cancelled";
+  readonly teardownReason: string;
+} => {
+  const failure = devSsrExitFailure(exit);
+  return request.signal.aborted &&
+      failure instanceof StartDevServerError &&
+      failure.operation === "read-html"
+    ? {
+        stream: {
+          name: "response",
+          state: "cancelled"
+        },
+        status: "cancelled",
+        teardownReason: typeof request.signal.reason === "string"
+          ? request.signal.reason
+          : "request-abort"
+      }
+    : devSsrHostTransformFailureEvent;
+};
+
 const headerAcceptsHtml = (accept: string | readonly string[] | undefined): boolean => {
   const headers = new Headers();
   if (typeof accept === "string") {
@@ -408,7 +443,7 @@ export const handleSsrDevRequestEffect = <R = never>(
           headers
         });
       }),
-      devSsrHostTransformFailureEvent
+      (exit) => devSsrHostReadFailureEvent(request, exit)
     );
 
     return transformedResponse;

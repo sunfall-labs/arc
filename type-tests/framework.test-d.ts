@@ -77,6 +77,7 @@ import {
   createLiveQueryCollection,
   eq,
   flushCollectionsPendingMutationsEffect,
+  makeCollectionReactivePreloadController,
   makeSQLitePersistenceStorage,
   serverCollectionOptions
 } from "@effect-ui/db";
@@ -2279,7 +2280,11 @@ RuntimeProvider({ runtime: typedRuntime });
 RuntimeProvider({
   source: RuntimeDocumentService.layer({
     readDocument: () => "ok"
-  })
+  }),
+  onDisposeFailure: (error) => {
+    void error;
+    return Effect.void;
+  }
 });
 // @ts-expect-error RuntimeProvider ownership must choose either runtime or source
 RuntimeProvider({
@@ -2287,6 +2292,18 @@ RuntimeProvider({
   source: RuntimeDocumentService.layer({
     readDocument: () => "ok"
   })
+});
+RuntimeProvider({
+  source: RuntimeDocumentService.layer({
+    readDocument: () => "ok"
+  }),
+  // @ts-expect-error RuntimeProvider dispose observers must return EffectInput, not Promise work
+  onDisposeFailure: () => promisedVoid
+});
+// @ts-expect-error host-owned runtime providers do not own disposal, so they do not accept disposal observers
+RuntimeProvider({
+  runtime: typedRuntime,
+  onDisposeFailure: () => Effect.void
 });
 // @ts-expect-error RuntimeProvider source creates provider-owned runtimes; existing runtimes use the runtime prop
 RuntimeProvider({ source: typedRuntime });
@@ -2449,7 +2466,12 @@ const solidProjects = useCollection(ProjectsCollection, {
   onPreloadFailure: (error) => {
     const typedError: ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError = error;
     void typedError;
+    return Effect.void;
   }
+});
+useCollection(ProjectsCollection, {
+  // @ts-expect-error Solid DB collection preload observers must return EffectInput, not Promise work.
+  onPreloadFailure: () => promisedVoid
 });
 const solidProjectsHandle: CollectionHandle<
   Project,
@@ -2667,7 +2689,15 @@ const solidProjectNames = useLiveQuery((query) =>
         | Schema.SchemaError
         | QueryEvaluationError = error;
       void typedError;
+      return Effect.void;
     }
+  }
+);
+useLiveQuery<string, ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError, ProjectApi>(
+  (query) => query.from({ project: ProjectsCollection }).select(({ project }) => project.name),
+  {
+    // @ts-expect-error Solid DB live-query preload observers must return EffectInput, not Promise work.
+    onPreloadFailure: () => promisedVoid
   }
 );
 const solidProjectNamesHandle: LiveQueryHandle<
@@ -2738,7 +2768,12 @@ const reactProjects = useReactCollection(ProjectsCollection, {
   onPreloadFailure: (error) => {
     const typedError: ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError = error;
     void typedError;
+    return Effect.void;
   }
+});
+useReactCollection(ProjectsCollection, {
+  // @ts-expect-error React DB collection preload observers must return EffectInput, not Promise work.
+  onPreloadFailure: () => promisedVoid
 });
 const reactProjectsHandle: ReactCollectionHandle<
   Project,
@@ -2791,9 +2826,28 @@ const reactProjectNames = useReactLiveQuery((query) =>
         | Schema.SchemaError
         | QueryEvaluationError = error;
       void typedError;
+      return Effect.void;
     }
   }
 );
+useReactLiveQuery<string, ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError, ProjectApi>(
+  (query) => query.from({ project: ProjectsCollection }).select(({ project }) => project.name),
+  {
+    // @ts-expect-error React DB live-query preload observers must return EffectInput, not Promise work.
+    onPreloadFailure: () => promisedVoid
+  }
+);
+makeCollectionReactivePreloadController({
+  runtime: null as unknown as AnyEffectUiRuntime<never>,
+  onSuccess: () => Effect.void,
+  onFailure: () => Effect.void
+});
+makeCollectionReactivePreloadController({
+  runtime: null as unknown as AnyEffectUiRuntime<never>,
+  // @ts-expect-error Shared DB preload success observers must return EffectInput, not Promise work.
+  onSuccess: () => promisedVoid,
+  onFailure: () => Effect.void
+});
 const reactProjectNamesHandle: ReactLiveQueryHandle<
   string,
   ProjectError | Server.ClientError | CollectionSnapshotCodecError | Schema.SchemaError,
@@ -3080,7 +3134,7 @@ projectProgramTimeline.map((event) => event.sequence.toFixed());
 projectProgram.clearTimeline();
 const projectProgramDispatchEffect: Effect.Effect<
   void,
-  Program.Failure<ProjectProgramMessage, ProjectError | Server.ClientError | EffectInputCallbackError>
+  Program.Failure<ProjectProgramMessage, ProjectError | Server.ClientError | EffectInputCallbackError | Program.Disposed>
 > = projectProgram.dispatchEffect({ _tag: "Load", id: "atlas" });
 void projectProgramDispatchEffect;
 projectProgram.dispatch({ _tag: "Refresh" });
@@ -3116,7 +3170,7 @@ const projectProgramRuntimeErrorDispatch: Effect.Effect<
   void,
   Program.Failure<
     ProjectProgramMessage,
-    ProjectError | Server.ClientError | EffectInputCallbackError | ProgramRuntimeStartupError
+    ProjectError | Server.ClientError | EffectInputCallbackError | Program.Disposed | ProgramRuntimeStartupError
   >
 > = projectProgramWithRuntimeError.dispatchEffect({ _tag: "Load", id: "atlas" });
 const projectProgramStep: Effect.Effect<
@@ -3143,11 +3197,13 @@ void missingProgramRuntimeRequirement;
 const solidProjectProgram: ProgramHandle<
   ProjectProgramModel,
   ProjectProgramMessage,
-  ProjectError | Server.ClientError | EffectInputCallbackError
+  ProjectError | Server.ClientError | EffectInputCallbackError,
+  ProjectError | Server.ClientError | EffectInputCallbackError | Program.Disposed
 > = useProgram(ProjectProgram);
 solidProjectProgram.model().selected?.id.toUpperCase();
 solidProjectProgram.failures().map((failure) => failure.phase);
 solidProjectProgram.timeline().map((event) => event._tag);
+solidProjectProgram.clearTimeline();
 // @ts-expect-error Solid Program dispatch messages keep payloads typed
 solidProjectProgram.dispatch({ _tag: "Loaded" });
 const solidProjectProgramWithRuntimeError = useProgram<
@@ -3161,16 +3217,18 @@ const solidProjectProgramRuntimeErrorDispatch: Effect.Effect<
   void,
   Program.Failure<
     ProjectProgramMessage,
-    ProjectError | Server.ClientError | EffectInputCallbackError | SolidRuntimeStartupError
+    ProjectError | Server.ClientError | EffectInputCallbackError | Program.Disposed | SolidRuntimeStartupError
   >
 > = solidProjectProgramWithRuntimeError.dispatchEffect({ _tag: "Load", id: "atlas" });
 void solidProjectProgramRuntimeErrorDispatch;
 const reactProjectProgram: ReactProgramHandle<
   ProjectProgramModel,
   ProjectProgramMessage,
-  ProjectError | Server.ClientError | EffectInputCallbackError
+  ProjectError | Server.ClientError | EffectInputCallbackError,
+  ProjectError | Server.ClientError | EffectInputCallbackError | Program.Disposed
 > = useReactProgram(ProjectProgram);
 reactProjectProgram.model.selected?.id.toUpperCase();
+reactProjectProgram.clearTimeline();
 const reactProjectProgramWithRuntimeError = useReactProgram<
   ProjectProgramModel,
   ProjectProgramMessage,
@@ -3182,7 +3240,7 @@ const reactProjectProgramRuntimeErrorDispatch: Effect.Effect<
   void,
   Program.Failure<
     ProjectProgramMessage,
-    ProjectError | Server.ClientError | EffectInputCallbackError | ReactRuntimeStartupError
+    ProjectError | Server.ClientError | EffectInputCallbackError | Program.Disposed | ReactRuntimeStartupError
   >
 > = reactProjectProgramWithRuntimeError.dispatchEffect({ _tag: "Load", id: "atlas" });
 void reactProjectProgramRuntimeErrorDispatch;

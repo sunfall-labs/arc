@@ -1,10 +1,12 @@
 import {
   currentOrDefaultRuntime,
+  invokeEffectInput,
   makeRuntimeUiScope,
   makeRuntime,
   runWithRuntime,
   runWithScope,
   type AnyEffectUiRuntime,
+  type EffectInput,
   type EffectUiRuntime,
   type UiScope
 } from "@effect-ui/core";
@@ -23,17 +25,32 @@ interface RuntimeProviderRuntimeProps<RuntimeServices = never, ER = never> exten
   /** Existing host-owned runtime. The provider exposes it and does not dispose it. */
   readonly runtime: EffectUiRuntime<RuntimeServices, ER> | AnyEffectUiRuntime<ER>;
   readonly source?: never;
+  readonly onDisposeFailure?: never;
 }
 
 interface RuntimeProviderSourceProps<RuntimeServices = never, ER = never> extends RuntimeProviderChildren {
   readonly runtime?: never;
   /** Runtime source owned by this Solid provider and disposed with its owner. */
   readonly source: ManagedRuntime.ManagedRuntime<RuntimeServices, ER> | Layer.Layer<RuntimeServices, ER, never>;
+  /**
+   * Observes failures from provider-owned runtime disposal.
+   *
+   * Promise-shaped observers are rejected by `EffectInput`; observer failures
+   * are ignored after the disposal failure has been reported.
+   */
+  readonly onDisposeFailure?: (error: unknown) => EffectInput<void, unknown>;
 }
 
 interface RuntimeProviderDefaultProps extends RuntimeProviderChildren {
   readonly runtime?: undefined;
   readonly source?: undefined;
+  /**
+   * Observes failures from provider-owned runtime disposal.
+   *
+   * Promise-shaped observers are rejected by `EffectInput`; observer failures
+   * are ignored after the disposal failure has been reported.
+   */
+  readonly onDisposeFailure?: (error: unknown) => EffectInput<void, unknown>;
 }
 
 export type RuntimeProviderProps<RuntimeServices = never, ER = never> =
@@ -75,6 +92,9 @@ export const RuntimeProvider = <RuntimeServices = never, ER = never>(
       disposeEntry = dispose;
       const next = createComponent(RuntimeProviderInstance, {
         entry: current,
+        get onDisposeFailure() {
+          return props.onDisposeFailure;
+        },
         get children() {
           return props.children;
         }
@@ -101,12 +121,24 @@ export const RuntimeProvider = <RuntimeServices = never, ER = never>(
 const RuntimeProviderInstance = <ER>(
   props: {
     readonly entry: RuntimeProviderEntry<ER>;
+    readonly onDisposeFailure?: ((error: unknown) => EffectInput<void, unknown>) | undefined;
     readonly children?: JSX.Element;
   }
 ): JSX.Element => {
   if (props.entry.ownsRuntime) {
     onCleanup(() => {
-      void Effect.runFork(props.entry.runtime.disposeEffect.pipe(Effect.catch(() => Effect.void)));
+      void Effect.runFork(
+        props.entry.runtime.disposeEffect.pipe(
+          Effect.catch((error) =>
+            props.onDisposeFailure === undefined
+              ? Effect.void
+              : invokeEffectInput("SolidRuntimeProvider.onDisposeFailure", props.onDisposeFailure, error).pipe(
+                  Effect.catchCause(() => Effect.void),
+                  Effect.asVoid
+                )
+          )
+        )
+      );
     });
   }
 

@@ -81,6 +81,10 @@ interruption.
   - The Review 163 pass tracks assignment aliases for Promise host globals and
     statics, so `P = self.Promise`, `P = globalThis.Promise`, and
     `all = Promise.all` cannot bypass the Effect-first guardrail.
+  - The Review 164 pass extends that assignment guard to destructuring
+    assignment aliases and nested/computed Promise extraction, so
+    `({ all } = Promise)`, `({ Promise: P } = globalThis)`, and
+    `({ ["Promise"]: P } = self)` cannot bypass the Effect-first guardrail.
 - `packages/start/src/start-fetch.ts` and `packages/start/src/file-route.ts`
   - Custom Start fetchers and file-route preload helpers now reject
     Promise-shaped erased JavaScript values before they cross deeper runtime
@@ -120,6 +124,9 @@ interruption.
   - Live-query input/dependency selection now lives in the same DB-owned helper
     family, so React DB and Solid DB reuse one runtime-bound `Query.live(...)`
     policy.
+  - Automatic collection/live-query preload failure observers now accept
+    `EffectInput<void, unknown>` and reject Promise-shaped observers through the
+    same EffectInput seam as Resource preloads.
 - `packages/db/src/runtime-collection-store.ts`
   - Runtime Collection Store lookup, initialization, diagnostics, event
     subscription, and synchronous `runWithCollectionStore(...)` override
@@ -163,6 +170,14 @@ interruption.
   - Program dispatch remains an Effect-first state-machine operation; runtime
     failures are recorded as typed Program failures and surfaced through
     `dispatchEffect(...)`.
+  - Program disposal now fails queued `dispatchEffect(...)` acknowledgements
+    with `ProgramDisposed` when the update is dropped, while already committed
+    updates still acknowledge successfully.
+- `packages/react/src/runtime.ts` and `packages/solid/src/runtime.ts`
+  - Provider-owned runtime disposal failures can be observed with
+    `onDisposeFailure(...)`, an `EffectInput<void, unknown>` callback that is
+    unavailable for host-owned runtimes and ignores observer failures after the
+    disposal failure is reported.
 - `vitest.config.ts` and `examples/react-starter`
   - The workspace Vitest runner now isolates the React starter behind the React
     JSX transform and starter `@` alias instead of sending React components
@@ -185,6 +200,13 @@ interruption.
     `disposeEffect` finalizer.
   - Added trace tests for response stream close, cancellation, and request
     failure paths.
+- `packages/start/src/fetch-adapter.ts`, `packages/start/src/streaming.ts`, and
+  `packages/start/src/start-vite-dev-ssr.ts`
+  - Fetch host facades now merge the incoming `Request.signal` into Effect v4
+    run options, so host aborts interrupt the underlying request Effect.
+  - Dev SSR response body reads can replace the held stream success finalizer
+    with an exit-derived cancellation event, keeping abort traces classified as
+    request cancellation rather than host transform failure.
 - `packages/start/src/hydration.ts`
   - Hydration sync helpers now run schema/collection hydration Effects directly
     through the selected runtime without local requirement erasure.
@@ -480,10 +502,10 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The latest full gate is the Review 163 `pnpm verify` run recorded in
+- The latest full gate is the Review 164 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 274 files, 53 root test files / 991 tests,
+  Effect-first audit over 274 files, 53 root test files / 1003 tests,
   devtools-panel/devtools-extension/starter-suite/16-target package-dry-run/
   project-console gates, and leak scans.
 - `pnpm exec vitest run packages/core/test/runtime.test.ts packages/start/test/start.test.ts`
@@ -1280,11 +1302,11 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The latest full `pnpm verify` passed after the Review 163 Solid Action,
-  DB Snapshot, Start Vite, And Guardrail Closure slice: 11 package builds,
+- The latest full `pnpm verify` passed after the Review 164 Program Disposal,
+  DB Diagnostics, Start Aborts, And Guardrail Closure slice: 11 package builds,
   workspace typecheck, type tests, public API inventory audit,
   Effect-first audit over 274 package/example/config/script/type-test/generated
-  template files, 53 root test files / 991 tests,
+  template files, 53 root test files / 1003 tests,
   devtools-panel verify with 1 panel test file / 2 tests,
   devtools-extension verify with 1 extension test file / 20 tests, basic starter
   verify with 1 starter test file / 2 tests, React starter verify with 1
@@ -1320,7 +1342,9 @@ interruption.
   computed global Promise extraction. Review161 kept the focused audit green
   over 274 files while adding `self.Promise` host-global coverage. Review163
   kept the focused audit green over 274 files while catching Promise host/global
-  and static assignment aliases.
+  and static assignment aliases. Review164 kept the focused audit green over
+  274 files while catching destructuring assignment aliases and replacing the
+  remaining DB preload success observer void callback with an EffectInput seam.
 - An earlier full `pnpm verify` passed after the Start stale action hydration guard,
   DB direct typed hydration and post-commit persistence fixes, DB and Core
   registry locality, Start runtime diagnostics, default generic error cleanup,

@@ -405,6 +405,32 @@ describe("solid hooks", () => {
       })
     ));
 
+  it("reports provider-owned Solid runtime disposal failures to Effect observers", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const observed = yield* Deferred.make<unknown>();
+        let dispose: (() => void) | undefined;
+
+        createRoot((rootDispose) => {
+          dispose = rootDispose;
+          createComponent(RuntimeProvider, {
+            onDisposeFailure: (error) => Deferred.succeed(observed, error),
+            get children() {
+              const runtime = useRuntime();
+              runtime.resourceStore.moduleRegistry.register(Symbol("solid-provider-dispose-failure"), {
+                disposeEffect: Effect.fail("solid dispose failed")
+              });
+              return undefined;
+            }
+          });
+        });
+
+        dispose?.();
+        const error = yield* Deferred.await(observed).pipe(Effect.timeout("1 second"));
+        expect(error).toBe("solid dispose failed");
+      })
+    ));
+
   it("binds service-backed streams to the Solid runtime", () =>
     Effect.runPromise(
       Effect.gen(function* () {
@@ -513,6 +539,10 @@ describe("solid hooks", () => {
         expect(program?.model()).toEqual({ name: "idle" });
         yield* program!.dispatchEffect({ _tag: "Load" });
         yield* Deferred.await(loaded);
+        expect(program?.model()).toEqual({ name: "Atlas" });
+        expect(program?.timeline().map((event) => event._tag)).toContain("Message");
+        program!.clearTimeline();
+        expect(program?.timeline()).toEqual([]);
         expect(program?.model()).toEqual({ name: "Atlas" });
 
         dispose?.();

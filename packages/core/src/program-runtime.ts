@@ -3,9 +3,11 @@ import { invokeEffectInput } from "./effect-like.js";
 import {
   type ProgramCommand,
   type ProgramDefinition,
+  type ProgramDispatchError,
   type ProgramEvent,
   type ProgramFailure,
   type ProgramInstance,
+  ProgramDisposed,
   type ProgramRuntimeError
 } from "./program-contract.js";
 import {
@@ -50,19 +52,20 @@ const completeAck = <Message, E>(
 
 export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never, ER = never>(
   options: ProgramRuntimeInstanceOptions<Model, Message, E, R, ER>
-): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>> => {
+): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>> => {
   const { definition, runtime, scope } = options;
   const model = Signal.make(definition.initial);
   const failures = Signal.make<ReadonlyArray<ProgramFailure<Message, ProgramRuntimeError<E, ER>>>>([]);
-  const queue = Effect.runSync(Queue.unbounded<QueuedMessage<Message, ProgramRuntimeError<E, ER>>>());
+  const queue = Effect.runSync(Queue.unbounded<QueuedMessage<Message, ProgramDispatchError<E, ER>>>());
   let disposed = false;
   let processorFiber: Fiber.Fiber<void, unknown> | undefined;
   let subscriptionFiber: Fiber.Fiber<void, unknown> | undefined;
   let commandSequence = 0;
   let subscriptionGeneration = 0;
-  const pendingDispatchAcks = new Set<Deferred.Deferred<void, ProgramFailure<Message, ProgramRuntimeError<E, ER>>>>();
+  const pendingDispatches = new Set<QueuedMessage<Message, ProgramDispatchError<E, ER>>>();
 
   type RuntimeFailure = ProgramRuntimeError<E, ER>;
+  type DispatchFailure = ProgramDispatchError<E, ER>;
   type RuntimeProgramEvent = ProgramEvent<Model, Message, RuntimeFailure>;
   type RuntimeProgramEventInput = ProgramRuntimeTimelineEventInput<RuntimeProgramEvent>;
 
@@ -79,17 +82,22 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
     failures.update((current) => [...current, failure]);
   };
 
+  const disposedFailure = (message: Message): ProgramFailure<Message, DispatchFailure> =>
+    makeProgramFailure("Update", new ProgramDisposed({
+      reason: "Program was disposed before the message update was applied."
+    }), message);
+
   const enqueue = (message: Message): Effect.Effect<void> =>
     disposed
       ? Effect.void
       : Queue.offer(queue, { message }).pipe(Effect.asVoid);
 
   const completePendingDispatches = (): Effect.Effect<void> => {
-    const pending = Array.from(pendingDispatchAcks);
-    pendingDispatchAcks.clear();
+    const pending = Array.from(pendingDispatches);
+    pendingDispatches.clear();
     return Effect.forEach(
       pending,
-      (ack) => Deferred.succeed(ack, undefined),
+      (queued) => completeAck(queued, disposedFailure(queued.message)),
       { discard: true }
     ).pipe(Effect.asVoid);
   };
@@ -145,7 +153,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
       { discard: true }
     );
 
-  const processMessage = (queued: QueuedMessage<Message, ProgramRuntimeError<E, ER>>): Effect.Effect<void, never, R | Scope.Scope> =>
+  const processMessage = (queued: QueuedMessage<Message, DispatchFailure>): Effect.Effect<void, never, R | Scope.Scope> =>
     invokeEffectInput("Program.update", definition.update, Signal.peek(model), queued.message).pipe(
       Effect.matchEffect({
         onFailure: (error) =>
@@ -159,7 +167,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
               recordTimeline({ _tag: "UpdateFailed", failure });
               return true;
             });
-            yield* completeAck(queued, reportFailure ? failure : undefined);
+            yield* completeAck(queued, reportFailure ? failure : disposedFailure(queued.message));
           }),
         onSuccess: (update) =>
           Effect.gen(function* () {
@@ -186,7 +194,12 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
               return true;
             });
 
-            if (!committed || disposed) {
+            if (!committed) {
+              yield* completeAck(queued, disposedFailure(queued.message));
+              return;
+            }
+
+            if (disposed) {
               yield* completeAck(queued);
               return;
             }
@@ -198,8 +211,8 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
     );
 
   const failQueuedMessage = (
-    queued: QueuedMessage<Message, ProgramRuntimeError<E, ER>>,
-    error: ProgramRuntimeError<E, ER>
+    queued: QueuedMessage<Message, DispatchFailure>,
+    error: RuntimeFailure
   ): Effect.Effect<void> =>
     Effect.gen(function* () {
       const failure = makeProgramFailure("Update", error, queued.message);
@@ -211,7 +224,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
         recordTimeline({ _tag: "UpdateFailed", failure });
         return true;
       });
-      yield* completeAck(queued, reportFailure ? failure : undefined);
+      yield* completeAck(queued, reportFailure ? failure : disposedFailure(queued.message));
     });
 
   const processor = Effect.scoped(
@@ -345,29 +358,34 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
     disposeEffect
   };
 
-  function instanceDispatchEffect(message: Message): Effect.Effect<void, ProgramFailure<Message, ProgramRuntimeError<E, ER>>> {
+  function instanceDispatchEffect(message: Message): Effect.Effect<void, ProgramFailure<Message, DispatchFailure>> {
     if (disposed) {
-      return Effect.void;
+      return Effect.fail(disposedFailure(message));
     }
 
     return Effect.gen(function* () {
-      const ack = yield* Deferred.make<void, ProgramFailure<Message, ProgramRuntimeError<E, ER>>>();
+      const ack = yield* Deferred.make<void, ProgramFailure<Message, DispatchFailure>>();
+      const queued = { message, ack };
       const registered = yield* Effect.sync(() => {
         if (disposed) {
           return false;
         }
-        pendingDispatchAcks.add(ack);
+        pendingDispatches.add(queued);
         return true;
       });
 
       if (!registered) {
-        return;
+        return yield* Effect.fail(disposedFailure(message));
       }
 
-      yield* Queue.offer(queue, { message, ack }).pipe(
-        Effect.flatMap((offered) => offered ? Deferred.await(ack) : Effect.void),
+      yield* Queue.offer(queue, queued).pipe(
+        Effect.flatMap((offered) =>
+          offered
+            ? Deferred.await(ack)
+            : Effect.fail(disposedFailure(message))
+        ),
         Effect.ensuring(Effect.sync(() => {
-          pendingDispatchAcks.delete(ack);
+          pendingDispatches.delete(queued);
         }))
       );
     });

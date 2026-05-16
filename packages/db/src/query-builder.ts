@@ -492,9 +492,24 @@ export namespace Query {
   export const build = <T, E = never, R = never>(factory: QueryFactory<T, E, R>): AnyQueryBuilder<T, E, R> =>
     factory(queryRoot);
 
-  /** Return query plan diagnostics for joins, filters, ordering, and row counts. */
+  const buildOrThrowQueryEvaluationError = <T, E = never, R = never>(
+    factory: QueryFactory<T, E, R>
+  ): AnyQueryBuilder<T, E, R> => {
+    try {
+      return build(factory);
+    } catch (cause) {
+      throw toQueryEvaluationError("evaluate", cause);
+    }
+  };
+
+  /**
+   * Return query plan diagnostics for joins, filters, ordering, and row counts.
+   *
+   * Synchronous factory throws are normalized and thrown as
+   * `QueryEvaluationError` with operation `"evaluate"`.
+   */
   export const diagnostics = <T>(factory: QueryFactory<T>): QueryPlanDiagnostics => {
-    const builder = build(factory);
+    const builder = buildOrThrowQueryEvaluationError(factory);
     return queryExecutionPlanDiagnostics(builder);
   };
 
@@ -502,7 +517,9 @@ export namespace Query {
    * Preload source collections once, then execute the query.
    *
    * Source collection errors and requirements are preserved in the returned
-   * Effect.
+   * Effect. Synchronous factory throws are normalized as
+   * `QueryEvaluationError` with operation `"evaluate"` in the Effect error
+   * channel.
    */
   export const onceEffect = <T, E = never, R = never>(
     factory: QueryFactory<T, E, R>
@@ -524,6 +541,8 @@ export namespace Query {
    * Create a reactive live query over collection rows.
    *
    * The returned signals update when source collection versions change.
+   * Synchronous factory throws are normalized and thrown as
+   * `QueryEvaluationError` with operation `"evaluate"`.
    *
    * @example
    * const openTodos = Query.live((query) =>
@@ -535,5 +554,5 @@ export namespace Query {
   export const live = <T, E = never, R = never>(
     factory: QueryFactory<T, E, R>
   ): LiveQuery<T, E, R> =>
-    makeLiveQueryState(build(factory));
+    makeLiveQueryState(buildOrThrowQueryEvaluationError(factory));
 }

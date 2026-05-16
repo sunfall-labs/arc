@@ -256,7 +256,10 @@ describe("react-db", () => {
 
     function Capture() {
       projects = useCollection(Projects, {
-        onPreloadFailure: (error) => observedCollectionFailures.push(error)
+        onPreloadFailure: (error) =>
+          Effect.sync(() => {
+            observedCollectionFailures.push(error);
+          }).pipe(Effect.andThen(Effect.fail("collection observer failed")))
       });
       activeNames = useLiveQuery((query) =>
         query
@@ -264,7 +267,10 @@ describe("react-db", () => {
           .where(({ project }) => project.active)
           .select(({ project }) => project.name),
         {
-          onPreloadFailure: (error) => observedLiveFailures.push(error)
+          onPreloadFailure: (error) =>
+            Effect.sync(() => {
+              observedLiveFailures.push(error);
+            }).pipe(Effect.andThen(Effect.fail("live query observer failed")))
         }
       );
       return null;

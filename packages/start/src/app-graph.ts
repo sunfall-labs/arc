@@ -166,7 +166,12 @@ export type StartAppGraphResourceFamilyDiagnostics =
 export type StartAppGraphResourceTagDiagnostics =
   import("@effect-ui/core").Resource.TagDiagnostics;
 
-/** Collection diagnostics included in the Start app graph. */
+/**
+ * Collection diagnostics included in the Start app graph.
+ *
+ * Includes `readOnly` so tooling can distinguish derived/live-query
+ * collections that reject direct writes from concrete writable definitions.
+ */
 export type StartAppGraphCollectionDiagnostics =
   import("@effect-ui/db").Collection.DefinitionDiagnostics;
 
@@ -465,6 +470,7 @@ const isCollectionDefinitionDiagnostics = (
 ): value is StartAppGraphCollectionDiagnostics =>
   isRecord(value) &&
   typeof value.name === "string" &&
+  typeof value.readOnly === "boolean" &&
   typeof value.inputSchema === "boolean" &&
   typeof value.outputSchema === "boolean" &&
   typeof value.initialData === "boolean" &&

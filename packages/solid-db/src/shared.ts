@@ -1,4 +1,4 @@
-import { runWithRuntime, type AnyEffectUiRuntime } from "@effect-ui/core";
+import { invokeEffectInput, runWithRuntime, type AnyEffectUiRuntime, type EffectInput } from "@effect-ui/core";
 import {
   bindCollectionRuntimeEffect,
   collectionStateError,
@@ -28,8 +28,14 @@ export interface SolidDbReactiveBindingOptions<E, R = never, ER = never> {
   readonly sources: ReadonlyArray<AnyCollection> | Accessor<ReadonlyArray<AnyCollection>>;
   readonly preload?: boolean | undefined;
   readonly preloadEffect?: Effect.Effect<void, E, R> | undefined;
-  /** Observer for automatic preload failures. Throws are ignored after the signal is updated. */
-  readonly onPreloadFailure?: ((error: E | ER) => void) | undefined;
+  /**
+   * Observer for automatic preload failures.
+   *
+   * Return a plain value or an Effect. Promise-shaped observers are rejected at
+   * the EffectInput seam; observer failures are ignored after the signal is
+   * updated.
+   */
+  readonly onPreloadFailure?: ((error: E | ER) => EffectInput<void, unknown>) | undefined;
 }
 
 /**
@@ -54,16 +60,17 @@ export const makeSolidDbReactiveBinding = <E, R = never, ER = never>(
   const preloadController = makeCollectionReactivePreloadController<E, ER>({
     runtime,
     onSuccess: () => setPreloadFailure(() => undefined),
-    onFailure: (error) => {
-      setPreloadFailure(() => error);
-      if (options.onPreloadFailure) {
-        try {
-          options.onPreloadFailure(error);
-        } catch {
-          // Observer callbacks must not fail the fire-and-forget preload fiber.
-        }
-      }
-    }
+    onFailure: (error) =>
+      Effect.sync(() => setPreloadFailure(() => error)).pipe(
+        Effect.andThen(
+          options.onPreloadFailure === undefined
+            ? Effect.void
+            : invokeEffectInput("SolidDbReactiveBinding.onPreloadFailure", options.onPreloadFailure, error).pipe(
+                Effect.catchCause(() => Effect.void),
+                Effect.asVoid
+              )
+        )
+      )
   });
   const startPreload = (): void => {
     preloadController.start(options.preloadEffect, options.preload !== false);

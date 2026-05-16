@@ -5452,6 +5452,7 @@ const goldenPathAppGraphDiagnostics = (
   collectionDefinitions: [
     {
       name: "Golden.Project.collection",
+      readOnly: false,
       inputSchema: false,
       outputSchema: false,
       initialData: false,

@@ -453,6 +453,103 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
     }
   };
 
+  const assignmentTargetNames = (target) => {
+    const expression = unwrapExpression(target);
+    if (ts.isIdentifier(expression)) {
+      return [expression.text];
+    }
+    if (ts.isObjectLiteralExpression(expression)) {
+      return expression.properties.flatMap((property) => {
+        if (ts.isShorthandPropertyAssignment(property)) {
+          return [property.name.text];
+        }
+        if (ts.isPropertyAssignment(property)) {
+          return assignmentTargetNames(property.initializer);
+        }
+        if (ts.isSpreadAssignment(property)) {
+          return assignmentTargetNames(property.expression);
+        }
+        return [];
+      });
+    }
+    if (ts.isArrayLiteralExpression(expression)) {
+      return expression.elements.flatMap((element) =>
+        ts.isSpreadElement(element)
+          ? assignmentTargetNames(element.expression)
+          : assignmentTargetNames(element)
+      );
+    }
+    return [];
+  };
+
+  const clearAssignmentTargets = (target) => {
+    for (const binding of assignmentTargetNames(target)) {
+      setBinding(binding, false);
+    }
+  };
+
+  const checkObjectAssignmentExtraction = (target, initializer) => {
+    const expression = unwrapExpression(target);
+    if (!ts.isObjectLiteralExpression(expression) || !isPromiseConstructorExpression(initializer)) {
+      return false;
+    }
+    for (const property of expression.properties) {
+      if (!ts.isShorthandPropertyAssignment(property) && !ts.isPropertyAssignment(property)) {
+        continue;
+      }
+      const propertyName = bindingNameText(property.name);
+      if (propertyName !== undefined && promiseStaticMemberSet.has(propertyName)) {
+        addFinding(property, promiseStaticExtractionName(propertyName));
+      }
+    }
+    clearAssignmentTargets(expression);
+    return true;
+  };
+
+  const assignsPromiseConstructorFromGlobalObject = (target, initializer) => {
+    const expression = unwrapExpression(target);
+    if (!ts.isObjectLiteralExpression(expression) || !isGlobalReceiver(initializer)) {
+      return false;
+    }
+    let found = false;
+    for (const property of expression.properties) {
+      if (ts.isSpreadAssignment(property)) {
+        clearAssignmentTargets(property.expression);
+        continue;
+      }
+      if (!ts.isShorthandPropertyAssignment(property) && !ts.isPropertyAssignment(property)) {
+        continue;
+      }
+      const propertyName = bindingNameText(property.name);
+      const targetExpression = ts.isShorthandPropertyAssignment(property)
+        ? property.name
+        : property.initializer;
+      if (propertyName !== "Promise") {
+        clearAssignmentTargets(targetExpression);
+        continue;
+      }
+      const unwrappedTarget = unwrapExpression(targetExpression);
+      if (ts.isIdentifier(unwrappedTarget)) {
+        setBinding(unwrappedTarget.text, true);
+      } else if (ts.isObjectLiteralExpression(unwrappedTarget)) {
+        for (const nestedProperty of unwrappedTarget.properties) {
+          if (!ts.isShorthandPropertyAssignment(nestedProperty) && !ts.isPropertyAssignment(nestedProperty)) {
+            continue;
+          }
+          const nestedPropertyName = bindingNameText(nestedProperty.name);
+          if (nestedPropertyName !== undefined && promiseStaticMemberSet.has(nestedPropertyName)) {
+            addFinding(nestedProperty, promiseStaticExtractionName(nestedPropertyName));
+          }
+        }
+        clearAssignmentTargets(unwrappedTarget);
+      } else {
+        clearAssignmentTargets(unwrappedTarget);
+      }
+      found = true;
+    }
+    return found;
+  };
+
   const declaresPromiseConstructorFromGlobalObject = (name, initializer) => {
     if (!ts.isObjectBindingPattern(name) || !isGlobalReceiver(initializer)) {
       return false;
@@ -547,6 +644,12 @@ const analyzePromiseStaticBans = (fileName, sourceText) => {
 
     if (ts.isIdentifier(node.left)) {
       setBinding(node.left.text, isPromiseConstructorExpression(node.right));
+    } else if (checkObjectAssignmentExtraction(node.left, node.right)) {
+      // Assignment state was cleared while walking the object pattern above.
+    } else if (assignsPromiseConstructorFromGlobalObject(node.left, node.right)) {
+      // Binding state was recorded while walking the object pattern above.
+    } else {
+      clearAssignmentTargets(node.left);
     }
 
     visit(node.right);
@@ -850,6 +953,9 @@ assertPromiseStaticBans("const all = Promise[\"all\" satisfies string]; all([]);
 assertPromiseStaticBans("const { all } = Promise; all([]);", ["Promise.all.extraction"]);
 assertPromiseStaticBans("const { all: promiseAll } = Promise; promiseAll([]);", ["Promise.all.extraction"]);
 assertPromiseStaticBans("const P = Promise; const { all } = P; all([]);", ["Promise.all.extraction"]);
+assertPromiseStaticBans("let all; ({ all } = Promise); all([]);", ["Promise.all.extraction"]);
+assertPromiseStaticBans("let promiseAll; ({ all: promiseAll } = Promise); promiseAll([]);", ["Promise.all.extraction"]);
+assertPromiseStaticBans("const P = Promise; let resolve; ({ resolve } = P); resolve(value);", ["Promise.resolve.extraction"]);
 assertPromiseStaticBans("const race = globalThis.Promise.race; race([]);", ["Promise.race.extraction"]);
 assertPromiseStaticBans("const resolve = window.Promise.resolve; resolve(value);", ["Promise.resolve.extraction"]);
 assertPromiseStaticBans("const resolve = self.Promise.resolve; resolve(value);", ["Promise.resolve.extraction"]);
@@ -867,6 +973,10 @@ assertPromiseStaticBans("const { Promise: { all } } = globalThis; all([]);", ["P
 assertPromiseStaticBans("const { Promise: { resolve } } = self; resolve(value);", ["Promise.resolve.extraction"]);
 assertPromiseStaticBans("const { [\"Promise\"]: P } = globalThis; P.all([]);", ["Promise.all"]);
 assertPromiseStaticBans("const { [\"Promise\"]: P } = self; P.resolve(value);", ["Promise.resolve"]);
+assertPromiseStaticBans("let P; ({ Promise: P } = globalThis); P.all([]);", ["Promise.all"]);
+assertPromiseStaticBans("let P; ({ Promise: P } = window); new P(() => undefined);", ["new Promise"]);
+assertPromiseStaticBans("let all; ({ Promise: { all } } = globalThis); all([]);", ["Promise.all.extraction"]);
+assertPromiseStaticBans("let resolve; ({ [\"Promise\"]: { resolve } } = self); resolve(value);", ["Promise.resolve.extraction"]);
 assertPromiseStaticBans("const Promise = class {}; new Promise(() => undefined);", []);
 assertBannedPattern(".then(...)", "client.then<string>(() => undefined);", 1);
 assertBannedPattern(".then(...)", "client[\"then\"](() => undefined);", 1);

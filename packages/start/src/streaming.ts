@@ -108,6 +108,17 @@ export type StartResponseStreamFinalizer = (
   event: StartResponseStreamFinalizeEvent
 ) => Effect.Effect<void>;
 
+/**
+ * Failure event or mapper used when a suspended success finalizer is replaced.
+ *
+ * The mapper receives the failed/interrupted host-work `Exit`, allowing
+ * adapters to translate request aborts into `cancelled` trace events instead
+ * of reporting a generic transform failure.
+ */
+export type StartResponseStreamFinalizeFailureEvent<A = unknown, E = unknown> =
+  | StartResponseStreamFinalizeEvent
+  | ((exit: Exit.Exit<A, E>) => StartResponseStreamFinalizeEvent);
+
 /** Runs stream adapter Effects from Web stream callbacks. */
 export type StartResponseStreamRunner = <A, E>(
   effect: Effect.Effect<A, E>
@@ -124,9 +135,17 @@ export interface StartResponseStreamFinalizerOptions {
 interface StartResponseStreamFinalizerState {
   suspendSuccess: <A, E, R>(
     effect: Effect.Effect<A, E, R>,
-    failureEvent: StartResponseStreamFinalizeEvent
+    failureEvent: StartResponseStreamFinalizeFailureEvent<A, E>
   ) => Effect.Effect<A, E, R>;
 }
+
+const resolveResponseStreamFailureEvent = <A, E>(
+  failureEvent: StartResponseStreamFinalizeFailureEvent<A, E>,
+  exit: Exit.Exit<A, E>
+): StartResponseStreamFinalizeEvent =>
+  typeof failureEvent === "function"
+    ? failureEvent(exit)
+    : failureEvent;
 
 const responseStreamFinalizerStates = new WeakMap<
   Response,
@@ -144,7 +163,7 @@ const responseStreamFinalizerStates = new WeakMap<
 export const suspendResponseStreamSuccessFinalizerEffect = <A, E, R>(
   response: Response,
   effect: Effect.Effect<A, E, R>,
-  failureEvent: StartResponseStreamFinalizeEvent
+  failureEvent: StartResponseStreamFinalizeFailureEvent<A, E>
 ): Effect.Effect<A, E, R> => {
   const state = responseStreamFinalizerStates.get(response);
   return state === undefined
@@ -525,7 +544,7 @@ export const responseWithStreamFinalizer = (
 
             if (successSuspensions === 0) {
               pendingSuccess = undefined;
-              yield* runFinalize(failureEvent);
+              yield* runFinalize(resolveResponseStreamFailureEvent(failureEvent, exit));
             }
             return yield* Effect.failCause(exit.cause);
           })

@@ -1,6 +1,6 @@
-import { Context, Deferred, Effect, Exit, Layer, Option, Queue, Stream } from "effect";
+import { Cause, Context, Deferred, Effect, Exit, Layer, Option, Queue, Stream } from "effect";
 import { describe, expect, it } from "vitest";
-import { makeRuntime, Program, read, RuntimeTypeId, runWithRuntime, type AnyEffectUiRuntime } from "../src/index.js";
+import { makeRuntime, Program, ProgramDisposed, read, RuntimeTypeId, runWithRuntime, type AnyEffectUiRuntime } from "../src/index.js";
 
 interface CounterApi {
   readonly load: Effect.Effect<number>;
@@ -351,7 +351,7 @@ describe("Program", () => {
       })
     ));
 
-  it("completes dispatchEffect when disposal races an in-flight update", () =>
+  it("fails dispatchEffect when disposal races an in-flight update before commit", () =>
     Effect.runPromise(
       Effect.gen(function* () {
         const started = yield* Deferred.make<void>();
@@ -378,7 +378,16 @@ describe("Program", () => {
 
         expect(Option.isSome(result)).toBe(true);
         if (Option.isSome(result)) {
-          expect(Exit.isSuccess(result.value[0])).toBe(true);
+          expect(Exit.isFailure(result.value[0])).toBe(true);
+          if (Exit.isFailure(result.value[0])) {
+            const failure = result.value[0].cause.reasons.find(Cause.isFailReason)?.error;
+            expect(failure).toMatchObject({
+              _tag: "ProgramFailure",
+              phase: "Update",
+              message: "block"
+            });
+            expect(failure?.error).toBeInstanceOf(ProgramDisposed);
+          }
         }
         expect(read(program.model)).toBe(0);
       })
@@ -420,8 +429,18 @@ describe("Program", () => {
 
         expect(Option.isSome(result)).toBe(true);
         if (Option.isSome(result)) {
-          expect(Exit.isSuccess(result.value[0])).toBe(true);
-          expect(Exit.isSuccess(result.value[1])).toBe(true);
+          expect(Exit.isFailure(result.value[0])).toBe(true);
+          expect(Exit.isFailure(result.value[1])).toBe(true);
+          for (const exit of result.value.slice(0, 2)) {
+            if (Exit.isFailure(exit)) {
+              const failure = exit.cause.reasons.find(Cause.isFailReason)?.error;
+              expect(failure).toMatchObject({
+                _tag: "ProgramFailure",
+                phase: "Update"
+              });
+              expect(failure?.error).toBeInstanceOf(ProgramDisposed);
+            }
+          }
         }
 
         yield* Deferred.succeed(releaseFirst, undefined).pipe(Effect.ignore);

@@ -12,6 +12,7 @@ import {
   type CollectionUpdate,
   type CollectionWriteOptions
 } from "@effect-ui/db";
+import type { EffectInput } from "@effect-ui/core";
 import { Effect } from "effect";
 import { createMemo, type Accessor } from "solid-js";
 import { collectionStateError, makeSolidDbReactiveBinding } from "./shared.js";
@@ -25,10 +26,11 @@ export interface UseCollectionOptions<E = never, ER = never> {
    *
    * The error is `CollectionRuntimeError<E>`, so output-schema and hydration
    * codec failures are reported beside the collection's own `E` channel. If
-   * this observer throws, the hook ignores that throw after updating
-   * `preloadFailure`.
+   * this observer fails, the hook ignores that failure after updating
+   * `preloadFailure`. Promise-shaped observers are rejected at the EffectInput
+   * seam; adapt host Promise work explicitly with `Effect.tryPromise(...)`.
    */
-  readonly onPreloadFailure?: (error: CollectionRuntimeError<E> | ER) => void;
+  readonly onPreloadFailure?: (error: CollectionRuntimeError<E> | ER) => EffectInput<void, unknown>;
 }
 
 /**

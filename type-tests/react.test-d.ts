@@ -61,7 +61,9 @@ const ReactProgram = Program.define<number, "tick">({
   initial: 0,
   update: (model) => Program.next(model + 1)
 });
-const reactProgramHandle: ProgramHandle<number, "tick", EffectInputCallbackError> = useProgram(ReactProgram);
+const reactProgramHandle: ProgramHandle<number, "tick", EffectInputCallbackError, EffectInputCallbackError | Program.Disposed> =
+  useProgram<number, "tick">(ReactProgram);
+reactProgramHandle.clearTimeline();
 const ReactProjectById = Resource.family<string, ReactProject>({
   name: "React.type-test.project",
   load: (id) => Effect.succeed({ id, name: "Atlas" })
@@ -146,7 +148,7 @@ type ReactRouter = BrowserRouter | RouterOutletProps;
 type ReactBrowserRouterOptions = BrowserRouterOptions;
 type ReactRouterProviderProps = RouterProviderProps<typeof reactRoutes>;
 type ReactActionHandle = ActionHandle<{ readonly id: string }, { readonly ok: boolean }>;
-type ReactProgramHandle = ProgramHandle<number, "tick", EffectInputCallbackError>;
+type ReactProgramHandle = ProgramHandle<number, "tick", EffectInputCallbackError, EffectInputCallbackError | Program.Disposed>;
 type ReactResourceHandle = ResourceHandle<string, ReactProject, never>;
 type ReactUseResourceOptions = UseResourceOptions<never>;
 type ReactRuntimeEffectRunner = RuntimeEffectRunner;

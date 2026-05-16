@@ -33,6 +33,10 @@ export type QueryEvaluationOperation =
 /**
  * Error raised when user-provided synchronous query callbacks throw during
  * evaluation.
+ *
+ * Query factory throws are normalized with operation `"evaluate"`. One-shot
+ * query Effects report this value in their error channel, while synchronous
+ * diagnostics/live-query constructors throw the typed error directly.
  */
 export class QueryEvaluationError extends Data.TaggedError("QueryEvaluationError")<{
   readonly operation: QueryEvaluationOperation;

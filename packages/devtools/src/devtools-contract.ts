@@ -677,6 +677,13 @@ export interface DevtoolsStartAppGraphResourceTagDiagnostics {
 /** Collection definition diagnostics projected for Devtools panels. */
 export interface DevtoolsStartAppGraphCollectionDiagnostics {
   readonly name: string;
+  /**
+   * True for derived/live-query collections that reject direct writes.
+   *
+   * Optional only for legacy Start app-graph DTO input; devtools normalization
+   * fills missing values as `false`.
+   */
+  readonly readOnly?: boolean;
   readonly inputSchema: boolean;
   readonly outputSchema: boolean;
   readonly initialData: boolean;

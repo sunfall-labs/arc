@@ -73,6 +73,7 @@ export const collectionDefinitionDiagnostics = (
 
   return {
     name: options.name,
+    readOnly: definition.readOnly === true,
     inputSchema: options.input !== undefined,
     outputSchema: options.output !== undefined,
     initialData: options.initialData !== undefined,

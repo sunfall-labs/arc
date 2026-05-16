@@ -109,8 +109,8 @@ export interface RuntimeEffectRunner<ER = never> {
 }
 
 /** Solid-facing handle for an Effect UI Program. */
-export interface ProgramHandle<Model, Message, E = never> {
-  readonly instance: Program.Instance<Model, Message, E>;
+export interface ProgramHandle<Model, Message, E = never, DispatchE = E> {
+  readonly instance: Program.Instance<Model, Message, E, DispatchE>;
   /** Current centralized Program model. */
   readonly model: Accessor<Model>;
   /** Alias for `model`, useful in state-oriented UI code. */
@@ -121,10 +121,12 @@ export interface ProgramHandle<Model, Message, E = never> {
   readonly timeline: Accessor<ReadonlyArray<ProgramEvent<Model, Message, E>>>;
   /** Fire-and-forget dispatch for event handlers. */
   dispatch(message: Message): void;
-  /** Effect dispatch that completes after the update for this message has run. */
-  dispatchEffect(message: Message): Effect.Effect<void, ProgramFailure<Message, E>>;
+  /** Effect dispatch that completes after the update commits, or fails if disposal drops it. */
+  dispatchEffect(message: Message): Effect.Effect<void, ProgramFailure<Message, DispatchE>>;
   /** Clears accumulated failures. */
   clearFailures(): void;
+  /** Clears retained timeline events without changing model or failures. */
+  clearTimeline(): void;
 }
 
 type SolidActionInvalidationRequirements<A, R> =
@@ -224,10 +226,13 @@ export const useRuntimeEffect = <ER = never>(): RuntimeEffectRunner<ER> => {
   );
 };
 
-/** Starts an Effect UI Program and exposes its model as Solid accessors. */
+/**
+ * Starts an Effect UI Program and exposes its model, failures, and timeline as
+ * Solid accessors.
+ */
 export const useProgram = <Model, Message, E = never, R = never, ER = never>(
   definition: Program.Definition<Model, Message, E, R>
-): ProgramHandle<Model, Message, Program.RuntimeError<E, ER>> => {
+): ProgramHandle<Model, Message, Program.RuntimeError<E, ER>, Program.DispatchError<E, ER>> => {
   const runtime = useRuntime<ER>();
   const instance = createComponentScope(() =>
     runWithRuntime(runtime, () =>
@@ -248,7 +253,8 @@ export const useProgram = <Model, Message, E = never, R = never, ER = never>(
     timeline,
     dispatch: instance.dispatch,
     dispatchEffect: instance.dispatchEffect,
-    clearFailures: instance.clearFailures
+    clearFailures: instance.clearFailures,
+    clearTimeline: instance.clearTimeline
   };
 };
 

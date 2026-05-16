@@ -305,6 +305,14 @@ const counterStep = Program.next(1, Program.commands(Program.dispatch<CounterMes
 const counterCommand = Program.effect<CounterMessage>(Effect.void);
 const counterSubscription = Program.subscription(Stream.empty as Stream.Stream<CounterMessage>);
 const counterStory = Program.story(counterProgram);
+const counterRuntimeError: Program.RuntimeError<never> = null as unknown as Program.RuntimeError<never>;
+const counterDispatchError: Program.DispatchError<never> = null as unknown as Program.DispatchError<never>;
+const counterInstance: Program.Instance<
+  number,
+  CounterMessage,
+  Program.RuntimeError<never>,
+  Program.DispatchError<never>
+> = Program.start(counterProgram);
 
 const uiScope = new UiScope();
 const runtimeUiScope = makeRuntimeUiScope(browserRouterKernelRuntime);
@@ -421,6 +429,9 @@ void counterStep;
 void counterCommand;
 void counterSubscription;
 void counterStory;
+void counterRuntimeError;
+void counterDispatchError;
+void counterInstance;
 void uiScope;
 void runtimeUiScope;
 void scopedValue;

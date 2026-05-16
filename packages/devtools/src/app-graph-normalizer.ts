@@ -109,6 +109,7 @@ const normalizeAppGraphCollection = (
   collection: DevtoolsStartAppGraphCollectionDiagnostics
 ): DevtoolsStartAppGraphCollectionDiagnostics => ({
   name: collection.name,
+  readOnly: collection.readOnly === true,
   inputSchema: collection.inputSchema,
   outputSchema: collection.outputSchema,
   initialData: collection.initialData,

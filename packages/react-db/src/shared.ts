@@ -1,4 +1,4 @@
-import { runWithRuntime, type AnyEffectUiRuntime } from "@effect-ui/core";
+import { invokeEffectInput, runWithRuntime, type AnyEffectUiRuntime, type EffectInput } from "@effect-ui/core";
 import {
   bindCollectionRuntimeEffect,
   collectionStateError,
@@ -26,8 +26,13 @@ export interface ReactDbReactiveBindingOptions<E, R = never, ER = never> {
   readonly sources: ReadonlyArray<AnyCollection> | (() => ReadonlyArray<AnyCollection>);
   readonly preload?: boolean | undefined;
   readonly preloadEffect?: Effect.Effect<void, E, R> | undefined;
-  /** Observer for automatic preload failures. Throws are ignored after state is updated. */
-  readonly onPreloadFailure?: ((error: E | ER) => void) | undefined;
+  /**
+   * Observer for automatic preload failures.
+   *
+   * Return a plain value or an Effect. Promise-shaped observers are rejected at
+   * the EffectInput seam; observer failures are ignored after state is updated.
+   */
+  readonly onPreloadFailure?: ((error: E | ER) => EffectInput<void, unknown>) | undefined;
 }
 
 const useStableSources = (
@@ -96,16 +101,17 @@ export const useReactDbReactiveBinding = <E, R = never, ER = never>(
     makeCollectionReactivePreloadController<E, ER>({
       runtime,
       onSuccess: () => setPreloadFailure(undefined),
-      onFailure: (error) => {
-        setPreloadFailure(error);
-        if (preloadFailureObserver.current) {
-          try {
-            preloadFailureObserver.current(error);
-          } catch {
-            // Observer callbacks must not fail the fire-and-forget preload fiber.
-          }
-        }
-      }
+      onFailure: (error) =>
+        Effect.sync(() => setPreloadFailure(error)).pipe(
+          Effect.andThen(
+            preloadFailureObserver.current === undefined
+              ? Effect.void
+              : invokeEffectInput("ReactDbReactiveBinding.onPreloadFailure", preloadFailureObserver.current, error).pipe(
+                  Effect.catchCause(() => Effect.void),
+                  Effect.asVoid
+                )
+          )
+        )
     }),
     [runtime]
   );

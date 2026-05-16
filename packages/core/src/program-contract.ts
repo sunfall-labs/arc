@@ -1,4 +1,4 @@
-import type { Effect, Stream } from "effect";
+import { Data, type Effect, type Stream } from "effect";
 import type {
   EffectInput,
   EffectInputCallbackError,
@@ -93,6 +93,17 @@ export interface ProgramDefinition<Model, Message, E = never, R = never> {
 
 /** Program error channel plus callback and Runtime Spine startup/provision errors. */
 export type ProgramRuntimeError<E, ER = never> = E | EffectInputCallbackError | ER;
+
+/** Error channel for live `dispatchEffect(...)`, including disposal drops. */
+export type ProgramDispatchError<E, ER = never> = ProgramRuntimeError<E, ER> | ProgramDisposed;
+
+/**
+ * Error reported when `dispatchEffect(...)` cannot apply because the Program
+ * was disposed before the message update committed.
+ */
+export class ProgramDisposed extends Data.TaggedError("ProgramDisposed")<{
+  readonly reason: string;
+}> {}
 
 /** Bounded retention options for Program timeline events. */
 export interface ProgramTimelineOptions {
@@ -224,7 +235,7 @@ export interface ProgramStoryOptions<Model> {
 }
 
 /** Running Program handle with model state, dispatch, failure, timeline, and disposal APIs. */
-export interface ProgramInstance<Model, Message, E = never> {
+export interface ProgramInstance<Model, Message, E = never, DispatchE = E> {
   /** Centralized model signal for adapter-neutral reads and derived state. */
   readonly model: ReadableSignal<Model>;
   /** Alias for `model`, useful in UI code that prefers state vocabulary. */
@@ -235,8 +246,13 @@ export interface ProgramInstance<Model, Message, E = never> {
   readonly timeline: ReadableSignal<ReadonlyArray<ProgramEvent<Model, Message, E>>>;
   /** Fire-and-forget dispatch for UI event handlers. */
   dispatch(message: Message): void;
-  /** Effect dispatch that completes after the message update has been applied. */
-  dispatchEffect(message: Message): Effect.Effect<void, ProgramFailure<Message, E>>;
+  /**
+   * Effect dispatch that completes after the message update has committed.
+   *
+   * If disposal happens before the update commits, the Effect fails with a
+   * `ProgramFailure` whose error is `ProgramDisposed`.
+   */
+  dispatchEffect(message: Message): Effect.Effect<void, ProgramFailure<Message, DispatchE>>;
   /** Clears accumulated failures. */
   clearFailures(): void;
   /** Clears retained timeline events without changing model or failures. */

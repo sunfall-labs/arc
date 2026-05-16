@@ -1,6 +1,7 @@
 import {
   Action,
   Program,
+  ProgramDisposed,
   read as coreRead,
   Resource,
   ResourceFailure,
@@ -112,8 +113,8 @@ export interface RuntimeEffectRunner<ER = never> {
 }
 
 /** React-facing handle for an Effect UI Program. */
-export interface ProgramHandle<Model, Message, E = never> {
-  readonly instance: Program.Instance<Model, Message, E>;
+export interface ProgramHandle<Model, Message, E = never, DispatchE = E> {
+  readonly instance: Program.Instance<Model, Message, E, DispatchE>;
   /** Current centralized Program model. */
   readonly model: Model;
   /** Alias for `model`, useful in state-oriented UI code. */
@@ -124,10 +125,12 @@ export interface ProgramHandle<Model, Message, E = never> {
   readonly timeline: ReadonlyArray<ProgramEvent<Model, Message, E>>;
   /** Fire-and-forget dispatch for event handlers. */
   dispatch(message: Message): void;
-  /** Effect dispatch that completes after the update for this message has run. */
-  dispatchEffect(message: Message): Effect.Effect<void, ProgramFailure<Message, E>>;
+  /** Effect dispatch that completes after the update commits, or fails if disposal drops it. */
+  dispatchEffect(message: Message): Effect.Effect<void, ProgramFailure<Message, DispatchE>>;
   /** Clears accumulated failures. */
   clearFailures(): void;
+  /** Clears retained timeline events without changing model or failures. */
+  clearTimeline(): void;
 }
 
 type ReactActionInvalidationRequirements<A, R> =
@@ -176,13 +179,12 @@ export interface ActionHandle<I, A, E = never, R = never, ER = never> {
 }
 
 type ReactProgramRuntimeError<E, ER> = Program.RuntimeError<E, ER>;
-
 interface ProgramBinding<Model, Message, RuntimeError> {
-  current: Program.Instance<Model, Message, RuntimeError> | undefined;
+  current: Program.Instance<Model, Message, RuntimeError, RuntimeError | Program.Disposed> | undefined;
   readonly model: WritableSignal<Model>;
   readonly failures: WritableSignal<ReadonlyArray<ProgramFailure<Message, RuntimeError>>>;
   readonly timeline: WritableSignal<ReadonlyArray<ProgramEvent<Model, Message, RuntimeError>>>;
-  instance: Program.Instance<Model, Message, RuntimeError>;
+  instance: Program.Instance<Model, Message, RuntimeError, RuntimeError | Program.Disposed>;
 }
 
 interface ResourceBinding<I, A, E, R, ER> {
@@ -255,6 +257,15 @@ const makeProgramBinding = <Model, Message, RuntimeError>(
     timeline: Signal.make<ReadonlyArray<ProgramEvent<Model, Message, RuntimeError>>>([])
   } as ProgramBinding<Model, Message, RuntimeError>;
 
+  const disposedDispatchFailure = (message: Message): ProgramFailure<Message, RuntimeError | Program.Disposed> => ({
+    _tag: "ProgramFailure",
+    phase: "Update",
+    message,
+    error: new ProgramDisposed({
+      reason: "Program was disposed before the message update was applied."
+    })
+  });
+
   const disposeCurrentEffect: Effect.Effect<void> = Effect.suspend(() => {
     const current = binding.current;
     binding.current = undefined;
@@ -270,7 +281,7 @@ const makeProgramBinding = <Model, Message, RuntimeError>(
       binding.current?.dispatch(message);
     },
     dispatchEffect: (message) =>
-      Effect.suspend(() => binding.current?.dispatchEffect(message) ?? Effect.void),
+      Effect.suspend(() => binding.current?.dispatchEffect(message) ?? Effect.fail(disposedDispatchFailure(message))),
     clearFailures: () => {
       binding.failures.set([]);
       binding.current?.clearFailures();
@@ -285,10 +296,13 @@ const makeProgramBinding = <Model, Message, RuntimeError>(
   return binding;
 };
 
-/** Starts an Effect UI Program and exposes its model as React values. */
+/**
+ * Starts an Effect UI Program and exposes its model, failures, and timeline as
+ * React values.
+ */
 export const useProgram = <Model, Message, E = never, R = never, ER = never>(
   definition: Program.Definition<Model, Message, E, R>
-): ProgramHandle<Model, Message, Program.RuntimeError<E, ER>> => {
+): ProgramHandle<Model, Message, Program.RuntimeError<E, ER>, Program.DispatchError<E, ER>> => {
   const runtime = useRuntime<ER>();
   const scope = useComponentScope();
   type RuntimeError = ReactProgramRuntimeError<E, ER>;
@@ -342,7 +356,8 @@ export const useProgram = <Model, Message, E = never, R = never, ER = never>(
     timeline,
     dispatch: instance.dispatch,
     dispatchEffect: instance.dispatchEffect,
-    clearFailures: instance.clearFailures
+    clearFailures: instance.clearFailures,
+    clearTimeline: instance.clearTimeline
   };
 };
 

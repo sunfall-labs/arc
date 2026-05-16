@@ -554,6 +554,33 @@ describe("Start deployment adapters", () => {
     await expect(promiseResponse.text()).resolves.toBe("/promise");
   });
 
+  it("interrupts Promise-shaped fetch handler Effects when the Request signal aborts before a response", async () => {
+    const controller = new AbortController();
+    const started = Effect.runSync(Deferred.make<void>());
+    const interrupted = Effect.runSync(Deferred.make<void>());
+    const promiseHandler = createFetchHandler((request) =>
+      Effect.gen(function* () {
+        expect(request.signal.aborted).toBe(false);
+        yield* Deferred.succeed(started, undefined).pipe(Effect.ignore);
+        return yield* Effect.never.pipe(
+          Effect.onInterrupt(() => Deferred.succeed(interrupted, undefined))
+        );
+      })
+    );
+
+    const response = promiseHandler(new Request("https://example.com/abort", {
+      signal: controller.signal
+    }));
+
+    await Effect.runPromise(Deferred.await(started));
+    controller.abort("fetch-client-disconnect");
+
+    await expect(Effect.runPromise(
+      Deferred.await(interrupted).pipe(Effect.timeout("1 second"))
+    )).resolves.toBeUndefined();
+    await expect(response).rejects.toBeDefined();
+  });
+
   it("provides request Scope in Promise-shaped fetch facades", async () => {
     let finalized = false;
     const promiseHandler = createFetchHandler(() =>

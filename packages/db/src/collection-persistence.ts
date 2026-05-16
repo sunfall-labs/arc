@@ -26,7 +26,8 @@ import {
   validateCollectionHydrationPayload,
   validateCollectionSnapshotStateHydrationEffect,
   validateCollectionSnapshotDefinitionEffect,
-  validateCollectionHydrationPayloadEffect
+  validateCollectionHydrationPayloadEffect,
+  type CollectionSnapshotCodecOperation
 } from "./collection-snapshot-codec.js";
 import { withCollectionDurableCommitPermit } from "./collection-write-commit.js";
 import type {
@@ -71,12 +72,45 @@ interface CollectionHydrationPlan {
 }
 
 const duplicateCollectionDefinitionError = (
-  name: string
+  name: string,
+  operation: CollectionSnapshotCodecOperation = "hydrate"
 ): CollectionSnapshotCodecError =>
   new CollectionSnapshotCodecError({
-    operation: "hydrate",
+    operation,
     path: "$.collections",
     reason: `Multiple collection definitions were provided for '${name}'. Collection names must identify one hydration definition.`
+  });
+
+const uniqueCollectionDefinitionsUnsafe = (
+  collections: Iterable<AnyCollection>,
+  operation: CollectionSnapshotCodecOperation
+): ReadonlyArray<AnyCollection> => {
+  const definitions = new Map<string, AnyCollection>();
+  const unique: AnyCollection[] = [];
+  for (const collection of collections) {
+    const existing = definitions.get(collection.name);
+    if (existing === collection) {
+      continue;
+    }
+    if (existing !== undefined) {
+      throw duplicateCollectionDefinitionError(collection.name, operation);
+    }
+    definitions.set(collection.name, collection);
+    unique.push(collection);
+  }
+  return unique;
+};
+
+const uniqueCollectionDefinitionsEffect = (
+  collections: Iterable<AnyCollection>,
+  operation: CollectionSnapshotCodecOperation
+): Effect.Effect<ReadonlyArray<AnyCollection>, CollectionSnapshotCodecError> =>
+  Effect.try({
+    try: () => uniqueCollectionDefinitionsUnsafe(collections, operation),
+    catch: (cause) =>
+      cause instanceof CollectionSnapshotCodecError
+        ? cause
+        : duplicateCollectionDefinitionError("unknown", operation)
   });
 
 const collectionDefinitionMapEffect = (
@@ -475,8 +509,9 @@ export const dehydrateCollections = (
   collections: Iterable<AnyCollection>,
   store: CollectionPersistenceStore
 ): CollectionHydrationPayload => {
+  const definitions = uniqueCollectionDefinitionsUnsafe(collections, "snapshot");
   const payload = {
-    collections: Array.from(collections, (collection) => snapshotCollection(collection, store))
+    collections: definitions.map((collection) => snapshotCollection(collection, store))
   };
   return validateCollectionHydrationPayload(payload, "snapshot");
 };
@@ -488,7 +523,7 @@ export const dehydrateCollectionsEffect = (
   Effect.gen(function* () {
     const store = yield* storeEffect;
     const updatedAt = yield* Clock.currentTimeMillis;
-    const definitions = Array.from(collections);
+    const definitions = yield* uniqueCollectionDefinitionsEffect(collections, "snapshot");
     return yield* withCollectionDurableSnapshotPermits(
       store,
       definitions,
