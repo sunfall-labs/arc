@@ -173,6 +173,66 @@ describe("react hooks", () => {
     );
   });
 
+  it("bridges same-ref delete and reload through React resource handles", async () => {
+    let loads = 0;
+    let project: ResourceHandle<string, Project, never> | undefined;
+    const runtime = makeRuntime();
+    const ProjectById = Resource.family<string, Project>({
+      name: "ReactHooks.resource-same-ref-reload",
+      load: (id) =>
+        Effect.sync(() => {
+          loads++;
+          return { id, name: `Atlas ${loads}` };
+        })
+    });
+    const ref = ProjectById("atlas");
+
+    try {
+      await withReactRoot(async (root) => {
+        function Capture() {
+          project = useResource(ref, { preload: false });
+          return null;
+        }
+
+        await act(async () => {
+          root.render(
+            createElement(
+              RuntimeProvider,
+              { runtime },
+              createElement(Capture)
+            )
+          );
+        });
+
+        expect(project?.state._tag).toBe("Initial");
+
+        await act(async () => {
+          await Effect.runPromise(project!.prefetchEffect());
+        });
+        await flushReact();
+
+        expect(project?.value).toEqual({ id: "atlas", name: "Atlas 1" });
+
+        await act(async () => {
+          await Effect.runPromise(runtime.provide(Resource.deleteEffect(ref)));
+        });
+        await flushReact();
+
+        expect(project?.state._tag).toBe("Initial");
+
+        await act(async () => {
+          await Effect.runPromise(project!.prefetchEffect());
+        });
+        await flushReact();
+
+        expect(project?.value).toEqual({ id: "atlas", name: "Atlas 2" });
+        expect(loads).toBe(2);
+      });
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
   it("surfaces automatic resource preload failures", async () => {
     const runtime = makeRuntime();
     const failure = { _tag: "ReactHooksPreloadFailed" } as const;

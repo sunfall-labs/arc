@@ -236,6 +236,10 @@ const invalidateResourceCacheEntryEffect = <I, A, E, R>(
 ): Effect.Effect<void> =>
   Cache.invalidate(resourceCache(ref.family, store), ref.key);
 
+const resourceEntryOwnsState = <A, E>(entry: ResourceEntry<A, E> | undefined): boolean =>
+  entry !== undefined &&
+  (entry.inFlight !== undefined || entry.gcFiber !== undefined || entry.state.get()._tag !== "Initial");
+
 export const subscribeResourceEventsEffect = (): Effect.Effect<PubSub.Subscription<ResourceStoreEvent>, never, Scope.Scope> =>
   Effect.flatMap(resourceStoreEffect, (store) => store.eventBus.subscribeEffect);
 
@@ -684,7 +688,7 @@ export const deleteResourceFromStoreEffect = <I, A, E, R>(
     const cache = store.caches.get(ref.family) as Cache.Cache<string, A, ResourceLoadError<E>, R> | undefined;
     const hadInput = inputs?.has(ref.key) === true;
     const entry = entries?.get(ref.key);
-    const hadEntry = entry !== undefined;
+    const hadEntry = resourceEntryOwnsState(entry);
     const hadTags = store.refTags.has(resourceRefStoreKey(ref as AnyResourceRef));
     if (!hadEntry && !hadInput && !hadTags) {
       return;
@@ -696,7 +700,6 @@ export const deleteResourceFromStoreEffect = <I, A, E, R>(
       resetResourceEntry(entry);
     }
 
-    entries?.delete(ref.key);
     removeResourceRefFromTagIndex(ref, store);
     if (cache !== undefined) {
       yield* Cache.invalidate(cache, ref.key);

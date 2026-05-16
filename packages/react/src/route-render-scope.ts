@@ -64,9 +64,19 @@ const RouteRenderFrame = <ER,>(props: RouteRenderFrameProps<ER>): ReactNode => {
     };
   }, [props.runtime, scope]);
 
-  return runWithRuntime(props.runtime, () =>
-    runWithScope(scope, props.render)
-  );
+  try {
+    return runWithRuntime(props.runtime, () =>
+      runWithScope(scope, props.render)
+    );
+  } catch (error) {
+    scopeRef.current = undefined;
+    void props.runtime.runFork(
+      props.runtime.provide(scope.disposeEffect()).pipe(
+        Effect.catchCause(() => Effect.void)
+      )
+    );
+    throw error;
+  }
 };
 
 const renderInRouteScope = <Routes extends readonly AnyRoute[], ER>(

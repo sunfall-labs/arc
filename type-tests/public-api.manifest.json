@@ -38,7 +38,19 @@
       "typeTest": "type-tests/react.test-d.ts",
       "requiredTypeTestImports": [
         "ActionHandle",
-        "useAction"
+        "ProgramHandle",
+        "ResourceHandle",
+        "RuntimeEffectRunner",
+        "UseResourceOptions",
+        "useAction",
+        "useResource",
+        "useResourceError",
+        "useResourceResult",
+        "useResourceValue",
+        "useRuntime",
+        "useRuntimeEffect",
+        "useSignal",
+        "useStream"
       ]
     },
     {
@@ -55,7 +67,22 @@
       "import": "@effect-ui/solid",
       "source": "packages/solid/src/index.ts",
       "docs": "docs/public-api-inventory.md",
-      "typeTest": "type-tests/solid.test-d.ts"
+      "typeTest": "type-tests/solid.test-d.ts",
+      "requiredTypeTestImports": [
+        "ProgramHandle",
+        "ResourceHandle",
+        "RuntimeEffectRunner",
+        "UseResourceOptions",
+        "useAction",
+        "useResource",
+        "useResourceError",
+        "useResourceResult",
+        "useResourceValue",
+        "useRuntime",
+        "useRuntimeEffect",
+        "useSignal",
+        "useStream"
+      ]
     },
     {
       "package": "@effect-ui/solid-db",

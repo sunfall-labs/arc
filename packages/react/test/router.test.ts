@@ -1,7 +1,7 @@
 import { makeMemoryBrowserHistoryAdapter, makeRuntime, onDispose, Resource, route, runWithRuntime } from "@effect-ui/core";
 import { Effect } from "effect";
 import { Window } from "happy-dom";
-import { act, createElement, Fragment, useState } from "react";
+import { act, Component, createElement, Fragment, useState, type ReactNode } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -80,6 +80,27 @@ const flushReact = async (): Promise<void> => {
     await Effect.runPromise(Effect.sleep(0));
   });
 };
+
+class TestErrorBoundary extends Component<
+  { readonly children: ReactNode; readonly onError: (error: unknown) => void },
+  { readonly error: unknown | undefined }
+> {
+  override state: { readonly error: unknown | undefined } = { error: undefined };
+
+  static getDerivedStateFromError(error: unknown): { readonly error: unknown } {
+    return { error };
+  }
+
+  override componentDidCatch(error: unknown): void {
+    this.props.onError(error);
+  }
+
+  override render(): ReactNode {
+    return this.state.error === undefined
+      ? this.props.children
+      : createElement("span", {}, "caught");
+  }
+}
 
 describe("react router", () => {
   it("renders the matched route component after preload", async () => {
@@ -512,6 +533,54 @@ describe("react router", () => {
     } finally {
       await Effect.runPromise(runtimeA.disposeEffect);
       await Effect.runPromise(runtimeB.disposeEffect);
+    }
+  });
+
+  it("disposes route scope finalizers when route render throws before commit", async () => {
+    const runtime = makeRuntime();
+    const renderError = new Error("route render failed");
+    const attempts: string[] = [];
+    const disposed: string[] = [];
+    let caught: unknown;
+    const Broken = route("/", {
+      component: () => {
+        attempts.push("route");
+        onDispose(() => Effect.sync(() => {
+          disposed.push("route");
+        }));
+        throw renderError;
+      }
+    });
+    const routes = [Broken] as const;
+
+    try {
+      await withReactRoot(async (root, container) => {
+        await act(async () => {
+          root.render(
+            createElement(
+              TestErrorBoundary,
+              {
+                onError: (error) => {
+                  caught = error;
+                }
+              },
+              createElement(RouterProvider, {
+                routes,
+                initialHref: "/",
+                runtime
+              })
+            )
+          );
+        });
+        await flushReact();
+        await Effect.runPromise(Effect.sleep("20 millis"));
+
+        expect(container.textContent).toBe("caught");
+        expect(caught).toBe(renderError);
+        expect(disposed).toEqual(attempts);
+      });
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
     }
   });
 

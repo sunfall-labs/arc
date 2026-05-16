@@ -278,6 +278,7 @@ export const makeResourceUiSuspensePreloadController = <I, A, E, R = unknown, ER
         readonly ref: ResourceRef<I, A, E, R>;
         readonly fiber: ResourceUiSuspensePreloadFiber<A, E, ER>;
         readonly token: Token;
+        readonly removeObserver: () => void;
       }
     | undefined;
 
@@ -285,10 +286,21 @@ export const makeResourceUiSuspensePreloadController = <I, A, E, R = unknown, ER
     const current = preload;
     preload = undefined;
     if (current !== undefined) {
+      current.removeObserver();
       void runtime.runFork(
         Fiber.interrupt(current.fiber).pipe(Effect.catch(() => Effect.void))
       );
     }
+  };
+
+  const clearCompleted = (fiber: ResourceUiSuspensePreloadFiber<A, E, ER>): void => {
+    const current = preload;
+    if (current === undefined || current.fiber !== fiber) {
+      return;
+    }
+
+    current.removeObserver();
+    preload = undefined;
   };
 
   return {
@@ -302,7 +314,13 @@ export const makeResourceUiSuspensePreloadController = <I, A, E, R = unknown, ER
         ? runtime.runFork(Effect.scoped(runtime.provide(prefetchResourceEffect(ref))))
         : options.fork(prefetchResourceEffect(ref));
       const token = options.toHostToken(fiber);
-      preload = { ref, fiber, token };
+      const removeObserver = fiber.addObserver(() => {
+        clearCompleted(fiber);
+      });
+      preload = { ref, fiber, token, removeObserver };
+      if (fiber.pollUnsafe() !== undefined) {
+        clearCompleted(fiber);
+      }
       return token;
     },
     interruptStale: (ref) => {

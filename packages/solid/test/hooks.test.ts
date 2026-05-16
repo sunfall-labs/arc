@@ -65,6 +65,53 @@ describe("solid hooks", () => {
     );
   });
 
+  it("bridges same-ref delete and reload through Solid resource handles", () => {
+    let dispose: (() => void) | undefined;
+    let loads = 0;
+    let state: (() => { readonly _tag: string }) | undefined;
+    let value: (() => Project | undefined) | undefined;
+    let prefetchEffect: (() => Effect.Effect<Project, Resource.LoadError<never>>) | undefined;
+    const runtime = makeRuntime();
+    const ProjectById = Resource.family<string, Project>({
+      name: "SolidHooks.resource-same-ref-reload",
+      load: (id) =>
+        Effect.sync(() => {
+          loads++;
+          return { id, name: `Atlas ${loads}` };
+        })
+    });
+    const ref = ProjectById("atlas");
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        runWithRuntime(runtime, () =>
+          createRoot((rootDispose) => {
+            dispose = rootDispose;
+            const project = useResource(ref, { preload: false });
+            state = project.state;
+            value = project.value;
+            prefetchEffect = project.prefetchEffect;
+          })
+        );
+
+        expect(state?.()._tag).toBe("Initial");
+
+        yield* prefetchEffect!();
+        expect(value?.()).toEqual({ id: "atlas", name: "Atlas 1" });
+
+        yield* runtime.provide(Resource.deleteEffect(ref));
+        expect(state?.()._tag).toBe("Initial");
+
+        yield* prefetchEffect!();
+        expect(value?.()).toEqual({ id: "atlas", name: "Atlas 2" });
+        expect(loads).toBe(2);
+      }).pipe(
+        Effect.ensuring(Effect.sync(() => dispose?.())),
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
   it("surfaces automatic resource preload failures", () => {
     let dispose: (() => void) | undefined;
     const runtime = makeRuntime();

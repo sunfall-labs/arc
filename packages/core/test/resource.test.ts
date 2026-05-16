@@ -279,9 +279,10 @@ describe("Resource", () => {
   });
 
   it("resets existing resource result subscribers when a ref is deleted", async () => {
+    let count = 0;
     const Count = Resource.family({
       name: "Count.delete-subscriber-reset",
-      load: () => Effect.succeed(1)
+      load: () => Effect.sync(() => ++count)
     });
     const ref = Count(undefined);
     const result = Resource.result(ref);
@@ -297,6 +298,13 @@ describe("Resource", () => {
     expect(result.get()).toEqual({
       _tag: "Initial",
       waiting: false
+    });
+
+    await Effect.runPromise(Resource.prefetchEffect(ref));
+
+    expect(result.get()).toMatchObject({
+      _tag: "Success",
+      value: 2
     });
   });
 

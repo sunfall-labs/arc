@@ -125,7 +125,7 @@ describe("Resource UI Binding Controller", () => {
     const runtime = makeRuntime();
     const ProjectById = Resource.family<string, Project>({
       name: "ResourceUiBinding.suspense-token",
-      load: (id) => Effect.succeed({ id, name: id })
+      load: (id) => Effect.never.pipe(Effect.as({ id, name: id }))
     });
     const firstRef = ProjectById("first");
     const secondRef = ProjectById("second");
@@ -141,6 +141,49 @@ describe("Resource UI Binding Controller", () => {
 
     controller.dispose();
     return Effect.runPromise(runtime.disposeEffect);
+  });
+
+  it("clears completed Suspense preload tokens before same-ref reloads", () => {
+    const runtime = makeRuntime();
+    let loads = 0;
+    const ProjectById = Resource.family<string, Project>({
+      name: "ResourceUiBinding.suspense-completed-token",
+      load: (id) =>
+        Effect.sync(() => {
+          loads++;
+          return { id, name: `Atlas ${loads}` };
+        })
+    });
+    const ref = ProjectById("atlas");
+    const controller = makeResourceUiSuspensePreloadController<
+      string,
+      Project,
+      never,
+      never,
+      never,
+      Fiber.Fiber<Project, Resource.LoadError<never>>
+    >(runtime);
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const firstFiber = controller.hostToken(ref, {
+          toHostToken: (preloadFiber) => preloadFiber
+        });
+        expect(yield* Fiber.join(firstFiber)).toEqual({ id: "atlas", name: "Atlas 1" });
+
+        yield* runtime.provide(Resource.deleteEffect(ref));
+
+        const secondFiber = controller.hostToken(ref, {
+          toHostToken: (preloadFiber) => preloadFiber
+        });
+        expect(secondFiber).not.toBe(firstFiber);
+        expect(yield* Fiber.join(secondFiber)).toEqual({ id: "atlas", name: "Atlas 2" });
+        expect(loads).toBe(2);
+      }).pipe(
+        Effect.ensuring(Effect.sync(() => controller.dispose())),
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
   });
 
   it("runs default Suspense preload fibers in a Scope", () => {
