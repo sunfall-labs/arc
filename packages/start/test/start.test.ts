@@ -74,6 +74,9 @@ import {
   requestRuntimeTeardownSnapshot
 } from "../src/request-trace.js";
 import {
+  effectUiStartVirtualModules
+} from "../src/start-vite-diagnostics-loader.js";
+import {
   parseStartDiagnosticsCliArgs,
   runStartDiagnosticsCli,
   runStartDiagnosticsCliEffect
@@ -1614,6 +1617,7 @@ describe("Effect UI Start", () => {
           transport: "ssr"
         }),
         status: "failure",
+        failureKind: "domain",
         streams: [
           expect.objectContaining({
             name: "response",
@@ -1847,6 +1851,7 @@ describe("Effect UI Start", () => {
           transport: "ssr"
         }),
         status: "failure",
+        failureKind: "domain",
         streams: [],
         fibers: [
           {
@@ -6615,6 +6620,53 @@ describe("Effect UI Start", () => {
     expect(String(config.define?.__EFFECT_UI_APP_GRAPH__)).toContain("Start.Project.one-shot-manifest");
     expect(String(appGraphModule)).toContain("Start.Project.one-shot-manifest.rename");
     expect(String(diagnosticsModule)).toContain("src/routes/projects/$id.tsx");
+  });
+
+  it("normalizes one-shot manifest iterables once for diagnostics virtual module reloads", () => {
+    const getProject = Server.fn<string, string>("Start.Project.diagnostics-one-shot", {
+      handler: (id) => Effect.succeed(id)
+    });
+    const RenameProject = Action.define<string, string>({
+      name: "Start.Project.diagnostics-one-shot.rename",
+      run: (name) => Effect.succeed(name)
+    });
+    const fileRoutes = oneShotIterable([
+      "src/routes/projects/$id.tsx",
+      "src/routes/index.tsx"
+    ]);
+    const serverFunctionSources = oneShotIterable([
+      {
+        fn: getProject,
+        module: "/src/project/project.server.ts",
+        exportName: "getProject"
+      }
+    ]);
+    const actionSources = oneShotIterable([
+      {
+        action: RenameProject,
+        module: "/src/project/project.actions.ts",
+        exportName: "RenameProject"
+      }
+    ]);
+    const plugin = effectUiStartVirtualModules({
+      serverFunctionSources: serverFunctionSources.iterable,
+      actionSources: actionSources.iterable,
+      fileRoutes: fileRoutes.iterable,
+      fileRouteOptions: {
+        routeDirectory: "src/routes"
+      }
+    });
+    plugin.configResolved({ root: process.cwd() });
+    const diagnosticsId = plugin.resolveId(appGraphRuntimeDiagnosticsVirtualModuleId);
+    const firstModule = diagnosticsId === null ? undefined : plugin.load(diagnosticsId);
+    const secondModule = diagnosticsId === null ? undefined : plugin.load(diagnosticsId);
+
+    expect(fileRoutes.iteratorCalls).toBe(1);
+    expect(serverFunctionSources.iteratorCalls).toBe(1);
+    expect(actionSources.iteratorCalls).toBe(1);
+    expect(String(firstModule)).toContain("Start.Project.diagnostics-one-shot.rename");
+    expect(String(secondModule)).toContain("Start.Project.diagnostics-one-shot.rename");
+    expect(String(secondModule)).toContain("src/routes/projects/$id.tsx");
   });
 
   it("keeps route implementation imports behind the runtime diagnostics virtual module", () => {

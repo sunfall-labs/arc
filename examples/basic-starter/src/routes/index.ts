@@ -3,10 +3,8 @@ import { WelcomeResource } from "../starter.js";
 
 const RouteBuilder = defineFileRoute("/");
 
-export const Route = RouteBuilder({
-  ...RouteBuilder.preload({
-    resources: [
-      RouteBuilder.resource(WelcomeResource, () => "Effect UI")
-    ]
-  })
-});
+export const Route = RouteBuilder.preload({
+  resources: [
+    RouteBuilder.resource(WelcomeResource, () => "Effect UI")
+  ]
+}).route();

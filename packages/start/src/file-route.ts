@@ -64,6 +64,13 @@ type FileRoutePreloadRequirements<Options> =
   ResourcePreloadRequirements<Options extends { readonly resources: infer Resources } ? Resources : never> |
   CollectionPreloadRequirements<Options extends { readonly collections: infer Collections } ? Collections : never>;
 
+/**
+ * Route options accepted by `defineFileRoute(path).preload(...).route(...)`.
+ *
+ * Preload-owned fields are intentionally omitted so schemas, declared preload
+ * resources, declared collections, and preload requirements stay attached to
+ * the builder output.
+ */
 export type FileRoutePreloadRouteOptions = Omit<
   RouteOptionsInput,
   "params" | "search" | "preload" | "preloadResources" | "preloadCollections"
@@ -447,15 +454,14 @@ export interface FileRouteMetadataDefinition<Options = unknown> {
  * ```ts
  * const RouteBuilder = defineFileRoute("/projects/:id");
  *
- * export const Route = RouteBuilder({
- *   ...RouteBuilder.preload({
- *     params: ProjectRouteParams,
- *     search: ProjectRouteSearch,
- *     resources: ({ resource }) => [
- *       resource(ProjectById, ({ params }) => params.id)
- *     ],
- *     collections: [ProjectSummaries]
- *   }),
+ * export const Route = RouteBuilder.preload({
+ *   params: ProjectRouteParams,
+ *   search: ProjectRouteSearch,
+ *   resources: ({ resource }) => [
+ *     resource(ProjectById, ({ params }) => params.id)
+ *   ],
+ *   collections: [ProjectSummaries]
+ * }).route({
  *   component: ProjectPage
  * });
  * ```

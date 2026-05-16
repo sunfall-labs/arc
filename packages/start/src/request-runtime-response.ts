@@ -7,6 +7,7 @@ import {
   invokeStartEffectInputCallbackEffect,
   requestRuntimeDisposeTraceEffect,
   type StartRequestTraceCleanupFailure,
+  type StartRequestTraceFailureKind,
   type StartRequestTraceStatus,
   type StartRequestTraceStream,
   type StartRequestTraceTeardownSnapshot
@@ -19,6 +20,7 @@ import {
 export interface RequestRuntimeFinalizeState {
   readonly stream?: StartRequestTraceStream;
   readonly status: StartRequestTraceStatus;
+  readonly failureKind?: StartRequestTraceFailureKind;
   readonly teardownReason: string;
   readonly runtimeDisposed: boolean;
   readonly beforeDispose: StartRequestTraceTeardownSnapshot;
@@ -58,6 +60,7 @@ const requestRuntimeStreamFinalizer = <RuntimeServices, RuntimeError>(
         ...(yield* requestRuntimeDisposeTraceEffect(runtime)),
         stream: event.stream,
         status: event.status,
+        ...(event.failureKind === undefined ? {} : { failureKind: event.failureKind }),
         teardownReason: event.teardownReason
       };
       yield* invokeStartEffectInputCallbackEffect(

@@ -106,6 +106,7 @@ import {
   type FileRouteDefinitionsModuleOptions,
   type FileRouteManifest,
   type FileRouteModuleReference,
+  type FileRoutePreloadRouteOptions,
   type GeneratedFileRouteDefinitionsModuleOptions,
   type StartAppGraphWireSchemaPolicy,
   type HydrateStartPayloadOptions,
@@ -259,6 +260,7 @@ type StartTypes =
   | FileRouteDefinitionsModuleOptions
   | FileRouteManifest
   | FileRouteModuleReference
+  | FileRoutePreloadRouteOptions
   | GeneratedFileRouteDefinitionsModuleOptions
   | StartAppGraphWireSchemaPolicy
   | HydrateStartPayloadOptions

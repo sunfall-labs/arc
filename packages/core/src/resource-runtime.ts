@@ -10,7 +10,7 @@ import {
 import { describeResourceStoreInvalidationCause, publishResourceStoreEvent } from "./resource-events.js";
 import { ResourceCollector, type ResourceCollected } from "./resource-collector.js";
 import { MissingResourceInput, ResourceFailure, ResourcePending } from "./resource-errors.js";
-import { EffectInputCallbackError, toEffect } from "./effect-like.js";
+import { EffectInputCallbackError, EffectInputPromiseRejected, toEffect } from "./effect-like.js";
 import { parseDuration } from "./resource-duration.js";
 import { lookupResourceHydrationFamily } from "./resource-registry.js";
 import {
@@ -140,9 +140,21 @@ const resourceLoadEffect = <I, A, E, R>(
         })
     }),
     (output) => {
-      const effect = toEffect(output);
+      const operation = `Resource.load(${family.options.name})`;
+      const effect = toEffect<A, E, R>(output);
       const retry = family.options.policy?.retry;
-      return retry === undefined ? effect : Effect.retry(effect, retry);
+      const load = retry === undefined ? effect : Effect.retry(effect, retry);
+      return Effect.catchDefect(
+        load,
+        (defect) =>
+          defect instanceof EffectInputPromiseRejected
+            ? Effect.fail(new EffectInputCallbackError({
+                operation,
+                cause: defect,
+                guidance: "Resource loaders must return values or Effects. Wrap host Promise work in Effect.tryPromise(...) inside the loader."
+              }))
+            : Effect.die(defect)
+      );
     }
   );
 

@@ -41,13 +41,14 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest focused Review194 slice is green for typed runtime disposal,
-  Resource read/ref depth, Resource retry callback locality, Start action/Vite
-  LSP pins, and current-gate docs drift found during the first post-Review193
+- The latest focused Review195 slice is green for Resource Promise-shaped load
+  guardrails, Resource Store module finalizer typing, Start diagnostics virtual
+  module normalization, request-trace failure-kind classification, and
+  file-route LSP/starter example drift found during the first post-Review194
   sweep.
 - The latest implementation and full verification gate is green after
-  Review194:
-  `pnpm verify` completed with 53 root test files / 1038 tests, public API
+  Review195:
+  `pnpm verify` completed with 53 root test files / 1040 tests, public API
   inventory audit, Effect-first audit over 404 physical/virtual files,
   package-level verifies, parallel example package verifies and leak scans,
   generated starter packaging, and the 16-target package dry-run gate.
@@ -60,8 +61,9 @@ or command result that proves it.
   Clean Sweep 2 found Review191 work and the first post-Review191 sweep found
   Review192 docs drift. The first post-Review192 sweep found Review193
   Core/Start/DB/public docs work, and the first post-Review193 sweep found
-  Review194 Core/Start/docs work. The active Thirty-Sweep clean counter is
-  reset to 0/30 until a fresh post-Review194 sweep is clean.
+  Review194 Core/Start/docs work. The first post-Review194 sweep found
+  Review195 Core/Start/example/docs work. The active Thirty-Sweep clean counter
+  is reset to 0/30 until a fresh post-Review195 sweep is clean.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
   example, script, and type-test sources while keeping negative runtime
   validation tests explicit.
@@ -626,6 +628,7 @@ or command result that proves it.
 | 432 | Review 192 current-gate docs drift | `docs/architecture-deepening-review.md`; `docs/effect-first-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md` | Fixed stale current-facing docs wording found during the first post-Review191 sweep. The docs now name Review191 as the latest full verification gate, keep Clean Sweep 1 after Review190 as historical 1/30 evidence, and state that the active clean counter is 0/30 until a fresh post-Review192 sweep is clean. | Focused verification passed: stale current-gate wording grep, public API audit, Effect-first audit, and `git diff --check`. This sweep found docs drift, so the active clean counter remains 0/30. |
 | 433 | Review 193 post-Review192 Effect and LSP holes | `docs/architecture-deepening-review.md`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/ultimate-goal-checklist.md`; `packages/core/src/capability.ts`; `packages/core/src/route.ts`; `packages/core/test/capability.test.ts`; `packages/db/src/query-builder.ts`; `packages/start/src/action-manifest.ts`; `packages/start/src/file-route.ts`; `packages/start/src/server-function-manifest.ts`; `packages/start/test/start.test.ts`; `scripts/public-api-symbol-policy.mjs`; `type-tests/framework.test-d.ts`; `type-tests/public-api.manifest.json`; `type-tests/start.test-d.ts` | Fixed post-Review192 findings. Route preload annotations no longer widen to Promise-accepting `unknown`, `Capability.useSync(...)` rejects Promise-shaped sync returns, file-route helper resource selectors reject Promise-shaped selected input, `Query.diagnostics(...)` accepts serviceful factory channels, Start action/server-function manifest APIs have JSDoc plus public API/type-test pins, and the remaining Review190 current-gate audit docs were refreshed. | Focused verification passed: Core/DB/Start typechecks, public type tests, focused Core/Start regressions, public API audit, Effect-first audit, and `git diff --check`. Full `pnpm verify` passed after Review193: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 404 files, 53 root test files / 1037 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. This sweep found work, so the active clean counter remains 0/30. |
 | 434 | Review 194 typed disposal, Resource read depth, and Start LSP pins | `docs/architecture-deepening-review.md`; `docs/effect-first-audit.md`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/ultimate-goal-checklist.md`; `packages/core/src/runtime.ts`; `packages/core/src/resource-store.ts`; `packages/core/src/resource.ts`; `packages/core/src/resource-runtime.ts`; `packages/core/test/runtime.test.ts`; `packages/core/test/resource-store.test.ts`; `packages/core/test/resource.test.ts`; `packages/react/src/runtime.ts`; `packages/react/test/hooks.test.ts`; `packages/solid/src/runtime.ts`; `packages/solid/test/hooks.test.ts`; `packages/start/src/request-trace.ts`; `packages/start/src/start-action-request-codec.ts`; `packages/start/src/start-transport-protocol.ts`; `packages/start/src/start-manifest-wall.ts`; `packages/start/src/start-virtual-modules.ts`; `packages/start/test/start.test.ts`; `examples/project-console/src/domain.mock.test.ts`; `scripts/public-api-symbol-policy.mjs`; `type-tests/core.test-d.ts`; `type-tests/framework.test-d.ts`; `type-tests/public-api.manifest.json`; `type-tests/start.test-d.ts`; `type-tests/start-vite.test-d.ts` | Fixed post-Review193 findings. Runtime and Resource Store disposal now fail with typed `RuntimeDisposeError` / `ResourceStoreDisposeError`, React/Solid disposal observers receive the typed error, Start request traces unwrap cleanup failures, `Resource.ReadError` preserves failed ref input/service types, Resource retry applies only to the returned load Effect, Start action/Vite public LSP pins cover forms, duplicate names, defaults, and virtual module ids, and project-console example finalizers now treat runtime disposal as a typed cleanup seam. | Focused verification passed: Core/React/Solid/Start package typechecks, project-console/react-starter/basic-starter typechecks, public type tests, public API audit, Effect-first audit, Core runtime/resource tests, React/Solid disposal observer tests, Start cleanup trace test, and `git diff --check`. Full `pnpm verify` passed after Review194: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 404 files, 53 root test files / 1038 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. This sweep found work, so the active clean counter remains 0/30. |
+| 435 | Review 195 Resource guardrails, Start diagnostics, and file-route examples | `docs/architecture-deepening-review.md`; `docs/effect-first-audit.md`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md`; `docs/public-api-inventory.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/ultimate-goal-checklist.md`; `examples/basic-starter/src/routes/index.ts`; `examples/react-starter/src/routes/index.ts`; `examples/project-console/src/routes/projects/$id.ts`; `packages/core/src/resource-runtime.ts`; `packages/core/src/resource-store.ts`; `packages/core/test/resource.test.ts`; `packages/start/src/file-route.ts`; `packages/start/src/request-runtime-lifecycle.ts`; `packages/start/src/request-runtime-response.ts`; `packages/start/src/start-vite-diagnostics-loader.ts`; `packages/start/src/streaming.ts`; `packages/start/test/start.test.ts`; `packages/start/test/streaming.test.ts`; `scripts/public-api-symbol-policy.mjs`; `type-tests/core.test-d.ts`; `type-tests/framework.test-d.ts`; `type-tests/public-api.manifest.json`; `type-tests/start.test-d.ts` | Fixed post-Review194 findings. Erased Promise-shaped Resource loader returns now become typed `EffectInputCallbackError` failures inside the Resource state machine instead of leaving pending state; Resource Store modules can fail with module-local cleanup errors while store disposal wraps them; Start diagnostics virtual modules materialize one-shot manifest iterables once; failed SSR/render stream traces include failure kinds; and file-route JSDoc/starters/type tests use the current chained preload route builder with `FileRoutePreloadRouteOptions` hover-doc pins. | Focused verification passed: Core/Start package typechecks, public type tests, focused Resource/Resource Store regressions, focused Start diagnostics/trace regressions, basic-starter/react-starter/project-console typechecks, public API audit, Effect-first audit, and `git diff --check`. Full `pnpm verify` passed after Review195: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 404 files, 53 root test files / 1040 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. This sweep found work, so the active clean counter remains 0/30. |
 
 ## Thirty-Sweep Gate
 
@@ -634,9 +637,10 @@ This ledger records implementation/audit sweeps, but it does not satisfy the
 final no-new-improvements gate yet. Clean Sweep 1 after Review190 reached 1/30,
 then Clean Sweep 2 found Review191 work and the first post-Review191 sweep
 found Review192 docs drift. The first post-Review192 sweep found Review193
-Core/Start/DB/public docs work, and the first post-Review193 sweep found
-Review194 Core/Start/docs work. The active counter is therefore 0/30 until a
-fresh post-Review194 sweep reports no actionable findings.
+Core/Start/DB/public docs work, the first post-Review193 sweep found Review194
+Core/Start/docs work, and the first post-Review194 sweep found Review195
+Core/Start/example/docs work. The active counter is therefore 0/30 until a
+fresh post-Review195 sweep reports no actionable findings.
 
 - Re-run the Promise and docs drift audits after each single-command full
   verification.

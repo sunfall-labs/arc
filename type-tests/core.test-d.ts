@@ -107,6 +107,12 @@ import {
 const runtime = makeRuntime();
 const requestRuntime = withResourceStore(runtime, makeResourceStore());
 const runtimeDisposeEffect: Effect.Effect<void, RuntimeDisposeError> = runtime.disposeEffect;
+class CoreAdapterCleanupError {
+  readonly _tag = "CoreAdapterCleanupError";
+}
+requestRuntime.resourceStore.moduleRegistry.register(Symbol("core-adapter-cleanup"), {
+  disposeEffect: Effect.fail(new CoreAdapterCleanupError())
+});
 const requestRuntimeStoreDisposeEffect: Effect.Effect<void, ResourceStoreDisposeError> =
   disposeResourceStoreEffect(requestRuntime.resourceStore);
 const coreRoutes = [route("/projects/:id", {})] as const;

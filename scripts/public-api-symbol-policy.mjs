@@ -217,6 +217,12 @@ export const publicHoverDocGroups = [
     ]
   },
   {
+    file: "packages/start/src/file-route.ts",
+    declarations: [
+      "FileRoutePreloadRouteOptions"
+    ]
+  },
+  {
     file: "packages/start/src/file-route-modules.ts",
     declarations: [
       "FileRouteDefinitionsModuleOptions",

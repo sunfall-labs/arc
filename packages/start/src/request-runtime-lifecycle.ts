@@ -17,6 +17,7 @@ import {
   startRequestTraceTeardown,
   withStartRequestObservability,
   type StartRequestTraceFacts,
+  type StartRequestTraceFailureKind,
   type StartRequestTraceHandler
 } from "./request-trace.js";
 
@@ -55,6 +56,15 @@ const emitRequestRuntimeFailureTraceEffect = <RuntimeServices, RuntimeError>(
     }
   });
 
+const requestRuntimeFailureKind = (
+  cause: Cause.Cause<unknown>
+): StartRequestTraceFailureKind =>
+  cause.reasons.some(Cause.isInterruptReason)
+    ? "interruption"
+    : cause.reasons.some(Cause.isDieReason)
+      ? "defect"
+      : "domain";
+
 const requestRuntimeFinalizeOptions = <RuntimeServices, RuntimeError>(
   options: Pick<
     RequestRuntimeLifecycleOptions<unknown, unknown, RuntimeServices, RuntimeError>,
@@ -69,6 +79,9 @@ const requestRuntimeFinalizeOptions = <RuntimeServices, RuntimeError>(
           status: state.status,
           completedAt: state.completedAt
         });
+        if (state.failureKind !== undefined) {
+          options.traceFacts.failureKind = state.failureKind;
+        }
         if (options.onRequestTrace !== undefined) {
           yield* emitStartRequestTraceEffect(
             options.onRequestTrace,
@@ -111,10 +124,9 @@ export const runRequestRuntimeLifecycleEffect = <E, R, RuntimeServices, RuntimeE
       );
 
       if (Exit.isFailure(responseExit)) {
-        const interrupted = responseExit.cause.reasons.some(Cause.isInterruptReason);
-        if (interrupted) {
-          options.traceFacts.failureKind = "interruption";
-        }
+        const failureKind = requestRuntimeFailureKind(responseExit.cause as Cause.Cause<unknown>);
+        const interrupted = failureKind === "interruption";
+        options.traceFacts.failureKind = failureKind;
         yield* emitRequestRuntimeFailureTraceEffect(options, interrupted);
         return yield* Effect.failCause(responseExit.cause);
       }

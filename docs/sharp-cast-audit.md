@@ -34,6 +34,10 @@ zero hits.
   direct Promise `.catch(...)` outside Effect's `Effect.catch(...)` operator.
   Raw `scripts/` hits are expected in `scripts/audit-effect-first.mjs` scanner
   fixture strings for banned catch forms.
+- Erased Promise-shaped Resource loader returns are recovered only at the
+  Resource runtime boundary and converted to typed `EffectInputCallbackError`
+  failures, so bad JavaScript or `any` inputs do not require a new broad cast or
+  leave resource state pending.
 - The devtools extension transport structurally validates inspected-window
   `DevtoolsPanels` payloads before rendering them, so the bridge normalizer no
   longer needs a raw panel payload cast.
@@ -143,9 +147,9 @@ zero hits.
 
 ## Verification Evidence
 
-The current full verification gate is recorded in the Review 194 ledgers: 11
+The current full verification gate is recorded in the Review 195 ledgers: 11
 package builds, workspace typecheck, type tests, public API inventory audit,
-Effect-first audit over 404 files, 53 root test files / 1038 tests,
+Effect-first audit over 404 files, 53 root test files / 1040 tests,
 package-level verifies, generated starter-suite packaging/verifies for
 basic/react/project-console, 16-target package dry-run gate, project-console
 typecheck, 4 project-console test files / 27 tests, build, and leak scans. The

@@ -1357,8 +1357,14 @@ const resourceDefinitionDuplicatePolicy: "keep-first" | "replace" =
   resourceDefinitionDiagnostics.duplicates[0]?.policy ?? "replace";
 const adapterResourceStore = makeResourceStore();
 const typedAdapterResourceStore: ResourceStore = adapterResourceStore;
+class AdapterCleanupError {
+  readonly _tag = "AdapterCleanupError";
+}
 adapterResourceStore.moduleRegistry.register(Symbol("adapter-module"), {
   disposeEffect: Effect.void
+});
+adapterResourceStore.moduleRegistry.register(Symbol("adapter-cleanup-error"), {
+  disposeEffect: Effect.fail(new AdapterCleanupError())
 });
 const adapterResourceStoreModuleCount: Effect.Effect<number> = adapterResourceStore.diagnostics.moduleCountEffect;
 const adapterResourceStoreEventBusShutdown: Effect.Effect<boolean> =
@@ -3356,17 +3362,15 @@ const ServicePreloadRoute = route("/service-projects/:id", {
     RoutePreloadApi.use((api) => api.warm(params.id))
 });
 const FileRoutePreloadBuilder = defineFileRoute("/file-preload-helper/:id");
-const FileRoutePreloadHelperRoute = FileRoutePreloadBuilder({
-  ...FileRoutePreloadBuilder.preload(
-    {
-      resources: [
-        FileRoutePreloadBuilder.resource(ProjectById, ({ params }) => params.id)
-      ],
-      collections: [ProjectsCollection]
-    },
-    ({ params }) => RoutePreloadApi.use((api) => api.warm(params.id))
-  )
-});
+const FileRoutePreloadHelperRoute = FileRoutePreloadBuilder.preload(
+  {
+    resources: [
+      FileRoutePreloadBuilder.resource(ProjectById, ({ params }) => params.id)
+    ],
+    collections: [ProjectsCollection]
+  },
+  ({ params }) => RoutePreloadApi.use((api) => api.warm(params.id))
+).route();
 const fileRoutePreloadHelperRequirements: Route.PreloadRequirements<typeof FileRoutePreloadHelperRoute> =
   {} as ProjectApi | RoutePreloadApi;
 declare const fileRoutePreloadHelperMatch: Route.Match<typeof FileRoutePreloadHelperRoute>;
@@ -3376,14 +3380,12 @@ const fileRoutePreloadHelperEffect: Effect.Effect<
   ProjectApi | RoutePreloadApi
 > = Route.preloadEffect(fileRoutePreloadHelperMatch);
 const NamedFileRoutePreloadBuilder = defineFileRoute("/file-preload-helper-named");
-const NamedFileRoutePreloadHelperRoute = NamedFileRoutePreloadBuilder({
-  ...NamedFileRoutePreloadBuilder.preload(
-    {
-      collections: [ProjectsCollection.name, { name: ProjectsCollection.name }]
-    },
-    () => RoutePreloadApi.use((api) => api.warm("atlas"))
-  )
-});
+const NamedFileRoutePreloadHelperRoute = NamedFileRoutePreloadBuilder.preload(
+  {
+    collections: [ProjectsCollection.name, { name: ProjectsCollection.name }]
+  },
+  () => RoutePreloadApi.use((api) => api.warm("atlas"))
+).route();
 const namedFileRoutePreloadHelperRequirements: Route.PreloadRequirements<typeof NamedFileRoutePreloadHelperRoute> =
   {} as RoutePreloadApi;
 FileRoutePreloadBuilder.resource(ProjectById, ({ params }) => params.id);
@@ -3401,23 +3403,21 @@ FileRoutePreloadBuilder.resource(ProjectById, () =>
   123
 );
 const BrandedFileRoutePreloadBuilder = defineFileRoute("/file-preload-branded/:id");
-const BrandedFileRoutePreloadHelperRoute = BrandedFileRoutePreloadBuilder({
-  ...BrandedFileRoutePreloadBuilder.preload(
-    {
-      params: Schema.Struct({ id: ProjectId }),
-      search: Schema.Struct({ tab: Schema.optional(ProjectTab) }),
-      resources: ({ resource }) => [
-        resource(BrandedProjectById, ({ params, search }) => {
-          const id: ProjectId = params.id;
-          const tab: "overview" | "activity" | undefined = search.tab;
-          return id;
-        })
-      ],
-      collections: [ProjectsCollection]
-    },
-    ({ params }) => RoutePreloadApi.use((api) => api.warm(params.id))
-  )
-});
+const BrandedFileRoutePreloadHelperRoute = BrandedFileRoutePreloadBuilder.preload(
+  {
+    params: Schema.Struct({ id: ProjectId }),
+    search: Schema.Struct({ tab: Schema.optional(ProjectTab) }),
+    resources: ({ resource }) => [
+      resource(BrandedProjectById, ({ params, search }) => {
+        const id: ProjectId = params.id;
+        const tab: "overview" | "activity" | undefined = search.tab;
+        return id;
+      })
+    ],
+    collections: [ProjectsCollection]
+  },
+  ({ params }) => RoutePreloadApi.use((api) => api.warm(params.id))
+).route();
 const brandedFileRoutePreloadHelperRequirements: Route.PreloadRequirements<typeof BrandedFileRoutePreloadHelperRoute> =
   {} as ProjectApi | RoutePreloadApi;
 const brandedFileRouteHref: Route.HrefOptions<typeof BrandedFileRoutePreloadHelperRoute> = {

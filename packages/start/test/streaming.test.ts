@@ -451,6 +451,7 @@ describe("Start streaming", () => {
                 chunkCount: 1
               },
               status: "failure",
+              failureKind: "transport",
               teardownReason: "stream-error"
             }
           ]);
@@ -528,6 +529,7 @@ describe("Start streaming", () => {
                 failurePhase: "Chunk"
               },
               status: "failure",
+              failureKind: "domain",
               teardownReason: "stream-error",
               failurePhase: "Chunk"
             }

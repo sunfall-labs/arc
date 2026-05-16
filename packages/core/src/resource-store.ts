@@ -200,8 +200,8 @@ export class ResourceStoreDisposeError extends Data.TaggedError("ResourceStoreDi
 
 /** Store-local module state registered by Resource runtime helpers. */
 export interface ResourceStoreModule {
-  /** Optional cleanup work run when the Resource Store is disposed. */
-  readonly disposeEffect?: Effect.Effect<void, ResourceStoreDisposeError>;
+  /** Optional module-local cleanup work run when the Resource Store is disposed. */
+  readonly disposeEffect?: Effect.Effect<void, unknown>;
 }
 
 /** @internal Creates an empty mutable Resource Store implementation. */

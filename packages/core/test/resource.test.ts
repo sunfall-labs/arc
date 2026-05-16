@@ -1,6 +1,7 @@
 import { Clock, Deferred, Effect, Exit, Fiber, Layer, Option, PubSub, Request, RequestResolver, Schedule, Schema } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import {
+  EffectInputPromiseRejected,
   makeRuntime,
   read,
   Resource,
@@ -1227,6 +1228,29 @@ describe("Resource", () => {
         EffectInputCallbackError
       );
     }
+  });
+
+  it("captures erased Promise-shaped resource loader returns as failures instead of leaving pending state", async () => {
+    const User = Resource.family({
+      name: "User.promise-loader-erased",
+      load: (_id: string) => Promise.resolve({ id: "promise" }) as never
+    });
+    const ref = User("1");
+
+    await expect(Effect.runPromise(Resource.prefetchEffect(ref))).rejects.toMatchObject({
+      _tag: "EffectInputCallbackError",
+      operation: "Resource.load(User.promise-loader-erased)",
+      cause: expect.any(EffectInputPromiseRejected)
+    });
+
+    expect(() => read(ref)).toThrow(ResourceFailure);
+    const status = Resource.status(ref);
+    expect(status).toMatchObject({
+      _tag: "Failure",
+      isFailure: true,
+      isPending: false
+    });
+    expect(status.error).toBeInstanceOf(EffectInputCallbackError);
   });
 
   it("captures synchronous resource provides throws in the Effect error channel", async () => {

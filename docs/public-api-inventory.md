@@ -420,9 +420,11 @@ The root export includes:
   guard, layout/error/metadata companion maps, and href option maps.
 - File-route authoring helpers: `defineFileRoute`,
   `DefineFileRouteBuilder`, `FileRoutePreloadResource`, and
-  `FileRoutePreloadOptions`. The builder keeps schema params/search, resource
-  preload selectors, collection preload metadata, and custom preload Effects in
-  one route-local API. `defineFileRoute(path).preload(...).route(...)` is the
+  `FileRoutePreloadOptions`. `FileRoutePreloadRouteOptions` is the route-option
+  shape accepted after preload-owned params/search/preload metadata are fixed by
+  the builder. The builder keeps schema params/search, resource preload
+  selectors, collection preload metadata, and custom preload Effects in one
+  route-local API. `defineFileRoute(path).preload(...).route(...)` is the
   spread-free authoring path; the preload object remains spreadable for existing
   modules. Collection preload metadata accepts concrete definitions or stable
   collection names; request preload and hydration resolve those names through

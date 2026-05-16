@@ -19,6 +19,7 @@ import type {
 } from "./start-app-graph-diagnostics-policy.js";
 import {
   defaultServerEntry,
+  normalizeStartManifestIterableOptions,
   withDiscoveredFileRoutes,
   type EffectUiStartOptions
 } from "./start-manifest-wall.js";
@@ -91,13 +92,14 @@ interface EffectUiStartVirtualModulesPlugin {
   readonly load: (id: string) => string | null;
 }
 
-const effectUiStartVirtualModules = (
+export const effectUiStartVirtualModules = (
   options: EffectUiStartOptions = {}
 ): EffectUiStartVirtualModulesPlugin => {
-  const serverEntry = options.serverEntry ?? defaultServerEntry;
+  const normalizedOptions = normalizeStartManifestIterableOptions(options);
+  const serverEntry = normalizedOptions.serverEntry ?? defaultServerEntry;
   let viteRoot = process.cwd();
   const currentOptions = (): EffectUiStartOptions =>
-    withDiscoveredFileRoutes({ ...options, serverEntry }, viteRoot);
+    withDiscoveredFileRoutes({ ...normalizedOptions, serverEntry }, viteRoot);
 
   return {
     name: "effect-ui-start-virtual-modules",

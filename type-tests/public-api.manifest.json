@@ -242,6 +242,7 @@
         "FileRouteDefinitionsModuleOptions",
         "FileRouteManifest",
         "FileRouteModuleReference",
+        "FileRoutePreloadRouteOptions",
         "GeneratedFileRouteDefinitionsModuleOptions",
         "ServerFunctionClientReference",
         "ServerFunctionManifest",

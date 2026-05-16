@@ -8,6 +8,7 @@ import {
 } from "./hydration.js";
 import type { StartRenderHydrationPlan } from "./render-hydration-plan.js";
 import type {
+  StartRequestTraceFailureKind,
   StartRequestTraceStatus,
   StartRequestTraceStream
 } from "./request-trace.js";
@@ -97,6 +98,8 @@ export interface StartResponseStreamFinalizeEvent {
   readonly stream: StartRequestTraceStream;
   /** Final request status implied by stream close, error, or cancellation. */
   readonly status: StartRequestTraceStatus;
+  /** Failure category when the stream finalized because of an error. */
+  readonly failureKind?: StartRequestTraceFailureKind;
   /** Stable teardown reason such as `stream-close`, `stream-error`, or a cancel reason. */
   readonly teardownReason: string;
   /** Failed Start stream phase when the underlying body error is a `StartStreamError`. */
@@ -203,6 +206,9 @@ const startStreamFailurePhase = (cause: unknown): StartStreamPhase | undefined =
   cause instanceof StartStreamError
     ? cause.reason
     : undefined;
+
+const startStreamFailureKind = (cause: unknown): StartRequestTraceFailureKind =>
+  cause instanceof StartStreamError ? "domain" : "transport";
 
 /** Creates a typed HTML text chunk. */
 export const htmlChunk = (html: string): HtmlStreamChunk => ({
@@ -576,6 +582,7 @@ export const responseWithStreamFinalizer = (
                   ...(failurePhase === undefined ? {} : { failurePhase })
                 },
                 status: "failure",
+                failureKind: startStreamFailureKind(cause),
                 teardownReason: "stream-error",
                 ...(failurePhase === undefined ? {} : { failurePhase })
               });

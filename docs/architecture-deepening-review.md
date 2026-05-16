@@ -11,13 +11,14 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review194, the post-Review193 sweep
-fixing typed runtime disposal, Resource read/ref depth, Resource retry callback
-locality, Start Vite/action LSP docs, and current-gate docs drift. The newest
-full verification checkpoint is Review194. Clean Sweep 1 after Review190 remains
-historical evidence, but later sweeps found Review191, Review192, Review193, and
-Review194 work, so the active Thirty-Sweep clean counter is 0/30 until a fresh
-post-Review194 sweep reports no actionable findings. Some older review entries
+The newest completed focused review is Review195, the post-Review194 sweep
+fixing erased Promise-shaped Resource loads, Resource Store module finalizer
+typing, Start diagnostics virtual-module iterable normalization, request-trace
+failure-kind classification, and file-route LSP/example drift. The newest full
+verification checkpoint is Review195. Clean Sweep 1 after Review190 remains
+historical evidence, but later sweeps found Review191, Review192, Review193,
+Review194, and Review195 work, so the active Thirty-Sweep clean counter is 0/30
+until a fresh post-Review195 sweep reports no actionable findings. Some older review entries
 remain below this tip from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
 
@@ -35,8 +36,89 @@ Interface, Seam, Adapter, Locality, Depth, Leverage, typed error, or docs drift
 work, creating Clean Sweep 1. The next Clean Sweep 2 candidate found Review191
 work. The first post-Review191 sweep found Review192 docs drift, the first
 post-Review192 sweep found Review193 Core/Start/DB/public docs work, and the
-first post-Review193 sweep found Review194 Core/Start/docs work, so the counter
-is no longer active until the post-Review194 sweep is clean.
+first post-Review193 sweep found Review194 Core/Start/docs work. The first
+post-Review194 sweep found Review195 Core/Start/example/docs work, so the
+counter is no longer active until the post-Review195 sweep is clean.
+
+## Review 195: Resource Guardrails, Start Diagnostics, And File-Route Examples
+
+Review195 fixed actionable findings from the fresh post-Review194 subagent
+sweep.
+
+1. Resource Runtime Guardrails And Store Finalizer Typing
+   - Status: fixed.
+   - Files: `packages/core/src/resource-runtime.ts`,
+     `packages/core/src/resource-store.ts`,
+     `packages/core/test/resource.test.ts`,
+     `type-tests/core.test-d.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: erased JavaScript or `any` casts could return a Promise-shaped
+     value from `Resource.load(...)`; the shared `EffectInput` guard died after
+     the resource had been marked pending, bypassing the resource failure state.
+     `ResourceStoreModule.disposeEffect` also required module authors to pre-wrap
+     cleanup failures in the aggregate `ResourceStoreDisposeError` type owned by
+     store disposal.
+   - Fix: Resource loads now recover only the controlled
+     `EffectInputPromiseRejected` defect and turn it into a typed
+     `EffectInputCallbackError`, so the resource state machine records a
+     failure and publishes normal failure state. Resource Store modules may fail
+     with module-local errors while `disposeResourceStoreEffect(...)` remains the
+     wrapper that reports `ResourceStoreDisposeError`.
+   - Benefits: erased Promise-shaped load mistakes no longer leave resources
+     visibly pending, and cleanup ownership is modeled at the correct depth.
+
+2. Start Diagnostics Virtual Modules And Request Trace Failure Kinds
+   - Status: fixed.
+   - Files: `packages/start/src/start-vite-diagnostics-loader.ts`,
+     `packages/start/src/request-runtime-lifecycle.ts`,
+     `packages/start/src/request-runtime-response.ts`,
+     `packages/start/src/streaming.ts`,
+     `packages/start/test/start.test.ts`,
+     `packages/start/test/streaming.test.ts`.
+   - Problem: the diagnostics virtual-module plugin accepted one-shot manifest
+     iterables without materializing them at plugin creation, unlike the main
+     Vite plugin. SSR render failures and streamed response failures could also
+     emit failed traces without the documented `failureKind`.
+   - Fix: diagnostics virtual modules now normalize manifest iterables once at
+     the plugin seam, request-runtime failures classify domain/interruption/
+     defect causes, and streamed response failures classify Start stream errors
+     as domain failures and host stream errors as transport failures.
+   - Benefits: diagnostics module reloads stay deterministic for one-shot
+     manifest inputs, and failed request traces carry the classification agents
+     and dashboards expect.
+
+3. File-Route Builder LSP And Starter Examples
+   - Status: fixed.
+   - Files: `packages/start/src/file-route.ts`,
+     `examples/basic-starter/src/routes/index.ts`,
+     `examples/react-starter/src/routes/index.ts`,
+     `examples/project-console/src/routes/projects/$id.ts`,
+     `scripts/public-api-symbol-policy.mjs`,
+     `type-tests/start.test-d.ts`,
+     `type-tests/public-api.manifest.json`,
+     `type-tests/framework.test-d.ts`,
+     `docs/public-api-inventory.md`.
+   - Problem: public docs described
+     `defineFileRoute(path).preload(...).route(...)` as the current spread-free
+     API, but JSDoc and starters still showed the older spread compatibility
+     idiom. `FileRoutePreloadRouteOptions` was public but lacked hover-doc
+     policy coverage.
+   - Fix: updated the JSDoc example, starters, and type-test examples to use
+     the chained builder API, documented `FileRoutePreloadRouteOptions`, and
+     added it to the LSP hover-doc/type-test policy.
+   - Benefits: new users copying starters or reading hover docs now see the
+     current ergonomic file-route authoring path.
+
+Focused evidence for this pass: Core/Start package typechecks, public type
+tests, focused Resource/Resource Store regressions, focused Start diagnostics
+and trace regressions, basic-starter/react-starter/project-console typechecks,
+public API audit, Effect-first audit, and `git diff --check` passed. Full
+`pnpm verify` passed after Review195 with 11 package builds, workspace
+typecheck, public type tests, public API audit, Effect-first audit over 404
+files, 53 root test files / 1040 tests, package-level verifies, generated
+starter packaging, the 16-target package dry-run gate, project-console checks,
+and leak scans. Because this sweep found work, the active clean counter remains
+0/30.
 
 ## Review 194: Typed Runtime Disposal, Resource Read Depth, And Start LSP Pins
 
