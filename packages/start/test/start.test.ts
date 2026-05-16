@@ -36,6 +36,9 @@ import {
   streamHydrationConsumedAttribute,
   streamHydrationSequenceAttribute,
   startRequestIdHeader,
+  startTransportKindHeader,
+  startTransportProtocolHeader,
+  startTransportProtocolVersion,
   startActionForm,
   startActionInputField,
   StartHydrationChunkParseError,
@@ -2163,6 +2166,94 @@ describe("Effect UI Start", () => {
     });
     expect(response.headers.get("x-effect-ui-rpc-context")).toBe("yes");
     expect(response.headers.getSetCookie()).toEqual(["rpc=ada; Path=/rpc"]);
+  });
+
+  it("finalizes transport diagnostics after ResponseContext headers", async () => {
+    const SpoofRpc = Server.contract<{ readonly value: string }, { readonly value: string }>(
+      "Start.echo.transport-diagnostics",
+      {
+        input: Schema.Struct({ value: Schema.String }),
+        output: Schema.Struct({ value: Schema.String })
+      }
+    );
+    const spoofRpc = Server.implement(SpoofRpc, ({ value }) =>
+      ResponseContext.use((response) =>
+        Effect.gen(function* () {
+          yield* response.setHeader(startRequestIdHeader, "spoofed-rpc");
+          yield* response.setHeader(startTransportKindHeader, "spoofed-rpc");
+          yield* response.setHeader(startTransportProtocolHeader, "spoofed-rpc");
+          return { value: value.toUpperCase() };
+        })
+      )
+    );
+    const SpoofAction = Action.define<{ readonly value: string }, { readonly value: string }>({
+      name: "Start.action.transport-diagnostics",
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+      run: ({ value }) =>
+        ResponseContext.use((response) =>
+          Effect.gen(function* () {
+            yield* response.setHeader(startRequestIdHeader, "spoofed-action");
+            yield* response.setHeader(startTransportKindHeader, "spoofed-action");
+            yield* response.setHeader(startTransportProtocolHeader, "spoofed-action");
+            return { value: value.toUpperCase() };
+          })
+        )
+    });
+    const app = defineApp({
+      routes: [route("/", {})] as const,
+      client: {}
+    });
+
+    const rpcResponse = await Effect.runPromise(
+      createServerRpcResponseEffect(
+        app,
+        new Request(`https://example.com${serverRpcPath}`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            [startRequestIdHeader]: "req-rpc-authoritative"
+          },
+          body: JSON.stringify({
+            name: spoofRpc.name,
+            input: { value: "ada" }
+          })
+        })
+      )
+    );
+    const actionResponse = await Effect.runPromise(
+      createServerActionResponseEffect(
+        app,
+        new Request(`https://example.com${serverActionPath}`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            [startRequestIdHeader]: "req-action-authoritative"
+          },
+          body: JSON.stringify({
+            name: SpoofAction.name,
+            input: { value: "grace" }
+          })
+        }),
+        [SpoofAction]
+      )
+    );
+
+    await expect(rpcResponse.json()).resolves.toEqual({
+      _tag: "Success",
+      value: { value: "ADA" }
+    });
+    expect(rpcResponse.headers.get(startRequestIdHeader)).toBe("req-rpc-authoritative");
+    expect(rpcResponse.headers.get(startTransportKindHeader)).toBe("rpc");
+    expect(rpcResponse.headers.get(startTransportProtocolHeader)).toBe(startTransportProtocolVersion);
+
+    await expect(actionResponse.json()).resolves.toEqual({
+      _tag: "Success",
+      value: { value: "GRACE" }
+    });
+    expect(actionResponse.headers.get(startRequestIdHeader)).toBe("req-action-authoritative");
+    expect(actionResponse.headers.get(startTransportKindHeader)).toBe("action");
+    expect(actionResponse.headers.get(startTransportProtocolHeader)).toBe(startTransportProtocolVersion);
   });
 
   it("maps non-JSON-safe RPC and action response bodies to defect responses", async () => {

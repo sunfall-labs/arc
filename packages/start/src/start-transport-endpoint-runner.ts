@@ -5,7 +5,13 @@ import {
 } from "@effect-ui/core";
 import { Effect, type Scope } from "effect";
 import {
+  startBaggageHeader,
+  startRequestIdHeader,
+  startTraceparentHeader,
+  startTransportKindHeader,
+  startTransportProtocolHeader,
   startTransportEndpointEnvelopeEffect,
+  type StartTransportDiagnostics,
   type StartTransportRequestError,
   withStartTransportDiagnostics
 } from "./rpc.js";
@@ -26,6 +32,25 @@ interface StartTransportEndpointRunnerAdapter<Requirements> {
   readonly run: () => Effect.Effect<Response, unknown, Requirements>;
   readonly runtimeFailureResponse: (error: unknown) => Response;
 }
+
+const setResponseContextTransportDiagnosticsEffect = (
+  responseContext: ResponseContext,
+  diagnostics: StartTransportDiagnostics
+): Effect.Effect<void> =>
+  Effect.all(
+    [
+      responseContext.setHeader(startRequestIdHeader, diagnostics.requestId),
+      responseContext.setHeader(startTransportKindHeader, diagnostics.kind),
+      responseContext.setHeader(startTransportProtocolHeader, diagnostics.protocolVersion),
+      ...(diagnostics.traceparent === undefined
+        ? []
+        : [responseContext.setHeader(startTraceparentHeader, diagnostics.traceparent)]),
+      ...(diagnostics.baggage === undefined
+        ? []
+        : [responseContext.setHeader(startBaggageHeader, diagnostics.baggage)])
+    ],
+    { discard: true }
+  ).pipe(Effect.orDie);
 
 export const runStartTransportEndpointEffect = <RuntimeServices, RuntimeError, Requirements>(
   options: {
@@ -66,6 +91,11 @@ export const runStartTransportEndpointEffect = <RuntimeServices, RuntimeError, R
       options.responseContext,
       options.registry
     ).pipe(
+      Effect.flatMap((response) =>
+        setResponseContextTransportDiagnosticsEffect(options.responseContext, diagnostics).pipe(
+          Effect.as(response)
+        )
+      ),
       Effect.catch((error) =>
         Effect.sync(() => {
           recordStartRequestTraceFailure(options.traceFacts, "defect");
