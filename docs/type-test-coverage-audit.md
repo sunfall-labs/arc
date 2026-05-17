@@ -11,6 +11,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
   change: it fixes generated Start route artifact formatting and package
   dry-run Locality, while existing route helper and metadata snapshots pin the
   emitted public types. The active clean counter holds at 11/30 after Review512.
+- Clean Sweep 12 after Review512 found no actionable public type-test
+  follow-up: current package-root, DB-family, lazy route, and Start trace pins
+  still cover the public Interfaces exposed to callers and LSP, moving the
+  active clean counter to 12/30.
 - Clean Sweep 8 after Review511 found no actionable public type-test follow-up:
   current package-root, DB-family, lazy route, and Start trace pins still cover
   the public Interfaces exposed to callers and LSP.

@@ -795,7 +795,9 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     leaving the active counter at 9/30. Clean Sweep 10 after Review511 found
     no actionable follow-up, leaving the active counter at 10/30. Clean Sweep
     11 after Review511 found no actionable follow-up, leaving the active
-    counter at 11/30.
+    counter at 11/30. Review512 fixed small generated-artifact gate hygiene
+    without resetting the counter, and Clean Sweep 12 after Review512 found no
+    actionable follow-up, leaving the active counter at 12/30.
     Latest full evidence:
     `pnpm verify` ran after Review 492 with 58 root
     test files / 1223
@@ -979,7 +981,9 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     leaving the active counter at 9/30. Clean Sweep 10 after Review511 found
     no actionable follow-up, leaving the active counter at 10/30. Clean Sweep
     11 after Review511 found no actionable follow-up, leaving the active
-    counter at 11/30.
+    counter at 11/30. Review512 fixed small generated-artifact gate hygiene
+    without resetting the counter, and Clean Sweep 12 after Review512 found no
+    actionable follow-up, leaving the active counter at 12/30.
     Review492 records the latest
     full gate. Clean
     Sweep 1 after
@@ -1085,7 +1089,10 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     actionable follow-up, leaving the active counter at 9/30. Clean Sweep 10
     after Review511 found no actionable follow-up, leaving the active counter
     at 10/30. Clean Sweep 11 after Review511 found no actionable follow-up,
-    leaving the active counter at 11/30.
+    leaving the active counter at 11/30. Review512 fixed small
+    generated-artifact gate hygiene without resetting the counter, and Clean
+    Sweep 12 after Review512 found no actionable follow-up, leaving the active
+    counter at 12/30.
     Full verification is recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items

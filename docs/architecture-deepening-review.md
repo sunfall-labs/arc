@@ -17,6 +17,7 @@ formatter-stable and hardens source package dry-run verification. Clean Sweep 7
 after Review510 remains historical no-actionable evidence, and Clean Sweep 8
 after Review511, Clean Sweep 9 after Review511, Clean Sweep 10 after Review511,
 and Clean Sweep 11 after Review511 remain the latest no-actionable sweeps.
+Clean Sweep 12 after Review512 is the newest no-actionable sweep.
 The newest full verification checkpoint is Review492.
 Clean Sweep 1 after
 Review208 remains historical 1/30
@@ -120,7 +121,11 @@ Start/docs/package, and evidence lanes, creating Clean Sweep 11 after Review511,
 so the active Thirty-Sweep clean counter is 11/30 after Clean Sweep 11 after
 Review511. Review512 fixed small generated-artifact gate hygiene without
 resetting the counter, so the active Thirty-Sweep clean counter holds at 11/30
-after Review512 until the next no-actionable sweep advances it. Clean Sweep 1 after
+after Review512 until the next no-actionable sweep advances it. The fresh
+post-Review512 sweep found no actionable work across Core/React/Solid,
+DB/public API, Start/docs/package, and evidence lanes, creating Clean Sweep 12
+after Review512, so the active Thirty-Sweep clean counter is 12/30 after Clean
+Sweep 12 after Review512. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
@@ -604,6 +609,20 @@ and `git diff --check` passing across the reported evidence.
 
 At the Clean Sweep 11 after Review511 checkpoint, the Thirty-Sweep clean
 counter reached 11/30. The next sweep must still run; if it finds substantial
+architecture work, the counter may reset. Tiny mechanical gate-hygiene fixes do
+not reset the counter.
+
+## Clean Sweep 12 After Review512
+
+The fresh post-Review512 sweep found no actionable findings across the current
+review lanes. Core/React/Solid, DB-family, and Start/docs/package lanes all
+reported clean, with public type tests, public API audit, Effect-first audit,
+package dry-run verification, route module tests, file route tests, DB-family
+tests, Core/React/Solid router tests, package typechecks, formatting, lint,
+and `git diff --check` passing across the reported evidence.
+
+At the Clean Sweep 12 after Review512 checkpoint, the Thirty-Sweep clean
+counter reached 12/30. The next sweep must still run; if it finds substantial
 architecture work, the counter may reset. Tiny mechanical gate-hygiene fixes do
 not reset the counter.
 

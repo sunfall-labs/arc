@@ -24,6 +24,11 @@ interruption.
   route definition generation remains synchronous, and the source package
   dry-run guard uses the existing Effect script Adapter around filesystem reads.
   The active clean counter holds at 11/30 after Review512.
+- Clean Sweep 12 after Review512 found no actionable Effect-first follow-up:
+  Core/React/Solid, DB/React-DB/Solid-DB, Start/docs/package, generated
+  artifacts, and evidence lanes preserved Effect-returning public Interfaces
+  and explicit host-boundary Promise allowances, moving the active clean
+  counter to 12/30.
 - Clean Sweep 8 after Review511 found no actionable Effect-first follow-up:
   Core/React/Solid, DB/React-DB/Solid-DB, Start/docs/package, generated
   artifacts, and evidence lanes preserved Effect-returning public Interfaces
