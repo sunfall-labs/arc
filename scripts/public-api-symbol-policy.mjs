@@ -1413,8 +1413,8 @@ export const namespaceBackedSurfaceModules = new Map([
 ]);
 
 export const currentDocsEvidencePolicy = {
-  latestFocusedReview: 502,
-  latestFocusedTitle: "Start Action Trace Invalidation Hover",
+  latestFocusedReview: 503,
+  latestFocusedTitle: "React Solid DB Live Query Handle Hovers",
   latestFullGateReview: 492,
   rootTestFiles: 58,
   rootTestCount: 1223,
@@ -1737,7 +1737,7 @@ export const currentDocsTextPolicies = [
       {
         name: "Ultimate goal checklist must pin latest focused verification subsection",
         pattern: new RegExp(
-          `Latest focused verification recorded\\.[\\s\\S]*?Evidence: Review ${currentDocsEvidencePolicy.latestFocusedReview} records[\\s\\S]*?Start\\s+action\\s+trace\\s+invalidation\\s+hover findings`,
+          `Latest focused verification recorded\\.[\\s\\S]*?Evidence: Review ${currentDocsEvidencePolicy.latestFocusedReview} records[\\s\\S]*?React\\s+DB\\s+and\\s+Solid\\s+DB\\s+live\\s+query\\s+handle\\s+hover findings`,
         ),
       },
       {

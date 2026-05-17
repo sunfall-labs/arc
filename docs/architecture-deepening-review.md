@@ -11,11 +11,9 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review502 Start Action Trace Invalidation Hover,
-the post-Review501 follow-up that aligns the LSP-facing
-`StartRequestTraceAction.invalidationIndexes` docs with the Review501
-implementation: indexes refer to invalidation metadata entries, not to a
-separate payload field.
+The newest focused review is Review503 React Solid DB Live Query Handle Hovers,
+the post-Review502 follow-up that adds member-level LSP docs to the public React
+DB and Solid DB `LiveQueryHandle` Interfaces.
 The newest full verification checkpoint is Review492.
 Clean Sweep 1 after
 Review208 remains historical 1/30
@@ -62,9 +60,9 @@ the fresh post-Review495 sweep found Review496 work, the fresh
 post-Review496 sweep found Review497 work, the fresh post-Review497 sweep
 found Review498 work, the fresh post-Review498 sweep found Review499 work, the
 fresh post-Review499 sweep found Review500 work, the fresh post-Review500
-sweep found Review501 work, and the fresh post-Review501 sweep found Review502
-work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review502
+sweep found Review501 work, the fresh post-Review501 sweep found Review502
+work, and the fresh post-Review502 sweep found Review503 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review503
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -79,7 +77,7 @@ work, Review240 work, Review241 work, Review242 work, Review243 work,
 Review244 work, Review245 work, Review246 work, Review247 work, Review490
 work, Review491 work, Review492 work, Review493 work, Review494 work,
 Review495 work, Review496 work, Review497 work, Review498 work, Review499
-work, Review500 work, Review501 work, and Review502 work.
+work, Review500 work, Review501 work, Review502 work, and Review503 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -209,7 +207,28 @@ and the fresh post-Review500 sweep found Review501 Start action trace
 invalidation and manifest pin work,
 and the fresh post-Review501 sweep found Review502 Start action trace
 invalidation hover work,
+and the fresh post-Review502 DB adapter sweep found Review503 React/Solid DB
+live query handle hover work,
 so the counter remains 0/30.
+
+## Review 503: React Solid DB Live Query Handle Hovers
+
+Review503 fixes the actionable finding from the fresh post-Review502 DB adapter
+LSP/docs sweep.
+
+1. React And Solid DB Live Query Handle Hovers
+   - Status: fixed.
+   - Files: `packages/react-db/src/live-query.ts` and
+     `packages/solid-db/src/live-query.ts`.
+   - Problem: public `LiveQueryHandle` members had no member JSDoc while
+     `CollectionHandle` did, making the React DB and Solid DB Adapter
+     Interfaces shallower for LSP consumers.
+   - Solution: added hover docs for `data`, `state`, `waiting`, `error`,
+     `preloadFailure`, `preloadEffect()`, and `refetchEffect()` in both
+     adapters.
+   - Benefits: callers can understand live query state, preload failure
+     semantics, and runtime-bound Effect operations at the Interface Seam,
+     improving Leverage and Locality without changing Implementation behavior.
 
 ## Review 502: Start Action Trace Invalidation Hover
 

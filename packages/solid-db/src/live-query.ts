@@ -40,12 +40,19 @@ export interface UseLiveQueryOptions<E = never, ER = never> {
  * factory also reads Solid signals that should rebuild the query.
  */
 export interface LiveQueryHandle<T, E = never, ER = never> {
+  /** Current live query rows from the nearest Solid runtime. */
   readonly data: Accessor<ReadonlyArray<T>>;
+  /** Current live query evaluation state, including source preload and query failures. */
   readonly state: Accessor<LiveQueryState<T, E | QueryEvaluationError>>;
+  /** True while any query source is preloading or the query is refetching. */
   readonly waiting: Accessor<boolean>;
+  /** Latest query evaluation or source preload failure, when the state is `Failure`. */
   readonly error: Accessor<E | QueryEvaluationError | undefined>;
+  /** Failure captured from the automatic mount-time source preload, if enabled. */
   readonly preloadFailure: Accessor<E | QueryEvaluationError | ER | undefined>;
+  /** Ensure all query sources have loaded inside the nearest Solid runtime. */
   preloadEffect(): Effect.Effect<void, E | QueryEvaluationError | ER>;
+  /** Force a fresh source preload and live query evaluation inside the Solid runtime. */
   refetchEffect(): Effect.Effect<void, E | QueryEvaluationError | ER>;
 }
 

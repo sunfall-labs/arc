@@ -20,6 +20,9 @@ interruption.
 
 ## Current Sweep Results
 
+- Review503 React Solid DB Live Query Handle Hovers is an LSP-facing adapter
+  docs fix: React DB and Solid DB live query handle hovers now describe
+  runtime-bound Effect operations and add no Promise surface.
 - Review502 Start Action Trace Invalidation Hover is an LSP-facing docs fix:
   the request trace action hover now matches the Review501 Effect-first
   Implementation and adds no Promise surface.

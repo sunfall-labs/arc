@@ -211,6 +211,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
 - Review502 Start Action Trace Invalidation Hover changes public hover copy
   only; it adds no new type-test contract and keeps the Review501 Start root
   manifest pins current.
+- Review503 React Solid DB Live Query Handle Hovers changes public adapter
+  hover copy only; it adds no new type-test contract and keeps the existing
+  React DB/Solid DB live-query handle type pins current.
 - Review500 Devtools Trace Docs And Lint Evidence changes public hover copy and
   script lint hygiene only; it adds no new type-test contract and keeps the
   Review499 request metrics evidence current.
