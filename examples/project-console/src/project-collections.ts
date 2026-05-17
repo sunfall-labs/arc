@@ -1,10 +1,10 @@
-import { Action, ActionResult, Server } from "@effect-ui/core";
+import { Action, ActionResult, Server } from "@sunfall/arc-core";
 import {
   Collection,
   CollectionRowKeyChanged,
   CollectionRowNotFound,
   CollectionSnapshotCodecError,
-} from "@effect-ui/db";
+} from "@sunfall/arc-db";
 import { Effect, Schedule, Schema } from "effect";
 import {
   ProjectApi,

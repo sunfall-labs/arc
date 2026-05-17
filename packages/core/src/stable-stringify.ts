@@ -33,7 +33,7 @@ const circularDataGuidance =
   "Break cycles before using values as stable keys, or provide an explicit key function.";
 const unsupportedValueGuidance =
   "Use JSON-compatible data plus Date, URL, Map, Set, ArrayBuffer, typed arrays, bigint, undefined, and finite or tagged non-finite numbers for stable keys.";
-const stableMarker = "$effectUiStableStringify";
+const stableMarker = "$sunfallArcStableStringify";
 
 type StableMarkerTag =
   | "ArrayBuffer"

@@ -1,5 +1,5 @@
 import { Effect, PubSub, Scope } from "effect";
-import type { AnyEffectUiRuntime, EffectInput, EffectInputCallbackError } from "@effect-ui/core";
+import type { AnySunfallArcRuntime, EffectInput, EffectInputCallbackError } from "@sunfall/arc-core";
 import {
   Collection,
   Query,
@@ -93,9 +93,9 @@ import {
   type SQLitePreparedStatementDatabase,
   type SQLitePersistenceRow,
   type SQLiteStatementDatabase,
-} from "@effect-ui/db";
+} from "@sunfall/arc-db";
 // @ts-expect-error QueryBuilder construction is internal; use Query.from(...) and Query.Builder.
-import { QueryBuilder } from "@effect-ui/db";
+import { QueryBuilder } from "@sunfall/arc-db";
 void QueryBuilder;
 
 interface Project {
@@ -205,7 +205,7 @@ const collectionSqliteStorage = Collection.sqliteStorage(
   Collection.sqliteStatementDriver(collectionSqliteMemoryDatabase),
 );
 const sqliteDefaultTable: "effect_ui_collection_persistence" = SQLITE_PERSISTENCE_DEFAULT_TABLE;
-const sqliteDefaultNamespace: "effect-ui:collections" = SQLITE_PERSISTENCE_DEFAULT_NAMESPACE;
+const sqliteDefaultNamespace: "sunfall-arc:collections" = SQLITE_PERSISTENCE_DEFAULT_NAMESPACE;
 const sqliteDefaultSchemaVersion: 1 = SQLITE_PERSISTENCE_DEFAULT_SCHEMA_VERSION;
 const sqliteRow: SQLitePersistenceRow = {
   namespace: "workspace",
@@ -322,7 +322,7 @@ void directQueryAggregateRecord;
 void directQueryAggregateResult;
 publicQueryRoot.from({ project: dbStaticProjectsCollection });
 const collectionReactivePreloadController = makeCollectionReactivePreloadController({
-  runtime: null as unknown as AnyEffectUiRuntime<never>,
+  runtime: null as unknown as AnySunfallArcRuntime<never>,
   onSuccess: () => Effect.void,
   onFailure: () => Effect.void,
 });

@@ -1,4 +1,4 @@
-import { Resource } from "@effect-ui/core";
+import { Resource } from "@sunfall/arc-core";
 import { Effect, Schema } from "effect";
 
 export const StarterWelcome = Schema.Struct({
@@ -19,4 +19,4 @@ export const WelcomeResource = Resource.family({
     }),
 });
 
-export const WelcomeRef = WelcomeResource("Effect UI");
+export const WelcomeRef = WelcomeResource("Sunfall Arc");

@@ -519,7 +519,7 @@ describe("Server", () => {
       ResponseContext.use((response) =>
         Effect.gen(function* () {
           yield* response.setStatus(202, "Accepted");
-          yield* response.setHeader("x-effect-ui-route", "response-context");
+          yield* response.setHeader("x-sunfall-arc-route", "response-context");
           yield* response.setCookie("session", "abc123", {
             httpOnly: true,
             path: "/",
@@ -541,7 +541,7 @@ describe("Server", () => {
         yield* Effect.sync(() => {
           expect(response.status).toBe(202);
           expect(response.statusText).toBe("Accepted");
-          expect(response.headers.get("x-effect-ui-route")).toBe("response-context");
+          expect(response.headers.get("x-sunfall-arc-route")).toBe("response-context");
           expect(response.headers.getSetCookie()).toEqual([
             "session=abc123; Path=/; HttpOnly; SameSite=Lax",
           ]);

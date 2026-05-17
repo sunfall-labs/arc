@@ -1,5 +1,5 @@
 {
-  "name": "@effect-ui/core",
+  "name": "@sunfall/arc-core",
   "version": "0.0.0-alpha.0",
   "description": "Effect-first UI runtime primitives for resources, actions, routes, forms, capabilities, and server contracts.",
   "license": "MIT",

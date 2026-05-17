@@ -1,4 +1,4 @@
-import { Capability, Resource, Server } from "@effect-ui/core";
+import { Capability, Resource, Server } from "@sunfall/arc-core";
 import { Effect, Schema } from "effect";
 import {
   getRecipe,
@@ -38,7 +38,7 @@ export interface DocsContentApi {
 }
 
 export const DocsContentApi = Capability.define<DocsContentApi>(
-  "@effect-ui/example-docs-site/DocsContentApi",
+  "@sunfall/arc-example-docs-site/DocsContentApi",
 );
 
 export const DocsContentApiLive = DocsContentApi.layer({

@@ -10,7 +10,7 @@ import {
 
 /** Runtime marker used by `isCapability(...)` to identify Capability definitions. */
 export const CapabilityTypeId: unique symbol = Symbol.for(
-  "@effect-ui/core/Capability",
+  "@sunfall/arc-core/Capability",
 ) as typeof CapabilityTypeId;
 
 /**

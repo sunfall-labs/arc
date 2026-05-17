@@ -3,7 +3,7 @@ import {
   isPromiseLikeValue,
   type PlainValue,
   type ReadableSignal,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Data, Effect } from "effect";
 import { makeLiveQueryState } from "./live-query-state.js";
 import {
@@ -54,7 +54,7 @@ import type {
 } from "./collection-contract.js";
 
 const QueryBuilderTypeId: unique symbol = Symbol.for(
-  "@effect-ui/db/QueryBuilder",
+  "@sunfall/arc-db/QueryBuilder",
 ) as typeof QueryBuilderTypeId;
 
 /**

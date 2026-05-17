@@ -50,7 +50,7 @@ const nonzeroExitSelfTest = Effect.gen(function* () {
 });
 
 const spawnFailureSelfTest = Effect.gen(function* () {
-  const missingCommand = `effect-ui-missing-command-${process.pid}`;
+  const missingCommand = `sunfall-arc-missing-command-${process.pid}`;
   const error = yield* Effect.flip(runScriptCommandEffect(missingCommand, []));
 
   yield* assert(

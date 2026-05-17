@@ -5,7 +5,7 @@ import {
   type DevtoolsPanels,
   describeDevtoolsPanels,
   toDevtoolsSerializableValue,
-} from "@effect-ui/devtools";
+} from "@sunfall/arc-devtools";
 import {
   DevtoolsExtensionTransportError,
   readInspectedWindowDevtoolsPayloadEffect,
@@ -13,7 +13,7 @@ import {
   type InspectedWindowEvalOptions,
 } from "./transport.js";
 
-export const panelTitle = "Effect UI Devtools Extension";
+export const panelTitle = "Sunfall Arc Devtools Extension";
 
 const errorDescription = (error: unknown): string => {
   if (error instanceof Error) {

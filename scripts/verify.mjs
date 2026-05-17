@@ -94,10 +94,10 @@ const laneConcurrencyFromCliEffect = (concurrencyOption, env = process.env) => {
     return Effect.succeed(concurrency);
   }
 
-  const envConcurrency = env.EFFECT_UI_VERIFY_CONCURRENCY;
+  const envConcurrency = env.SUNFALL_ARC_VERIFY_CONCURRENCY;
   return envConcurrency === undefined || envConcurrency.trim() === ""
     ? Effect.succeed(4)
-    : parsePositiveConcurrencyEffect(envConcurrency, "EFFECT_UI_VERIFY_CONCURRENCY");
+    : parsePositiveConcurrencyEffect(envConcurrency, "SUNFALL_ARC_VERIFY_CONCURRENCY");
 };
 
 const formatDuration = (startedAt) => {
@@ -186,8 +186,8 @@ const verifyWorkspacePackage = ({ label, packageName }) =>
 const packageStarters = Effect.gen(function* () {
   yield* run("starter package generation", ["starter:package"], {
     env: {
-      EFFECT_UI_VERIFY_FAST_STARTERS: "1",
-      EFFECT_UI_VERIFY_PREBUILT_PACKAGES: "1",
+      SUNFALL_ARC_VERIFY_FAST_STARTERS: "1",
+      SUNFALL_ARC_VERIFY_PREBUILT_PACKAGES: "1",
     },
   });
   yield* run("package dry runs", ["example:pack-dry-run"]);
@@ -195,7 +195,7 @@ const packageStarters = Effect.gen(function* () {
 
 const verifyEffect = (laneConcurrency) =>
   Effect.gen(function* () {
-    console.log(`Effect UI verify running with lane concurrency ${laneConcurrency}.`);
+    console.log(`Sunfall Arc verify running with lane concurrency ${laneConcurrency}.`);
 
     yield* run("package builds", ["build"]);
 
@@ -227,7 +227,7 @@ const verifyEffect = (laneConcurrency) =>
 
 const makeVerifyCommand = (env = process.env) =>
   Command.make(
-    "effect-ui-verify",
+    "sunfall-arc-verify",
     {
       concurrency: Flag.integer("concurrency").pipe(
         Flag.filter(
@@ -244,7 +244,7 @@ const makeVerifyCommand = (env = process.env) =>
         yield* verifyEffect(laneConcurrency);
       }),
   ).pipe(
-    Command.withDescription("Run the full Effect UI verification plan."),
+    Command.withDescription("Run the full Sunfall Arc verification plan."),
     Command.withExamples([
       {
         command: "node scripts/verify.mjs",

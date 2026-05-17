@@ -74,7 +74,7 @@ describe("server function manifest", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const manifest = yield* makeServerFunctionManifest([GetProject, RenameProject], {
-          rpcPath: "/__effect-ui/test-rpc",
+          rpcPath: "/__sunfall-arc/test-rpc",
         });
         const roundTrip = yield* deserializeServerFunctionManifest(
           serializeServerFunctionManifest(manifest),
@@ -88,13 +88,13 @@ describe("server function manifest", () => {
   it("normalizes source server function endpoint paths", () => {
     return Effect.runPromise(
       makeServerFunctionManifest([GetProject], {
-        rpcPath: " /__effect-ui/custom-rpc ",
+        rpcPath: " /__sunfall-arc/custom-rpc ",
       }).pipe(
         Effect.tap((manifest) =>
           Effect.sync(() => {
-            expect(manifest.rpcPath).toBe("/__effect-ui/custom-rpc");
+            expect(manifest.rpcPath).toBe("/__sunfall-arc/custom-rpc");
             expect(manifest.entries[0]?.client).toMatchObject({
-              rpcPath: "/__effect-ui/custom-rpc",
+              rpcPath: "/__sunfall-arc/custom-rpc",
             });
           }),
         ),
@@ -107,7 +107,7 @@ describe("server function manifest", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const exits = yield* Effect.all(
-          ["", "   ", "rpc", "https://example.com/rpc", "/__effect-ui/rpc\r\nx"].map((rpcPath) =>
+          ["", "   ", "rpc", "https://example.com/rpc", "/__sunfall-arc/rpc\r\nx"].map((rpcPath) =>
             Effect.exit(makeServerFunctionManifest([GetProject], { rpcPath })),
           ),
         );
@@ -125,20 +125,20 @@ describe("server function manifest", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const manifest = yield* makeServerFunctionManifest([GetProject], {
-          rpcPath: "/__effect-ui/rpc",
+          rpcPath: "/__sunfall-arc/rpc",
         });
         const serialized = JSON.parse(serializeServerFunctionManifest(manifest)) as {
           rpcPath: string;
           entries: Array<{ client: { rpcPath: string } }>;
         };
-        serialized.rpcPath = " /__effect-ui/serialized-rpc ";
-        serialized.entries[0]!.client.rpcPath = " /__effect-ui/serialized-rpc ";
+        serialized.rpcPath = " /__sunfall-arc/serialized-rpc ";
+        serialized.entries[0]!.client.rpcPath = " /__sunfall-arc/serialized-rpc ";
         const decoded = yield* deserializeServerFunctionManifest(JSON.stringify(serialized));
 
         yield* Effect.sync(() => {
-          expect(decoded.rpcPath).toBe("/__effect-ui/serialized-rpc");
+          expect(decoded.rpcPath).toBe("/__sunfall-arc/serialized-rpc");
           expect(decoded.entries[0]?.client).toMatchObject({
-            rpcPath: "/__effect-ui/serialized-rpc",
+            rpcPath: "/__sunfall-arc/serialized-rpc",
           });
         });
       }),
@@ -162,7 +162,7 @@ describe("server function manifest", () => {
             value.rpcPath = "";
           },
           (value: SerializedServerFunctionManifest) => {
-            value.entries[0]!.client.rpcPath = "/__effect-ui/rpc\nx";
+            value.entries[0]!.client.rpcPath = "/__sunfall-arc/rpc\nx";
           },
           (value: SerializedServerFunctionManifest) => {
             value.entries[0]!.client.rpcPath = "rpc";

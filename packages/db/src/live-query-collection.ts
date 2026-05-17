@@ -1,4 +1,4 @@
-import { runFork } from "@effect-ui/core";
+import { runFork } from "@sunfall/arc-core";
 import { Clock, Effect } from "effect";
 import { CollectionTypeId } from "./collection-ids.js";
 import { ReadonlyCollectionMutation } from "./collection-errors.js";

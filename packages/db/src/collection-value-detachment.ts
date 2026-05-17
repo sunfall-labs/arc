@@ -1,4 +1,4 @@
-import { isEffectLike, isPromiseLikeValue } from "@effect-ui/core";
+import { isEffectLike, isPromiseLikeValue } from "@sunfall/arc-core";
 import { Data } from "effect";
 import type {
   CollectionKey,

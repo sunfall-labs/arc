@@ -1,4 +1,4 @@
-import type { ActionManifestSource, ServerFunctionManifestSource } from "@effect-ui/start";
+import type { ActionManifestSource, ServerFunctionManifestSource } from "@sunfall/arc-start";
 import { SubmitProjectName } from "./domain.js";
 import {
   advanceProject,

@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { effectUiTsrx } from "../src/index.js";
+import { sunfallArcTsrx } from "../src/index.js";
 
-describe("effectUiTsrx", () => {
+describe("sunfallArcTsrx", () => {
   it("keeps dependency discovery policy dev-server scoped before transform plugins", () => {
-    const plugins = effectUiTsrx();
+    const plugins = sunfallArcTsrx();
     const dependencyPolicy = plugins[0] as {
       readonly name: string;
       readonly apply?: string;
@@ -11,7 +11,7 @@ describe("effectUiTsrx", () => {
     };
 
     expect(plugins).toHaveLength(3);
-    expect(dependencyPolicy.name).toBe("effect-ui-tsrx-deps");
+    expect(dependencyPolicy.name).toBe("sunfall-arc-tsrx-deps");
     expect(dependencyPolicy.apply).toBe("serve");
     expect(dependencyPolicy.config?.()).toEqual({
       optimizeDeps: {
@@ -21,7 +21,7 @@ describe("effectUiTsrx", () => {
   });
 
   it("lets callers opt back into Vite dependency discovery", () => {
-    const dependencyPolicy = effectUiTsrx({
+    const dependencyPolicy = sunfallArcTsrx({
       optimizeDeps: {
         noDiscovery: false,
       },

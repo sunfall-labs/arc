@@ -1,6 +1,6 @@
 # Solid And React Adapters
 
-Effect UI keeps Resources, Actions, Programs, Routes, Collections, and runtime
+Sunfall Arc keeps Resources, Actions, Programs, Routes, Collections, and runtime
 ownership in renderer-independent core packages. The Solid and React adapters
 exist to bridge that core model into each renderer's reactivity and lifecycle
 rules.
@@ -18,13 +18,13 @@ Both adapters expose the same golden-path concepts:
   preload integration;
 - collection and live-query handles through the matching DB adapter package.
 
-Use `@effect-ui/solid` with `@effect-ui/solid-db` for Solid apps. Use
-`@effect-ui/react` with `@effect-ui/react-db` for React apps.
+Use `@sunfall/arc-solid` with `@sunfall/arc-solid-db` for Solid apps. Use
+`@sunfall/arc-react` with `@sunfall/arc-react-db` for React apps.
 
 ## React Values
 
 React hooks return direct values because React render already reruns when
-`useSyncExternalStore(...)` observes a changed Effect UI Signal.
+`useSyncExternalStore(...)` observes a changed Sunfall Arc Signal.
 
 ```tsx
 const project = useResource(ProjectById("atlas"));

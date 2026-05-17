@@ -1,6 +1,6 @@
-# Effect UI React Starter
+# Sunfall Arc React Starter
 
-React + Vite starter for Effect UI with Tailwind v4, Base UI, and a
+React + Vite starter for Sunfall Arc with Tailwind v4, Base UI, and a
 shadcn-compatible project shape.
 
 Useful commands:

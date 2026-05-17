@@ -67,7 +67,7 @@ import {
   type MutableResourceStore as ResourceStoreState,
   type ResourceStoreEvent,
 } from "./resource-store.js";
-import { currentOrDefaultRuntime, runFork, type AnyEffectUiRuntime } from "./runtime.js";
+import { currentOrDefaultRuntime, runFork, type AnySunfallArcRuntime } from "./runtime.js";
 import type { ReadableSignal } from "./signal.js";
 import type {
   AnyResourceFamily,
@@ -279,7 +279,7 @@ const peekResourceEntry = <I, A, E, R>(
 ): ResourceEntry<A, ResourceLoadError<E>> | undefined =>
   store.entries.get(ref.family)?.get(ref.key) as ResourceEntry<A, ResourceLoadError<E>> | undefined;
 
-const runtimeCurrentTimeMillis = (runtime: AnyEffectUiRuntime<any>): number => {
+const runtimeCurrentTimeMillis = (runtime: AnySunfallArcRuntime<any>): number => {
   const context = runtime.managed.cachedContext;
   if (context !== undefined) {
     return Context.getReferenceUnsafe(context, Clock.Clock).currentTimeMillisUnsafe();

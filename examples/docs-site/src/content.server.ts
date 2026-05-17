@@ -1,5 +1,5 @@
 import { readFile, readdir } from "node:fs/promises";
-import { Server } from "@effect-ui/core";
+import { Server } from "@sunfall/arc-core";
 import { Effect, Schema } from "effect";
 import {
   GetRecipeContract,

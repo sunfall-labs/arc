@@ -19,13 +19,13 @@ import {
   type ResourceStore as ResourceStoreState,
 } from "./resource-store.js";
 
-/** Runtime Spine brand used to distinguish Effect UI runtimes at host seams. */
+/** Runtime Spine brand used to distinguish Sunfall Arc runtimes at host seams. */
 export const RuntimeTypeId: unique symbol = Symbol.for(
-  "@effect-ui/core/Runtime",
+  "@sunfall/arc-core/Runtime",
 ) as typeof RuntimeTypeId;
 
 type RuntimeManagedBoundary<ER> = ManagedRuntime.ManagedRuntime<any, ER>;
-type CurrentRuntimeBoundary = AnyEffectUiRuntime<any>;
+type CurrentRuntimeBoundary = AnySunfallArcRuntime<any>;
 type RuntimeProvidedRequirements<R> = R | ResourceStoreState;
 type RuntimeRemainingRequirements<RIn, RProvided> = Exclude<
   RIn,
@@ -50,11 +50,11 @@ export class RuntimeDisposeError extends Data.TaggedError("RuntimeDisposeError")
 /**
  * Runtime Spine whose service set is intentionally erased at a host seam.
  *
- * Prefer `EffectUiRuntime<R, ER>` when a function knows the services it needs.
+ * Prefer `SunfallArcRuntime<R, ER>` when a function knows the services it needs.
  * Use this shape for UI contexts, platform adapters, and ambient runtime
  * plumbing where TypeScript cannot track the concrete app layer.
  */
-export interface AnyEffectUiRuntime<ER = unknown> {
+export interface AnySunfallArcRuntime<ER = unknown> {
   readonly [RuntimeTypeId]: typeof RuntimeTypeId;
   readonly managed: RuntimeManagedBoundary<ER>;
   readonly resourceStore: ResourceStoreState;
@@ -81,7 +81,7 @@ export interface AnyEffectUiRuntime<ER = unknown> {
  * The runtime provides its managed services plus a Resource Store to every effect it
  * runs.
  */
-export interface EffectUiRuntime<R = never, ER = never> {
+export interface SunfallArcRuntime<R = never, ER = never> {
   readonly [RuntimeTypeId]: typeof RuntimeTypeId;
   readonly managed: RuntimeManagedBoundary<ER>;
   readonly resourceStore: ResourceStoreState;
@@ -113,25 +113,25 @@ export interface RuntimeProvideOptions {
 }
 
 /**
- * Accepted inputs for creating an Effect UI runtime.
+ * Accepted inputs for creating an Sunfall Arc runtime.
  *
  * Layers and ManagedRuntimes become owned Runtime Spine implementations. Existing
- * Effect UI runtimes pass through unchanged so adapters can accept either a
+ * Sunfall Arc runtimes pass through unchanged so adapters can accept either a
  * concrete runtime or a lower-level Effect runtime source.
  */
 export type RuntimeSource<R = never, ER = never> =
-  | EffectUiRuntime<R, ER>
+  | SunfallArcRuntime<R, ER>
   | ManagedRuntime.ManagedRuntime<R, ER>
   | Layer.Layer<R, ER, never>;
 
-/** Returns true when `value` is an Effect UI Runtime Spine implementation. */
-export const isEffectUiRuntime = (value: unknown): value is AnyEffectUiRuntime<never> =>
+/** Returns true when `value` is an Sunfall Arc Runtime Spine implementation. */
+export const isSunfallArcRuntime = (value: unknown): value is AnySunfallArcRuntime<never> =>
   typeof value === "object" &&
   value !== null &&
   (value as { [RuntimeTypeId]?: unknown })[RuntimeTypeId] === RuntimeTypeId;
 
 const AmbientRuntime = Context.Reference<CurrentRuntimeBoundary | undefined>(
-  "@effect-ui/core/AmbientRuntime",
+  "@sunfall/arc-core/AmbientRuntime",
   {
     defaultValue: () => undefined,
   },
@@ -169,9 +169,9 @@ const fromManagedRuntime = <R, ER>(
   managed: ManagedRuntime.ManagedRuntime<R, ER>,
   resourceStore: MutableResourceStore = makeMutableResourceStore(),
   options: { readonly disposeManaged: boolean } = { disposeManaged: true },
-): EffectUiRuntime<R, ER> => {
+): SunfallArcRuntime<R, ER> => {
   const managedRuntime: RuntimeManagedBoundary<ER> = managed;
-  let runtime: EffectUiRuntime<R, ER>;
+  let runtime: SunfallArcRuntime<R, ER>;
 
   const provideStore = <A, E, RIn>(
     effect: Effect.Effect<A, E, RIn>,
@@ -179,12 +179,12 @@ const fromManagedRuntime = <R, ER>(
   ): Effect.Effect<A, E, Exclude<RIn, ResourceStoreState>> =>
     Effect.provideService(effect, ResourceStore, store);
 
-  const runtimeForResourceStore = (store: MutableResourceStore): AnyEffectUiRuntime<ER> => {
+  const runtimeForResourceStore = (store: MutableResourceStore): AnySunfallArcRuntime<ER> => {
     if (store === resourceStore) {
-      return runtime as AnyEffectUiRuntime<ER>;
+      return runtime as AnySunfallArcRuntime<ER>;
     }
 
-    let scopedRuntime: AnyEffectUiRuntime<ER>;
+    let scopedRuntime: AnySunfallArcRuntime<ER>;
     scopedRuntime = {
       [RuntimeTypeId]: RuntimeTypeId,
       managed: managedRuntime,
@@ -260,7 +260,7 @@ const fromManagedRuntime = <R, ER>(
 };
 
 /**
- * Creates an Effect UI runtime from a Layer, ManagedRuntime, existing runtime, or no services.
+ * Creates an Sunfall Arc runtime from a Layer, ManagedRuntime, existing runtime, or no services.
  *
  * Prefer one runtime per app seam so resources, server functions, and actions share
  * the same service context and Resource Store.
@@ -273,9 +273,9 @@ const fromManagedRuntime = <R, ER>(
  */
 export const makeRuntime = <R = never, ER = never>(
   source?: RuntimeSource<R, ER>,
-): EffectUiRuntime<R, ER> => {
-  if (isEffectUiRuntime(source)) {
-    return source as EffectUiRuntime<R, ER>;
+): SunfallArcRuntime<R, ER> => {
+  if (isSunfallArcRuntime(source)) {
+    return source as SunfallArcRuntime<R, ER>;
   }
 
   if (ManagedRuntime.isManagedRuntime(source)) {
@@ -296,9 +296,9 @@ export const makeRuntime = <R = never, ER = never>(
  * runtime itself.
  */
 export const withResourceStore = <R, ER>(
-  runtime: EffectUiRuntime<R, ER>,
+  runtime: SunfallArcRuntime<R, ER>,
   resourceStore: ResourceStoreState = makeResourceStore(),
-): EffectUiRuntime<R, ER> =>
+): SunfallArcRuntime<R, ER> =>
   fromManagedRuntime(
     runtime.managed as ManagedRuntime.ManagedRuntime<R, ER>,
     unsafeMutableResourceStore(resourceStore),
@@ -308,7 +308,7 @@ export const withResourceStore = <R, ER>(
   );
 
 /** Default runtime used by ambient helpers when an app has not supplied one. */
-export const defaultRuntime: EffectUiRuntime<never, never> = makeRuntime(Layer.empty);
+export const defaultRuntime: SunfallArcRuntime<never, never> = makeRuntime(Layer.empty);
 
 let currentRuntime: CurrentRuntimeBoundary | undefined;
 
@@ -331,11 +331,11 @@ export const currentOrDefaultRuntime = (): CurrentRuntimeBoundary =>
  * This is useful around render or adapter code that needs the ambient runtime.
  */
 export const runWithRuntime = <A, R, ER>(
-  runtime: EffectUiRuntime<R, ER> | AnyEffectUiRuntime<ER>,
+  runtime: SunfallArcRuntime<R, ER> | AnySunfallArcRuntime<ER>,
   f: () => A,
 ): A => {
   const previous = currentRuntime;
-  currentRuntime = runtime as AnyEffectUiRuntime<any>;
+  currentRuntime = runtime as AnySunfallArcRuntime<any>;
   try {
     return f();
   } finally {

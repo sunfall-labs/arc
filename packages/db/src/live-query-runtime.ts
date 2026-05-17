@@ -1,4 +1,4 @@
-import { stableStringify } from "@effect-ui/core";
+import { stableStringify } from "@sunfall/arc-core";
 import {
   D2,
   MultiSet,

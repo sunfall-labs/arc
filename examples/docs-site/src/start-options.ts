@@ -1,4 +1,4 @@
-import type { ServerFunctionManifestSource } from "@effect-ui/start";
+import type { ServerFunctionManifestSource } from "@sunfall/arc-start";
 import { getRecipe, listRecipeSummaries } from "./content.contract.js";
 import { getRecipeServer, listRecipeSummariesServer } from "./content.server.js";
 

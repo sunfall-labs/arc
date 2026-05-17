@@ -6,7 +6,7 @@ import {
   type CoreDefinitionRegistryInput,
 } from "./definition-registry.js";
 import type { RouteDefinition } from "./route.js";
-import { makeRuntime, type EffectUiRuntime, type RuntimeSource } from "./runtime.js";
+import { makeRuntime, type SunfallArcRuntime, type RuntimeSource } from "./runtime.js";
 import type { ServerFunction } from "./server.js";
 
 type AnyActionDefinition =
@@ -99,15 +99,15 @@ export interface AppDefinition<
   readonly routes: Routes;
   readonly client: Client;
   readonly server?: RuntimeSource<ServerServices, ServerError>;
-  readonly runtime: EffectUiRuntime<ServerServices, ServerError>;
+  readonly runtime: SunfallArcRuntime<ServerServices, ServerError>;
   readonly registry: Registry;
   readonly fullStack: boolean;
 }
 
 /**
- * Defines an Effect UI app from routes, a client entry, and an optional server runtime.
+ * Defines an Sunfall Arc app from routes, a client entry, and an optional server runtime.
  *
- * Pass a Layer, ManagedRuntime, or EffectUiRuntime as `server` when server functions,
+ * Pass a Layer, ManagedRuntime, or SunfallArcRuntime as `server` when server functions,
  * route preloads, or resources need Effect services.
  *
  * @example

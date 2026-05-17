@@ -1,4 +1,4 @@
-import { EffectInputCallbackError, stableStringify } from "@effect-ui/core";
+import { EffectInputCallbackError, stableStringify } from "@sunfall/arc-core";
 import { Data } from "effect";
 import type {
   AnyCollection,

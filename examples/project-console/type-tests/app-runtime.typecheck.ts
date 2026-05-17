@@ -1,5 +1,5 @@
-import { makeRuntime } from "@effect-ui/core";
-import { BrowserRpcLive } from "@effect-ui/start";
+import { makeRuntime } from "@sunfall/arc-core";
+import { BrowserRpcLive } from "@sunfall/arc-start";
 import { Layer } from "effect";
 import App from "../src/App.js";
 import { ProjectApiLive } from "../src/domain.js";

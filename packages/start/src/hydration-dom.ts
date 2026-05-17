@@ -1,11 +1,11 @@
 /** Default DOM id for the root Start hydration payload script. */
-export const hydrationScriptId = "__EFFECT_UI_HYDRATION__";
+export const hydrationScriptId = "__SUNFALL_ARC_HYDRATION__";
 /** Attribute that marks streamed Start hydration chunk script elements. */
-export const streamHydrationAttribute = "data-effect-ui-hydration-chunk";
+export const streamHydrationAttribute = "data-sunfall-arc-hydration-chunk";
 /** Attribute storing a streamed hydration chunk's stable ordering sequence. */
-export const streamHydrationSequenceAttribute = "data-effect-ui-hydration-sequence";
+export const streamHydrationSequenceAttribute = "data-sunfall-arc-hydration-sequence";
 /** Attribute used to skip already-applied streamed hydration chunks. */
-export const streamHydrationConsumedAttribute = "data-effect-ui-hydration-consumed";
+export const streamHydrationConsumedAttribute = "data-sunfall-arc-hydration-consumed";
 /** Script MIME type used for JSON hydration payloads and streamed chunks. */
 export const streamHydrationScriptType = "application/json";
 

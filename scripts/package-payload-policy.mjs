@@ -8,15 +8,15 @@ export class PackagePayloadPolicyError extends Data.TaggedError("PackagePayloadP
 const distPackagePolicy = { payload: "dist-package" };
 
 export const workspaceDistPackagePayloadPolicies = new Map([
-  ["@effect-ui/core", distPackagePolicy],
-  ["@effect-ui/db", distPackagePolicy],
-  ["@effect-ui/devtools", distPackagePolicy],
-  ["@effect-ui/react", distPackagePolicy],
-  ["@effect-ui/react-db", distPackagePolicy],
-  ["@effect-ui/solid", distPackagePolicy],
-  ["@effect-ui/solid-db", distPackagePolicy],
+  ["@sunfall/arc-core", distPackagePolicy],
+  ["@sunfall/arc-db", distPackagePolicy],
+  ["@sunfall/arc-devtools", distPackagePolicy],
+  ["@sunfall/arc-react", distPackagePolicy],
+  ["@sunfall/arc-react-db", distPackagePolicy],
+  ["@sunfall/arc-solid", distPackagePolicy],
+  ["@sunfall/arc-solid-db", distPackagePolicy],
   [
-    "@effect-ui/start",
+    "@sunfall/arc-start",
     {
       payload: "dist-package",
       declarationArtifacts: [
@@ -28,9 +28,9 @@ export const workspaceDistPackagePayloadPolicies = new Map([
       ],
     },
   ],
-  ["@effect-ui/start-fetch", distPackagePolicy],
-  ["@effect-ui/start-node", distPackagePolicy],
-  ["@effect-ui/tsrx", distPackagePolicy],
+  ["@sunfall/arc-start-fetch", distPackagePolicy],
+  ["@sunfall/arc-start-node", distPackagePolicy],
+  ["@sunfall/arc-tsrx", distPackagePolicy],
 ]);
 
 export const knownPayloadPolicies = new Set(["dist-package", "source-package"]);

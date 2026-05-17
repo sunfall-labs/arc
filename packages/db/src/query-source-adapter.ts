@@ -1,4 +1,4 @@
-import type { ReadableSignal } from "@effect-ui/core";
+import type { ReadableSignal } from "@sunfall/arc-core";
 import type { Effect } from "effect";
 import { collectionIndexJoinKeys, collectionIndexes } from "./collection-index-materialization.js";
 import type {

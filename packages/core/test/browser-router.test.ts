@@ -32,7 +32,7 @@ describe("browser router kernel", () => {
     readonly preload: (id: string) => Effect.Effect<void>;
   }
 
-  const ProjectApi = Context.Service<ProjectApi>("@effect-ui/core/test/BrowserRouterProjectApi");
+  const ProjectApi = Context.Service<ProjectApi>("@sunfall/arc-core/test/BrowserRouterProjectApi");
 
   it("shares router link click and preload decisions across framework adapters", () => {
     const plainClick = {

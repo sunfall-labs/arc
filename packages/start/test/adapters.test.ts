@@ -10,7 +10,7 @@ import type { AddressInfo } from "node:net";
 import { Readable } from "node:stream";
 import { Deferred, Effect, Option } from "effect";
 import { describe, expect, it } from "vitest";
-import { defineApp, makeRuntime, route } from "@effect-ui/core";
+import { defineApp, makeRuntime, route } from "@sunfall/arc-core";
 import {
   createFetchHandler,
   createNodeHandler,
@@ -26,11 +26,11 @@ import { StartNodeAdapterError } from "../src/node-adapter.js";
 import {
   createFetchHandler as createPackagedFetchHandler,
   toFetchHandlerEffect as toPackagedFetchHandlerEffect,
-} from "@effect-ui/start-fetch";
+} from "@sunfall/arc-start-fetch";
 import {
   createNodeServerHandler as createPackagedNodeServerHandler,
   nodeRequestOrigin as packagedNodeRequestOrigin,
-} from "@effect-ui/start-node";
+} from "@sunfall/arc-start-node";
 import { createRequestHandler } from "../src/start-request-handler.js";
 import {
   normalizeStartRequestHandlerError,
@@ -68,7 +68,7 @@ describe("Start deployment adapters", () => {
       "x-forwarded-proto": "https",
       "x-forwarded-host": "app.example.com",
       "content-type": "text/plain",
-      "x-effect-ui-test": ["first", "second"],
+      "x-sunfall-arc-test": ["first", "second"],
     };
 
     const request = nodeRequestToWebRequest(nodeRequest);
@@ -76,7 +76,7 @@ describe("Start deployment adapters", () => {
     expect(request.method).toBe("POST");
     expect(request.url).toBe("https://app.example.com/submit?tab=overview");
     expect(request.headers.get("content-type")).toBe("text/plain");
-    expect(request.headers.get("x-effect-ui-test")).toBe("first, second");
+    expect(request.headers.get("x-sunfall-arc-test")).toBe("first, second");
     await expect(request.text()).resolves.toBe("hello");
   });
 
@@ -116,7 +116,7 @@ describe("Start deployment adapters", () => {
             status: 201,
             headers: {
               "content-type": "application/json",
-              "x-effect-ui-adapter": "node",
+              "x-sunfall-arc-adapter": "node",
             },
           },
         );
@@ -141,7 +141,7 @@ describe("Start deployment adapters", () => {
         body: "payload",
       });
       expect(response.status).toBe(201);
-      expect(response.headers.get("x-effect-ui-adapter")).toBe("node");
+      expect(response.headers.get("x-sunfall-arc-adapter")).toBe("node");
     } finally {
       await close(server);
     }
@@ -282,7 +282,7 @@ describe("Start deployment adapters", () => {
           response,
           new Response("ok", {
             headers: {
-              "x-effect-ui-adapter": "node",
+              "x-sunfall-arc-adapter": "node",
             },
           }),
         ),
@@ -371,7 +371,7 @@ describe("Start deployment adapters", () => {
         new Response("body should not be sent", {
           status: 200,
           headers: {
-            "x-effect-ui-adapter": "node-head",
+            "x-sunfall-arc-adapter": "node-head",
           },
         }),
       ),
@@ -387,7 +387,7 @@ describe("Start deployment adapters", () => {
       });
 
       expect(response.status).toBe(200);
-      expect(response.headers.get("x-effect-ui-adapter")).toBe("node-head");
+      expect(response.headers.get("x-sunfall-arc-adapter")).toBe("node-head");
       await expect(response.text()).resolves.toBe("");
     } finally {
       await close(server);
@@ -527,7 +527,7 @@ describe("Start deployment adapters", () => {
           headers: new Headers([
             ["set-cookie", "a=1; Path=/"],
             ["set-cookie", "b=2; Path=/"],
-            ["x-effect-ui-adapter", "node-cookies"],
+            ["x-sunfall-arc-adapter", "node-cookies"],
           ]),
         }),
       ),
@@ -540,7 +540,7 @@ describe("Start deployment adapters", () => {
     try {
       const response = await fetch(`http://127.0.0.1:${port}/cookies`);
 
-      expect(response.headers.get("x-effect-ui-adapter")).toBe("node-cookies");
+      expect(response.headers.get("x-sunfall-arc-adapter")).toBe("node-cookies");
       expect(response.headers.getSetCookie()).toEqual(["a=1; Path=/", "b=2; Path=/"]);
     } finally {
       await close(server);
@@ -803,6 +803,6 @@ describe("Start deployment adapters", () => {
     );
 
     expect(fetchAdapterSource).not.toContain("node:");
-    expect(packagedFetchSource).toContain("@effect-ui/start/fetch-adapter");
+    expect(packagedFetchSource).toContain("@sunfall/arc-start/fetch-adapter");
   });
 });

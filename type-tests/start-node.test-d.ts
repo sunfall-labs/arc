@@ -19,9 +19,9 @@ import {
   type StartNodeServerHandlerOptions,
   type StartNodeServerHandlerRuntimeOptions,
   type WriteNodeResponseOptions,
-} from "@effect-ui/start-node";
-import type { EffectUiRuntime } from "@effect-ui/core";
-import type { StartRequestHandlerEffect } from "@effect-ui/start";
+} from "@sunfall/arc-start-node";
+import type { SunfallArcRuntime } from "@sunfall/arc-core";
+import type { StartRequestHandlerEffect } from "@sunfall/arc-start";
 import { Effect, Scope } from "effect";
 import type { IncomingMessage, ServerResponse } from "node:http";
 
@@ -59,7 +59,7 @@ declare const nodeRequest: IncomingMessage;
 declare const nodeResponse: ServerResponse;
 declare const scopeOnlyHandler: StartRequestHandlerEffect<Scope.Scope>;
 declare const servicefulHandler: StartRequestHandlerEffect<Scope.Scope | NodeAdapterTestService>;
-declare const serviceRuntime: EffectUiRuntime<NodeAdapterTestService>;
+declare const serviceRuntime: SunfallArcRuntime<NodeAdapterTestService>;
 
 const nodeOriginPolicy: StartNodeOriginPolicy = { trustForwardedHeaders: true };
 const nodeRequestOptions: StartNodeRequestOptions = {

@@ -6,9 +6,9 @@ import {
   makeRuntimeProviderLifecycleEntry,
   runWithScope,
   runWithRuntime,
-  type AnyEffectUiRuntime,
+  type AnySunfallArcRuntime,
   type EffectInput,
-  type EffectUiRuntime,
+  type SunfallArcRuntime,
   type ForkScopedOptions,
   type RuntimeDisposeError,
   type RuntimeProviderLifecycleEntry,
@@ -16,7 +16,7 @@ import {
   type UiScopeOptions,
   UiScope,
   UiScopeDisposed,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Effect, Fiber, Layer, ManagedRuntime, Scope } from "effect";
 import {
   createContext,
@@ -28,10 +28,10 @@ import {
   type ReactNode,
 } from "react";
 
-/** React context carrying the active Effect UI Runtime Spine. */
-export const RuntimeContext = createContext<AnyEffectUiRuntime<never> | undefined>(undefined);
+/** React context carrying the active Sunfall Arc Runtime Spine. */
+export const RuntimeContext = createContext<AnySunfallArcRuntime<never> | undefined>(undefined);
 
-/** Props for providing an Effect UI runtime to React descendants. */
+/** Props for providing an Sunfall Arc runtime to React descendants. */
 interface RuntimeProviderChildren {
   readonly children?: ReactNode;
 }
@@ -41,7 +41,7 @@ interface RuntimeProviderRuntimeProps<
   ER = never,
 > extends RuntimeProviderChildren {
   /** Existing host-owned runtime. The provider exposes it and does not dispose it. */
-  readonly runtime: EffectUiRuntime<RuntimeServices, ER> | AnyEffectUiRuntime<ER>;
+  readonly runtime: SunfallArcRuntime<RuntimeServices, ER> | AnySunfallArcRuntime<ER>;
   readonly source?: never;
   readonly onDisposeFailure?: never;
 }
@@ -82,12 +82,12 @@ export type RuntimeProviderProps<RuntimeServices = never, ER = never> =
   | RuntimeProviderSourceProps<RuntimeServices, ER>
   | RuntimeProviderDefaultProps;
 
-/** Creates an Effect UI runtime for React applications. */
+/** Creates an Sunfall Arc runtime for React applications. */
 export const createEffectRuntime = makeRuntime;
 
 /** Reads the nearest React runtime context, falling back to the current/default runtime. */
-export const useRuntime = <ER = never>(): AnyEffectUiRuntime<ER> =>
-  (useContext(RuntimeContext) ?? currentOrDefaultRuntime()) as AnyEffectUiRuntime<ER>;
+export const useRuntime = <ER = never>(): AnySunfallArcRuntime<ER> =>
+  (useContext(RuntimeContext) ?? currentOrDefaultRuntime()) as AnySunfallArcRuntime<ER>;
 
 /** Policy for `onDispose(...)` calls made while React is still rendering. */
 export type ReactPreCommitFinalizerPolicy = "reject" | "buffer";
@@ -238,7 +238,7 @@ export interface ReactRuntimeUiScopeFrameOptions {
 
 /** Creates a React-aware Runtime UI Scope Frame with commit-gated scoped work. */
 export const makeReactRuntimeUiScopeFrame = <ER>(
-  runtime: AnyEffectUiRuntime<ER>,
+  runtime: AnySunfallArcRuntime<ER>,
   options: ReactRuntimeUiScopeFrameOptions = {},
 ): ReactRuntimeUiScopeFrame<ER> => {
   const scope = new ReactCommitUiScope({
@@ -282,7 +282,7 @@ export const makeReactRuntimeUiScopeFrame = <ER>(
 };
 
 /**
- * Provides an Effect UI runtime to React children.
+ * Provides an Sunfall Arc runtime to React children.
  *
  * Pass an existing runtime when the host owns lifecycle. Pass a runtime source
  * to let the provider create and dispose a runtime with the React component.
@@ -346,7 +346,7 @@ export const RuntimeProvider = <RuntimeServices = never, ER = never>(
   }, [entry]);
 
   return createElement(RuntimeContext.Provider, {
-    value: runtime as AnyEffectUiRuntime<never>,
+    value: runtime as AnySunfallArcRuntime<never>,
     children: props.children,
   });
 };
@@ -362,7 +362,7 @@ export const useComponentScope = (): UiScope => {
   const runtime = useRuntime();
   const scopeRef = useRef<
     | {
-        readonly runtime: AnyEffectUiRuntime<unknown>;
+        readonly runtime: AnySunfallArcRuntime<unknown>;
         readonly frame: ReactRuntimeUiScopeFrame<unknown>;
       }
     | undefined

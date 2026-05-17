@@ -1,7 +1,7 @@
 # Framework Perfection Charter
 
 This is the several-week cleanup, hardening, and iteration goal for moving
-Effect UI from "impressive internal framework" to "basically perfect for a
+Sunfall Arc from "impressive internal framework" to "basically perfect for a
 serious first public release."
 
 The goal is not literal perfection. The goal is that a strong TypeScript team
@@ -10,7 +10,7 @@ the framework author in the room.
 
 ## Mission
 
-Over the next dedicated push, make Effect UI feel coherent, boringly reliable,
+Over the next dedicated push, make Sunfall Arc feel coherent, boringly reliable,
 and unusually inspectable across its whole surface:
 
 - every public API has a clear reason to exist;
@@ -25,7 +25,7 @@ The output should be a release candidate, not just a cleaner repo.
 
 ## Definition Of Basically Perfect
 
-Effect UI is ready when all of these are true:
+Sunfall Arc is ready when all of these are true:
 
 - `pnpm verify` is green on every working day and before final handoff.
 - A new contributor can understand the architecture by reading `CONTEXT.md`,
@@ -185,7 +185,7 @@ Goal: prove that a user can copy the framework's intended path.
   - Evidence: `docs/deployment.md`.
 - Add host-specific package facades for the currently tested Node/fetch
   adapters.
-  - Evidence: `@effect-ui/start-node` and `@effect-ui/start-fetch`.
+  - Evidence: `@sunfall/arc-start-node` and `@sunfall/arc-start-fetch`.
 - Add migration notes from TanStack Query, TanStack Start, Remix-style forms,
   and ad hoc service mocks.
   - Evidence: `docs/migration-notes.md`.
@@ -248,7 +248,7 @@ the audit finds them.
     local test/build/leak-scan/verify scripts, copy guidance, and checked rich
     starter packaging.
 - [x] Package export and dependency hygiene audit.
-  - Evidence: `docs/package-hygiene-audit.md`; `@effect-ui/start` now declares
+  - Evidence: `docs/package-hygiene-audit.md`; `@sunfall/arc-start` now declares
     its direct `effect` dependency.
 - [x] Browser/server leak audit beyond the current example scan.
   - Evidence: `docs/example-copyability-and-leak-audit.md`; leak assertions now
@@ -278,7 +278,7 @@ Progress:
 - [x] Browser-embeddable panel renderer for the `DevtoolsPanels` contract.
   - Evidence: `renderDevtoolsPanelsHtml`,
     `renderDevtoolsPanelsHtmlEffect`, `mountDevtoolsPanels`, and
-    `mountDevtoolsPanelsEffect` in `@effect-ui/devtools`, covered by focused
+    `mountDevtoolsPanelsEffect` in `@sunfall/arc-devtools`, covered by focused
     devtools tests and public type tests.
 - [x] Checked app-shell integration for the browser panel renderer.
   - Evidence: `examples/devtools-panel`.

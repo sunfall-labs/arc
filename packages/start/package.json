@@ -1,11 +1,11 @@
 {
-  "name": "@effect-ui/start",
+  "name": "@sunfall/arc-start",
   "version": "0.0.0-alpha.0",
-  "description": "Effect UI full-stack Start layer for SSR, hydration, transports, diagnostics, and app graphs.",
+  "description": "Sunfall Arc full-stack Start layer for SSR, hydration, transports, diagnostics, and app graphs.",
   "license": "MIT",
   "author": "Andrew Lee",
   "bin": {
-    "effect-ui-start": "./dist/cli.js"
+    "sunfall-arc-start": "./dist/cli.js"
   },
   "files": [
     "dist"
@@ -56,8 +56,8 @@
     "typecheck": "tsgo -p tsconfig.json --pretty false --noEmit"
   },
   "dependencies": {
-    "@effect-ui/core": "workspace:*",
-    "@effect-ui/db": "workspace:*",
+    "@sunfall/arc-core": "workspace:*",
+    "@sunfall/arc-db": "workspace:*",
     "effect": "^4.0.0-beta.66"
   },
   "peerDependencies": {

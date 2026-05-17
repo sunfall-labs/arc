@@ -1,9 +1,9 @@
 import {
   Server,
   ServerClient,
-  type AnyEffectUiRuntime,
-  type EffectUiRuntime,
-} from "@effect-ui/core";
+  type AnySunfallArcRuntime,
+  type SunfallArcRuntime,
+} from "@sunfall/arc-core";
 import { Effect, Layer } from "effect";
 import { type ServerRpcClientOptions } from "./start-fetch.js";
 import { executeStartClientTransportEffect } from "./start-client-transport.js";
@@ -11,8 +11,8 @@ import { resolveStartRpcEndpoint } from "./start-transport-endpoints.js";
 import { parseRpcResponse } from "./start-transport-protocol.js";
 
 type ServerRpcTransportRuntime<FetchRequirements> =
-  | EffectUiRuntime<FetchRequirements, never>
-  | AnyEffectUiRuntime<never>;
+  | SunfallArcRuntime<FetchRequirements, never>
+  | AnySunfallArcRuntime<never>;
 
 type ServerRpcRuntimeFreeOptions<FetchError = never> = ServerRpcClientOptions<
   FetchError,

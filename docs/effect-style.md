@@ -1,6 +1,6 @@
 # Effect Style Guide
 
-Effect UI APIs should be Effect-first and browser-friendly second.
+Sunfall Arc APIs should be Effect-first and browser-friendly second.
 
 The broader product strategy is in
 [Best Full-Stack Framework Plan](./best-framework-plan.md). This file is the
@@ -25,7 +25,7 @@ edge.
 - Start request work uses a fresh Request Runtime with the app services, a request-local `ResourceStore`, and a request-local `Server.localClient(...)`; do not share resource cache state or remote browser RPC clients across SSR requests.
 - Start streamed responses keep the Request Runtime open until the response body closes or is cancelled.
 - Start action requests should run Action Definitions through the Request Runtime; do not create separate mutation handlers that bypass Capability services, schemas, retries, or invalidation.
-- Run application work through `EffectUiRuntime`; use raw `Effect.runPromise` only in tests or in the runtime implementation itself.
+- Run application work through `SunfallArcRuntime`; use raw `Effect.runPromise` only in tests or in the runtime implementation itself.
 - Treat `Resource.family(...)` as a Resource Definition. Runtime/request state belongs to `ResourceStore`, reached through the Runtime Spine.
 - Use `Effect.catch`, not the Effect 3 name `catchAll`.
 - Prefer explicit `Resource` / `Action` state and Effect recovery combinators over component-level `try` syntax for first-class APIs.
@@ -37,7 +37,7 @@ edge.
 - Model mutation dependencies with typed `Resource.tag` values. Actions should invalidate domain facts, not string cache keys.
 - Use `Schema.brand` for domain ids and generated framework ids that cross API seams. A route param, server function input, resource key, action input, or manifest id should be a decoded `ProjectId`, `ServerFunctionId`, `ActionId`, or `FileRouteId`, not a plain `string`.
 - Add type tests for API rules that should fail at compile time. A passing runtime test is not enough when the framework can reject the mistake earlier.
-- Host adapters should expose Effect-native handlers. If a platform contract requires a Promise, the app entrypoint should call through the active `EffectUiRuntime`.
+- Host adapters should expose Effect-native handlers. If a platform contract requires a Promise, the app entrypoint should call through the active `SunfallArcRuntime`.
 
 ## Gold Standard
 
@@ -455,7 +455,7 @@ read(presence);
 ```
 
 ```ts
-const title = Signal.make("Effect UI");
+const title = Signal.make("Sunfall Arc");
 
 watch(
   () => read(title),

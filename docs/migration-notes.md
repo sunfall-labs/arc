@@ -1,13 +1,13 @@
 # Migration Notes
 
-These notes map common full-stack app patterns onto the Effect UI golden path.
+These notes map common full-stack app patterns onto the Sunfall Arc golden path.
 They are intentionally conservative: migrate one vertical slice at a time and
 keep the old path beside the new path until tests prove the behavior.
 
 ## From TanStack Query
 
 TanStack Query usually spreads data behavior across query keys, query functions,
-mutation callbacks, and invalidation calls. In Effect UI, move that behavior
+mutation callbacks, and invalidation calls. In Sunfall Arc, move that behavior
 behind Resource families and Actions:
 
 - Query keys become `Resource.family({ name, input, load })` refs.
@@ -31,7 +31,7 @@ and interruption stay visible.
 ## From TanStack Start
 
 TanStack Start route files often combine route definitions, loaders, server
-functions, and generated route typing. Effect UI keeps the same copyable route
+functions, and generated route typing. Sunfall Arc keeps the same copyable route
 shape but makes app graph facts explicit:
 
 - File routes use `defineFileRoute(...)` and generated route maps.
@@ -53,7 +53,7 @@ not migrated yet.
 ## From Remix-Style Forms
 
 Remix-style actions commonly encode validation, redirects, and mutation side
-effects in one request function. In Effect UI, split the contract from the UI
+effects in one request function. In Sunfall Arc, split the contract from the UI
 transport:
 
 - Form input schemas live on the Action or Start action definition.
@@ -72,7 +72,7 @@ Resource invalidation.
 ## From Ad Hoc Service Mocks
 
 Ad hoc mocks usually replace imports directly, which makes SSR, client tests,
-and route preloads disagree about the service graph. Effect UI uses
+and route preloads disagree about the service graph. Sunfall Arc uses
 Capabilities and Layers instead:
 
 - Define a `Capability` for each service interface the app owns.

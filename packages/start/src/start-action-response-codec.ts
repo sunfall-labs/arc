@@ -12,7 +12,7 @@ import {
   type ResourceInvalidationCause,
   type ResourceInvalidationPlan,
   type ResourceSnapshotCodecError,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Cause, Effect, Exit, Schema } from "effect";
 import { createStartHydrationPayload, type StartHydrationPayload } from "./hydration.js";
 import {
@@ -653,7 +653,7 @@ export const parseStartActionResponse = (
       return yield* new ServerTransportError({
         reason: "InvalidResponse",
         status: response.status,
-        message: "Action response did not match the Effect UI Start action protocol.",
+        message: "Action response did not match the Sunfall Arc Start action protocol.",
         payload,
       });
     }

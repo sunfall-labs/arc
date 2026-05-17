@@ -6,7 +6,7 @@ import {
   type RejectPromiseLikeValue,
   type ServerClientError,
   type ServerFunction,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Data, Effect } from "effect";
 import type {
   CollectionIndexRecord,

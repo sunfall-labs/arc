@@ -10,8 +10,8 @@ import {
   Route,
   Signal,
   type ActionState,
-} from "@effect-ui/core";
-import { Collection } from "@effect-ui/db";
+} from "@sunfall/arc-core";
+import { Collection } from "@sunfall/arc-db";
 import {
   bootDevtoolsPanels,
   DevtoolsActionInvalidationPlanConflict,
@@ -27,7 +27,7 @@ import {
   describeDevtoolsPanelsEffect,
   describeInvalidationPlan,
   describeRoutePlan,
-  effectUiDevtoolsBridgeGlobal,
+  sunfallArcDevtoolsBridgeGlobal,
   installDevtoolsBridge,
   installDevtoolsBridgeEffect,
   isDevtoolsPanelId,
@@ -35,7 +35,7 @@ import {
   isDevtoolsPanels,
   isDevtoolsSerializableValue,
   mountDevtoolsPanels,
-  normalizeEffectUiDevtoolsBridgePayload,
+  normalizeSunfallArcDevtoolsBridgePayload,
   renderDevtoolsPanelsHtml,
   renderDevtoolsPanelsHtmlEffect,
   toDevtoolsSerializableValue,
@@ -470,8 +470,8 @@ describe("devtools invalidation plans", () => {
       request: {
         id: "req-project-action",
         method: "POST",
-        url: "https://example.test/__effect-ui/action",
-        path: "/__effect-ui/action",
+        url: "https://example.test/__sunfall-arc/action",
+        path: "/__sunfall-arc/action",
         transport: "action",
       },
       services: [],
@@ -999,8 +999,8 @@ describe("devtools invalidation plans", () => {
           },
         },
         endpoints: {
-          rpc: "/__effect-ui/rpc",
-          action: "/__effect-ui/action",
+          rpc: "/__sunfall-arc/rpc",
+          action: "/__sunfall-arc/action",
         },
         modules: {
           serverOnly: ["/src/user/user.server.ts"],
@@ -1140,11 +1140,11 @@ describe("devtools invalidation plans", () => {
       maxItemsPerPanel: 1,
     });
 
-    expect(devtoolsPanelStyles).toContain(".effect-ui-devtools");
+    expect(devtoolsPanelStyles).toContain(".sunfall-arc-devtools");
     expect(html).toContain("Ops &lt;Devtools&gt;");
     expect(html).toContain('data-selected-panel="requests"');
-    expect(html).toContain('data-effect-ui-devtools-panel-target="requests"');
-    expect(html).toContain('data-effect-ui-devtools-item-id="request:safe"');
+    expect(html).toContain('data-sunfall-arc-devtools-panel-target="requests"');
+    expect(html).toContain('data-sunfall-arc-devtools-item-id="request:safe"');
     expect(html).toContain("GET /projects/&lt;atlas&gt;");
     expect(html).toContain("1 more items hidden by the current render limit.");
     expect(html).not.toContain("Ops <Devtools>");
@@ -1172,15 +1172,15 @@ describe("devtools invalidation plans", () => {
       target,
     );
 
-    expect(target[effectUiDevtoolsBridgeGlobal]).toMatchObject({
+    expect(target[sunfallArcDevtoolsBridgeGlobal]).toMatchObject({
       panels,
       selectedPanelId: "requests",
       title: "Bridge",
     });
     install.uninstall();
-    expect(target[effectUiDevtoolsBridgeGlobal]).toBeUndefined();
+    expect(target[sunfallArcDevtoolsBridgeGlobal]).toBeUndefined();
 
-    target[effectUiDevtoolsBridgeGlobal] = () => ({
+    target[sunfallArcDevtoolsBridgeGlobal] = () => ({
       panels,
       title: "Previous",
     });
@@ -1195,10 +1195,10 @@ describe("devtools invalidation plans", () => {
             }),
             target,
           );
-          expect(typeof target[effectUiDevtoolsBridgeGlobal]).toBe("function");
+          expect(typeof target[sunfallArcDevtoolsBridgeGlobal]).toBe("function");
           expect(
-            typeof target[effectUiDevtoolsBridgeGlobal] === "function"
-              ? target[effectUiDevtoolsBridgeGlobal]()
+            typeof target[sunfallArcDevtoolsBridgeGlobal] === "function"
+              ? target[sunfallArcDevtoolsBridgeGlobal]()
               : undefined,
           ).toMatchObject({
             panels,
@@ -1209,8 +1209,8 @@ describe("devtools invalidation plans", () => {
     );
 
     expect(
-      typeof target[effectUiDevtoolsBridgeGlobal] === "function"
-        ? target[effectUiDevtoolsBridgeGlobal]()
+      typeof target[sunfallArcDevtoolsBridgeGlobal] === "function"
+        ? target[sunfallArcDevtoolsBridgeGlobal]()
         : undefined,
     ).toMatchObject({
       panels,
@@ -1228,30 +1228,30 @@ describe("devtools invalidation plans", () => {
     const firstProvider = { panels, title: "First" };
     const secondProvider = { panels, title: "Second" };
     const thirdProvider = { panels, title: "Third" };
-    target[effectUiDevtoolsBridgeGlobal] = previous;
+    target[sunfallArcDevtoolsBridgeGlobal] = previous;
 
     const first = installDevtoolsBridge(firstProvider, target);
     const second = installDevtoolsBridge(secondProvider, target);
     const third = installDevtoolsBridge(thirdProvider, target);
 
-    expect(target[effectUiDevtoolsBridgeGlobal]).toBe(thirdProvider);
+    expect(target[sunfallArcDevtoolsBridgeGlobal]).toBe(thirdProvider);
     second.uninstall();
-    expect(target[effectUiDevtoolsBridgeGlobal]).toBe(thirdProvider);
+    expect(target[sunfallArcDevtoolsBridgeGlobal]).toBe(thirdProvider);
     first.uninstall();
-    expect(target[effectUiDevtoolsBridgeGlobal]).toBe(thirdProvider);
+    expect(target[sunfallArcDevtoolsBridgeGlobal]).toBe(thirdProvider);
     third.uninstall();
-    expect(target[effectUiDevtoolsBridgeGlobal]).toBe(previous);
+    expect(target[sunfallArcDevtoolsBridgeGlobal]).toBe(previous);
     second.uninstall();
-    expect(target[effectUiDevtoolsBridgeGlobal]).toBe(previous);
+    expect(target[sunfallArcDevtoolsBridgeGlobal]).toBe(previous);
 
     const noBaselineTarget: DevtoolsBridgeTarget = {};
     const noBaselineFirst = installDevtoolsBridge(firstProvider, noBaselineTarget);
     const noBaselineSecond = installDevtoolsBridge(secondProvider, noBaselineTarget);
 
     noBaselineFirst.uninstall();
-    expect(noBaselineTarget[effectUiDevtoolsBridgeGlobal]).toBe(secondProvider);
+    expect(noBaselineTarget[sunfallArcDevtoolsBridgeGlobal]).toBe(secondProvider);
     noBaselineSecond.uninstall();
-    expect(noBaselineTarget[effectUiDevtoolsBridgeGlobal]).toBeUndefined();
+    expect(noBaselineTarget[sunfallArcDevtoolsBridgeGlobal]).toBeUndefined();
   });
 
   it("normalizes inspected-window panel payloads through the shared panel contract", () => {
@@ -1275,7 +1275,7 @@ describe("devtools invalidation plans", () => {
       false,
     );
     expect(
-      normalizeEffectUiDevtoolsBridgePayload({
+      normalizeSunfallArcDevtoolsBridgePayload({
         panels: {
           version: 1,
           panels: [...panels.panels].reverse(),
@@ -1283,7 +1283,7 @@ describe("devtools invalidation plans", () => {
       })?.panels.panels.map((panel) => panel.id),
     ).toEqual(devtoolsPanelIds);
     expect(
-      normalizeEffectUiDevtoolsBridgePayload({
+      normalizeSunfallArcDevtoolsBridgePayload({
         panels,
         selectedPanelId: "requests",
         title: "Live",
@@ -1294,13 +1294,13 @@ describe("devtools invalidation plans", () => {
       title: "Live",
     });
     expect(
-      normalizeEffectUiDevtoolsBridgePayload({
+      normalizeSunfallArcDevtoolsBridgePayload({
         panels,
         selectedPanelId: "missing",
       }),
     ).toEqual({ panels });
     const longString = "x".repeat(1_050);
-    const boundedPayload = normalizeEffectUiDevtoolsBridgePayload({
+    const boundedPayload = normalizeSunfallArcDevtoolsBridgePayload({
       panels: {
         version: 1,
         panels: panels.panels.map((panel) =>
@@ -1364,7 +1364,7 @@ describe("devtools invalidation plans", () => {
     });
     const longDataKey = "k".repeat(1_001);
     expect(
-      normalizeEffectUiDevtoolsBridgePayload({
+      normalizeSunfallArcDevtoolsBridgePayload({
         panels: {
           version: 1,
           panels: panels.panels.map((panel) =>
@@ -1421,7 +1421,7 @@ describe("devtools invalidation plans", () => {
       ),
     };
     expect(isDevtoolsPanels(duplicateItemPanels)).toBe(false);
-    expect(normalizeEffectUiDevtoolsBridgePayload({ panels: duplicateItemPanels })).toBeUndefined();
+    expect(normalizeSunfallArcDevtoolsBridgePayload({ panels: duplicateItemPanels })).toBeUndefined();
     let sourcePanelReads = 0;
     const lateThrowingPayload = {
       get panels(): unknown {
@@ -1432,7 +1432,7 @@ describe("devtools invalidation plans", () => {
         return sourcePanels;
       },
     };
-    const normalized = normalizeEffectUiDevtoolsBridgePayload(lateThrowingPayload);
+    const normalized = normalizeSunfallArcDevtoolsBridgePayload(lateThrowingPayload);
     sourcePanels.panels[0]!.title = "Mutated";
 
     expect(sourcePanelReads).toBe(1);
@@ -1441,7 +1441,7 @@ describe("devtools invalidation plans", () => {
     );
     expect(renderDevtoolsPanelsHtml({ panels: normalized!.panels })).toContain("Requests");
     expect(
-      normalizeEffectUiDevtoolsBridgePayload({
+      normalizeSunfallArcDevtoolsBridgePayload({
         panels: {
           version: 1,
           panels: [
@@ -1485,12 +1485,12 @@ describe("devtools invalidation plans", () => {
         },
       },
     );
-    expect(() => normalizeEffectUiDevtoolsBridgePayload(throwingPayload)).not.toThrow();
-    expect(normalizeEffectUiDevtoolsBridgePayload(throwingPayload)).toBeUndefined();
+    expect(() => normalizeSunfallArcDevtoolsBridgePayload(throwingPayload)).not.toThrow();
+    expect(normalizeSunfallArcDevtoolsBridgePayload(throwingPayload)).toBeUndefined();
     expect(() => isDevtoolsSerializableValue(throwingSerializableRecord)).not.toThrow();
     expect(isDevtoolsSerializableValue(throwingSerializableRecord)).toBe(false);
     expect(() =>
-      normalizeEffectUiDevtoolsBridgePayload({
+      normalizeSunfallArcDevtoolsBridgePayload({
         panels: {
           version: 1,
           panels: [
@@ -1507,7 +1507,7 @@ describe("devtools invalidation plans", () => {
       }),
     ).not.toThrow();
     expect(
-      normalizeEffectUiDevtoolsBridgePayload({
+      normalizeSunfallArcDevtoolsBridgePayload({
         panels: {
           version: 1,
           panels: [
@@ -1527,7 +1527,7 @@ describe("devtools invalidation plans", () => {
     cyclicData.self = cyclicData;
     expect(isDevtoolsSerializableValue(cyclicData)).toBe(false);
     expect(
-      normalizeEffectUiDevtoolsBridgePayload({
+      normalizeSunfallArcDevtoolsBridgePayload({
         panels: {
           version: 1,
           panels: panels.panels.map((panel) =>
@@ -1549,7 +1549,7 @@ describe("devtools invalidation plans", () => {
       }),
     ).toBeUndefined();
     expect(
-      normalizeEffectUiDevtoolsBridgePayload({
+      normalizeSunfallArcDevtoolsBridgePayload({
         panels: {
           version: 1,
           panels: panels.panels.map((panel) =>
@@ -1580,7 +1580,7 @@ describe("devtools invalidation plans", () => {
     ]) {
       expect(isDevtoolsSerializableValue(data)).toBe(false);
       expect(
-        normalizeEffectUiDevtoolsBridgePayload({
+        normalizeSunfallArcDevtoolsBridgePayload({
           panels: {
             version: 1,
             panels: [
@@ -1605,7 +1605,7 @@ describe("devtools invalidation plans", () => {
       ).toBeUndefined();
     }
     expect(
-      normalizeEffectUiDevtoolsBridgePayload({
+      normalizeSunfallArcDevtoolsBridgePayload({
         panels: {
           version: 1,
           panels: [
@@ -3585,7 +3585,7 @@ describe("devtools invalidation plans", () => {
       label: "/users/1000/:id",
     });
     expect(isDevtoolsPanels(panels)).toBe(true);
-    const bridgeAppGraphPanel = normalizeEffectUiDevtoolsBridgePayload({
+    const bridgeAppGraphPanel = normalizeSunfallArcDevtoolsBridgePayload({
       panels,
     })?.panels.panels.find((panel) => panel.id === "app-graph");
     expect(bridgeAppGraphPanel?.items).toHaveLength(1_000);
@@ -3594,7 +3594,7 @@ describe("devtools invalidation plans", () => {
       label: "/users/998/:id",
     });
     expect(bridgeAppGraphPanel?.items[999]).toMatchObject({
-      id: "__effect-ui-devtools-overflow:app-graph",
+      id: "__sunfall-arc-devtools-overflow:app-graph",
       label: "2 panel items hidden",
       severity: "info",
       metrics: [
@@ -3613,7 +3613,7 @@ describe("devtools invalidation plans", () => {
       selectedPanelId: "app-graph",
     });
     expect(defaultRenderedHtml).toContain(
-      'data-effect-ui-devtools-item-id="__effect-ui-devtools-overflow:app-graph"',
+      'data-sunfall-arc-devtools-item-id="__sunfall-arc-devtools-overflow:app-graph"',
     );
     expect(defaultRenderedHtml).toContain("&quot;total&quot;: 1001");
     expect(defaultRenderedHtml).toContain("&quot;shown&quot;: 999");
@@ -3920,7 +3920,7 @@ describe("devtools invalidation plans", () => {
         transport: "rpc",
         headers: [
           { name: "accept", value: "application/json" },
-          { name: "x-effect-ui-request-id", value: "req-project-atlas" },
+          { name: "x-sunfall-arc-request-id", value: "req-project-atlas" },
         ],
         cookies: [{ name: "[redacted]", value: "[redacted]" }],
       },
@@ -4391,8 +4391,8 @@ describe("devtools invalidation plans", () => {
       request: {
         id: "req-project-failure",
         method: "POST",
-        url: "https://example.test/__effect-ui/action",
-        path: "/__effect-ui/action",
+        url: "https://example.test/__sunfall-arc/action",
+        path: "/__sunfall-arc/action",
         transport: "action",
       },
       services: ["ProjectApi"],
@@ -5718,7 +5718,7 @@ describe("devtools invalidation plans", () => {
             name: "Golden.Project.load",
             client: {
               _tag: "Import",
-              rpcPath: "/__effect-ui/rpc",
+              rpcPath: "/__sunfall-arc/rpc",
             },
             wire: {
               complete: true,
@@ -5765,8 +5765,8 @@ describe("devtools invalidation plans", () => {
         ],
       },
       endpoints: {
-        rpc: "/__effect-ui/rpc",
-        action: "/__effect-ui/action",
+        rpc: "/__sunfall-arc/rpc",
+        action: "/__sunfall-arc/action",
       },
     });
     expect(summary.routes.plans).toEqual([
@@ -6008,7 +6008,7 @@ const goldenPathAppGraphDiagnostics = (
       },
       client: {
         _tag: "Import",
-        rpcPath: "/__effect-ui/rpc",
+        rpcPath: "/__sunfall-arc/rpc",
         module: "/src/project/project.contract.ts",
         exportName: "loadProject",
         moduleKind: "contract",
@@ -6033,7 +6033,7 @@ const goldenPathAppGraphDiagnostics = (
       },
       client: {
         _tag: "Import",
-        actionPath: "/__effect-ui/action",
+        actionPath: "/__sunfall-arc/action",
         module: "/src/project/project.actions.ts",
         exportName: "RenameProject",
         moduleKind: "shared",
@@ -6084,8 +6084,8 @@ const goldenPathAppGraphDiagnostics = (
   ],
   serverOnlyModules: ["/src/project/project.server.ts"],
   browserClientModules: ["/src/project/project.actions.ts", "/src/project/project.contract.ts"],
-  rpcPath: "/__effect-ui/rpc",
-  actionPath: "/__effect-ui/action",
+  rpcPath: "/__sunfall-arc/rpc",
+  actionPath: "/__sunfall-arc/action",
   schemaCoverage: {
     serverFunctions: {
       total: 1,
@@ -6152,7 +6152,7 @@ const appGraphDiagnostics: DevtoolsStartAppGraphDiagnostics = {
       },
       client: {
         _tag: "Import",
-        rpcPath: "/__effect-ui/rpc",
+        rpcPath: "/__sunfall-arc/rpc",
         module: "/src/user/user.contract.ts",
         exportName: "getUser",
         moduleKind: "contract",
@@ -6177,7 +6177,7 @@ const appGraphDiagnostics: DevtoolsStartAppGraphDiagnostics = {
       },
       client: {
         _tag: "Import",
-        actionPath: "/__effect-ui/action",
+        actionPath: "/__sunfall-arc/action",
         module: "/src/user/user.actions.ts",
         exportName: "RenameUser",
         moduleKind: "shared",
@@ -6220,8 +6220,8 @@ const appGraphDiagnostics: DevtoolsStartAppGraphDiagnostics = {
   collectionDefinitions: [],
   serverOnlyModules: ["/src/user/user.server.ts"],
   browserClientModules: ["/src/user/user.actions.ts"],
-  rpcPath: "/__effect-ui/rpc",
-  actionPath: "/__effect-ui/action",
+  rpcPath: "/__sunfall-arc/rpc",
+  actionPath: "/__sunfall-arc/action",
   schemaCoverage: {
     serverFunctions: {
       total: 1,

@@ -1,7 +1,7 @@
-import type { diagnostics, graph } from "virtual:effect-ui/app-graph";
-import type { manifest as actionManifest } from "virtual:effect-ui/actions";
-import type { manifest as routeManifest } from "virtual:effect-ui/file-routes";
-import type { manifest as serverFunctionManifest } from "virtual:effect-ui/server-functions";
+import type { diagnostics, graph } from "virtual:sunfall-arc/app-graph";
+import type { manifest as actionManifest } from "virtual:sunfall-arc/actions";
+import type { manifest as routeManifest } from "virtual:sunfall-arc/file-routes";
+import type { manifest as serverFunctionManifest } from "virtual:sunfall-arc/server-functions";
 
 export type ProjectConsoleStartGraph = typeof graph;
 export type ProjectConsoleStartDiagnostics = typeof diagnostics;

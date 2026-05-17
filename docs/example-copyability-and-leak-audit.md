@@ -25,7 +25,7 @@ copied as starters and whether browser/server boundaries remain explicit.
 - Extended `scripts/package-project-console-starter.mjs` into an Effect-backed
   generator for `.test-dist/starters/basic`, `.test-dist/starters/react`, and
   `.test-dist/starters/project-console`. Generated starters rewrite workspace
-  protocol dependencies to local `.effect-ui-packages/*` file dependencies,
+  protocol dependencies to local `.sunfall-arc-packages/*` file dependencies,
   remove monorepo Vite aliases, write standalone `tsconfig.json` files, verify
   source app manifests, install outside the workspace, and run each generated
   starter's own `verify` script before cleaning install/build artifacts.
@@ -45,7 +45,7 @@ copied as starters and whether browser/server boundaries remain explicit.
   and local metadata.
 - Starter packaging compares generated route/virtual artifact contents after
   standalone verify, currently `src/routeTree.gen.ts` and
-  `src/effect-ui-start-virtual.d.ts`, so copied starters cannot be silently
+  `src/sunfall-arc-start-virtual.d.ts`, so copied starters cannot be silently
   repaired by the Start Vite adapter while the source starter artifacts remain
   stale.
 - `pnpm example:pack-dry-run` runs an Effect-backed dry-run gate for the basic
@@ -56,7 +56,7 @@ copied as starters and whether browser/server boundaries remain explicit.
   command includes this gate and rejects generated output, dependency
   directories, lockfiles, build info, local metadata, and missing `.gitignore`
   files.
-- Generated starter package manifests now include `.effect-ui-packages` in
+- Generated starter package manifests now include `.sunfall-arc-packages` in
   their `files` allowlist, and `pnpm starter:package` dry-runs each generated
   starter tarball to prove local file-package Adapters are present while app
   build/test/dependency artifacts stay absent.
@@ -66,35 +66,35 @@ copied as starters and whether browser/server boundaries remain explicit.
 
 ## Verification Evidence
 
-- `pnpm --filter @effect-ui/example-project-console verify` passed after the
+- `pnpm --filter @sunfall/arc-example-project-console verify` passed after the
   package-local scripts were added: typecheck, 4 example test files / 23 tests,
   production build, and leak scan.
 - Root delegation scripts `pnpm example:test` and `pnpm example:leak-scan`
   passed.
-- `pnpm --filter @effect-ui/example-project-console typecheck`,
-  `pnpm --filter @effect-ui/example-project-console test`,
-  `pnpm --filter @effect-ui/example-project-console build`, and
-  `pnpm --filter @effect-ui/example-project-console leak-scan` passed after
+- `pnpm --filter @sunfall/arc-example-project-console typecheck`,
+  `pnpm --filter @sunfall/arc-example-project-console test`,
+  `pnpm --filter @sunfall/arc-example-project-console build`, and
+  `pnpm --filter @sunfall/arc-example-project-console leak-scan` passed after
   moving UI event handlers onto Effect-native APIs.
-- `pnpm starter:verify` passed for `@effect-ui/starter-basic`: typecheck, 1
+- `pnpm starter:verify` passed for `@sunfall/arc-starter-basic`: typecheck, 1
   starter test, production build, and leak scan.
 - `pnpm starter:package` passed and verified generated basic, React, and
   project-console starter manifests: 20, 25, and 31 app files respectively,
-  with 5, 4, and 6 local `@effect-ui/*` file packages; each generated starter
+  with 5, 4, and 6 local `@sunfall/arc-*` file packages; each generated starter
   completed typecheck, tests, production build, and leak scan after an isolated
   non-workspace install.
-- `pnpm --filter @effect-ui/starter-basic pack --dry-run`,
-  `pnpm --filter @effect-ui/starter-react pack --dry-run`,
-  `pnpm --filter @effect-ui/example-project-console pack --dry-run`,
-  `pnpm --filter @effect-ui/example-devtools-panel pack --dry-run`, and
-  `pnpm --filter @effect-ui/example-devtools-extension pack --dry-run` showed
+- `pnpm --filter @sunfall/arc-starter-basic pack --dry-run`,
+  `pnpm --filter @sunfall/arc-starter-react pack --dry-run`,
+  `pnpm --filter @sunfall/arc-example-project-console pack --dry-run`,
+  `pnpm --filter @sunfall/arc-example-devtools-panel pack --dry-run`, and
+  `pnpm --filter @sunfall/arc-example-devtools-extension pack --dry-run` showed
   only source/config/README assets and local `.gitignore` files where
   applicable, with no `dist` or `.test-dist` artifacts.
-- `pnpm --filter @effect-ui/start build` passed and
+- `pnpm --filter @sunfall/arc-start build` passed and
   `test ! -e packages/start/dist/virtual.d.ts.map` confirmed the replacement
   virtual declaration no longer leaves a stale source map.
 - `pnpm starter:package` passed and generated starter checks confirmed no
-  copied `@effect-ui/start` package contains `dist/virtual.d.ts.map`.
+  copied `@sunfall/arc-start` package contains `dist/virtual.d.ts.map`.
 - `pnpm example:pack-dry-run` passed for all five source packages:
   20 basic starter files, 25 React starter files, 31 project-console files,
   10 devtools panel files, and 15 devtools extension files.

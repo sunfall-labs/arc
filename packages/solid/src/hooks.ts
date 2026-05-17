@@ -19,7 +19,7 @@ import {
   type ActionResultInvalidationRequirements,
   type EffectInput,
   type EffectInputCallbackError,
-  type EffectUiRuntime,
+  type SunfallArcRuntime,
   type ForkScopedOptions,
   type ProgramEvent,
   type ProgramFailure,
@@ -33,7 +33,7 @@ import {
   type ResourceRef,
   type ResourceStore,
   type ResourceState,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Effect, Fiber, Stream } from "effect";
 import { createRenderEffect, createSignal, onCleanup, type Accessor } from "solid-js";
 import { createComponentScope, useRuntime } from "./runtime.js";
@@ -65,7 +65,7 @@ export interface UseResourceOptions<E = never, ER = never> {
 }
 
 /**
- * Solid-facing handle for an Effect UI resource.
+ * Solid-facing handle for an Sunfall Arc resource.
  *
  * Accessors track resource state reactively. `refreshEffect` and
  * `prefetchEffect` keep resource work in Effect and are bound to the nearest
@@ -101,7 +101,7 @@ export interface RuntimeEffectRunner<ER = never> {
   <A, E, R>(effect: Effect.Effect<A, E, R>, options?: ForkScopedOptions): Fiber.Fiber<A, E | ER>;
 }
 
-/** Solid-facing handle for an Effect UI Program. */
+/** Solid-facing handle for an Sunfall Arc Program. */
 export interface ProgramHandle<Model, Message, E = never, DispatchE = E> {
   readonly instance: Program.Instance<Model, Message, E, DispatchE>;
   /** Current centralized Program model. */
@@ -140,7 +140,7 @@ type SolidActionInstance<I, A, E, R, ER> = ActionInstance<
 >;
 
 /**
- * Solid-facing handle for an Effect UI Action.
+ * Solid-facing handle for an Sunfall Arc Action.
  *
  * `state` and `invalidationPlan` are Solid accessors bridged from Core signals;
  * `instance` keeps the lower-level Core controller available for integrations.
@@ -177,7 +177,7 @@ interface ResourceBinding<I, A, E, R, ER> {
   readonly controller: ResourceUiBindingController<I, A, E, R, ER>;
 }
 
-/** Bridges an Effect UI readable signal into a Solid accessor. */
+/** Bridges an Sunfall Arc readable signal into a Solid accessor. */
 export const useSignal = <A>(signal: ReadableSignal<A>): Accessor<A> => {
   const [value, setValue] = createSignal(coreRead(signal));
   const unsubscribe = signal.subscribe(() => {
@@ -224,7 +224,7 @@ export const useRuntimeEffect = <ER = never>(): RuntimeEffectRunner<ER> => {
 };
 
 /**
- * Starts an Effect UI Program and exposes its model, failures, and timeline as
+ * Starts an Sunfall Arc Program and exposes its model, failures, and timeline as
  * Solid accessors.
  */
 export const useProgram = <Model, Message, E = never, R = never, ER = never>(
@@ -234,7 +234,7 @@ export const useProgram = <Model, Message, E = never, R = never, ER = never>(
   const instance = createComponentScope(() =>
     runWithRuntime(runtime, () =>
       Program.start<Model, Message, E, R, ER>(definition, {
-        runtime: runtime as unknown as EffectUiRuntime<R, ER>,
+        runtime: runtime as unknown as SunfallArcRuntime<R, ER>,
       }),
     ),
   );
@@ -374,7 +374,7 @@ export const useResourceError = <I, A, E, R = unknown, ER = never>(
 };
 
 /**
- * Creates a Solid handle for an Effect UI resource.
+ * Creates a Solid handle for an Sunfall Arc resource.
  *
  * The hook subscribes to resource state, prefetches initial resources, and
  * exposes Effect-returning refresh/prefetch methods for event handlers or
@@ -479,7 +479,7 @@ export const useResourceSuspense = <I, A, E, R = unknown>(
 export const useAction = <I, A, E, R, ER = never>(
   definition: Action.Definition<I, A, E, R>,
 ): ActionHandle<I, A, E, R, ER> => {
-  const runtime = useRuntime() as EffectUiRuntime<R, ER>;
+  const runtime = useRuntime() as SunfallArcRuntime<R, ER>;
   const instance = Action.use(definition, { runtime });
   const state = useSignal(instance.state);
   const invalidationPlan = useSignal(instance.invalidationPlan);

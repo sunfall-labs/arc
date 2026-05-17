@@ -3,7 +3,7 @@ import {
   Resource,
   invokeEffectInput,
   type EffectInput,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Effect } from "effect";
 import type {
   CollectionIndexRecord,
@@ -95,7 +95,7 @@ export interface CollectionSyncOptions<
 }
 
 /**
- * Options for adapting an `@effect-ui/core` Resource ref into collection sync.
+ * Options for adapting an `@sunfall/arc-core` Resource ref into collection sync.
  */
 export interface CollectionResourceSyncAdapterOptions<
   I,
@@ -436,7 +436,7 @@ export const collectionSyncOptions = <
 };
 
 /**
- * Build a sync adapter from an `@effect-ui/core` Resource ref.
+ * Build a sync adapter from an `@sunfall/arc-core` Resource ref.
  *
  * Preload calls `Resource.prefetchEffect`; refetch calls
  * `Resource.refreshEffect`. Optional mutation callbacks can still write through
@@ -635,7 +635,7 @@ export namespace CollectionSync {
 
   /** Convert a sync adapter into `Collection.define` options. */
   export const options = collectionSyncOptions;
-  /** Adapt an `@effect-ui/core` Resource ref into a sync adapter. */
+  /** Adapt an `@sunfall/arc-core` Resource ref into a sync adapter. */
   export const resourceAdapter = collectionResourceSyncAdapter;
   /** Adapt a query-client style cache into a sync adapter. */
   export const queryAdapter = collectionQuerySyncAdapter;

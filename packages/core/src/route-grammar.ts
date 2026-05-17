@@ -43,7 +43,7 @@ export type ParamsForPath<Path extends string> = [RoutePathParamNames<Path>] ext
       readonly [K in OptionalRoutePathParamNames<Path>]?: string;
     };
 
-/** A parsed segment in the shared Effect UI route path grammar. */
+/** A parsed segment in the shared Sunfall Arc route path grammar. */
 export type RoutePathSegment =
   | {
       readonly _tag: "Static";
@@ -386,7 +386,7 @@ export const parseRouteUrl = (input: string | URL): URL => {
     return input;
   }
 
-  return new URL(input, "http://effect-ui.local");
+  return new URL(input, "http://sunfall-arc.local");
 };
 
 /** Preserves just the path and search components from a route input. */

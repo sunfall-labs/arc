@@ -7,10 +7,10 @@ import {
   ServerRpcProtocolError,
   ServerTransportError,
   type ActionDefinition,
-  type AnyEffectUiRuntime,
-  type EffectUiRuntime,
+  type AnySunfallArcRuntime,
+  type SunfallArcRuntime,
   type ServerFunction,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Cause, Data, Effect, Exit, Schema } from "effect";
 import type { StartCollectionHydrationOptions } from "./hydration.js";
 import {
@@ -102,15 +102,15 @@ export interface StartActionClientOptions<
    * omitted, for fetch Effects that require services.
    */
   readonly runtime?:
-    | EffectUiRuntime<FetchRequirements, RuntimeError>
-    | AnyEffectUiRuntime<RuntimeError>;
+    | SunfallArcRuntime<FetchRequirements, RuntimeError>
+    | AnySunfallArcRuntime<RuntimeError>;
   /**
    * Runtime used only for action response hydration and invalidation metadata.
    *
    * Use this with `transportRuntime` when fetch transport services live in a
    * different Runtime Spine than application Resource/Collection state.
    */
-  readonly responseRuntime?: EffectUiRuntime<any, RuntimeError> | AnyEffectUiRuntime<RuntimeError>;
+  readonly responseRuntime?: SunfallArcRuntime<any, RuntimeError> | AnySunfallArcRuntime<RuntimeError>;
 }
 
 /** Extracts the input value type from a core `ActionDefinition`. */

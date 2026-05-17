@@ -8,7 +8,7 @@ import {
   type LiveQueryHandle,
   type UseCollectionOptions,
   type UseLiveQueryOptions,
-} from "@effect-ui/react-db";
+} from "@sunfall/arc-react-db";
 
 interface ReactDbProject {
   readonly id: string;

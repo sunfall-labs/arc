@@ -203,6 +203,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
   prerender hover-policy pins for exported prerender option, event, result,
   error, planning, and Effect runner declarations, while keeping lazy route
   Suspense runtime ownership behind Core's public `Route` namespace.
+- Review493 Prerender Server Release And Current Evidence Policy did not
+  change public type contracts. It tightened current evidence policy and kept
+  the Review492 public type-test and full-gate evidence as the latest full
+  verification checkpoint.
 - Review491 Prerender Effect Interface And Lazy Route Suspense Probes removed
   the public `runStartPrerender(...)` Promise facade from Start Vite type
   pins, kept `runStartPrerenderEffect(...)` as the public runner, and added a
@@ -229,11 +233,11 @@ are easiest to regress while refactoring internals toward Effect primitives.
   they also exercise the low-level request-origin, Node request conversion,
   response writer, Promise facade option, runtime-option, and handler alias
   surfaces from the root compatibility facade, the fetch/node subpaths, and the
-  `@effect-ui/start-fetch` / `@effect-ui/start-node` packages.
-- The root `@effect-ui/start/adapters` compatibility facade now has an explicit
+  `@sunfall/arc-start-fetch` / `@sunfall/arc-start-node` packages.
+- The root `@sunfall/arc-start/adapters` compatibility facade now has an explicit
   `createFetchHandler(...)` type pin and the same serviceful-handler
-  runtime-required negative assertion as `@effect-ui/start/fetch-adapter`.
-- The root `@effect-ui/start/adapters` facade also pins low-level Fetch and
+  runtime-required negative assertion as `@sunfall/arc-start/fetch-adapter`.
+- The root `@sunfall/arc-start/adapters` facade also pins low-level Fetch and
   Node Effect handlers plus Node callback facades, including the runtime option
   requirement for serviceful Node server handlers.
 - Promise/callback-shaped Start host facade type tests pin that non-Scope

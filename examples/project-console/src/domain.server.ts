@@ -1,4 +1,4 @@
-import { ActionResult, RequestContext, Server } from "@effect-ui/core";
+import { ActionResult, RequestContext, Server } from "@sunfall/arc-core";
 import { Context, Effect, Layer, Option, Ref } from "effect";
 import {
   AdvanceProjectContract,
@@ -31,7 +31,7 @@ const nowLabel = (): string =>
 const requestNowLabelEffect: Effect.Effect<string> = Effect.gen(function* () {
   const context = yield* Effect.serviceOption(RequestContext);
   if (Option.isSome(context)) {
-    const label = context.value.headers.get("x-effect-ui-now-label")?.trim();
+    const label = context.value.headers.get("x-sunfall-arc-now-label")?.trim();
     if (label) {
       return label;
     }
@@ -121,7 +121,7 @@ export interface ProjectDemoStore {
 }
 
 export const ProjectDemoStore = Context.Service<ProjectDemoStore>(
-  "@effect-ui/example-project-console/ProjectDemoStore",
+  "@sunfall/arc-example-project-console/ProjectDemoStore",
 );
 
 export const makeProjectDemoStore = (

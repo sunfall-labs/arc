@@ -4,16 +4,16 @@ import { Window } from "happy-dom";
 import { describe, expect, it } from "vitest";
 import {
   describeDevtoolsPanels,
-  normalizeEffectUiDevtoolsBridgePayload,
+  normalizeSunfallArcDevtoolsBridgePayload,
   renderDevtoolsPanelsHtml,
   type DevtoolsPanelMount,
   type DevtoolsPanelUiInput,
   type DevtoolsStartAppGraphDiagnostics,
-} from "@effect-ui/devtools";
+} from "@sunfall/arc-devtools";
 import {
-  effectUiDevtoolsPanelPage,
-  effectUiDevtoolsPanelTitle,
-  registerEffectUiDevtoolsPanel,
+  sunfallArcDevtoolsPanelPage,
+  sunfallArcDevtoolsPanelTitle,
+  registerSunfallArcDevtoolsPanel,
 } from "./devtools.js";
 import { sampleDevtoolsPanels } from "./sample.js";
 import {
@@ -23,7 +23,7 @@ import {
 } from "./panel-runtime.js";
 import {
   DevtoolsExtensionTransportError,
-  effectUiDevtoolsBridgeExpression,
+  sunfallArcDevtoolsBridgeExpression,
   readInspectedWindowDevtoolsPayloadEffect,
   type ChromeInspectedWindowApi,
 } from "./transport.js";
@@ -36,14 +36,14 @@ describe("devtools extension example", () => {
 
     expect(manifest).toMatchObject({
       manifest_version: 3,
-      name: "Effect UI Devtools",
+      name: "Sunfall Arc Devtools",
       devtools_page: "devtools.html",
     });
   });
 
-  it("registers the Effect UI devtools panel with the extension host", () => {
+  it("registers the Sunfall Arc devtools panel with the extension host", () => {
     const created: ReadonlyArray<unknown>[] = [];
-    const registered = registerEffectUiDevtoolsPanel({
+    const registered = registerSunfallArcDevtoolsPanel({
       devtools: {
         panels: {
           create: (...args) => {
@@ -54,24 +54,24 @@ describe("devtools extension example", () => {
     });
 
     expect(registered).toBe(true);
-    expect(created).toEqual([[effectUiDevtoolsPanelTitle, "", effectUiDevtoolsPanelPage]]);
-    expect(registerEffectUiDevtoolsPanel({})).toBe(false);
+    expect(created).toEqual([[sunfallArcDevtoolsPanelTitle, "", sunfallArcDevtoolsPanelPage]]);
+    expect(registerSunfallArcDevtoolsPanel({})).toBe(false);
   });
 
   it("renders the extension panel from public devtools facts", () => {
     const html = renderDevtoolsPanelsHtml({
       panels: sampleDevtoolsPanels(),
       selectedPanelId: "requests",
-      title: "Effect UI Devtools Extension",
+      title: "Sunfall Arc Devtools Extension",
     });
 
-    expect(html).toContain("Effect UI Devtools Extension");
+    expect(html).toContain("Sunfall Arc Devtools Extension");
     expect(html).toContain("GET /projects/atlas");
     expect(html).toContain("Project.byId:atlas");
   });
 
   it("boots the actual extension panel entrypoint with a DOM root and fake chrome", async () => {
-    const window = new Window({ url: "chrome-extension://effect-ui/panel.html" });
+    const window = new Window({ url: "chrome-extension://sunfall-arc/panel.html" });
     const root = window.document.createElement("div");
     root.id = "devtools-root";
     window.document.body.append(root);
@@ -86,7 +86,7 @@ describe("devtools extension example", () => {
             callback({
               panels,
               selectedPanelId: "resources",
-              title: "Smoke Effect UI",
+              title: "Smoke Sunfall Arc",
             });
           },
         },
@@ -105,11 +105,11 @@ describe("devtools extension example", () => {
     try {
       const entrypoint = await import("./panel.js");
 
-      expect(evaluatedExpressions[0]).toBe(effectUiDevtoolsBridgeExpression);
-      expect(root.innerHTML).toContain("Smoke Effect UI");
+      expect(evaluatedExpressions[0]).toBe(sunfallArcDevtoolsBridgeExpression);
+      expect(root.innerHTML).toContain("Smoke Sunfall Arc");
       expect(root.innerHTML).toContain("Project.byId:atlas");
       expect(
-        root.querySelector('[data-effect-ui-devtools-panel-target="resources"]'),
+        root.querySelector('[data-sunfall-arc-devtools-panel-target="resources"]'),
       ).not.toBeNull();
       await Effect.runPromise(Fiber.interrupt(entrypoint.devtoolsExtensionPanelBootFiber));
       expect(root.innerHTML).toBe("");
@@ -137,7 +137,7 @@ describe("devtools extension example", () => {
             callback({
               panels,
               selectedPanelId: "resources",
-              title: "Live Effect UI",
+              title: "Live Sunfall Arc",
             });
           },
         },
@@ -146,18 +146,18 @@ describe("devtools extension example", () => {
 
     const payload = await Effect.runPromise(readInspectedWindowDevtoolsPayloadEffect(api));
 
-    expect(evaluatedExpressions).toEqual([effectUiDevtoolsBridgeExpression]);
+    expect(evaluatedExpressions).toEqual([sunfallArcDevtoolsBridgeExpression]);
     expect(payload).toEqual({
       panels,
       selectedPanelId: "resources",
-      title: "Live Effect UI",
+      title: "Live Sunfall Arc",
     });
-    expect(normalizeEffectUiDevtoolsBridgePayload(null)).toBeUndefined();
+    expect(normalizeSunfallArcDevtoolsBridgePayload(null)).toBeUndefined();
     expect(
-      normalizeEffectUiDevtoolsBridgePayload({ panels: { version: 2, panels: [] } }),
+      normalizeSunfallArcDevtoolsBridgePayload({ panels: { version: 2, panels: [] } }),
     ).toBeUndefined();
     expect(
-      normalizeEffectUiDevtoolsBridgePayload({
+      normalizeSunfallArcDevtoolsBridgePayload({
         panels: {
           version: 1,
           panels: [
@@ -184,9 +184,9 @@ describe("devtools extension example", () => {
           : panel,
       ),
     };
-    expect(normalizeEffectUiDevtoolsBridgePayload({ panels: duplicateItemPanels })).toBeUndefined();
+    expect(normalizeSunfallArcDevtoolsBridgePayload({ panels: duplicateItemPanels })).toBeUndefined();
     expect(
-      normalizeEffectUiDevtoolsBridgePayload({
+      normalizeSunfallArcDevtoolsBridgePayload({
         panels,
         selectedPanelId: "not-a-panel",
       }),
@@ -197,10 +197,10 @@ describe("devtools extension example", () => {
     const panels = describeDevtoolsPanels({
       appGraph: appGraphDiagnosticsWithRoutes(1_001),
     });
-    const payload = normalizeEffectUiDevtoolsBridgePayload({
+    const payload = normalizeSunfallArcDevtoolsBridgePayload({
       panels,
       selectedPanelId: "app-graph",
-      title: "Live Effect UI",
+      title: "Live Sunfall Arc",
     });
 
     const appGraphPanel = payload?.panels.panels.find((panel) => panel.id === "app-graph");
@@ -211,7 +211,7 @@ describe("devtools extension example", () => {
       label: "/extension/998/:id",
     });
     expect(appGraphPanel?.items[999]).toMatchObject({
-      id: "__effect-ui-devtools-overflow:app-graph",
+      id: "__sunfall-arc-devtools-overflow:app-graph",
       label: "2 panel items hidden",
       severity: "info",
       data: {
@@ -240,7 +240,7 @@ describe("devtools extension example", () => {
             eval: (_expression, callback) => {
               callback({
                 panels,
-                title: "Live Effect UI",
+                title: "Live Sunfall Arc",
               });
             },
           },
@@ -251,7 +251,7 @@ describe("devtools extension example", () => {
     expect(updates).toEqual([
       {
         panels,
-        title: "Live Effect UI",
+        title: "Live Sunfall Arc",
       },
     ]);
     expect(Object.prototype.hasOwnProperty.call(updates[0] ?? {}, "selectedPanelId")).toBe(false);
@@ -276,7 +276,7 @@ describe("devtools extension example", () => {
             callback({
               panels,
               selectedPanelId: "resources",
-              title: "Live Effect UI",
+              title: "Live Sunfall Arc",
             });
           },
         },
@@ -289,7 +289,7 @@ describe("devtools extension example", () => {
           yield* pollInspectedWindowEffect(mount, api, { pollInterval: "40 millis" });
           yield* Effect.sleep("10 millis");
           yield* Effect.sync(() => {
-            expect(evaluatedExpressions).toEqual([effectUiDevtoolsBridgeExpression]);
+            expect(evaluatedExpressions).toEqual([sunfallArcDevtoolsBridgeExpression]);
             expect(updates).toHaveLength(1);
           });
           yield* Effect.sleep("60 millis");
@@ -402,7 +402,7 @@ describe("devtools extension example", () => {
                 ? {
                     panels: livePanels,
                     selectedPanelId: "resources",
-                    title: "Live Effect UI",
+                    title: "Live Sunfall Arc",
                   }
                 : null,
             );
@@ -417,11 +417,11 @@ describe("devtools extension example", () => {
     expect(updates[0]).toMatchObject({
       panels: livePanels,
       selectedPanelId: "resources",
-      title: "Live Effect UI",
+      title: "Live Sunfall Arc",
     });
     expect(updates[1]).toMatchObject({
       selectedPanelId: "diagnostics",
-      title: "Effect UI Devtools Extension",
+      title: "Sunfall Arc Devtools Extension",
     });
     const update = updates[1];
     if (update?.panels === undefined) {
@@ -430,10 +430,10 @@ describe("devtools extension example", () => {
     const html = renderDevtoolsPanelsHtml({
       panels: update.panels,
       selectedPanelId: update.selectedPanelId ?? "diagnostics",
-      title: update.title ?? "Effect UI Devtools Extension",
+      title: update.title ?? "Sunfall Arc Devtools Extension",
     });
     expect(html).toContain("Inspected-window bridge unavailable");
-    expect(html).toContain("__EFFECT_UI_DEVTOOLS__");
+    expect(html).toContain("__SUNFALL_ARC_DEVTOOLS__");
     expect(html).not.toContain("GET /projects/atlas");
     expect(html).not.toContain("Project.byId:atlas");
   });
@@ -548,7 +548,7 @@ describe("devtools extension example", () => {
       error: {
         description: "bridge unavailable",
       },
-      guidance: expect.stringContaining("__EFFECT_UI_DEVTOOLS__"),
+      guidance: expect.stringContaining("__SUNFALL_ARC_DEVTOOLS__"),
     });
   });
 
@@ -580,7 +580,7 @@ describe("devtools extension example", () => {
     expect(updates).toHaveLength(1);
     expect(updates[0]).toMatchObject({
       selectedPanelId: "diagnostics",
-      title: "Effect UI Devtools Extension",
+      title: "Sunfall Arc Devtools Extension",
     });
     const update = updates[0];
     if (update?.panels === undefined) {
@@ -589,12 +589,12 @@ describe("devtools extension example", () => {
     const html = renderDevtoolsPanelsHtml({
       panels: update.panels,
       selectedPanelId: update.selectedPanelId ?? "diagnostics",
-      title: update.title ?? "Effect UI Devtools Extension",
+      title: update.title ?? "Sunfall Arc Devtools Extension",
     });
 
     expect(html).toContain("Inspected-window bridge unavailable");
     expect(html).toContain("bridge unavailable");
-    expect(html).toContain("__EFFECT_UI_DEVTOOLS__");
+    expect(html).toContain("__SUNFALL_ARC_DEVTOOLS__");
     expect(html).not.toContain("GET /projects/atlas");
     expect(html).not.toContain("Project.byId:atlas");
   });
@@ -716,7 +716,7 @@ describe("devtools extension example", () => {
     expect(updates).toHaveLength(1);
     expect(updates[0]).toMatchObject({
       selectedPanelId: "diagnostics",
-      title: "Effect UI Devtools Extension",
+      title: "Sunfall Arc Devtools Extension",
     });
     const update = updates[0];
     if (update?.panels === undefined) {
@@ -725,7 +725,7 @@ describe("devtools extension example", () => {
     const html = renderDevtoolsPanelsHtml({
       panels: update.panels,
       selectedPanelId: update.selectedPanelId ?? "diagnostics",
-      title: update.title ?? "Effect UI Devtools Extension",
+      title: update.title ?? "Sunfall Arc Devtools Extension",
     });
 
     expect(html).toContain("Inspected-window bridge unavailable");
@@ -756,7 +756,7 @@ describe("devtools extension example", () => {
       operation: "read-inspected-window",
       reason: "EvaluationFailure",
       error: thrown,
-      guidance: expect.stringContaining("__EFFECT_UI_DEVTOOLS__"),
+      guidance: expect.stringContaining("__SUNFALL_ARC_DEVTOOLS__"),
     });
   });
 });
@@ -800,8 +800,8 @@ const appGraphDiagnosticsWithRoutes = (routeCount: number): DevtoolsStartAppGrap
   collectionDefinitions: [],
   serverOnlyModules: [],
   browserClientModules: [],
-  rpcPath: "/__effect-ui/rpc",
-  actionPath: "/__effect-ui/action",
+  rpcPath: "/__sunfall-arc/rpc",
+  actionPath: "/__sunfall-arc/action",
   schemaCoverage: {
     serverFunctions: {
       total: 0,

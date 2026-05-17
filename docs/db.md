@@ -1,7 +1,7 @@
-# Effect UI DB
+# Sunfall Arc DB
 
-`@effect-ui/db` is the framework-native collection and live-query layer. It is
-intended to cover the TanStack DB shape while keeping Effect UI's runtime spine:
+`@sunfall/arc-db` is the framework-native collection and live-query layer. It is
+intended to cover the TanStack DB shape while keeping Sunfall Arc's runtime spine:
 runtime/request-local state, Effect-first loading and mutation handlers, typed
 signals, and scoped host adapters.
 
@@ -34,7 +34,7 @@ without choosing between correctness, inspectability, and ergonomics.
 ## Current Slice
 
 - `Collection.define(...)` declares a typed keyed row collection.
-- Collection state is stored per active Effect UI runtime/resource store.
+- Collection state is stored per active Sunfall Arc runtime/resource store.
 - Each Resource Store owns an explicit `Collection.Store`, exposed with
   `Collection.storeEffect()` for diagnostics and event subscriptions without
   exposing private row maps or runtime disposal.
@@ -121,7 +121,7 @@ without choosing between correctness, inspectability, and ergonomics.
   differential-dataflow / incremental-view-maintenance engine.
 - Grouped aggregate ordering plus ordered `limit` / `offset` windows are
   maintained inside the D2 graph.
-- `@effect-ui/react-db` and `@effect-ui/solid-db` adapt collections and live
+- `@sunfall/arc-react-db` and `@sunfall/arc-solid-db` adapt collections and live
   queries to framework-local state/accessors.
 
 ## Query Engine Shape
@@ -269,7 +269,7 @@ const ProjectStatusCounts = Query.live((query) =>
 The current adapter compiles source collections, explicit keyed joins,
 cross-collection fallback joins, filters, grouped aggregates, ordered windows,
 and `limit` / `offset` for ordered queries into a D2 graph. The materialized D2
-output is then projected by Effect UI. Unordered `offset` / `limit` still runs
+output is then projected by Sunfall Arc. Unordered `offset` / `limit` still runs
 after materialization until the framework has explicit insertion-order
 semantics.
 
@@ -426,7 +426,7 @@ Collection Store owns row metadata, optimistic mutation queues, indexes,
 persistence, and live-query participation.
 
 TanStack Query-shaped clients can provide the read side without adding a
-TanStack Query dependency to `@effect-ui/db`:
+TanStack Query dependency to `@sunfall/arc-db`:
 
 ```ts
 const Projects = Collection.define(
@@ -569,7 +569,7 @@ snapshot, letting synced collections resync from the server while leaving room
 for explicit migrations in local-only adapters.
 
 SQL statement clients can be adapted without adding a SQLite runtime dependency
-to `@effect-ui/db`:
+to `@sunfall/arc-db`:
 
 ```ts
 const sqliteDriver = Collection.sqliteStatementDriver({
@@ -745,7 +745,7 @@ const subscription = yield * store.subscribeEventsEffect();
 
 The public store surface is intentionally narrow: callers can subscribe to
 scoped events, while Runtime Collection Store lifecycle disposal remains
-internal to `@effect-ui/db`. Collection state maps remain owned by the DB
+internal to `@sunfall/arc-db`. Collection state maps remain owned by the DB
 Module. Devtools can record those events through its collection event runtime
 pipeline without importing private DB implementation details.
 
@@ -798,7 +798,7 @@ hydration lands in the same runtime that the UI will use:
 const runtime = createEffectRuntime(AppLive);
 
 runtime.runSync(
-  hydrateFromDocumentEffect(document, "__EFFECT_UI_HYDRATION__", {
+  hydrateFromDocumentEffect(document, "__SUNFALL_ARC_HYDRATION__", {
     collections: [Projects, Tasks],
   }),
 );
@@ -809,7 +809,7 @@ Minimal browser entrypoints can use the synchronous host facade
 `hydrateFromDocumentEffect(...)` before the UI mounts.
 
 For streamed SSR responses, Start emits incremental JSON scripts with
-`data-effect-ui-hydration-chunk`. Browser code can ingest only those chunks with
+`data-sunfall-arc-hydration-chunk`. Browser code can ingest only those chunks with
 `hydrateStartHydrationChunksFromDocument` or run
 `hydrateStartHydrationChunksFromDocumentEffect` inside the browser runtime. The
 same collection definitions are passed, and consumed chunk scripts are marked so

@@ -69,16 +69,16 @@ importers:
 
   examples/basic-starter:
     dependencies:
-      '@effect-ui/core':
+      '@sunfall/arc-core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@effect-ui/solid':
+      '@sunfall/arc-solid':
         specifier: workspace:*
         version: link:../../packages/solid
-      '@effect-ui/start':
+      '@sunfall/arc-start':
         specifier: workspace:*
         version: link:../../packages/start
-      '@effect-ui/tsrx':
+      '@sunfall/arc-tsrx':
         specifier: workspace:*
         version: link:../../packages/tsrx
       effect:
@@ -106,7 +106,7 @@ importers:
 
   examples/devtools-extension:
     dependencies:
-      '@effect-ui/devtools':
+      '@sunfall/arc-devtools':
         specifier: workspace:*
         version: link:../../packages/devtools
       effect:
@@ -128,7 +128,7 @@ importers:
 
   examples/devtools-panel:
     dependencies:
-      '@effect-ui/devtools':
+      '@sunfall/arc-devtools':
         specifier: workspace:*
         version: link:../../packages/devtools
       effect:
@@ -150,16 +150,16 @@ importers:
 
   examples/docs-site:
     dependencies:
-      '@effect-ui/core':
+      '@sunfall/arc-core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@effect-ui/solid':
+      '@sunfall/arc-solid':
         specifier: workspace:*
         version: link:../../packages/solid
-      '@effect-ui/start':
+      '@sunfall/arc-start':
         specifier: workspace:*
         version: link:../../packages/start
-      '@effect-ui/tsrx':
+      '@sunfall/arc-tsrx':
         specifier: workspace:*
         version: link:../../packages/tsrx
       effect:
@@ -187,22 +187,22 @@ importers:
 
   examples/project-console:
     dependencies:
-      '@effect-ui/core':
+      '@sunfall/arc-core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@effect-ui/db':
+      '@sunfall/arc-db':
         specifier: workspace:*
         version: link:../../packages/db
-      '@effect-ui/solid':
+      '@sunfall/arc-solid':
         specifier: workspace:*
         version: link:../../packages/solid
-      '@effect-ui/solid-db':
+      '@sunfall/arc-solid-db':
         specifier: workspace:*
         version: link:../../packages/solid-db
-      '@effect-ui/start':
+      '@sunfall/arc-start':
         specifier: workspace:*
         version: link:../../packages/start
-      '@effect-ui/tsrx':
+      '@sunfall/arc-tsrx':
         specifier: workspace:*
         version: link:../../packages/tsrx
       effect:
@@ -233,13 +233,13 @@ importers:
       '@base-ui/react':
         specifier: ^1.4.1
         version: 1.4.1(@types/react@19.2.14)(react-dom@19.2.6(react@19.2.6))(react@19.2.6)
-      '@effect-ui/core':
+      '@sunfall/arc-core':
         specifier: workspace:*
         version: link:../../packages/core
-      '@effect-ui/react':
+      '@sunfall/arc-react':
         specifier: workspace:*
         version: link:../../packages/react
-      '@effect-ui/start':
+      '@sunfall/arc-start':
         specifier: workspace:*
         version: link:../../packages/start
       '@radix-ui/react-slot':
@@ -309,7 +309,7 @@ importers:
 
   packages/db:
     dependencies:
-      '@effect-ui/core':
+      '@sunfall/arc-core':
         specifier: workspace:*
         version: link:../core
       '@tanstack/db-ivm':
@@ -321,7 +321,7 @@ importers:
 
   packages/devtools:
     dependencies:
-      '@effect-ui/core':
+      '@sunfall/arc-core':
         specifier: workspace:*
         version: link:../core
       effect:
@@ -330,7 +330,7 @@ importers:
 
   packages/react:
     dependencies:
-      '@effect-ui/core':
+      '@sunfall/arc-core':
         specifier: workspace:*
         version: link:../core
       effect:
@@ -342,13 +342,13 @@ importers:
 
   packages/react-db:
     dependencies:
-      '@effect-ui/core':
+      '@sunfall/arc-core':
         specifier: workspace:*
         version: link:../core
-      '@effect-ui/db':
+      '@sunfall/arc-db':
         specifier: workspace:*
         version: link:../db
-      '@effect-ui/react':
+      '@sunfall/arc-react':
         specifier: workspace:*
         version: link:../react
       effect:
@@ -360,7 +360,7 @@ importers:
 
   packages/solid:
     dependencies:
-      '@effect-ui/core':
+      '@sunfall/arc-core':
         specifier: workspace:*
         version: link:../core
       effect:
@@ -372,13 +372,13 @@ importers:
 
   packages/solid-db:
     dependencies:
-      '@effect-ui/core':
+      '@sunfall/arc-core':
         specifier: workspace:*
         version: link:../core
-      '@effect-ui/db':
+      '@sunfall/arc-db':
         specifier: workspace:*
         version: link:../db
-      '@effect-ui/solid':
+      '@sunfall/arc-solid':
         specifier: workspace:*
         version: link:../solid
       effect:
@@ -390,10 +390,10 @@ importers:
 
   packages/start:
     dependencies:
-      '@effect-ui/core':
+      '@sunfall/arc-core':
         specifier: workspace:*
         version: link:../core
-      '@effect-ui/db':
+      '@sunfall/arc-db':
         specifier: workspace:*
         version: link:../db
       effect:
@@ -405,13 +405,13 @@ importers:
 
   packages/start-fetch:
     dependencies:
-      '@effect-ui/start':
+      '@sunfall/arc-start':
         specifier: workspace:*
         version: link:../start
 
   packages/start-node:
     dependencies:
-      '@effect-ui/start':
+      '@sunfall/arc-start':
         specifier: workspace:*
         version: link:../start
 

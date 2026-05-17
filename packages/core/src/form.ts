@@ -5,7 +5,7 @@ import { invokeEffectInput } from "./effect-like.js";
 import { Signal, type ReadableSignal } from "./signal.js";
 
 /** Runtime marker used by `isForm(...)` to identify Form controllers. */
-export const FormTypeId: unique symbol = Symbol.for("@effect-ui/core/Form") as typeof FormTypeId;
+export const FormTypeId: unique symbol = Symbol.for("@sunfall/arc-core/Form") as typeof FormTypeId;
 
 /** String field key type used by form state, errors, dirty flags, and touched flags. */
 export type FormFieldKey<Values extends object> = Extract<keyof Values, string>;
@@ -536,7 +536,7 @@ export const isForm = (value: unknown): value is FormInstance<object, unknown, u
   value !== null &&
   (value as { [FormTypeId]?: unknown })[FormTypeId] === FormTypeId;
 
-/** Helpers for creating and validating Effect UI form controllers. */
+/** Helpers for creating and validating Sunfall Arc form controllers. */
 export namespace Form {
   /** Namespace alias for string keys addressable by a Form controller. */
   export type FieldKey<Values extends object> = FormFieldKey<Values>;

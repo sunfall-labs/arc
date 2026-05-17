@@ -46,7 +46,7 @@ export const startDiagnosticsCliVerifyCommandsForQuery = (
 ): readonly string[] => {
   const loadOptions = diagnosticsLoadCommandOptions(options);
   return [
-    `effect-ui-start diagnostics${loadOptions}`,
-    `effect-ui-start graph${loadOptions}${queryCommandArgs(query)}`,
+    `sunfall-arc-start diagnostics${loadOptions}`,
+    `sunfall-arc-start graph${loadOptions}${queryCommandArgs(query)}`,
   ];
 };

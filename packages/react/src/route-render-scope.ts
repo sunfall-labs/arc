@@ -4,11 +4,11 @@ import {
   forkRouteLazyComponentSuspense,
   isPromiseLikeValue,
   readRouteComponent,
-  type AnyEffectUiRuntime,
+  type AnySunfallArcRuntime,
   type AnyBrowserRoute,
   type BrowserRouterState,
   type BrowserRouteOutletRenderers,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Effect, Fiber } from "effect";
 import { createElement, useEffect, useLayoutEffect, useRef, type ReactNode } from "react";
 import {
@@ -41,14 +41,14 @@ const routeRenderDefaults = {
 };
 
 interface RouteRenderFrameProps<ER> {
-  readonly runtime: AnyEffectUiRuntime<ER>;
+  readonly runtime: AnySunfallArcRuntime<ER>;
   readonly render: () => ReactNode;
 }
 
 const RouteRenderFrame = <ER>(props: RouteRenderFrameProps<ER>): ReactNode => {
   const scopeRef = useRef<
     | {
-        readonly runtime: AnyEffectUiRuntime<ER>;
+        readonly runtime: AnySunfallArcRuntime<ER>;
         readonly frame: ReactRuntimeUiScopeFrame<ER>;
       }
     | undefined
@@ -108,13 +108,13 @@ const RouteRenderFrame = <ER>(props: RouteRenderFrameProps<ER>): ReactNode => {
 };
 
 const renderInRouteScope = <Routes extends readonly AnyRoute[], ER>(
-  runtime: AnyEffectUiRuntime<ER>,
+  runtime: AnySunfallArcRuntime<ER>,
   routeState: BrowserRouterState<Routes, ER>,
   renderers: ReactRouteOutletRenderers<Routes, ER>,
   render: () => ReactNode,
 ): ReactNode =>
   createElement(RuntimeContext.Provider, {
-    value: runtime as AnyEffectUiRuntime<never>,
+    value: runtime as AnySunfallArcRuntime<never>,
     children: createElement(RouteRenderFrame, {
       key: browserRouteRenderIdentity({
         state: routeState,
@@ -129,7 +129,7 @@ const renderInRouteScope = <Routes extends readonly AnyRoute[], ER>(
 export const renderReactRouteState = <Routes extends readonly AnyRoute[], ER>(
   routeState: BrowserRouterState<Routes, ER>,
   renderers: ReactRouteOutletRenderers<Routes, ER>,
-  runtime: AnyEffectUiRuntime<ER>,
+  runtime: AnySunfallArcRuntime<ER>,
 ): ReactNode => {
   const decision = browserRouteRenderDecision(routeState);
   switch (decision._tag) {

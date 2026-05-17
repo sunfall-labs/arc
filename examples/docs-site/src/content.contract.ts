@@ -1,4 +1,4 @@
-import { Server } from "@effect-ui/core";
+import { Server } from "@sunfall/arc-core";
 import { Schema } from "effect";
 
 export const RecipeSlug = Schema.String.pipe(

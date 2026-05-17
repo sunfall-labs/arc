@@ -1,8 +1,8 @@
-# Effect UI Winning Spec
+# Sunfall Arc Winning Spec
 
 ## Problem Statement
 
-Effect UI is trying to become the best full-stack framework for agent-operated
+Sunfall Arc is trying to become the best full-stack framework for agent-operated
 applications and compile-time correctness. The current core has a strong
 Effect-native Runtime Spine, request-local Resource Stores, typed resources,
 actions, routes, capabilities, server contracts, and a developing Start layer.
@@ -17,7 +17,7 @@ generated, inspectable, and testable.
 
 ## Solution
 
-Effect UI should win by becoming the framework where an agent can safely inspect,
+Sunfall Arc should win by becoming the framework where an agent can safely inspect,
 modify, and verify a full-stack app through a single coherent model:
 
 - A typed app graph covering routes, resources, actions, forms, capabilities,
@@ -46,7 +46,7 @@ Effect-native runtime behavior, tests, diagnostics, and a reference app.
 ## Breakthrough Thesis
 
 Most full-stack frameworks give developers a productive runtime and then ask
-tests, conventions, or reviewers to catch architectural drift. Effect UI should
+tests, conventions, or reviewers to catch architectural drift. Sunfall Arc should
 invert that. The framework should make the application graph explicit enough
 that drift is visible before production:
 
@@ -226,7 +226,7 @@ guarantees than mainstream full-stack frameworks.
 - Build a request runtime trace covering services, touched resources, fibers,
   interruptions, and stream lifecycle.
 - Add a diagnostics command that combines static checks with runtime-oriented
-  guidance. `effect-ui-start diagnostics` now covers the resolved app graph
+  guidance. `sunfall-arc-start diagnostics` now covers the resolved app graph
   policy gate and prints an agent-readable repair report by default; deeper
   runtime guidance can build on that payload and the exported diagnostics report
   formatter.

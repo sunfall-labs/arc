@@ -1,4 +1,4 @@
-import { EffectInputCallbackError, invokeEffectInput, type EffectInput } from "@effect-ui/core";
+import { EffectInputCallbackError, invokeEffectInput, type EffectInput } from "@sunfall/arc-core";
 import { Clock, Data, Effect } from "effect";
 import { type CollectionState } from "./collection-state.js";
 import {
@@ -281,7 +281,7 @@ export function hydrateCollectionEffect(
 export const collectionPersistenceKey = <A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>,
   options: CollectionPersistOptions = {},
-): string => options.key ?? `effect-ui:collection:${definition.name}`;
+): string => options.key ?? `sunfall-arc:collection:${definition.name}`;
 
 const persistCollectionEffectUnsafe = <A extends object, K extends CollectionKey, E, R, PE, PR>(
   definition: CollectionDefinition<A, K, E, R>,

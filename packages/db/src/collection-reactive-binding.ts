@@ -1,9 +1,9 @@
 import {
   invokeEffectInput,
   runWithRuntime,
-  type AnyEffectUiRuntime,
+  type AnySunfallArcRuntime,
   type EffectInput,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Effect, Fiber } from "effect";
 import type { AnyCollection, CollectionLoadState } from "./collection-contract.js";
 import { Query, type LiveQuery, type LiveQueryState, type QueryFactory } from "./query-builder.js";
@@ -13,7 +13,7 @@ import { Query, type LiveQuery, type LiveQueryState, type QueryFactory } from ".
  * collection-backed UI reads.
  */
 export const subscribeCollectionReactiveSource = (
-  runtime: AnyEffectUiRuntime<unknown>,
+  runtime: AnySunfallArcRuntime<unknown>,
   collection: AnyCollection,
   notify: () => void,
 ): (() => void) =>
@@ -30,7 +30,7 @@ export const subscribeCollectionReactiveSource = (
 
 /** Provides the runtime and scopes a collection/live-query Effect. */
 export const bindCollectionRuntimeEffect = <A, E, R, ER = never>(
-  runtime: AnyEffectUiRuntime<ER>,
+  runtime: AnySunfallArcRuntime<ER>,
   effect: Effect.Effect<A, E, R>,
 ): Effect.Effect<A, E | ER> => Effect.scoped(runtime.provide(effect));
 
@@ -83,7 +83,7 @@ export const selectCollectionReactiveLiveQuery = <
   T,
   E,
   R,
-  Runtime extends AnyEffectUiRuntime<unknown>,
+  Runtime extends AnySunfallArcRuntime<unknown>,
 >(
   runtime: Runtime,
   input: CollectionReactiveLiveQueryInput<T, E, R>,
@@ -123,7 +123,7 @@ export interface CollectionReactivePreloadController<E, _ER = never> {
 /** Options for the shared collection/live-query preload controller. */
 export interface CollectionReactivePreloadControllerOptions<E, ER = never> {
   /** Runtime that owns preload execution and interruption. */
-  readonly runtime: AnyEffectUiRuntime<ER>;
+  readonly runtime: AnySunfallArcRuntime<ER>;
   /**
    * Called when the latest preload succeeds.
    *

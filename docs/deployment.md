@@ -1,15 +1,15 @@
 # Deployment
 
-Effect UI deployment currently centers on the Start request boundary:
+Sunfall Arc deployment currently centers on the Start request boundary:
 `createRequestHandlerEffect(app)`. Host adapters stay thin, but the public
 facades own the host-shaped runtime seam. The canonical adapter remains
 Effect-first; compatibility facades exist only where a platform contract is
 already fixed, such as Fetch hosts that require `(request) =>
 Promise<Response>` or Node HTTP servers that require a `createServer` callback.
 
-The tested adapter implementation lives in `@effect-ui/start/adapters`.
+The tested adapter implementation lives in `@sunfall/arc-start/adapters`.
 Deployment-facing package facades are split by host shape:
-`@effect-ui/start-fetch` for Fetch-style hosts and `@effect-ui/start-node` for
+`@sunfall/arc-start-fetch` for Fetch-style hosts and `@sunfall/arc-start-node` for
 Node HTTP.
 
 ## Fetch And Edge-Style Hosts
@@ -17,8 +17,8 @@ Node HTTP.
 Use `toFetchHandlerEffect` when the host integration can run Effects itself:
 
 ```ts
-import { createRequestHandlerEffect } from "@effect-ui/start";
-import { toFetchHandlerEffect } from "@effect-ui/start-fetch";
+import { createRequestHandlerEffect } from "@sunfall/arc-start";
+import { toFetchHandlerEffect } from "@sunfall/arc-start-fetch";
 import { app } from "./app-definition.js";
 
 const fetchEffect = toFetchHandlerEffect(createRequestHandlerEffect(app));
@@ -28,8 +28,8 @@ Use `createFetchHandler` only as the compatibility adapter when the host itself
 expects `(request: Request) => Promise<Response>`:
 
 ```ts
-import { createRequestHandlerEffect } from "@effect-ui/start";
-import { createFetchHandler } from "@effect-ui/start-fetch";
+import { createRequestHandlerEffect } from "@sunfall/arc-start";
+import { createFetchHandler } from "@sunfall/arc-start-fetch";
 import { app } from "./app-definition.js";
 
 const fetch = createFetchHandler(createRequestHandlerEffect(app), {
@@ -44,8 +44,8 @@ export default {
 `toFetchHandler` is an alias for the Effect-returning adapter shape:
 
 ```ts
-import { createRequestHandlerEffect } from "@effect-ui/start";
-import { toFetchHandler } from "@effect-ui/start-fetch";
+import { createRequestHandlerEffect } from "@sunfall/arc-start";
+import { toFetchHandler } from "@sunfall/arc-start-fetch";
 import { app } from "./app-definition.js";
 
 const fetchEffect = toFetchHandler(createRequestHandlerEffect(app));
@@ -57,8 +57,8 @@ Use `createNodeServerHandler` for the ordinary `node:http` callback shape:
 
 ```ts
 import { createServer } from "node:http";
-import { createRequestHandlerEffect } from "@effect-ui/start";
-import { createNodeServerHandler } from "@effect-ui/start-node";
+import { createRequestHandlerEffect } from "@sunfall/arc-start";
+import { createNodeServerHandler } from "@sunfall/arc-start-node";
 import { app } from "./app-definition.js";
 
 const handler = createNodeServerHandler(createRequestHandlerEffect(app), {
@@ -94,8 +94,8 @@ that require a Promise-shaped exported `fetch` function can use the
 compatibility Fetch facade:
 
 ```ts
-import { createRequestHandlerEffect } from "@effect-ui/start";
-import { createFetchHandler } from "@effect-ui/start-fetch";
+import { createRequestHandlerEffect } from "@sunfall/arc-start";
+import { createFetchHandler } from "@sunfall/arc-start-fetch";
 import { app } from "./app-definition.js";
 
 const fetch = createFetchHandler(createRequestHandlerEffect(app), {
@@ -110,8 +110,8 @@ export default {
 Bun's HTTP server can use the same compatibility boundary:
 
 ```ts
-import { createRequestHandlerEffect } from "@effect-ui/start";
-import { createFetchHandler } from "@effect-ui/start-fetch";
+import { createRequestHandlerEffect } from "@sunfall/arc-start";
+import { createFetchHandler } from "@sunfall/arc-start-fetch";
 import { app } from "./app-definition.js";
 
 const fetch = createFetchHandler(createRequestHandlerEffect(app), {
@@ -123,18 +123,18 @@ Bun.serve({
 });
 ```
 
-Vercel and Netlify Node functions should use `@effect-ui/start-node` when the
+Vercel and Netlify Node functions should use `@sunfall/arc-start-node` when the
 host provides Node `IncomingMessage`/`ServerResponse` values. Prefer
-`@effect-ui/start-fetch` for their edge runtimes.
+`@sunfall/arc-start-fetch` for their edge runtimes.
 
 Static hosts can prerender routes during the production Vite build:
 
 ```ts
-import { effectUiStart } from "@effect-ui/start/vite";
+import { sunfallArcStart } from "@sunfall/arc-start/vite";
 
 export default defineConfig({
   plugins: [
-    effectUiStart({
+    sunfallArcStart({
       serverEntry: "/src/server.tsx",
       prerender: {
         enabled: true,

@@ -2,7 +2,7 @@ import {
   invokeEffectInput,
   type EffectInput,
   type EffectInputCallbackError,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Effect } from "effect";
 import type {
   AnyCollection,

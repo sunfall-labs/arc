@@ -3,7 +3,7 @@ import {
   Signal,
   stableStringify,
   type ReadableSignal,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Effect } from "effect";
 import type { ReadonlyCollectionMutation } from "./collection-errors.js";
 import {

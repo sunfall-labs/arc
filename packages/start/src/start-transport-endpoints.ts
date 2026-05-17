@@ -33,11 +33,11 @@ export interface StartEndpointConflictErrorInput {
 
 /** Repair guidance for invalid Start transport endpoint paths. */
 export const startEndpointPathGuidance =
-  "Use an origin-form endpoint path such as `/__effect-ui/rpc`; full URLs, empty paths, and CR/LF characters are not allowed.";
+  "Use an origin-form endpoint path such as `/__sunfall-arc/rpc`; full URLs, empty paths, and CR/LF characters are not allowed.";
 
 /** Repair guidance for colliding Start RPC/action endpoint paths. */
 export const startEndpointConflictGuidance =
-  "Use distinct origin-form endpoint paths for RPC and action transports, such as `/__effect-ui/rpc` and `/__effect-ui/action`.";
+  "Use distinct origin-form endpoint paths for RPC and action transports, such as `/__sunfall-arc/rpc` and `/__sunfall-arc/action`.";
 
 const urlSchemePattern = /^[A-Za-z][A-Za-z0-9+.-]*:/;
 

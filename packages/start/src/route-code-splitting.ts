@@ -1,6 +1,6 @@
 import { relative, resolve, sep } from "node:path";
 
-export const startRouteComponentSplitVirtualModuleId = "virtual:effect-ui/route-component";
+export const startRouteComponentSplitVirtualModuleId = "virtual:sunfall-arc/route-component";
 
 interface ImportSpecifierBinding {
   readonly imported: string;
@@ -236,10 +236,10 @@ const uniqueGeneratedIdentifier = (code: string, base: string): string => {
 };
 
 const uniqueRouteNamespaceIdentifier = (code: string): string =>
-  uniqueGeneratedIdentifier(code, "__EffectUiRoute");
+  uniqueGeneratedIdentifier(code, "__SunfallArcRoute");
 
 const uniqueEffectNamespaceIdentifier = (code: string): string =>
-  uniqueGeneratedIdentifier(code, "__EffectUiEffect");
+  uniqueGeneratedIdentifier(code, "__SunfallArcEffect");
 
 type Quote = '"' | "'" | "`";
 
@@ -793,7 +793,7 @@ export const transformStartRouteAutoCodeSplitting = (
   );
 
   return pruneUnusedImportBindings(
-    `import { Route as ${routeNamespace} } from "@effect-ui/core";\nimport { Effect as ${effectNamespace} } from "effect";\n${transformed}`,
+    `import { Route as ${routeNamespace} } from "@sunfall/arc-core";\nimport { Effect as ${effectNamespace} } from "effect";\n${transformed}`,
   );
 };
 

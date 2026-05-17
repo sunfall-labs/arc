@@ -1,5 +1,5 @@
 import { Data, Effect } from "effect";
-import { Collection } from "@effect-ui/db";
+import { Collection } from "@sunfall/arc-db";
 import type {
   ActionManifest,
   ActionManifestError,
@@ -94,8 +94,8 @@ export interface StartAppGraphRouteDiagnostics {
   readonly paramsSchema: StartAppGraphRouteFeaturePresence;
   readonly searchSchema: StartAppGraphRouteFeaturePresence;
   readonly preload: StartAppGraphRouteFeaturePresence;
-  readonly preloadResources: import("@effect-ui/core").Route.PreloadResourceDiagnostics;
-  readonly preloadCollections: import("@effect-ui/core").Route.PreloadCollectionDiagnostics;
+  readonly preloadResources: import("@sunfall/arc-core").Route.PreloadResourceDiagnostics;
+  readonly preloadCollections: import("@sunfall/arc-core").Route.PreloadCollectionDiagnostics;
   readonly component: StartAppGraphRouteFeaturePresence;
 }
 
@@ -169,10 +169,10 @@ export interface StartAppGraphActionDiagnostics {
 
 /** Resource family diagnostics included in the Start app graph. */
 export type StartAppGraphResourceFamilyDiagnostics =
-  import("@effect-ui/core").Resource.FamilyDiagnostics;
+  import("@sunfall/arc-core").Resource.FamilyDiagnostics;
 
 /** Resource tag diagnostics included in the Start app graph. */
-export type StartAppGraphResourceTagDiagnostics = import("@effect-ui/core").Resource.TagDiagnostics;
+export type StartAppGraphResourceTagDiagnostics = import("@sunfall/arc-core").Resource.TagDiagnostics;
 
 /**
  * Collection diagnostics included in the Start app graph.
@@ -181,7 +181,7 @@ export type StartAppGraphResourceTagDiagnostics = import("@effect-ui/core").Reso
  * collections that reject direct writes from concrete writable definitions.
  */
 export type StartAppGraphCollectionDiagnostics =
-  import("@effect-ui/db").Collection.DefinitionDiagnostics;
+  import("@sunfall/arc-db").Collection.DefinitionDiagnostics;
 
 /** Reads collection definition diagnostics through Start's DB dependency. */
 export const startAppGraphCollectionDefinitions =
@@ -214,7 +214,7 @@ export interface StartAppGraphUnknownRoutePreloadResourcesEntry {
   readonly moduleId: string;
   readonly filePath: string;
   readonly preload: StartAppGraphRouteFeaturePresence;
-  readonly preloadResources: import("@effect-ui/core").Route.PreloadResourceDiagnostics;
+  readonly preloadResources: import("@sunfall/arc-core").Route.PreloadResourceDiagnostics;
 }
 
 /** Route whose preload collection declarations are unknown or incomplete. */
@@ -225,7 +225,7 @@ export interface StartAppGraphUnknownRoutePreloadCollectionsEntry {
   readonly moduleId: string;
   readonly filePath: string;
   readonly preload: StartAppGraphRouteFeaturePresence;
-  readonly preloadCollections: import("@effect-ui/core").Route.PreloadCollectionDiagnostics;
+  readonly preloadCollections: import("@sunfall/arc-core").Route.PreloadCollectionDiagnostics;
 }
 
 /** Full diagnostic projection of a Start app graph for LSPs, CI, and devtools. */
@@ -272,8 +272,8 @@ export interface StartAppGraphRouteDiagnosticsRuntimeCandidate {
       readonly component?: unknown;
     };
   };
-  readonly preloadResources: import("@effect-ui/core").Route.PreloadResourceDiagnostics;
-  readonly preloadCollections: import("@effect-ui/core").Route.PreloadCollectionDiagnostics;
+  readonly preloadResources: import("@sunfall/arc-core").Route.PreloadResourceDiagnostics;
+  readonly preloadCollections: import("@sunfall/arc-core").Route.PreloadCollectionDiagnostics;
 }
 
 /** Runtime diagnostics facts merged into static Start app graph diagnostics. */
@@ -365,7 +365,7 @@ const isFeaturePresence = (value: unknown): value is StartAppGraphRouteFeaturePr
 
 const isPreloadDiagnosticsStatus = (
   value: unknown,
-): value is import("@effect-ui/core").Route.PreloadResourceDiagnostics["status"] =>
+): value is import("@sunfall/arc-core").Route.PreloadResourceDiagnostics["status"] =>
   value === "declared" || value === "none" || value === "unknown";
 
 const isActionBehaviorPresence = (
@@ -388,12 +388,12 @@ const isRouteParamDiagnostics = (
 
 const isPreloadResourceDiagnostics = (
   value: unknown,
-): value is import("@effect-ui/core").Route.PreloadResourceDiagnostics =>
+): value is import("@sunfall/arc-core").Route.PreloadResourceDiagnostics =>
   isRecord(value) && isPreloadDiagnosticsStatus(value.status) && isStringArray(value.families);
 
 const isPreloadCollectionDiagnostics = (
   value: unknown,
-): value is import("@effect-ui/core").Route.PreloadCollectionDiagnostics =>
+): value is import("@sunfall/arc-core").Route.PreloadCollectionDiagnostics =>
   isRecord(value) && isPreloadDiagnosticsStatus(value.status) && isStringArray(value.collections);
 
 const isResourceFamilyDiagnostics = (
@@ -812,8 +812,8 @@ export const describeFileRouteManifestEntry = (
     readonly paramsSchema?: StartAppGraphRouteFeaturePresence;
     readonly searchSchema?: StartAppGraphRouteFeaturePresence;
     readonly preload?: StartAppGraphRouteFeaturePresence;
-    readonly preloadResources?: import("@effect-ui/core").Route.PreloadResourceDiagnostics;
-    readonly preloadCollections?: import("@effect-ui/core").Route.PreloadCollectionDiagnostics;
+    readonly preloadResources?: import("@sunfall/arc-core").Route.PreloadResourceDiagnostics;
+    readonly preloadCollections?: import("@sunfall/arc-core").Route.PreloadCollectionDiagnostics;
     readonly component?: StartAppGraphRouteFeaturePresence;
   } = {},
 ): StartAppGraphRouteDiagnostics => ({

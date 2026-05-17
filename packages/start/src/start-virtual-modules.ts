@@ -18,7 +18,7 @@ import {
   makeStartFileRouteManifestEffect,
   makeStartServerFunctionManifestEffect,
   normalizeStartBuildPolicy,
-  type EffectUiStartOptions,
+  type SunfallArcStartOptions,
   type StartAppGraphError,
   type StartBuildPolicy,
   type StartBuildPolicyError,
@@ -29,18 +29,18 @@ import {
 } from "./server-function-manifest.js";
 
 /** Vite virtual module id for the generated server function manifest. */
-export const serverFunctionManifestVirtualModuleId = "virtual:effect-ui/server-functions";
+export const serverFunctionManifestVirtualModuleId = "virtual:sunfall-arc/server-functions";
 /** Vite virtual module id for the generated action manifest. */
-export const actionManifestVirtualModuleId = "virtual:effect-ui/actions";
+export const actionManifestVirtualModuleId = "virtual:sunfall-arc/actions";
 /** Vite virtual module id for the generated file route manifest. */
-export const fileRouteManifestVirtualModuleId = "virtual:effect-ui/file-routes";
+export const fileRouteManifestVirtualModuleId = "virtual:sunfall-arc/file-routes";
 /** Vite virtual module id for generated file route definitions. */
-export const fileRouteDefinitionsVirtualModuleId = "virtual:effect-ui/routes";
+export const fileRouteDefinitionsVirtualModuleId = "virtual:sunfall-arc/routes";
 /** Vite virtual module id for the generated Start app graph. */
-export const appGraphVirtualModuleId = "virtual:effect-ui/app-graph";
+export const appGraphVirtualModuleId = "virtual:sunfall-arc/app-graph";
 /** Vite virtual module id for generated Start app graph runtime diagnostics. */
 export const appGraphRuntimeDiagnosticsVirtualModuleId =
-  "virtual:effect-ui/app-graph/runtime-diagnostics";
+  "virtual:sunfall-arc/app-graph/runtime-diagnostics";
 
 const resolvedServerFunctionManifestVirtualModuleId = `\0${serverFunctionManifestVirtualModuleId}`;
 const resolvedActionManifestVirtualModuleId = `\0${actionManifestVirtualModuleId}`;
@@ -172,8 +172,8 @@ export const createStartAppGraphRuntimeDiagnosticsVirtualModule = (
   );
   return [
     'import { Effect } from "effect";',
-    'import { Resource, Route } from "@effect-ui/core";',
-    'import { describeStartAppGraphRuntimeDiagnostics, startAppGraphCollectionDefinitions, validateStartAppGraphDiagnosticsPolicyExceptionEffect } from "@effect-ui/start";',
+    'import { Resource, Route } from "@sunfall/arc-core";',
+    'import { describeStartAppGraphRuntimeDiagnostics, startAppGraphCollectionDefinitions, validateStartAppGraphDiagnosticsPolicyExceptionEffect } from "@sunfall/arc-start";',
     ...(routeModuleImports.length > 0 ? [""] : []),
     ...routeModuleImports,
     ...(routeModuleImports.length > 0 ? [""] : []),
@@ -215,7 +215,7 @@ const createStartAppGraphRuntimeDiagnosticsVirtualModuleEffect = (
 
 export const loadStartVirtualModuleEffect = (
   id: string,
-  options: EffectUiStartOptions = {},
+  options: SunfallArcStartOptions = {},
 ): Effect.Effect<string | null, StartVirtualModuleLoadError> => {
   switch (id) {
     case resolvedServerFunctionManifestVirtualModuleId:

@@ -1,5 +1,5 @@
 import { Effect, Scope, type Fiber } from "effect";
-import type { ResourceInvalidationPlan } from "@effect-ui/core";
+import type { ResourceInvalidationPlan } from "@sunfall/arc-core";
 import {
   DevtoolsActionInvalidationPlanConflict,
   DevtoolsPanelContractError,
@@ -16,7 +16,7 @@ import {
   devtoolsPanelIds,
   devtoolsPanelSeverities,
   devtoolsPanelStyles,
-  effectUiDevtoolsBridgeGlobal,
+  sunfallArcDevtoolsBridgeGlobal,
   installDevtoolsBridge,
   installDevtoolsBridgeEffect,
   interruptDevtoolsPanelBoot,
@@ -35,11 +35,11 @@ import {
   normalizeAppGraphUnknownRoutePreloadCollections,
   normalizeDevtoolsAppGraphDiagnostics,
   normalizeDevtoolsPanels,
-  normalizeEffectUiDevtoolsBridgePayload,
+  normalizeSunfallArcDevtoolsBridgePayload,
   normalizeRouteModulePreloadCollections,
   resolveDevtoolsPanelContract,
   resolveDevtoolsPanelsInput,
-  resolveEffectUiDevtoolsBridgePayload,
+  resolveSunfallArcDevtoolsBridgePayload,
   renderDevtoolsPanelsHtml,
   renderDevtoolsPanelsHtmlEffect,
   toDevtoolsSerializableValue,
@@ -84,7 +84,7 @@ import {
   type DevtoolsSummaryInput,
   type DevtoolsSummaryRuntimeEvent,
   type NormalizeDevtoolsAppGraphDiagnosticsOptions,
-} from "@effect-ui/devtools";
+} from "@sunfall/arc-devtools";
 
 const devtoolsStoreOptions: DevtoolsStoreOptions = {
   invalidationLimit: 4,
@@ -507,17 +507,17 @@ const devtoolsRecordRequestTraceEffect: Effect.Effect<void> =
 const devtoolsBridgePayload: DevtoolsBridgePayload = {
   panels: explicitDevtoolsPanels,
   selectedPanelId: "requests",
-  title: "Effect UI Devtools",
+  title: "Sunfall Arc Devtools",
 };
 const normalizedBridgePayload: DevtoolsBridgePayload | undefined =
-  normalizeEffectUiDevtoolsBridgePayload(devtoolsBridgePayload);
+  normalizeSunfallArcDevtoolsBridgePayload(devtoolsBridgePayload);
 const devtoolsBridgePayloadResolution: DevtoolsBridgePayloadContractResolution =
-  resolveEffectUiDevtoolsBridgePayload(devtoolsBridgePayload);
+  resolveSunfallArcDevtoolsBridgePayload(devtoolsBridgePayload);
 if (devtoolsBridgePayloadResolution._tag === "Valid") {
   const resolvedBridgePayload: DevtoolsBridgePayload = devtoolsBridgePayloadResolution.payload;
   void resolvedBridgePayload;
 }
-const invalidDevtoolsBridgePayloadResolution = resolveEffectUiDevtoolsBridgePayload({
+const invalidDevtoolsBridgePayloadResolution = resolveSunfallArcDevtoolsBridgePayload({
   panels: { version: 2, panels: [] },
 });
 if (invalidDevtoolsBridgePayloadResolution._tag === "Invalid") {
@@ -529,7 +529,7 @@ if (invalidDevtoolsBridgePayloadResolution._tag === "Invalid") {
 }
 const devtoolsBridgeTarget: DevtoolsBridgeTarget = {};
 const devtoolsBridgeInstall = installDevtoolsBridge(devtoolsBridgePayload, devtoolsBridgeTarget);
-devtoolsBridgeTarget[effectUiDevtoolsBridgeGlobal] = () => devtoolsBridgePayload;
+devtoolsBridgeTarget[sunfallArcDevtoolsBridgeGlobal] = () => devtoolsBridgePayload;
 devtoolsBridgeInstall.uninstall();
 const devtoolsBridgeInstallEffect: Effect.Effect<void, never, Scope.Scope> =
   installDevtoolsBridgeEffect(() => devtoolsBridgePayload, devtoolsBridgeTarget);

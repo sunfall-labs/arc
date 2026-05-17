@@ -1,10 +1,10 @@
-import { ServerRpcProtocolError, ServerTransportError } from "@effect-ui/core";
+import { ServerRpcProtocolError, ServerTransportError } from "@sunfall/arc-core";
 import { Data, Effect } from "effect";
 
 /** Default POST endpoint for Start server function RPC. */
-export const serverRpcPath = "/__effect-ui/rpc";
+export const serverRpcPath = "/__sunfall-arc/rpc";
 /** Default POST endpoint for Start actions. */
-export const serverActionPath = "/__effect-ui/action";
+export const serverActionPath = "/__sunfall-arc/action";
 
 /** Start transport protocol version emitted on response diagnostics headers. */
 export const startTransportProtocolVersion = "1";
@@ -18,15 +18,15 @@ export const startMultipartFormDataMediaType = "multipart/form-data";
 export const startHtmlMediaType = "text/html";
 
 /** Request/response correlation header propagated by Start transports. */
-export const startRequestIdHeader = "x-effect-ui-request-id";
+export const startRequestIdHeader = "x-sunfall-arc-request-id";
 /** W3C trace context header forwarded through Start transports. */
 export const startTraceparentHeader = "traceparent";
 /** W3C baggage header forwarded through Start transports. */
 export const startBaggageHeader = "baggage";
 /** Response diagnostics header describing the transport kind. */
-export const startTransportKindHeader = "x-effect-ui-transport";
+export const startTransportKindHeader = "x-sunfall-arc-transport";
 /** Response diagnostics header describing the Start transport protocol version. */
-export const startTransportProtocolHeader = "x-effect-ui-protocol-version";
+export const startTransportProtocolHeader = "x-sunfall-arc-protocol-version";
 
 /** Start transport families that share request validation helpers. */
 export type StartTransportKind = "rpc" | "action";

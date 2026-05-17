@@ -12,10 +12,10 @@ import {
 } from "./signal-dependencies.js";
 
 export const SignalTypeId: unique symbol = Symbol.for(
-  "@effect-ui/core/Signal",
+  "@sunfall/arc-core/Signal",
 ) as typeof SignalTypeId;
 
-/** Read-only reactive cell that participates in Effect UI dependency tracking. */
+/** Read-only reactive cell that participates in Sunfall Arc dependency tracking. */
 export interface ReadableSignal<A> extends Subscribable {
   readonly [SignalTypeId]: typeof SignalTypeId;
   /** Reads the value and records a dependency for derived signals/watchers. */
@@ -289,7 +289,7 @@ class DerivedSignalImpl<A> extends BaseSignal<A> {
   }
 }
 
-/** Runtime guard for Effect UI signals. */
+/** Runtime guard for Sunfall Arc signals. */
 export const isSignal = (value: unknown): value is ReadableSignal<unknown> =>
   typeof value === "object" &&
   value !== null &&

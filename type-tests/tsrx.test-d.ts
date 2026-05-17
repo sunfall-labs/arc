@@ -1,6 +1,6 @@
-import effectUiTsrxDefault, { effectUiTsrx, type EffectUiTsrxOptions } from "@effect-ui/tsrx";
+import sunfallArcTsrxDefault, { sunfallArcTsrx, type SunfallArcTsrxOptions } from "@sunfall/arc-tsrx";
 
-const tsrxExports: Array<unknown> = [effectUiTsrxDefault, effectUiTsrx];
-type TsrxOptions = EffectUiTsrxOptions;
+const tsrxExports: Array<unknown> = [sunfallArcTsrxDefault, sunfallArcTsrx];
+type TsrxOptions = SunfallArcTsrxOptions;
 void tsrxExports;
 type _TsrxOptions = TsrxOptions;

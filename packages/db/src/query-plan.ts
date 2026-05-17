@@ -3,7 +3,7 @@ import {
   isPromiseLikeValue,
   stableStringify,
   type PlainValue,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Data } from "effect";
 import type {
   AnyCollection,

@@ -28,10 +28,10 @@ import {
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const workspaceRoot = resolve(__dirname, "..");
-const localPackagesDirectoryName = ".effect-ui-packages";
+const localPackagesDirectoryName = ".sunfall-arc-packages";
 const localLockfileName = "pnpm-lock.yaml";
-const usePrebuiltWorkspacePackages = process.env.EFFECT_UI_VERIFY_PREBUILT_PACKAGES === "1";
-const useFastWorkspaceStarterVerify = process.env.EFFECT_UI_VERIFY_FAST_STARTERS === "1";
+const usePrebuiltWorkspacePackages = process.env.SUNFALL_ARC_VERIFY_PREBUILT_PACKAGES === "1";
+const useFastWorkspaceStarterVerify = process.env.SUNFALL_ARC_VERIFY_FAST_STARTERS === "1";
 
 class StarterPackageError extends Data.TaggedError("StarterPackageError") {}
 
@@ -107,7 +107,7 @@ const forbiddenGeneratedPackageFileNames = new Set([
   "yarn.lock",
 ]);
 const forbiddenGeneratedReadmeFragments = [
-  "pnpm --filter @effect-ui",
+  "pnpm --filter @sunfall-arc",
   "pnpm example:",
   "pnpm starter:package",
   ".test-dist/starters",
@@ -199,7 +199,7 @@ const assertStarterLeakScanParity = (starters) =>
         );
       }
 
-      const patterns = packageJson.effectUiLeakScan?.patterns;
+      const patterns = packageJson.sunfallArcLeakScan?.patterns;
       if (
         !Array.isArray(patterns) ||
         patterns.length === 0 ||
@@ -207,7 +207,7 @@ const assertStarterLeakScanParity = (starters) =>
       ) {
         return yield* Effect.fail(
           fail(
-            `${starter.displayName} package.json must declare nonempty effectUiLeakScan.patterns.`,
+            `${starter.displayName} package.json must declare nonempty sunfallArcLeakScan.patterns.`,
             "Declare the server-only text patterns this starter must keep out of dist.",
           ),
         );
@@ -217,7 +217,7 @@ const assertStarterLeakScanParity = (starters) =>
           try: () => new RegExp(pattern),
           catch: (cause) =>
             fail(
-              `${starter.displayName} effectUiLeakScan pattern is not a valid RegExp: ${pattern}.`,
+              `${starter.displayName} sunfallArcLeakScan pattern is not a valid RegExp: ${pattern}.`,
               "Keep leak-scan patterns valid so generated starters can verify themselves.",
               cause,
             ),
@@ -365,17 +365,17 @@ const starterPackagePlanningPolicyEffect = Effect.gen(function* () {
     internalPackageClosure(
       {
         dependencies: {
-          "@effect-ui/starter-package-present": "workspace:*",
+          "@sunfall/arc-starter-package-present": "workspace:*",
         },
       },
       new Map([
         [
-          "@effect-ui/starter-package-present",
+          "@sunfall/arc-starter-package-present",
           {
             packageJson: {
-              name: "@effect-ui/starter-package-present",
+              name: "@sunfall/arc-starter-package-present",
               dependencies: {
-                "@effect-ui/starter-package-missing": "workspace:*",
+                "@sunfall/arc-starter-package-missing": "workspace:*",
               },
             },
           },
@@ -390,7 +390,7 @@ const starterPackagePlanningPolicyEffect = Effect.gen(function* () {
     error,
   );
   yield* assertStarterPackagePlanningPolicy(
-    error.message.includes("@effect-ui/starter-package-missing"),
+    error.message.includes("@sunfall/arc-starter-package-missing"),
     "Starter dependency closure should name missing transitive workspace packages.",
     error,
   );
@@ -991,7 +991,7 @@ const verifyStandaloneConfigs = (starter) =>
       return yield* Effect.fail(
         fail(
           `Generated ${starter.displayName} Vite config still contains monorepo aliases.`,
-          "Rewrite the generated Vite config so it uses local file-package @effect-ui imports without monorepo aliases.",
+          "Rewrite the generated Vite config so it uses local file-package @sunfall-arc imports without monorepo aliases.",
         ),
       );
     }

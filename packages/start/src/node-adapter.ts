@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { defaultRuntime, toEffect, type EffectInput, type EffectUiRuntime } from "@effect-ui/core";
+import { defaultRuntime, toEffect, type EffectInput, type SunfallArcRuntime } from "@sunfall/arc-core";
 import { Cause, Effect, Scope } from "effect";
 import { StartRequestHandlerError } from "./start-request-handler-error.js";
 import {
@@ -79,7 +79,7 @@ export type StartNodeServerHandlerRuntimeOptions<Requirements, RuntimeError = ne
   StartNodeServerHandlerOptions<RuntimeError>,
   "runtime"
 > & {
-  readonly runtime: EffectUiRuntime<StartNodeRuntimeRequirements<Requirements>, RuntimeError>;
+  readonly runtime: SunfallArcRuntime<StartNodeRuntimeRequirements<Requirements>, RuntimeError>;
 };
 
 type StartNodeServerHandlerOptionsArgs<Requirements, RuntimeError = never> = [

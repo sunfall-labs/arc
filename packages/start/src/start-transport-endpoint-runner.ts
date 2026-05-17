@@ -1,8 +1,8 @@
 import {
   type AppDefinitionRegistry,
-  type EffectUiRuntime,
+  type SunfallArcRuntime,
   type ResponseContext,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Effect, type Scope } from "effect";
 import {
   startBaggageHeader,
@@ -55,7 +55,7 @@ export const runStartTransportEndpointEffect = <
   Requirements,
 >(options: {
   readonly request: Request;
-  readonly runtime: EffectUiRuntime<RuntimeServices, RuntimeError>;
+  readonly runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>;
   readonly responseContext: ResponseContext;
   readonly registry?: AppDefinitionRegistry;
   readonly traceFacts?: StartRequestTraceFacts;

@@ -1,6 +1,6 @@
 # Competitiveness Bar
 
-Effect UI is trying to compete with full-stack frameworks on product completeness
+Sunfall Arc is trying to compete with full-stack frameworks on product completeness
 and beat them on correctness, observability, and Effect-native composition.
 
 The product strategy is detailed in
@@ -40,7 +40,7 @@ points show we are no longer merely experimental.
 
 ## How We Beat The Current Stack
 
-| Current tool category | Why teams use it                               | Effect UI winning replacement                                                                                                                |
+| Current tool category | Why teams use it                               | Sunfall Arc winning replacement                                                                                                                |
 | --------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | React state libraries | Local reactive values and derived state        | `Signal`, `Signal.derive`, scoped `watch`, and Effect `Stream` adapters with component-owned scopes                                          |
 | TanStack Query        | Async reads, stale data, retries, invalidation | `Resource.family`, Effect `Cache`, `Schedule`, semantic `Resource.tag`, invalidation plans, hydration, and resource event streams            |
@@ -57,7 +57,7 @@ more correct than the incumbent, it stays an active win condition.
 
 ## Product Scorecard
 
-Effect UI is competitive when these are true:
+Sunfall Arc is competitive when these are true:
 
 - a new app can be created from a starter and deployed without framework-author
   intervention;
@@ -67,7 +67,7 @@ Effect UI is competitive when these are true:
 - package exports are stable enough for external users;
 - diagnostics make common mistakes obvious.
 
-Effect UI is winning when these are also true:
+Sunfall Arc is winning when these are also true:
 
 - strict mode can make route preload ownership, action behavior metadata, and
   schema completeness CI-enforced contracts;
@@ -125,8 +125,8 @@ Effect UI is winning when these are also true:
 - Devtools causal graph substrate: summaries now include nodes and edges for
   routes, resources, actions, invalidations, schemas, modules, endpoints, and
   runtime events.
-- Public deployment adapters: `@effect-ui/start-fetch` and
-  `@effect-ui/start-node` expose host-shaped facades over the tested Start
+- Public deployment adapters: `@sunfall/arc-start-fetch` and
+  `@sunfall/arc-start-node` expose host-shaped facades over the tested Start
   adapter implementation, with streaming Node responses, interruption,
   backpressure, and multi-cookie header handling.
 - Request-scoped response services: render, preload, server functions, actions,
@@ -168,14 +168,14 @@ Effect UI is winning when these are also true:
   and the resolved virtual app graph can reject routes whose preload resource or
   collection declarations are still unknown.
 - Scriptable resolved diagnostics: `loadStartAppGraphDiagnostics(...)` and
-  `effect-ui-start diagnostics` let CI load the Vite-resolved app graph, execute
+  `sunfall-arc-start diagnostics` let CI load the Vite-resolved app graph, execute
   the virtual diagnostics policy guard, and consume the same diagnostics object
   agents/devtools use.
-- Agent-readable diagnostics reports: `effect-ui-start diagnostics` now defaults
-  to a grouped repair report, and `@effect-ui/start/diagnostics-report` exposes
+- Agent-readable diagnostics reports: `sunfall-arc-start diagnostics` now defaults
+  to a grouped repair report, and `@sunfall/arc-start/diagnostics-report` exposes
   the same report builder/formatter for bots that need exact owner and edit
   guidance.
-- Agent-readable semantic graph: `effect-ui-start graph` and
+- Agent-readable semantic graph: `sunfall-arc-start graph` and
   `createStartAgentGraph(...)` expose typed Route, Action, ServerFunction,
   ResourceFamily, ResourceTag, Collection, Endpoint, Module, and Finding nodes
   with deterministic edges and self-review facts. The default CLI output is a

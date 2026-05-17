@@ -38,7 +38,7 @@ export const scriptCommandErrorRepair = (error, spawnRepair) =>
 
 const platformError = (message, cause) => new ScriptCommandError({ message, cause });
 
-const scriptCommandExitStatus = Symbol("effect-ui.scriptCommandExitStatus");
+const scriptCommandExitStatus = Symbol("sunfall-arc.scriptCommandExitStatus");
 
 const signalExitCode = (signal) => {
   if (signal === null) {

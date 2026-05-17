@@ -1,6 +1,6 @@
 # Release Notes Draft
 
-This is the current release-candidate snapshot for the pre-release Effect UI
+This is the current release-candidate snapshot for the pre-release Sunfall Arc
 framework. Framework package manifests are configured for public MIT alpha
 publication; this remains a release-candidate draft until versions, repository
 metadata, and final npm publication are selected.
@@ -16,14 +16,14 @@ metadata, and final npm publication are selected.
   DB, React, React DB, Solid, Start, Node, and Fetch concepts.
 - Start request handling: SSR, RPC, Start actions, hydration payloads, streamed
   HTML responses, request traces, and build diagnostics.
-- Start agent graph and impact inspection: `effect-ui-start graph`,
-  `effect-ui-start impact`, `createStartAgentGraph(...)`, and
+- Start agent graph and impact inspection: `sunfall-arc-start graph`,
+  `sunfall-arc-start impact`, `createStartAgentGraph(...)`, and
   `createStartAgentGraphImpact(...)` expose the resolved app topology as typed,
   queryable route/action/resource/collection/module/finding facts plus concise
   edit briefs. Text output is concise by default, with raw graph ids/facts/edges
   behind `--verbose` and full machine payloads behind `--json`.
-- Node and Fetch host facades: `@effect-ui/start-node` and
-  `@effect-ui/start-fetch`.
+- Node and Fetch host facades: `@sunfall/arc-start-node` and
+  `@sunfall/arc-start-fetch`.
 - Devtools data contracts: snapshots, summaries, causal graphs, request traces,
   panel models, deterministic HTML rendering, the checked panel app shell, and
   the checked browser-extension shell with an inspected-window bridge.
@@ -54,13 +54,13 @@ metadata, and final npm publication are selected.
   self-type assertions instead of `as never` bottom casts.
 - Core runtime integration with Effect `ManagedRuntime` keeps a documented
   service-erasure boundary centralized behind `provideManagedServices(...)` and
-  `provideRuntimeServices(...)`; `EffectUiRuntime.provide(...)` exposes a scoped
+  `provideRuntimeServices(...)`; `SunfallArcRuntime.provide(...)` exposes a scoped
   Effect for UI-scope forking.
 - Core Capability helpers now use overloads for pure vs Effect-returning
   `useEffect(...)` callbacks and rely on `Effect.provideService(...)` return
   typing directly.
 - Browser extension packaging is checked as an example shell, including a live
-  inspected-app bridge that reads `globalThis.__EFFECT_UI_DEVTOOLS__`.
+  inspected-app bridge that reads `globalThis.__SUNFALL_ARC_DEVTOOLS__`.
 - Platform-specific packages beyond Node/fetch should wait for hosts that need
   real behavior beyond the generic facades and documented recipes.
 
@@ -81,12 +81,20 @@ Latest full gate on May 17, 2026 after Review 492:
   local packages);
 - 17-target package dry-run gate for all framework packages plus the basic
   starter, React starter, project console, docs site, devtools panel, and devtools
-  extension, including the `@effect-ui/start/virtual` declaration byte check
-  and 149-file `@effect-ui/db` package rehearsal;
+  extension, including the `@sunfall/arc-start/virtual` declaration byte check
+  and 149-file `@sunfall/arc-db` package rehearsal;
 - project console typecheck;
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 493 Prerender Server Release And Current Evidence Policy makes Start
+  prerender server release failures observable as typed `close-server` errors:
+  websocket, hot-channel, and server close handles are all attempted, successful
+  prerender work fails when release fails, and body failure still wins over
+  cleanup failure. Current evidence policy now records Review493 as the latest
+  focused sweep, keeps Review492 as the latest full gate, and rejects stale
+  older "current full" claims. The active Thirty-Sweep clean counter remains
+  0/30 until a fresh post-Review493 sweep reports no actionable findings.
 - Review 492 Route Suspense Runtime And Prerender Callback Pins moved lazy
   route Suspense pending classification and preload launch into Core, leaving
   React/Solid with only host Suspense token conversion, and avoids duplicate
@@ -97,8 +105,9 @@ Latest full gate on May 17, 2026 after Review 492:
   timers unref in Node, Start diagnostics drops its inactive-server unref
   workaround, docs-site static prerender output is verified, and TSRX
   dependency-discovery policy is pinned to the dev server. The active
-  Thirty-Sweep clean counter remains 0/30 until a fresh post-Review492 sweep
-  reports no actionable findings.
+  Thirty-Sweep clean counter remained 0/30; the later fresh post-Review492
+  sweep found Review493 prerender server release and current evidence policy
+  work.
 - Review 491 Prerender Effect Interface And Lazy Route Suspense Probes removed
   the new Start prerender Promise facade, kept `runStartPrerenderEffect(...)`
   as the public runner, moved retry delay and host IO through Effect
@@ -360,8 +369,8 @@ Latest full gate on May 17, 2026 after Review 492:
   keep observer cleanup; direct SQLite persistence rejects malformed
   namespace/key/value fields before table callbacks; borrowed Start diagnostics
   server loading no longer closes caller-owned servers; runtime wildcard docs
-  distinguish exact Core ambient `EffectUiRuntime<any, any>` hits from named
-  router/host `EffectUiRuntime<any, ER>` Adapter seams; script commands now run
+  distinguish exact Core ambient `SunfallArcRuntime<any, any>` hits from named
+  router/host `SunfallArcRuntime<any, ER>` Adapter seams; script commands now run
   through Effect v4 `ChildProcess` plus a local Node spawner; and package
   dry-runs/generated starters share one dist payload policy Interface. A later
   post-Review219 sweep found Review220 work, so the active Thirty-Sweep clean
@@ -381,7 +390,7 @@ Latest full gate on May 17, 2026 after Review 492:
   DB query sync keys and secondary indexes reject executable-shaped values
   before clients or buckets observe them, hostile row reads map into typed
   collection ingress errors, Devtools/runtime LSP hovers are policy-pinned, and
-  project-console no longer teaches `EffectUiRuntime<any, never>` erasure at
+  project-console no longer teaches `SunfallArcRuntime<any, never>` erasure at
   its app runtime seam.
 - Review 212 closed the post-Review211 sweep findings: `ActionResult`
   success/failure helpers reject nested Promise-shaped payloads, Program
@@ -417,7 +426,7 @@ Latest full gate on May 17, 2026 after Review 492:
 - Review 208 closed the first post-Review207 sweep findings: React and Solid
   RuntimeProvider disposal observers now expose `EffectInput<void, unknown>`
   while rejecting Promise-shaped observers, the package dry-run gate executes
-  the linked `effect-ui-start` bin directly on POSIX, the Start build marks
+  the linked `sunfall-arc-start` bin directly on POSIX, the Start build marks
   `dist/cli.js` executable, Solid match docs use plain callback values, and at
   the Review208 checkpoint stale current-gate ledgers were refreshed from
   Review206 to Review208.
@@ -433,7 +442,7 @@ Latest full gate on May 17, 2026 after Review 492:
 - Review 206 closed the first post-Review205 sweep findings: the Start CLI bin
   main guard now follows real filesystem paths so package-manager symlink
   entrypoints execute, the package dry-run verifier runs the built
-  `effect-ui-start` bin through a temporary symlink, and hydration docs now
+  `sunfall-arc-start` bin through a temporary symlink, and hydration docs now
   teach the Effect-first `hydrateFromDocumentEffect(...)` /
   `hydrateStartPayloadEffect(...)` path before the synchronous Resource facade.
 - Review 205 closed the first post-Review204 sweep findings: current evidence
@@ -480,7 +489,7 @@ Latest full gate on May 17, 2026 after Review 492:
   projection while keeping Solid accessors local; React DB public docs/type
   tests pin runtime-bound pending mutation/write/flush handles and runtime error
   propagation; Vite dev SSR handlers can preserve service requirements and run
-  through `EffectUiStartOptions.devSsr.runtime`; diagnostics temporary Vite
+  through `SunfallArcStartOptions.devSsr.runtime`; diagnostics temporary Vite
   server close failures remain typed; and the diagnostics CLI bin catches writer
   failures inside the Effect-owned process boundary instead of leaking rejected
   Promises.
@@ -645,7 +654,7 @@ Latest full gate on May 17, 2026 after Review 492:
   Query Execution Plan Module.
 - Review 172 cleaned up stale current-facing Review167 carry-forward language.
 - Review 173 closed the Start Virtual Declaration Artifact Adapter guardrail:
-  `@effect-ui/start/virtual` package dry-runs now require
+  `@sunfall/arc-start/virtual` package dry-runs now require
   `dist/virtual.d.ts`, compare it byte-for-byte against
   `src/virtual-modules.d.ts`, and reject stale `dist/virtual.d.ts.map` files.
 - Review 174 closed the DB Collection Policy cleanup: stale
@@ -830,7 +839,7 @@ Latest full gate on May 17, 2026 after Review 492:
   vocabulary regressions.
 - Review 133 closed the post-Review132 docs/test findings: public Start app
   graph hovers and diagnostics policy hovers are audit-pinned, app-graph APIs
-  are asserted through `@effect-ui/start` type tests, diagnostics policy
+  are asserted through `@sunfall/arc-start` type tests, diagnostics policy
   opt-outs are covered, and every graph query kind runs through the CLI
   parser/runtime seam for graph and impact commands.
 - Review 134 closed the fresh post-Review133 audit gaps: graph query-kind types
@@ -918,7 +927,7 @@ Latest full gate on May 17, 2026 after Review 492:
   runtime/request-local bucket caches, index row reads, indexed join keys, and
   `UnknownCollectionIndex` now share one policy.
 - Review 91 extracted the internal Start Diagnostics CLI Runner Module and
-  moved `effect-ui-start` parsing onto Effect v4 `Command`, `Flag`, and
+  moved `sunfall-arc-start` parsing onto Effect v4 `Command`, `Flag`, and
   `Argument` primitives. Diagnostics loading, agent graph/impact projection,
   JSON/text formatting, write effects, and failure reporting now live behind
   the parsed CLI command runner while `cli.ts` remains the argv/bin adapter.
@@ -994,7 +1003,7 @@ Latest full gate on May 17, 2026 after Review 492:
   request bodies, progressive form hidden fields, schema-backed input encoding,
   and server JSON/form decoding now live together while Start Transport Protocol
   keeps response/status/failure policy.
-- Review 107 moved shared `effect-ui-start` diagnostics flags onto the root
+- Review 107 moved shared `sunfall-arc-start` diagnostics flags onto the root
   Effect v4 `Command.withSharedFlags(...)` grammar, so subcommands inherit
   parent flags instead of repeating them.
 - Review 108 moved Start diagnostics CLI graph/impact query parsing into Effect
@@ -1013,7 +1022,7 @@ Latest full gate on May 17, 2026 after Review 492:
 - Review 115 extracted the Start Vite Diagnostics Loader Module, so temporary
   Vite server acquire/release, diagnostics virtual-module loading, graph DTO
   decoding, and build-gate diagnostics execution live behind a focused
-  Effect-first loader re-exported by `@effect-ui/start/vite`.
+  Effect-first loader re-exported by `@sunfall/arc-start/vite`.
 - Review 116 extracted the DB Collection Sync Load Policy Module, so
   `preloadEffect(...)` and `refetchEffect(...)` now share one Effect v4
   workflow for in-flight `Deferred` ownership/joining, forced-refetch generation
@@ -1152,18 +1161,18 @@ Latest full gate on May 17, 2026 after Review 492:
 - Start request traces now classify RPC/action failures by layer with a
   `failureKind` fact that devtools summaries can display.
 - The devtools extension uses sample data only as the initial fallback and
-  updates from a live inspected-page `__EFFECT_UI_DEVTOOLS__` panel payload when
+  updates from a live inspected-page `__SUNFALL_ARC_DEVTOOLS__` panel payload when
   present; later missing or invalid bridge reads render diagnostics instead of
   keeping stale facts.
 - Apps can expose that payload through `installDevtoolsBridgeEffect(...)`, which
-  scopes `globalThis.__EFFECT_UI_DEVTOOLS__` setup and cleanup inside Effect.
+  scopes `globalThis.__SUNFALL_ARC_DEVTOOLS__` setup and cleanup inside Effect.
 - The latest devtools extension verify includes 1 extension test file / 20 tests
   plus the Manifest V3 production build.
 - The latest `pnpm verify` also covers the workspace package metadata sweep,
   the type-test Promise-method cleanup, and the test Promise-catch cleanup.
 - The devtools extension now structurally validates inspected-window
   `DevtoolsPanels` bridge payloads before rendering live data.
-- `effectUiStart(...)` now returns the concrete `EffectUiStartPlugin` type for
+- `sunfallArcStart(...)` now returns the concrete `SunfallArcStartPlugin` type for
   Start Vite plugin hooks instead of exposing only Vite's broad `PluginOption`
   union.
 - Test sources no longer use unknown-to-contract casts; negative
@@ -1235,9 +1244,9 @@ Latest full gate on May 17, 2026 after Review 492:
 - `pnpm verify` passed after the opaque runtime option wildcard cleanup.
 - Start trace/finalizer helpers and Solid runtime provider/runtime-context
   surfaces now use opaque runtime/source types; the remaining exact
-  `EffectUiRuntime<any, any>` source hits are core ambient runtime accessors
+  `SunfallArcRuntime<any, any>` source hits are core ambient runtime accessors
   that preserve caller error typing. React/Solid router and Start host seams
-  still use named `EffectUiRuntime<any, ER>` adapter bounds where they infer or
+  still use named `SunfallArcRuntime<any, ER>` adapter bounds where they infer or
   erase runtime services at framework boundaries.
 - `pnpm verify` passed after the runtime helper wildcard cleanup.
 - Conditional helper types now use inferred placeholder parameters instead of
@@ -1679,9 +1688,9 @@ Latest full gate on May 17, 2026 after Review 492:
   author metadata, public scoped-package access, and build metadata, but final
   public npm repository metadata and real version numbers are still open.
 - The browser extension live bridge expects the inspected app to expose
-  `globalThis.__EFFECT_UI_DEVTOOLS__`; automatic injection is not part of the
+  `globalThis.__SUNFALL_ARC_DEVTOOLS__`; automatic injection is not part of the
   checked shell.
-- Generated starter payloads currently include local `.effect-ui-packages/*`
+- Generated starter payloads currently include local `.sunfall-arc-packages/*`
   file dependencies until the framework packages are actually published; final
   public npm repository metadata and package versions are still tracked
   separately from starter generation.

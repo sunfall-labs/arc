@@ -42,15 +42,15 @@ export const encodeResourceKey = (value: unknown, options: ResourceKeyEncodeOpti
 
   const normalize = (input: unknown, path: string): unknown => {
     if (input === undefined) {
-      return { $effectUiResourceKey: "Undefined" };
+      return { $sunfallArcResourceKey: "Undefined" };
     }
 
     if (typeof input === "number" && !Number.isFinite(input)) {
-      return { $effectUiResourceKey: "Number", value: String(input) };
+      return { $sunfallArcResourceKey: "Number", value: String(input) };
     }
 
     if (typeof input === "bigint") {
-      return { $effectUiResourceKey: "BigInt", value: input.toString() };
+      return { $sunfallArcResourceKey: "BigInt", value: input.toString() };
     }
 
     if (typeof input === "symbol" || typeof input === "function") {
@@ -88,14 +88,14 @@ export const encodeResourceKey = (value: unknown, options: ResourceKeyEncodeOpti
         }
 
         return {
-          $effectUiResourceKey: "Date",
+          $sunfallArcResourceKey: "Date",
           value: input.toISOString(),
         };
       }
 
       if (input instanceof URL) {
         return {
-          $effectUiResourceKey: "URL",
+          $sunfallArcResourceKey: "URL",
           value: input.href,
         };
       }
@@ -108,7 +108,7 @@ export const encodeResourceKey = (value: unknown, options: ResourceKeyEncodeOpti
         });
         entries.sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
         return {
-          $effectUiResourceKey: "Map",
+          $sunfallArcResourceKey: "Map",
           entries,
         };
       }
@@ -119,7 +119,7 @@ export const encodeResourceKey = (value: unknown, options: ResourceKeyEncodeOpti
         );
         values.sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
         return {
-          $effectUiResourceKey: "Set",
+          $sunfallArcResourceKey: "Set",
           values,
         };
       }

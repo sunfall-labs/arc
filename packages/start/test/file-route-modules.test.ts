@@ -29,7 +29,7 @@ describe("file route definition module generation", () => {
     const generated = createFileRouteDefinitionsModule(manifest);
 
     expect(generated).toMatchInlineSnapshot(`
-      "import { Route } from "@effect-ui/core";
+      "import { Route } from "@sunfall/arc-core";
 
       import { Route as route_root } from "./routes/index.js";
       import { Route as route_projects_new } from "./routes/projects/new.js";
@@ -349,7 +349,7 @@ describe("file route definition module generation", () => {
     `);
     expect(generated).toContain(
       [
-        'import { Route } from "@effect-ui/core";',
+        'import { Route } from "@sunfall/arc-core";',
         "",
         'import { Route as route_root } from "./routes/index.js";',
         'import { Route as route_projects_new } from "./routes/projects/new.js";',
@@ -458,7 +458,7 @@ describe("file route definition module generation", () => {
     const generated = createFileRouteDefinitionsModule(manifest);
 
     expect(generated).toMatchInlineSnapshot(`
-      "import { Route } from "@effect-ui/core";
+      "import { Route } from "@sunfall/arc-core";
 
       import { Route as route_root } from "./routes/index.js";
       import { Route as route_projects_$id } from "./routes/projects/$id.js";
@@ -989,7 +989,7 @@ describe("file route definition module generation", () => {
   });
 
   it("reports generated route file write failures through the Effect seam", async () => {
-    const root = mkdtempSync(join(tmpdir(), "effect-ui-routes-"));
+    const root = mkdtempSync(join(tmpdir(), "sunfall-arc-routes-"));
     try {
       const manifest = generateFileRouteManifestArtifact(["src/routes/index.tsx"], {
         routeDirectory: "src/routes",
@@ -1017,7 +1017,7 @@ describe("file route definition module generation", () => {
   });
 
   it("reports generated route planning failures through the Effect seam", async () => {
-    const root = mkdtempSync(join(tmpdir(), "effect-ui-routes-"));
+    const root = mkdtempSync(join(tmpdir(), "sunfall-arc-routes-"));
     try {
       const manifest = createFileRouteManifest(
         [

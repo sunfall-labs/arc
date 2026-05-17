@@ -1,5 +1,5 @@
-import { RuntimeProvider, createEffectRuntime } from "@effect-ui/react";
-import { hydrateFromDocument } from "@effect-ui/start";
+import { RuntimeProvider, createEffectRuntime } from "@sunfall/arc-react";
+import { hydrateFromDocument } from "@sunfall/arc-start";
 import { Data, Layer } from "effect";
 import { createRoot, hydrateRoot } from "react-dom/client";
 import App from "./App.js";

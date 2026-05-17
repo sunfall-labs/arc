@@ -2,7 +2,7 @@ import {
   type EffectInputCallbackError,
   type EffectInput,
   type ReadableSignal,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Effect, type PubSub, type Scope, type Schedule } from "effect";
 import { CollectionStoreTypeId, CollectionTypeId } from "./collection-ids.js";
 import type { CollectionRowKeyChanged, CollectionRowNotFound } from "./collection-errors.js";
@@ -617,7 +617,7 @@ export interface CollectionStoreDiagnostics {
  * Runtime-local Collection Store contract.
  *
  * Stores own collection rows, pending mutation queues, lifecycle events, and
- * diagnostics for one Effect UI Runtime Spine or request scope. External code
+ * diagnostics for one Sunfall Arc Runtime Spine or request scope. External code
  * should read this through `Collection.storeEffect()` or
  * `Collection.currentStore()` instead of constructing stores directly.
  */

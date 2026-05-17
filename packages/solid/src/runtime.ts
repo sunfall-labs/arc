@@ -5,13 +5,13 @@ import {
   makeRuntime,
   makeRuntimeProviderLifecycleEntry,
   runWithRuntime,
-  type AnyEffectUiRuntime,
+  type AnySunfallArcRuntime,
   type EffectInput,
-  type EffectUiRuntime,
+  type SunfallArcRuntime,
   type RuntimeDisposeError,
   type RuntimeProviderLifecycleEntry,
   type UiScope,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Effect, Layer, ManagedRuntime } from "effect";
 import {
   createContext,
@@ -25,10 +25,10 @@ import {
 } from "solid-js";
 import { createComponent } from "solid-js/web";
 
-/** Solid context carrying the active Effect UI Runtime Spine. */
-export const RuntimeContext = createContext<AnyEffectUiRuntime<never>>();
+/** Solid context carrying the active Sunfall Arc Runtime Spine. */
+export const RuntimeContext = createContext<AnySunfallArcRuntime<never>>();
 
-/** Props for providing an Effect UI runtime to Solid descendants. */
+/** Props for providing an Sunfall Arc runtime to Solid descendants. */
 interface RuntimeProviderChildren {
   readonly children?: JSX.Element;
 }
@@ -38,7 +38,7 @@ interface RuntimeProviderRuntimeProps<
   ER = never,
 > extends RuntimeProviderChildren {
   /** Existing host-owned runtime. The provider exposes it and does not dispose it. */
-  readonly runtime: EffectUiRuntime<RuntimeServices, ER> | AnyEffectUiRuntime<ER>;
+  readonly runtime: SunfallArcRuntime<RuntimeServices, ER> | AnySunfallArcRuntime<ER>;
   readonly source?: never;
   readonly onDisposeFailure?: never;
 }
@@ -79,15 +79,15 @@ export type RuntimeProviderProps<RuntimeServices = never, ER = never> =
   | RuntimeProviderSourceProps<RuntimeServices, ER>
   | RuntimeProviderDefaultProps;
 
-/** Creates an Effect UI runtime for Solid applications. */
+/** Creates an Sunfall Arc runtime for Solid applications. */
 export const createEffectRuntime = makeRuntime;
 
 /** Reads the nearest Solid runtime context, falling back to the current/default runtime. */
-export const useRuntime = <ER = never>(): AnyEffectUiRuntime<ER> =>
-  (useContext(RuntimeContext) ?? currentOrDefaultRuntime()) as AnyEffectUiRuntime<ER>;
+export const useRuntime = <ER = never>(): AnySunfallArcRuntime<ER> =>
+  (useContext(RuntimeContext) ?? currentOrDefaultRuntime()) as AnySunfallArcRuntime<ER>;
 
 /**
- * Provides an Effect UI runtime to Solid children.
+ * Provides an Sunfall Arc runtime to Solid children.
  *
  * Pass an existing runtime when the host owns lifecycle. Pass a runtime source
  * to let the provider create and dispose a runtime with the Solid owner.
@@ -154,7 +154,7 @@ const RuntimeProviderInstance = <ER>(props: {
   }
 
   return createComponent(RuntimeContext.Provider, {
-    value: props.entry.runtime as unknown as AnyEffectUiRuntime<never>,
+    value: props.entry.runtime as unknown as AnySunfallArcRuntime<never>,
     get children() {
       return runWithRuntime(props.entry.runtime, () => props.children);
     },

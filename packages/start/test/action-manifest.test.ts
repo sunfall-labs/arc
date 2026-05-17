@@ -1,4 +1,4 @@
-import { Action } from "@effect-ui/core";
+import { Action } from "@sunfall/arc-core";
 import { Cause, Effect, Exit, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import {
@@ -87,7 +87,7 @@ describe("action manifest", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const manifest = yield* makeActionManifest([SubmitProjectName, RenameProject], {
-          actionPath: "/__effect-ui/test-action",
+          actionPath: "/__sunfall-arc/test-action",
         });
         const roundTrip = yield* deserializeActionManifest(serializeActionManifest(manifest));
 
@@ -99,13 +99,13 @@ describe("action manifest", () => {
   it("normalizes source action endpoint paths", () => {
     return Effect.runPromise(
       makeActionManifest([RenameProject], {
-        actionPath: " /__effect-ui/custom-action ",
+        actionPath: " /__sunfall-arc/custom-action ",
       }).pipe(
         Effect.tap((manifest) =>
           Effect.sync(() => {
-            expect(manifest.actionPath).toBe("/__effect-ui/custom-action");
+            expect(manifest.actionPath).toBe("/__sunfall-arc/custom-action");
             expect(manifest.entries[0]?.client).toMatchObject({
-              actionPath: "/__effect-ui/custom-action",
+              actionPath: "/__sunfall-arc/custom-action",
             });
           }),
         ),
@@ -118,7 +118,7 @@ describe("action manifest", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const exits = yield* Effect.all(
-          ["", "   ", "action", "https://example.com/action", "/__effect-ui/action\r\nx"].map(
+          ["", "   ", "action", "https://example.com/action", "/__sunfall-arc/action\r\nx"].map(
             (actionPath) => Effect.exit(makeActionManifest([RenameProject], { actionPath })),
           ),
         );
@@ -136,20 +136,20 @@ describe("action manifest", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const manifest = yield* makeActionManifest([RenameProject], {
-          actionPath: "/__effect-ui/action",
+          actionPath: "/__sunfall-arc/action",
         });
         const serialized = JSON.parse(serializeActionManifest(manifest)) as {
           actionPath: string;
           entries: Array<{ client: { actionPath: string } }>;
         };
-        serialized.actionPath = " /__effect-ui/serialized-action ";
-        serialized.entries[0]!.client.actionPath = " /__effect-ui/serialized-action ";
+        serialized.actionPath = " /__sunfall-arc/serialized-action ";
+        serialized.entries[0]!.client.actionPath = " /__sunfall-arc/serialized-action ";
         const decoded = yield* deserializeActionManifest(JSON.stringify(serialized));
 
         yield* Effect.sync(() => {
-          expect(decoded.actionPath).toBe("/__effect-ui/serialized-action");
+          expect(decoded.actionPath).toBe("/__sunfall-arc/serialized-action");
           expect(decoded.entries[0]?.client).toMatchObject({
-            actionPath: "/__effect-ui/serialized-action",
+            actionPath: "/__sunfall-arc/serialized-action",
           });
         });
       }),
@@ -173,7 +173,7 @@ describe("action manifest", () => {
             value.actionPath = "";
           },
           (value: SerializedActionManifest) => {
-            value.entries[0]!.client.actionPath = "/__effect-ui/action\nx";
+            value.entries[0]!.client.actionPath = "/__sunfall-arc/action\nx";
           },
           (value: SerializedActionManifest) => {
             value.entries[0]!.client.actionPath = "action";
@@ -237,7 +237,7 @@ describe("action manifest", () => {
           deserializeActionManifest(
             JSON.stringify({
               version: 1,
-              actionPath: "/__effect-ui/action",
+              actionPath: "/__sunfall-arc/action",
               entries: [
                 {
                   id: stableActionId("Project.other"),
@@ -251,7 +251,7 @@ describe("action manifest", () => {
                     _tag: "Post",
                     id: stableActionId("Project.other"),
                     name: "Project.rename",
-                    actionPath: "/__effect-ui/action",
+                    actionPath: "/__sunfall-arc/action",
                   },
                   wire: {
                     inputSchema: true,

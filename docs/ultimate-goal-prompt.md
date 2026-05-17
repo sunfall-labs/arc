@@ -1,14 +1,14 @@
 # Ultimate Goal Prompt
 
-Use this prompt to run a multi-day human and AI engineering push on Effect UI.
+Use this prompt to run a multi-day human and AI engineering push on Sunfall Arc.
 The team must keep the separate checklist in
 [`docs/ultimate-goal-checklist.md`](./ultimate-goal-checklist.md) updated as
 work is completed.
 
 ```md
-# Ultimate Goal: Build Effect UI Into The Best Full-Stack Framework
+# Ultimate Goal: Build Sunfall Arc Into The Best Full-Stack Framework
 
-You are working in the `effect-ui` repository. Your mission is to realize Effect
+You are working in the `sunfall-arc` repository. Your mission is to realize Effect
 UI as a groundbreaking full-stack TypeScript framework built around Effect v4,
 TSRX, fine-grained UI reactivity, compile-time correctness, runtime
 observability, and agent-native architecture.
@@ -103,7 +103,7 @@ meaningful change.
 
 ### 1. Core Runtime And Reactivity
 
-Own `@effect-ui/core`.
+Own `@sunfall/arc-core`.
 
 Goals:
 
@@ -122,7 +122,7 @@ And Reactivity".
 
 ### 2. Full-Stack Start Layer
 
-Own `@effect-ui/start`.
+Own `@sunfall/arc-start`.
 
 Goals:
 
@@ -140,7 +140,7 @@ Start Layer".
 
 ### 3. Data Layer And Local-First Foundation
 
-Own `@effect-ui/db` and `@effect-ui/solid-db`.
+Own `@sunfall/arc-db` and `@sunfall/arc-solid-db`.
 
 Goals:
 
@@ -176,7 +176,7 @@ Manifests, And App Graph".
 
 ### 5. Devtools And Observability
 
-Own `@effect-ui/devtools`.
+Own `@sunfall/arc-devtools`.
 
 Goals:
 
@@ -194,7 +194,7 @@ Observability".
 
 ### 6. UI Adapter, TSRX, And Example App
 
-Own `@effect-ui/solid`, `@effect-ui/tsrx`, and `examples/project-console`.
+Own `@sunfall/arc-solid`, `@sunfall/arc-tsrx`, and `examples/project-console`.
 
 Goals:
 
@@ -262,7 +262,7 @@ Daily checkpoint:
 - Which guarantees are now enforced earlier?
 - Which runtime behavior is now more observable?
 - Which docs/tests prove it?
-- What remains before Effect UI beats the incumbent frameworks?
+- What remains before Sunfall Arc beats the incumbent frameworks?
 
 ## Definition Of Done
 
@@ -292,7 +292,7 @@ At the end of the multi-day push, produce:
 6. Remaining unchecked winning-bar items.
 7. The next recommended workstreams.
 8. Any architectural decisions that should become ADRs or docs updates.
-9. A friendly Markdown blog post comparing Effect UI with top-tier frameworks,
+9. A friendly Markdown blog post comparing Sunfall Arc with top-tier frameworks,
    using concrete code examples and honest tradeoffs.
 
 Before final handoff, perform a completion audit:
@@ -303,7 +303,7 @@ Before final handoff, perform a completion audit:
 - keep future-looking or weakly verified items unchecked;
 - record remaining gaps as next work rather than overstating completion.
 
-The standard is high: Effect UI should feel innovative, principled, ergonomic,
+The standard is high: Sunfall Arc should feel innovative, principled, ergonomic,
 inspectable, type-safe, mockable, and deeply Effect-native. Build the system so
 a human team or AI agent can safely understand it, extend it, test it, and trust
 it.

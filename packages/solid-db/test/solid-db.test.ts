@@ -1,11 +1,11 @@
-import { makeRuntime, runWithRuntime, type ReadableSignal } from "@effect-ui/core";
+import { makeRuntime, runWithRuntime, type ReadableSignal } from "@sunfall/arc-core";
 import {
   Collection,
   QueryEvaluationError,
   type CollectionLoadState,
   type CollectionRuntimeError,
-} from "@effect-ui/db";
-import { useCollection, useLiveQuery } from "@effect-ui/solid-db";
+} from "@sunfall/arc-db";
+import { useCollection, useLiveQuery } from "@sunfall/arc-solid-db";
 import { Context, Deferred, Effect, Fiber, Layer } from "effect";
 import { createRoot, createSignal } from "solid-js";
 import { describe, expect, it } from "vitest";
@@ -46,7 +46,7 @@ describe("solid-db", () => {
     readonly list: () => Effect.Effect<ReadonlyArray<Project>>;
   }
 
-  const ProjectApi = Context.Service<ProjectApi>("@effect-ui/solid-db/test/ProjectApi");
+  const ProjectApi = Context.Service<ProjectApi>("@sunfall/arc-solid-db/test/ProjectApi");
 
   interface ProjectMutationApi {
     readonly insert: (projects: ReadonlyArray<Project>) => Effect.Effect<void>;
@@ -57,7 +57,7 @@ describe("solid-db", () => {
   }
 
   const ProjectMutationApi = Context.Service<ProjectMutationApi>(
-    "@effect-ui/solid-db/test/ProjectMutationApi",
+    "@sunfall/arc-solid-db/test/ProjectMutationApi",
   );
 
   it("adapts collections and live queries to Solid accessors", () => {

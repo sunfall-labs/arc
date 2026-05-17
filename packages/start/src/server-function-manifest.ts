@@ -1,4 +1,4 @@
-import type { ServerFunction } from "@effect-ui/core";
+import type { ServerFunction } from "@sunfall/arc-core";
 import { Data, Effect, Schema } from "effect";
 import {
   assembleCallableManifestEntry,

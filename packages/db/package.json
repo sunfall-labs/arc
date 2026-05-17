@@ -1,7 +1,7 @@
 {
-  "name": "@effect-ui/db",
+  "name": "@sunfall/arc-db",
   "version": "0.0.0-alpha.0",
-  "description": "Effect UI local-first collections, live queries, persistence, and sync adapters.",
+  "description": "Sunfall Arc local-first collections, live queries, persistence, and sync adapters.",
   "license": "MIT",
   "author": "Andrew Lee",
   "files": [
@@ -25,7 +25,7 @@
     "typecheck": "tsgo -p tsconfig.json --pretty false --noEmit"
   },
   "dependencies": {
-    "@effect-ui/core": "workspace:*",
+    "@sunfall/arc-core": "workspace:*",
     "@tanstack/db-ivm": "0.1.18",
     "effect": "^4.0.0-beta.66"
   }

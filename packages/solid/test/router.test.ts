@@ -12,7 +12,7 @@ import {
   RouteNavigationError,
   RoutePreloadError,
   runWithRuntime,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import type { JSX } from "solid-js";
 import type { BrowserRouter, BrowserRouterState } from "../src/index.js";
 
@@ -38,7 +38,7 @@ describe("createBrowserRouter", () => {
     readonly preload: (id: string) => Effect.Effect<void>;
   }
 
-  const ProjectApi = Context.Service<ProjectApi>("@effect-ui/solid/test/ProjectApi");
+  const ProjectApi = Context.Service<ProjectApi>("@sunfall/arc-solid/test/ProjectApi");
 
   it("runs route preload once per href", () =>
     Effect.runPromise(

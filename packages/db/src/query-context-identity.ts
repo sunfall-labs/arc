@@ -1,4 +1,4 @@
-import { stableStringify } from "@effect-ui/core";
+import { stableStringify } from "@sunfall/arc-core";
 import type { CollectionKey } from "./collection-contract.js";
 import type { AnyCollectionRow, AnyQueryContext } from "./query-plan.js";
 
@@ -13,7 +13,7 @@ export interface QueryContextIdentityRecord {
 }
 
 export const queryContextIdentitySymbol: unique symbol = Symbol.for(
-  "@effect-ui/db/QueryContextKey",
+  "@sunfall/arc-db/QueryContextKey",
 ) as typeof queryContextIdentitySymbol;
 
 const makeQueryContextIdentity = (value: unknown): QueryContextIdentity =>

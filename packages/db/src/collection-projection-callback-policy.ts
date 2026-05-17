@@ -1,4 +1,4 @@
-import { EffectInputCallbackError, invokeEffectInput, type EffectInput } from "@effect-ui/core";
+import { EffectInputCallbackError, invokeEffectInput, type EffectInput } from "@sunfall/arc-core";
 import { Effect } from "effect";
 import { CollectionRowKeyChanged } from "./collection-errors.js";
 import type {

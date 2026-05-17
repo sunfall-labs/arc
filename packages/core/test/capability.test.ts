@@ -13,7 +13,7 @@ describe("Capability", () => {
     readonly save: (value: number) => Effect.Effect<number>;
   }
 
-  const Numbers = Capability.define<Numbers>("@effect-ui/core/test/Capability/Numbers");
+  const Numbers = Capability.define<Numbers>("@sunfall/arc-core/test/Capability/Numbers");
 
   it("defines an Effect service with layer helpers", () => {
     const runtime = makeRuntime(
@@ -149,7 +149,7 @@ describe("Capability", () => {
     interface Names {
       readonly normalize: (name: string) => string;
     }
-    const Names = Capability.define<Names>("@effect-ui/core/test/Capability/Names");
+    const Names = Capability.define<Names>("@sunfall/arc-core/test/Capability/Names");
     const runtime = makeRuntime(
       Layer.mergeAll(
         Numbers.layer({

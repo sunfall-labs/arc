@@ -9,17 +9,17 @@ const fail = (message, repair, cause) =>
 const isNonEmptyString = (value) => typeof value === "string" && value.trim().length > 0;
 
 const packageVerifyLabelOverrides = new Map([
-  ["@effect-ui/example-devtools-extension", "devtools extension"],
-  ["@effect-ui/example-devtools-panel", "devtools panel"],
-  ["@effect-ui/example-docs-site", "docs site"],
-  ["@effect-ui/example-project-console", "project console"],
-  ["@effect-ui/starter-basic", "basic starter"],
-  ["@effect-ui/starter-react", "React starter"],
+  ["@sunfall/arc-example-devtools-extension", "devtools extension"],
+  ["@sunfall/arc-example-devtools-panel", "devtools panel"],
+  ["@sunfall/arc-example-docs-site", "docs site"],
+  ["@sunfall/arc-example-project-console", "project console"],
+  ["@sunfall/arc-starter-basic", "basic starter"],
+  ["@sunfall/arc-starter-react", "React starter"],
 ]);
 
 const defaultVerifyLabel = (packageName) =>
   packageName
-    .replace(/^@effect-ui\//, "")
+    .replace(/^@sunfall-arc\//, "")
     .replace(/^example-/, "")
     .replace(/^starter-/, "")
     .replace(/-/g, " ");
@@ -56,19 +56,19 @@ export const workspaceVerificationPlanSelfTestEffect = Effect.gen(function* () {
   const selfTestTargets = verifyPackageTargetsFromManifests([
     {
       packageJson: {
-        name: "@effect-ui/example-devtools-panel",
+        name: "@sunfall/arc-example-devtools-panel",
         scripts: { verify: "pnpm test" },
       },
     },
     {
       packageJson: {
-        name: "@effect-ui/no-verify",
+        name: "@sunfall/arc-no-verify",
         scripts: { test: "vitest" },
       },
     },
     {
       packageJson: {
-        name: "@effect-ui/blank-verify",
+        name: "@sunfall/arc-blank-verify",
         scripts: { verify: "" },
       },
     },
@@ -76,7 +76,7 @@ export const workspaceVerificationPlanSelfTestEffect = Effect.gen(function* () {
 
   if (
     selfTestTargets.length !== 1 ||
-    selfTestTargets[0]?.packageName !== "@effect-ui/example-devtools-panel"
+    selfTestTargets[0]?.packageName !== "@sunfall/arc-example-devtools-panel"
   ) {
     return yield* Effect.fail(
       fail(

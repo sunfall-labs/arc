@@ -174,8 +174,8 @@ import {
   type StartRequestTrace,
   type StartStaticLinkExtractionOptions,
   type StartStaticOutputPathOptions,
-} from "@effect-ui/start";
-import type { ActionDefinition, EffectUiRuntime } from "@effect-ui/core";
+} from "@sunfall/arc-start";
+import type { ActionDefinition, SunfallArcRuntime } from "@sunfall/arc-core";
 
 const startExports: Array<unknown> = [
   collectStartAppGraphDiagnosticsPolicyViolations,
@@ -530,7 +530,7 @@ interface HydrationRuntimeService {
   readonly hydrationRuntimeService: unique symbol;
 }
 
-declare const hydrationRuntime: EffectUiRuntime<HydrationRuntimeService>;
+declare const hydrationRuntime: SunfallArcRuntime<HydrationRuntimeService>;
 declare const hydrationChunks: ReadonlyArray<StartHydrationChunk>;
 const sortedHydrationChunks: ReadonlyArray<StartHydrationChunk> =
   hydrateStartHydrationChunks<HydrationRuntimeService>(hydrationChunks, {
@@ -569,7 +569,7 @@ void endpointPathError;
 void resolveStartTransportEndpointsEffect;
 void validateStartEndpointPathEffect;
 
-const traceHeader: StartRequestTraceHeader = { name: "x-effect-ui", value: "ok" };
+const traceHeader: StartRequestTraceHeader = { name: "x-sunfall-arc", value: "ok" };
 const traceCookie: StartRequestTraceCookie = { name: "session", value: "[redacted]" };
 const traceTransport: StartRequestTraceTransport = "ssr";
 const traceStatus: StartRequestTraceStatus = "success";
@@ -585,7 +585,7 @@ const traceResource: StartRequestTraceResource = {
 const traceRequest: StartRequestTraceRequest = {
   id: "request-1",
   method: "GET",
-  url: "https://effect-ui.test/projects",
+  url: "https://sunfall-arc.test/projects",
   path: "/projects",
   transport: traceTransport,
   headers: [traceHeader],

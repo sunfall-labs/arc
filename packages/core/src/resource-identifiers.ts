@@ -1,7 +1,7 @@
-export const ResourceTypeId = Symbol.for("@effect-ui/core/Resource");
+export const ResourceTypeId = Symbol.for("@sunfall/arc-core/Resource");
 export const ResourceTagTypeId: unique symbol = Symbol.for(
-  "@effect-ui/core/ResourceTag",
+  "@sunfall/arc-core/ResourceTag",
 ) as typeof ResourceTagTypeId;
 export const ResourceTagIdentityTypeId: unique symbol = Symbol.for(
-  "@effect-ui/core/ResourceTagIdentity",
+  "@sunfall/arc-core/ResourceTagIdentity",
 ) as typeof ResourceTagIdentityTypeId;

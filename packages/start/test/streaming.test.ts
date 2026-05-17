@@ -1,6 +1,6 @@
 import { Cause, Deferred, Effect, Exit, Fiber, Stream } from "effect";
 import { describe, expect, it } from "vitest";
-import type { ResourceHydrationPayload } from "@effect-ui/core";
+import type { ResourceHydrationPayload } from "@sunfall/arc-core";
 import {
   StartHydrationPayloadSerializeError,
   type StartHydrationPayload,
@@ -332,7 +332,7 @@ describe("Start streaming", () => {
           chunks: Stream.make("<body>ready</body>"),
           tail: "</html>",
           headers: {
-            "x-effect-ui": "streaming",
+            "x-sunfall-arc": "streaming",
           },
         });
         const text = yield* Effect.tryPromise(() => response.text());
@@ -340,7 +340,7 @@ describe("Start streaming", () => {
         yield* Effect.sync(() => {
           expect(text).toBe("<html><body>ready</body></html>");
           expect(response.headers.get("content-type")).toBe("text/html; charset=utf-8");
-          expect(response.headers.get("x-effect-ui")).toBe("streaming");
+          expect(response.headers.get("x-sunfall-arc")).toBe("streaming");
         });
       }),
     );

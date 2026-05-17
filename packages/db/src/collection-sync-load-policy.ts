@@ -1,4 +1,4 @@
-import { EffectInputCallbackError, type EffectInput } from "@effect-ui/core";
+import { EffectInputCallbackError, type EffectInput } from "@sunfall/arc-core";
 import { Cause, Clock, Deferred, Effect, Exit } from "effect";
 import type {
   AnyCollection,

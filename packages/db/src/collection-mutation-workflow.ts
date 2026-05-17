@@ -1,4 +1,4 @@
-import { EffectInputCallbackError } from "@effect-ui/core";
+import { EffectInputCallbackError } from "@sunfall/arc-core";
 import { Clock, Deferred, Effect, Exit } from "effect";
 import { CollectionRowKeyChanged, CollectionRowNotFound } from "./collection-errors.js";
 import {

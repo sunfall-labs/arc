@@ -1,7 +1,7 @@
 {
-  "name": "@effect-ui/solid",
+  "name": "@sunfall/arc-solid",
   "version": "0.0.0-alpha.0",
-  "description": "Solid runtime provider, router, resource, action, stream, and scope bindings for Effect UI.",
+  "description": "Solid runtime provider, router, resource, action, stream, and scope bindings for Sunfall Arc.",
   "license": "MIT",
   "author": "Andrew Lee",
   "files": [
@@ -25,7 +25,7 @@
     "typecheck": "tsgo -p tsconfig.json --pretty false --noEmit"
   },
   "dependencies": {
-    "@effect-ui/core": "workspace:*",
+    "@sunfall/arc-core": "workspace:*",
     "effect": "^4.0.0-beta.66",
     "solid-js": "^1.9.12"
   }

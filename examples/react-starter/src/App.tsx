@@ -1,4 +1,4 @@
-import { RouterProvider } from "@effect-ui/react";
+import { RouterProvider } from "@sunfall/arc-react";
 import { HomePage } from "./HomePage.js";
 import { routeTree } from "./routeTree.gen.js";
 import "./styles.css";

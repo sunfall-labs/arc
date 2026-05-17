@@ -5,9 +5,9 @@ import {
   type CollectionReactiveLiveQuerySelection,
   type LiveQueryState,
   type QueryEvaluationError,
-} from "@effect-ui/db";
-import type { EffectInput } from "@effect-ui/core";
-import { useRuntime } from "@effect-ui/react";
+} from "@sunfall/arc-db";
+import type { EffectInput } from "@sunfall/arc-core";
+import { useRuntime } from "@sunfall/arc-react";
 import { Effect } from "effect";
 import { useMemo, useRef } from "react";
 import { liveQueryStateError, useReactDbReactiveBinding } from "./shared.js";

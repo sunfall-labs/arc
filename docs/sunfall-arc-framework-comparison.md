@@ -1,6 +1,6 @@
-# Effect UI Compared With Top-Tier Frameworks
+# Sunfall Arc Compared With Top-Tier Frameworks
 
-Effect UI is trying to do something friendly but strict: keep the productive
+Sunfall Arc is trying to do something friendly but strict: keep the productive
 feel of modern TypeScript app frameworks, while making the important facts
 typed, Effect-native, inspectable, and hard to accidentally drift.
 
@@ -15,7 +15,7 @@ That is the core difference.
 
 ## The Short Version
 
-| What teams reach for    | What it does well                      | Effect UI's bet                                                                                                               |
+| What teams reach for    | What it does well                      | Sunfall Arc's bet                                                                                                             |
 | ----------------------- | -------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
 | React / Solid           | Component model and reactive UI        | Keep fine-grained UI ergonomics, but attach async work to Effect scopes and runtime ownership.                                |
 | Next / Remix            | Full-stack routes, forms, server work  | Keep progressive enhancement, but make server contracts, schemas, request runtimes, and manifests explicit.                   |
@@ -44,7 +44,7 @@ const rename = useMutation({
 });
 ```
 
-Effect UI wants the same workflow to be a domain graph instead of a string-key
+Sunfall Arc wants the same workflow to be a domain graph instead of a string-key
 agreement:
 
 ```ts
@@ -93,7 +93,7 @@ export async function action({ request }: ActionFunctionArgs) {
 }
 ```
 
-Effect UI keeps the boring, useful progressive-enhancement story, but routes
+Sunfall Arc keeps the boring, useful progressive-enhancement story, but routes
 through one typed action definition:
 
 ```ts
@@ -119,7 +119,7 @@ schemas stay in one path.
 
 ## Compared With TanStack Start And Typed Routers
 
-Typed routers help catch bad links. Effect UI leans into that, but keeps schemas
+Typed routers help catch bad links. Sunfall Arc leans into that, but keeps schemas
 and generated route facts close to the app graph:
 
 ```ts
@@ -147,8 +147,8 @@ hunt.
 ## Compared With TanStack DB
 
 TanStack DB points at an important future: normalized local data with live
-queries. Effect UI's DB layer heads in the same direction, but plugs row state
-into the active Effect UI runtime/resource store:
+queries. Sunfall Arc's DB layer heads in the same direction, but plugs row state
+into the active Sunfall Arc runtime/resource store:
 
 ```ts
 export const ProjectSummaries = Collection.define(
@@ -185,7 +185,7 @@ and SSR requests do not accidentally share rows.
 ## Compared With Relay
 
 Relay is strong because it treats data dependencies as a graph with a compiler.
-Effect UI agrees with the shape of that lesson, but it does not require the app
+Sunfall Arc agrees with the shape of that lesson, but it does not require the app
 to become GraphQL-only.
 
 The graph includes more than fetched fields:
@@ -198,13 +198,13 @@ The graph includes more than fetched fields:
 - schemas and missing schema diagnostics;
 - hydration and runtime facts.
 
-Relay asks GraphQL to be the center. Effect UI asks the TypeScript, Effect, and
+Relay asks GraphQL to be the center. Sunfall Arc asks the TypeScript, Effect, and
 Start app graph to be the center.
 
 ## Compared With Jotai And Small State Libraries
 
 Small state tools are pleasant because they make local state feel lightweight.
-Effect UI keeps that part simple:
+Sunfall Arc keeps that part simple:
 
 ```ts
 const search = Signal.make("");
@@ -220,7 +220,7 @@ mental model from server state and mutation state.
 
 Foldkit's strongest product idea is the frontend program loop: one model, typed
 messages, an update function, subscriptions, and a view that can stay boring.
-Effect UI now keeps that clarity as a headless Core primitive while routing the
+Sunfall Arc now keeps that clarity as a headless Core primitive while routing the
 hard parts through Effect:
 
 ```ts
@@ -296,7 +296,7 @@ as request traces and action inputs.
 
 ## Compared With Solid
 
-Solid's fine-grained reactivity is a great fit for this project. Effect UI uses
+Solid's fine-grained reactivity is a great fit for this project. Sunfall Arc uses
 the Solid target through TSRX today, rather than pretending it needs a custom UI
 compiler first.
 
@@ -318,13 +318,13 @@ return (
 );
 ```
 
-Solid gives compact UI updates. Effect UI adds the runtime spine around those
+Solid gives compact UI updates. Sunfall Arc adds the runtime spine around those
 updates: services, scopes, typed resources, actions, invalidation, SSR
 hydration, diagnostics, and test layers.
 
-## Where Effect UI Is Already Different
+## Where Sunfall Arc Is Already Different
 
-Effect UI already has a few unusually useful proof points:
+Sunfall Arc already has a few unusually useful proof points:
 
 - `pnpm verify` is the release gate for builds, runtime tests, type tests,
   example tests, example build, and leak scan.
@@ -341,7 +341,7 @@ Effect UI already has a few unusually useful proof points:
 The honest answer is that the mature tools still win on ecosystem size,
 templates, third-party examples, hosting guides, and production miles.
 
-Effect UI's advantage is not "more packages." Its advantage is coherence. The
+Sunfall Arc's advantage is not "more packages." Its advantage is coherence. The
 same domain facts can be visible to TypeScript, Effect, the server runtime,
 hydration, devtools, tests, diagnostics, and agents.
 
@@ -355,7 +355,7 @@ Use them happily.
 
 If your app needs typed effects, runtime isolation, semantic invalidation,
 mockable services, deterministic generated artifacts, progressive actions, and
-agent-readable diagnostics, Effect UI is trying to make that path feel normal.
+agent-readable diagnostics, Sunfall Arc is trying to make that path feel normal.
 
 The goal is not to be magical. The goal is to be inspectable enough that the
 magic is optional.

@@ -1,6 +1,6 @@
 # Best Full-Stack Framework Plan
 
-Effect UI should become the framework where TypeScript, Effect, the compiler,
+Sunfall Arc should become the framework where TypeScript, Effect, the compiler,
 the runtime, devtools, tests, and agents all agree on one application model.
 
 The goal is not to clone React, Solid, Next, Remix, TanStack Start, TanStack
@@ -10,7 +10,7 @@ typed, more inspectable, and more honest about where effects run.
 
 ## North Star
 
-Effect UI is the full-stack framework for apps whose correctness matters.
+Sunfall Arc is the full-stack framework for apps whose correctness matters.
 
 An app developer should be able to define domain facts once and have the whole
 stack understand them:
@@ -39,11 +39,11 @@ framework, but the hard parts should be owned by Effect:
 
 ## What Winning Means
 
-Effect UI is competitive when it can ship a serious CRUD/product application
+Sunfall Arc is competitive when it can ship a serious CRUD/product application
 with routing, SSR, mutations, forms, optimistic updates, server functions,
 deployment adapters, tests, and devtools.
 
-Effect UI is winning when the same app is safer and easier to change than it
+Sunfall Arc is winning when the same app is safer and easier to change than it
 would be in the mainstream stack:
 
 - invalid links fail at compile time;
@@ -88,7 +88,7 @@ host and platform edges.
 
 The Runtime Spine is responsible for:
 
-- running app work inside an `EffectUiRuntime`;
+- running app work inside an `SunfallArcRuntime`;
 - providing request services, app services, and resource stores;
 - owning request-local `ResourceStore` and `Collection.Store` instances;
 - interrupting scoped fibers on component, route, request, or stream disposal;
@@ -96,12 +96,12 @@ The Runtime Spine is responsible for:
   across client, SSR, server RPC, tests, and adapters.
 
 This is how the framework stays smaller than a pile of ad hoc abstractions.
-Effect already gives us the primitives; Effect UI should compose them into app
+Effect already gives us the primitives; Sunfall Arc should compose them into app
 semantics rather than hide them.
 
 ### 3. Data As Domain Facts, Not Cache Keys
 
-Effect UI should replace the TanStack Query mental model with a stronger graph:
+Sunfall Arc should replace the TanStack Query mental model with a stronger graph:
 
 - `Resource.family` is a typed async read definition;
 - successful resource values publish semantic `Resource.tag` facts;
@@ -326,7 +326,7 @@ The alpha proves the model works end to end.
 
 ### Phase B: Data And Mutation Leadership
 
-This phase makes Effect UI clearly better than query/mutation libraries.
+This phase makes Sunfall Arc clearly better than query/mutation libraries.
 
 - Complete resource lifecycle status: stale, refreshing, previous value, GC,
   failure retention, retry, hydration, events, and invalidation.
@@ -386,7 +386,7 @@ This is where the framework becomes more than a safer clone.
 
 ### Phase F: Local-First And Distributed Apps
 
-Once the core is proven, Effect UI can use the same model for harder apps:
+Once the core is proven, Sunfall Arc can use the same model for harder apps:
 
 - offline-first collections and durable mutation queues;
 - sync adapters for Electric, PowerSync, Replicache-shaped protocols, custom
@@ -398,7 +398,7 @@ Once the core is proven, Effect UI can use the same model for harder apps:
 
 ## Competitive Replacement Map
 
-Effect UI replaces multiple libraries with one coherent model:
+Sunfall Arc replaces multiple libraries with one coherent model:
 
 - React state libraries become `Signal`, `Signal.derive`, scoped `watch`, and
   Effect `Stream` adapters.

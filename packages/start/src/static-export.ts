@@ -26,7 +26,7 @@ export class StartStaticPathError extends Data.TaggedError("StartStaticPathError
   readonly guidance: string;
 }> {}
 
-const defaultStaticOrigin = "https://effect-ui.static";
+const defaultStaticOrigin = "https://sunfall-arc.static";
 
 const pathError = (
   path: string,

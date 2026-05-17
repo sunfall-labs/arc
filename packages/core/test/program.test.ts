@@ -9,14 +9,14 @@ import {
   read,
   RuntimeTypeId,
   runWithRuntime,
-  type AnyEffectUiRuntime,
+  type AnySunfallArcRuntime,
 } from "../src/index.js";
 
 interface CounterApi {
   readonly load: Effect.Effect<number>;
 }
 
-const CounterApi = Context.Service<CounterApi>("@effect-ui/core/test/CounterApi");
+const CounterApi = Context.Service<CounterApi>("@sunfall/arc-core/test/CounterApi");
 
 describe("Program", () => {
   it("updates centralized model state and runs Effect commands with services", () =>
@@ -82,9 +82,9 @@ describe("Program", () => {
     Effect.runPromise(
       Effect.gen(function* () {
         const base = makeRuntime();
-        const baseRuntime = base as AnyEffectUiRuntime<never>;
+        const baseRuntime = base as AnySunfallArcRuntime<never>;
         let runForks = 0;
-        const runtime: AnyEffectUiRuntime<never> = {
+        const runtime: AnySunfallArcRuntime<never> = {
           [RuntimeTypeId]: RuntimeTypeId,
           managed: baseRuntime.managed,
           resourceStore: baseRuntime.resourceStore,

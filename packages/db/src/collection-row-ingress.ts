@@ -1,4 +1,4 @@
-import { EffectInputCallbackError } from "@effect-ui/core";
+import { EffectInputCallbackError } from "@sunfall/arc-core";
 import { Effect } from "effect";
 import type {
   CollectionDefinition,

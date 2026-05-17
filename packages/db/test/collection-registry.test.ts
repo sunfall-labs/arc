@@ -1,4 +1,4 @@
-import { Collection, type CollectionOptions } from "@effect-ui/db";
+import { Collection, type CollectionOptions } from "@sunfall/arc-db";
 import { describe, expect, it } from "vitest";
 
 interface Project {

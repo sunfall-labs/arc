@@ -1,11 +1,11 @@
-import { type AnyEffectUiRuntime, defaultRuntime, type EffectUiRuntime } from "@effect-ui/core";
+import { type AnySunfallArcRuntime, defaultRuntime, type SunfallArcRuntime } from "@sunfall/arc-core";
 import { Effect, Fiber } from "effect";
 export { interruptStartHostFiberOnSignal } from "./start-abort-lifecycle.js";
 
 /** Options shared by host facades that resolve an Effect to a platform Promise. */
 export interface StartHostPromiseRunnerOptions<RuntimeError = never> {
   /** Runtime Spine that supplies services and Resource Store state before resolving the host Promise. */
-  readonly runtime?: AnyEffectUiRuntime<RuntimeError> | EffectUiRuntime<any, RuntimeError>;
+  readonly runtime?: AnySunfallArcRuntime<RuntimeError> | SunfallArcRuntime<any, RuntimeError>;
   /** Effect runtime options passed to the final `Effect.runPromise(...)` host seam. */
   readonly runOptions?: Effect.RunOptions;
 }
@@ -21,15 +21,15 @@ export interface StartForkRuntime<RuntimeError = never> {
 /** Options shared by host facades that fork an Effect from a callback. */
 export interface StartHostForkRunnerOptions<RuntimeError = never> {
   /** Runtime runner used to launch the callback-owned Effect. */
-  readonly runtime?: StartForkRuntime<RuntimeError> | EffectUiRuntime<any, RuntimeError>;
+  readonly runtime?: StartForkRuntime<RuntimeError> | SunfallArcRuntime<any, RuntimeError>;
   /** Effect runtime options passed to the host callback fork seam. */
   readonly runOptions?: Effect.RunOptions;
 }
 
 const hostPromiseRuntime = <RuntimeError>(
   runtime: StartHostPromiseRunnerOptions<RuntimeError>["runtime"] | undefined,
-): AnyEffectUiRuntime<RuntimeError> =>
-  (runtime ?? defaultRuntime) as AnyEffectUiRuntime<RuntimeError>;
+): AnySunfallArcRuntime<RuntimeError> =>
+  (runtime ?? defaultRuntime) as AnySunfallArcRuntime<RuntimeError>;
 
 const hostForkRuntime = <RuntimeError>(
   runtime: StartHostForkRunnerOptions<RuntimeError>["runtime"] | undefined,

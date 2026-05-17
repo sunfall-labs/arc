@@ -1,4 +1,4 @@
-import { Server, type ActionResult } from "@effect-ui/core";
+import { Server, type ActionResult } from "@sunfall/arc-core";
 import { Schema } from "effect";
 
 export const ProjectStatus = Schema.Literals(["tracking", "watch", "blocked"]);

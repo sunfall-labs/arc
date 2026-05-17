@@ -60,7 +60,7 @@ import {
   type ActionSubmissionConcurrency,
   type ActionSubmissionState,
   type ActionResultInvalidationRequirements,
-  type AnyEffectUiRuntime,
+  type AnySunfallArcRuntime,
   type BrowserHistoryAdapter,
   type BrowserHistoryWindow,
   type BrowserRouterLinkClickDecision,
@@ -68,7 +68,7 @@ import {
   type BrowserRouterLinkPreloadDecision,
   type BrowserRouterLinkPreloadIdentity,
   type BrowserRouterHostController,
-  type EffectUiRuntime,
+  type SunfallArcRuntime,
   type EffectInput,
   type MemoryBrowserHistoryAdapter,
   type ParamsForPath,
@@ -79,13 +79,13 @@ import {
   type ResourceStore,
   type RuntimeUiScopeFrame,
   type UiScope,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 // @ts-expect-error MutableResourceStore is an internal store implementation, not a root export.
-import type { MutableResourceStore } from "@effect-ui/core";
+import type { MutableResourceStore } from "@sunfall/arc-core";
 // @ts-expect-error unsafeMutableResourceStore is an internal store implementation escape hatch, not a root export.
-import { unsafeMutableResourceStore } from "@effect-ui/core";
+import { unsafeMutableResourceStore } from "@sunfall/arc-core";
 // @ts-expect-error makeMutableResourceStore is an internal store constructor, not a root export.
-import { makeMutableResourceStore } from "@effect-ui/core";
+import { makeMutableResourceStore } from "@sunfall/arc-core";
 import {
   Collection,
   CollectionRowKeyChanged,
@@ -103,19 +103,19 @@ import {
   makeCollectionReactivePreloadController,
   makeSQLitePersistenceStorage,
   serverCollectionOptions,
-} from "@effect-ui/db";
+} from "@sunfall/arc-db";
 import {
   useCollection,
   useLiveQuery,
   type CollectionHandle,
   type LiveQueryHandle,
-} from "@effect-ui/solid-db";
+} from "@sunfall/arc-solid-db";
 import {
   useCollection as useReactCollection,
   useLiveQuery as useReactLiveQuery,
   type CollectionHandle as ReactCollectionHandle,
   type LiveQueryHandle as ReactLiveQueryHandle,
-} from "@effect-ui/react-db";
+} from "@sunfall/arc-react-db";
 import {
   createBrowserRouter,
   RouterContextMissing,
@@ -136,7 +136,7 @@ import {
   type ProgramHandle,
   type RouterLinkProps,
   type RouterOutletProps,
-} from "@effect-ui/solid";
+} from "@sunfall/arc-solid";
 import {
   createBrowserRouter as createReactBrowserRouter,
   RouterContextMissing as ReactRouterContextMissing,
@@ -158,7 +158,7 @@ import {
   type RouterLinkProps as ReactRouterLinkProps,
   type RouterOutletProps as ReactRouterOutletProps,
   type ResourceHandle as ReactResourceHandle,
-} from "@effect-ui/react";
+} from "@sunfall/arc-react";
 import {
   describeDevtoolsPanels,
   describeDevtoolsSummary,
@@ -181,7 +181,7 @@ import {
   type DevtoolsStartAppGraphUnknownRoutePreloadCollectionsEntry,
   type DevtoolsStore,
   type DevtoolsSummary,
-} from "@effect-ui/devtools";
+} from "@sunfall/arc-devtools";
 import {
   Action as StartRootAction,
   defineApp as startRootDefineApp,
@@ -263,9 +263,9 @@ import {
   type StartTransportEndpointEnvelope,
   streamHydrationConsumedAttribute,
   submitStartActionEffect,
-} from "@effect-ui/start";
+} from "@sunfall/arc-start";
 import {
-  effectUiStart,
+  sunfallArcStart,
   FileRouteDefinitionsFileWriteError,
   handleSsrDevRequestEffect,
   loadStartAppGraphDiagnostics,
@@ -274,7 +274,7 @@ import {
   StartDevServerError,
   StartHandlerNotFound,
   writeFileRouteDefinitionsFileEffect,
-  type EffectUiStartPlugin,
+  type SunfallArcStartPlugin,
   type FileRouteDefinitionsFileWriteFailure,
   type FileRouteDefinitionsFileWriteResult,
   type LoadedStartAppGraphDiagnostics,
@@ -282,7 +282,7 @@ import {
   type StartDevServer,
   type StartAppGraphDiagnosticsLoadError,
   type StartSsrRequestHandler,
-} from "@effect-ui/start/vite";
+} from "@sunfall/arc-start/vite";
 import {
   createStartDiagnosticsReport as createSubpathStartDiagnosticsReport,
   formatStartDiagnosticsReport as formatSubpathStartDiagnosticsReport,
@@ -293,9 +293,9 @@ import {
   type StartDiagnosticsReportOwnerGroup as SubpathStartDiagnosticsReportOwnerGroup,
   type StartDiagnosticsReportStatus as SubpathStartDiagnosticsReportStatus,
   type StartDiagnosticsReportSummary as SubpathStartDiagnosticsReportSummary,
-} from "@effect-ui/start/diagnostics-report";
-import type { StartDiagnosticsCliIo as FrameworkStartDiagnosticsCliIo } from "@effect-ui/start/cli";
-import "@effect-ui/start/virtual";
+} from "@sunfall/arc-start/diagnostics-report";
+import type { StartDiagnosticsCliIo as FrameworkStartDiagnosticsCliIo } from "@sunfall/arc-start/cli";
+import "@sunfall/arc-start/virtual";
 import {
   createNodeHandler,
   createNodeHandlerEffect,
@@ -321,7 +321,7 @@ import {
   type StartNodeServerHandlerOptions,
   type StartNodeServerHandlerRuntimeOptions,
   type WriteNodeResponseOptions,
-} from "@effect-ui/start/adapters";
+} from "@sunfall/arc-start/adapters";
 import {
   createFetchHandler as createSubpathFetchHandler,
   toFetchHandler as toSubpathFetchHandler,
@@ -331,7 +331,7 @@ import {
   type StartFetchPromiseHandler as SubpathStartFetchPromiseHandler,
   type StartFetchPromiseHandlerOptions as SubpathStartFetchPromiseHandlerOptions,
   type StartFetchPromiseHandlerRuntimeOptions as SubpathStartFetchPromiseHandlerRuntimeOptions,
-} from "@effect-ui/start/fetch-adapter";
+} from "@sunfall/arc-start/fetch-adapter";
 import {
   createNodeHandler as createSubpathNodeHandler,
   createNodeHandlerEffect as createSubpathNodeHandlerEffect,
@@ -350,7 +350,7 @@ import {
   type StartNodeServerHandlerOptions as SubpathStartNodeServerHandlerOptions,
   type StartNodeServerHandlerRuntimeOptions as SubpathStartNodeServerHandlerRuntimeOptions,
   type WriteNodeResponseOptions as SubpathWriteNodeResponseOptions,
-} from "@effect-ui/start/node-adapter";
+} from "@sunfall/arc-start/node-adapter";
 import {
   createFetchHandler as createPackagedFetchHandler,
   toFetchHandler as toPackagedFetchHandler,
@@ -360,7 +360,7 @@ import {
   type StartFetchPromiseHandler as PackagedStartFetchPromiseHandler,
   type StartFetchPromiseHandlerOptions as PackagedStartFetchPromiseHandlerOptions,
   type StartFetchPromiseHandlerRuntimeOptions as PackagedStartFetchPromiseHandlerRuntimeOptions,
-} from "@effect-ui/start-fetch";
+} from "@sunfall/arc-start-fetch";
 import {
   createNodeHandler as createPackagedNodeHandler,
   createNodeHandlerEffect as createPackagedNodeHandlerEffect,
@@ -378,12 +378,12 @@ import {
   type StartNodeServerHandlerOptions as PackagedStartNodeServerHandlerOptions,
   type StartNodeServerHandlerRuntimeOptions as PackagedStartNodeServerHandlerRuntimeOptions,
   type WriteNodeResponseOptions as PackagedWriteNodeResponseOptions,
-} from "@effect-ui/start-node";
-import effectUiTsrxDefault, { effectUiTsrx, type EffectUiTsrxOptions } from "@effect-ui/tsrx";
+} from "@sunfall/arc-start-node";
+import sunfallArcTsrxDefault, { sunfallArcTsrx, type SunfallArcTsrxOptions } from "@sunfall/arc-tsrx";
 import type { PluginOption } from "vite";
 import { makeProjectId as makeProjectConsoleProjectId } from "../examples/project-console/src/domain.contract.js";
-import "@effect-ui/start/virtual";
-import { diagnosticsPolicyViolations as virtualDiagnosticsPolicyViolations } from "virtual:effect-ui/app-graph";
+import "@sunfall/arc-start/virtual";
+import { diagnosticsPolicyViolations as virtualDiagnosticsPolicyViolations } from "virtual:sunfall-arc/app-graph";
 import {
   hrefById as virtualHrefByIdForRoute,
   hrefByPath as virtualHrefByPathForRoute,
@@ -407,7 +407,7 @@ import {
   type RouteId as VirtualRouteId,
   type RoutePath as VirtualRoutePath,
   type SearchByPath as VirtualSearchByPath,
-} from "virtual:effect-ui/routes";
+} from "virtual:sunfall-arc/routes";
 import type {
   FileRouteHrefOptionsById as ProjectConsoleFileRouteHrefOptionsById,
   FileRouteHrefOptionsByPath as ProjectConsoleFileRouteHrefOptionsByPath,
@@ -438,13 +438,13 @@ import {
   routeByPath as projectConsoleRouteByPath,
 } from "../examples/project-console/src/routeTree.gen.js";
 
-const tsrxOptions: EffectUiTsrxOptions = {
+const tsrxOptions: SunfallArcTsrxOptions = {
   optimizeDeps: {
     noDiscovery: false,
   },
 };
-const tsrxPlugins: PluginOption[] = effectUiTsrx(tsrxOptions);
-const defaultTsrxPlugins: PluginOption[] = effectUiTsrxDefault();
+const tsrxPlugins: PluginOption[] = sunfallArcTsrx(tsrxOptions);
+const defaultTsrxPlugins: PluginOption[] = sunfallArcTsrxDefault();
 void tsrxPlugins;
 void defaultTsrxPlugins;
 const startRootAction: typeof Action = StartRootAction;
@@ -463,7 +463,7 @@ const startTransportEnvelopeOptions: StartTransportDiagnosticsOptions = { reques
 const startTransportEnvelopeEffect: Effect.Effect<StartTransportEndpointEnvelope> =
   startTransportEndpointEnvelopeEffect(
     "rpc",
-    new Request("https://example.com/__effect-ui/rpc"),
+    new Request("https://example.com/__sunfall-arc/rpc"),
     startTransportEnvelopeOptions,
   );
 void startRootAction;
@@ -1274,7 +1274,7 @@ const generatedFileRouteReferences = createFileRouteModuleReferences(
 );
 const generatedFileRouteDefinitionsOptions: GeneratedFileRouteDefinitionsModuleOptions = {
   generatedFile: "src/routeTree.gen.ts",
-  header: "// generated by effect-ui",
+  header: "// generated by sunfall-arc",
 };
 const generatedFileRouteDefinitionsModule: string = createGeneratedFileRouteDefinitionsModule(
   emptyFileRouteManifest,
@@ -2480,8 +2480,8 @@ interface ViteDevSsrService {
 declare const serviceStartSsrResponse: Effect.Effect<Response, never, ViteDevSsrService>;
 // @ts-expect-error Vite dev SSR handlers may require request Scope, but must provide app services before returning an Effect
 const serviceViteStartSsrRequestHandler: StartSsrRequestHandler = () => serviceStartSsrResponse;
-const startVitePlugin: EffectUiStartPlugin = effectUiStart();
-startVitePlugin.resolveId("virtual:effect-ui/app-graph");
+const startVitePlugin: SunfallArcStartPlugin = sunfallArcStart();
+startVitePlugin.resolveId("virtual:sunfall-arc/app-graph");
 startVitePlugin.transform("", "/src/domain.server.ts", { ssr: true });
 Metric.value(startRequestCountMetric).pipe(Effect.map((state) => state.count.toFixed()));
 Metric.value(startRequestDurationMetric).pipe(Effect.map((state) => state.count.toFixed()));
@@ -2790,7 +2790,7 @@ typedRuntime.runSync(RuntimeDocumentService.useSync((service) => service.readDoc
 typedRuntime.runSync(RuntimeMissingService.useSync((service) => service.readMissing()));
 // @ts-expect-error Runtime Spine cannot fork an effect with services it does not provide
 typedRuntime.runFork(RuntimeMissingService.useSync((service) => service.readMissing()));
-declare const erasedRuntime: AnyEffectUiRuntime<never>;
+declare const erasedRuntime: AnySunfallArcRuntime<never>;
 const erasedRuntimeDisposeEffect: Effect.Effect<void, RuntimeDisposeError> =
   erasedRuntime.disposeEffect;
 const erasedRuntimeProvidedEffect: Effect.Effect<string> = erasedRuntime.provide(
@@ -3365,12 +3365,12 @@ useReactLiveQuery<
   onPreloadFailure: () => promisedVoid,
 });
 makeCollectionReactivePreloadController({
-  runtime: null as unknown as AnyEffectUiRuntime<never>,
+  runtime: null as unknown as AnySunfallArcRuntime<never>,
   onSuccess: () => Effect.void,
   onFailure: () => Effect.void,
 });
 makeCollectionReactivePreloadController({
-  runtime: null as unknown as AnyEffectUiRuntime<never>,
+  runtime: null as unknown as AnySunfallArcRuntime<never>,
   // @ts-expect-error Shared DB preload success observers must return EffectInput, not Promise work.
   onSuccess: () => promisedVoid,
   onFailure: () => Effect.void,
@@ -3799,7 +3799,7 @@ Program.start(ProjectProgramWithMissingService, {
 interface ProgramRuntimeStartupError {
   readonly _tag: "ProgramRuntimeStartupError";
 }
-declare const projectProgramRuntimeWithStartupError: EffectUiRuntime<
+declare const projectProgramRuntimeWithStartupError: SunfallArcRuntime<
   ProjectApi,
   ProgramRuntimeStartupError
 >;
@@ -4298,7 +4298,7 @@ const startRegistryMissingHandlerEffect: Effect.Effect<
   StartRequestHandlerError,
   Scope.Scope | RuntimeDocumentService
 > = createRequestHandlerEffect(startRegistryMissingApp)(
-  new Request("https://example.com/__effect-ui/rpc"),
+  new Request("https://example.com/__sunfall-arc/rpc"),
 );
 const startRegistryProvidedApp = defineApp({
   routes: [] as const,
@@ -4314,7 +4314,7 @@ const startRegistryProvidedHandlerEffect: Effect.Effect<
   StartRequestHandlerError,
   Scope.Scope
 > = createRequestHandlerEffect(startRegistryProvidedApp)(
-  new Request("https://example.com/__effect-ui/rpc"),
+  new Request("https://example.com/__sunfall-arc/rpc"),
 );
 const startOptionsActionHandlerEffect: Effect.Effect<
   Response,
@@ -4326,7 +4326,7 @@ const startOptionsActionHandlerEffect: Effect.Effect<
     client: {},
   }),
   { actions: [RegistryReadDocumentAction] },
-)(new Request("https://example.com/__effect-ui/action"));
+)(new Request("https://example.com/__sunfall-arc/action"));
 void serviceRoutePreloadRequirements;
 void serviceRoutePreload;
 void serviceRoutePreloadPlan;
@@ -4491,7 +4491,7 @@ const readDocumentAndMissingRuntimeActionSubmitErased: Effect.Effect<string> =
 interface RuntimeStartupError {
   readonly _tag: "RuntimeStartupError";
 }
-declare const runtimeWithStartupError: EffectUiRuntime<RuntimeDocumentService, RuntimeStartupError>;
+declare const runtimeWithStartupError: SunfallArcRuntime<RuntimeDocumentService, RuntimeStartupError>;
 const readDocumentRuntimeErrorAction = Action.use(ReadDocumentAction, {
   runtime: runtimeWithStartupError,
 });
@@ -4594,7 +4594,7 @@ interface StartTransportEnv {
   readonly token: string;
 }
 declare const authenticatedStartFetch: StartFetch<never, StartTransportEnv>;
-declare const startTransportRuntime: EffectUiRuntime<StartTransportEnv, never>;
+declare const startTransportRuntime: SunfallArcRuntime<StartTransportEnv, never>;
 const startActionTransportRequirementsEffect: Effect.Effect<
   StartAction.Result<typeof TouchProject>,
   Server.ClientError,

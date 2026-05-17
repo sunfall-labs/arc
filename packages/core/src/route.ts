@@ -77,7 +77,7 @@ export type RoutePreloadResult<Requirements = never> = void | Effect.Effect<
 >;
 
 export const RouteLazyComponentTypeId: unique symbol = Symbol.for(
-  "@effect-ui/core/RouteLazyComponent",
+  "@sunfall/arc-core/RouteLazyComponent",
 ) as never;
 
 type RouteLazyComponentState<Component> =

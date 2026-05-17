@@ -6,7 +6,7 @@ import {
 
 // Narrow example-only fallback used by SSR headers/tests before Vite virtual
 // modules are available. Production app topology should come from the generated
-// `virtual:effect-ui/app-graph` artifact.
+// `virtual:sunfall-arc/app-graph` artifact.
 export const projectConsoleStartGraph = {
   routes: routeTree,
   routeById,

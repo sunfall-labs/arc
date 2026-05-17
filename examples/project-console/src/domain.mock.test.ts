@@ -1,4 +1,4 @@
-import { Action, ActionResult, makeRuntime, read, Resource, runWithRuntime } from "@effect-ui/core";
+import { Action, ActionResult, makeRuntime, read, Resource, runWithRuntime } from "@sunfall/arc-core";
 import { Deferred, Effect, Fiber } from "effect";
 import { describe, expect, it } from "vitest";
 import { type Project, type ProjectRemoteError } from "./domain.contract.js";
@@ -80,7 +80,7 @@ describe("project console contract mocks", () => {
 
     expect(target).toMatchObject({
       method: "post",
-      action: "/__effect-ui/action",
+      action: "/__sunfall-arc/action",
     });
     expect(input).toBeDefined();
     expect(JSON.parse(input?.value ?? "{}")).toEqual({

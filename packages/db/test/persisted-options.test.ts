@@ -1,5 +1,5 @@
-import { makeRuntime, runWithRuntime } from "@effect-ui/core";
-import { Collection, type CollectionSnapshot } from "@effect-ui/db";
+import { makeRuntime, runWithRuntime } from "@sunfall/arc-core";
+import { Collection, type CollectionSnapshot } from "@sunfall/arc-db";
 import { Deferred, Effect, Fiber } from "effect";
 import { describe, expect, it, vi } from "vitest";
 

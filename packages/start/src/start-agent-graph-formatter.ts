@@ -144,7 +144,7 @@ const formatOverview = (graph: StartAgentGraph): string => {
     .filter((node) => node.kind === "Collection")
     .map((node) => node.label);
   const lines = [
-    "Effect UI Start Agent Graph",
+    "Sunfall Arc Start Agent Graph",
     `Status: ${graph.selfReview.status}`,
     `Scope: ${graph.summary.routes} routes, ${graph.summary.serverFunctions} server functions, ${graph.summary.actions} actions, ${graph.summary.resourceFamilies} resource families, ${graph.summary.collections} collections`,
     `Self review: ${selfReviewText(graph.selfReview)}`,
@@ -174,7 +174,7 @@ const formatStartAgentGraphVerbose = (
   options: StartAgentGraphFormatOptions = {},
 ): string => {
   const lines = [
-    "Effect UI Start Agent Graph",
+    "Sunfall Arc Start Agent Graph",
     `status: ${graph.selfReview.status}`,
     `nodes: ${graph.summary.nodes}`,
     `edges: ${graph.summary.edges}`,

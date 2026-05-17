@@ -2,7 +2,7 @@ import {
   currentOrDefaultRuntime,
   ResourceStore,
   type ResourceStore as ResourceStoreState,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Effect, Option, PubSub, Scope } from "effect";
 import { CollectionStoreTypeId } from "./collection-ids.js";
 import {

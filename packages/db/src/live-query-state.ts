@@ -1,4 +1,4 @@
-import { Signal, SignalTypeId, type ReadableSignal } from "@effect-ui/core";
+import { Signal, SignalTypeId, type ReadableSignal } from "@sunfall/arc-core";
 import { Effect } from "effect";
 import { makeLiveQueryRuntime, type LiveQueryRuntime } from "./live-query-runtime.js";
 import {

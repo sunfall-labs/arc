@@ -3,7 +3,7 @@ import {
   isRoutePathSegmentPrefix,
   type RoutePathParam,
   type RoutePathSegment,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Data, Effect, Schema } from "effect";
 import {
   decodeFileRoutePath,

@@ -11,12 +11,10 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review492 Route Suspense Runtime And Prerender Callback Pins,
-the post-Review491 follow-up that moved lazy route Suspense
-launch policy into Core, avoided duplicate initial Ready hydration preloads,
-rejected Promise-shaped Start prerender callbacks, proved the Vite closeBundle
-prerender Adapter, unrefed resource GC timers, and pinned TSRX dev-server
-dependency-discovery docs.
+The newest focused review is Review493 Prerender Server Release And Current
+Evidence Policy, the post-Review492 follow-up that made Start prerender server
+close failures observable through the typed `close-server` error operation and
+tightened current-docs policy against stale full-gate evidence.
 The newest full verification checkpoint is Review492.
 Clean Sweep 1 after
 Review208 remains historical 1/30
@@ -56,8 +54,9 @@ and the fresh post-Review244 sweep found Review245 work,
 and the fresh post-Review245 sweep found Review246 work,
 and the fresh post-Review246 sweep found Review247 work, the dirty-lane
 follow-up found Review490 work, the fresh post-Review490 sweep found
-Review491 work, and the fresh post-Review491 sweep found Review492 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review492
+Review491 work, the fresh post-Review491 sweep found Review492 work, and the
+fresh post-Review492 sweep found Review493 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review493
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -70,7 +69,7 @@ Review232 Shared DB Query Stage Plan work, Review233 work, Review234 work,
 Review235 work, Review236 work, Review237 work, Review238 work, Review239
 work, Review240 work, Review241 work, Review242 work, Review243 work,
 Review244 work, Review245 work, Review246 work, Review247 work, Review490
-work, Review491 work, and Review492 work.
+work, Review491 work, Review492 work, and Review493 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -180,7 +179,44 @@ and the fresh post-Review490 sweep found Review491 prerender Effect Interface
 and lazy route probe work,
 and the fresh post-Review491 sweep found Review492 route Suspense runtime and
 prerender callback pin work,
+and the fresh post-Review492 sweep found Review493 prerender release and
+current evidence policy work,
 so the counter remains 0/30.
+
+## Review 493: Prerender Server Release And Current Evidence Policy
+
+Review493 fixes the actionable findings from the fresh post-Review492
+subagent sweep.
+
+1. Start Prerender Server Release Seam
+   - Status: fixed.
+   - Files: `packages/start/src/start-prerender.ts` and
+     `packages/start/test/start-prerender.test.ts`.
+   - Problem: `StartPrerenderError` exposed a typed `close-server` operation,
+     but the prerender server release Implementation swallowed close failures.
+     That hid Vite websocket, hot-channel, and server close defects after a
+     successful prerender body.
+   - Solution: close handles now return typed `StartPrerenderError` failures,
+     the release path attempts websocket, hot-channel, and server close handles,
+     and a successful prerender run fails if release fails. If prerender body
+     work fails, that body failure still wins over cleanup failure.
+   - Benefits: the Vite server lifetime Seam has better Locality and the typed
+     Interface now carries the release failure it already promised. The
+     regression test proves the observable `close-server` error path.
+
+2. Current Evidence Policy
+   - Status: fixed.
+   - Files: `docs/effect-first-audit.md`, `docs/sharp-cast-audit.md`, and
+     `scripts/public-api-symbol-policy.mjs`.
+   - Problem: stale "current full Review240" wording survived in audit docs
+     because the current-docs policy only banned the older Review239 form.
+   - Solution: update current audit evidence to the Review492 full gate,
+     record Review493 as the latest focused sweep, and widen stale-evidence
+     policy so older "current full" claims are rejected through Review491 while
+     Review492 remains the latest full verification checkpoint.
+   - Benefits: docs consumed by humans, agents, and LSP hovers now distinguish
+     the latest focused Review493 work from the latest full Review492 gate, and
+     future stale current-evidence drift is more likely to fail verification.
 
 ## Review 492: Route Suspense Runtime And Prerender Callback Pins
 
@@ -409,7 +445,7 @@ dirty lane coherent.
      package hygiene Interface, so tarball contents cannot drift from manifest
      license claims.
 
-Focused verification for this pass: `pnpm --filter @effect-ui/core build`,
+Focused verification for this pass: `pnpm --filter @sunfall/arc-core build`,
 `pnpm typecheck:types`, `pnpm audit:effect-first`, `pnpm audit:public-api`,
 `pnpm exec vitest run packages/core/test/browser-router.test.ts
 packages/react/test/router.test.ts packages/solid/test/router.test.ts`, focused
@@ -1008,7 +1044,7 @@ Review238 fixed the actionable findings from the fresh post-Review237 sweep.
    - Fix: the runner now launches POSIX commands in their own process group,
      uses a Windows process-tree fallback, preserves signal exit status in
      `ScriptCommandError`, and verifies direct signal and grandchild cleanup.
-     `verify.mjs` now defines `effect-ui-verify` through Effect v4
+     `verify.mjs` now defines `sunfall-arc-verify` through Effect v4
      `Command`/`Flag` primitives, with generated help and positive-concurrency
      validation.
    - Benefits: interrupted workspace verifies do not leave nested package
@@ -1397,7 +1433,7 @@ Review232 later fixed.
    - Status: fixed.
    - Files: `scripts/audit-public-api-inventory.mjs` and
      `type-tests/public-api.manifest.json`.
-   - Problem: `@effect-ui/react-db` and `@effect-ui/solid-db` root barrels
+   - Problem: `@sunfall/arc-react-db` and `@sunfall/arc-solid-db` root barrels
      re-exported local modules documented in the inventory, but the manifest
      did not require their `sourceSurface` entries.
    - Fix: the public API audit now rejects missing `sourceSurface` lists for
@@ -1763,9 +1799,9 @@ Review227 fixed actionable findings from the fresh post-Review226 sweep.
    - Benefits: the documented Seam matches the implementation, so future
      architecture reviews do not chase stale Effect v4 lifecycle vocabulary.
 
-Focused workspace evidence for this pass: `pnpm --filter @effect-ui/core build`,
-`pnpm --filter @effect-ui/core typecheck`, `pnpm --filter @effect-ui/start
-typecheck`, `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck:types`,
+Focused workspace evidence for this pass: `pnpm --filter @sunfall/arc-core build`,
+`pnpm --filter @sunfall/arc-core typecheck`, `pnpm --filter @sunfall/arc-start
+typecheck`, `pnpm --filter @sunfall/arc-db typecheck`, `pnpm typecheck:types`,
 `pnpm audit:public-api`, `pnpm audit:effect-first`, `pnpm exec vitest run
 packages/core/test/effect-like.test.ts packages/start/test/start.test.ts
 packages/start/test/rpc.test.ts -t "then getter|throwing then|Promise-shaped|file
@@ -1821,8 +1857,8 @@ Review226 fixed actionable findings from the fresh post-Review225 sweep.
      the typed Effect error channel, preserving Locality at the loader Adapter
      seam and keeping CLI output deterministic.
 
-Focused workspace evidence for this pass: `pnpm --filter @effect-ui/start
-typecheck`, `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck:types`,
+Focused workspace evidence for this pass: `pnpm --filter @sunfall/arc-start
+typecheck`, `pnpm --filter @sunfall/arc-db typecheck`, `pnpm typecheck:types`,
 `pnpm audit:public-api`, `pnpm audit:effect-first`, `pnpm
 verify:command-runner`, `pnpm exec vitest run packages/start/test/start.test.ts
 -t "diagnostics CLI"`, `pnpm exec vitest run
@@ -2259,11 +2295,11 @@ Review219 fixed actionable findings from the fresh post-Review218 sweep.
    - Files: `docs/effect-first-audit.md`, `docs/perfection-progress.md`, and
      `docs/release-notes.md`.
    - Problem: current-facing docs overstated the runtime wildcard cleanup by
-     saying only Core ambient `EffectUiRuntime<any, any>` hits remained, while
+     saying only Core ambient `SunfallArcRuntime<any, any>` hits remained, while
      router and Start host seams still intentionally carry
-     `EffectUiRuntime<any, ER>` adapter bounds.
-   - Fix: current docs now distinguish exact `EffectUiRuntime<any, any>` Core
-     hits from named `EffectUiRuntime<any, ER>` framework Adapter seams.
+     `SunfallArcRuntime<any, ER>` adapter bounds.
+   - Fix: current docs now distinguish exact `SunfallArcRuntime<any, any>` Core
+     hits from named `SunfallArcRuntime<any, ER>` framework Adapter seams.
    - Benefits: future LSP/public-surface sweeps do not mistake an intentional
      service-erasure boundary for completed source cleanup.
 
@@ -2450,14 +2486,14 @@ Review217 fixed actionable findings from the fresh post-Review216 sweep.
      `docs/public-api-inventory.md`, `docs/release-notes.md`.
    - Problem: the Devtools app-graph normalizer option/function seam was not
      hover-policy pinned, Runtime Spine helpers had shallower LSP docs than the
-     inventory promised, project-console taught `EffectUiRuntime<any, never>` at
+     inventory promised, project-console taught `SunfallArcRuntime<any, never>` at
      its app runtime seam, and current release notes duplicated stale Review216
      gate text.
    - Fix: the normalizer options and normalizer function are documented and
      pinned by the public hover audit; Runtime Spine helpers now explain the
      brand, source, current/default runtime accessors, and erased Adapter seam;
      project-console exposes a generic runtime prop that accepts typed runtimes
-     or `AnyEffectUiRuntime<never>` without teaching broad `any`; and current
+     or `AnySunfallArcRuntime<never>` without teaching broad `any`; and current
      docs now name Review217.
    - Benefits: public diagnostics and runtime hovers match the Interface
      callers actually see, examples show the intended erased Adapter vocabulary,
@@ -3101,9 +3137,9 @@ four review lanes.
 
 1. Core/React/Solid Runtime And Adapter Lane
    - Status: clean.
-   - Evidence: `pnpm typecheck:types`, `pnpm --filter @effect-ui/core
-typecheck`, `pnpm --filter @effect-ui/react typecheck`, `pnpm --filter
-@effect-ui/solid typecheck`, `pnpm audit:effect-first`, `pnpm
+   - Evidence: `pnpm typecheck:types`, `pnpm --filter @sunfall/arc-core
+typecheck`, `pnpm --filter @sunfall/arc-react typecheck`, `pnpm --filter
+@sunfall/arc-solid typecheck`, `pnpm audit:effect-first`, `pnpm
 audit:public-api`, and focused Core/React/Solid runtime/hook tests passed
      after inspecting RuntimeProvider disposal observers, `EffectInput`
      Promise rejection, Solid match docs, and public adapter type tests.
@@ -3188,7 +3224,7 @@ example that treated plain callback values as accessors.
    - Status: fixed.
    - Files: `scripts/verify-package-dry-runs.mjs`,
      `packages/start/package.json`.
-   - Problem: Review206 added a symlinked `effect-ui-start` dry-run check, but
+   - Problem: Review206 added a symlinked `sunfall-arc-start` dry-run check, but
      the verifier ran `node <symlink> --version`, which still bypassed the
      executable/shebang path used by package-manager bins on POSIX hosts.
    - Fix: the package dry-run verifier now executes the linked bin directly on
@@ -3294,10 +3330,10 @@ client path.
    - Fix: the main guard now compares real filesystem paths for both the module
      URL and process entry path, with a synchronous host-boundary fallback when
      `realpathSync.native(...)` is unavailable. The package dry-run verifier now
-     creates a temporary `effect-ui-start` symlink and runs the built bin with
+     creates a temporary `sunfall-arc-start` symlink and runs the built bin with
      `process.execPath` so package-manager entrypoint behavior is part of the
      release gate.
-   - Benefits: installed `effect-ui-start` bins execute through npm/pnpm-style
+   - Benefits: installed `sunfall-arc-start` bins execute through npm/pnpm-style
      symlinks, and the publish rehearsal catches regressions.
 
 2. Effect-First Hydration Docs
@@ -3313,8 +3349,8 @@ client path.
    - Benefits: the LSP-facing docs point users and agents toward the
      Effect-first hydration path.
 
-Focused verification for Review206 passed: `pnpm --filter @effect-ui/start
-build`, `pnpm --filter @effect-ui/start typecheck`, syntax checks for
+Focused verification for Review206 passed: `pnpm --filter @sunfall/arc-start
+build`, `pnpm --filter @sunfall/arc-start typecheck`, syntax checks for
 `packages/start/src/cli.ts` and `scripts/verify-package-dry-runs.mjs`,
 `pnpm example:pack-dry-run` including the new symlinked CLI bin check,
 Effect-first hydration-doc greps, public API audit, Effect-first audit,
@@ -3523,12 +3559,12 @@ current-gate dates, and missing domain vocabulary for workspace script seams.
      `docs/type-test-coverage-audit.md`.
    - Problem: React and Solid roots documented adapter-local Core ergonomics
      and runtime helpers, but focused type tests imported Core concepts from
-     `@effect-ui/core` instead of proving the adapter root re-exports.
+     `@sunfall/arc-core` instead of proving the adapter root re-exports.
    - Fix: focused adapter type tests now import and exercise `Action`,
      `Program`, `Resource`, `Route`, `Signal`, `UiScope`, `read`,
      `forkScoped`, `onDispose`, `watch`, runtime context/provider helpers, and
-     router/link helpers directly from `@effect-ui/react` and
-     `@effect-ui/solid`; the manifest requires those imports.
+     router/link helpers directly from `@sunfall/arc-react` and
+     `@sunfall/arc-solid`; the manifest requires those imports.
    - Benefits: documented adapter ergonomics cannot disappear while public API
      audits still pass.
 
@@ -3563,7 +3599,7 @@ current-gate dates, and missing domain vocabulary for workspace script seams.
      package dry-run declaration artifact policy; `verify:serial` hard-coded an
      older command chain instead of using the Workspace Verification Plan; and
      `tsgo -b` typecheck scripts could re-emit `dist` artifacts after package
-     builds, including the forbidden `@effect-ui/start/virtual` declaration
+     builds, including the forbidden `@sunfall/arc-start/virtual` declaration
      map.
    - Fix: starter packaging and dry-runs now share `package-payload-policy`;
      local package adapters validate dist/source-map/declaration artifacts
@@ -3848,11 +3884,11 @@ found Vite dev SSR, diagnostics close, and CLI bin host-seam gaps.
      `type-tests/start-vite.test-d.ts`,
      `docs/public-api-inventory.md`.
    - Problem: Vite dev SSR server-entry handlers could return serviceful Effects,
-     but `EffectUiStartOptions` had no runtime/run-options seam and the dynamic
+     but `SunfallArcStartOptions` had no runtime/run-options seam and the dynamic
      handler types erased non-`Scope` requirements. The middleware therefore
      forked through the default host runner unless application code fully
      provided every service before export.
-   - Fix: added `StartViteDevSsrOptions` and `EffectUiStartOptions.devSsr` for
+   - Fix: added `StartViteDevSsrOptions` and `SunfallArcStartOptions.devSsr` for
      the dev middleware fork seam, threaded it through `forkStartHostEffect(...)`
      and abort interruption, and typed `StartSsrRequestHandler`,
      `StartSsrHandlerModule`, and `StartDevServer<R>` so expert tests/adapters can
@@ -4134,7 +4170,7 @@ sweep.
      `examples/project-console/src/routes/index.ts`,
      `examples/project-console/src/routes/projects/index.ts`,
      `docs/architecture.md`,
-     `docs/effect-ui-framework-comparison.md`.
+     `docs/sunfall-arc-framework-comparison.md`.
    - Problem: root Start type tests under-pinned the file-route authoring
      Interface; Devtools Store and DB Collection Store accessors were public but
      shallowly pinned for LSP; basic/React starters exported an unused manual
@@ -4299,7 +4335,7 @@ sweep.
      hover-doc/type-test policy, and current-gate docs still split Review191 and
      Review193 as latest verification facts.
    - Fix: added JSDoc to the missing public declarations, extended the public API
-     hover-doc policy, pinned root and `@effect-ui/start/vite` type-test imports,
+     hover-doc policy, pinned root and `@sunfall/arc-start/vite` type-test imports,
      and made current-gate docs name the Review194 verification.
    - Benefits: Start's public LSP surface now describes why action forms,
      duplicate action names, Vite defaults, and virtual module ids exist, and
@@ -4491,9 +4527,9 @@ Review191 fixed the actionable findings from Clean Sweep 2 after Review190.
    - Benefits: public LSP documentation is now guarded by executable policy
      instead of a one-time comment pass.
 
-Focused workspace evidence for this pass: `pnpm --filter @effect-ui/core
-typecheck`, `pnpm --filter @effect-ui/start typecheck`, `pnpm --filter
-@effect-ui/db typecheck`, `pnpm --filter @effect-ui/devtools typecheck`,
+Focused workspace evidence for this pass: `pnpm --filter @sunfall/arc-core
+typecheck`, `pnpm --filter @sunfall/arc-start typecheck`, `pnpm --filter
+@sunfall/arc-db typecheck`, `pnpm --filter @sunfall/arc-devtools typecheck`,
 `pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first`,
 `pnpm exec vitest run packages/core/test/effect-like.test.ts
 packages/core/test/action-result.test.ts`, `pnpm exec vitest run
@@ -4883,7 +4919,7 @@ fresh post-Review180 subagent sweep.
      import surface.
 
 Focused verification passed for Review182: `pnpm audit:public-api`, `pnpm
-typecheck:types`, `pnpm --filter @effect-ui/db typecheck`, and `pnpm
+typecheck:types`, `pnpm --filter @sunfall/arc-db typecheck`, and `pnpm
 audit:effect-first`.
 
 Full `pnpm verify` passed after Review182 through the Effect-driven runner: 11
@@ -5228,8 +5264,8 @@ sweep.
      Interface has one implementation point, and future load/mutation policy
      changes can be tested through the shared Module instead of paired copies.
 
-Focused verification passed for Review174: `pnpm --filter @effect-ui/db
-typecheck`, `pnpm --filter @effect-ui/db build`, and `pnpm exec vitest run
+Focused verification passed for Review174: `pnpm --filter @sunfall/arc-db
+typecheck`, `pnpm --filter @sunfall/arc-db build`, and `pnpm exec vitest run
 packages/db/test/collection.test.ts` with 139 tests.
 
 Full `pnpm verify` passed after Review174 through the Effect-driven runner: 11
@@ -5240,7 +5276,7 @@ files / 1028 tests, devtools-panel verify with 2 tests, devtools-extension
 verify with 20 tests, basic starter verify with 2 tests, React starter verify
 with 3 tests, starter package generation for basic/react/project-console at
 19/24/30 app files with 5/4/6 local packages, 16-target package dry-run gate
-including the 149-file `@effect-ui/db` package rehearsal, project-console
+including the 149-file `@sunfall/arc-db` package rehearsal, project-console
 typecheck, 4 project-console test files / 27 tests, project-console build, and
 leak scans.
 
@@ -5254,7 +5290,7 @@ post-Review171 Start/scripts/docs sweep.
    - Files: `scripts/verify-package-dry-runs.mjs`,
      `packages/start/src/virtual-modules.d.ts`,
      `docs/generated-artifact-audit.md`, `CONTEXT.md`.
-   - Problem: `@effect-ui/start/virtual` is a copied declaration Adapter:
+   - Problem: `@sunfall/arc-start/virtual` is a copied declaration Adapter:
      `packages/start/src/virtual-modules.d.ts` is copied to
      `packages/start/dist/virtual.d.ts`. The package dry-run gate verified that
      the manifest target existed and that dist artifact stems matched source
@@ -5262,7 +5298,7 @@ post-Review171 Start/scripts/docs sweep.
      matched the source Interface or that stale `dist/virtual.d.ts.map` files
      were absent.
    - Fix: added explicit declaration artifact policy to the package dry-run
-     Module. `@effect-ui/start` now declares the source declaration, copied
+     Module. `@sunfall/arc-start` now declares the source declaration, copied
      output declaration, and forbidden declaration map. The verifier checks the
      packed output path, compares source/output bytes through Effect, rejects
      stale forbidden files, and self-tests the copied-declaration policy. The
@@ -5273,7 +5309,7 @@ post-Review171 Start/scripts/docs sweep.
      release Seam that already catches package target and stale dist drift.
 
 Focused verification passed for Review173: `node --check
-scripts/verify-package-dry-runs.mjs`, `pnpm --filter @effect-ui/start build`,
+scripts/verify-package-dry-runs.mjs`, `pnpm --filter @sunfall/arc-start build`,
 and `pnpm example:pack-dry-run`.
 
 Full `pnpm verify` passed after Review173 through the Effect-driven runner: 11
@@ -5712,7 +5748,7 @@ guardrails.
      `packages/start/test/start.test.ts`.
    - Problem: generated route-definition output could re-enter file-route
      discovery when written under the route directory. Diagnostics loading
-     could also strip an inline `effectUiStart(...)` Adapter when no separate
+     could also strip an inline `sunfallArcStart(...)` Adapter when no separate
      `start` options were supplied, and decoded diagnostics were not proven
      coherent with the decoded app graph.
    - Fix: Start now computes and ignores the generated route output artifact in
@@ -6350,7 +6386,7 @@ DB, Start, Core, React, and public guardrails.
      `packages/start/test/start.test.ts`.
    - Problem: RPC/action transport diagnostics were applied before
      `ResponseContext` metadata, so handler code could overwrite
-     `x-effect-ui-request-id`, transport kind, or protocol-version headers.
+     `x-sunfall-arc-request-id`, transport kind, or protocol-version headers.
    - Fix: the transport runner writes authoritative diagnostics into the shared
      `ResponseContext` after user code runs, and still clones the immediate
      response with those diagnostics.
@@ -6387,7 +6423,7 @@ DB, Start, Core, React, and public guardrails.
    - Files: `packages/start/src/generated-route-definitions.ts`,
      `type-tests/start-vite.test-d.ts`,
      `type-tests/public-api.manifest.json`.
-   - Problem: the expert-public `@effect-ui/start/vite` route definition writer
+   - Problem: the expert-public `@sunfall/arc-start/vite` route definition writer
      symbols were documented but not directly required by the public type-test
      manifest, and the failure union lacked enough hover context.
    - Fix: the sync/effect writers, result/failure types, and filesystem/path
@@ -6733,7 +6769,7 @@ guardrail findings from the post-Review156 sweeps.
    - Fix: the Effect-first audit catches nested and computed global Promise
      extraction. Source package dry-runs now require concrete app, server,
      route, virtual-module, script, panel, extension, and config entrypoints.
-     `@effect-ui/start/cli` is an explicit public subpath with type-test
+     `@sunfall/arc-start/cli` is an explicit public subpath with type-test
      coverage for the Effect-native CLI commands and runner helpers.
    - Benefits: Effect-first, copyability, and LSP-facing public CLI contracts
      now fail at the guardrail where drift would enter.
@@ -7297,7 +7333,7 @@ the clean-sweep counter can start.
   factory APIs out of library internals unless they are explicitly adapted at a
   host seam.
 - Generated starter tarball locality: generated basic, React, and
-  project-console starters now include `.effect-ui-packages` in their package
+  project-console starters now include `.sunfall-arc-packages` in their package
   `files` allowlist, and `pnpm starter:package` dry-runs each generated starter
   tarball to prove local file-package Adapters are present while forbidden app
   artifacts remain absent.
@@ -7337,7 +7373,7 @@ post-fix sweeps still need to run before the clean-sweep counter can start.
   global `Symbol.for(...)`, so external structural Adapters cannot recreate the
   marker and reach mutable internals. A regression proves the old global marker
   spoof is rejected as `InvalidResourceStore`.
-- Runtime Spine laziness: `EffectUiRuntime.provide(...)` now validates
+- Runtime Spine laziness: `SunfallArcRuntime.provide(...)` now validates
   `resourceStore` overrides inside the returned Effect with `Effect.suspend(...)`
   rather than throwing synchronously while constructing the Effect. The public
   Interface now matches its LSP promise that providing services does not start
@@ -7387,7 +7423,7 @@ clean-sweep counter can start.
 - Public Resource Store opacity: `ResourceStore` remains an expert-public
   diagnostic Interface, but now carries an internal implementation marker so
   structural external Adapters cannot masquerade as the mutable store
-  Implementation. `EffectUiRuntime.provide(..., { resourceStore })` rejects
+  Implementation. `SunfallArcRuntime.provide(..., { resourceStore })` rejects
   fake structural stores with a typed `InvalidResourceStore` defect instead of
   drifting into raw mutable-map failures. Type tests pin that mutable store
   constructors and unsafe accessors stay out of the root public surface.
@@ -7404,8 +7440,8 @@ clean-sweep counter can start.
   `Query.onceEffect(...)` report selector failures as `QueryEvaluationError`
   values with `operation: "join"` instead of surfacing raw selector throws or
   misclassifying them as whole-plan evaluation failures.
-- React/Solid DB docs drift: DB docs now name both `@effect-ui/react-db` and
-  `@effect-ui/solid-db` as framework-local collection/live-query Adapters and
+- React/Solid DB docs drift: DB docs now name both `@sunfall/arc-react-db` and
+  `@sunfall/arc-solid-db` as framework-local collection/live-query Adapters and
   describe automatic preload failure recording for both packages.
 - Effect-first guardrail depth: the audit now rejects Promise static extraction
   through direct assignments and destructuring, including aliased destructuring
@@ -7415,7 +7451,7 @@ clean-sweep counter can start.
   that `resource-store` is selected from the root barrel rather than
   star-exported, preserving the public diagnostic Interface without exposing
   mutable internals.
-- Starter/devtools package hygiene: `@effect-ui/start` removes the stale
+- Starter/devtools package hygiene: `@sunfall/arc-start` removes the stale
   `dist/virtual.d.ts.map` after replacing the built virtual declaration with
   `src/virtual-modules.d.ts`, generated starters prove that stale map is absent,
   and devtools panel/extension examples now package local `.gitignore` files
@@ -7476,7 +7512,7 @@ the clean-sweep counter has not started.
   `node_modules`, `dist`, `.test-dist`, and the lockfile, then re-runs manifest
   and forbidden-output checks after each standalone verify. The verified
   generated app manifests are now 19, 24, and 30 app files.
-- Public Start adapter type coverage: the root `@effect-ui/start/adapters`
+- Public Start adapter type coverage: the root `@sunfall/arc-start/adapters`
   facade now pins `createFetchHandler(...)` and the same serviceful-runtime
   negative assertion as the fetch subpath.
 
@@ -7506,7 +7542,7 @@ Effect-first guardrail, DB docs, and starter-copyability sweeps. Focused and
 full verification are green. Fresh post-fix sweeps still found actionable work,
 so the clean-sweep counter has not started.
 
-- Runtime Store override locality: `EffectUiRuntime.provide(..., {
+- Runtime Store override locality: `SunfallArcRuntime.provide(..., {
 resourceStore })` now installs an ambient runtime Adapter whose
   `resourceStore`, nested `provide(...)`, `runFork(...)`, and `runSync(...)`
   preserve the override. A Core regression prefetches a Resource into an
@@ -7556,7 +7592,7 @@ clean-sweep counter can be considered.
   `(Promise.all)(...)`, `(client.then)(...)`, and
   `client.then.call(...)`. Example Vite configs are now inside the audited
   scope, raising the checked set to 255 files.
-- Start render runtime locality: `EffectUiRuntime.provide(...)` now installs the
+- Start render runtime locality: `SunfallArcRuntime.provide(...)` now installs the
   active runtime in an Effect v4 fiber-local `Context.Reference`, so synchronous
   helpers such as `Resource.read(...)` see the request runtime while returned
   render Effects execute. A Start regression proves a returned render Effect can
@@ -7564,11 +7600,11 @@ clean-sweep counter can be considered.
 - Public type/docs pins: Start render context type tests now pin
   `legacyHydrationScript`, the deprecated `hydrationScript` alias,
   `hydrationRootScript`, and `StartRenderHydrationPlan`. Focused
-  `@effect-ui/start-fetch` and `@effect-ui/start-node` package type tests now
+  `@sunfall/arc-start-fetch` and `@sunfall/arc-start-node` package type tests now
   cover Effect handlers, host facades, runtime-required options, and low-level
   adapter aliases.
 - Starter copyability: `pnpm starter:package` now generates basic, React, and
-  project-console starter payloads with local `.effect-ui-packages/*` file
+  project-console starter payloads with local `.sunfall-arc-packages/*` file
   dependencies, standalone Vite/tsconfig files, no workspace protocols, no
   monorepo aliases, and install dry-runs outside the workspace. Example package
   manifests now have `files` allowlists so dry-runs exclude `dist` and
@@ -7617,8 +7653,8 @@ post-fix sweeps must still run before the clean-sweep counter can be considered.
   verification from a clean post-fix sweep, and the project-console starter
   repair text names versioned package imports without monorepo aliases.
 
-Focused verification passed: `pnpm --filter @effect-ui/db typecheck`, `pnpm
---filter @effect-ui/core typecheck`, `pnpm typecheck:types`, `pnpm
+Focused verification passed: `pnpm --filter @sunfall/arc-db typecheck`, `pnpm
+--filter @sunfall/arc-core typecheck`, `pnpm typecheck:types`, `pnpm
 audit:public-api`, `pnpm audit:effect-first`, `pnpm exec vitest run
 packages/db/test/collection.test.ts` (1 file / 105 tests), and `git diff
 --check`.
@@ -7658,8 +7694,8 @@ post-fix sweeps must still run before the clean-sweep counter can be considered.
   the 27-file copyable-source manifest comparison plus workspace-manifest
   version rewrite policy without claiming published packages.
 
-Focused verification passed: `pnpm --filter @effect-ui/start typecheck`, `pnpm
---filter @effect-ui/react typecheck`, `pnpm --filter @effect-ui/solid
+Focused verification passed: `pnpm --filter @sunfall/arc-start typecheck`, `pnpm
+--filter @sunfall/arc-react typecheck`, `pnpm --filter @sunfall/arc-solid
 typecheck`, `pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm
 audit:effect-first`, and `pnpm exec vitest run packages/start/test/start.test.ts`
 (1 file / 136 tests).
@@ -7703,8 +7739,8 @@ StartAction invalidation, public seam, audit guardrail, and docs-drift gaps.
   package-manifest dependency rewrite policy, and release notes include the
   checked React starter path.
 
-Focused verification passed: `pnpm --filter @effect-ui/start typecheck`, `pnpm
---filter @effect-ui/react-db typecheck`, `pnpm typecheck:types`, `pnpm
+Focused verification passed: `pnpm --filter @sunfall/arc-start typecheck`, `pnpm
+--filter @sunfall/arc-react-db typecheck`, `pnpm typecheck:types`, `pnpm
 audit:public-api`, `pnpm audit:effect-first`, `pnpm exec vitest run
 packages/start/test/start.test.ts` (1 file / 136 tests), and `pnpm exec vitest
 run packages/react-db/test/react-db.test.ts` (1 file / 10 tests).
@@ -7776,12 +7812,12 @@ Console runtime store and starter packaging issues.
   still become typed Program dispatch/subscription failures instead of killing
   the queue before acknowledgements complete.
 - Program dispatch regression hook: Core Program tests now wrap an
-  `AnyEffectUiRuntime` and assert fire-and-forget dispatch enters the owning
+  `AnySunfallArcRuntime` and assert fire-and-forget dispatch enters the owning
   Runtime Spine, while the existing runtime-provision failure test continues to
   cover acknowledged dispatch error reporting.
 
-Focused verification passed: `pnpm --filter @effect-ui/core typecheck`, `pnpm
---filter @effect-ui/react typecheck`, `pnpm --filter @effect-ui/solid
+Focused verification passed: `pnpm --filter @sunfall/arc-core typecheck`, `pnpm
+--filter @sunfall/arc-react typecheck`, `pnpm --filter @sunfall/arc-solid
 typecheck`, `pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm
 audit:effect-first`, `pnpm exec vitest run packages/core/test/program.test.ts
 packages/react/test/router.test.ts packages/solid/test/router.test.ts` (3 files
@@ -7813,7 +7849,7 @@ post-fix sweeps found the Review 140 Core/React/Solid runtime/router seams.
 - Public type-test manifest depth: `type-tests/public-api.manifest.json` can
   now require `typeTestReferences`, and the public API audit rejects vacuous
   side-effect-only focused type tests. `type-tests/start-virtual.test-d.ts`
-  now pins representative `virtual:effect-ui/*` declarations.
+  now pins representative `virtual:sunfall-arc/*` declarations.
 - Effect-first audit anchoring: `scripts/audit-effect-first.mjs` now stores
   named seam anchors with context matchers rather than file/count allowances, so
   replacing an approved occurrence with another same-pattern occurrence in the
@@ -7823,8 +7859,8 @@ post-fix sweeps found the Review 140 Core/React/Solid runtime/router seams.
   namespace-backed modules that require an explicit audit allowance plus a
   root-barrel import.
 
-Focused verification passed: `pnpm --filter @effect-ui/db typecheck`, `pnpm
---filter @effect-ui/start typecheck`, `pnpm typecheck:types`, `pnpm
+Focused verification passed: `pnpm --filter @sunfall/arc-db typecheck`, `pnpm
+--filter @sunfall/arc-start typecheck`, `pnpm typecheck:types`, `pnpm
 audit:public-api`, `pnpm audit:effect-first`, `pnpm exec vitest run
 packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts
 packages/db/test/sync-adapter.test.ts` (3 files / 149 tests), `pnpm exec
@@ -7895,7 +7931,7 @@ verification passed after the Review 138 follow-up.
   old at-most allowance. Banned-pattern exceptions still use upper-bound counts.
 - DB public inventory: `docs/public-api-inventory.md` no longer claims
   internal `collection-definition-snapshot` or `collection-state` modules are
-  part of the `@effect-ui/db` root export surface.
+  part of the `@sunfall/arc-db` root export surface.
 - Start app graph helper hovers: `describeFileRouteManifestEntry(...)`,
   `describeStartAppGraphRouteDiagnosticsRuntimeCandidate(...)`,
   `describeServerFunctionManifestEntry(...)`, and
@@ -7903,7 +7939,7 @@ verification passed after the Review 138 follow-up.
   pinned by the public hover audit.
 
 Focused verification passed: `pnpm audit:effect-first`, `pnpm
-audit:public-api`, `pnpm --filter @effect-ui/start typecheck`, and `git diff
+audit:public-api`, `pnpm --filter @sunfall/arc-start typecheck`, and `git diff
 --check`.
 
 ## Review 135: Store-Explicit Hydration Apply and Strict Diagnostics DTOs
@@ -7933,8 +7969,8 @@ clean counter remains at 0.
   `packages/start/src/fetch-adapter.ts` to its single real
   `Promise<Response>` host facade.
 
-Focused verification passed: `pnpm --filter @effect-ui/db typecheck`, `pnpm
---filter @effect-ui/start typecheck`, `pnpm typecheck:types`, `pnpm
+Focused verification passed: `pnpm --filter @sunfall/arc-db typecheck`, `pnpm
+--filter @sunfall/arc-start typecheck`, `pnpm typecheck:types`, `pnpm
 audit:public-api`, `pnpm audit:effect-first`, `pnpm exec vitest run
 packages/start/test/app-graph.test.ts -t "DTO|malformed graph payloads|policy"`
 (1 file / 3 selected tests), `pnpm exec vitest run
@@ -7977,7 +8013,7 @@ test-gap issues, so the Thirty-Sweep clean counter remains at 0.
   before any earlier collection mutates.
 - Package-boundary assertions: `type-tests/start.test-d.ts` now imports the
   expanded Start app graph diagnostics policy, route-preload validator,
-  DTO/deserializer, and error surface through `@effect-ui/start`.
+  DTO/deserializer, and error surface through `@sunfall/arc-start`.
 
 Focused verification passed: `pnpm exec vitest run packages/start/test/start.test.ts
 -t "diagnostics policy|build diagnostics gate|runtime diagnostics virtual
@@ -7985,7 +8021,7 @@ module|typed static build policy"` (1 file / 8 selected tests), `pnpm exec
 vitest run packages/db/test/collection.test.ts -t "store-explicit
 payload|preflights incomplete|multi-collection hydration"` (1 file / 2 selected
 tests), `pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm
-audit:effect-first` over 246 files, and `pnpm --filter @effect-ui/start
+audit:effect-first` over 246 files, and `pnpm --filter @sunfall/arc-start
 typecheck`.
 Full `pnpm verify` passed after the slice: 11 package builds, workspace
 typecheck, public type tests, public API inventory audit, Effect-first audit
@@ -8008,7 +8044,7 @@ remains at 0.
   now enforces JSDoc for those declarations and the extracted diagnostics
   policy Module.
 - Public package-boundary assertions: `type-tests/start.test-d.ts` now imports
-  the public app graph diagnostics and policy APIs from `@effect-ui/start`,
+  the public app graph diagnostics and policy APIs from `@sunfall/arc-start`,
   pinning package-export drift instead of relying only on source-local tests.
 - Diagnostics policy opt-out semantics:
   `packages/start/test/app-graph.test.ts` now asserts top-level disabled
@@ -8022,7 +8058,7 @@ remains at 0.
   86/92/120 full gates now point at the Review 132 full `pnpm verify` result.
 
 Focused verification passed: `pnpm audit:public-api`, `pnpm --filter
-@effect-ui/start typecheck`, `pnpm typecheck:types`, `pnpm audit:effect-first`
+@sunfall/arc-start typecheck`, `pnpm typecheck:types`, `pnpm audit:effect-first`
 over 246 files, and `pnpm exec vitest run packages/start/test/app-graph.test.ts
 packages/start/test/start.test.ts -t "policy|query kind|parser/runtime seam|parses and runs"`
 (2 files / 11 selected tests), and `git diff --check`.
@@ -8062,7 +8098,7 @@ so the Thirty-Sweep clean counter remains at 0.
   impact verify command generation.
 
 Focused verification passed: `pnpm audit:public-api`, `pnpm --filter
-@effect-ui/core typecheck`, `pnpm --filter @effect-ui/start typecheck`, `pnpm
+@sunfall/arc-core typecheck`, `pnpm --filter @sunfall/arc-start typecheck`, `pnpm
 typecheck:types`, `pnpm audit:effect-first` over 246 files, `pnpm exec vitest
 run packages/db/test/live-query-collection.test.ts` (1 file / 29 tests), and
 `pnpm exec vitest run packages/start/test/app-graph.test.ts` (1 file / 17
@@ -8093,8 +8129,8 @@ Review 132, so the Thirty-Sweep clean counter remains at 0.
   now documents the public `StartAppGraphDiagnosticsLoadError` union used by
   Vite diagnostics loaders and build policy callers.
 
-Focused verification passed: `pnpm --filter @effect-ui/core typecheck`, `pnpm
---filter @effect-ui/start typecheck`, `pnpm typecheck:types`, `pnpm
+Focused verification passed: `pnpm --filter @sunfall/arc-core typecheck`, `pnpm
+--filter @sunfall/arc-start typecheck`, `pnpm typecheck:types`, `pnpm
 audit:public-api`, and `pnpm audit:effect-first` over 245 files.
 Full `pnpm verify` passed after the hover-only slice: 11 package builds,
 workspace typecheck, public type tests, public API inventory audit, Effect-first
@@ -8127,7 +8163,7 @@ hover gaps fixed in Review 131, so the Thirty-Sweep clean counter remains at 0.
   pins that an incomplete store-explicit marker fails during dehydrate instead
   of reading the ambient Collection Store.
 
-Focused verification passed: `pnpm --filter @effect-ui/db typecheck`, `pnpm
+Focused verification passed: `pnpm --filter @sunfall/arc-db typecheck`, `pnpm
 exec vitest run packages/db/test/live-query-collection.test.ts` (1 file / 28
 tests), `pnpm exec vitest run packages/db/test/collection.test.ts
 packages/db/test/live-query-collection.test.ts packages/db/test/sync-adapter.test.ts
@@ -8166,8 +8202,8 @@ actionable work.
   API inventory also names the DB `sync-adapter` source surface and current
   docs-drift scope.
 
-Focused verification passed: `pnpm --filter @effect-ui/start typecheck`, `pnpm
---filter @effect-ui/core typecheck`, `pnpm --filter @effect-ui/start build`,
+Focused verification passed: `pnpm --filter @sunfall/arc-start typecheck`, `pnpm
+--filter @sunfall/arc-core typecheck`, `pnpm --filter @sunfall/arc-start build`,
 `pnpm exec vitest run
 packages/start/test/app-graph.test.ts` (1 file / 16 tests), `pnpm exec vitest
 run packages/start/test/start.test.ts -t 'diagnostics CLI|agent graph|app graph
@@ -8198,7 +8234,7 @@ Thirty-Sweep clean counter remains at 0.
   self-join alias identity, delimiter-safe merges, base-source-before-join
   ordering, and missing-key fallback.
 
-Focused verification passed: `pnpm --filter @effect-ui/db typecheck`, `pnpm
+Focused verification passed: `pnpm --filter @sunfall/arc-db typecheck`, `pnpm
 exec vitest run packages/db/test/query-context-identity.test.ts
 packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
 (3 files / 134 tests), `pnpm exec vitest run packages/db/test/collection.test.ts
@@ -8233,7 +8269,7 @@ Thirty-Sweep clean counter remains at 0.
 - Facade locality: `packages/start/src/agent-graph.ts` now owns graph
   projection from diagnostics and re-exports the focused internal Modules.
 
-Focused verification passed: `pnpm --filter @effect-ui/start build`, `pnpm
+Focused verification passed: `pnpm --filter @sunfall/arc-start build`, `pnpm
 exec vitest run packages/start/test/app-graph.test.ts` (1 file / 16 tests),
 `pnpm exec vitest run packages/start/test/start.test.ts` (1 file / 130 tests),
 `pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first` over
@@ -8261,7 +8297,7 @@ Thirty-Sweep clean counter remains at 0.
   model state, run commands, or record stale update failures after disposal has
   already completed pending acknowledgements.
 
-Focused verification passed: `pnpm --filter @effect-ui/core typecheck`, `pnpm
+Focused verification passed: `pnpm --filter @sunfall/arc-core typecheck`, `pnpm
 exec vitest run packages/core/test/program.test.ts` (1 file / 12 tests), `pnpm
 exec vitest run packages/devtools/test/devtools.test.ts -t 'Program'` (1 file
 / 3 selected tests), `pnpm exec vitest run packages/react/test/hooks.test.ts -t
@@ -8294,7 +8330,7 @@ Thirty-Sweep clean counter remains at 0.
   public exports and `Program` namespace while capturing Runtime Spine and
   `UiScope`.
 
-Focused verification passed: `pnpm --filter @effect-ui/core typecheck`, `pnpm
+Focused verification passed: `pnpm --filter @sunfall/arc-core typecheck`, `pnpm
 exec vitest run packages/core/test/program.test.ts` (1 file / 8 tests), `pnpm
 exec vitest run packages/devtools/test/devtools.test.ts -t 'Program'` (1 file
 / 3 selected tests), `pnpm exec vitest run packages/react/test/hooks.test.ts -t
@@ -8322,7 +8358,7 @@ Thirty-Sweep clean counter remains at 0.
   message and disposal events while preserving model updates and disposal
   behavior.
 
-Focused verification passed: `pnpm --filter @effect-ui/core typecheck`, `pnpm
+Focused verification passed: `pnpm --filter @sunfall/arc-core typecheck`, `pnpm
 exec vitest run packages/core/test/program.test.ts` (1 file / 8 tests), `pnpm
 exec vitest run packages/devtools/test/devtools.test.ts -t 'Program'` (1 file
 / 3 selected tests), `pnpm exec vitest run packages/react/test/hooks.test.ts -t
@@ -8348,12 +8384,12 @@ Thirty-Sweep clean counter remains at 0.
   hand-written command reference.
 - Agent graph locality: `packages/start/src/agent-graph.ts` now delegates
   impact report verify-command planning to the CLI contract instead of
-  constructing `effect-ui-start` command strings inside graph analysis.
+  constructing `sunfall-arc-start` command strings inside graph analysis.
 - Regression coverage: app graph tests pin shell-safe verify command quoting,
   and Start CLI tests continue to cover Effect CLI help/version, graph/impact
   subcommands, and invalid usage paths.
 
-Focused verification passed: `pnpm --filter @effect-ui/start typecheck`, `pnpm
+Focused verification passed: `pnpm --filter @sunfall/arc-start typecheck`, `pnpm
 exec vitest run packages/start/test/start.test.ts -t 'diagnostics CLI|Start
 diagnostics CLI|usage result|graph route|impact'` (1 file / 4 tests), `pnpm
 exec vitest run packages/start/test/app-graph.test.ts -t 'agent graph|impact|verify
@@ -8384,8 +8420,8 @@ Thirty-Sweep clean counter remains at 0.
   replace-navigation decisions, while React/Solid router tests continue to pin
   framework RouterLink wiring.
 
-Focused verification passed: `pnpm --filter @effect-ui/core typecheck`, `pnpm
---filter @effect-ui/react typecheck`, `pnpm --filter @effect-ui/solid
+Focused verification passed: `pnpm --filter @sunfall/arc-core typecheck`, `pnpm
+--filter @sunfall/arc-react typecheck`, `pnpm --filter @sunfall/arc-solid
 typecheck`, and `pnpm exec vitest run packages/core/test/browser-router.test.ts
 packages/react/test/router.test.ts packages/solid/test/router.test.ts` (3 files
 / 44 tests).
@@ -8413,8 +8449,8 @@ Thirty-Sweep clean counter remains at 0.
   callback Effect conversion now lives inside the owning load and mutation
   Modules.
 
-Focused verification passed: `pnpm --filter @effect-ui/db typecheck`, `pnpm
---filter @effect-ui/db build`, selected mutation/flush tests (1 file / 31
+Focused verification passed: `pnpm --filter @sunfall/arc-db typecheck`, `pnpm
+--filter @sunfall/arc-db build`, selected mutation/flush tests (1 file / 31
 selected tests), DB persisted/sync/flush tests (3 files / 26 tests), full DB
 collection tests (1 file / 102 tests), `pnpm typecheck:types`, `pnpm
 audit:public-api`, `pnpm audit:effect-first` over 231 files, and `git diff
@@ -8441,7 +8477,7 @@ Thirty-Sweep clean counter remains at 0.
   endpoints, client transport, and response application import the focused
   response codec directly.
 
-Focused verification: `pnpm --filter @effect-ui/start typecheck` and `pnpm
+Focused verification: `pnpm --filter @sunfall/arc-start typecheck` and `pnpm
 exec vitest run packages/start/test/rpc.test.ts packages/start/test/start.test.ts
 -t "action response|Start action|Start actions"` (2 files / 14 tests) passed.
 Full `pnpm verify` also passed after the slice.
@@ -8462,7 +8498,7 @@ Thirty-Sweep clean counter remains at 0.
 - Facade depth: `packages/devtools/src/index.ts` now wires the public facade to
   the owning Modules instead of constructing one-off runtime objects.
 
-Focused verification: `pnpm --filter @effect-ui/devtools typecheck` and `pnpm
+Focused verification: `pnpm --filter @sunfall/arc-devtools typecheck` and `pnpm
 exec vitest run packages/devtools/test/devtools.test.ts` (1 file / 70 tests)
 passed. Full `pnpm verify` also passed after the slice.
 
@@ -8484,7 +8520,7 @@ Thirty-Sweep clean counter remains at 0.
   `packages/devtools/src/summary-facts.ts` now consume the shared first-match
   helpers instead of duplicating fingerprint lookup policy at each Seam.
 
-Focused verification: `pnpm --filter @effect-ui/devtools typecheck` and `pnpm
+Focused verification: `pnpm --filter @sunfall/arc-devtools typecheck` and `pnpm
 exec vitest run packages/devtools/test/devtools.test.ts` (1 file / 70 tests)
 passed. Full `pnpm verify` also passed after the slice.
 
@@ -8509,8 +8545,8 @@ Thirty-Sweep clean counter remains at 0.
   not-found route render decisions in addition to existing React/Solid router
   outlet coverage.
 
-Focused verification: `pnpm --filter @effect-ui/core typecheck`, `pnpm --filter
-@effect-ui/react typecheck`, `pnpm --filter @effect-ui/solid typecheck`, and
+Focused verification: `pnpm --filter @sunfall/arc-core typecheck`, `pnpm --filter
+@sunfall/arc-react typecheck`, `pnpm --filter @sunfall/arc-solid typecheck`, and
 `pnpm exec vitest run packages/core/test/browser-router.test.ts
 packages/react/test/router.test.ts packages/solid/test/router.test.ts` (3 files
 / 44 tests), `pnpm audit:public-api`, `pnpm typecheck:types`, `pnpm
@@ -8546,8 +8582,8 @@ Thirty-Sweep clean counter remains at 0.
 - Audit shape: the Effect-first source scope expanded to 228 auditable files
   after the new DB source Module.
 
-Focused verification: `pnpm --filter @effect-ui/db typecheck`, `pnpm --filter
-@effect-ui/db build`, `pnpm exec vitest run packages/db/test/collection.test.ts
+Focused verification: `pnpm --filter @sunfall/arc-db typecheck`, `pnpm --filter
+@sunfall/arc-db build`, `pnpm exec vitest run packages/db/test/collection.test.ts
 -t "preload|refetch|load|restore|persistence"` (1 file / 37 selected tests),
 `pnpm exec vitest run packages/db/test/persisted-options.test.ts
 packages/db/test/sync-adapter.test.ts packages/db/test/flush-policy.test.ts` (3
@@ -8576,15 +8612,15 @@ Thirty-Sweep clean counter remains at 0.
 - Vite facade locality: `packages/start/src/vite.ts` now keeps the public Vite
   plugin, sync hook facades, server-only transform guard, file-route generation,
   and dev SSR middleware wiring while re-exporting the diagnostics loader
-  Interface for the public `@effect-ui/start/vite` subpath.
+  Interface for the public `@sunfall/arc-start/vite` subpath.
 - CLI locality: `start-diagnostics-cli-runner.ts` imports diagnostics loading
   from the focused loader Module instead of depending on the broad Vite plugin
   Module.
 - Audit shape: the Effect-first source scope expanded to 227 auditable files
   after the new Start source Module.
 
-Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm
---filter @effect-ui/start build`, `pnpm exec vitest run
+Focused verification: `pnpm --filter @sunfall/arc-start typecheck`, `pnpm
+--filter @sunfall/arc-start build`, `pnpm exec vitest run
 packages/start/test/start.test.ts -t "loads resolved app graph diagnostics
 through Vite|rejects resolved app graph diagnostics policy violations through
 Vite|fails the Vite build diagnostics gate|Start diagnostics CLI"` (1 file / 6
@@ -8615,11 +8651,11 @@ Thirty-Sweep clean counter remains at 0.
   existing too-many-args and missing-impact-query diagnostics while letting the
   command tree own help/completion shape for the known kinds.
 - Regression coverage: the Start CLI tests now pin generated nested help for
-  `effect-ui-start graph route --help` as well as the existing parser/runtime
+  `sunfall-arc-start graph route --help` as well as the existing parser/runtime
   behavior for query execution and invalid input.
 
-Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm
---filter @effect-ui/start build`, `pnpm exec vitest run
+Focused verification: `pnpm --filter @sunfall/arc-start typecheck`, `pnpm
+--filter @sunfall/arc-start build`, `pnpm exec vitest run
 packages/start/test/start.test.ts -t "parses and runs the Start diagnostics CLI
 wrapper|invalid Start diagnostics CLI input|queryable Start agent graph|high-signal
 Start impact brief"` (1 file / 4 selected tests), `pnpm exec vitest run
@@ -8655,8 +8691,8 @@ Thirty-Sweep clean counter remains at 0.
   from the codec Module, and `docs/public-api-inventory.md` classifies
   `start-action-request-codec` in the Start source surface.
 
-Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm
---filter @effect-ui/start build`, `pnpm exec vitest run
+Focused verification: `pnpm --filter @sunfall/arc-start typecheck`, `pnpm
+--filter @sunfall/arc-start build`, `pnpm exec vitest run
 packages/start/test/start.test.ts -t "same schema action request
 codec|progressive form default encoding|runs Start actions from JSON and form
 posts"` (1 file / 3 selected tests), `pnpm exec vitest run
@@ -8688,7 +8724,7 @@ Thirty-Sweep clean counter remains at 0.
   active Resource Store through Effect context, but the internal dependency now
   points at the Resource Runtime Module where that policy lives.
 
-Focused verification: `pnpm --filter @effect-ui/core typecheck`, `pnpm vitest
+Focused verification: `pnpm --filter @sunfall/arc-core typecheck`, `pnpm vitest
 run packages/core/test/action.test.ts packages/core/test/resource.test.ts` (2
 files / 90 tests), `pnpm audit:effect-first` over 225 files, and `git diff
 --check` passed. Full `pnpm verify` passed: 11 package builds, workspace
@@ -8720,8 +8756,8 @@ Thirty-Sweep clean counter remains at 0.
   `["Zeta", "Alpha"]` for one-shot execution while live evaluation produced
   `["Alpha", "Zeta"]`.
 
-Focused verification: `pnpm --filter @effect-ui/db typecheck`, `pnpm
---filter @effect-ui/db build`, `pnpm vitest run
+Focused verification: `pnpm --filter @sunfall/arc-db typecheck`, `pnpm
+--filter @sunfall/arc-db build`, `pnpm vitest run
 packages/db/test/collection.test.ts -t "one-shot and live ordering
 parity|ordered live query windows|grouped aggregate ordered windows"` (1 file /
 3 selected tests), `pnpm vitest run packages/db/test/collection.test.ts` (1 file
@@ -8756,11 +8792,11 @@ Thirty-Sweep clean counter remains at 0.
   help as compatibility `Help` results while the runtime tests continue to pin
   formatted help and invalid-input exit codes.
 
-Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm exec
+Focused verification: `pnpm --filter @sunfall/arc-start typecheck`, `pnpm exec
 vitest run packages/start/test/start.test.ts -t "parses and runs the Start
 diagnostics CLI wrapper|returns a usage result for invalid Start diagnostics CLI
 input"` (1 file / 2 selected tests), `pnpm typecheck:types`, `pnpm
-audit:effect-first` over 225 files, `pnpm --filter @effect-ui/start build`,
+audit:effect-first` over 225 files, `pnpm --filter @sunfall/arc-start build`,
 built CLI top-level help, nested help, unknown-subcommand, and valid graph query
 probes, and `git diff --check` passed. Full `pnpm verify` passed: 11 package
 builds, workspace typecheck, public type tests, public API inventory audit,
@@ -8785,13 +8821,13 @@ Thirty-Sweep clean counter remains at 0.
 - Built-in CLI actions: `--help`, `--version`, and unknown-subcommand handling
   now flow through `Command.runWith(...)`, Effect CLI's built-in global flags,
   `CliError.ShowHelp`, and the formatter output path.
-- Version source: the `effect-ui-start` command runner now reports
+- Version source: the `sunfall-arc-start` command runner now reports
   `0.0.0-alpha.0`, matching the package version.
 
-Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm exec
+Focused verification: `pnpm --filter @sunfall/arc-start typecheck`, `pnpm exec
 vitest run packages/start/test/start.test.ts -t "Start diagnostics CLI"` (1 file
 / 3 selected tests), `pnpm audit:effect-first` over 225 files, `pnpm --filter
-@effect-ui/start build`, built CLI `--help`, `--version`, unknown-subcommand,
+@sunfall/arc-start build`, built CLI `--help`, `--version`, unknown-subcommand,
 and valid graph query probes, and `git diff --check` passed. Full `pnpm verify`
 passed: 11 package builds, workspace typecheck, public type tests, public API
 inventory audit, Effect-first audit over 225 files, 52 root test files / 859
@@ -8817,13 +8853,13 @@ Thirty-Sweep clean counter remains at 0.
   `commandFromCliConfigEffect(...)` throw wrapper is gone.
 - CLI behavior: extra graph query tokens and `impact route` are rejected before
   Vite diagnostics loading, while valid inherited-flag commands such as
-  `effect-ui-start --root examples/project-console graph route /projects/:id`
+  `sunfall-arc-start --root examples/project-console graph route /projects/:id`
   still execute normally.
 
-Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm exec
+Focused verification: `pnpm --filter @sunfall/arc-start typecheck`, `pnpm exec
 vitest run packages/start/test/start.test.ts -t "Start diagnostics CLI"` (1 file
 / 3 selected tests), `pnpm audit:effect-first` over 225 files, `pnpm --filter
-@effect-ui/start build`, built CLI invalid graph/impact argument probes, built
+@sunfall/arc-start build`, built CLI invalid graph/impact argument probes, built
 CLI valid graph query probe, and `git diff --check` passed. Full `pnpm verify`
 passed: 11 package builds, workspace typecheck, public type tests, public API
 inventory audit, Effect-first audit over 225 files, 52 root test files / 859
@@ -8839,20 +8875,20 @@ current worktree. Fresh sweeps still found actionable candidates, so the
 Thirty-Sweep clean counter remains at 0.
 
 - Start CLI grammar: `packages/start/src/cli.ts` now defines common
-  diagnostics options once on the root `effect-ui-start` command with Effect
+  diagnostics options once on the root `sunfall-arc-start` command with Effect
   v4 `Command.withSharedFlags(...)`.
 - Command context: `diagnostics`, `graph`, and `impact` handlers read the
   shared parent config by yielding the root command service, so `--root`,
   `--config`, `--mode`, `--json`, and `--pretty` are owned by the parent
   command instead of being structurally repeated in every subcommand.
 - CLI behavior: the parser now supports the idiomatic inherited-flag form
-  `effect-ui-start --root app diagnostics` while preserving the existing
-  `effect-ui-start diagnostics --root app` form and unknown-command guidance.
+  `sunfall-arc-start --root app diagnostics` while preserving the existing
+  `sunfall-arc-start diagnostics --root app` form and unknown-command guidance.
 
-Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm exec
+Focused verification: `pnpm --filter @sunfall/arc-start typecheck`, `pnpm exec
 vitest run packages/start/test/start.test.ts -t "Start diagnostics CLI"` (1 file
 / 3 selected tests), `pnpm audit:effect-first` over 225 files, `pnpm --filter
-@effect-ui/start build`, `node packages/start/dist/cli.js --help`, `node
+@sunfall/arc-start build`, `node packages/start/dist/cli.js --help`, `node
 packages/start/dist/cli.js --root examples/project-console diagnostics --json`,
 and `git diff --check` passed. Full `pnpm verify` passed: 11 package builds,
 workspace typecheck, public type tests, public API inventory audit, Effect-first
@@ -8877,7 +8913,7 @@ Thirty-Sweep clean counter remains at 0.
 - Runtime behavior: existing `runWithRuntime(...)`, `runtime.provide(...)`, and
   `resourceUiBindRuntimeEffect(...)` wrappers are unchanged.
 
-Focused verification: `pnpm --filter @effect-ui/core typecheck`, `pnpm
+Focused verification: `pnpm --filter @sunfall/arc-core typecheck`, `pnpm
 typecheck:types`, `pnpm vitest run packages/core/test/resource-ui-binding.test.ts`
 (1 file / 3 tests), `pnpm audit:effect-first` over 225 files, and `git diff
 --check` passed. Full `pnpm verify` passed: 11 package builds, workspace
@@ -8905,7 +8941,7 @@ Thirty-Sweep clean counter remains at 0.
 
 Focused verification: `rg -n "validateStartResponseStatusEffect"
 packages/start/src packages/start/test` returned no matches, `pnpm --filter
-@effect-ui/start typecheck`, `pnpm vitest run packages/start/test/rpc.test.ts
+@sunfall/arc-start typecheck`, `pnpm vitest run packages/start/test/rpc.test.ts
 packages/start/test/start.test.ts` (2 files / 143 tests), `pnpm
 audit:effect-first` over 225 files, and `git diff --check` passed. Full `pnpm
 verify` passed: 11 package builds, workspace typecheck, public type tests,
@@ -8929,7 +8965,7 @@ Thirty-Sweep clean counter remains at 0.
   persisted options into normal `CollectionOptions` while unioning collection
   handler `E`/`R` with persistence storage `PE`/`PR`.
 
-Focused verification: `pnpm --filter @effect-ui/db typecheck`, `pnpm
+Focused verification: `pnpm --filter @sunfall/arc-db typecheck`, `pnpm
 typecheck:types`, `pnpm vitest run packages/db/test/persisted-options.test.ts`
 (1 file / 3 tests), `pnpm audit:public-api`, `pnpm audit:effect-first` over
 225 files, and `git diff --check` passed. Full `pnpm verify` passed: 11 package
@@ -8956,7 +8992,7 @@ Thirty-Sweep clean counter remains at 0.
   LSP/discovery ergonomics, but the root facade no longer duplicates the
   statement adapter contract.
 
-Focused verification: `pnpm --filter @effect-ui/db typecheck`, `pnpm
+Focused verification: `pnpm --filter @sunfall/arc-db typecheck`, `pnpm
 typecheck:types`, `pnpm vitest run packages/db/test/sqlite-persistence.test.ts
 packages/db/test/persisted-options.test.ts` (2 files / 13 tests), `pnpm
 audit:effect-first` over 225 files, and `git diff --check` passed. Full `pnpm
@@ -8976,14 +9012,14 @@ Thirty-Sweep clean counter remains at 0.
 - Start Vite diagnostics: `packages/start/src/vite.ts` now acquires and
   releases the temporary middleware-mode Vite server with
   `Effect.acquireUseRelease(...)`.
-- CLI locality: `effect-ui-start diagnostics`, `graph`, `impact`, and the Vite
+- CLI locality: `sunfall-arc-start diagnostics`, `graph`, `impact`, and the Vite
   build diagnostics gate continue to consume `loadStartAppGraphDiagnostics*`,
   but the server lifetime is now an explicit scoped Effect resource.
 - Release policy: Vite server close failures still die from the finalizer, while
   create/load/decode/policy failures stay in the typed
   `StartAppGraphDiagnosticsLoadError` channel.
 
-Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm vitest
+Focused verification: `pnpm --filter @sunfall/arc-start typecheck`, `pnpm vitest
 run packages/start/test/start.test.ts -t "resolved app graph diagnostics"` (1
 file / 2 selected tests), `pnpm audit:effect-first` over 225 files, and `git
 diff --check` passed. Full `pnpm verify` passed: 11 package builds, workspace
@@ -9012,7 +9048,7 @@ Thirty-Sweep clean counter remains at 0.
   RPC JSON request reads, action form reads, RPC response text reads, and action
   response text reads without adding host async test bodies.
 
-Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm vitest
+Focused verification: `pnpm --filter @sunfall/arc-start typecheck`, `pnpm vitest
 run packages/start/test/rpc.test.ts packages/start/test/start.test.ts` (2 files
 / 143 tests), `pnpm audit:effect-first` over 225 files, and `git diff --check`
 passed. Full `pnpm verify` passed: 11 package builds, workspace typecheck,
@@ -9039,7 +9075,7 @@ Thirty-Sweep clean counter remains at 0.
   RPC client call, interrupts the fiber, and verifies that the fake global
   fetch receives and observes an aborted signal.
 
-Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm vitest
+Focused verification: `pnpm --filter @sunfall/arc-start typecheck`, `pnpm vitest
 run packages/start/test/rpc.test.ts packages/start/test/start.test.ts` (2 files
 / 142 tests), `pnpm audit:effect-first` over 224 files, and `git diff --check`
 passed. Full `pnpm verify` passed: 11 package builds, workspace typecheck,
@@ -9066,7 +9102,7 @@ Thirty-Sweep clean counter remains at 0.
 - Internal locality: Store and fact-identity helpers now import the policy from
   the contract module, closing the small back-edge left after Review 96.
 
-Focused verification: `pnpm --filter @effect-ui/devtools typecheck`, `pnpm
+Focused verification: `pnpm --filter @sunfall/arc-devtools typecheck`, `pnpm
 vitest run packages/devtools/test/devtools.test.ts` (1 file / 70 tests), `pnpm
 typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first` over 224
 files, and `git diff --check` passed. Full `pnpm verify` passed: 11 package
@@ -9094,7 +9130,7 @@ Thirty-Sweep clean counter remains at 0.
 - Review cleanup: this closes the small async test-boundary candidate from the
   fresh test seam scan.
 
-Focused verification: `pnpm --filter @effect-ui/core typecheck`, `pnpm vitest
+Focused verification: `pnpm --filter @sunfall/arc-core typecheck`, `pnpm vitest
 run packages/core/test/resource-store.test.ts` (1 file / 3 tests), `pnpm
 audit:effect-first` over 224 files, and `git diff --check` passed. Full `pnpm
 verify` passed: 11 package builds, workspace typecheck, public type tests,
@@ -9156,7 +9192,7 @@ Thirty-Sweep clean counter remains at 0.
   Fresh sweeps still leave deeper focused public type-test ownership as the
   next candidate.
 
-Focused verification: `pnpm --filter @effect-ui/devtools typecheck`, `pnpm
+Focused verification: `pnpm --filter @sunfall/arc-devtools typecheck`, `pnpm
 vitest run packages/devtools/test/devtools.test.ts` (1 file / 70 tests),
 `pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first` over
 224 files, and `git diff --check` passed. Full `pnpm verify` passed: 11 package
@@ -9186,7 +9222,7 @@ Thirty-Sweep clean counter remains at 0.
   Fresh sweeps still leave Devtools Public Contract Module and deeper focused
   public type-test ownership candidates.
 
-Focused verification: `pnpm --filter @effect-ui/core typecheck`, `pnpm vitest
+Focused verification: `pnpm --filter @sunfall/arc-core typecheck`, `pnpm vitest
 run packages/core/test/action.test.ts` (1 file / 33 tests), `pnpm
 typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first` over 223
 files, and `git diff --check` passed. Full `pnpm verify` passed: 11 package
@@ -9218,8 +9254,8 @@ Thirty-Sweep clean counter remains at 0.
   Fresh sweeps still leave Core Action Execution Workflow, Devtools Public
   Contract Module, and deeper focused public type-test ownership candidates.
 
-Focused verification: `pnpm --filter @effect-ui/core typecheck`, `pnpm
---filter @effect-ui/react typecheck`, `pnpm --filter @effect-ui/solid
+Focused verification: `pnpm --filter @sunfall/arc-core typecheck`, `pnpm
+--filter @sunfall/arc-react typecheck`, `pnpm --filter @sunfall/arc-solid
 typecheck`, `pnpm vitest run packages/core/test/browser-router.test.ts
 packages/react/test/router.test.ts packages/solid/test/router.test.ts` (3
 files / 43 tests), `pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm
@@ -9252,7 +9288,7 @@ Thirty-Sweep clean counter remains at 0.
   Execution Workflow, Devtools Public Contract Module, and deeper focused
   public type-test ownership candidates.
 
-Focused verification: `pnpm --filter @effect-ui/db typecheck`, `pnpm vitest run
+Focused verification: `pnpm --filter @sunfall/arc-db typecheck`, `pnpm vitest run
 packages/db/test/sync-adapter.test.ts packages/db/test/collection.test.ts
 packages/db/test/live-query-collection.test.ts` (3 files / 144 tests), `pnpm
 typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first` over 222
@@ -9287,7 +9323,7 @@ Thirty-Sweep clean counter remains at 0.
   Execution Workflow, DB Collection Change Feed Runtime, Devtools Public
   Contract Module, and deeper focused public type-test ownership candidates.
 
-Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm vitest
+Focused verification: `pnpm --filter @sunfall/arc-start typecheck`, `pnpm vitest
 run packages/start/test/start.test.ts` (1 file / 130 tests), `pnpm
 typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first` over 221
 files, and `git diff --check` passed. Full `pnpm verify` passed: 11 package
@@ -9308,7 +9344,7 @@ Thirty-Sweep clean counter remains at 0.
   internal Start Diagnostics CLI Runner Module. It owns diagnostics loading,
   graph and impact projection, JSON/text formatting, write effects, and
   diagnostics failure reporting for parsed CLI commands.
-- CLI: `packages/start/src/cli.ts` now defines the `effect-ui-start` command
+- CLI: `packages/start/src/cli.ts` now defines the `sunfall-arc-start` command
   tree with Effect v4 `Command`, `Flag`, and `Argument` primitives, preserving
   the public usage/help text and bin process wiring while delegating parsed
   diagnostics/graph/impact command execution to the runner.
@@ -9317,7 +9353,7 @@ Thirty-Sweep clean counter remains at 0.
   Action Execution Workflow, DB Collection Change Feed Runtime, Devtools Public
   Contract Module, and deeper focused public type-test ownership candidates.
 
-Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm vitest
+Focused verification: `pnpm --filter @sunfall/arc-start typecheck`, `pnpm vitest
 run packages/start/test/start.test.ts` (1 file / 130 tests), `pnpm
 typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first` over 220
 files, and `git diff --check` passed. Full `pnpm verify` passed: 11 package
@@ -9352,7 +9388,7 @@ Thirty-Sweep clean counter remains at 0.
   Response Application, Devtools Public Contract Module, and deeper focused
   public type-test ownership candidates.
 
-Focused verification: `pnpm --filter @effect-ui/db typecheck`, `pnpm vitest run
+Focused verification: `pnpm --filter @sunfall/arc-db typecheck`, `pnpm vitest run
 packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
 (2 files / 128 tests), `pnpm audit:public-api`, `pnpm audit:effect-first` over
 219 files, and `git diff --check` passed. Full `pnpm verify` passed: 11 package
@@ -9387,7 +9423,7 @@ Thirty-Sweep clean counter remains at 0.
   Application, Start Diagnostics CLI Command Runner, Devtools Public Contract
   Module, and deeper focused public type-test ownership candidates.
 
-Focused verification: `pnpm --filter @effect-ui/db typecheck`, `pnpm vitest run
+Focused verification: `pnpm --filter @sunfall/arc-db typecheck`, `pnpm vitest run
 packages/db/test/collection.test.ts packages/db/test/persistence.test.ts
 packages/db/test/live-query-collection.test.ts
 packages/db/test/sync-adapter.test.ts packages/db/test/sqlite-persistence.test.ts`
@@ -9453,7 +9489,7 @@ Thirty-Sweep clean counter remains at 0.
   Response Application, Start Diagnostics CLI Command Runner, Devtools Public
   Contract Module, and deeper focused public type-test ownership candidates.
 
-Focused verification: `pnpm --filter @effect-ui/react typecheck`, `pnpm vitest
+Focused verification: `pnpm --filter @sunfall/arc-react typecheck`, `pnpm vitest
 run packages/react/test/router.test.ts` (1 file / 7 tests), `pnpm
 typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first` over 217
 files, and `git diff --check` passed. Full `pnpm verify` passed: 11 package
@@ -9512,7 +9548,7 @@ counter remains at 0.
   now closed. The package-split public type-test manifest remained open after
   this review.
 
-Focused verification: `pnpm --filter @effect-ui/solid typecheck`, `pnpm vitest
+Focused verification: `pnpm --filter @sunfall/arc-solid typecheck`, `pnpm vitest
 run packages/solid/test/router.test.ts` (1 file / 25 tests), `pnpm
 audit:effect-first` over 199 auditable files, and `git diff --check` passed.
 Full `pnpm verify` passed: 11 package builds, workspace typecheck, public type
@@ -9550,7 +9586,7 @@ counter remains at 0.
   Scanner Module are closed for now because their deletion tests did not
   justify new Modules.
 
-Focused verification: `pnpm --filter @effect-ui/db typecheck`, `pnpm vitest run
+Focused verification: `pnpm --filter @sunfall/arc-db typecheck`, `pnpm vitest run
 packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
 (2 files / 128 tests), `pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm
 audit:effect-first` over 198 auditable files, and `git diff --check` passed.
@@ -9588,8 +9624,8 @@ counter remains at 0.
   Module, and package-split public type-test manifest work remain open
   candidates.
 
-Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm
---filter @effect-ui/start-node typecheck`, `pnpm vitest run
+Focused verification: `pnpm --filter @sunfall/arc-start typecheck`, `pnpm
+--filter @sunfall/arc-start-node typecheck`, `pnpm vitest run
 packages/start/test/adapters.test.ts packages/start/test/start.test.ts` (2
 files / 148 tests), `pnpm typecheck:types`, `pnpm audit:public-api`, and `pnpm
 audit:effect-first` over 197 auditable files passed. Full `pnpm verify` passed:
@@ -9625,9 +9661,9 @@ clean counter remains at 0.
   Module, and package-split public type-test manifest work remain open
   candidates.
 
-Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm
---filter @effect-ui/start-fetch typecheck`, `pnpm --filter
-@effect-ui/start-node typecheck`, `pnpm vitest run
+Focused verification: `pnpm --filter @sunfall/arc-start typecheck`, `pnpm
+--filter @sunfall/arc-start-fetch typecheck`, `pnpm --filter
+@sunfall/arc-start-node typecheck`, `pnpm vitest run
 packages/start/test/adapters.test.ts packages/start/test/start.test.ts` (2
 files / 148 tests), `pnpm vitest run packages/start/test/streaming.test.ts` (1
 file / 11 tests), `pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm
@@ -9666,8 +9702,8 @@ clean counter remains at 0.
   Module, deeper Effect-first Audit Scanner Module, and package-split public
   type-test manifest work remained open at the time of Review 81.
 
-Focused verification: `pnpm --filter @effect-ui/core typecheck`, `pnpm
---filter @effect-ui/react typecheck`, `pnpm --filter @effect-ui/solid
+Focused verification: `pnpm --filter @sunfall/arc-core typecheck`, `pnpm
+--filter @sunfall/arc-react typecheck`, `pnpm --filter @sunfall/arc-solid
 typecheck`, `pnpm vitest run packages/core/test/resource-ui-binding.test.ts
 packages/react/test/hooks.test.ts packages/solid/test/hooks.test.ts` (3 files /
 31 tests), `pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm
@@ -9702,7 +9738,7 @@ clean counter remains at 0.
   public API inventory records that `createRequestHandler*` facades remain
   unchanged while lifecycle completion stays internal.
 
-Focused verification: `pnpm --filter @effect-ui/start typecheck`, `pnpm vitest
+Focused verification: `pnpm --filter @sunfall/arc-start typecheck`, `pnpm vitest
 run packages/start/test/start.test.ts packages/start/test/adapters.test.ts
 packages/start/test/streaming.test.ts` (3 files / 158 tests), and `pnpm
 audit:effect-first` over 194 auditable files passed. Full `pnpm verify` passed:
@@ -9732,7 +9768,7 @@ clean counter remains at 0.
   public API inventory records that `Query.*` and `Collection.liveQuery(...)`
   keep the same facades while source adaptation remains internal.
 
-Focused verification: `pnpm --filter @effect-ui/db typecheck`, `pnpm vitest run
+Focused verification: `pnpm --filter @sunfall/arc-db typecheck`, `pnpm vitest run
 packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
 (2 files / 127 tests), and `pnpm audit:effect-first` over 193 auditable files
 passed. Full `pnpm verify` passed: 11 package builds, workspace typecheck,
@@ -9762,7 +9798,7 @@ clean counter remains at 0.
   API inventory records that `Collection.liveQuery(...)` keeps the same facade
   while materialization remains internal.
 
-Focused verification: `pnpm --filter @effect-ui/db typecheck`, `pnpm vitest run
+Focused verification: `pnpm --filter @sunfall/arc-db typecheck`, `pnpm vitest run
 packages/db/test/live-query-collection.test.ts packages/db/test/collection.test.ts
 packages/db/test/sync-adapter.test.ts
 packages/db/test/persisted-options.test.ts` (4 files / 145 tests), and `pnpm
@@ -9794,7 +9830,7 @@ clean counter remains at 0.
   `Collection.write*Effect(...)` plus `Collection.applyChangesEffect(...)`
   facade behavior.
 
-Focused verification: `pnpm --filter @effect-ui/db typecheck`, `pnpm vitest run
+Focused verification: `pnpm --filter @sunfall/arc-db typecheck`, `pnpm vitest run
 packages/db/test/collection.test.ts packages/db/test/persisted-options.test.ts
 packages/db/test/sync-adapter.test.ts
 packages/db/test/live-query-collection.test.ts
@@ -9830,8 +9866,8 @@ Thirty-Sweep clean counter remains at 0.
   `Collection.currentStore()`, and `Collection.subscribeEventsEffect()` rather
   than the concrete store class.
 
-Focused verification: `pnpm --filter @effect-ui/db typecheck`, `pnpm --filter
-@effect-ui/react-db typecheck`, `pnpm --filter @effect-ui/solid-db typecheck`,
+Focused verification: `pnpm --filter @sunfall/arc-db typecheck`, `pnpm --filter
+@sunfall/arc-react-db typecheck`, `pnpm --filter @sunfall/arc-solid-db typecheck`,
 `pnpm vitest run packages/db/test/collection.test.ts
 packages/db/test/live-query-collection.test.ts
 packages/db/test/sync-adapter.test.ts` (3 files / 142 tests), `pnpm
@@ -10040,10 +10076,10 @@ Status: fixed and fully verified in the current worktree.
   `MutableResourceStore`, `makeMutableResourceStore(...)`, and
   `unsafeMutableResourceStore(...)`, preserving adapter Leverage without
   publishing implementation maps as public API.
-- Start/starters: `virtual:effect-ui/app-graph` is now a pure static DTO module
+- Start/starters: `virtual:sunfall-arc/app-graph` is now a pure static DTO module
   with no route implementation imports or runtime guard side effects. Runtime
   route-module diagnostics moved to the explicit
-  `virtual:effect-ui/app-graph/runtime-diagnostics` module. Non-streaming
+  `virtual:sunfall-arc/app-graph/runtime-diagnostics` module. Non-streaming
   renderers use the named `legacyHydrationScript` Interface, while streamed
   renderers keep using `hydrationRootScript` plus streamed chunks.
 - DB/React DB/Solid DB: React DB and Solid DB stabilize source arrays by
@@ -10094,7 +10130,7 @@ Status: fixed and fully verified in the current worktree.
   package sources, example runtime sources, workspace scripts, and public type
   tests, and prints the scope plus host-boundary allowances. Devtools extension
   docs point extension authors at
-  `resolveEffectUiDevtoolsBridgePayload(...)` when diagnostics matter, and the
+  `resolveSunfallArcDevtoolsBridgePayload(...)` when diagnostics matter, and the
   checked panel/extension examples smoke-test their real entrypoints.
 
 Verification: focused regressions passed across React hooks/router, Solid
@@ -10549,7 +10585,7 @@ latest review discoverable despite older merge ordering.
   fallbacks cannot collide with recorded facts, imported duplicate event
   sequences are normalized, describers detach unknown values, legacy app-graph
   panels render safely, and item metrics reject malformed non-arrays.
-- Docs/API: `@effect-ui/tsrx` has LSP/type-test coverage, Start root low-level
+- Docs/API: `@sunfall/arc-tsrx` has LSP/type-test coverage, Start root low-level
   helpers and Core re-exports are classified as expert-public convenience
   surfaces, DB next slices no longer list completed TanStack Query-shaped sync
   work, and project-console graph helpers are documented as narrow non-Vite
@@ -10679,8 +10715,8 @@ Status: items 1-6 are fixed in the current worktree.
    - Benefits: store bugs, serialization bugs, summary bugs, causal graph bugs,
      panel model bugs, renderer bugs, and bridge lifecycle bugs now have narrow
      implementation interfaces while public imports stay stable.
-   - Evidence: `pnpm --filter @effect-ui/devtools build` passed,
-     `pnpm --filter @effect-ui/devtools typecheck` passed, and
+   - Evidence: `pnpm --filter @sunfall/arc-devtools build` passed,
+     `pnpm --filter @sunfall/arc-devtools typecheck` passed, and
      `pnpm exec vitest run packages/devtools/test/devtools.test.ts` passed:
      1 file / 17 tests. Full `pnpm typecheck` and `pnpm test` also passed:
      40 files / 328 tests.
@@ -10703,7 +10739,7 @@ Status: items 1-6 are fixed in the current worktree.
      implementation interface. Query callers keep the same DSL leverage, while
      runtime bugs in joins, grouped rows, ordering, and source deltas live in
      the Live Query Runtime Module instead of the DB root.
-   - Evidence: `pnpm --filter @effect-ui/db typecheck` passed, and
+   - Evidence: `pnpm --filter @sunfall/arc-db typecheck` passed, and
      `pnpm exec vitest run packages/core/test/route-server.test.ts packages/start/test/file-routes.test.ts packages/start/test/file-route-modules.test.ts packages/start/test/route-manifest.test.ts packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
      passed: 6 files / 70 tests.
 
@@ -10725,7 +10761,7 @@ Status: items 1-6 are fixed in the current worktree.
      protocol bugs, action response metadata bugs, and client decode bugs can be
      tested through one protocol interface instead of searching the full Start
      root. The root module keeps leverage as the request handler facade.
-   - Evidence: `pnpm --filter @effect-ui/start typecheck` and
+   - Evidence: `pnpm --filter @sunfall/arc-start typecheck` and
      `pnpm typecheck` passed,
      `pnpm exec vitest run packages/start/test/start.test.ts packages/start/test/rpc.test.ts packages/start/test/effect-rpc-compat.test.ts`
      passed: 3 files / 67 tests, and
@@ -10752,8 +10788,8 @@ Status: items 1-6 are fixed in the current worktree.
      surface. Core Route keeps leverage for typed navigation, while Start keeps
      locality around filesystem naming and manifest policy instead of
      re-encoding path semantics.
-   - Evidence: `pnpm --filter @effect-ui/core typecheck` passed,
-     `pnpm --filter @effect-ui/start typecheck` passed, and
+   - Evidence: `pnpm --filter @sunfall/arc-core typecheck` passed,
+     `pnpm --filter @sunfall/arc-start typecheck` passed, and
      `pnpm exec vitest run packages/core/test/route-server.test.ts packages/start/test/file-routes.test.ts packages/start/test/file-route-modules.test.ts packages/start/test/route-manifest.test.ts packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
      passed: 6 files / 70 tests.
 
@@ -10773,7 +10809,7 @@ Status: items 1-6 are fixed in the current worktree.
      diagnostic report facts, policy violation classification, owner grouping,
      and repair guidance; `packages/start/src/diagnostics-report.ts` remains a
      formatting facade.
-   - Evidence: `pnpm --filter @effect-ui/start typecheck` passed, and
+   - Evidence: `pnpm --filter @sunfall/arc-start typecheck` passed, and
      `pnpm exec vitest run packages/start/test/start.test.ts packages/start/test/app-graph.test.ts packages/start/test/effect-rpc-compat.test.ts`
      passed: 3 files / 69 tests.
 
@@ -10799,8 +10835,8 @@ Status: items 1-6 are fixed in the current worktree.
      get better locality. Router lifecycle bugs now live near route scope
      management, hook bugs live near hook adaptation, and Solid DB query
      subscription bugs live behind the shared collection subscription seam.
-   - Evidence: `pnpm --filter @effect-ui/solid typecheck` passed,
-     `pnpm --filter @effect-ui/solid-db typecheck` passed, and
+   - Evidence: `pnpm --filter @sunfall/arc-solid typecheck` passed,
+     `pnpm --filter @sunfall/arc-solid-db typecheck` passed, and
      `pnpm exec vitest run packages/solid/test/router.test.ts packages/solid-db/test/solid-db.test.ts`
      passed: 2 files / 2 tests.
 
@@ -10827,7 +10863,7 @@ Review 4.
    - Benefits: Store ordering, limits, copies, and event recording now have one
      test surface. The public root keeps its facade leverage while future
      summary and causal-graph Modules can depend on a narrower Store interface.
-   - Evidence: `pnpm --filter @effect-ui/devtools typecheck` passed, and
+   - Evidence: `pnpm --filter @sunfall/arc-devtools typecheck` passed, and
      `pnpm exec vitest run packages/devtools/test/devtools.test.ts` passed:
      1 file / 17 tests.
 
@@ -10891,7 +10927,7 @@ Review 4.
      interface and test surface. Query, sync adapters, flush policy, and
      persistence helpers can depend on a smaller runtime module instead of
      re-entering the full DB root.
-   - Evidence: `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck`, and
+   - Evidence: `pnpm --filter @sunfall/arc-db typecheck`, `pnpm typecheck`, and
      `pnpm exec vitest run packages/db/test/collection.test.ts packages/db/test/flush-policy.test.ts packages/db/test/persisted-options.test.ts packages/db/test/sqlite-persistence.test.ts packages/db/test/live-query-collection.test.ts packages/db/test/server-collection.test.ts packages/db/test/sync-adapter.test.ts`
      passed: 7 files / 58 tests.
    - Full gate: escalated `pnpm verify` passed after this extraction with 9
@@ -10922,7 +10958,7 @@ Review 4.
    - Benefits: server request lifecycle bugs now have a focused Module and can
      depend on the existing request-runtime, request-trace, and transport
      protocol Interfaces without expanding the public root Implementation.
-   - Evidence: `pnpm --filter @effect-ui/start typecheck` and
+   - Evidence: `pnpm --filter @sunfall/arc-start typecheck` and
      `pnpm typecheck` passed, and escalated
      `pnpm exec vitest run packages/start/test/start.test.ts packages/start/test/rpc.test.ts packages/start/test/adapters.test.ts`
      passed: 3 files / 71 tests.
@@ -10947,7 +10983,7 @@ Review 4.
      exports so source consumers do not see duplicate ESM exports.
    - Benefits: Resource runtime bugs now have better locality, and Start's Vite
      diagnostics path can parse Core source without duplicate export failures.
-   - Evidence: `pnpm --filter @effect-ui/core typecheck` passed, and
+   - Evidence: `pnpm --filter @sunfall/arc-core typecheck` passed, and
      `pnpm exec vitest run packages/core/test/resource.test.ts packages/core/test/resource-store.test.ts packages/core/test/runtime.test.ts packages/core/test/action.test.ts packages/core/test/action-result.test.ts packages/core/test/route-server.test.ts packages/start/test/start.test.ts`
      passed: 7 files / 128 tests.
 
@@ -10979,7 +11015,7 @@ Review 5.
    - Benefits: app graph summary bugs, runtime fact normalization bugs, and
      causal graph bugs now have separate implementation surfaces. The public
      devtools summary and causal graph exports remain stable.
-   - Evidence: `pnpm --filter @effect-ui/devtools typecheck` passed, and
+   - Evidence: `pnpm --filter @sunfall/arc-devtools typecheck` passed, and
      `pnpm exec vitest run packages/devtools/test/devtools.test.ts` passed:
      1 file / 17 tests.
 
@@ -11024,7 +11060,7 @@ Review 6.
      have focused Modules and test surfaces. The DB root keeps public leverage
      while Query Plan and Live Query Runtime remain the implementation seams for
      planning and incremental evaluation.
-   - Evidence: `pnpm --filter @effect-ui/db typecheck` and `pnpm typecheck`
+   - Evidence: `pnpm --filter @sunfall/arc-db typecheck` and `pnpm typecheck`
      passed, and
      `pnpm exec vitest run packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts packages/solid-db/test/solid-db.test.ts`
      passed: 3 files / 36 tests.
@@ -11060,7 +11096,7 @@ subagent probes are recorded in Review 8.
      Leverage. Adapters can reason about route/server work as one Effect
      program, and tests cover the behavior through the public Interface instead
      of reaching into implementation order.
-   - Evidence: `pnpm --filter @effect-ui/core typecheck` passed, and
+   - Evidence: `pnpm --filter @sunfall/arc-core typecheck` passed, and
      `pnpm exec vitest run packages/core/test/route-server.test.ts packages/core/test/runtime.test.ts`
      passed: 2 files / 23 tests.
 
@@ -11074,7 +11110,7 @@ subagent probes are recorded in Review 8.
    - Benefits: the test keeps host `ReadableStream` reads at the Adapter seam
      while scheduling and timeout coordination stay in Effect.
    - Evidence: the Promise-method grep over packages, examples, scripts, and
-     type tests is clean. `pnpm --filter @effect-ui/start typecheck` passed,
+     type tests is clean. `pnpm --filter @sunfall/arc-start typecheck` passed,
      and the escalated
      `pnpm exec vitest run packages/start/test/adapters.test.ts` passed:
      1 file / 7 tests.
@@ -11102,7 +11138,7 @@ new Devtools split to make.
      re-exports the public Query and Collection facades.
    - Benefits: Query and Live Query Collection behavior now have smaller test
      surfaces and better Locality while preserving public import leverage.
-   - Evidence: `pnpm --filter @effect-ui/db typecheck` passed, and
+   - Evidence: `pnpm --filter @sunfall/arc-db typecheck` passed, and
      `pnpm exec vitest run packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
      passed: 2 files / 35 tests.
 
@@ -11122,7 +11158,7 @@ new Devtools split to make.
      through the shared seam.
    - Benefits: duplicate manifest bugs now have one implementation surface,
      while the public server-function/action Manifest Interfaces stay distinct.
-   - Evidence: `pnpm --filter @effect-ui/start typecheck` passed, and
+   - Evidence: `pnpm --filter @sunfall/arc-start typecheck` passed, and
      `pnpm exec vitest run packages/start/test/server-function-manifest.test.ts packages/start/test/action-manifest.test.ts packages/start/test/app-graph.test.ts`
      passed: 3 files / 21 tests.
 
@@ -11140,7 +11176,7 @@ new Devtools split to make.
      action result types.
    - Benefits: the Start Transport Protocol remains a deep internal Module,
      while the root public Interface is narrower and easier to keep stable.
-   - Evidence: `pnpm --filter @effect-ui/start typecheck` passed, and
+   - Evidence: `pnpm --filter @sunfall/arc-start typecheck` passed, and
      `pnpm exec vitest run packages/start/test/rpc.test.ts packages/start/test/start.test.ts`
      passed: 2 files / 64 tests.
 
@@ -11160,7 +11196,7 @@ new Devtools split to make.
      preload recording.
    - Benefits: trace fact mutation rules have one Locality point without
      changing the final `StartRequestTrace` contract.
-   - Evidence: `pnpm --filter @effect-ui/start typecheck` passed, and
+   - Evidence: `pnpm --filter @sunfall/arc-start typecheck` passed, and
      `pnpm exec vitest run packages/start/test/start.test.ts packages/start/test/rpc.test.ts`
      passed: 2 files / 64 tests.
 
@@ -11180,7 +11216,7 @@ new Devtools split to make.
      functions.
    - Benefits: diagnostics policy semantics have one Interface whether callers
      validate in process or through Vite's resolved virtual module.
-   - Evidence: `pnpm --filter @effect-ui/start typecheck` passed, and
+   - Evidence: `pnpm --filter @sunfall/arc-start typecheck` passed, and
      `pnpm exec vitest run packages/start/test/app-graph.test.ts packages/start/test/start.test.ts packages/start/test/rpc.test.ts`
      passed: 3 files / 73 tests.
 
@@ -11223,7 +11259,7 @@ this is not a clean-sweep point.
    - Benefits: signal dependency semantics have one Locality point, while the
      public Signal Interface stays unchanged. Derived signals now get the same
      source de-duping and queued recompute behavior as `watch(...)`.
-   - Evidence: `pnpm --filter @effect-ui/core typecheck` passed, and
+   - Evidence: `pnpm --filter @sunfall/arc-core typecheck` passed, and
      `pnpm exec vitest run packages/core/test/signal.test.ts packages/core/test/scope.test.ts packages/core/test/route-server.test.ts packages/core/test/runtime.test.ts`
      passed: 4 files / 35 tests.
 
@@ -11246,7 +11282,7 @@ this is not a clean-sweep point.
    - Benefits: the Form Module now owns async validation race semantics, giving
      callers a deeper Effect-first Interface and better Locality for future
      validation policy changes.
-   - Evidence: `pnpm --filter @effect-ui/core typecheck` passed, and
+   - Evidence: `pnpm --filter @sunfall/arc-core typecheck` passed, and
      `pnpm exec vitest run packages/core/test/form.test.ts packages/core/test/action-result.test.ts`
      passed: 2 files / 16 tests.
 
@@ -11268,7 +11304,7 @@ this is not a clean-sweep point.
    - Benefits: optimistic mutation identity now has runtime/request Locality,
      and restored pending mutation facts cannot be overwritten by subsequent
      writes in the same Collection Store.
-   - Evidence: `pnpm --filter @effect-ui/db typecheck` passed, and
+   - Evidence: `pnpm --filter @sunfall/arc-db typecheck` passed, and
      `pnpm exec vitest run packages/db/test/collection.test.ts packages/db/test/persisted-options.test.ts packages/db/test/flush-policy.test.ts`
      passed: 3 files / 39 tests.
 
@@ -11300,7 +11336,7 @@ Devtools candidates remain queued.
      Graph, summary, and panel Modules call the shared Interface.
    - Benefits: stable Devtools identity has one Locality point and callers get
      the same ids across summaries, panels, and causal graph edges.
-   - Evidence: `pnpm --filter @effect-ui/devtools typecheck` passed, and
+   - Evidence: `pnpm --filter @sunfall/arc-devtools typecheck` passed, and
      `pnpm exec vitest run packages/devtools/test/devtools.test.ts` passed:
      1 file / 19 tests.
 
@@ -11320,7 +11356,7 @@ Devtools candidates remain queued.
    - Benefits: Devtools Store fact references remain valid after bounded
      history truncation, and request trace facts get deterministic identity
      before summary or causal graph projection.
-   - Evidence: `pnpm --filter @effect-ui/devtools typecheck` passed, and
+   - Evidence: `pnpm --filter @sunfall/arc-devtools typecheck` passed, and
      `pnpm exec vitest run packages/devtools/test/devtools.test.ts` passed:
      1 file / 19 tests.
 
@@ -11354,7 +11390,7 @@ Status: fixed for the Start File Route Path Decoder finding.
    - Benefits: file-route path decoding has one Locality point, and sync
      discovery plus Effect manifest generation cannot drift on malformed
      dynamic param semantics.
-   - Evidence: `pnpm --filter @effect-ui/start typecheck` passed, and
+   - Evidence: `pnpm --filter @sunfall/arc-start typecheck` passed, and
      `pnpm exec vitest run packages/start/test/file-routes.test.ts packages/start/test/start.test.ts`
      passed: 2 files / 71 tests.
 
@@ -11391,7 +11427,7 @@ Status: fixed for the Core Action Submission Controller finding.
      Interface behavior directly: interrupted optimistic work rolls back
      transaction patches, and stale parallel successes still run their
      invalidations without replacing the latest visible invalidation plan.
-   - Evidence: `pnpm --filter @effect-ui/core typecheck` passed,
+   - Evidence: `pnpm --filter @sunfall/arc-core typecheck` passed,
      `pnpm exec vitest run packages/core/test/action.test.ts` passed:
      1 file / 20 tests, and
      `pnpm exec vitest run packages/core/test` passed: 12 files / 108 tests.
@@ -11428,7 +11464,7 @@ Status: fixed for Start client facade depth in this pass.
    - Benefits: client transport behavior has focused Locality while preserving
      root import leverage. Future RPC/action client changes can be tested and
      reviewed without editing the whole Start root facade.
-   - Evidence: `pnpm --filter @effect-ui/start typecheck` passed, and
+   - Evidence: `pnpm --filter @sunfall/arc-start typecheck` passed, and
      `pnpm exec vitest run packages/start/test/rpc.test.ts packages/start/test/start.test.ts packages/start/test/file-routes.test.ts`
      passed: 3 files / 78 tests.
 
@@ -11463,7 +11499,7 @@ Detachment, and Devtools Serialization Policy findings.
    - Benefits: persistence and hydration seams now have one validation and
      copy policy, which improves Locality for snapshot format changes and
      keeps persisted data from leaking unchecked shapes into Collection State.
-   - Evidence: `pnpm --filter @effect-ui/db typecheck` passed, and the focused
+   - Evidence: `pnpm --filter @sunfall/arc-db typecheck` passed, and the focused
      multi-package regression suite passed: 7 files / 162 tests.
 
 2. Devtools Serialization Policy And Store Snapshot Detachment
@@ -11483,7 +11519,7 @@ Detachment, and Devtools Serialization Policy findings.
    - Benefits: Devtools inspection values stay JSON-safe and bounded, and Store
      facts are detached from caller-owned values before summary or causal graph
      projection.
-   - Evidence: `pnpm --filter @effect-ui/devtools typecheck` passed, and the
+   - Evidence: `pnpm --filter @sunfall/arc-devtools typecheck` passed, and the
      focused multi-package regression suite passed: 7 files / 162 tests.
 
 3. Start App Graph Nested Route Revalidation
@@ -11496,7 +11532,7 @@ Detachment, and Devtools Serialization Policy findings.
    - Fix: added a regression test that corrupts a serialized graph's nested
      route module path and verifies deserialization fails through the typed
      file-route manifest parse error.
-   - Evidence: `pnpm --filter @effect-ui/start typecheck` passed, and the
+   - Evidence: `pnpm --filter @sunfall/arc-start typecheck` passed, and the
      focused multi-package regression suite passed: 7 files / 162 tests.
 
 Follow-up candidates queued at this point, with later reviews resolving them:
@@ -11530,8 +11566,8 @@ findings in this pass.
    - Benefits: action submission concurrency now has one Interface and one
      Locality point across local Core actions and transport-backed Start
      actions.
-   - Evidence: `pnpm --filter @effect-ui/core typecheck`,
-     `pnpm --filter @effect-ui/start typecheck`, and
+   - Evidence: `pnpm --filter @sunfall/arc-core typecheck`,
+     `pnpm --filter @sunfall/arc-start typecheck`, and
      `pnpm exec vitest run packages/core/test/action.test.ts packages/start/test/start.test.ts`
      passed: 2 files / 77 tests.
 
@@ -11555,7 +11591,7 @@ findings in this pass.
    - Benefits: the DB root is closer to a facade, while Collection contracts
      and diagnostics have stable local Modules for future adapter and devtools
      work.
-   - Evidence: `pnpm --filter @effect-ui/db typecheck` passed, and
+   - Evidence: `pnpm --filter @sunfall/arc-db typecheck` passed, and
      `pnpm exec vitest run packages/db/test/collection.test.ts packages/db/test/persisted-options.test.ts packages/db/test/sqlite-persistence.test.ts packages/db/test/live-query-collection.test.ts`
      passed: 4 files / 48 tests.
 
@@ -11582,7 +11618,7 @@ findings in this pass.
    - Benefits: corrupted persisted collection state is now recoverable through
      normal Effect error handling instead of defect handling, including SSR or
      browser hydration payloads.
-   - Evidence: `pnpm --filter @effect-ui/db typecheck` passed, and the DB
+   - Evidence: `pnpm --filter @sunfall/arc-db typecheck` passed, and the DB
      persistence-focused test suite passed: 4 files / 51 tests.
 
 4. Start Callable Manifest Deserialization Core
@@ -11603,7 +11639,7 @@ findings in this pass.
    - Benefits: the Manifest Wall has one deserialization grammar for callable
      artifacts, which reduces drift between server-function RPC clients and
      progressive action clients.
-   - Evidence: `pnpm --filter @effect-ui/start typecheck` passed, and
+   - Evidence: `pnpm --filter @sunfall/arc-start typecheck` passed, and
      `pnpm exec vitest run packages/start/test/action-manifest.test.ts packages/start/test/server-function-manifest.test.ts`
      passed: 2 files / 12 tests.
 
@@ -11622,7 +11658,7 @@ findings in this pass.
      applying hydration side effects.
    - Benefits: stale action responses can still resolve for callers, but only
      the accepted submission updates action state or client hydration state.
-   - Evidence: `pnpm --filter @effect-ui/start typecheck` passed, and
+   - Evidence: `pnpm --filter @sunfall/arc-start typecheck` passed, and
      `pnpm exec vitest run packages/start/test/start.test.ts` passed with the
      stale hydration regression.
 
@@ -11641,7 +11677,7 @@ findings in this pass.
      committed mutation.
    - Benefits: local state no longer diverges from a successfully committed
      remote mutation because the persistence layer failed after the commit.
-   - Evidence: `pnpm --filter @effect-ui/db typecheck` passed, and
+   - Evidence: `pnpm --filter @sunfall/arc-db typecheck` passed, and
      `pnpm exec vitest run packages/db/test/collection.test.ts` passed with the
      post-commit persistence failure regression.
 
@@ -11680,7 +11716,7 @@ Status: fixed for DB Collection Registry Locality.
    - Evidence: `pnpm exec vitest run packages/db/test/collection-registry.test.ts packages/db/test/collection.test.ts`
      passed: 2 files / 36 tests; `pnpm exec vitest run packages/db/test/sync-adapter.test.ts packages/db/test/live-query-collection.test.ts`
      passed: 2 files / 10 tests; and `pnpm exec vitest run packages/db/test`
-     passed: 8 files / 64 tests. `pnpm --filter @effect-ui/db typecheck`
+     passed: 8 files / 64 tests. `pnpm --filter @sunfall/arc-db typecheck`
      passed.
 
 ## Review 17: Core Registry, Start Runtime Diagnostics, And Error Defaults
@@ -11935,9 +11971,9 @@ Start host-boundary typed errors.
      `Effect.Effect<...>` annotations.
 
 Workspace evidence for this pass: `pnpm typecheck` passed,
-`pnpm --filter @effect-ui/core typecheck` passed,
-`pnpm --filter @effect-ui/start typecheck` passed,
-`pnpm --filter @effect-ui/solid typecheck` passed, and
+`pnpm --filter @sunfall/arc-core typecheck` passed,
+`pnpm --filter @sunfall/arc-start typecheck` passed,
+`pnpm --filter @sunfall/arc-solid typecheck` passed, and
 `pnpm exec vitest run packages/core/test/effect-like.test.ts packages/core/test/definition-registry.test.ts packages/start/test/app-graph.test.ts packages/start/test/start.test.ts`
 passed: 4 files / 77 tests. The Start host-boundary follow-up also passed
 workspace typecheck/type tests, focused Start/RPC/app-graph tests
@@ -12055,8 +12091,8 @@ verify, project-console starter packaging/typecheck/tests/build, and leak scan.
      main Modules, increasing Locality around storage/write failures and host
      error handling.
 
-Workspace evidence for this pass: `pnpm --filter @effect-ui/start typecheck`
-passed, `pnpm typecheck` passed, `pnpm --filter @effect-ui/db build` passed,
+Workspace evidence for this pass: `pnpm --filter @sunfall/arc-start typecheck`
+passed, `pnpm typecheck` passed, `pnpm --filter @sunfall/arc-db build` passed,
 `pnpm exec vitest run packages/start/test/adapters.test.ts` passed, DB focused
 tests passed: 5 files / 65 tests, and the focused multi-package regression
 suite passed: 7 files / 139 tests. Earlier in the same tranche, the snapshot
@@ -12110,7 +12146,7 @@ CollectionSnapshotCodecError`, normalized the snapshot codec Effect error
      Snapshot Codec Module instead of spreading raw Effect Schema errors across
      Collection, Query, and Solid Adapter Interfaces.
 
-Workspace evidence for this pass: `pnpm --filter @effect-ui/db build` passed
+Workspace evidence for this pass: `pnpm --filter @sunfall/arc-db build` passed
 with before/after DB/Solid DB source checksums unchanged, `pnpm vitest run
 packages/db/test/collection.test.ts` passed, and full `pnpm verify` passed:
 9 package builds, workspace typecheck, type tests, 45 root test files / 415
@@ -12209,7 +12245,7 @@ post-verify audits were clean.
 
 4. DB Build/Verification Guard
    - Status: environment hazard identified.
-   - Files: `packages/db/src/*`, `/private/tmp/effect-ui-live-repro`.
+   - Files: `packages/db/src/*`, `/private/tmp/sunfall-arc-live-repro`.
    - Problem: while verifying DB error-channel cleanup, raw
      `Schema.SchemaError` annotations reappeared in DB source. A guarded DB
      build reproduced no source mutation from `tsgo`, and a subagent found a
@@ -12221,9 +12257,9 @@ post-verify audits were clean.
      Seam now checks for accidental Promise/raw-schema drift rather than
      trusting package builds alone.
 
-Workspace evidence for this pass: `pnpm --filter @effect-ui/start typecheck`,
-`pnpm --filter @effect-ui/devtools typecheck`, `pnpm typecheck`, `pnpm
---filter @effect-ui/db build`, `pnpm --filter @effect-ui/starter-basic build`,
+Workspace evidence for this pass: `pnpm --filter @sunfall/arc-start typecheck`,
+`pnpm --filter @sunfall/arc-devtools typecheck`, `pnpm typecheck`, `pnpm
+--filter @sunfall/arc-db build`, `pnpm --filter @sunfall/arc-starter-basic build`,
 `pnpm vitest run packages/start/test/start.test.ts
 packages/start/test/streaming.test.ts`, `pnpm vitest run
 packages/devtools/test/devtools.test.ts`, and `pnpm vitest run
@@ -12253,7 +12289,7 @@ docs/LSP, and example packaging passes.
      even though they remain workspace examples.
    - Fix: generated basic, React, and project-console starter READMEs now use
      standalone commands. Starter tarball dry-runs prove the exact expected
-     `.effect-ui-packages/*` directories and required `dist/index.*` files are
+     `.sunfall-arc-packages/*` directories and required `dist/index.*` files are
      present, and reject unknown/unreferenced local adapters. Devtools panel and
      extension dry-runs are labeled workspace source packages.
 
@@ -12435,9 +12471,9 @@ test files / 27 tests, project-console build, and leak scan.
      across named and default imports.
 
 Focused workspace evidence for this pass: `pnpm --filter
-@effect-ui/core typecheck`, `pnpm --filter @effect-ui/db typecheck`, `pnpm
---filter @effect-ui/devtools typecheck`, `pnpm --filter @effect-ui/start
-typecheck`, `pnpm --filter @effect-ui/solid typecheck`, `pnpm typecheck:types`,
+@sunfall/arc-core typecheck`, `pnpm --filter @sunfall/arc-db typecheck`, `pnpm
+--filter @sunfall/arc-devtools typecheck`, `pnpm --filter @sunfall/arc-start
+typecheck`, `pnpm --filter @sunfall/arc-solid typecheck`, `pnpm typecheck:types`,
 `pnpm test packages/start/test/start.test.ts`, `pnpm test
 packages/start/test/file-route-modules.test.ts`, `pnpm test
 packages/db/test/collection.test.ts`, `pnpm test
@@ -12480,7 +12516,7 @@ Findings:
      failures. LSP-facing docs now describe the sync helpers as facades over
      Effect-first transport behavior instead of separate implementations.
 
-Focused evidence: `pnpm --filter @effect-ui/start typecheck` passed, and
+Focused evidence: `pnpm --filter @sunfall/arc-start typecheck` passed, and
 `pnpm vitest run packages/start/test/start.test.ts
 packages/start/test/streaming.test.ts` passed with 2 files / 86 tests. Added
 regressions for sync serialization failures preserving
@@ -12520,7 +12556,7 @@ Findings:
      summaries, runtime event ordering, and resource index derivation now have
      one Locality before they feed summaries, panels, and causal graphs.
 
-Focused evidence: `pnpm --filter @effect-ui/devtools typecheck` passed, and
+Focused evidence: `pnpm --filter @sunfall/arc-devtools typecheck` passed, and
 `pnpm vitest run packages/devtools/test/devtools.test.ts` passed with 1 file /
 26 tests. Full `pnpm verify` passed after this pass: 9 package builds,
 workspace typecheck, type tests, effect-first source audit, 45 root test files
@@ -12741,7 +12777,7 @@ Status: accepted as intentional.
 
 Findings:
 
-1. `@effect-ui/start-fetch` And `@effect-ui/start-node` Shallow Packages
+1. `@sunfall/arc-start-fetch` And `@sunfall/arc-start-node` Shallow Packages
    - Status: accepted.
    - Files: `packages/start-fetch/src/index.ts`,
      `packages/start-node/src/index.ts`, `docs/public-api-inventory.md`,
@@ -12750,7 +12786,7 @@ Findings:
      which can be a smell when a package claims a Module but only forwards
      names.
    - Decision: keep them shallow. Their depth lives in
-     `@effect-ui/start/fetch-adapter` and `@effect-ui/start/node-adapter`; the
+     `@sunfall/arc-start/fetch-adapter` and `@sunfall/arc-start/node-adapter`; the
      packages are install/import seams for host-shaped deployments. Deleting
      them would move Node/fetch package ergonomics back into docs and user
      imports without reducing implementation complexity.
@@ -12761,8 +12797,8 @@ Findings:
 
 No code fix was made. Focused verification from the audit agent passed:
 `pnpm vitest run packages/start/test/adapters.test.ts` with 15 tests,
-`pnpm typecheck:types`, and package typechecks for `@effect-ui/start-fetch`
-and `@effect-ui/start-node`.
+`pnpm typecheck:types`, and package typechecks for `@sunfall/arc-start-fetch`
+and `@sunfall/arc-start-node`.
 
 ## Review 39: Start Transport Status Policy Locality
 
@@ -12792,7 +12828,7 @@ Findings:
      independently reinterpret successful, validation, server-error, or defect
      transport bodies.
 
-Focused evidence: `pnpm --filter @effect-ui/start typecheck` passed, and
+Focused evidence: `pnpm --filter @sunfall/arc-start typecheck` passed, and
 `pnpm vitest run packages/start/test/rpc.test.ts packages/start/test/start.test.ts`
 passed with 2 files / 88 tests. Full `pnpm verify` passed after this pass: 9
 package builds, workspace typecheck, type tests, effect-first source audit, 45
@@ -12831,7 +12867,7 @@ Findings:
      orchestration each have clearer Locality while preserving the old public
      completion API and streamed-response teardown semantics.
 
-Focused evidence: `pnpm --filter @effect-ui/start typecheck`,
+Focused evidence: `pnpm --filter @sunfall/arc-start typecheck`,
 `pnpm audit:effect-first`, and `pnpm vitest run packages/start/test/start.test.ts
 packages/start/test/streaming.test.ts packages/start/test/adapters.test.ts`
 passed with 3 files / 102 tests. Added streaming regressions for wrapped Web
@@ -12896,8 +12932,8 @@ project-console build, and leak scan.
      only one real Adapter. Keeping the dispatch branches in the Start Request
      Handler path preserves better Locality than adding a shallow Seam.
 
-Workspace evidence for this pass: `pnpm --filter @effect-ui/core typecheck`
-passed, `pnpm --filter @effect-ui/db typecheck` passed, `pnpm typecheck`
+Workspace evidence for this pass: `pnpm --filter @sunfall/arc-core typecheck`
+passed, `pnpm --filter @sunfall/arc-db typecheck` passed, `pnpm typecheck`
 passed, `pnpm typecheck:types` passed, and the focused regression runs passed:
 `pnpm vitest run packages/core/test/action.test.ts
 packages/db/test/live-query-collection.test.ts` with 2 files / 30 tests and
@@ -12972,14 +13008,14 @@ refetch`; forced refetch uses `refetch ?? load`. The sync Adapter now maps
      and middleware error routing. `vite.ts` keeps the public re-exports and
      plugin assembly.
    - Benefits: Vite diagnostics/plugin changes and dev request bugs now land in
-     different Modules. The public `@effect-ui/start/vite` Interface stays
+     different Modules. The public `@sunfall/arc-start/vite` Interface stays
      stable while the dev SSR Adapter has a deeper Implementation behind it.
 
-Workspace evidence for this pass: `pnpm --filter @effect-ui/core typecheck`
+Workspace evidence for this pass: `pnpm --filter @sunfall/arc-core typecheck`
 passed, `pnpm vitest run packages/core/test/resource.test.ts` passed with 1
-file / 34 tests, `pnpm --filter @effect-ui/db typecheck` passed, `pnpm vitest
+file / 34 tests, `pnpm --filter @sunfall/arc-db typecheck` passed, `pnpm vitest
 run packages/db/test/sync-adapter.test.ts packages/db/test/collection.test.ts`
-passed with 2 files / 50 tests, `pnpm --filter @effect-ui/start typecheck`
+passed with 2 files / 50 tests, `pnpm --filter @sunfall/arc-start typecheck`
 passed, `pnpm exec vitest run packages/start/test/start.test.ts
 packages/start/test/adapters.test.ts` passed with 2 files / 84 tests, and
 `pnpm typecheck` passed. Full `pnpm verify` passed: 9 package builds,
@@ -13020,7 +13056,7 @@ flag audit passed after verification.
    - Status: fixed.
    - Files: `type-tests/framework.test-d.ts`,
      `docs/public-api-inventory.md`, `CONTEXT.md`.
-   - Problem: the `@effect-ui/core` root export already exposed expert Modules
+   - Problem: the `@sunfall/arc-core` root export already exposed expert Modules
      such as Action Submission, Definition Registry, Resource Registry,
      Resource Snapshot Codec, and Route Grammar, but the public inventory and
      LSP-facing type tests did not pin those Interfaces. That left adapters and
@@ -13056,9 +13092,9 @@ flag audit passed after verification.
      Graph becomes a graph assembly Adapter instead of owning two projections
      for the same domain fact.
 
-Workspace evidence for this pass: `pnpm --filter @effect-ui/solid-db
+Workspace evidence for this pass: `pnpm --filter @sunfall/arc-solid-db
 typecheck`, `pnpm vitest run packages/solid-db/test/solid-db.test.ts`,
-`pnpm typecheck:types`, `pnpm --filter @effect-ui/devtools typecheck`, and
+`pnpm typecheck:types`, `pnpm --filter @sunfall/arc-devtools typecheck`, and
 `pnpm vitest run packages/devtools/test/devtools.test.ts` passed. Full `pnpm
 verify` passed: 9 package builds, workspace typecheck, type tests, 45 root
 test files / 424 tests, devtools-panel verify with 1 panel test,
@@ -13164,7 +13200,7 @@ This pass found actionable work, so the clean-sweep counter remains at zero.
      `examples/project-console/src/full-stack-golden.test.ts`,
      `docs/release-notes.md`, `docs/docs-drift-audit.md`,
      `docs/ultimate-goal-checklist.md`, and `docs/perfection-progress.md`.
-   - Problem: `@effect-ui/tsrx` lacked hover/type-test coverage, Start root
+   - Problem: `@sunfall/arc-tsrx` lacked hover/type-test coverage, Start root
      low-level transport/Core convenience exports were wider than the
      inventory described, DB next-slice docs still listed completed
      TanStack Query-shaped sync work, the project-console graph helper could
@@ -13211,7 +13247,7 @@ file / 2 tests, project-console starter packaging, project-console typecheck,
      UI seam instead of disappearing behind fallback data.
 
 Focused workspace evidence for this pass: `pnpm --filter
-@effect-ui/example-devtools-extension verify` passed, including extension
+@sunfall/arc-example-devtools-extension verify` passed, including extension
 typecheck, 1 test file / 9 tests, and production build.
 
 ## Review 48: Start Preload Requirement And Devtools Fact Identity Follow-Up
@@ -13288,9 +13324,9 @@ typecheck, 1 test file / 9 tests, and production build.
      facts after bounded history compaction. Request route-plan edges point at
      canonical route-plan facts instead of index-shaped accidents.
 
-Focused workspace evidence for this pass: `pnpm --filter @effect-ui/core
-typecheck`, `pnpm --filter @effect-ui/solid typecheck`, `pnpm --filter
-@effect-ui/start typecheck`, `pnpm --filter @effect-ui/devtools typecheck`,
+Focused workspace evidence for this pass: `pnpm --filter @sunfall/arc-core
+typecheck`, `pnpm --filter @sunfall/arc-solid typecheck`, `pnpm --filter
+@sunfall/arc-start typecheck`, `pnpm --filter @sunfall/arc-devtools typecheck`,
 `pnpm typecheck:types`, `pnpm vitest run packages/devtools/test/devtools.test.ts`,
 `pnpm vitest run packages/start/test/start.test.ts
 packages/start/test/adapters.test.ts`, and `pnpm vitest run
@@ -13961,13 +13997,13 @@ Known follow-ups:
 
 Evidence:
 
-- `pnpm --filter @effect-ui/solid typecheck`, `pnpm --filter
-@effect-ui/solid-db typecheck`, `pnpm typecheck:types`, and `pnpm vitest run
+- `pnpm --filter @sunfall/arc-solid typecheck`, `pnpm --filter
+@sunfall/arc-solid-db typecheck`, `pnpm typecheck:types`, and `pnpm vitest run
 packages/solid/test/router.test.ts packages/solid-db/test/solid-db.test.ts`
   passed: 2 files / 19 tests.
-- `pnpm --filter @effect-ui/core typecheck`, `pnpm --filter @effect-ui/db
-typecheck`, `pnpm --filter @effect-ui/devtools typecheck`, focused Core/DB
-  and Devtools regressions, `pnpm --filter @effect-ui/start typecheck`,
+- `pnpm --filter @sunfall/arc-core typecheck`, `pnpm --filter @sunfall/arc-db
+typecheck`, `pnpm --filter @sunfall/arc-devtools typecheck`, focused Core/DB
+  and Devtools regressions, `pnpm --filter @sunfall/arc-start typecheck`,
   `pnpm vitest run packages/start/test/start.test.ts`,
   `pnpm devtools-extension:typecheck`, and `pnpm devtools-extension:test`
   passed.
@@ -14048,9 +14084,9 @@ cannot start.
 
 Evidence:
 
-- `pnpm --filter @effect-ui/start typecheck` passed.
+- `pnpm --filter @sunfall/arc-start typecheck` passed.
 - `pnpm vitest run packages/start/test/start.test.ts` passed: 1 file / 89 tests.
-- `pnpm --filter @effect-ui/db typecheck` passed.
+- `pnpm --filter @sunfall/arc-db typecheck` passed.
 - `pnpm vitest run packages/db/test/collection.test.ts` passed: 1 file / 58 tests.
 - Full `pnpm typecheck` passed.
 - Full `pnpm test` passed: 45 root test files / 537 tests.
@@ -14156,9 +14192,9 @@ Adapter, and Locality work, so the clean-sweep counter still cannot start.
 
 Evidence:
 
-- Package typechecks passed for `@effect-ui/core`, `@effect-ui/db`,
-  `@effect-ui/start`, `@effect-ui/devtools`, `@effect-ui/solid`, and
-  `@effect-ui/solid-db`.
+- Package typechecks passed for `@sunfall/arc-core`, `@sunfall/arc-db`,
+  `@sunfall/arc-start`, `@sunfall/arc-devtools`, `@sunfall/arc-solid`, and
+  `@sunfall/arc-solid-db`.
 - Focused regressions passed: DB collection/live-query collection, Core
   resource/action, Start, Devtools plus extension, Solid hooks, and Solid DB.
 - Full `pnpm typecheck` passed.
@@ -14282,9 +14318,9 @@ Adapter, and Summary seams, so the clean-sweep counter still cannot start.
 
 Evidence:
 
-- Package typechecks passed for `@effect-ui/core`, `@effect-ui/db`,
-  `@effect-ui/start`, `@effect-ui/devtools`, `@effect-ui/solid`, and
-  `@effect-ui/solid-db`.
+- Package typechecks passed for `@sunfall/arc-core`, `@sunfall/arc-db`,
+  `@sunfall/arc-start`, `@sunfall/arc-devtools`, `@sunfall/arc-solid`, and
+  `@sunfall/arc-solid-db`.
 - Focused regressions passed: DB collection/sync adapter, Core
   action/resource/resource-store/route-server, Solid hooks/router, Solid DB,
   Start, Devtools, and the devtools extension.
@@ -14374,7 +14410,7 @@ Evidence:
      accepting the Node Adapter origin/forwarded-header policy, so dev and
      production host adapters could disagree about the public request URL.
    - Fix: added `nodeRequest` options to the dev SSR middleware and
-     `EffectUiStartOptions`, then passed them through to
+     `SunfallArcStartOptions`, then passed them through to
      `nodeRequestToWebRequestEffect(...)`.
    - Benefits: teams can make forwarded-header trust explicit in Vite dev just
      as they can in the Node adapter.
@@ -14390,9 +14426,9 @@ Evidence:
    - Benefits: LSP docs now describe the actual collector seam instead of
      implying hidden synchronous read tracking.
 
-Focused workspace evidence for this pass: `pnpm --filter @effect-ui/core
-typecheck`, `pnpm --filter @effect-ui/solid typecheck`, `pnpm --filter
-@effect-ui/start typecheck`, `pnpm typecheck:types`, `pnpm vitest run
+Focused workspace evidence for this pass: `pnpm --filter @sunfall/arc-core
+typecheck`, `pnpm --filter @sunfall/arc-solid typecheck`, `pnpm --filter
+@sunfall/arc-start typecheck`, `pnpm typecheck:types`, `pnpm vitest run
 packages/core/test/route-server.test.ts packages/core/test/runtime.test.ts
 packages/core/test/action.test.ts`, `pnpm vitest run
 packages/solid/test/router.test.ts`, `pnpm vitest run
@@ -14499,9 +14535,9 @@ Findings:
    - Benefits: expert-public Modules now expose their intent and error/locality
      rules at the same seam where advanced users and agents consume them.
 
-Focused evidence before full verification: `pnpm --filter @effect-ui/core
-typecheck`, `pnpm --filter @effect-ui/db typecheck`, `pnpm --filter
-@effect-ui/start typecheck`, `pnpm --filter @effect-ui/devtools typecheck`,
+Focused evidence before full verification: `pnpm --filter @sunfall/arc-core
+typecheck`, `pnpm --filter @sunfall/arc-db typecheck`, `pnpm --filter
+@sunfall/arc-start typecheck`, `pnpm --filter @sunfall/arc-devtools typecheck`,
 and `pnpm typecheck:types` passed. Full `pnpm verify` passed after this pass:
 9 package builds, workspace typecheck, type tests, 45 root test files / 454
 tests, devtools-panel verify with 1 panel test, devtools-extension verify with
@@ -14552,7 +14588,7 @@ Findings:
      Server facade keeps its higher-level contract, client, mock, and route
      Leverage.
 
-Focused evidence before full verification: `pnpm --filter @effect-ui/core
+Focused evidence before full verification: `pnpm --filter @sunfall/arc-core
 typecheck`, `pnpm vitest run packages/core/test/server.test.ts
 packages/core/test/route-server.test.ts packages/start/test/rpc.test.ts`,
 `pnpm typecheck:types`, and `pnpm audit:effect-first` passed. Full `pnpm
@@ -14580,15 +14616,15 @@ sync-load closure, runtime Promise docs, and whitespace audits passed.
      `packages/start/src/node-adapter.ts`,
      `type-tests/framework.test-d.ts`, `docs/public-api-inventory.md`,
      `CONTEXT.md`.
-   - Problem: `EffectUiRuntime<unknown, ER>` was being used as the Interface
+   - Problem: `SunfallArcRuntime<unknown, ER>` was being used as the Interface
      for "some runtime" at Solid and Start host seams. After tightening the
      Runtime Spine, that spelling meant "a runtime that provides every service",
      which erased the distinction between typed app services and host-boundary
      runtime plumbing.
-   - Fix: `EffectUiRuntime<R, ER>.provide(...)` now removes only services in
+   - Fix: `SunfallArcRuntime<R, ER>.provide(...)` now removes only services in
      `R` plus the Resource Store, and `runFork(...)`/`runSync(...)` only accept
      Effects whose requirements are satisfied by the runtime. Added the explicit
-     `AnyEffectUiRuntime<ER>` Adapter Interface for ambient Solid contexts,
+     `AnySunfallArcRuntime<ER>` Adapter Interface for ambient Solid contexts,
      hydration, Node/fetch host facades, and request tracing where the concrete
      app service set cannot be named.
    - Benefits: TypeScript and LSP hovers now show whether a Runtime Spine truly
@@ -14638,11 +14674,11 @@ sync-load closure, runtime Promise docs, and whitespace audits passed.
      reducing the need to jump into implementation files to understand what an
      option or helper is for.
 
-Focused workspace evidence for this pass: `pnpm --filter @effect-ui/core
-typecheck`, `pnpm --filter @effect-ui/db typecheck`, `pnpm --filter
-@effect-ui/solid typecheck`, `pnpm --filter @effect-ui/start typecheck`,
-`pnpm --filter @effect-ui/starter-basic typecheck`, `pnpm --filter
-@effect-ui/example-project-console typecheck`, and `pnpm typecheck:types`
+Focused workspace evidence for this pass: `pnpm --filter @sunfall/arc-core
+typecheck`, `pnpm --filter @sunfall/arc-db typecheck`, `pnpm --filter
+@sunfall/arc-solid typecheck`, `pnpm --filter @sunfall/arc-start typecheck`,
+`pnpm --filter @sunfall/arc-starter-basic typecheck`, `pnpm --filter
+@sunfall/arc-example-project-console typecheck`, and `pnpm typecheck:types`
 passed during implementation. Full `pnpm verify` passed: 9 package builds,
 workspace typecheck, type tests, 45 root test files / 454 tests,
 devtools-panel verify with 1 panel test, devtools-extension verify with 1
@@ -14697,8 +14733,8 @@ docs grep, and `git diff --check` passed.
    - Benefits: Devtools bridge and panel authors can distinguish live Core
      values from detached, JSON-safe panel DTOs at the Interface.
 
-Focused workspace evidence for this pass: `pnpm --filter @effect-ui/start
-typecheck`, `pnpm --filter @effect-ui/devtools typecheck`, and `pnpm
+Focused workspace evidence for this pass: `pnpm --filter @sunfall/arc-start
+typecheck`, `pnpm --filter @sunfall/arc-devtools typecheck`, and `pnpm
 typecheck:types` passed during implementation. Full `pnpm verify` passed: 9
 package builds, workspace typecheck, type tests, 45 root test files / 454
 tests, devtools-panel verify with 1 panel test, devtools-extension verify with
@@ -14734,8 +14770,8 @@ docs grep, and `git diff --check` passed.
      documented bounds and projection responsibilities instead of an anonymous
      structural return type.
 
-Focused workspace evidence for this pass: `pnpm --filter @effect-ui/db
-typecheck`, `pnpm --filter @effect-ui/devtools typecheck`, and `pnpm
+Focused workspace evidence for this pass: `pnpm --filter @sunfall/arc-db
+typecheck`, `pnpm --filter @sunfall/arc-devtools typecheck`, and `pnpm
 typecheck:types` passed during implementation. Full `pnpm verify` passed: 9
 package builds, workspace typecheck, type tests, 45 root test files / 454
 tests, devtools-panel verify with 1 panel test, devtools-extension verify with
@@ -14824,7 +14860,7 @@ docs grep, and `git diff --check` passed.
    - Problem: the public inventory still named removed Promise runner APIs on
      the Runtime Spine, and type tests did not pin the generated route writer
      and generated route artifact helper family.
-   - Fix: documented `EffectUiRuntime.provide(...)` plus host-owned
+   - Fix: documented `SunfallArcRuntime.provide(...)` plus host-owned
      `Effect.runPromise(runtime.provide(...))` as the Promise boundary, added a
      deletion test for the removed runtime Promise runner, and pinned
      `createGeneratedFileRouteDefinitionsModule(...)`,
@@ -14834,9 +14870,9 @@ docs grep, and `git diff --check` passed.
    - Benefits: the expert-public LSP surface matches the implementation and
      keeps generated route IO explicitly Effect-first.
 
-Focused workspace evidence for this pass: `pnpm --filter @effect-ui/core
-typecheck`, `pnpm --filter @effect-ui/db typecheck`, `pnpm --filter
-@effect-ui/start typecheck`, `pnpm typecheck:types`, `pnpm vitest run
+Focused workspace evidence for this pass: `pnpm --filter @sunfall/arc-core
+typecheck`, `pnpm --filter @sunfall/arc-db typecheck`, `pnpm --filter
+@sunfall/arc-start typecheck`, `pnpm typecheck:types`, `pnpm vitest run
 packages/core/test/form.test.ts packages/core/test/action.test.ts`, `pnpm
 vitest run packages/db/test/collection.test.ts`, `pnpm vitest run
 packages/devtools/test/devtools.test.ts examples/devtools-extension/src/extension.test.ts`,
@@ -14867,7 +14903,7 @@ sync-load closure, and whitespace audits passed.
      browser-extension Adapter deeper than the package contract and invited
      future drift between app-side, extension-side, test, and renderer hosts.
    - Fix: added the shared Devtools Panel Contract Module with panel guards and
-     `normalizeEffectUiDevtoolsBridgePayload(...)`. The renderer, extension
+     `normalizeSunfallArcDevtoolsBridgePayload(...)`. The renderer, extension
      transport, public root export, tests, docs, and type tests now consume the
      same Interface.
    - Benefits: panel payload validation has Locality in devtools. Browser
@@ -14956,7 +14992,7 @@ sync-load closure, and whitespace audits passed.
      route typings from the precise written generated route artifact. Devtools
      causal graph kind/node/edge exports also lacked hover docs and type-test
      pins, making an important expert-public inspection Interface easy to miss.
-   - Fix: documented `virtual:effect-ui/routes` as broad by design and
+   - Fix: documented `virtual:sunfall-arc/routes` as broad by design and
      `routeTree.gen.ts` as the app-specific typed route surface. Added hover
      docs for Devtools causal graph kind/node/edge contracts and type tests for
      generated route helpers, virtual routes, host adapter subpaths, panel
@@ -14965,14 +15001,14 @@ sync-load closure, and whitespace audits passed.
      adapter authors get the precise route artifact for app-specific work and
      the devtools graph contract for inspection UIs.
 
-Focused workspace evidence for this pass: `pnpm --filter @effect-ui/devtools
+Focused workspace evidence for this pass: `pnpm --filter @sunfall/arc-devtools
 typecheck`, `pnpm vitest run packages/devtools/test/devtools.test.ts`,
-`pnpm devtools-extension:verify`, `pnpm --filter @effect-ui/db typecheck`,
+`pnpm devtools-extension:verify`, `pnpm --filter @sunfall/arc-db typecheck`,
 `pnpm vitest run packages/db/test/live-query-collection.test.ts
-packages/db/test/collection.test.ts`, `pnpm --filter @effect-ui/solid
+packages/db/test/collection.test.ts`, `pnpm --filter @sunfall/arc-solid
 typecheck`, `pnpm vitest run packages/solid/test/router.test.ts`, `pnpm
---filter @effect-ui/start typecheck`, `pnpm --filter @effect-ui/start-fetch
-typecheck`, `pnpm --filter @effect-ui/start-node typecheck`, `pnpm vitest run
+--filter @sunfall/arc-start typecheck`, `pnpm --filter @sunfall/arc-start-fetch
+typecheck`, `pnpm --filter @sunfall/arc-start-node typecheck`, `pnpm vitest run
 packages/start/test/adapters.test.ts`, `pnpm vitest run
 packages/start/test/rpc.test.ts packages/start/test/start.test.ts
 packages/start/test/adapters.test.ts`, and `pnpm typecheck:types` passed. Full
@@ -15102,9 +15138,9 @@ verification.
    - Benefits: host-boundary failures remain typed and local to their Adapters,
      and examples continue to teach the Effect-first host Adapter pattern.
 
-Focused workspace evidence for this pass: `pnpm --filter @effect-ui/core
-typecheck`, `pnpm --filter @effect-ui/db typecheck`, `pnpm --filter
-@effect-ui/devtools typecheck`, `pnpm --filter @effect-ui/start typecheck`,
+Focused workspace evidence for this pass: `pnpm --filter @sunfall/arc-core
+typecheck`, `pnpm --filter @sunfall/arc-db typecheck`, `pnpm --filter
+@sunfall/arc-devtools typecheck`, `pnpm --filter @sunfall/arc-start typecheck`,
 `pnpm vitest run packages/core/test/scope.test.ts
 packages/core/test/action.test.ts`, `pnpm vitest run
 packages/db/test/live-query-collection.test.ts`, `pnpm vitest run
@@ -15112,7 +15148,7 @@ packages/devtools/test/devtools.test.ts`, `pnpm vitest run
 packages/start/test/adapters.test.ts`, `pnpm vitest run
 examples/devtools-extension/src/extension.test.ts`, `pnpm vitest run
 packages/start/test/file-route-modules.test.ts`, `pnpm typecheck:types`, and
-`pnpm --filter @effect-ui/example-project-console build` passed. Full `pnpm
+`pnpm --filter @sunfall/arc-example-project-console build` passed. Full `pnpm
 verify` passed: 9 package builds, workspace typecheck, type tests, 45 root
 test files / 442 tests, devtools-panel verify with 1 panel test,
 devtools-extension verify with 1 extension test file / 7 tests, basic starter

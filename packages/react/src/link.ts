@@ -5,7 +5,7 @@ import {
   browserRouterLinkPreloadIdentity,
   isPlainLeftClick as coreIsPlainLeftClick,
   makeBrowserRouterLinkPreloader,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import {
   createElement,
   useEffect,

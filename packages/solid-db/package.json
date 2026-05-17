@@ -1,7 +1,7 @@
 {
-  "name": "@effect-ui/solid-db",
+  "name": "@sunfall/arc-solid-db",
   "version": "0.0.0-alpha.0",
-  "description": "Solid bindings for Effect UI collections and live queries.",
+  "description": "Solid bindings for Sunfall Arc collections and live queries.",
   "license": "MIT",
   "author": "Andrew Lee",
   "files": [
@@ -25,9 +25,9 @@
     "typecheck": "tsgo -p tsconfig.json --pretty false --noEmit"
   },
   "dependencies": {
-    "@effect-ui/core": "workspace:*",
-    "@effect-ui/db": "workspace:*",
-    "@effect-ui/solid": "workspace:*",
+    "@sunfall/arc-core": "workspace:*",
+    "@sunfall/arc-db": "workspace:*",
+    "@sunfall/arc-solid": "workspace:*",
     "effect": "^4.0.0-beta.66",
     "solid-js": "^1.9.12"
   }

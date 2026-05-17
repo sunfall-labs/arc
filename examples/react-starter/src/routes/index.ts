@@ -1,4 +1,4 @@
-import { defineFileRoute } from "@effect-ui/start";
+import { defineFileRoute } from "@sunfall/arc-start";
 import { WelcomeResource } from "../starter.js";
 import { HomePage } from "../HomePage.js";
 

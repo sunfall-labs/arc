@@ -7,7 +7,7 @@ import {
   Server,
   ServerClient,
   ServerTransportError,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import {
   createServerActionResponseEffect,
   createServerRpcResponseEffect,
@@ -704,7 +704,7 @@ describe("Start RPC transport", () => {
         const rpcDefectExit = yield* Effect.exit(
           executeStartClientTransportEffect({
             kind: "rpc",
-            endpoint: "https://example.com/__effect-ui/rpc",
+            endpoint: "https://example.com/__sunfall-arc/rpc",
             request: {
               name: "Start.transport.defect",
               input: {},
@@ -728,7 +728,7 @@ describe("Start RPC transport", () => {
         const rpcSuccessBadStatusExit = yield* Effect.exit(
           executeStartClientTransportEffect({
             kind: "rpc",
-            endpoint: "https://example.com/__effect-ui/rpc",
+            endpoint: "https://example.com/__sunfall-arc/rpc",
             request: {
               name: "Start.transport.status",
               input: {},
@@ -752,7 +752,7 @@ describe("Start RPC transport", () => {
         const actionDefectExit = yield* Effect.exit(
           executeStartClientTransportEffect({
             kind: "action",
-            endpoint: "https://example.com/__effect-ui/action",
+            endpoint: "https://example.com/__sunfall-arc/action",
             request: {
               name: "Start.action.defect",
               input: {},

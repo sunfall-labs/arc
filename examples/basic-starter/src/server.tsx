@@ -1,9 +1,9 @@
-import { RuntimeProvider } from "@effect-ui/solid";
+import { RuntimeProvider } from "@sunfall/arc-solid";
 import {
   createStartStreamedHtmlResponseEffect,
   createRequestHandler,
   htmlChunk,
-} from "@effect-ui/start";
+} from "@sunfall/arc-start";
 import { Effect, Stream } from "effect";
 import { createComponent, generateHydrationScript, renderToString } from "solid-js/web";
 import App from "./App.js";
@@ -16,7 +16,7 @@ const shellOpen = (solidHydrationScript: string): string => `<!doctype html>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Effect UI Starter</title>
+    <title>Sunfall Arc Starter</title>
     ${solidHydrationScript}
   </head>
   <body>
@@ -46,7 +46,7 @@ export const handleRequest = createRequestHandler(app, {
         hydrationPlan,
         tail: htmlChunk(shellClose(hydrationRootScript)),
         headers: {
-          "x-effect-ui-starter": "basic",
+          "x-sunfall-arc-starter": "basic",
         },
       });
     }),

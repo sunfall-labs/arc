@@ -1,4 +1,4 @@
-import { ResourceFailure } from "@effect-ui/core";
+import { ResourceFailure } from "@sunfall/arc-core";
 import { Effect, Exit, Schema } from "effect";
 import { ProjectErrorSchema, type ProjectError } from "./domain.contract.js";
 

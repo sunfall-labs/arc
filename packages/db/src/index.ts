@@ -6,7 +6,7 @@ import {
   type EnsureEffectInput,
   type ReadableSignal,
   runFork,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Effect, Option, PubSub, Schema, Scope } from "effect";
 import {
   backgroundSyncCollectionsPendingMutationsEffect,
@@ -734,7 +734,7 @@ export namespace Collection {
   export const serverOptions = serverCollectionOptions;
   /** Build a sync adapter from server functions or Effect callbacks. */
   export const serverSyncAdapter = serverCollectionSyncAdapter;
-  /** Adapt an `@effect-ui/core` Resource ref into a collection sync adapter. */
+  /** Adapt an `@sunfall/arc-core` Resource ref into a collection sync adapter. */
   export const resourceSyncAdapter = collectionResourceSyncAdapter;
   /** Adapt a query client style cache into a collection sync adapter. */
   export const querySyncAdapter = collectionQuerySyncAdapter;

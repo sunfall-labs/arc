@@ -11,8 +11,8 @@ import {
   type CollectionTransaction,
   type CollectionUpdate,
   type CollectionWriteOptions,
-} from "@effect-ui/db";
-import type { EffectInput } from "@effect-ui/core";
+} from "@sunfall/arc-db";
+import type { EffectInput } from "@sunfall/arc-core";
 import { Effect } from "effect";
 import { createMemo, type Accessor } from "solid-js";
 import { collectionStateError, makeSolidDbReactiveBinding } from "./shared.js";
@@ -36,7 +36,7 @@ export interface UseCollectionOptions<E = never, ER = never> {
 /**
  * Solid-facing handle for a collection.
  *
- * Accessors read from the nearest Effect UI runtime. Loading and refetching are
+ * Accessors read from the nearest Sunfall Arc runtime. Loading and refetching are
  * exposed as Effects so callers can compose or run them at UI boundaries.
  */
 export interface CollectionHandle<
@@ -110,7 +110,7 @@ export interface CollectionHandle<
 }
 
 /**
- * Subscribes a Solid component to an Effect UI collection.
+ * Subscribes a Solid component to an Sunfall Arc collection.
  *
  * The hook exposes rows, indexed lookups, load state, and Effect-returning
  * preload/refetch methods. It preloads on mount unless `preload` is false.

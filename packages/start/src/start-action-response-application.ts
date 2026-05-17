@@ -6,7 +6,7 @@ import {
   type ResourceHydrationSnapshot,
   type ResourceInvalidation,
   type ResourceInvalidationPlanEntry,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Effect } from "effect";
 import { hydrateStartPayloadEffect } from "./hydration.js";
 import type {

@@ -1,7 +1,7 @@
 {
-  "name": "@effect-ui/tsrx",
+  "name": "@sunfall/arc-tsrx",
   "version": "0.0.0-alpha.0",
-  "description": "TSRX and Solid Vite preset for Effect UI apps and starters.",
+  "description": "TSRX and Solid Vite preset for Sunfall Arc apps and starters.",
   "license": "MIT",
   "author": "Andrew Lee",
   "files": [

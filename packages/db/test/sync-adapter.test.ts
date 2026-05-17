@@ -1,5 +1,5 @@
-import { EffectInputCallbackError, Resource, Server, makeRuntime, toEffect } from "@effect-ui/core";
-import { Collection } from "@effect-ui/db";
+import { EffectInputCallbackError, Resource, Server, makeRuntime, toEffect } from "@sunfall/arc-core";
+import { Collection } from "@sunfall/arc-db";
 import { Deferred, Effect, Exit, Fiber, Option, PubSub, Scope } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import { makeCollectionChangeFeedDispatcherEffect } from "../src/change-feed-dispatcher.js";

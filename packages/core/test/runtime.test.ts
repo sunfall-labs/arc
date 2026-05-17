@@ -18,13 +18,13 @@ import {
   ServerClient,
 } from "../src/index.js";
 
-describe("Effect UI runtime", () => {
+describe("Sunfall Arc runtime", () => {
   interface Numbers {
     readonly get: (id: string) => Effect.Effect<number>;
     readonly save: (value: number) => Effect.Effect<number>;
   }
 
-  const Numbers = Context.Service<Numbers>("@effect-ui/core/test/Numbers");
+  const Numbers = Context.Service<Numbers>("@sunfall/arc-core/test/Numbers");
 
   const NumbersLive = Layer.succeed(Numbers)({
     get: (id) => Effect.succeed(id.length),

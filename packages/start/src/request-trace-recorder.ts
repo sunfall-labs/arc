@@ -1,4 +1,4 @@
-import type { EffectUiRuntime, Route } from "@effect-ui/core";
+import type { SunfallArcRuntime, Route } from "@sunfall/arc-core";
 import {
   traceCollectionPreload,
   traceRoutePlan,
@@ -46,7 +46,7 @@ export const recordStartRequestTraceAction = (
 
 export const recordStartRequestTracePreload = <RuntimeServices, RuntimeError>(
   facts: StartRequestTraceFacts,
-  runtime: EffectUiRuntime<RuntimeServices, RuntimeError>,
+  runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>,
   routePlan: Route.NavigationPlan,
   collectionPreload: StartCollectionPreloadTraceInput,
 ): void => {

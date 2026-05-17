@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
-  "name": "Effect UI Devtools",
+  "name": "Sunfall Arc Devtools",
   "version": "0.0.0",
-  "description": "Effect UI request trace and app graph panels.",
+  "description": "Sunfall Arc request trace and app graph panels.",
   "devtools_page": "devtools.html"
 }

@@ -1,10 +1,10 @@
-import { defineApp } from "@effect-ui/core";
-import { RuntimeProvider } from "@effect-ui/solid";
+import { defineApp } from "@sunfall/arc-core";
+import { RuntimeProvider } from "@sunfall/arc-solid";
 import {
   createStartStreamedHtmlResponseEffect,
   createRequestHandler,
   htmlChunk,
-} from "@effect-ui/start";
+} from "@sunfall/arc-start";
 import { Effect, Stream } from "effect";
 import { createComponent, generateHydrationScript, renderToString } from "solid-js/web";
 import App from "./App.js";
@@ -24,8 +24,8 @@ const shellOpen = (solidHydrationScript: string): string => `<!doctype html>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Effect UI Cookbook</title>
-    <link rel="stylesheet" href="/src/styles.css" data-effect-ui-docs-dev-style />
+    <title>Sunfall Arc Cookbook</title>
+    <link rel="stylesheet" href="/src/styles.css" data-sunfall-arc-docs-dev-style />
     ${solidHydrationScript}
   </head>
   <body>
@@ -57,7 +57,7 @@ export const handleRequest = createRequestHandler(serverApp, {
         hydrationPlan,
         tail: htmlChunk(shellClose(hydrationPlan.root.script)),
         headers: {
-          "x-effect-ui-docs": "cookbook",
+          "x-sunfall-arc-docs": "cookbook",
         },
       });
     }),

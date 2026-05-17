@@ -1,12 +1,12 @@
-import { EffectInputCallbackError, invokeEffectInput } from "@effect-ui/core";
-import type { EffectInput } from "@effect-ui/core";
+import { EffectInputCallbackError, invokeEffectInput } from "@sunfall/arc-core";
+import type { EffectInput } from "@sunfall/arc-core";
 import { Data, Effect } from "effect";
 import type { CollectionPersistenceStorage } from "./collection-contract.js";
 
 /** Default SQLite table used by collection persistence helpers. */
 export const SQLITE_PERSISTENCE_DEFAULT_TABLE = "effect_ui_collection_persistence";
 /** Default namespace prefix for persisted collection snapshot rows. */
-export const SQLITE_PERSISTENCE_DEFAULT_NAMESPACE = "effect-ui:collections";
+export const SQLITE_PERSISTENCE_DEFAULT_NAMESPACE = "sunfall-arc:collections";
 /** Default schema version written to collection persistence rows. */
 export const SQLITE_PERSISTENCE_DEFAULT_SCHEMA_VERSION = 1;
 

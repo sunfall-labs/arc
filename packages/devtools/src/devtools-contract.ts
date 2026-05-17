@@ -7,7 +7,7 @@ import {
   type ResourceInvalidationPlan,
   type ResourceStoreEvent,
   type Route,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Data, type Effect, type Fiber, type Scope } from "effect";
 
 /**
@@ -342,7 +342,7 @@ export interface DevtoolsRequestTraceTeardown {
 /**
  * Structural request trace contract consumed by Devtools.
  *
- * Start emits this shape without depending on `@effect-ui/devtools`; adapters
+ * Start emits this shape without depending on `@sunfall/arc-devtools`; adapters
  * can record compatible traces when they preserve the same failure and teardown
  * semantics.
  */
@@ -1339,7 +1339,7 @@ export interface DevtoolsPanelsInput extends DevtoolsSummaryInput {
 
 /** Rendering options shared by Devtools HTML and mount helpers. */
 export interface DevtoolsPanelUiOptions {
-  /** Page or widget title. Defaults to the built-in Effect UI Devtools title. */
+  /** Page or widget title. Defaults to the built-in Sunfall Arc Devtools title. */
   readonly title?: string;
   /** Panel selected on first render or update. Defaults to the first panel. */
   readonly selectedPanelId?: DevtoolsPanelId;

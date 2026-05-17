@@ -1,19 +1,19 @@
-# Effect UI Basic Starter
+# Sunfall Arc Basic Starter
 
-This is the smallest checked starter path for a full-stack Effect UI app. It
+This is the smallest checked starter path for a full-stack Sunfall Arc app. It
 keeps the same shape as the project console without the local-first DB,
 actions, or diagnostics demo data.
 
 Run it locally:
 
 ```sh
-pnpm --filter @effect-ui/starter-basic dev
+pnpm --filter @sunfall/arc-starter-basic dev
 ```
 
 Verify the starter:
 
 ```sh
-pnpm --filter @effect-ui/starter-basic verify
+pnpm --filter @sunfall/arc-starter-basic verify
 ```
 
 The starter proves:

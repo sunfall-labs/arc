@@ -13,7 +13,7 @@ export interface RequestContext {
   readonly cookies: ReadonlyMap<string, string>;
 }
 
-export const RequestContext = Context.Service<RequestContext>("@effect-ui/core/RequestContext");
+export const RequestContext = Context.Service<RequestContext>("@sunfall/arc-core/RequestContext");
 
 /** Accepted SameSite spellings for response cookies. */
 export type ResponseCookieSameSite = "Strict" | "Lax" | "None" | "strict" | "lax" | "none";
@@ -85,7 +85,7 @@ export interface ResponseContext {
   ): Effect.Effect<void, ResponseCookieSerializationError>;
 }
 
-export const ResponseContext = Context.Service<ResponseContext>("@effect-ui/core/ResponseContext");
+export const ResponseContext = Context.Service<ResponseContext>("@sunfall/arc-core/ResponseContext");
 
 const parseCookies = (header: string | null): ReadonlyMap<string, string> => {
   const cookies = new Map<string, string>();

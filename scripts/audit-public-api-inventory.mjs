@@ -303,7 +303,7 @@ const manifestSourceDistStem = (entry, packageDirectory) => {
     return undefined;
   }
 
-  if (entry.package === "@effect-ui/start" && entry.export === "./virtual") {
+  if (entry.package === "@sunfall/arc-start" && entry.export === "./virtual") {
     return "virtual";
   }
 
@@ -566,7 +566,7 @@ const assertTypeTestReferenceSelfTest = (name, source, references, expectedFragm
     ts.ScriptKind.TS,
   );
   const entry = {
-    package: "@effect-ui/self-test",
+    package: "@sunfall/arc-self-test",
     export: "./virtual",
     typeTest: `${name}.test-d.ts`,
     typeTestReferences: references,
@@ -588,22 +588,22 @@ const assertTypeTestReferenceSelfTest = (name, source, references, expectedFragm
 
 assertTypeTestReferenceSelfTest(
   "valid structural references",
-  `import actionManifest, { type ActionManifestEntry } from "virtual:effect-ui/actions";
+  `import actionManifest, { type ActionManifestEntry } from "virtual:sunfall-arc/actions";
 const values: Array<unknown> = [actionManifest];
 type Entry = ActionManifestEntry;
 `,
-  ["virtual:effect-ui/actions", "actionManifest", "ActionManifestEntry"],
+  ["virtual:sunfall-arc/actions", "actionManifest", "ActionManifestEntry"],
   [],
 );
 assertTypeTestReferenceSelfTest(
   "substring references rejected",
-  `import { type ActionManifestEntry } from "virtual:effect-ui/actions";
-const text = "virtual:effect-ui/server-functions actionManifest ActionManifestEntry";
+  `import { type ActionManifestEntry } from "virtual:sunfall-arc/actions";
+const text = "virtual:sunfall-arc/server-functions actionManifest ActionManifestEntry";
 void text;
 `,
-  ["virtual:effect-ui/server-functions", "actionManifest", "ActionManifestEntry"],
+  ["virtual:sunfall-arc/server-functions", "actionManifest", "ActionManifestEntry"],
   [
-    "virtual module virtual:effect-ui/server-functions",
+    "virtual module virtual:sunfall-arc/server-functions",
     "symbol reference actionManifest",
     "symbol reference ActionManifestEntry",
   ],
@@ -898,7 +898,7 @@ const sourceSurfaceCoverageFailures = (entry, actualModules) => {
 const assertSourceSurfaceSelfTest = (name, sourceSurface, actualModules, expectedFragments) => {
   const failures = sourceSurfaceCoverageFailures(
     {
-      package: "@effect-ui/self-test",
+      package: "@sunfall/arc-self-test",
       export: "./subpath",
       source: "packages/self-test/src/subpath.ts",
       sourceSurface,

@@ -21,25 +21,25 @@ unless this document explicitly promotes them.
 
 | Package                  | Export                 | Source                                     | Classification | Release decision                                                                  |
 | ------------------------ | ---------------------- | ------------------------------------------ | -------------- | --------------------------------------------------------------------------------- |
-| `@effect-ui/core`        | `.`                    | `packages/core/src/index.ts`               | Public         | Keep as the core application/runtime surface.                                     |
-| `@effect-ui/start`       | `.`                    | `packages/start/src/index.ts`              | Public         | Keep as the full-stack runtime surface.                                           |
-| `@effect-ui/start`       | `./vite`               | `packages/start/src/vite.ts`               | Public         | Keep as the build-plugin and diagnostics runner surface.                          |
-| `@effect-ui/start`       | `./diagnostics-report` | `packages/start/src/diagnostics-report.ts` | Public         | Keep as CI/agent repair report surface.                                           |
-| `@effect-ui/start`       | `./cli`                | `packages/start/src/cli.ts`                | Expert public  | Keep as the Effect-native diagnostics CLI runner surface for tests and embedding. |
-| `@effect-ui/start`       | `./adapters`           | `packages/start/src/adapters.ts`           | Public         | Keep as the compatibility facade for Node/fetch host integration.                 |
-| `@effect-ui/start`       | `./fetch-adapter`      | `packages/start/src/fetch-adapter.ts`      | Expert public  | Keep as the fetch-only host adapter surface for bundle-sensitive hosts.           |
-| `@effect-ui/start`       | `./node-adapter`       | `packages/start/src/node-adapter.ts`       | Expert public  | Keep as the Node HTTP host adapter surface for server integrations.               |
-| `@effect-ui/start`       | `./virtual`            | `packages/start/src/virtual-modules.d.ts`  | Expert public  | Keep as type-only virtual module declarations.                                    |
-| `@effect-ui/start`       | `effect-ui-start` bin  | `packages/start/src/cli.ts`                | Expert public  | Keep for app graph diagnostics automation.                                        |
-| `@effect-ui/start-node`  | `.`                    | `packages/start-node/src/index.ts`         | Public         | Keep as the Node HTTP adapter facade.                                             |
-| `@effect-ui/start-fetch` | `.`                    | `packages/start-fetch/src/index.ts`        | Public         | Keep as the generic Fetch-host adapter facade.                                    |
-| `@effect-ui/db`          | `.`                    | `packages/db/src/index.ts`                 | Public         | Keep as the collection/live-query surface.                                        |
-| `@effect-ui/devtools`    | `.`                    | `packages/devtools/src/index.ts`           | Public         | Keep as the JSON-safe inspection contract.                                        |
-| `@effect-ui/react`       | `.`                    | `packages/react/src/index.ts`              | Public         | Keep as the React adapter surface.                                                |
-| `@effect-ui/react-db`    | `.`                    | `packages/react-db/src/index.ts`           | Public         | Keep as the React collection adapter surface.                                     |
-| `@effect-ui/solid`       | `.`                    | `packages/solid/src/index.ts`              | Public         | Keep as the Solid adapter surface.                                                |
-| `@effect-ui/solid-db`    | `.`                    | `packages/solid-db/src/index.ts`           | Public         | Keep as the Solid collection adapter surface.                                     |
-| `@effect-ui/tsrx`        | `.`                    | `packages/tsrx/src/index.ts`               | Public         | Keep as the Vite/TSRX preset.                                                     |
+| `@sunfall/arc-core`        | `.`                    | `packages/core/src/index.ts`               | Public         | Keep as the core application/runtime surface.                                     |
+| `@sunfall/arc-start`       | `.`                    | `packages/start/src/index.ts`              | Public         | Keep as the full-stack runtime surface.                                           |
+| `@sunfall/arc-start`       | `./vite`               | `packages/start/src/vite.ts`               | Public         | Keep as the build-plugin and diagnostics runner surface.                          |
+| `@sunfall/arc-start`       | `./diagnostics-report` | `packages/start/src/diagnostics-report.ts` | Public         | Keep as CI/agent repair report surface.                                           |
+| `@sunfall/arc-start`       | `./cli`                | `packages/start/src/cli.ts`                | Expert public  | Keep as the Effect-native diagnostics CLI runner surface for tests and embedding. |
+| `@sunfall/arc-start`       | `./adapters`           | `packages/start/src/adapters.ts`           | Public         | Keep as the compatibility facade for Node/fetch host integration.                 |
+| `@sunfall/arc-start`       | `./fetch-adapter`      | `packages/start/src/fetch-adapter.ts`      | Expert public  | Keep as the fetch-only host adapter surface for bundle-sensitive hosts.           |
+| `@sunfall/arc-start`       | `./node-adapter`       | `packages/start/src/node-adapter.ts`       | Expert public  | Keep as the Node HTTP host adapter surface for server integrations.               |
+| `@sunfall/arc-start`       | `./virtual`            | `packages/start/src/virtual-modules.d.ts`  | Expert public  | Keep as type-only virtual module declarations.                                    |
+| `@sunfall/arc-start`       | `sunfall-arc-start` bin  | `packages/start/src/cli.ts`                | Expert public  | Keep for app graph diagnostics automation.                                        |
+| `@sunfall/arc-start-node`  | `.`                    | `packages/start-node/src/index.ts`         | Public         | Keep as the Node HTTP adapter facade.                                             |
+| `@sunfall/arc-start-fetch` | `.`                    | `packages/start-fetch/src/index.ts`        | Public         | Keep as the generic Fetch-host adapter facade.                                    |
+| `@sunfall/arc-db`          | `.`                    | `packages/db/src/index.ts`                 | Public         | Keep as the collection/live-query surface.                                        |
+| `@sunfall/arc-devtools`    | `.`                    | `packages/devtools/src/index.ts`           | Public         | Keep as the JSON-safe inspection contract.                                        |
+| `@sunfall/arc-react`       | `.`                    | `packages/react/src/index.ts`              | Public         | Keep as the React adapter surface.                                                |
+| `@sunfall/arc-react-db`    | `.`                    | `packages/react-db/src/index.ts`           | Public         | Keep as the React collection adapter surface.                                     |
+| `@sunfall/arc-solid`       | `.`                    | `packages/solid/src/index.ts`              | Public         | Keep as the Solid adapter surface.                                                |
+| `@sunfall/arc-solid-db`    | `.`                    | `packages/solid-db/src/index.ts`           | Public         | Keep as the Solid collection adapter surface.                                     |
+| `@sunfall/arc-tsrx`        | `.`                    | `packages/tsrx/src/index.ts`               | Public         | Keep as the Vite/TSRX preset.                                                     |
 
 ## Type-Test Coverage
 
@@ -84,7 +84,7 @@ coverage.
 
 ## Source Surface By Package
 
-### `@effect-ui/core`
+### `@sunfall/arc-core`
 
 The root export re-exports these local modules:
 
@@ -106,8 +106,8 @@ Golden-path public groups:
   `Program`
 - `Server`, `ServerClient`, request/response context services
 - `Signal`, `Form`, `Capability`, `UiScope`
-- `makeRuntime`, `runWithRuntime`, `runFork`, `EffectUiRuntime.provide(...)`,
-  `AnyEffectUiRuntime`
+- `makeRuntime`, `runWithRuntime`, `runFork`, `SunfallArcRuntime.provide(...)`,
+  `AnySunfallArcRuntime`
 - Runtime Provider lifecycle vocabulary:
   `RuntimeProviderDisposeObserver`, `RuntimeProviderLifecycleOptions`,
   `DisposeRuntimeProviderLifecycleOptions`,
@@ -185,10 +185,10 @@ Release decisions:
   `UiScope` lifetimes whose late finalizers and disposal run through the owning
   Runtime Spine, keeping component, route, and preload cleanup on the same
   Effect runner as the work they own.
-- `EffectUiRuntime<R, ER>` is the typed Runtime Spine: `provide(...)` removes
+- `SunfallArcRuntime<R, ER>` is the typed Runtime Spine: `provide(...)` removes
   only services actually present in `R` plus the Resource Store, and
   `runFork(...)`/`runSync(...)` only accept Effects whose requirements are
-  satisfied by that runtime. `AnyEffectUiRuntime<ER>` is the explicit Erased
+  satisfied by that runtime. `AnySunfallArcRuntime<ER>` is the explicit Erased
   Runtime Runner host seam for Solid contexts, platform adapters, and ambient
   runtime plumbing where TypeScript cannot name the app's concrete service set.
   Host boundaries that must resolve a platform Promise should call
@@ -362,11 +362,11 @@ Release decisions:
   `resource-snapshot-codec`, `resource-ui-binding`, and `route-grammar` are
   expert-public Modules.
   They are stable enough for adapters, diagnostics, generated manifests, and
-  tests to import from `@effect-ui/core`, while app code should generally use
+  tests to import from `@sunfall/arc-core`, while app code should generally use
   the higher-level `Action`, `Resource`, `Route`, `Server`, and `defineApp`
   facades.
 
-### `@effect-ui/start`
+### `@sunfall/arc-start`
 
 The root export includes:
 
@@ -493,7 +493,7 @@ The root export includes:
 - Effect-native observability metrics:
   `startRequestCountMetric`, `startRequestDurationMetric`, and
   `startRequestStatusMetric`.
-- The `@effect-ui/start/cli` subpath exposes the Effect-native diagnostics CLI
+- The `@sunfall/arc-start/cli` subpath exposes the Effect-native diagnostics CLI
   parser and runner for tests, agents, and embedding: `parseStartDiagnosticsCliArgsEffect(...)`,
   `parseStartDiagnosticsCliArgs(...)`, `runStartDiagnosticsCliEffect(...)`,
   `runStartDiagnosticsCli(...)`, `runStartDiagnosticsCliMainEffect(...)`, and
@@ -546,7 +546,7 @@ The root export includes:
 
 Subpath exports:
 
-- `./vite` owns `effectUiStart`, file route discovery, virtual module creation,
+- `./vite` owns `sunfallArcStart`, file route discovery, virtual module creation,
   build-policy validation, app graph diagnostics loading, prerendering, and SSR
   dev handling.
   Manifest-pinned Source Surface Modules: `app-graph`,
@@ -554,12 +554,12 @@ Subpath exports:
   `generated-route-definitions`, `start-app-graph-diagnostics-policy`,
   `start-manifest-wall`, `start-prerender`, `start-virtual-modules`,
   `start-vite-dev-ssr`, and `start-vite-diagnostics-loader`.
-  `effectUiStart` returns the concrete `EffectUiStartPlugin` interface rather
+  `sunfallArcStart` returns the concrete `SunfallArcStartPlugin` interface rather
   than a broad Vite `PluginOption`, and its SSR module handler type is named
   `StartSsrRequestHandler` so it cannot be confused with the root Effect
   request handler. `StartSsrHandlerModule` and `StartDevServer<R>` preserve
   serviceful dev SSR handler Effects for expert tests/adapters, while
-  `EffectUiStartOptions.devSsr` / `StartViteDevSsrOptions` provide the runtime
+  `SunfallArcStartOptions.devSsr` / `StartViteDevSsrOptions` provide the runtime
   and run options used by the Vite middleware fork seam. The middleware contains
   synchronous fork/listener setup failures through Vite's `next(error)` path and
   reports erased non-`Response` handler results as typed `StartDevServerError`
@@ -584,10 +584,10 @@ Subpath exports:
   `formatStartAgentGraph(...)` project resolved Start diagnostics into typed
   agent-readable route/action/resource/collection/module/finding facts and
   high-signal edit impact briefs. The package binary exposes the same
-  projection through `effect-ui-start graph` and `effect-ui-start impact`, with
+  projection through `sunfall-arc-start graph` and `sunfall-arc-start impact`, with
   concise text by default, raw graph detail behind `--verbose`, and complete
   machine payloads behind `--json`.
-- `EffectUiStartOptions.prerender` enables production static prerendering from
+- `SunfallArcStartOptions.prerender` enables production static prerendering from
   the Vite plugin. The Vite subpath exports `StartPrerenderOptions`,
   `planStartPrerenderPages(...)`, `resolveStartPrerenderOptions(...)`,
   `runStartPrerenderEffect(...)`, and `StartPrerenderError` for adapter tests
@@ -607,7 +607,7 @@ Subpath exports:
   platforms that require `(request) => Promise<Response>`; it wires the incoming
   `Request.signal` into Effect run options so host aborts interrupt request
   Effects instead of leaving detached work behind. `StartRequestHandlerError`
-  is re-exported from this subpath and from `@effect-ui/start-fetch`.
+  is re-exported from this subpath and from `@sunfall/arc-start-fetch`.
 - `./node-adapter` owns Start Node handler invocation and Node HTTP server
   callback wiring. It re-exports expert-public Node Web Exchange helpers for
   compatibility: Node request origin reconstruction, Web Request conversion,
@@ -617,13 +617,13 @@ Subpath exports:
   handler service requirements, and Node server error hooks accept pure values
   or Effects, not Promise-shaped callbacks.
   `StartRequestHandlerError` and `StartNodeAdapterError` are also re-exported
-  from `@effect-ui/start-node`.
+  from `@sunfall/arc-start-node`.
 - `./virtual` owns virtual module typings only.
-- `effect-ui-start` owns diagnostics and agent graph CLI execution. Its
+- `sunfall-arc-start` owns diagnostics and agent graph CLI execution. Its
   bin/host wrapper defines the command tree with Effect v4 `Command`, `Flag`,
   and `Argument` primitives, including variadic graph/impact `[kind] [query]`
   arguments and inherited graph `--verbose` shared-flag context. The
-  `@effect-ui/start/cli`
+  `@sunfall/arc-start/cli`
   subpath's manifest-pinned Source Surface Module is
   `start-diagnostics-cli-runner`. The internal Start Agent Graph Vocabulary
   Module owns query kinds, query-to-node mapping, and node-to-impact-relation
@@ -657,7 +657,7 @@ Release decisions:
 - `./vite` exports low-level manifest and virtual-module helpers as expert
   public because CI scripts, starter generators, and agent tooling need to run
   the same graph and diagnostics code as the plugin.
-- `EffectUiStartPlugin` is public because tests, CI helpers, and starter tools
+- `SunfallArcStartPlugin` is public because tests, CI helpers, and starter tools
   should be able to call the Start Vite plugin hooks without re-narrowing Vite's
   broad `PluginOption` union.
 - The root `StartRequestHandler` is the Effect-returning request handler
@@ -669,22 +669,22 @@ Release decisions:
   `handleSsrDevRequest(...)`, `startDevServerFromVite(...)`,
   `StartDevServerError`, and `StartHandlerNotFound` have direct type-test and
   hover-policy pins because custom Vite hosts can consume that Adapter without
-  going through `effectUiStart(...)`.
+  going through `sunfallArcStart(...)`.
 - Vite dev SSR request conversion accepts the same Node origin and forwarded
   header policy as the Node adapter through `HandleSsrDevRequestOptions`,
-  `HandleSsrDevMiddlewareOptions`, and `EffectUiStartOptions.nodeRequest`, so
+  `HandleSsrDevMiddlewareOptions`, and `SunfallArcStartOptions.nodeRequest`, so
   development and production host adapters do not disagree about public request
   URLs. The middleware Adapter owns the Node request lifecycle, merged abort
   signal injection, host-fiber interruption, response writing, `next(error)`
   containment, and listener disposal for both the plugin path and direct
   custom callers.
 - Serviceful Vite dev SSR handlers should provide app services through
-  `EffectUiStartOptions.devSsr.runtime`. The server-entry handler still owns
+  `SunfallArcStartOptions.devSsr.runtime`. The server-entry handler still owns
   request/runtime construction; the Vite Adapter only owns the host callback
   fork seam and abort/run options.
 - `StartRequestTrace` is intentionally structural with
   `DevtoolsRequestTrace`. Keep type-test coverage so Start can emit devtools
-  facts without depending on `@effect-ui/devtools`.
+  facts without depending on `@sunfall/arc-devtools`.
 - `StartActionInvalidationPlan` is intentionally structural with
   `DevtoolsInvalidationPlan`. Start owns the action transport metadata and
   devtools consumes the serialized plan through `serializedInvalidationPlan`
@@ -692,20 +692,20 @@ Release decisions:
 - The root re-exports `Action`, `Resource`, `Route`, `Server`, `Signal`,
   `defineApp`, and related Core helpers as starter convenience aliases. Treat
   them as expert-public compatibility exports in inventory and type tests; docs
-  for domain Modules should still import Core concepts from `@effect-ui/core`
+  for domain Modules should still import Core concepts from `@sunfall/arc-core`
   so ownership stays clear.
-- `virtual:effect-ui/routes` intentionally exposes broad route maps because it
+- `virtual:sunfall-arc/routes` intentionally exposes broad route maps because it
   must type-check before app-specific route generation. Apps and agents that
   need exact literal route ids, paths, params, search, or href options should
   import the written generated route definitions artifact.
-- `virtual:effect-ui/app-graph` is a static DTO module for generated route,
+- `virtual:sunfall-arc/app-graph` is a static DTO module for generated route,
   server-function, and action topology. It intentionally does not import route
   implementations. Tooling that needs runtime route-module/resource/collection
   diagnostics should import
-  `virtual:effect-ui/app-graph/runtime-diagnostics` explicitly, making that
+  `virtual:sunfall-arc/app-graph/runtime-diagnostics` explicitly, making that
   heavier Adapter seam visible in the import graph.
 
-### `@effect-ui/start-node`
+### `@sunfall/arc-start-node`
 
 The root export includes the Node HTTP adapter facade:
 
@@ -722,11 +722,11 @@ The root export includes the Node HTTP adapter facade:
 
 Release decisions:
 
-- Keep the package as a thin facade over `@effect-ui/start/node-adapter` so
+- Keep the package as a thin facade over `@sunfall/arc-start/node-adapter` so
   Node users have an obvious install/import path without duplicating adapter
   logic or pulling Node imports into fetch-only bundles.
 
-### `@effect-ui/start-fetch`
+### `@sunfall/arc-start-fetch`
 
 The root export includes the generic Fetch-host adapter facade:
 
@@ -747,11 +747,11 @@ The root export includes the generic Fetch-host adapter facade:
 
 Release decisions:
 
-- Keep the package as a thin facade over `@effect-ui/start/fetch-adapter` so
+- Keep the package as a thin facade over `@sunfall/arc-start/fetch-adapter` so
   Fetch, edge-style, and test hosts can use a host-shaped import while sharing
   the same tested, Node-free adapter implementation.
 
-### `@effect-ui/db`
+### `@sunfall/arc-db`
 
 The root export includes:
 
@@ -869,7 +869,7 @@ Release decisions:
   once so snapshot execution, projection, preload/refetch, Live Query State,
   and Live Query Runtime share stage policy. The internal Query Stage Plan is
   exported only for sibling DB modules and is not re-exported from
-  `@effect-ui/db`; public Query APIs stay unchanged.
+  `@sunfall/arc-db`; public Query APIs stay unchanged.
 - The internal Query Context Identity Module owns source alias/key identity,
   collection row delta identity, merged context identity, ordered tie-break
   identity, and IVM context metadata shared by Query Execution Plan and Live
@@ -1013,7 +1013,7 @@ Release decisions:
   in adapter, tooling, and recipe code, so missing JSDoc on those declarations fails
   `pnpm audit:public-api`.
 
-### `@effect-ui/devtools`
+### `@sunfall/arc-devtools`
 
 The root export includes:
 
@@ -1028,10 +1028,10 @@ The root export includes:
   `isDevtoolsPanelMetric(...)`, `isDevtoolsPanelItem(...)`,
   `isDevtoolsPanelOverflowItem(...)`, `isDevtoolsPanel(...)`,
   `isDevtoolsPanels(...)`, and `normalizeDevtoolsPanels(...)` plus
-  `normalizeEffectUiDevtoolsBridgePayload(...)`;
+  `normalizeSunfallArcDevtoolsBridgePayload(...)`;
 - panel contract resolvers and typed diagnostics:
   `resolveDevtoolsPanelContract(...)`, `resolveDevtoolsPanelsInput(...)`,
-  `resolveEffectUiDevtoolsBridgePayload(...)`,
+  `resolveSunfallArcDevtoolsBridgePayload(...)`,
   `DevtoolsPanelContractError`, `DevtoolsPanelContractErrorReason`,
   `DevtoolsPanelContractResolution`, and
   `DevtoolsBridgePayloadContractResolution`;
@@ -1042,7 +1042,7 @@ The root export includes:
   `DevtoolsPanelBoot`, and `DevtoolsPanelBootOptions` for app and extension
   shells that want panel mount, bridge polling, and cleanup managed as
   Effect/Fiber-owned lifecycle work;
-- `effectUiDevtoolsBridgeGlobal`, `installDevtoolsBridge`, and
+- `sunfallArcDevtoolsBridgeGlobal`, `installDevtoolsBridge`, and
   `installDevtoolsBridgeEffect` for exposing a scoped inspected-window bridge
   to browser extension panels;
 - JSON-safe serialization helpers, including the public
@@ -1066,7 +1066,7 @@ Release decisions:
 - `DevtoolsInvalidationPlan` is public as an inspection data contract. Start
   emits a compatible `StartActionInvalidationPlan`, and type tests pin the
   structural compatibility so devtools can consume full-stack action metadata
-  without importing `@effect-ui/start`.
+  without importing `@sunfall/arc-start`.
 - `DevtoolsSummary`, `DevtoolsCausalGraph`, and the first `DevtoolsPanels`
   model should be treated as stable data contracts for agents and UI panels.
 - `DevtoolsStore` is an explicit public Interface, not an inferred factory
@@ -1097,7 +1097,7 @@ Release decisions:
   own display limits without depending on the private id prefix.
 - Devtools Panel Contract resolver exports are pinned as public diagnostics
   APIs: `resolveDevtoolsPanelContract(...)`, `resolveDevtoolsPanelsInput(...)`,
-  and `resolveEffectUiDevtoolsBridgePayload(...)` return valid DTOs or typed
+  and `resolveSunfallArcDevtoolsBridgePayload(...)` return valid DTOs or typed
   diagnostics backed by `DevtoolsPanelContractError` reason/result types instead
   of forcing hosts to collapse malformed panel payloads to `undefined`.
 - Raw Devtools snapshots may contain detached `unknown` inspection facts owned
@@ -1119,7 +1119,7 @@ Release decisions:
 - `NormalizeDevtoolsAppGraphDiagnosticsOptions` is root-exported with the
   normalizer so snapshot-copy and summary code can preserve already-derived
   preload facts without relying on an unimportable options type.
-- `normalizeEffectUiDevtoolsBridgePayload(...)` returns detached panel DTOs, not
+- `normalizeSunfallArcDevtoolsBridgePayload(...)` returns detached panel DTOs, not
   inspected-window object references. Hostile getters/proxies can invalidate a
   payload, but a valid normalized payload is bounded and safe for renderers to
   inspect later.
@@ -1149,7 +1149,7 @@ Release decisions:
   assertions there; `type-tests/framework.test-d.ts` should keep only
   cross-package compatibility checks with Core, DB, or Start.
 
-### `@effect-ui/react`
+### `@sunfall/arc-react`
 
 The root export includes:
 
@@ -1167,7 +1167,7 @@ Release decisions:
 
 - Keep the first React slice focused on the runtime and data hooks needed to
   make React component ecosystems such as Base UI and shadcn usable inside
-  Effect UI apps.
+  Sunfall Arc apps.
 - React hooks expose current values directly, such as `resource.value` and
   `program.model`, instead of Solid-style accessor functions. Effect-returning
   methods remain the shared cross-adapter composition surface.
@@ -1184,9 +1184,9 @@ Release decisions:
   finalizers and forks are rejected until React commits the component so
   abandoned renders cannot leak Effect work. Cleanup uses the same replay-aware
   microtask policy as `RuntimeProvider`. The commit-scope frame helper remains
-  a React Adapter internal and is not root-exported from `@effect-ui/react`.
+  a React Adapter internal and is not root-exported from `@sunfall/arc-react`.
 - React router helpers mirror the Solid route helper surface while exposing
-  state through Effect UI `Signal` values that React components consume via
+  state through Sunfall Arc `Signal` values that React components consume via
   `useSignal(...)`.
 - React router preload matching uses the same ordered route list as navigation,
   so shadowed static/dynamic hrefs preload the route that `RouterProvider`
@@ -1234,7 +1234,7 @@ Release decisions:
   Promise-shaped messages, Effect-shaped messages, and `undefined` are
   rejected.
 
-### `@effect-ui/react-db`
+### `@sunfall/arc-react-db`
 
 The root export includes:
 
@@ -1245,8 +1245,8 @@ The root export includes:
 
 Release decisions:
 
-- Keep `Collection` and `Query` re-exports because `@effect-ui/react-db` is the
-  React DB entrypoint. Domain modules should still import from `@effect-ui/db`
+- Keep `Collection` and `Query` re-exports because `@sunfall/arc-react-db` is the
+  React DB entrypoint. Domain modules should still import from `@sunfall/arc-db`
   when they are adapter-independent.
 - The focused React DB type test and public API manifest pin `Collection`,
   `Query`, `useCollection`, `useLiveQuery`, `CollectionHandle`, and
@@ -1271,7 +1271,7 @@ Release decisions:
   EffectInput, while Promise-shaped observers are rejected at the EffectInput
   seam.
 
-### `@effect-ui/solid`
+### `@sunfall/arc-solid`
 
 The root export includes:
 
@@ -1288,7 +1288,7 @@ The root export includes:
 Release decisions:
 
 - Keep core re-exports for Solid ergonomics. Documentation should still name
-  `@effect-ui/core` as the owner of Resource, Action, Route, Signal, Form,
+  `@sunfall/arc-core` as the owner of Resource, Action, Route, Signal, Form,
   Capability, and runtime semantics so app code can move across adapters.
 - Solid `RuntimeProvider` accepts `onDisposeFailure(...)` only when it owns the
   runtime through `source` or the default runtime path. The observer is
@@ -1358,7 +1358,7 @@ Release decisions:
   Suspense preload-token dedupe. Solid remains responsible for Accessor-shaped
   reactivity, owner cleanup hooks, and the Solid Suspense thenable throw seam.
 
-### `@effect-ui/solid-db`
+### `@sunfall/arc-solid-db`
 
 The root export includes:
 
@@ -1369,8 +1369,8 @@ The root export includes:
 
 Release decisions:
 
-- Keep `Collection` and `Query` re-exports because `@effect-ui/solid-db` is the
-  Solid DB entrypoint. Docs should present direct `@effect-ui/db` imports for
+- Keep `Collection` and `Query` re-exports because `@sunfall/arc-solid-db` is the
+  Solid DB entrypoint. Docs should present direct `@sunfall/arc-db` imports for
   adapter-independent domain modules.
 - The focused Solid DB type test and public API manifest pin `Collection`,
   `Query`, `useCollection`, `useLiveQuery`, `CollectionHandle`, and
@@ -1395,26 +1395,26 @@ Release decisions:
   EffectInput, while Promise-shaped observers are rejected at the EffectInput
   seam.
 
-### `@effect-ui/tsrx`
+### `@sunfall/arc-tsrx`
 
 The root export includes:
 
-- `effectUiTsrx(options)` and the default export for TSRX/Solid Vite setup.
+- `sunfallArcTsrx(options)` and the default export for TSRX/Solid Vite setup.
   Its dependency-discovery policy plugin is scoped to Vite's dev server
   (`apply: "serve"`) so production builds use the transform plugins without
   carrying dev-only optimize-deps policy.
 
 Release decisions:
 
-- Keep `@effect-ui/tsrx` as the one-call TSRX/Solid preset for starters and
+- Keep `@sunfall/arc-tsrx` as the one-call TSRX/Solid preset for starters and
   examples. Advanced apps can preserve the same ordering manually by composing
-  `effectUiStart`, `@tsrx/vite-plugin-solid`, and `vite-plugin-solid` when they
+  `sunfallArcStart`, `@tsrx/vite-plugin-solid`, and `vite-plugin-solid` when they
   need plugin ordering control.
 
 ## Cross-Package Release Notes
 
 - Framework packages under `packages/*` are configured as publishable public
-  scoped packages under `@effect-ui/*`; the workspace root and copyable
+  scoped packages under `@sunfall/arc-*`; the workspace root and copyable
   example/starter source packages remain `private: true`.
 - Framework package manifests now include `description`, `license: "MIT"`,
   `author: "Andrew Lee"`, `publishConfig.access: "public"`, `main`, `types`,

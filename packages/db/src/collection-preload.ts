@@ -16,7 +16,7 @@ export interface CollectionPreloadCollector {
 
 /** Context tag for the active Collection preload collector. */
 export const CollectionPreloadCollector = Context.Service<CollectionPreloadCollector>(
-  "@effect-ui/db/CollectionPreloadCollector",
+  "@sunfall/arc-db/CollectionPreloadCollector",
 );
 
 export interface CollectionPreloadCollected<A> {

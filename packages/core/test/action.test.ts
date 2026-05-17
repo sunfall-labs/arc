@@ -620,8 +620,8 @@ describe("Action", () => {
     interface CallerApi {
       readonly suffix: string;
     }
-    const RuntimeApi = Context.Service<RuntimeApi>("@effect-ui/core/test/ActionRuntimeApi");
-    const CallerApi = Context.Service<CallerApi>("@effect-ui/core/test/ActionCallerApi");
+    const RuntimeApi = Context.Service<RuntimeApi>("@sunfall/arc-core/test/ActionRuntimeApi");
+    const CallerApi = Context.Service<CallerApi>("@sunfall/arc-core/test/ActionCallerApi");
     const runtime = makeRuntime(
       Layer.succeed(RuntimeApi)({
         prefix: "runtime",

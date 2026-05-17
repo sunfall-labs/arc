@@ -1,6 +1,6 @@
 # Project Console Example
 
-This example is the copyable golden path for Effect UI. It exercises branded
+This example is the copyable golden path for Sunfall Arc. It exercises branded
 routes, file-route generation, Resources, Collections, Start server functions,
 Start actions, no-JS form fallback, SSR, hydration, capability-based mocking,
 and the production server-only leak scan.
@@ -33,7 +33,7 @@ pnpm verify
   starter payloads at `.test-dist/starters/basic`,
   `.test-dist/starters/react`, and `.test-dist/starters/project-console`. The
   generated payloads rewrite workspace protocol dependencies to local
-  `.effect-ui-packages/*` file dependencies, remove monorepo Vite aliases,
+  `.sunfall-arc-packages/*` file dependencies, remove monorepo Vite aliases,
   write standalone `tsconfig.json` files, verify app manifests against their
   copyable source manifests, install outside the workspace, run each generated
   starter's own `verify` script, and clean generated install/build artifacts.
@@ -46,5 +46,5 @@ pnpm verify
   server-only module names and seed-data strings.
 - The source `vite.config.ts` in this example points at workspace source
   packages for framework development. The generated starter strips those
-  aliases so copied apps depend on generated local `@effect-ui/*` file package
+  aliases so copied apps depend on generated local `@sunfall/arc-*` file package
   entries instead.

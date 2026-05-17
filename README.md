@@ -1,6 +1,6 @@
-# Effect UI
+# Sunfall Arc
 
-Effect UI is an experimental full-stack TypeScript framework built around
+Sunfall Arc is an experimental full-stack TypeScript framework built around
 Effect, Solid, React, TSRX, and deterministic app graph diagnostics.
 
 The project is still pre-release. Framework packages are MIT-licensed and
@@ -80,25 +80,25 @@ pnpm example:leak-scan
 
 ## Package Map
 
-- `@effect-ui/core`: runtime spine, Signals, Programs, Program stories and
+- `@sunfall/arc-core`: runtime spine, Signals, Programs, Program stories and
   timelines, Resources, Actions, Forms/FormData decoding, Routes,
   Capabilities, and server contracts.
-- `@effect-ui/start`: SSR, hydration, transports, manifests, diagnostics, and
+- `@sunfall/arc-start`: SSR, hydration, transports, manifests, diagnostics, and
   Start action clients.
-- `@effect-ui/start-node`: Node HTTP facade over the tested Start adapters.
-- `@effect-ui/start-fetch`: Fetch-host facade over the tested Start adapters.
-- `@effect-ui/db`: Collections, live queries, persistence, and sync adapter
+- `@sunfall/arc-start-node`: Node HTTP facade over the tested Start adapters.
+- `@sunfall/arc-start-fetch`: Fetch-host facade over the tested Start adapters.
+- `@sunfall/arc-db`: Collections, live queries, persistence, and sync adapter
   seams.
-- `@effect-ui/devtools`: serializable inspection contracts, Program timeline
+- `@sunfall/arc-devtools`: serializable inspection contracts, Program timeline
   panels, and a small browser panel renderer for agents, app panels, and
   extension panels.
-- `@effect-ui/react`: React runtime provider, router, resource/action/program
+- `@sunfall/arc-react`: React runtime provider, router, resource/action/program
   hooks, streams, and component scopes.
-- `@effect-ui/react-db`: React collection and live query hooks.
-- `@effect-ui/solid`: Solid runtime provider, router, program/resource/action
+- `@sunfall/arc-react-db`: React collection and live query hooks.
+- `@sunfall/arc-solid`: Solid runtime provider, router, program/resource/action
   hooks, streams, and component scopes.
-- `@effect-ui/solid-db`: Solid collection and live query hooks.
-- `@effect-ui/tsrx`: TSRX/Solid Vite preset for examples and starters.
+- `@sunfall/arc-solid-db`: Solid collection and live query hooks.
+- `@sunfall/arc-tsrx`: TSRX/Solid Vite preset for examples and starters.
 
 ## Current Release Bar
 

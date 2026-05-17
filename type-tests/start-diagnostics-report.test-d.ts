@@ -3,7 +3,7 @@ import {
   formatStartDiagnosticsReport,
   type StartDiagnosticsReport,
   type StartDiagnosticsReportInput,
-} from "@effect-ui/start/diagnostics-report";
+} from "@sunfall/arc-start/diagnostics-report";
 
 const diagnosticsExports: Array<unknown> = [
   createStartDiagnosticsReport,

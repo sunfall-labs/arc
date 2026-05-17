@@ -8,7 +8,7 @@ import {
   type LiveQueryHandle,
   type UseCollectionOptions,
   type UseLiveQueryOptions,
-} from "@effect-ui/solid-db";
+} from "@sunfall/arc-solid-db";
 
 interface SolidDbProject {
   readonly id: string;

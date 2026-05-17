@@ -5,7 +5,7 @@ import { join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
-  effectUiStart,
+  sunfallArcStart,
   loadStartRouteComponentSplitModule,
   resolveStartRouteComponentSplitModuleId,
   transformStartRouteAutoCodeSplitting,
@@ -27,7 +27,7 @@ const tsgoBin = join(
 const toPosixPath = (path: string): string => path.split(sep).join("/");
 
 const typecheckGeneratedRouteModule = (transformed: string): void => {
-  const root = mkdtempSync(join(tmpdir(), "effect-ui-route-split-"));
+  const root = mkdtempSync(join(tmpdir(), "sunfall-arc-route-split-"));
   const sourceDirectory = join(root, "src");
   mkdirSync(sourceDirectory, { recursive: true });
 
@@ -56,8 +56,8 @@ const typecheckGeneratedRouteModule = (transformed: string): void => {
             strict: true,
             skipLibCheck: true,
             paths: {
-              "@effect-ui/core": [`${workspaceRelative}/packages/core/src/index.ts`],
-              "@effect-ui/start": [`${workspaceRelative}/packages/start/src/index.ts`],
+              "@sunfall/arc-core": [`${workspaceRelative}/packages/core/src/index.ts`],
+              "@sunfall/arc-start": [`${workspaceRelative}/packages/start/src/index.ts`],
               effect: [`${workspaceRelative}/node_modules/effect/dist/index.d.ts`],
               "effect/*": [
                 `${workspaceRelative}/node_modules/effect/dist/*/index.d.ts`,
@@ -92,7 +92,7 @@ describe("Start route code splitting", () => {
   it("rewrites imported route components into lazy split modules", () => {
     const transformed = transformStartRouteAutoCodeSplitting(
       [
-        'import { defineFileRoute } from "@effect-ui/start";',
+        'import { defineFileRoute } from "@sunfall/arc-start";',
         'import { HomePage } from "../HomePage.js";',
         "",
         'export const Route = defineFileRoute("/")({',
@@ -103,11 +103,11 @@ describe("Start route code splitting", () => {
       { root: "/workspace" },
     );
 
-    expect(transformed).toContain('import { Route as __EffectUiRoute } from "@effect-ui/core";');
-    expect(transformed).toContain('import { Effect as __EffectUiEffect } from "effect";');
+    expect(transformed).toContain('import { Route as __SunfallArcRoute } from "@sunfall/arc-core";');
+    expect(transformed).toContain('import { Effect as __SunfallArcEffect } from "effect";');
     expect(transformed).not.toContain('import { HomePage } from "../HomePage.js";');
     expect(transformed).toContain(
-      'component: __EffectUiRoute.lazyComponent(__EffectUiEffect.tryPromise({ try: () => import("virtual:effect-ui/route-component?',
+      'component: __SunfallArcRoute.lazyComponent(__SunfallArcEffect.tryPromise({ try: () => import("virtual:sunfall-arc/route-component?',
     );
     expect(transformed).toContain("source=%2Fsrc%2FHomePage.js");
     expect(transformed).toContain("import=HomePage");
@@ -118,7 +118,7 @@ describe("Start route code splitting", () => {
   it("keeps component imports eager when the component identifier is used elsewhere", () => {
     const transformed = transformStartRouteAutoCodeSplitting(
       [
-        'import { defineFileRoute } from "@effect-ui/start";',
+        'import { defineFileRoute } from "@sunfall/arc-start";',
         'import { HomePage } from "../HomePage.js";',
         "",
         "export const title = HomePage.title;",
@@ -135,7 +135,7 @@ describe("Start route code splitting", () => {
 
   it("serves virtual modules that re-export the split component", () => {
     const id =
-      "virtual:effect-ui/route-component?source=%2Fsrc%2FHomePage.js&import=HomePage&export=HomePage";
+      "virtual:sunfall-arc/route-component?source=%2Fsrc%2FHomePage.js&import=HomePage&export=HomePage";
     expect(resolveStartRouteComponentSplitModuleId(id)).toBe(`\0${id}`);
     expect(loadStartRouteComponentSplitModule(`\0${id}`)).toBe(
       'export { HomePage } from "/src/HomePage.js";',
@@ -145,7 +145,7 @@ describe("Start route code splitting", () => {
   it("extracts same-file function route components into generated virtual chunks", () => {
     const transformed = transformStartRouteAutoCodeSplitting(
       [
-        'import { defineFileRoute } from "@effect-ui/start";',
+        'import { defineFileRoute } from "@sunfall/arc-start";',
         'import { Button } from "../Button.js";',
         "",
         'export const Route = defineFileRoute("/")({',
@@ -161,10 +161,10 @@ describe("Start route code splitting", () => {
     );
 
     expect(transformed).not.toBeNull();
-    expect(transformed).toContain("__EffectUiRoute.lazyComponent");
+    expect(transformed).toContain("__SunfallArcRoute.lazyComponent");
     expect(transformed).not.toContain("function HomePage()");
     expect(transformed).not.toContain('import { Button } from "../Button.js";');
-    expect(transformed).toContain('import { defineFileRoute } from "@effect-ui/start";');
+    expect(transformed).toContain('import { defineFileRoute } from "@sunfall/arc-start";');
 
     const moduleId = splitImportId(transformed ?? "");
     const moduleCode = loadStartRouteComponentSplitModule(moduleId);
@@ -203,7 +203,7 @@ describe("Start route code splitting", () => {
   it("keeps same-file components eager when they depend on route-local bindings", () => {
     const transformed = transformStartRouteAutoCodeSplitting(
       [
-        'import { defineFileRoute } from "@effect-ui/start";',
+        'import { defineFileRoute } from "@sunfall/arc-start";',
         'const title = "Home";',
         'export const Route = defineFileRoute("/")({',
         "  component: HomePage,",
@@ -223,7 +223,7 @@ describe("Start route code splitting", () => {
   it("keeps same-file components eager when the component identifier is used elsewhere", () => {
     const transformed = transformStartRouteAutoCodeSplitting(
       [
-        'import { defineFileRoute } from "@effect-ui/start";',
+        'import { defineFileRoute } from "@sunfall/arc-start";',
         "const alsoHome = HomePage;",
         'export const Route = defineFileRoute("/")({',
         "  component: HomePage,",
@@ -241,13 +241,13 @@ describe("Start route code splitting", () => {
   });
 
   it("applies automatic code splitting from the Start Vite transform in browser builds only", () => {
-    const plugin = effectUiStart({
+    const plugin = sunfallArcStart({
       fileRouteOptions: { routeDirectory: "src/routes" },
     });
     plugin.config({ root: "/workspace" });
     plugin.configResolved({ root: "/workspace", command: "serve" });
     const code = [
-      'import { defineFileRoute } from "@effect-ui/start";',
+      'import { defineFileRoute } from "@sunfall/arc-start";',
       'import { HomePage } from "../HomePage.js";',
       'export const Route = defineFileRoute("/")({ component: HomePage });',
     ].join("\n");
@@ -256,18 +256,18 @@ describe("Start route code splitting", () => {
     const transformed = plugin.transform(code, "/workspace/src/routes/index.tsx", {
       ssr: false,
     });
-    expect(transformed).toContain("__EffectUiRoute.lazyComponent");
+    expect(transformed).toContain("__SunfallArcRoute.lazyComponent");
   });
 
   it("lets apps disable automatic route component splitting", () => {
-    const plugin = effectUiStart({
+    const plugin = sunfallArcStart({
       autoCodeSplitting: false,
       fileRouteOptions: { routeDirectory: "src/routes" },
     });
     plugin.config({ root: "/workspace" });
     plugin.configResolved({ root: "/workspace", command: "serve" });
     const code = [
-      'import { defineFileRoute } from "@effect-ui/start";',
+      'import { defineFileRoute } from "@sunfall/arc-start";',
       'import { HomePage } from "../HomePage.js";',
       'export const Route = defineFileRoute("/")({ component: HomePage });',
     ].join("\n");

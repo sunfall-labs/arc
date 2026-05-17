@@ -1,7 +1,7 @@
 import { Data, Effect, Exit, Fiber, Scope } from "effect";
 import type { EffectInput } from "./effect-like.js";
 import { invokeEffectInput } from "./effect-like.js";
-import { runFork, runWithRuntime, type AnyEffectUiRuntime } from "./runtime.js";
+import { runFork, runWithRuntime, type AnySunfallArcRuntime } from "./runtime.js";
 
 /** Options controlling how forked scoped Effects are started. */
 export interface ForkScopedOptions {
@@ -121,7 +121,7 @@ export class UiScope {
  * scope is tied to a runtime so cleanup registered after disposal still sees
  * the same services and runtime error channel.
  */
-export const makeRuntimeUiScope = <ER>(runtime: AnyEffectUiRuntime<ER>): UiScope =>
+export const makeRuntimeUiScope = <ER>(runtime: AnySunfallArcRuntime<ER>): UiScope =>
   new UiScope({
     runLateFinalizer: (effect) => {
       void runtime.runFork(effect);
@@ -131,7 +131,7 @@ export const makeRuntimeUiScope = <ER>(runtime: AnyEffectUiRuntime<ER>): UiScope
 /** Runtime-owned UI frame used by framework adapters during one render lifetime. */
 export interface RuntimeUiScopeFrame<ER = unknown> {
   /** Runtime Spine that owns Effect execution for this frame. */
-  readonly runtime: AnyEffectUiRuntime<ER>;
+  readonly runtime: AnySunfallArcRuntime<ER>;
   /** Ambient UI scope for component or route construction. */
   readonly scope: UiScope;
   /** Runs synchronous construction with both runtime and UI scope installed. */
@@ -149,7 +149,7 @@ export interface RuntimeUiScopeFrame<ER = unknown> {
 
 /** Creates a runtime-owned UI frame for adapter component or route lifetimes. */
 export const makeRuntimeUiScopeFrame = <ER>(
-  runtime: AnyEffectUiRuntime<ER>,
+  runtime: AnySunfallArcRuntime<ER>,
 ): RuntimeUiScopeFrame<ER> => {
   const scope = makeRuntimeUiScope(runtime);
   return {

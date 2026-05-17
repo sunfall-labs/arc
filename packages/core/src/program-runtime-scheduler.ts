@@ -1,5 +1,5 @@
 import { Effect, Fiber } from "effect";
-import type { AnyEffectUiRuntime } from "./runtime.js";
+import type { AnySunfallArcRuntime } from "./runtime.js";
 
 /**
  * Program background-fiber policy.
@@ -24,7 +24,7 @@ export interface ProgramRuntimeScheduler<ER> {
 }
 
 export const makeProgramRuntimeScheduler = <ER>(
-  runtime: AnyEffectUiRuntime<ER>,
+  runtime: AnySunfallArcRuntime<ER>,
 ): ProgramRuntimeScheduler<ER> => ({
   forkRuntime: (effect, options) => runtime.runFork(effect, options),
   forkProvided: (effect, options) => Effect.runFork(effect, options),

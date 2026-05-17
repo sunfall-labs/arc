@@ -1,4 +1,4 @@
-import { type ResourceStoreEvent } from "@effect-ui/core";
+import { type ResourceStoreEvent } from "@sunfall/arc-core";
 import {
   devtoolsActionNodeId as actionNodeId,
   devtoolsCollectionNodeId as collectionNodeId,

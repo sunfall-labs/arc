@@ -9,10 +9,10 @@ import {
   type ActionSubmissionRun,
   type ActionSubmissionState,
   type ActionDefinition,
-  type AnyEffectUiRuntime,
-  type EffectUiRuntime,
+  type AnySunfallArcRuntime,
+  type SunfallArcRuntime,
   type ReadableSignal,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Effect, Fiber } from "effect";
 import type { StartHydrationPayload } from "./hydration.js";
 import { executeStartClientTransportEffect } from "./start-client-transport.js";
@@ -55,12 +55,12 @@ interface SubmittedStartAction<D extends StartActionDefinition> {
 }
 
 type StartActionTransportRuntime<FetchRequirements, RuntimeError> =
-  | EffectUiRuntime<FetchRequirements, RuntimeError>
-  | AnyEffectUiRuntime<RuntimeError>;
+  | SunfallArcRuntime<FetchRequirements, RuntimeError>
+  | AnySunfallArcRuntime<RuntimeError>;
 
 type StartActionResponseRuntime<RuntimeError> =
-  | EffectUiRuntime<any, RuntimeError>
-  | AnyEffectUiRuntime<RuntimeError>;
+  | SunfallArcRuntime<any, RuntimeError>
+  | AnySunfallArcRuntime<RuntimeError>;
 
 type StartActionClientOptionsWithRuntime<FetchError, FetchRequirements, RuntimeError> =
   StartActionClientOptions<FetchError, FetchRequirements, RuntimeError> &
@@ -263,7 +263,7 @@ export namespace StartAction {
     definition: D,
     options: StartActionClientOptions<FetchError, FetchRequirements, RuntimeError> = {},
   ): Instance<D, RuntimeError, FetchRequirements> {
-    const ambientRuntime = getCurrentRuntime() as AnyEffectUiRuntime<RuntimeError> | undefined;
+    const ambientRuntime = getCurrentRuntime() as AnySunfallArcRuntime<RuntimeError> | undefined;
     const responseRuntime = options.responseRuntime ?? options.runtime ?? ambientRuntime;
     const resetRuntime = responseRuntime ?? currentOrDefaultRuntime();
     const transportRuntime = options.transportRuntime ?? options.runtime;

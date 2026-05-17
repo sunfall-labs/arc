@@ -6,13 +6,13 @@ import {
   ServerClient,
   withResourceStore,
   type AppDefinition,
-  type EffectUiRuntime,
+  type SunfallArcRuntime,
   type RequestContext,
   type ResourceStore as ResourceStoreState,
   type ResponseContext,
   type Route,
   type AppDefinitionRegistry,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Effect, type Scope } from "effect";
 export {
   completeRequestRuntimeWithResponse,
@@ -27,7 +27,7 @@ export const makeRequestRuntime = <
   ServerError,
 >(
   app: AppDefinition<Routes, Client, ServerServices, ServerError>,
-): EffectUiRuntime<ServerServices, ServerError> =>
+): SunfallArcRuntime<ServerServices, ServerError> =>
   withResourceStore(app.runtime, makeResourceStore());
 
 type RequestRuntimeProvidedRequirements<RuntimeServices> =
@@ -53,7 +53,7 @@ export const provideLocalServerClient = <A, E, R>(
   ) as Effect.Effect<A, E, Exclude<R, ServerClient>>;
 
 export const provideRequestRuntime = <A, E, R, RuntimeServices, RuntimeError>(
-  runtime: EffectUiRuntime<RuntimeServices, RuntimeError>,
+  runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>,
   request: Request,
   effect: Effect.Effect<A, E, R>,
   responseContext: ResponseContext,

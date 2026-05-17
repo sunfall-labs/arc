@@ -13,19 +13,19 @@ export interface ChromeDevtoolsPanelApi {
 
 declare const chrome: ChromeDevtoolsPanelApi | undefined;
 
-export const effectUiDevtoolsPanelTitle = "Effect UI";
-export const effectUiDevtoolsPanelPage = "panel.html";
+export const sunfallArcDevtoolsPanelTitle = "Sunfall Arc";
+export const sunfallArcDevtoolsPanelPage = "panel.html";
 
-export const registerEffectUiDevtoolsPanel = (api: ChromeDevtoolsPanelApi | undefined): boolean => {
+export const registerSunfallArcDevtoolsPanel = (api: ChromeDevtoolsPanelApi | undefined): boolean => {
   const createPanel = api?.devtools?.panels?.create;
   if (!createPanel) {
     return false;
   }
 
-  createPanel(effectUiDevtoolsPanelTitle, "", effectUiDevtoolsPanelPage);
+  createPanel(sunfallArcDevtoolsPanelTitle, "", sunfallArcDevtoolsPanelPage);
   return true;
 };
 
 if (typeof chrome !== "undefined") {
-  registerEffectUiDevtoolsPanel(chrome);
+  registerSunfallArcDevtoolsPanel(chrome);
 }

@@ -9,7 +9,7 @@ import {
   ResourceStoreDisposeError,
   RuntimeDisposeError,
   runWithRuntime,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Cause, Context, Deferred, Effect, Fiber, Layer, Stream } from "effect";
 import { createRoot, createSignal } from "solid-js";
 import { createComponent } from "solid-js/web";
@@ -36,7 +36,7 @@ interface ProjectApi {
   readonly get: (id: string) => Effect.Effect<Project>;
 }
 
-const ProjectApi = Context.Service<ProjectApi>("@effect-ui/solid/test/ProjectApi");
+const ProjectApi = Context.Service<ProjectApi>("@sunfall/arc-solid/test/ProjectApi");
 
 const suppressHostThenableFailure = (value: unknown): void => {
   void Effect.runPromise(
@@ -700,7 +700,7 @@ describe("solid hooks", () => {
     );
   });
 
-  it("exposes Effect UI Programs as Solid accessors bound to the runtime", () =>
+  it("exposes Sunfall Arc Programs as Solid accessors bound to the runtime", () =>
     Effect.runPromise(
       Effect.gen(function* () {
         let dispose: (() => void) | undefined;

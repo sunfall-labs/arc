@@ -11,10 +11,10 @@ import {
   type AppDefinitionRegistryActionRequirements,
   type AppDefinitionRegistryServerFunctionRequirements,
   type ActionDefinitionRequirements,
-  type EffectUiRuntime,
+  type SunfallArcRuntime,
   type Route,
   type ResponseContext,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Cause, Effect, Exit, type Scope } from "effect";
 import { validateStartActionRequestEffect, validateStartRpcRequestEffect } from "./rpc.js";
 import { makeRequestRuntime, type RequestRuntimeRemainingRequirements } from "./request-runtime.js";
@@ -72,7 +72,7 @@ export const createServerRpcResponseEffectWithRuntime = <
 >(
   app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>,
   request: Request,
-  runtime: EffectUiRuntime<ServerServices, ServerError>,
+  runtime: SunfallArcRuntime<ServerServices, ServerError>,
   responseContext: ResponseContext = makeResponseContext(),
   traceFacts?: StartRequestTraceFacts,
 ): Effect.Effect<
@@ -214,7 +214,7 @@ export const createServerActionResponseEffectWithRuntime = <
 >(
   app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>,
   request: Request,
-  runtime: EffectUiRuntime<ServerServices, ServerError>,
+  runtime: SunfallArcRuntime<ServerServices, ServerError>,
   actions?: StartActionSource<Actions>,
   responseContext: ResponseContext = makeResponseContext(),
   traceFacts?: StartRequestTraceFacts,

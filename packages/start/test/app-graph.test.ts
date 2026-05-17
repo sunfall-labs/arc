@@ -181,7 +181,7 @@ describe("Start app graph", () => {
                 },
                 client: {
                   _tag: "Import",
-                  rpcPath: "/__effect-ui/rpc",
+                  rpcPath: "/__sunfall-arc/rpc",
                   module: "/src/project/project.contract.ts",
                   exportName: "loadProject",
                   moduleKind: "contract",
@@ -206,7 +206,7 @@ describe("Start app graph", () => {
                 },
                 client: {
                   _tag: "Import",
-                  actionPath: "/__effect-ui/action",
+                  actionPath: "/__sunfall-arc/action",
                   module: "/src/project/project.actions.ts",
                   exportName: "RenameProject",
                   moduleKind: "shared",
@@ -234,8 +234,8 @@ describe("Start app graph", () => {
               "/src/project/project.actions.ts",
               "/src/project/project.contract.ts",
             ],
-            rpcPath: "/__effect-ui/rpc",
-            actionPath: "/__effect-ui/action",
+            rpcPath: "/__sunfall-arc/rpc",
+            actionPath: "/__sunfall-arc/action",
             schemaCoverage: {
               serverFunctions: {
                 total: 1,
@@ -874,7 +874,7 @@ describe("Start app graph", () => {
               },
             }),
           ).toThrowError(
-            "Effect UI app graph diagnostics policy failed: Routes with preload must declare preloadCollections. / (src/routes/index.tsx)",
+            "Sunfall Arc app graph diagnostics policy failed: Routes with preload must declare preloadCollections. / (src/routes/index.tsx)",
           );
 
           try {
@@ -1437,15 +1437,15 @@ describe("Start app graph", () => {
               }),
             ]),
             verify: [
-              "effect-ui-start diagnostics --root=examples/project-console",
-              "effect-ui-start graph --root=examples/project-console route /projects/:id",
+              "sunfall-arc-start diagnostics --root=examples/project-console",
+              "sunfall-arc-start graph --root=examples/project-console route /projects/:id",
             ],
           });
           expect(text).toContain("Impact: route /projects/:id");
           expect(text).toContain("Contracts");
           expect(text).toContain("- preloads: resources Project.byId; collections ProjectRows");
           expect(text).toContain("Depends on");
-          expect(text).toContain("- effect-ui-start diagnostics --root=examples/project-console");
+          expect(text).toContain("- sunfall-arc-start diagnostics --root=examples/project-console");
           expect(text).not.toContain("route:route_projects_$id");
         });
       }),
@@ -1593,8 +1593,8 @@ describe("Start app graph", () => {
         { root: "examples/project console" },
       ),
     ).toEqual([
-      "effect-ui-start diagnostics --root='examples/project console'",
-      "effect-ui-start graph --root='examples/project console' route '/project spaces/:id'",
+      "sunfall-arc-start diagnostics --root='examples/project console'",
+      "sunfall-arc-start graph --root='examples/project console' route '/project spaces/:id'",
     ]);
   });
 

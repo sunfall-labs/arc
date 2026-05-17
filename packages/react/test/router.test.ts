@@ -9,7 +9,7 @@ import {
   runWithRuntime,
   UiScopeDisposed,
   type BrowserRouterState,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Cause, Deferred, Effect } from "effect";
 import { Window } from "happy-dom";
 import {
@@ -35,7 +35,7 @@ import {
 } from "../src/index.js";
 import { renderReactRouteState } from "../src/route-render-scope.js";
 
-const installDom = (url = "http://effect-ui.test/"): (() => void) => {
+const installDom = (url = "http://sunfall-arc.test/"): (() => void) => {
   const window = new Window({ url });
   const keys = [
     "window",
@@ -170,7 +170,7 @@ describe("react router", () => {
 
       expect(imports).toBe(1);
       expect(container.textContent).toBe("Project atlas");
-    }, "http://effect-ui.test/lazy-react-projects/atlas");
+    }, "http://sunfall-arc.test/lazy-react-projects/atlas");
   });
 
   it("turns unloaded lazy route components in ready state into React Suspense tokens", async () => {
@@ -230,7 +230,7 @@ describe("react router", () => {
   });
 
   it("starts matched routes ready while React hydrates existing DOM", async () => {
-    const cleanupDom = installDom("http://effect-ui.test/hydrating-projects/atlas");
+    const cleanupDom = installDom("http://sunfall-arc.test/hydrating-projects/atlas");
     const runtime = makeRuntime();
     const release = await Effect.runPromise(Deferred.make<void>());
     const Project = route("/hydrating-projects/:id", {

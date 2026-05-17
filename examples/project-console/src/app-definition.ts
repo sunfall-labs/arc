@@ -1,4 +1,4 @@
-import { defineApp, type AppDefinitionRegistryInput } from "@effect-ui/core";
+import { defineApp, type AppDefinitionRegistryInput } from "@sunfall/arc-core";
 import { ProjectApiLive } from "./domain.js";
 import { routeById, routeTree } from "./routeTree.gen.js";
 

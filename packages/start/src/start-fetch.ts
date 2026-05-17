@@ -3,9 +3,9 @@ import {
   isEffectLike,
   isPromiseLikeValue,
   ServerTransportError,
-  type AnyEffectUiRuntime,
-  type EffectUiRuntime,
-} from "@effect-ui/core";
+  type AnySunfallArcRuntime,
+  type SunfallArcRuntime,
+} from "@sunfall/arc-core";
 import { Data, Effect } from "effect";
 import { makeStartRequestIdEffect, startJsonMediaType, startRequestIdHeader } from "./rpc.js";
 import { mergeStartAbortSignals } from "./start-abort-lifecycle.js";
@@ -54,8 +54,8 @@ export interface ServerRpcClientOptions<
   readonly fetch?: StartFetch<FetchError, FetchRequirements>;
   /** Runtime used to provide services required by the fetch Effect. */
   readonly transportRuntime?:
-    | EffectUiRuntime<FetchRequirements, RuntimeError>
-    | AnyEffectUiRuntime<RuntimeError>;
+    | SunfallArcRuntime<FetchRequirements, RuntimeError>
+    | AnySunfallArcRuntime<RuntimeError>;
   /** Static or lazily computed headers added to every RPC request. */
   readonly headers?: HeadersInit | (() => HeadersInit);
 }

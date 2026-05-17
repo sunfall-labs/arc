@@ -1,5 +1,5 @@
 import { Cause, Data, Effect, Exit, Scope } from "effect";
-import { toEffect, type EffectInput } from "@effect-ui/core";
+import { toEffect, type EffectInput } from "@sunfall/arc-core";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
   nodeRequestLifecycle,
@@ -366,7 +366,7 @@ export const shouldHandleSsrRequest = (
   endpoints?: StartTransportEndpointSource,
 ): boolean => {
   const url = request.url ?? "/";
-  const pathname = new URL(url, "http://effect-ui.local").pathname;
+  const pathname = new URL(url, "http://sunfall-arc.local").pathname;
   const resolved = resolveStartTransportEndpoints(endpoints);
   if (pathname === resolved.rpcPath || pathname === resolved.actionPath) {
     return true;

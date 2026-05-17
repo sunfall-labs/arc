@@ -8,9 +8,9 @@ import {
   type StartFetchPromiseHandler,
   type StartFetchPromiseHandlerOptions,
   type StartFetchPromiseHandlerRuntimeOptions,
-} from "@effect-ui/start/fetch-adapter";
-import type { EffectUiRuntime } from "@effect-ui/core";
-import type { StartRequestHandlerEffect } from "@effect-ui/start";
+} from "@sunfall/arc-start/fetch-adapter";
+import type { SunfallArcRuntime } from "@sunfall/arc-core";
+import type { StartRequestHandlerEffect } from "@sunfall/arc-start";
 import { Scope } from "effect";
 
 const fetchAdapterExports: Array<unknown> = [
@@ -34,7 +34,7 @@ interface FetchAdapterTestService {
 
 declare const scopeOnlyHandler: StartRequestHandlerEffect<Scope.Scope>;
 declare const servicefulHandler: StartRequestHandlerEffect<Scope.Scope | FetchAdapterTestService>;
-declare const serviceRuntime: EffectUiRuntime<FetchAdapterTestService>;
+declare const serviceRuntime: SunfallArcRuntime<FetchAdapterTestService>;
 
 const fetchHandlerEffect: StartFetchHandlerEffect<Scope.Scope> =
   toFetchHandlerEffect(scopeOnlyHandler);

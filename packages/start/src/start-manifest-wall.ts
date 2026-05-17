@@ -1,4 +1,4 @@
-import type { ActionDefinition, ServerFunction } from "@effect-ui/core";
+import type { ActionDefinition, ServerFunction } from "@sunfall/arc-core";
 import { Data, Effect } from "effect";
 import { existsSync, readdirSync } from "node:fs";
 import { isAbsolute, relative as relativePath, resolve as resolvePath } from "node:path";
@@ -74,7 +74,7 @@ type AnyActionDefinition = ActionDefinition<any, any, any, any>;
  * small apps and explicit manifests when integrating with generated build
  * steps.
  */
-export interface EffectUiStartOptions {
+export interface SunfallArcStartOptions {
   /** Unsupported for manifest generation: use `serverFunctionSources` with explicit module/export metadata. */
   readonly serverFunctions?: ReadonlyArray<ServerFunction<any, any, any, any>>;
   /** Prebuilt server-function manifest definitions. */
@@ -187,10 +187,10 @@ export class StartManifestDirectReferenceError extends Data.TaggedError(
 
 /** Compile-time define values generated from the Start Manifest Wall. */
 export interface StartManifestWallDefineValues {
-  readonly __EFFECT_UI_SERVER_FUNCTIONS__: string;
-  readonly __EFFECT_UI_ACTIONS__: string;
-  readonly __EFFECT_UI_FILE_ROUTES__: string;
-  readonly __EFFECT_UI_APP_GRAPH__: string;
+  readonly __SUNFALL_ARC_SERVER_FUNCTIONS__: string;
+  readonly __SUNFALL_ARC_ACTIONS__: string;
+  readonly __SUNFALL_ARC_FILE_ROUTES__: string;
+  readonly __SUNFALL_ARC_APP_GRAPH__: string;
 }
 
 /** Default server entry module used by the Start Manifest Wall. */
@@ -250,7 +250,7 @@ export const absoluteFileRouteGeneratedFile = (
 
 export const isGeneratedFileRouteDefinitionsOutputFile = (
   root: string,
-  options: EffectUiStartOptions,
+  options: SunfallArcStartOptions,
   filePath: string,
 ): boolean => {
   const generated = absoluteFileRouteGeneratedFile(root, options.fileRouteGeneration);
@@ -368,7 +368,7 @@ export const discoverFileRoutes = (options: FileRouteDiscoveryOptions = {}): rea
   Effect.runSync(discoverFileRoutesEffect(options));
 
 const serverFunctionDefinitionsFromOptionsEffect = (
-  options: EffectUiStartOptions,
+  options: SunfallArcStartOptions,
   serverEntry: string,
 ): Effect.Effect<Iterable<ServerFunctionManifestDefinition>, StartManifestDirectReferenceError> => {
   if (options.serverFunctionManifest) {
@@ -390,7 +390,7 @@ const serverFunctionDefinitionsFromOptionsEffect = (
 };
 
 const actionDefinitionsFromOptionsEffect = (
-  options: EffectUiStartOptions,
+  options: SunfallArcStartOptions,
   serverEntry: string,
 ): Effect.Effect<Iterable<ActionManifestDefinition>, StartManifestDirectReferenceError> => {
   if (options.actionManifest) {
@@ -413,7 +413,7 @@ const actionDefinitionsFromOptionsEffect = (
 
 /** Builds the server-function manifest from plugin options. */
 export const makeStartServerFunctionManifestEffect = (
-  options: EffectUiStartOptions = {},
+  options: SunfallArcStartOptions = {},
 ): Effect.Effect<
   ServerFunctionManifest,
   ServerFunctionManifestError | StartManifestDirectReferenceError
@@ -429,14 +429,14 @@ export const makeStartServerFunctionManifestEffect = (
 };
 
 /** Synchronously serializes the Start server-function manifest. */
-export const serializeStartServerFunctionManifest = (options: EffectUiStartOptions = {}): string =>
+export const serializeStartServerFunctionManifest = (options: SunfallArcStartOptions = {}): string =>
   Effect.runSync(
     Effect.map(makeStartServerFunctionManifestEffect(options), serializeServerFunctionManifest),
   );
 
 /** Builds the Start action manifest from plugin options. */
 export const makeStartActionManifestEffect = (
-  options: EffectUiStartOptions = {},
+  options: SunfallArcStartOptions = {},
 ): Effect.Effect<ActionManifest, ActionManifestError | StartManifestDirectReferenceError> => {
   const serverEntry = options.serverEntry ?? defaultServerEntry;
   return Effect.gen(function* () {
@@ -449,7 +449,7 @@ export const makeStartActionManifestEffect = (
 };
 
 /** Synchronously serializes the Start action manifest. */
-export const serializeStartActionManifest = (options: EffectUiStartOptions = {}): string =>
+export const serializeStartActionManifest = (options: SunfallArcStartOptions = {}): string =>
   Effect.runSync(Effect.map(makeStartActionManifestEffect(options), serializeActionManifest));
 
 const isFileRouteManifest = (value: unknown): value is FileRouteManifest =>
@@ -462,8 +462,8 @@ const materializeIterableOption = <A>(value: Iterable<A> | undefined): readonly 
   value === undefined ? undefined : Array.from(value);
 
 const normalizeFileRouteManifestOption = (
-  manifest: EffectUiStartOptions["fileRouteManifest"],
-): EffectUiStartOptions["fileRouteManifest"] => {
+  manifest: SunfallArcStartOptions["fileRouteManifest"],
+): SunfallArcStartOptions["fileRouteManifest"] => {
   if (manifest === undefined) {
     return undefined;
   }
@@ -482,8 +482,8 @@ const normalizeFileRouteManifestOption = (
 
 /** Materializes caller-supplied manifest Iterables once at the Vite/plugin seam. */
 export const normalizeStartManifestIterableOptions = (
-  options: EffectUiStartOptions = {},
-): EffectUiStartOptions => {
+  options: SunfallArcStartOptions = {},
+): SunfallArcStartOptions => {
   const serverFunctionManifest = materializeIterableOption(options.serverFunctionManifest);
   const serverFunctionSources = materializeIterableOption(options.serverFunctionSources);
   const actionManifest = materializeIterableOption(options.actionManifest);
@@ -502,7 +502,7 @@ export const normalizeStartManifestIterableOptions = (
   };
 };
 
-const withDefaultFileRouteDirectory = (options: EffectUiStartOptions): EffectUiStartOptions => {
+const withDefaultFileRouteDirectory = (options: SunfallArcStartOptions): SunfallArcStartOptions => {
   if (
     options.fileRouteOptions?.routeDirectory !== undefined ||
     (options.fileRouteManifest !== undefined && isFileRouteManifest(options.fileRouteManifest))
@@ -520,14 +520,14 @@ const withDefaultFileRouteDirectory = (options: EffectUiStartOptions): EffectUiS
 };
 
 export const withDiscoveredFileRoutes = (
-  options: EffectUiStartOptions,
+  options: SunfallArcStartOptions,
   root: string,
-): EffectUiStartOptions => Effect.runSync(withDiscoveredFileRoutesEffect(options, root));
+): SunfallArcStartOptions => Effect.runSync(withDiscoveredFileRoutesEffect(options, root));
 
 export const withDiscoveredFileRoutesEffect = (
-  options: EffectUiStartOptions,
+  options: SunfallArcStartOptions,
   root: string,
-): Effect.Effect<EffectUiStartOptions, FileRouteDiscoveryError> => {
+): Effect.Effect<SunfallArcStartOptions, FileRouteDiscoveryError> => {
   const next = withDefaultFileRouteDirectory(options);
   if (next.fileRouteManifest !== undefined || next.fileRoutes !== undefined) {
     return Effect.succeed(next);
@@ -555,7 +555,7 @@ export const withDiscoveredFileRoutesEffect = (
 
 /** Builds or validates the Start file-route manifest from plugin options. */
 export const makeStartFileRouteManifestEffect = (
-  options: EffectUiStartOptions = {},
+  options: SunfallArcStartOptions = {},
 ): Effect.Effect<FileRouteManifest, FileRouteManifestError> => {
   const manifest = options.fileRouteManifest;
   if (manifest) {
@@ -588,12 +588,12 @@ export const makeStartFileRouteManifestEffect = (
 };
 
 /** Synchronously serializes the Start file-route manifest. */
-export const serializeStartFileRouteManifest = (options: EffectUiStartOptions = {}): string =>
+export const serializeStartFileRouteManifest = (options: SunfallArcStartOptions = {}): string =>
   Effect.runSync(Effect.map(makeStartFileRouteManifestEffect(options), serializeFileRouteManifest));
 
 /** Combines route, server-function, and action manifests into a Start app graph. */
 export const makeStartAppGraphEffect = (
-  options: EffectUiStartOptions = {},
+  options: SunfallArcStartOptions = {},
 ): Effect.Effect<StartAppGraph, StartAppGraphError> =>
   Effect.gen(function* () {
     const serverFunctions = yield* makeStartServerFunctionManifestEffect(options);
@@ -612,7 +612,7 @@ export const makeStartAppGraphEffect = (
   });
 
 export const normalizeStartBuildPolicy = (
-  policy: EffectUiStartOptions["buildPolicy"],
+  policy: SunfallArcStartOptions["buildPolicy"],
 ): StartBuildPolicy | undefined => {
   if (policy === undefined || policy === false) {
     return undefined;
@@ -643,7 +643,7 @@ export const validateStartBuildPolicyEffect = (
 
 /** Builds the app graph and applies any enabled build policy. */
 export const makeStartBuildAppGraphEffect = (
-  options: EffectUiStartOptions = {},
+  options: SunfallArcStartOptions = {},
 ): Effect.Effect<StartAppGraph, StartAppGraphError | StartBuildPolicyError> =>
   Effect.gen(function* () {
     const graph = yield* makeStartAppGraphEffect(options);
@@ -656,21 +656,21 @@ export const makeStartBuildAppGraphEffect = (
   });
 
 /** Synchronously serializes the policy-checked Start app graph. */
-export const serializeStartAppGraph = (options: EffectUiStartOptions = {}): string =>
+export const serializeStartAppGraph = (options: SunfallArcStartOptions = {}): string =>
   Effect.runSync(Effect.map(makeStartBuildAppGraphEffect(options), serializeStartAppGraphArtifact));
 
 /** Creates the production define values for a policy-checked Start app graph. */
 export const createStartManifestWallDefineValues = (
   graph: StartAppGraph,
 ): StartManifestWallDefineValues => ({
-  __EFFECT_UI_SERVER_FUNCTIONS__: serializeServerFunctionManifest(graph.serverFunctions),
-  __EFFECT_UI_ACTIONS__: serializeActionManifest(graph.actions),
-  __EFFECT_UI_FILE_ROUTES__: serializeFileRouteManifest(graph.routes),
-  __EFFECT_UI_APP_GRAPH__: serializeStartAppGraphArtifact(graph),
+  __SUNFALL_ARC_SERVER_FUNCTIONS__: serializeServerFunctionManifest(graph.serverFunctions),
+  __SUNFALL_ARC_ACTIONS__: serializeActionManifest(graph.actions),
+  __SUNFALL_ARC_FILE_ROUTES__: serializeFileRouteManifest(graph.routes),
+  __SUNFALL_ARC_APP_GRAPH__: serializeStartAppGraphArtifact(graph),
 });
 
 /** Builds the production define values from plugin options. */
 export const makeStartManifestWallDefineValuesEffect = (
-  options: EffectUiStartOptions = {},
+  options: SunfallArcStartOptions = {},
 ): Effect.Effect<StartManifestWallDefineValues, StartAppGraphError | StartBuildPolicyError> =>
   Effect.map(makeStartBuildAppGraphEffect(options), createStartManifestWallDefineValues);

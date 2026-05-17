@@ -8,8 +8,8 @@ import {
   type ParamsForPath,
   type Route,
   type RouteOptionsInput,
-} from "@effect-ui/core";
-import { Collection, type AnyCollection } from "@effect-ui/db";
+} from "@sunfall/arc-core";
+import { Collection, type AnyCollection } from "@sunfall/arc-db";
 import { Data, Effect } from "effect";
 
 type CheckedFileRoutePreload<Options> = Options extends {

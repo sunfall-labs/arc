@@ -13,7 +13,7 @@ import type { ResourceInvalidation } from "./resource.js";
 
 /** Runtime marker shared by every `ActionResult` variant. */
 export const ActionResultTypeId: unique symbol = Symbol.for(
-  "@effect-ui/core/ActionResult",
+  "@sunfall/arc-core/ActionResult",
 ) as typeof ActionResultTypeId;
 
 /** HTTP redirect statuses supported by Start action redirects. */

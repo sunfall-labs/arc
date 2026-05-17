@@ -1,19 +1,19 @@
-# Effect UI Docs Site
+# Sunfall Arc Docs Site
 
-This example dogfoods Effect UI as a cookbook/docs app. Recipes are content
+This example dogfoods Sunfall Arc as a cookbook/docs app. Recipes are content
 data loaded through Start server functions, exposed through a `DocsContentApi`
 capability, read by typed Resources, and declared by file-route preload.
 
 Run it locally:
 
 ```sh
-pnpm --filter @effect-ui/example-docs-site dev
+pnpm --filter @sunfall/arc-example-docs-site dev
 ```
 
 Verify it:
 
 ```sh
-pnpm --filter @effect-ui/example-docs-site verify
+pnpm --filter @sunfall/arc-example-docs-site verify
 ```
 
 The example proves:

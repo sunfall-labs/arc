@@ -3,10 +3,10 @@
 Last updated: 2026-05-17.
 
 Current release-tracking truth lives in `docs/architecture-deepening-review.md`
-and `docs/perfection-progress.md`. As of Review492, the latest full
+and `docs/perfection-progress.md`. As of Review493, the latest full
 `pnpm verify` gate is the Review492 run with 58 root test files / 1223 tests,
 the focused Effect-first audit covers 449 physical and virtual files, and the active Thirty-Sweep clean
-counter is 0/30 until a fresh post-Review492 sweep reports no actionable
+counter is 0/30 until a fresh post-Review493 sweep reports no actionable
 findings.
 
 This historical audit checks release-tracking docs for claims that no longer match the
@@ -107,7 +107,7 @@ seams.
 - Review206 refreshed Start hydration docs to prefer
   `hydrateFromDocumentEffect(...)`, `hydrateStartPayloadEffect(...)`, and
   `Resource.hydrateEffect(payload)`, and recorded the symlinked
-  `effect-ui-start` bin package dry-run guard.
+  `sunfall-arc-start` bin package dry-run guard.
 - Review207 refreshed starter and DB hydration wording so copyable docs either
   show `hydrateFromDocumentEffect(...)` first or label `hydrateFromDocument(...)`
   as the synchronous browser host facade over that Effect helper.
@@ -580,7 +580,7 @@ seams.
   keys.
 - Added Review 91 and progress entry 330 evidence for the Start Diagnostics
   CLI Runner Module. Start public API docs now name the Effect v4 command
-  grammar around `effect-ui-start` and the internal runner behind parsed
+  grammar around `sunfall-arc-start` and the internal runner behind parsed
   command execution.
 - Added Review 92 and progress entry 331 evidence for the Start Action Response
   Application Module. Start public API docs now name the internal Module that
@@ -642,7 +642,7 @@ seams.
   consumes Resource Runtime functions directly instead of calling back through
   the public `Resource` facade for sibling implementation work.
 - Added Review 107 and progress entry 346 evidence for the Start diagnostics
-  CLI shared-flag cleanup. Current docs now record that `effect-ui-start`
+  CLI shared-flag cleanup. Current docs now record that `sunfall-arc-start`
   common diagnostics flags live on the root Effect v4 command and are inherited
   by subcommands.
 - Added Review 108 and progress entry 347 evidence for the Start diagnostics
@@ -740,7 +740,7 @@ seams.
   policy opt-out coverage, and CLI graph/impact query-kind coverage.
 - Updated DB host examples so Promise-shaped remote and SQLite clients are
   wrapped with `Effect.tryPromise(...)` at the Adapter seam.
-- Clarified that `virtual:effect-ui/routes` exposes runtime helpers while the
+- Clarified that `virtual:sunfall-arc/routes` exposes runtime helpers while the
   precise route id/params/search/href type maps live in the generated
   `src/routeTree.gen.ts` module.
 - Added Review 147 evidence for Resource runtime fiber cleanup,
@@ -773,7 +773,7 @@ seams.
 
 - Drift search:
   - `rg -n "not committed yet|not committed|future inspected|sample-data shell|browser extension.*future|live inspected app transport|remaining|Remaining|still open|future work|TODO|FIXME|Promise-first|315 tests|316 tests|319 tests" docs README.md examples -g '*.md'`
-  - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(|non-Effect|raw Error|TypeError|runtime-disposed marker|stream close paths|response stream-close|__EFFECT_UI_DEVTOOLS__" docs README.md examples -g '*.md'`
+  - `rg -n "Promise\\.resolve|\\.then\\(|\\.finally\\(|non-Effect|raw Error|TypeError|runtime-disposed marker|stream close paths|response stream-close|__SUNFALL_ARC_DEVTOOLS__" docs README.md examples -g '*.md'`
 - Updated files:
   - `README.md`
   - `docs/ultimate-goal-checklist.md`

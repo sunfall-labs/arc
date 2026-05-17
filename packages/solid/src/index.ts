@@ -14,4 +14,4 @@ export {
   Signal,
   UiScope,
   watch,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";

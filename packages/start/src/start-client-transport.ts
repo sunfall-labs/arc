@@ -1,4 +1,4 @@
-import { Server, ServerTransportError } from "@effect-ui/core";
+import { Server, ServerTransportError } from "@sunfall/arc-core";
 import { Effect } from "effect";
 import {
   callStartFetchEffect,

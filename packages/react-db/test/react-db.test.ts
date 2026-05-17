@@ -1,6 +1,6 @@
-import { makeRuntime, type ReadableSignal } from "@effect-ui/core";
-import { Collection, type CollectionLoadState, type CollectionRuntimeError } from "@effect-ui/db";
-import { RuntimeProvider } from "@effect-ui/react";
+import { makeRuntime, type ReadableSignal } from "@sunfall/arc-core";
+import { Collection, type CollectionLoadState, type CollectionRuntimeError } from "@sunfall/arc-db";
+import { RuntimeProvider } from "@sunfall/arc-react";
 import { Window } from "happy-dom";
 import { Context, Deferred, Effect, Fiber, Layer } from "effect";
 import { act, createElement, useState } from "react";
@@ -118,7 +118,7 @@ describe("react-db", () => {
     readonly list: () => Effect.Effect<ReadonlyArray<Project>>;
   }
 
-  const ProjectApi = Context.Service<ProjectApi>("@effect-ui/react-db/test/ProjectApi");
+  const ProjectApi = Context.Service<ProjectApi>("@sunfall/arc-react-db/test/ProjectApi");
 
   interface ProjectMutationApi {
     readonly insert: (projects: ReadonlyArray<Project>) => Effect.Effect<void>;
@@ -129,7 +129,7 @@ describe("react-db", () => {
   }
 
   const ProjectMutationApi = Context.Service<ProjectMutationApi>(
-    "@effect-ui/react-db/test/ProjectMutationApi",
+    "@sunfall/arc-react-db/test/ProjectMutationApi",
   );
 
   it("adapts collections and live queries to React values", async () => {

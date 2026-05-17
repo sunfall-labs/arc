@@ -1,5 +1,5 @@
-import { makeRuntime, runWithRuntime, toEffect } from "@effect-ui/core";
-import { Collection } from "@effect-ui/db";
+import { makeRuntime, runWithRuntime, toEffect } from "@sunfall/arc-core";
+import { Collection } from "@sunfall/arc-db";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import {

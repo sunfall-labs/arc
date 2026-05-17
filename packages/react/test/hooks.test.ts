@@ -8,7 +8,7 @@ import {
   Signal,
   UiScopeDisposed,
   watch,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Window } from "happy-dom";
 import { Cause, Context, Deferred, Effect, Fiber, Layer, Scope, Stream } from "effect";
 import { StrictMode, Suspense, act, createElement, useEffect, useState } from "react";
@@ -36,7 +36,7 @@ interface ProjectApi {
   readonly get: (id: string) => Effect.Effect<Project>;
 }
 
-const ProjectApi = Context.Service<ProjectApi>("@effect-ui/react/test/ProjectApi");
+const ProjectApi = Context.Service<ProjectApi>("@sunfall/arc-react/test/ProjectApi");
 
 const installDom = (): (() => void) => {
   const window = new Window();
@@ -113,7 +113,7 @@ const suppressHostThenableFailure = (value: unknown): void => {
 };
 
 describe("react hooks", () => {
-  it("bridges Effect UI signals through React external-store subscriptions", async () => {
+  it("bridges Sunfall Arc signals through React external-store subscriptions", async () => {
     const count = Signal.make(0);
     const seen: number[] = [];
 

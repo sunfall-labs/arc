@@ -1,5 +1,5 @@
-import type { ResourceHydrationPayload } from "@effect-ui/core";
-import type { CollectionHydrationPayload } from "@effect-ui/db";
+import type { ResourceHydrationPayload } from "@sunfall/arc-core";
+import type { CollectionHydrationPayload } from "@sunfall/arc-db";
 import { Effect } from "effect";
 import {
   createHydrationScript,

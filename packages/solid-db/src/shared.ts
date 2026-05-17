@@ -1,9 +1,9 @@
 import {
   invokeEffectInput,
   runWithRuntime,
-  type AnyEffectUiRuntime,
+  type AnySunfallArcRuntime,
   type EffectInput,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import {
   bindCollectionRuntimeEffect,
   collectionStateError,
@@ -12,15 +12,15 @@ import {
   sameCollectionReactiveSources,
   subscribeCollectionReactiveSource,
   type AnyCollection,
-} from "@effect-ui/db";
-import { useRuntime } from "@effect-ui/solid";
+} from "@sunfall/arc-db";
+import { useRuntime } from "@sunfall/arc-solid";
 import { Effect } from "effect";
 import { createEffect, createSignal, onCleanup, type Accessor } from "solid-js";
 
 export { collectionStateError, liveQueryStateError };
 
 export interface SolidDbReactiveBinding<E, ER = never> {
-  readonly runtime: AnyEffectUiRuntime<ER>;
+  readonly runtime: AnySunfallArcRuntime<ER>;
   readonly tick: Accessor<number>;
   readonly preloadFailure: Accessor<E | ER | undefined>;
   read<A>(read: () => A): A;
@@ -29,7 +29,7 @@ export interface SolidDbReactiveBinding<E, ER = never> {
 }
 
 export interface SolidDbReactiveBindingOptions<E, R = never, ER = never> {
-  readonly runtime?: AnyEffectUiRuntime<ER> | undefined;
+  readonly runtime?: AnySunfallArcRuntime<ER> | undefined;
   readonly sources: ReadonlyArray<AnyCollection> | Accessor<ReadonlyArray<AnyCollection>>;
   readonly preload?: boolean | undefined;
   readonly preloadEffect?: Effect.Effect<void, E, R> | undefined;

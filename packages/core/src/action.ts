@@ -28,12 +28,12 @@ import type {
 import { EffectInputCallbackError } from "./effect-like.js";
 import { Resource, type ResourceInvalidation, type ResourceInvalidationPlan } from "./resource.js";
 import type { ResourceStore as ResourceStoreState } from "./resource-store.js";
-import { currentOrDefaultRuntime, getCurrentRuntime, type EffectUiRuntime } from "./runtime.js";
+import { currentOrDefaultRuntime, getCurrentRuntime, type SunfallArcRuntime } from "./runtime.js";
 import type { ReadableSignal } from "./signal.js";
 
 /** Expert-public structural marker used to recognize Action Definitions. */
 export const ActionTypeId: unique symbol = Symbol.for(
-  "@effect-ui/core/Action",
+  "@sunfall/arc-core/Action",
 ) as typeof ActionTypeId;
 
 /** State machine for one action instance. */
@@ -174,7 +174,7 @@ export interface ActionInstance<
 /** Runtime options for constructing an Action Instance from a definition. */
 export interface ActionUseOptions<R = never, ER = never> {
   /** Runtime that provides action services, the Resource Store, and runtime errors. */
-  readonly runtime?: EffectUiRuntime<R, ER>;
+  readonly runtime?: SunfallArcRuntime<R, ER>;
 }
 
 export type { ActionOptimisticTransaction, ActionRollback } from "./action-optimistic.js";
@@ -232,7 +232,7 @@ type ActionDefinitionCommonOptions<I, A, E, R, InvalidationRequirements = never>
   ) => ReadonlyArray<ResourceInvalidation<InvalidationRequirements>>;
 };
 
-/** Returns true when a value is an Effect UI Action Definition. */
+/** Returns true when a value is an Sunfall Arc Action Definition. */
 export const isActionDefinition = (value: unknown): value is ActionDefinition<unknown, unknown> =>
   typeof value === "object" &&
   value !== null &&
@@ -497,7 +497,7 @@ export namespace Action {
   >;
   export function use<I, A, E = never, R = never, RRuntime = never, ER = never>(
     definition: ActionDefinition<I, A, E, R>,
-    options: { readonly runtime: EffectUiRuntime<RRuntime, ER> },
+    options: { readonly runtime: SunfallArcRuntime<RRuntime, ER> },
   ): ActionInstance<
     I,
     A,
@@ -538,7 +538,7 @@ export namespace Action {
       effect: Effect.Effect<Value, Error, Requirements>,
     ): Effect.Effect<Value, Error | ER, Requirements> =>
       shouldRunOnCapturedRuntime
-        ? ((runtime as unknown as EffectUiRuntime<RRuntime, ER>).provide(effect) as Effect.Effect<
+        ? ((runtime as unknown as SunfallArcRuntime<RRuntime, ER>).provide(effect) as Effect.Effect<
             Value,
             Error | ER,
             Requirements

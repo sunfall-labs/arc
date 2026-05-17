@@ -3,14 +3,14 @@
 ## Decision
 
 The smallest safe adoption step is an additive Effect RPC compatibility layer for
-Start server functions. Start keeps `POST /__effect-ui/rpc` as the default JSON
+Start server functions. Start keeps `POST /__sunfall-arc/rpc` as the default JSON
 transport while the shared endpoint policy can override the path through
-manifests, request handlers, Vite dev SSR, and clients. `@effect-ui/start` can
+manifests, request handlers, Vite dev SSR, and clients. `@sunfall/arc-start` can
 now describe live `Server.fn` contracts as `effect/unstable/rpc` `Rpc`
 descriptors and an `RpcGroup`.
 
 This compatibility layer does not own progressive action form encoding.
-`@effect-ui/start` keeps the Start Action Request Codec as the shared Interface
+`@sunfall/arc-start` keeps the Start Action Request Codec as the shared Interface
 for JSON action clients and form hidden-field payloads.
 
 ## Primitives Evaluated

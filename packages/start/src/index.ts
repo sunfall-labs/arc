@@ -258,4 +258,4 @@ export {
   ServerRpcProtocolError,
   ServerTransportError,
   Signal,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";

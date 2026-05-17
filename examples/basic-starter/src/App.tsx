@@ -1,4 +1,4 @@
-import { useResource } from "@effect-ui/solid";
+import { useResource } from "@sunfall/arc-solid";
 import { WelcomeRef } from "./starter.js";
 import "./styles.css";
 
@@ -8,7 +8,7 @@ export default function App() {
   return (
     <main class="starterShell">
       <section class="starterPanel">
-        <p class="starterEyebrow">Effect UI Starter</p>
+        <p class="starterEyebrow">Sunfall Arc Starter</p>
         {welcome.match({
           initial: () => <h1>Loading starter resource</h1>,
           pending: () => <h1>Loading starter resource</h1>,

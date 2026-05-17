@@ -1,9 +1,9 @@
-import { RuntimeProvider } from "@effect-ui/react";
+import { RuntimeProvider } from "@sunfall/arc-react";
 import {
   createStartStreamedHtmlResponseEffect,
   createRequestHandler,
   htmlChunk,
-} from "@effect-ui/start";
+} from "@sunfall/arc-start";
 import { Effect, Stream } from "effect";
 import { renderToString } from "react-dom/server";
 import App from "./App.js";
@@ -16,7 +16,7 @@ const shellOpen = (): string => `<!doctype html>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Effect UI React Starter</title>
+    <title>Sunfall Arc React Starter</title>
   </head>
   <body>
     <div id="root">`;
@@ -42,7 +42,7 @@ export const handleRequest = createRequestHandler(app, {
         hydrationPlan,
         tail: htmlChunk(shellClose(hydrationRootScript)),
         headers: {
-          "x-effect-ui-starter": "react",
+          "x-sunfall-arc-starter": "react",
         },
       });
     }),

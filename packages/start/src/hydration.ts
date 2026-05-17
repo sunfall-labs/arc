@@ -3,19 +3,19 @@ import {
   validateResourceHydrationInputEffect,
   type EffectInputCallbackError,
   Resource,
-  type AnyEffectUiRuntime,
-  type EffectUiRuntime,
+  type AnySunfallArcRuntime,
+  type SunfallArcRuntime,
   type ResourceHydrationApplyError,
   type ResourceSnapshotCodecError,
   type ResourceHydrationPayload,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import {
   Collection,
   type AnyCollection,
   type CollectionHydrateOptions,
   type CollectionHydrationPayload,
   CollectionSnapshotCodecError,
-} from "@effect-ui/db";
+} from "@sunfall/arc-db";
 import { Cause, Data, Effect, Exit, type Schema } from "effect";
 import {
   hydrationScriptId,
@@ -161,8 +161,8 @@ export interface HydrateStartPayloadOptions<
 > extends HydrateStartPayloadEffectOptions {
   /** Runtime used by the synchronous host-seam hydration facade. */
   readonly runtime?:
-    | EffectUiRuntime<RuntimeServices, RuntimeError>
-    | AnyEffectUiRuntime<RuntimeError>;
+    | SunfallArcRuntime<RuntimeServices, RuntimeError>
+    | AnySunfallArcRuntime<RuntimeError>;
 }
 
 /**
@@ -192,8 +192,8 @@ export interface HydrateStartHydrationChunksFromDocumentOptions<
 > extends HydrateStartHydrationChunksFromDocumentEffectOptions {
   /** Runtime used by the synchronous host-seam hydration facade. */
   readonly runtime?:
-    | EffectUiRuntime<RuntimeServices, RuntimeError>
-    | AnyEffectUiRuntime<RuntimeError>;
+    | SunfallArcRuntime<RuntimeServices, RuntimeError>
+    | AnySunfallArcRuntime<RuntimeError>;
 }
 
 /** Effect-first options for reading and applying the document hydration script. */
@@ -206,8 +206,8 @@ export interface HydrateFromDocumentOptions<
 > extends HydrateFromDocumentEffectOptions {
   /** Runtime used by the synchronous host-seam document hydration facade. */
   readonly runtime?:
-    | EffectUiRuntime<RuntimeServices, RuntimeError>
-    | AnyEffectUiRuntime<RuntimeError>;
+    | SunfallArcRuntime<RuntimeServices, RuntimeError>
+    | AnySunfallArcRuntime<RuntimeError>;
 }
 
 /** Options for preloading request-time collections into the Start hydration payload. */
@@ -332,11 +332,11 @@ const streamCollectionHydrateOptions = (
 const runHydrationSync = <A, E, RuntimeServices, RuntimeError>(
   effect: Effect.Effect<A, E>,
   runtime:
-    | EffectUiRuntime<RuntimeServices, RuntimeError>
-    | AnyEffectUiRuntime<RuntimeError>
+    | SunfallArcRuntime<RuntimeServices, RuntimeError>
+    | AnySunfallArcRuntime<RuntimeError>
     | undefined,
 ): A =>
-  (runtime ?? (currentOrDefaultRuntime() as AnyEffectUiRuntime<RuntimeError>)).runSync(effect);
+  (runtime ?? (currentOrDefaultRuntime() as AnySunfallArcRuntime<RuntimeError>)).runSync(effect);
 
 const runStartHydrationTransportSync = <A, E>(effect: Effect.Effect<A, E>): A => {
   const exit = Effect.runSyncExit(effect);

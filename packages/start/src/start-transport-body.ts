@@ -1,4 +1,4 @@
-import { Server, ServerRpcProtocolError, ServerTransportError } from "@effect-ui/core";
+import { Server, ServerRpcProtocolError, ServerTransportError } from "@sunfall/arc-core";
 import { Effect } from "effect";
 
 /** Body-like source that can be consumed once as JSON by the Start transport. */

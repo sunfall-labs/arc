@@ -1,4 +1,4 @@
-import { Server, ServerRpcProtocolError, type ActionDefinition } from "@effect-ui/core";
+import { Server, ServerRpcProtocolError, type ActionDefinition } from "@sunfall/arc-core";
 import { Cause, Data, Effect, Exit, Schema } from "effect";
 import { hasContentType, startJsonMediaType } from "./rpc.js";
 import {

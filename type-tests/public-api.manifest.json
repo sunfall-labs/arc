@@ -1,9 +1,9 @@
 {
   "entrypoints": [
     {
-      "package": "@effect-ui/core",
+      "package": "@sunfall/arc-core",
       "export": ".",
-      "import": "@effect-ui/core",
+      "import": "@sunfall/arc-core",
       "source": "packages/core/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/core.test-d.ts",
@@ -69,9 +69,9 @@
       ]
     },
     {
-      "package": "@effect-ui/db",
+      "package": "@sunfall/arc-db",
       "export": ".",
-      "import": "@effect-ui/db",
+      "import": "@sunfall/arc-db",
       "source": "packages/db/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/db.test-d.ts",
@@ -224,9 +224,9 @@
       ]
     },
     {
-      "package": "@effect-ui/devtools",
+      "package": "@sunfall/arc-devtools",
       "export": ".",
-      "import": "@effect-ui/devtools",
+      "import": "@sunfall/arc-devtools",
       "source": "packages/devtools/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/devtools.test-d.ts",
@@ -259,9 +259,9 @@
       ]
     },
     {
-      "package": "@effect-ui/react",
+      "package": "@sunfall/arc-react",
       "export": ".",
-      "import": "@effect-ui/react",
+      "import": "@sunfall/arc-react",
       "source": "packages/react/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/react.test-d.ts",
@@ -322,9 +322,9 @@
       ]
     },
     {
-      "package": "@effect-ui/react-db",
+      "package": "@sunfall/arc-react-db",
       "export": ".",
-      "import": "@effect-ui/react-db",
+      "import": "@sunfall/arc-react-db",
       "source": "packages/react-db/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/react-db.test-d.ts",
@@ -341,9 +341,9 @@
       ]
     },
     {
-      "package": "@effect-ui/solid",
+      "package": "@sunfall/arc-solid",
       "export": ".",
-      "import": "@effect-ui/solid",
+      "import": "@sunfall/arc-solid",
       "source": "packages/solid/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/solid.test-d.ts",
@@ -403,9 +403,9 @@
       ]
     },
     {
-      "package": "@effect-ui/solid-db",
+      "package": "@sunfall/arc-solid-db",
       "export": ".",
-      "import": "@effect-ui/solid-db",
+      "import": "@sunfall/arc-solid-db",
       "source": "packages/solid-db/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/solid-db.test-d.ts",
@@ -422,9 +422,9 @@
       ]
     },
     {
-      "package": "@effect-ui/start",
+      "package": "@sunfall/arc-start",
       "export": ".",
-      "import": "@effect-ui/start",
+      "import": "@sunfall/arc-start",
       "source": "packages/start/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/start.test-d.ts",
@@ -558,9 +558,9 @@
       ]
     },
     {
-      "package": "@effect-ui/start",
+      "package": "@sunfall/arc-start",
       "export": "./adapters",
-      "import": "@effect-ui/start/adapters",
+      "import": "@sunfall/arc-start/adapters",
       "source": "packages/start/src/adapters.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/start-adapters.test-d.ts",
@@ -568,18 +568,18 @@
       "requiredTypeTestImports": ["StartNodeAdapterError", "StartRequestHandlerError"]
     },
     {
-      "package": "@effect-ui/start",
+      "package": "@sunfall/arc-start",
       "export": "./diagnostics-report",
-      "import": "@effect-ui/start/diagnostics-report",
+      "import": "@sunfall/arc-start/diagnostics-report",
       "source": "packages/start/src/diagnostics-report.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/start-diagnostics-report.test-d.ts",
       "sourceSurface": ["start-diagnostics-contract"]
     },
     {
-      "package": "@effect-ui/start",
+      "package": "@sunfall/arc-start",
       "export": "./cli",
-      "import": "@effect-ui/start/cli",
+      "import": "@sunfall/arc-start/cli",
       "source": "packages/start/src/cli.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/start-cli.test-d.ts",
@@ -587,9 +587,9 @@
       "requiredTypeTestImports": ["StartDiagnosticsCliIo", "StartDiagnosticsCliWriteError"]
     },
     {
-      "package": "@effect-ui/start",
+      "package": "@sunfall/arc-start",
       "export": "./fetch-adapter",
-      "import": "@effect-ui/start/fetch-adapter",
+      "import": "@sunfall/arc-start/fetch-adapter",
       "source": "packages/start/src/fetch-adapter.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/start-fetch-adapter.test-d.ts",
@@ -597,9 +597,9 @@
       "requiredTypeTestImports": ["StartRequestHandlerError"]
     },
     {
-      "package": "@effect-ui/start",
+      "package": "@sunfall/arc-start",
       "export": "./node-adapter",
-      "import": "@effect-ui/start/node-adapter",
+      "import": "@sunfall/arc-start/node-adapter",
       "source": "packages/start/src/node-adapter.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/start-node-adapter.test-d.ts",
@@ -611,23 +611,23 @@
       "requiredTypeTestImports": ["StartNodeAdapterError", "StartRequestHandlerError"]
     },
     {
-      "package": "@effect-ui/start",
+      "package": "@sunfall/arc-start",
       "export": "./virtual",
-      "import": "@effect-ui/start/virtual",
+      "import": "@sunfall/arc-start/virtual",
       "source": "packages/start/src/virtual-modules.d.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/start-virtual.test-d.ts",
       "typeTestReferences": [
-        "virtual:effect-ui/server-functions",
+        "virtual:sunfall-arc/server-functions",
         "serverFunctionManifest",
         "ServerFunctionManifestEntry",
-        "virtual:effect-ui/actions",
+        "virtual:sunfall-arc/actions",
         "actionManifest",
         "ActionManifestEntry",
-        "virtual:effect-ui/file-routes",
+        "virtual:sunfall-arc/file-routes",
         "fileRouteManifest",
         "FileRouteManifestEntry",
-        "virtual:effect-ui/routes",
+        "virtual:sunfall-arc/routes",
         "virtualRoutes",
         "routeTree",
         "routeById",
@@ -687,17 +687,17 @@
         "Match",
         "FileRouteModules",
         "FileRouteMetadata",
-        "virtual:effect-ui/app-graph",
+        "virtual:sunfall-arc/app-graph",
         "appGraph",
         "StartAppGraphDiagnostics",
-        "virtual:effect-ui/app-graph/runtime-diagnostics",
+        "virtual:sunfall-arc/app-graph/runtime-diagnostics",
         "runtimeDiagnostics"
       ]
     },
     {
-      "package": "@effect-ui/start",
+      "package": "@sunfall/arc-start",
       "export": "./vite",
-      "import": "@effect-ui/start/vite",
+      "import": "@sunfall/arc-start/vite",
       "source": "packages/start/src/vite.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/start-vite.test-d.ts",
@@ -762,27 +762,27 @@
       ]
     },
     {
-      "package": "@effect-ui/start-fetch",
+      "package": "@sunfall/arc-start-fetch",
       "export": ".",
-      "import": "@effect-ui/start-fetch",
+      "import": "@sunfall/arc-start-fetch",
       "source": "packages/start-fetch/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/start-fetch.test-d.ts",
       "requiredTypeTestImports": ["StartRequestHandlerError"]
     },
     {
-      "package": "@effect-ui/start-node",
+      "package": "@sunfall/arc-start-node",
       "export": ".",
-      "import": "@effect-ui/start-node",
+      "import": "@sunfall/arc-start-node",
       "source": "packages/start-node/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/start-node.test-d.ts",
       "requiredTypeTestImports": ["StartNodeAdapterError", "StartRequestHandlerError"]
     },
     {
-      "package": "@effect-ui/tsrx",
+      "package": "@sunfall/arc-tsrx",
       "export": ".",
-      "import": "@effect-ui/tsrx",
+      "import": "@sunfall/arc-tsrx",
       "source": "packages/tsrx/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/tsrx.test-d.ts"
@@ -790,8 +790,8 @@
   ],
   "bins": [
     {
-      "package": "@effect-ui/start",
-      "bin": "effect-ui-start",
+      "package": "@sunfall/arc-start",
+      "bin": "sunfall-arc-start",
       "source": "packages/start/src/cli.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": null,

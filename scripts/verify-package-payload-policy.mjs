@@ -30,7 +30,7 @@ const writeTextEffect = (root, file, text) =>
   });
 
 const basePackageJson = {
-  name: "@effect-ui/payload-policy-self-test",
+  name: "@sunfall/arc-payload-policy-self-test",
   license: "MIT",
   description: "Package payload policy self-test.",
   publishConfig: { access: "public" },
@@ -70,7 +70,7 @@ const baseFiles = [
 ];
 
 const makeTarget = (directory, packageJson = basePackageJson) => ({
-  label: "@effect-ui/payload-policy-self-test",
+  label: "@sunfall/arc-payload-policy-self-test",
   payload: "dist-package",
   directory,
   packageJson,
@@ -119,7 +119,7 @@ const withTempPackageEffect = (name, options, use) =>
   Effect.scoped(
     Effect.gen(function* () {
       const directory = yield* fsEffect(`create temp package for ${name}`, () =>
-        mkdtemp(join(tmpdir(), "effect-ui-payload-policy-")),
+        mkdtemp(join(tmpdir(), "sunfall-arc-payload-policy-")),
       );
       yield* Effect.addFinalizer(() =>
         fsEffect(`remove temp package for ${name}`, () =>
@@ -192,7 +192,7 @@ const selfTest = Effect.gen(function* () {
   yield* Effect.scoped(
     Effect.gen(function* () {
       const workspaceRoot = yield* fsEffect("create temp workspace for license drift", () =>
-        mkdtemp(join(tmpdir(), "effect-ui-payload-policy-")),
+        mkdtemp(join(tmpdir(), "sunfall-arc-payload-policy-")),
       );
       yield* Effect.addFinalizer(() =>
         fsEffect("remove temp workspace for license drift", () =>
@@ -254,10 +254,10 @@ const selfTest = Effect.gen(function* () {
             "./missing": "./dist/missing.js",
           },
         },
-        payloadLabel: "generated local @effect-ui/payload-policy-self-test package",
+        payloadLabel: "generated local @sunfall/arc-payload-policy-self-test package",
       }),
       [
-        "generated local @effect-ui/payload-policy-self-test package manifest field exports../missing points at missing payload file dist/missing.js",
+        "generated local @sunfall/arc-payload-policy-self-test package manifest field exports../missing points at missing payload file dist/missing.js",
       ],
     ),
   );

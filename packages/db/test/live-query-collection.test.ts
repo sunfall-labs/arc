@@ -1,4 +1,4 @@
-import { EffectInputCallbackError, makeRuntime, runWithRuntime } from "@effect-ui/core";
+import { EffectInputCallbackError, makeRuntime, runWithRuntime } from "@sunfall/arc-core";
 import {
   Collection,
   CollectionSnapshotCodecError,
@@ -6,7 +6,7 @@ import {
   QueryEvaluationError,
   ReadonlyCollectionMutation,
   eq,
-} from "@effect-ui/db";
+} from "@sunfall/arc-db";
 import { Deferred, Effect, Exit, Fiber, Option, PubSub } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import {

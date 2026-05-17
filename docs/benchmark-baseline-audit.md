@@ -20,7 +20,7 @@ with Vitest bench mode. It covers:
 
 ## Current Baseline
 
-Run on May 14, 2026, from `/Users/alee/Developer/Personal/effect-ui`.
+Run on May 14, 2026, from `/Users/alee/Developer/Personal/sunfall-arc`.
 Environment: Node v25.9.0, pnpm 10.33.2, Vitest 4.1.6.
 
 Command:

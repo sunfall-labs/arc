@@ -12,7 +12,7 @@ import {
   normalizeStartManifestIterableOptions,
   normalizeStartBuildPolicy,
   withDiscoveredFileRoutes,
-  type EffectUiStartOptions,
+  type SunfallArcStartOptions,
 } from "./start-manifest-wall.js";
 import {
   appGraphRuntimeDiagnosticsVirtualModuleId,
@@ -39,7 +39,7 @@ import {
 } from "./start-vite-dev-ssr.js";
 import { forkStartHostEffect, runStartHostPromise } from "./start-host-runtime-runner.js";
 import { isStartManifestServerOnlyModule } from "./manifest-entry-core.js";
-import { effectUiStartPluginName } from "./start-vite-plugin-names.js";
+import { sunfallArcStartPluginName } from "./start-vite-plugin-names.js";
 import {
   loadStartRouteComponentSplitModule,
   resolveStartRouteComponentSplitModuleId,
@@ -69,7 +69,7 @@ export {
   validateStartBuildPolicyEffect,
 } from "./start-manifest-wall.js";
 export type {
-  EffectUiStartOptions,
+  SunfallArcStartOptions,
   FileRouteDiscoveryOptions,
   FileRouteGenerationOptions,
   StartAppGraphError,
@@ -174,7 +174,7 @@ export type {
 } from "./start-vite-diagnostics-loader.js";
 
 /** Vite resolved config fields used by the Start plugin. */
-export interface EffectUiStartResolvedConfig {
+export interface SunfallArcStartResolvedConfig {
   readonly root: string;
   readonly command?: "build" | "serve";
   readonly mode?: string;
@@ -184,11 +184,11 @@ export interface EffectUiStartResolvedConfig {
   };
 }
 
-/** Vite plugin shape returned by `effectUiStart`. */
-export interface EffectUiStartPlugin {
-  readonly name: typeof effectUiStartPluginName;
+/** Vite plugin shape returned by `sunfallArcStart`. */
+export interface SunfallArcStartPlugin {
+  readonly name: typeof sunfallArcStartPluginName;
   readonly config: (config?: UserConfig) => UserConfig;
-  readonly configResolved: (config: EffectUiStartResolvedConfig) => void;
+  readonly configResolved: (config: SunfallArcStartResolvedConfig) => void;
   readonly buildStart: () => void | Promise<void>;
   readonly closeBundle: () => void | Promise<void>;
   readonly resolveId: (id: string) => string | null;
@@ -238,7 +238,7 @@ export class StartServerOnlyModuleError extends Data.TaggedError("StartServerOnl
 }> {}
 
 /**
- * Creates the Effect UI Start Vite plugin.
+ * Creates the Sunfall Arc Start Vite plugin.
  *
  * The plugin wires manifests into virtual modules, discovers file routes,
  * enforces build policies, blocks server-only imports from browser builds, and
@@ -247,11 +247,11 @@ export class StartServerOnlyModuleError extends Data.TaggedError("StartServerOnl
  * @example
  * ```ts
  * export default defineConfig({
- *   plugins: [effectUiStart({ serverEntry: "/src/server.tsx" })]
+ *   plugins: [sunfallArcStart({ serverEntry: "/src/server.tsx" })]
  * });
  * ```
  */
-export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStartPlugin => {
+export const sunfallArcStart = (options: SunfallArcStartOptions = {}): SunfallArcStartPlugin => {
   const normalizedOptions = normalizeStartManifestIterableOptions(options);
   const serverEntry = normalizedOptions.serverEntry ?? defaultServerEntry;
   let viteRoot = process.cwd();
@@ -260,7 +260,7 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
   let viteMode: string | undefined;
   let viteOutDir = "dist";
 
-  const currentOptions = (): EffectUiStartOptions =>
+  const currentOptions = (): SunfallArcStartOptions =>
     withDiscoveredFileRoutes({ ...normalizedOptions, serverEntry }, viteRoot);
 
   const shouldRunDiagnosticsGate = (): boolean => {
@@ -347,7 +347,7 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
   };
 
   return {
-    name: effectUiStartPluginName,
+    name: sunfallArcStartPluginName,
     config(config: UserConfig = {}) {
       viteUserConfig = config;
       viteRoot = resolvePath(config.root ?? process.cwd());

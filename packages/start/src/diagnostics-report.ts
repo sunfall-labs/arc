@@ -36,7 +36,7 @@ const summaryLines = (summary: StartDiagnosticsReportSummary): readonly string[]
  */
 export const formatStartDiagnosticsReport = (report: StartDiagnosticsReport): string => {
   const lines = [
-    "Effect UI Start Diagnostics Report",
+    "Sunfall Arc Start Diagnostics Report",
     `status: ${report.status}`,
     ...summaryLines(report.summary),
   ];

@@ -1,4 +1,4 @@
-import type { ServerFunction } from "@effect-ui/core";
+import type { ServerFunction } from "@sunfall/arc-core";
 import { Schema } from "effect";
 import { Rpc, RpcGroup } from "effect/unstable/rpc";
 import {
@@ -87,7 +87,7 @@ const schemaOrUnknown = (schema: unknown): Schema.Top =>
   Schema.isSchema(schema) ? schema : Schema.Unknown;
 
 /**
- * Creates an Effect unstable Rpc descriptor for one Effect UI server function.
+ * Creates an Effect unstable Rpc descriptor for one Sunfall Arc server function.
  *
  * This is intentionally descriptor-only: Start keeps its current transport while
  * the unstable Rpc server/client APIs settle. Untyped contracts map to

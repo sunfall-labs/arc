@@ -1,6 +1,6 @@
-# Effect UI Invariants
+# Sunfall Arc Invariants
 
-This document names the behavior that must stay true as Effect UI grows toward
+This document names the behavior that must stay true as Sunfall Arc grows toward
 the winning spec. These are product guarantees, not implementation preferences.
 The strategic destination is
 [Best Full-Stack Framework Plan](./best-framework-plan.md); this document is the
@@ -8,7 +8,7 @@ non-negotiable contract that keeps the implementation worthy of that plan.
 
 ## Product Contract
 
-Effect UI is only meaningfully "better" if these guarantees remain true
+Sunfall Arc is only meaningfully "better" if these guarantees remain true
 together:
 
 - compile-time rules reject mistakes before runtime when TypeScript can express
@@ -40,7 +40,7 @@ documented as outside the current release bar.
 
 ## Runtime Spine
 
-- Effects cross host seams through `EffectUiRuntime`.
+- Effects cross host seams through `SunfallArcRuntime`.
 - Promise-shaped entrypoints are compatibility adapters for UI, browser, and
   host boundaries only.
 - Framework internals keep Effect forms for async work.
@@ -153,7 +153,7 @@ documented as outside the current release bar.
   contract once their manifests are ready.
 - Start build policy can opt into resolved diagnostics checks for route preload
   resource and collection declarations. The check runs from the generated
-  `virtual:effect-ui/app-graph` module, where route modules have been imported
+  `virtual:sunfall-arc/app-graph` module, where route modules have been imported
   and route feature facts are no longer static placeholders.
 
 ## Server Functions

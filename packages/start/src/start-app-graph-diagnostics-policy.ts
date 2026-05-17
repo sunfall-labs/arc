@@ -161,7 +161,7 @@ export const createStartAppGraphDiagnosticsPolicyException = (
   violations: readonly StartAppGraphDiagnosticsPolicyViolation[],
 ): StartAppGraphDiagnosticsPolicyException =>
   new StartAppGraphDiagnosticsPolicyException({
-    message: `Effect UI app graph diagnostics policy failed: ${violations
+    message: `Sunfall Arc app graph diagnostics policy failed: ${violations
       .map(formatStartAppGraphDiagnosticsPolicyViolation)
       .join("; ")}`,
     violations,

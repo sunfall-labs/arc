@@ -1,4 +1,4 @@
-import type { EffectUiRuntime } from "@effect-ui/core";
+import type { SunfallArcRuntime } from "@sunfall/arc-core";
 import { Effect, Scope } from "effect";
 import { StartRequestHandlerError } from "./start-request-handler-error.js";
 import {
@@ -43,7 +43,7 @@ export type StartFetchPromiseHandlerRuntimeOptions<Requirements, RuntimeError = 
   "runtime"
 > & {
   /** Runtime that supplies the handler's non-Scope requirements. */
-  readonly runtime: EffectUiRuntime<StartFetchRuntimeRequirements<Requirements>, RuntimeError>;
+  readonly runtime: SunfallArcRuntime<StartFetchRuntimeRequirements<Requirements>, RuntimeError>;
 };
 
 type StartFetchPromiseHandlerOptionsArgs<Requirements, RuntimeError = never> = [
@@ -74,7 +74,7 @@ const runOptionsForRequest = (
 /**
  * Compatibility handler type for Fetch-native hosts.
  *
- * This is a host adapter contract, not the canonical Effect UI programming
+ * This is a host adapter contract, not the canonical Sunfall Arc programming
  * model. `createFetchHandler(...)` wires the incoming `Request.signal` into
  * Effect v4 run options, merging it with `options.runOptions.signal` and
  * cleaning fallback abort listeners, so host aborts interrupt the underlying

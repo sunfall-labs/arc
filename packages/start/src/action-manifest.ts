@@ -1,4 +1,4 @@
-import type { ActionConcurrency, ActionDefinition } from "@effect-ui/core";
+import type { ActionConcurrency, ActionDefinition } from "@sunfall/arc-core";
 import { Data, Effect, Schema } from "effect";
 import {
   assembleCallableManifestEntry,

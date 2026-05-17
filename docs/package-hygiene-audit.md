@@ -26,7 +26,7 @@ exports. It supports the release-engineering charter workstream.
 - Package TypeScript build info now writes to package-local `.tsbuildinfo`
   files instead of `dist/.tsbuildinfo`, so publishable `dist` payloads do not
   include compiler cache files.
-- `@effect-ui/start`
+- `@sunfall/arc-start`
   - Source entrypoints import `effect` directly in runtime, manifests, Vite,
     adapters, hydration, routing, and streaming modules.
   - `packages/start/package.json` now declares `effect` as a direct dependency
@@ -35,18 +35,18 @@ exports. It supports the release-engineering charter workstream.
     `packages/start/package.json` declares `vite` as a peer dependency.
   - `pnpm-lock.yaml` was updated to keep the workspace lock consistent.
 - Other package manifests match direct runtime imports found in this sweep:
-  - `@effect-ui/core`: `effect`
-  - `@effect-ui/db`: `@effect-ui/core`, `@tanstack/db-ivm`, `effect`
-  - `@effect-ui/devtools`: `@effect-ui/core`, `effect`
-  - `@effect-ui/react`: `@effect-ui/core`, `effect`, `react`
-  - `@effect-ui/react-db`: `@effect-ui/core`, `@effect-ui/db`,
-    `@effect-ui/react`, `effect`, `react`
-  - `@effect-ui/solid`: `@effect-ui/core`, `effect`, `solid-js`
-  - `@effect-ui/solid-db`: `@effect-ui/core`, `@effect-ui/db`,
-    `@effect-ui/solid`, `effect`, `solid-js`
-  - `@effect-ui/start-fetch`: `@effect-ui/start`
-  - `@effect-ui/start-node`: `@effect-ui/start`
-  - `@effect-ui/tsrx`: `@tsrx/vite-plugin-solid`, `vite-plugin-solid`, with
+  - `@sunfall/arc-core`: `effect`
+  - `@sunfall/arc-db`: `@sunfall/arc-core`, `@tanstack/db-ivm`, `effect`
+  - `@sunfall/arc-devtools`: `@sunfall/arc-core`, `effect`
+  - `@sunfall/arc-react`: `@sunfall/arc-core`, `effect`, `react`
+  - `@sunfall/arc-react-db`: `@sunfall/arc-core`, `@sunfall/arc-db`,
+    `@sunfall/arc-react`, `effect`, `react`
+  - `@sunfall/arc-solid`: `@sunfall/arc-core`, `effect`, `solid-js`
+  - `@sunfall/arc-solid-db`: `@sunfall/arc-core`, `@sunfall/arc-db`,
+    `@sunfall/arc-solid`, `effect`, `solid-js`
+  - `@sunfall/arc-start-fetch`: `@sunfall/arc-start`
+  - `@sunfall/arc-start-node`: `@sunfall/arc-start`
+  - `@sunfall/arc-tsrx`: `@tsrx/vite-plugin-solid`, `vite-plugin-solid`, with
     `vite` as a peer dependency.
 - Review149 added `pnpm example:pack-dry-run` as the current source package
   payload gate, and Review150 expanded it to all 11 framework packages plus the
@@ -89,18 +89,18 @@ exports. It supports the release-engineering charter workstream.
   package-local `verify` script so the root verifier cannot skip a copyable app
   package silently.
 - Review206 added an installed-bin rehearsal to the same dry-run gate:
-  `@effect-ui/start` now creates a temporary package-manager-style symlink to
-  the built `dist/cli.js` and verifies `effect-ui-start --version` executes
+  `@sunfall/arc-start` now creates a temporary package-manager-style symlink to
+  the built `dist/cli.js` and verifies `sunfall-arc-start --version` executes
   through that symlink.
 - Review208 tightened that installed-bin rehearsal so POSIX verification runs
-  the linked `effect-ui-start` executable directly instead of invoking the
-  symlink through `node`, and `@effect-ui/start` marks `dist/cli.js` executable
+  the linked `sunfall-arc-start` executable directly instead of invoking the
+  symlink through `node`, and `@sunfall/arc-start` marks `dist/cli.js` executable
   during package build.
 
 ## Verification Evidence
 
 - Import sweep:
-  - `rg -n "from \"(@effect-ui/[^\"]+|effect|solid-js|vite|@tsrx/[^\"]+|@tanstack/db-ivm)\"" packages/*/src examples/project-console/src -g '*.ts'`
+  - `rg -n "from \"(@sunfall/arc-[^\"]+|effect|solid-js|vite|@tsrx/[^\"]+|@tanstack/db-ivm)\"" packages/*/src examples/project-console/src -g '*.ts'`
 - Manifest and lockfile files reviewed:
   - root `package.json`
   - `packages/*/package.json`
@@ -120,8 +120,8 @@ exports. It supports the release-engineering charter workstream.
   manifest change.
 - `pnpm install --lockfile-only --offline` completed successfully after adding
   the Node and Fetch host adapter facade packages.
-- `pnpm --filter @effect-ui/start build` passed.
-- `pnpm --filter @effect-ui/start typecheck` passed.
+- `pnpm --filter @sunfall/arc-start build` passed.
+- `pnpm --filter @sunfall/arc-start typecheck` passed.
 - `pnpm verify` passed after the package hygiene change: package build,
   workspace typecheck, type tests, 34 package test files / 300 tests, example
   typecheck, 4 example test files / 23 tests, example build, and leak scan.
@@ -132,15 +132,15 @@ exports. It supports the release-engineering charter workstream.
   `.tsbuildinfo` outputs out of `dist`.
 - Individual package dry-run packs passed after refreshing workspace links,
   after adding package descriptions, and after adding MIT license metadata:
-  - `pnpm --filter @effect-ui/core pack --dry-run`
-  - `pnpm --filter @effect-ui/db pack --dry-run`
-  - `pnpm --filter @effect-ui/devtools pack --dry-run`
-  - `pnpm --filter @effect-ui/start pack --dry-run`
-  - `pnpm --filter @effect-ui/start-fetch pack --dry-run`
-  - `pnpm --filter @effect-ui/start-node pack --dry-run`
-  - `pnpm --filter @effect-ui/solid pack --dry-run`
-  - `pnpm --filter @effect-ui/solid-db pack --dry-run`
-  - `pnpm --filter @effect-ui/tsrx pack --dry-run`
+  - `pnpm --filter @sunfall/arc-core pack --dry-run`
+  - `pnpm --filter @sunfall/arc-db pack --dry-run`
+  - `pnpm --filter @sunfall/arc-devtools pack --dry-run`
+  - `pnpm --filter @sunfall/arc-start pack --dry-run`
+  - `pnpm --filter @sunfall/arc-start-fetch pack --dry-run`
+  - `pnpm --filter @sunfall/arc-start-node pack --dry-run`
+  - `pnpm --filter @sunfall/arc-solid pack --dry-run`
+  - `pnpm --filter @sunfall/arc-solid-db pack --dry-run`
+  - `pnpm --filter @sunfall/arc-tsrx pack --dry-run`
 - Historical framework package dry-run pack payloads contained only `dist` JavaScript,
   declaration, source-map files, and package manifests; no `.tsbuildinfo`
   compiler cache files are included.

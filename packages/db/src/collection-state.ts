@@ -1,4 +1,4 @@
-import { Signal, type WritableSignal } from "@effect-ui/core";
+import { Signal, type WritableSignal } from "@sunfall/arc-core";
 import type { Deferred } from "effect";
 import type {
   CollectionDefinition,

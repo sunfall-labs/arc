@@ -1,6 +1,6 @@
 import { Cause, Data, Effect, Exit, Fiber } from "effect";
 import { Route, RouteNavigationError } from "./route.js";
-import type { AnyEffectUiRuntime } from "./runtime.js";
+import type { AnySunfallArcRuntime } from "./runtime.js";
 import { Signal, type ReadableSignal } from "./signal.js";
 import { makeRuntimeUiScope, type UiScope } from "./scope.js";
 import type { BrowserNavigateOptions } from "./browser-router-history-adapter.js";
@@ -62,13 +62,13 @@ export class RouterRouteNotRegistered extends Data.TaggedError("RouterRouteNotRe
 /**
  * Framework-neutral Browser Router Kernel construction options.
  *
- * Framework adapters pass their Effect UI runtime and initial URL here before
+ * Framework adapters pass their Sunfall Arc runtime and initial URL here before
  * projecting the kernel's signals into React, Solid, or another host
  * lifecycle. `initialMatchedState` lets an adapter preserve SSR hydration
  * semantics without changing the shared navigation kernel.
  */
 export interface BrowserRouterKernelOptions<Routes extends readonly AnyBrowserRoute[], ER> {
-  readonly runtime: AnyEffectUiRuntime<ER>;
+  readonly runtime: AnySunfallArcRuntime<ER>;
   readonly initialHref: string;
   readonly initialMatchedState?: (
     href: string,
@@ -88,7 +88,7 @@ export interface BrowserRouterKernel<
   ER = never,
 > {
   readonly routes: Routes;
-  readonly runtime: AnyEffectUiRuntime<ER>;
+  readonly runtime: AnySunfallArcRuntime<ER>;
   readonly state: ReadableSignal<BrowserRouterState<Routes, ER>>;
   readonly match: ReadableSignal<Route.Match<Routes[number]> | undefined>;
   /** Effect-first disposal for interrupting active route preload work before teardown completes. */
@@ -126,7 +126,7 @@ export interface BrowserRouterKernel<
 }
 
 const provideRouterPreloadEffect = <ER, R extends AnyBrowserRoute>(
-  runtime: AnyEffectUiRuntime<ER>,
+  runtime: AnySunfallArcRuntime<ER>,
   match: Route.Match<R>,
 ): Effect.Effect<void, Route.PreloadError | ER> =>
   runtime.provide(

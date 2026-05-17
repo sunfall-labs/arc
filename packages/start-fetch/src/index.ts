@@ -17,4 +17,4 @@ export {
   type StartFetchPromiseHandlerRuntimeOptions,
   /** Compatibility handler type for Fetch hosts that require Promise-shaped entrypoints. */
   type StartFetchPromiseHandler,
-} from "@effect-ui/start/fetch-adapter";
+} from "@sunfall/arc-start/fetch-adapter";

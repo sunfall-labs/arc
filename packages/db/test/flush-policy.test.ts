@@ -1,5 +1,5 @@
-import { EffectInputPromiseRejected, makeRuntime, runWithRuntime } from "@effect-ui/core";
-import { Collection } from "@effect-ui/db";
+import { EffectInputPromiseRejected, makeRuntime, runWithRuntime } from "@sunfall/arc-core";
+import { Collection } from "@sunfall/arc-db";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import { flushCollectionsPendingMutationsEffect } from "../src/flush-policy.js";

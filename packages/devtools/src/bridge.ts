@@ -7,7 +7,7 @@ import type { DevtoolsPanelId, DevtoolsPanels } from "./devtools-contract.js";
  * Browser extensions and embedded shells can read this value from the inspected
  * window to obtain the latest panel payload without coupling to app internals.
  */
-export const effectUiDevtoolsBridgeGlobal = "__EFFECT_UI_DEVTOOLS__" as const;
+export const sunfallArcDevtoolsBridgeGlobal = "__SUNFALL_ARC_DEVTOOLS__" as const;
 
 /** Payload exposed by an inspected app to a browser-extension or app-side Devtools shell. */
 export interface DevtoolsBridgePayload {
@@ -26,7 +26,7 @@ export type DevtoolsBridgeProvider = DevtoolsBridgePayload | (() => DevtoolsBrid
 
 /** Object that can hold the scoped Devtools bridge global. Defaults to `globalThis`. */
 export interface DevtoolsBridgeTarget {
-  [effectUiDevtoolsBridgeGlobal]?: DevtoolsBridgeProvider | undefined;
+  [sunfallArcDevtoolsBridgeGlobal]?: DevtoolsBridgeProvider | undefined;
 }
 
 /** Installed bridge handle. `uninstall` restores any previous provider. */
@@ -53,15 +53,15 @@ const restoreDevtoolsBridgeTarget = (
 ): void => {
   const current = state.installs[state.installs.length - 1];
   if (current !== undefined) {
-    target[effectUiDevtoolsBridgeGlobal] = current.provider;
+    target[sunfallArcDevtoolsBridgeGlobal] = current.provider;
     return;
   }
 
   bridgeTargetStates.delete(target);
   if (state.hadPrevious) {
-    target[effectUiDevtoolsBridgeGlobal] = state.previous;
+    target[sunfallArcDevtoolsBridgeGlobal] = state.previous;
   } else {
-    delete target[effectUiDevtoolsBridgeGlobal];
+    delete target[sunfallArcDevtoolsBridgeGlobal];
   }
 };
 
@@ -71,8 +71,8 @@ export const installDevtoolsBridge = (
   target: DevtoolsBridgeTarget = globalThis as DevtoolsBridgeTarget,
 ): DevtoolsBridgeInstall => {
   const state = bridgeTargetStates.get(target) ?? {
-    hadPrevious: Object.prototype.hasOwnProperty.call(target, effectUiDevtoolsBridgeGlobal),
-    previous: target[effectUiDevtoolsBridgeGlobal],
+    hadPrevious: Object.prototype.hasOwnProperty.call(target, sunfallArcDevtoolsBridgeGlobal),
+    previous: target[sunfallArcDevtoolsBridgeGlobal],
     installs: [],
   };
   if (!bridgeTargetStates.has(target)) {
@@ -82,7 +82,7 @@ export const installDevtoolsBridge = (
   const entry: DevtoolsBridgeInstallEntry = { provider };
   let installed = true;
   state.installs.push(entry);
-  target[effectUiDevtoolsBridgeGlobal] = provider;
+  target[sunfallArcDevtoolsBridgeGlobal] = provider;
 
   return {
     target,

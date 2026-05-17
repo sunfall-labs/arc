@@ -1,4 +1,4 @@
-import { EffectInputCallbackError } from "@effect-ui/core";
+import { EffectInputCallbackError } from "@sunfall/arc-core";
 import { Effect, Data, Schema } from "effect";
 import type {
   CollectionHydrateOptions,

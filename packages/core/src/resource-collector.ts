@@ -7,7 +7,7 @@ export interface ResourceCollector {
 }
 
 export const ResourceCollector = Context.Service<ResourceCollector>(
-  "@effect-ui/core/ResourceCollector",
+  "@sunfall/arc-core/ResourceCollector",
 );
 
 export interface ResourceCollected<A> {

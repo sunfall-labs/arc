@@ -1,5 +1,5 @@
 import { Effect, Fiber } from "effect";
-import { renderDevtoolsPanelsHtml } from "@effect-ui/devtools";
+import { renderDevtoolsPanelsHtml } from "@sunfall/arc-devtools";
 import { Window } from "happy-dom";
 import { describe, expect, it } from "vitest";
 import { sampleDevtoolsPanels } from "./sample.js";
@@ -9,17 +9,17 @@ describe("devtools panel example", () => {
     const html = renderDevtoolsPanelsHtml({
       panels: sampleDevtoolsPanels(),
       selectedPanelId: "requests",
-      title: "Effect UI Devtools Panel",
+      title: "Sunfall Arc Devtools Panel",
     });
 
-    expect(html).toContain("Effect UI Devtools Panel");
+    expect(html).toContain("Sunfall Arc Devtools Panel");
     expect(html).toContain("GET /projects/atlas");
     expect(html).toContain("Project.byId:atlas");
     expect(html).toContain('data-selected-panel="requests"');
   });
 
   it("boots the actual panel entrypoint with a DOM root", async () => {
-    const window = new Window({ url: "https://effect-ui.local/devtools-panel" });
+    const window = new Window({ url: "https://sunfall-arc.local/devtools-panel" });
     const root = window.document.createElement("div");
     root.id = "devtools-root";
     window.document.body.append(root);
@@ -34,10 +34,10 @@ describe("devtools panel example", () => {
     try {
       const entrypoint = await import("./main.js");
 
-      expect(root.innerHTML).toContain("Effect UI Devtools Panel");
+      expect(root.innerHTML).toContain("Sunfall Arc Devtools Panel");
       expect(root.innerHTML).toContain("GET /projects/atlas");
       expect(
-        root.querySelector('[data-effect-ui-devtools-panel-target="requests"]'),
+        root.querySelector('[data-sunfall-arc-devtools-panel-target="requests"]'),
       ).not.toBeNull();
       await Effect.runPromise(Fiber.interrupt(entrypoint.devtoolsPanelBootFiber));
       expect(root.innerHTML).toBe("");

@@ -1,9 +1,9 @@
 import {
   applyResponseContextEffect,
   type EffectInputCallbackError,
-  type EffectUiRuntime,
+  type SunfallArcRuntime,
   type ResponseContext,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Cause, Effect, Exit } from "effect";
 import {
   completeRequestRuntimeWithResponse,
@@ -23,7 +23,7 @@ import {
 
 export interface RequestRuntimeLifecycleOptions<E, R, RuntimeServices, RuntimeError> {
   readonly request: Request;
-  readonly runtime: EffectUiRuntime<RuntimeServices, RuntimeError>;
+  readonly runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>;
   readonly responseContext: ResponseContext;
   readonly traceFacts: StartRequestTraceFacts;
   readonly responseEffect: Effect.Effect<Response, E, R>;

@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import type { EffectUiRuntime } from "@effect-ui/core";
+import type { SunfallArcRuntime } from "@sunfall/arc-core";
 import {
   actionManifestVirtualModuleId,
   appGraphRuntimeDiagnosticsVirtualModuleId,
@@ -9,7 +9,7 @@ import {
   defaultServerEntry,
   defaultStartBuildPolicy,
   defaultStartBuildWireSchemaPolicy,
-  effectUiStart,
+  sunfallArcStart,
   fileRouteDefinitionsVirtualModuleId,
   fileRouteManifestVirtualModuleId,
   handleSsrDevRequestEffect,
@@ -39,8 +39,8 @@ import {
   writeFileRouteDefinitionsFile,
   writeFileRouteDefinitionsFileEffect,
   startDevServerFromVite,
-  type EffectUiStartOptions,
-  type EffectUiStartPlugin,
+  type SunfallArcStartOptions,
+  type SunfallArcStartPlugin,
   type FileRouteDiscoveryOptions,
   type FileRouteDefinitionsFileWriteFailure,
   type FileRouteDefinitionsFileWriteResult,
@@ -68,7 +68,7 @@ import {
   type StartSsrHandlerModule,
   type StartViteDevServer,
   type StartViteDevSsrOptions,
-} from "@effect-ui/start/vite";
+} from "@sunfall/arc-start/vite";
 
 const viteExports: Array<unknown> = [
   actionManifestVirtualModuleId,
@@ -79,7 +79,7 @@ const viteExports: Array<unknown> = [
   defaultServerEntry,
   defaultStartBuildPolicy,
   defaultStartBuildWireSchemaPolicy,
-  effectUiStart,
+  sunfallArcStart,
   fileRouteDefinitionsVirtualModuleId,
   fileRouteManifestVirtualModuleId,
   handleSsrDevRequestEffect,
@@ -120,7 +120,7 @@ const diagnosticsBuildPolicyOptions = {
       routePreloadCollections: false,
     },
   },
-} satisfies EffectUiStartOptions;
+} satisfies SunfallArcStartOptions;
 type Assert<T extends true> = T;
 type StaticStartBuildPolicyErrors =
   | StartAppGraphMissingWireSchemas
@@ -137,8 +137,8 @@ type _StartBuildPolicyErrorExcludesDiagnostics = Assert<
     : false
 >;
 type ViteTypes =
-  | EffectUiStartOptions
-  | EffectUiStartPlugin
+  | SunfallArcStartOptions
+  | SunfallArcStartPlugin
   | FileRouteDiscoveryOptions
   | FileRouteDefinitionsFileWriteFailure
   | FileRouteDefinitionsFileWriteResult
@@ -169,7 +169,7 @@ type ViteTypes =
 interface ViteDevSsrService {
   readonly value: string;
 }
-declare const viteDevSsrRuntime: EffectUiRuntime<ViteDevSsrService, "dev-ssr-runtime">;
+declare const viteDevSsrRuntime: SunfallArcRuntime<ViteDevSsrService, "dev-ssr-runtime">;
 declare const servicefulDevSsrServer: StartDevServer<ViteDevSsrService>;
 declare const servicefulDevSsrModule: StartSsrHandlerModule<"handler-error", ViteDevSsrService>;
 declare const hostViteDevServer: StartViteDevServer;
@@ -182,7 +182,7 @@ const devSsrStartOptions = {
   devSsr: {
     runtime: viteDevSsrRuntime,
   },
-} satisfies EffectUiStartOptions;
+} satisfies SunfallArcStartOptions;
 const prerenderStartOptions = {
   prerender: {
     enabled: true,
@@ -201,7 +201,7 @@ const prerenderStartOptions = {
     ],
     filter: ({ path }) => !path.startsWith("/private"),
   },
-} satisfies EffectUiStartOptions;
+} satisfies SunfallArcStartOptions;
 const devSsrOptions: StartViteDevSsrOptions<"dev-ssr-runtime"> = {
   runtime: viteDevSsrRuntime,
 };
@@ -211,8 +211,8 @@ const servicefulDevSsrRequestAlias: typeof handleSsrDevRequestEffect = handleSsr
 const devSsrRequestOptions: HandleSsrDevRequestOptions = {
   serverEntry: defaultServerEntry,
   handlerExport: "handleRequest",
-  rpcPath: "/__effect-ui/rpc",
-  actionPath: "/__effect-ui/action",
+  rpcPath: "/__sunfall-arc/rpc",
+  actionPath: "/__sunfall-arc/action",
 };
 const devSsrMiddlewareOptions: HandleSsrDevMiddlewareOptions = {
   ...devSsrRequestOptions,

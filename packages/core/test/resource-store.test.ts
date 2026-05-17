@@ -141,7 +141,7 @@ describe("Resource Store disposal", () => {
   it("rejects stores that spoof the old global implementation marker", () => {
     const runtime = makeRuntime();
     const store = makeResourceStore();
-    const spoofedMarker = Symbol.for("@effect-ui/core/ResourceStoreImplementation");
+    const spoofedMarker = Symbol.for("@sunfall/arc-core/ResourceStoreImplementation");
     const fakeStore = {
       [ResourceStoreTypeId]: ResourceStoreTypeId,
       [spoofedMarker]: spoofedMarker,

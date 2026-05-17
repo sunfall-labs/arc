@@ -42,21 +42,21 @@ export const reactStarterTsConfig = {
 
 export const solidStarterViteConfig = (
   startOptionsImport,
-) => `import { effectUiStart } from "@effect-ui/start/vite";
-import { effectUiTsrx } from "@effect-ui/tsrx";
+) => `import { sunfallArcStart } from "@sunfall/arc-start/vite";
+import { sunfallArcTsrx } from "@sunfall/arc-tsrx";
 import { defineConfig } from "vite";
 import { ${startOptionsImport} } from "./src/start-options.js";
 
 export default defineConfig({
   plugins: [
-    ...effectUiTsrx({ solid: { ssr: true } }),
-    effectUiStart(${startOptionsImport})
+    ...sunfallArcTsrx({ solid: { ssr: true } }),
+    sunfallArcStart(${startOptionsImport})
   ]
 });
 `;
 
 export const reactStarterViteConfig = `import tailwindcss from "@tailwindcss/vite";
-import { effectUiStart } from "@effect-ui/start/vite";
+import { sunfallArcStart } from "@sunfall/arc-start/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { reactStarterStartOptions } from "./src/start-options.js";
@@ -67,7 +67,7 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    effectUiStart(reactStarterStartOptions)
+    sunfallArcStart(reactStarterStartOptions)
   ],
   resolve: {
     alias: [
@@ -77,9 +77,9 @@ export default defineConfig({
 });
 `;
 
-export const basicStarterReadme = `# Effect UI Basic Starter
+export const basicStarterReadme = `# Sunfall Arc Basic Starter
 
-This is the smallest checked starter path for a full-stack Effect UI app. It
+This is the smallest checked starter path for a full-stack Sunfall Arc app. It
 keeps the same shape as the project console without the local-first DB, actions,
 or diagnostics demo data.
 
@@ -100,9 +100,9 @@ The starter includes:
 - a production leak scan for server-only module sentinels.
 `;
 
-export const reactStarterReadme = `# Effect UI React Starter
+export const reactStarterReadme = `# Sunfall Arc React Starter
 
-React + Vite starter for Effect UI with Tailwind v4, Base UI, and a
+React + Vite starter for Sunfall Arc with Tailwind v4, Base UI, and a
 shadcn-compatible project shape.
 
 ## Commands
@@ -118,9 +118,9 @@ routes, route-owned Resource preload, SSR, browser hydration, and a production
 leak scan for server-only sentinels.
 `;
 
-export const projectConsoleStarterReadme = `# Effect UI Project Console Starter
+export const projectConsoleStarterReadme = `# Sunfall Arc Project Console Starter
 
-This is the larger checked starter path for Effect UI. It exercises branded
+This is the larger checked starter path for Sunfall Arc. It exercises branded
 routes, file-route generation, Resources, Collections, Start server functions,
 Start actions, no-JS form fallback, SSR, hydration, capability-based mocking,
 and a production server-only leak scan.

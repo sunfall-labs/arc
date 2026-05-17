@@ -69,7 +69,7 @@ that were still raw `Error` or `TypeError` throws.
   replacing negative-test sentinels with `expect.fail(...)`.
 - Review 147 kept that raw throw/subclass grep clean after replacing the Start
   fetch invalid-return throw and audit self-test raw throws.
-- `pnpm --filter @effect-ui/start typecheck` and
+- `pnpm --filter @sunfall/arc-start typecheck` and
   `pnpm exec vitest run packages/start/test/start.test.ts -t "Start diagnostics
 CLI"` passed after the CLI usage-error sweep.
 - Full `pnpm verify` passed after the CLI usage-error sweep: 38 root test files

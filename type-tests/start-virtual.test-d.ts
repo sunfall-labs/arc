@@ -1,18 +1,18 @@
-import "@effect-ui/start/virtual";
+import "@sunfall/arc-start/virtual";
 
 import serverFunctionManifest, {
   entries as serverFunctionEntries,
   type ServerFunctionManifestEntry,
-} from "virtual:effect-ui/server-functions";
+} from "virtual:sunfall-arc/server-functions";
 import actionManifest, {
   entries as actionEntries,
   type ActionManifestEntry,
-} from "virtual:effect-ui/actions";
+} from "virtual:sunfall-arc/actions";
 import fileRouteManifest, {
   entries as fileRouteEntries,
   modules as fileRouteModules,
   type FileRouteManifestEntry,
-} from "virtual:effect-ui/file-routes";
+} from "virtual:sunfall-arc/file-routes";
 import routeTree, {
   errorBoundaryById,
   errorBoundaryByPath,
@@ -72,16 +72,16 @@ import routeTree, {
   type RouteTree,
   type SearchById,
   type SearchByPath,
-} from "virtual:effect-ui/routes";
+} from "virtual:sunfall-arc/routes";
 import appGraph, {
   diagnostics as appGraphDiagnostics,
   diagnosticsPolicyViolations as appGraphDiagnosticsPolicyViolations,
   type StartAppGraphDiagnostics,
-} from "virtual:effect-ui/app-graph";
+} from "virtual:sunfall-arc/app-graph";
 import runtimeDiagnosticsGraph, {
   diagnostics as runtimeDiagnostics,
   diagnosticsPolicyViolations as runtimeDiagnosticsPolicyViolations,
-} from "virtual:effect-ui/app-graph/runtime-diagnostics";
+} from "virtual:sunfall-arc/app-graph/runtime-diagnostics";
 
 const virtualModuleValues: Array<unknown> = [
   serverFunctionManifest,

@@ -3,7 +3,7 @@ import {
   makeMemoryBrowserHistoryAdapter,
   route,
   type EffectInputCallbackError,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Effect, Stream } from "effect";
 import {
   Action,
@@ -58,12 +58,12 @@ import {
   type RuntimeEffectRunner,
   type RuntimeProviderProps,
   type UseResourceOptions,
-} from "@effect-ui/react";
+} from "@sunfall/arc-react";
 type ReactCommitScopeFactoryIsInternal =
   // @ts-expect-error React commit-scope frames are adapter internals, not root public exports.
-  typeof import("@effect-ui/react").makeReactRuntimeUiScopeFrame;
+  typeof import("@sunfall/arc-react").makeReactRuntimeUiScopeFrame;
 // @ts-expect-error React commit-scope frame types are adapter internals, not root public exports.
-type ReactCommitScopeFrameIsInternal = import("@effect-ui/react").ReactRuntimeUiScopeFrame<never>;
+type ReactCommitScopeFrameIsInternal = import("@sunfall/arc-react").ReactRuntimeUiScopeFrame<never>;
 
 interface ReactProject {
   readonly id: string;

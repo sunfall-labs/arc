@@ -53,10 +53,10 @@ export {
   isDevtoolsPanelSeverity,
   isDevtoolsSerializableValue,
   normalizeDevtoolsPanels,
-  normalizeEffectUiDevtoolsBridgePayload,
+  normalizeSunfallArcDevtoolsBridgePayload,
   resolveDevtoolsPanelContract,
   resolveDevtoolsPanelsInput,
-  resolveEffectUiDevtoolsBridgePayload,
+  resolveSunfallArcDevtoolsBridgePayload,
   DevtoolsPanelContractError,
 } from "./panel-contract.js";
 export type {

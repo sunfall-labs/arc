@@ -10,15 +10,15 @@ import type { ReadableSignal } from "./signal.js";
 
 /** Runtime marker for values created by `Program.next(...)` or `Program.commands(...)`. */
 export const ProgramStepTypeId: unique symbol = Symbol.for(
-  "@effect-ui/core/ProgramStep",
+  "@sunfall/arc-core/ProgramStep",
 ) as typeof ProgramStepTypeId;
 /** Runtime marker for Effect-backed Program commands. */
 export const ProgramCommandTypeId: unique symbol = Symbol.for(
-  "@effect-ui/core/ProgramCommand",
+  "@sunfall/arc-core/ProgramCommand",
 ) as typeof ProgramCommandTypeId;
 /** Runtime marker for Stream-backed Program subscriptions. */
 export const ProgramSubscriptionTypeId: unique symbol = Symbol.for(
-  "@effect-ui/core/ProgramSubscription",
+  "@sunfall/arc-core/ProgramSubscription",
 ) as typeof ProgramSubscriptionTypeId;
 
 /** Runtime phase that produced a Program failure or timeline event. */

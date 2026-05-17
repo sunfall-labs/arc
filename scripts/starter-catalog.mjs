@@ -42,8 +42,8 @@ export const starterCatalog = [
   {
     id: "basic",
     displayName: "basic starter",
-    sourcePackageName: "@effect-ui/starter-basic",
-    generatedPackageName: "effect-ui-basic-starter",
+    sourcePackageName: "@sunfall/arc-starter-basic",
+    generatedPackageName: "sunfall-arc-basic-starter",
     sourceDir: resolve(workspaceRoot, "examples/basic-starter"),
     outputDir: resolve(startersOutputRoot, "basic"),
     viteConfig: solidStarterViteConfig("starterStartOptions"),
@@ -51,7 +51,7 @@ export const starterCatalog = [
     readme: basicStarterReadme,
     artifacts: [
       routeArtifact("src/routeTree.gen.ts"),
-      virtualArtifact("src/effect-ui-start-virtual.d.ts"),
+      virtualArtifact("src/sunfall-arc-start-virtual.d.ts"),
     ],
     sourcePackage: sourcePackagePolicy(
       [
@@ -61,7 +61,7 @@ export const starterCatalog = [
         ...starterSharedScriptFiles,
         "src/App.tsx",
         "src/app-definition.ts",
-        "src/effect-ui-start-virtual.d.ts",
+        "src/sunfall-arc-start-virtual.d.ts",
         "src/main.tsx",
         "src/routeTree.gen.ts",
         "src/routes/index.ts",
@@ -76,8 +76,8 @@ export const starterCatalog = [
   {
     id: "react",
     displayName: "react starter",
-    sourcePackageName: "@effect-ui/starter-react",
-    generatedPackageName: "effect-ui-react-starter",
+    sourcePackageName: "@sunfall/arc-starter-react",
+    generatedPackageName: "sunfall-arc-react-starter",
     sourceDir: resolve(workspaceRoot, "examples/react-starter"),
     outputDir: resolve(startersOutputRoot, "react"),
     viteConfig: reactStarterViteConfig,
@@ -85,7 +85,7 @@ export const starterCatalog = [
     readme: reactStarterReadme,
     artifacts: [
       routeArtifact("src/routeTree.gen.ts"),
-      virtualArtifact("src/effect-ui-start-virtual.d.ts"),
+      virtualArtifact("src/sunfall-arc-start-virtual.d.ts"),
     ],
     sourcePackage: sourcePackagePolicy(
       [
@@ -97,7 +97,7 @@ export const starterCatalog = [
         "src/App.tsx",
         "src/HomePage.tsx",
         "src/app-definition.ts",
-        "src/effect-ui-start-virtual.d.ts",
+        "src/sunfall-arc-start-virtual.d.ts",
         "src/main.tsx",
         "src/routeTree.gen.ts",
         "src/routes/index.ts",
@@ -112,8 +112,8 @@ export const starterCatalog = [
   {
     id: "project-console",
     displayName: "project-console starter",
-    sourcePackageName: "@effect-ui/example-project-console",
-    generatedPackageName: "effect-ui-project-console-starter",
+    sourcePackageName: "@sunfall/arc-example-project-console",
+    generatedPackageName: "sunfall-arc-project-console-starter",
     sourceDir: resolve(workspaceRoot, "examples/project-console"),
     outputDir: resolve(startersOutputRoot, "project-console"),
     viteConfig: solidStarterViteConfig("projectConsoleStartOptions"),
@@ -121,7 +121,7 @@ export const starterCatalog = [
     readme: projectConsoleStarterReadme,
     artifacts: [
       routeArtifact("src/routeTree.gen.ts"),
-      virtualArtifact("src/effect-ui-start-virtual.d.ts"),
+      virtualArtifact("src/sunfall-arc-start-virtual.d.ts"),
       virtualArtifact("src/virtual-manifest-types.ts"),
     ],
     sourcePackage: sourcePackagePolicy(
@@ -135,7 +135,7 @@ export const starterCatalog = [
         "src/domain.contract.ts",
         "src/domain.server.ts",
         "src/domain.ts",
-        "src/effect-ui-start-virtual.d.ts",
+        "src/sunfall-arc-start-virtual.d.ts",
         "src/main.tsx",
         "src/project-collections.ts",
         "src/project-error.ts",

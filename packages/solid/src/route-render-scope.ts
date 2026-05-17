@@ -5,11 +5,11 @@ import {
   isPromiseLikeValue,
   makeRuntimeUiScopeFrame,
   readRouteComponent,
-  type AnyEffectUiRuntime,
+  type AnySunfallArcRuntime,
   type AnyBrowserRoute,
   type BrowserRouterState,
   type BrowserRouteOutletRenderers,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Effect, Fiber } from "effect";
 import { batch, createRoot, type JSX, type Setter } from "solid-js";
 import { createComponent } from "solid-js/web";
@@ -72,7 +72,7 @@ const routeRenderDefaults = {
 };
 
 const renderInRouteScope = <ER>(
-  runtime: AnyEffectUiRuntime<ER>,
+  runtime: AnySunfallArcRuntime<ER>,
   render: () => JSX.Element,
 ): { readonly node: JSX.Element; readonly dispose: Effect.Effect<void, never, never> } => {
   const frame = makeRuntimeUiScopeFrame(runtime);
@@ -140,7 +140,7 @@ const renderInRouteScope = <ER>(
 const renderRouteState = <Routes extends readonly AnyRoute[], ER>(
   state: BrowserRouterState<Routes, ER>,
   renderers: SolidRouteOutletRenderers<Routes, ER>,
-  runtime: AnyEffectUiRuntime<ER>,
+  runtime: AnySunfallArcRuntime<ER>,
 ): RenderedRouteScope => {
   const decision = browserRouteRenderDecision(state);
   switch (decision._tag) {
@@ -228,7 +228,7 @@ export const makeSolidRouteRenderScopeController = <
   ER,
 >(options: {
   readonly initialInput: SolidRouteRenderInput<Routes, ER>;
-  readonly runtime: AnyEffectUiRuntime<ER>;
+  readonly runtime: AnySunfallArcRuntime<ER>;
   readonly setNode: Setter<JSX.Element>;
   readonly setRenderError: Setter<unknown>;
   readonly setRenderSuspension?: Setter<unknown>;

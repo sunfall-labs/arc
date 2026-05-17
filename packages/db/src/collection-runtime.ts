@@ -1,4 +1,4 @@
-import { EffectInputCallbackError, runFork, type EffectInput } from "@effect-ui/core";
+import { EffectInputCallbackError, runFork, type EffectInput } from "@sunfall/arc-core";
 import { Effect, Option, Scope } from "effect";
 import {
   CollectionRowKeyChanged,

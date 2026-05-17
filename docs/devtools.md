@@ -1,4 +1,4 @@
-# Effect UI Devtools
+# Sunfall Arc Devtools
 
 The devtools package is a typed, JSON-safe observability substrate for
 framework facts. UI panels, browser extensions, tests, and agents should consume
@@ -25,7 +25,7 @@ story.
   is not lost when preload facts arrive before app graph facts.
 - `DevtoolsPanels` is the shared UI-facing contract for app shells, browser
   extensions, agents, tests, and HTML renderers. Runtime guards and bridge
-  payload normalization live in `@effect-ui/devtools` so hosts do not need to
+  payload normalization live in `@sunfall/arc-devtools` so hosts do not need to
   duplicate panel validation logic.
 - `DevtoolsStore` is an explicit public Interface for recording snapshots,
   app graph diagnostics, route plans, invalidations, runtime events, summaries,
@@ -106,7 +106,7 @@ const store = makeDevtoolsStore({
 ```
 
 Start request handlers can emit a structurally compatible request trace without
-making `@effect-ui/start` depend on `@effect-ui/devtools`:
+making `@sunfall/arc-start` depend on `@sunfall/arc-devtools`:
 
 ```ts
 const handler = createRequestHandler(app, {
@@ -121,9 +121,9 @@ host-boundary facades over the same Effect implementation; only split them out
 if a future host package needs a separate boundary.
 
 Start request handling also emits Effect-native observability alongside the
-plain trace payload. `@effect-ui/start` exports `startRequestCountMetric`,
+plain trace payload. `@sunfall/arc-start` exports `startRequestCountMetric`,
 `startRequestDurationMetric`, and `startRequestStatusMetric`; the handler wraps
-requests in an `effect-ui.start.request` span, and server RPC/action calls in
+requests in an `sunfall-arc.start.request` span, and server RPC/action calls in
 child spans. Effect loggers receive request annotations such as request id,
 transport, method, and path.
 
@@ -175,21 +175,21 @@ route instead of every resource the route touched.
 When `StartBuildPolicy.diagnostics` is configured, the Start Vite Diagnostics
 Gate runs during Vite builds and fails if resolved route-module diagnostics
 violate the policy, even when the app does not import
-`virtual:effect-ui/app-graph`. The static `virtual:effect-ui/app-graph` module
+`virtual:sunfall-arc/app-graph`. The static `virtual:sunfall-arc/app-graph` module
 is topology-only; route-module/resource/collection diagnostics live behind the
-explicit `virtual:effect-ui/app-graph/runtime-diagnostics` import, which also
+explicit `virtual:sunfall-arc/app-graph/runtime-diagnostics` import, which also
 exports typed `diagnosticsPolicyViolations` for devtools and agent consumers.
 Use
-`loadStartAppGraphDiagnostics(...)` from `@effect-ui/start/vite` when a CI
+`loadStartAppGraphDiagnostics(...)` from `@sunfall/arc-start/vite` when a CI
 script wants to run the same resolved diagnostics gate through Vite and consume
 the resulting `diagnostics` object. The same path is available as
-`effect-ui-start diagnostics --root .`; pass `--json` when the caller wants the
+`sunfall-arc-start diagnostics --root .`; pass `--json` when the caller wants the
 resolved graph payload. The default CLI output is an agent-readable repair
 report grouped by source owner, with concrete edits for missing wire schemas,
 unknown action behavior metadata, and route preload resource/collection
 declarations.
-For edit planning, use `effect-ui-start impact`; for topology questions rather
-than repair lists, use `effect-ui-start graph`.
+For edit planning, use `sunfall-arc-start impact`; for topology questions rather
+than repair lists, use `sunfall-arc-start graph`.
 It projects the resolved diagnostics into a typed agent graph with Route,
 Action, ServerFunction, ResourceFamily, ResourceTag, Collection, Endpoint,
 Module, and Finding nodes plus self-review facts for policy cleanliness, wire
@@ -197,11 +197,11 @@ schema completeness, known action behavior, and route preload declarations.
 Queries are positional and stay JSON-safe:
 
 ```sh
-effect-ui-start impact route /projects/:id
-effect-ui-start impact action Project.rename --json
-effect-ui-start graph route /projects/:id
-effect-ui-start graph route /projects/:id --verbose
-effect-ui-start graph action Project.rename --json
+sunfall-arc-start impact route /projects/:id
+sunfall-arc-start impact action Project.rename --json
+sunfall-arc-start graph route /projects/:id
+sunfall-arc-start graph route /projects/:id --verbose
+sunfall-arc-start graph action Project.rename --json
 ```
 
 The same projection is available in code through
@@ -324,7 +324,7 @@ const html = renderDevtoolsPanelsHtml({
 ```
 
 The renderer is dependency-light and escapes all panel text/data before writing
-HTML. Each rendered item carries `data-effect-ui-devtools-item-id`, and the
+HTML. Each rendered item carries `data-sunfall-arc-devtools-item-id`, and the
 panel contract rejects duplicate item ids within a panel so extension rows,
 tests, and agent tools can rely on stable row identity. Browser hosts that want
 lifecycle ownership can mount the same contract through Effect:
@@ -332,7 +332,7 @@ lifecycle ownership can mount the same contract through Effect:
 ```ts
 yield *
   mountDevtoolsPanelsEffect({
-    root: document.getElementById("effect-ui-devtools")!,
+    root: document.getElementById("sunfall-arc-devtools")!,
     panels: yield * store.getPanelsEffect(),
   });
 ```
@@ -349,22 +349,22 @@ yield *
   installDevtoolsBridgeEffect(() => ({
     panels: store.getPanels(),
     selectedPanelId: "requests",
-    title: "Effect UI Devtools",
+    title: "Sunfall Arc Devtools",
   }));
 ```
 
-The scoped bridge restores any previous `globalThis.__EFFECT_UI_DEVTOOLS__`
+The scoped bridge restores any previous `globalThis.__SUNFALL_ARC_DEVTOOLS__`
 value when the Effect scope closes. The plain `installDevtoolsBridge(...)`
 helper is available for non-Effect host setup. Extension transports should
 resolve inspected-window values with
-`resolveEffectUiDevtoolsBridgePayload(...)` before rendering so invalid bridge
+`resolveSunfallArcDevtoolsBridgePayload(...)` before rendering so invalid bridge
 payloads can be reported as typed diagnostics instead of collapsing to
 `undefined`. This applies the same panel id, severity, metric, item,
 finite-number, plain-record, bounded string, and JSON-safe data checks used by
 the package tests. Oversized display strings are truncated at the bridge seam,
 oversized item lists are windowed with a deterministic overflow row, and
 oversized item data object keys are rejected so richer renderers do not silently
-rename structured data. Use `normalizeEffectUiDevtoolsBridgePayload(...)` only
+rename structured data. Use `normalizeSunfallArcDevtoolsBridgePayload(...)` only
 when a host deliberately wants the weaker optional payload facade and does not
 need contract error details.
 
@@ -378,10 +378,10 @@ The checked browser-extension shell lives at
 Manifest V3 devtools page, registers `panel.html` through the browser devtools
 panel host, mounts the same public panel contract through
 `mountDevtoolsPanelsEffect(...)`, and reads live inspected-page panel payloads
-from `globalThis.__EFFECT_UI_DEVTOOLS__` through
+from `globalThis.__SUNFALL_ARC_DEVTOOLS__` through
 `chrome.devtools.inspectedWindow.eval`. The bridge accepts either a
 `DevtoolsPanels` payload wrapper or a provider function returning that wrapper,
-uses the shared `effectUiDevtoolsBridgeGlobal` key from `@effect-ui/devtools`,
+uses the shared `sunfallArcDevtoolsBridgeGlobal` key from `@sunfall/arc-devtools`,
 structurally validates the panel ids, severities, metrics, items, and
 bounded JSON-safe item data before rendering inspected-window data, bounds hung
 inspected-window eval calls with a timeout, uses sample facts only as the

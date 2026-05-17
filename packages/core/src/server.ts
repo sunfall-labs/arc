@@ -52,15 +52,15 @@ export {
 export type { ServerRpcRequest, ServerRpcResponse } from "./server-wire-codec.js";
 
 export const ServerFunctionTypeId: unique symbol = Symbol.for(
-  "@effect-ui/core/ServerFunction",
+  "@sunfall/arc-core/ServerFunction",
 ) as typeof ServerFunctionTypeId;
 
 export const ServerFunctionContractTypeId: unique symbol = Symbol.for(
-  "@effect-ui/core/ServerFunctionContract",
+  "@sunfall/arc-core/ServerFunctionContract",
 ) as typeof ServerFunctionContractTypeId;
 
 export const ServerFunctionMockTypeId: unique symbol = Symbol.for(
-  "@effect-ui/core/ServerFunctionMock",
+  "@sunfall/arc-core/ServerFunctionMock",
 ) as typeof ServerFunctionMockTypeId;
 
 /** Schema metadata shared by server function clients, implementations, and mocks. */
@@ -172,7 +172,7 @@ export interface ServerClient {
   ) => Effect.Effect<A, E | EffectInputCallbackError | ServerClientError, R>;
 }
 
-export const ServerClient = Context.Service<ServerClient>("@effect-ui/core/ServerClient");
+export const ServerClient = Context.Service<ServerClient>("@sunfall/arc-core/ServerClient");
 
 type FromContract<T> = [T][T extends unknown ? 0 : never];
 type CheckedServerFunctionHandler<I, Definition> = Definition extends {

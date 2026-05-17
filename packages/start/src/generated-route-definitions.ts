@@ -10,7 +10,7 @@ import {
   defaultFileRouteGeneratedFile,
   fileRouteDiscoveryDirectoryExists,
   fileRouteDiscoveryPlan,
-  type EffectUiStartOptions,
+  type SunfallArcStartOptions,
   type FileRouteGenerationOptions,
 } from "./start-manifest-wall.js";
 import type { FileRouteManifest } from "./file-routes.js";
@@ -99,8 +99,8 @@ const assertOutputFileInsideRoot = (
 
 export const shouldWriteFileRouteDefinitionsFile = (
   root: string,
-  activeOptions: EffectUiStartOptions,
-  initialOptions: EffectUiStartOptions,
+  activeOptions: SunfallArcStartOptions,
+  initialOptions: SunfallArcStartOptions,
 ): boolean => {
   if (activeOptions.fileRouteGeneration?.outputFile === false) {
     return false;

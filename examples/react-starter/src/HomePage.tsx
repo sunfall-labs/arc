@@ -1,5 +1,5 @@
 import { Button as BaseButton } from "@base-ui/react/button";
-import { useResource } from "@effect-ui/react";
+import { useResource } from "@sunfall/arc-react";
 import { Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge.js";
 import { Button } from "@/components/ui/button.js";
@@ -14,7 +14,7 @@ export function HomePage() {
         <div className="grid gap-6">
           <div className="inline-flex w-fit items-center gap-2 rounded-md border border-border bg-card px-3 py-1 text-sm text-muted-foreground">
             <Sparkles className="size-4" aria-hidden="true" />
-            Effect UI React Starter
+            Sunfall Arc React Starter
             <Badge variant="secondary">shadcn CLI</Badge>
           </div>
           {welcome.match({

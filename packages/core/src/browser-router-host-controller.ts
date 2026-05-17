@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import type { Route } from "./route.js";
-import type { AnyEffectUiRuntime } from "./runtime.js";
+import type { AnySunfallArcRuntime } from "./runtime.js";
 import type { ReadableSignal } from "./signal.js";
 import {
   makeWindowBrowserHistoryAdapter,
@@ -50,7 +50,7 @@ export interface BrowserRouterHostController<
   ER = never,
 > {
   readonly routes: Routes;
-  readonly runtime: AnyEffectUiRuntime<ER>;
+  readonly runtime: AnySunfallArcRuntime<ER>;
   readonly state: ReadableSignal<BrowserRouterState<Routes, ER>>;
   readonly match: ReadableSignal<Route.Match<Routes[number]> | undefined>;
   /** Starts history listening and returns an idempotent host-listener cleanup. */

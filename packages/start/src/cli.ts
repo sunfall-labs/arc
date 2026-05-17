@@ -15,7 +15,7 @@ import {
   Stdio,
   Terminal,
 } from "effect";
-import type { EffectInput } from "@effect-ui/core";
+import type { EffectInput } from "@sunfall/arc-core";
 import { Argument, CliError, Command, Flag } from "effect/unstable/cli";
 import { ChildProcessSpawner } from "effect/unstable/process";
 import type { StartAgentGraphQuery } from "./agent-graph.js";
@@ -36,7 +36,7 @@ import {
 } from "./start-diagnostics-cli-runner.js";
 export { StartDiagnosticsCliWriteError } from "./start-diagnostics-cli-runner.js";
 
-/** Parsed command supported by the `effect-ui-start` CLI. */
+/** Parsed command supported by the `sunfall-arc-start` CLI. */
 export type StartCliCommand =
   | {
       readonly _tag: "Diagnostics";
@@ -54,7 +54,7 @@ export type StartCliCommand =
       readonly _tag: "Help";
     };
 
-/** Options for the `effect-ui-start diagnostics` command. */
+/** Options for the `sunfall-arc-start diagnostics` command. */
 export interface StartDiagnosticsCliOptions {
   readonly root?: string;
   readonly configFile?: string | false;
@@ -63,13 +63,13 @@ export interface StartDiagnosticsCliOptions {
   readonly pretty: boolean;
 }
 
-/** Options for the `effect-ui-start graph` command. */
+/** Options for the `sunfall-arc-start graph` command. */
 export interface StartGraphCliOptions extends StartDiagnosticsCliOptions {
   readonly query?: StartAgentGraphQuery;
   readonly verbose: boolean;
 }
 
-/** Options for the `effect-ui-start impact` command. */
+/** Options for the `sunfall-arc-start impact` command. */
 export interface StartImpactCliOptions extends StartDiagnosticsCliOptions {
   readonly query: StartAgentGraphQuery;
 }
@@ -108,7 +108,7 @@ export class StartDiagnosticsCliUsageError extends Data.TaggedError(
  * flags, subcommands, descriptions, and examples cannot drift from parsing.
  */
 export const startDiagnosticsCliUsage =
-  "Run `effect-ui-start --help` for usage generated from the Effect CLI command tree.";
+  "Run `sunfall-arc-start --help` for usage generated from the Effect CLI command tree.";
 
 const startDiagnosticsCliVersion = "0.0.0-alpha.0";
 
@@ -254,13 +254,13 @@ const makeStartDiagnosticsCliConsole = (
 
 const noopTerminal = Terminal.make({
   columns: Effect.succeed(80),
-  readInput: Effect.die("effect-ui-start CLI parser does not read interactive input"),
+  readInput: Effect.die("sunfall-arc-start CLI parser does not read interactive input"),
   readLine: Effect.fail(new Terminal.QuitError()),
   display: () => Effect.void,
 });
 
 const noopChildProcessSpawner = ChildProcessSpawner.make(() =>
-  Effect.die("effect-ui-start CLI parser does not spawn child processes"),
+  Effect.die("sunfall-arc-start CLI parser does not spawn child processes"),
 );
 
 const startDiagnosticsCliCommandEnvironmentLayer = Layer.mergeAll(
@@ -342,7 +342,7 @@ const makeStartDiagnosticsCliCommand = (
     command: Exclude<StartCliCommand, { readonly _tag: "Help" }>,
   ) => Effect.Effect<void, unknown>,
 ) => {
-  const root = Command.make("effect-ui-start").pipe(
+  const root = Command.make("sunfall-arc-start").pipe(
     Command.withSharedFlags(commonStartDiagnosticsCliFlags),
   );
 
@@ -408,18 +408,18 @@ const makeStartDiagnosticsCliCommand = (
   const impact = impactBase;
 
   return root.pipe(
-    Command.withDescription("Inspect Effect UI Start app graph diagnostics."),
+    Command.withDescription("Inspect Sunfall Arc Start app graph diagnostics."),
     Command.withExamples([
       {
-        command: "effect-ui-start diagnostics --root examples/project-console",
+        command: "sunfall-arc-start diagnostics --root examples/project-console",
         description: "Print diagnostics for a Vite project.",
       },
       {
-        command: "effect-ui-start graph route /projects/:id",
+        command: "sunfall-arc-start graph route /projects/:id",
         description: "Inspect a route in the semantic app graph.",
       },
       {
-        command: "effect-ui-start impact action Project.rename --json",
+        command: "sunfall-arc-start impact action Project.rename --json",
         description: "Print machine-readable impact for an action.",
       },
     ]),
@@ -627,7 +627,7 @@ export const runStartDiagnosticsCliMainEffect = (
         yield* writeStartDiagnosticsCliLineEffect(
           "stderr",
           stderr,
-          `Effect UI diagnostics CLI failed: ${startDiagnosticsCliMainFailureMessage(error)}`,
+          `Sunfall Arc diagnostics CLI failed: ${startDiagnosticsCliMainFailureMessage(error)}`,
         ).pipe(Effect.catchCause(() => Effect.void));
       }),
     ),

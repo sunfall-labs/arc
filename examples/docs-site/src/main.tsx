@@ -1,5 +1,5 @@
-import { RuntimeProvider, createEffectRuntime } from "@effect-ui/solid";
-import { BrowserRpcLive, hydrateFromDocument } from "@effect-ui/start";
+import { RuntimeProvider, createEffectRuntime } from "@sunfall/arc-solid";
+import { BrowserRpcLive, hydrateFromDocument } from "@sunfall/arc-start";
 import { Data, Layer } from "effect";
 import { hydrate, render } from "solid-js/web";
 import App from "./App.js";

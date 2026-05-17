@@ -6,8 +6,8 @@ import {
   ResourceStore,
   runWithRuntime,
   toEffect,
-  type EffectUiRuntime,
-} from "@effect-ui/core";
+  type SunfallArcRuntime,
+} from "@sunfall/arc-core";
 import {
   Collection,
   CollectionRowKeyChanged,
@@ -20,7 +20,7 @@ import {
   eq,
   gt,
   makeCollectionReactivePreloadController,
-} from "@effect-ui/db";
+} from "@sunfall/arc-db";
 import { Cause, Deferred, Effect, Exit, Fiber, Option, PubSub, Schedule, Schema } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -90,7 +90,7 @@ const OwnedProjectSchema = Schema.Struct({
 });
 
 const runInRuntime = <A, E, R, RuntimeError>(
-  runtime: EffectUiRuntime<unknown, RuntimeError>,
+  runtime: SunfallArcRuntime<unknown, RuntimeError>,
   effect: Effect.Effect<A, E, R>,
 ): Promise<A> => Effect.runPromise(runtime.provide(effect));
 
@@ -1744,7 +1744,7 @@ describe("Collection", () => {
     }
   });
 
-  it("keeps collection rows isolated by Effect UI runtime", async () => {
+  it("keeps collection rows isolated by Sunfall Arc runtime", async () => {
     const first = makeRuntime();
     const second = makeRuntime();
     const Projects = Collection.define<Project>({
@@ -1773,7 +1773,7 @@ describe("Collection", () => {
     }
   });
 
-  it("evaluates one-shot queries against the active Effect UI runtime store", async () => {
+  it("evaluates one-shot queries against the active Sunfall Arc runtime store", async () => {
     const first = makeRuntime();
     const second = makeRuntime();
     const Projects = Collection.define<Project>({
@@ -4168,7 +4168,7 @@ describe("Collection", () => {
     };
     const payload = { collections: [snapshot] };
     const storage = Collection.memoryStorage([
-      ["effect-ui:collection:Projects.snapshot-codec-key-callback", JSON.stringify(snapshot)],
+      ["sunfall-arc:collection:Projects.snapshot-codec-key-callback", JSON.stringify(snapshot)],
     ]);
 
     return Effect.runPromise(

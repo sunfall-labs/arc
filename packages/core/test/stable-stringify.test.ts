@@ -37,21 +37,21 @@ describe("stableStringify", () => {
     });
 
     expect(first).not.toBe(second);
-    expect(first).toContain('"$effectUiStableStringify":"Date"');
-    expect(first).toContain('"$effectUiStableStringify":"URL"');
-    expect(first).toContain('"$effectUiStableStringify":"Map"');
-    expect(first).toContain('"$effectUiStableStringify":"Set"');
+    expect(first).toContain('"$sunfallArcStableStringify":"Date"');
+    expect(first).toContain('"$sunfallArcStableStringify":"URL"');
+    expect(first).toContain('"$sunfallArcStableStringify":"Map"');
+    expect(first).toContain('"$sunfallArcStableStringify":"Set"');
   });
 
   it("distinguishes undefined, sparse array holes, and marker-shaped plain objects", () => {
     const withUndefined = stableStringify([undefined]);
     const withHole = stableStringify(new Array(1));
-    const markerObject = stableStringify({ $effectUiStableStringify: "Date", value: "fake" });
+    const markerObject = stableStringify({ $sunfallArcStableStringify: "Date", value: "fake" });
     const realDate = stableStringify(new Date("2024-01-02T03:04:05.000Z"));
 
     expect(withUndefined).not.toBe(withHole);
     expect(markerObject).not.toBe(realDate);
-    expect(markerObject).toContain('"$effectUiStableStringify":"Object"');
+    expect(markerObject).toContain('"$sunfallArcStableStringify":"Object"');
   });
 
   it("keeps binary values distinct", () => {
@@ -59,7 +59,7 @@ describe("stableStringify", () => {
       stableStringify(new Uint8Array([1, 2, 4])),
     );
     expect(stableStringify(new DataView(new Uint8Array([1, 2, 3]).buffer))).toContain(
-      '"$effectUiStableStringify":"DataView"',
+      '"$sunfallArcStableStringify":"DataView"',
     );
   });
 

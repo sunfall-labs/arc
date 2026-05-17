@@ -1,5 +1,5 @@
-import { Server } from "@effect-ui/core";
-import { Collection } from "@effect-ui/db";
+import { Server } from "@sunfall/arc-core";
+import { Collection } from "@sunfall/arc-db";
 import { Effect } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import {

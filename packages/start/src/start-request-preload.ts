@@ -2,11 +2,11 @@ import {
   Route,
   makeResponseContext,
   type AppDefinition,
-  type EffectUiRuntime,
+  type SunfallArcRuntime,
   type ResourceHydrationPayload,
   type ResponseContext,
-} from "@effect-ui/core";
-import { Collection, type AnyCollection, type CollectionHydrationPayload } from "@effect-ui/db";
+} from "@sunfall/arc-core";
+import { Collection, type AnyCollection, type CollectionHydrationPayload } from "@sunfall/arc-db";
 import { Data, Effect } from "effect";
 import {
   createStartHydrationPayload,
@@ -232,7 +232,7 @@ export const preloadRequestEffectWithRuntime = <
 >(
   app: AppDefinition<Routes, Client, ServerServices, ServerError>,
   request: Request,
-  runtime: EffectUiRuntime<ServerServices, ServerError>,
+  runtime: SunfallArcRuntime<ServerServices, ServerError>,
   options: PreloadRequestOptions = {},
   responseContext: ResponseContext = makeResponseContext(),
 ): Effect.Effect<

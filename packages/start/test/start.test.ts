@@ -47,11 +47,11 @@ import {
   Server,
   ServerClient,
   ServerTransportError,
-  type EffectUiRuntime,
+  type SunfallArcRuntime,
   type ResourceRef,
-} from "@effect-ui/core";
-import { Collection, CollectionSnapshotCodecError } from "@effect-ui/db";
-import type { DevtoolsRequestTrace } from "@effect-ui/devtools";
+} from "@sunfall/arc-core";
+import { Collection, CollectionSnapshotCodecError } from "@sunfall/arc-db";
+import type { DevtoolsRequestTrace } from "@sunfall/arc-devtools";
 import {
   createServerActionResponseEffect,
   createHydrationScript,
@@ -113,7 +113,7 @@ import {
 import { completeRequestRuntimeWithResponse, makeRequestRuntime } from "../src/request-runtime.js";
 import { buildStartRequestTrace, requestRuntimeTeardownSnapshot } from "../src/request-trace.js";
 import {
-  effectUiStartVirtualModules,
+  sunfallArcStartVirtualModules,
   loadStartAppGraphDiagnosticsFromServerEffect,
   loadStartAppGraphDiagnosticsWithOwnedServerEffect,
   loadStartAppGraphDiagnosticsWithServerEffect,
@@ -135,7 +135,7 @@ import {
   defaultFileRouteGeneratedFile,
   defaultFileRouteDirectory,
   discoverFileRoutes,
-  effectUiStart,
+  sunfallArcStart,
   fileRouteDefinitionsVirtualModuleId,
   fileRouteManifestVirtualModuleId,
   handleSsrDevRequest,
@@ -171,7 +171,7 @@ const scriptText = (script: string): string =>
   script.replace(/^<script[^>]*>/, "").replace("</script>", "");
 
 const runInRuntime = <A, E, R, RuntimeError>(
-  runtime: EffectUiRuntime<unknown, RuntimeError>,
+  runtime: SunfallArcRuntime<unknown, RuntimeError>,
   effect: Effect.Effect<A, E, R>,
 ): Promise<A> => Effect.runPromise(runtime.provide(effect));
 
@@ -238,7 +238,7 @@ const shellSplit = (command: string): readonly string[] => {
 
 const shellSplitStartCliArgs = (command: string): readonly string[] => {
   const [binary, ...args] = shellSplit(command);
-  expect(binary).toBe("effect-ui-start");
+  expect(binary).toBe("sunfall-arc-start");
   return args;
 };
 
@@ -271,14 +271,14 @@ const startDiagnosticsRunnerViteConfig = () => ({
   resolve: {
     alias: [
       { find: "effect", replacement: workspacePackageAlias("node_modules/effect/dist/index.js") },
-      { find: "@effect-ui/core", replacement: workspacePackageAlias("packages/core/src/index.ts") },
-      { find: "@effect-ui/db", replacement: workspacePackageAlias("packages/db/src/index.ts") },
+      { find: "@sunfall/arc-core", replacement: workspacePackageAlias("packages/core/src/index.ts") },
+      { find: "@sunfall/arc-db", replacement: workspacePackageAlias("packages/db/src/index.ts") },
       {
-        find: "@effect-ui/start",
+        find: "@sunfall/arc-start",
         replacement: workspacePackageAlias("packages/start/src/index.ts"),
       },
       {
-        find: "@effect-ui/start/vite",
+        find: "@sunfall/arc-start/vite",
         replacement: workspacePackageAlias("packages/start/src/vite.ts"),
       },
     ],
@@ -307,7 +307,7 @@ const oneShotIterable = <A>(values: readonly A[]) => {
   };
 };
 
-describe("Effect UI Start", () => {
+describe("Sunfall Arc Start", () => {
   it("defines file routes with the same typed href contract as core routes", () => {
     const ProjectRoute = defineFileRoute("/projects/:id")({
       params: Schema.Struct({ id: Schema.String }),
@@ -452,7 +452,7 @@ describe("Effect UI Start", () => {
     expect(response.headers.get("content-type")).toBe("text/html");
     expect(html).toContain("<main>/projects/kepler</main>");
     expect(html).toContain("Start.Project.render");
-    expect(html).toContain('id="__EFFECT_UI_HYDRATION__"');
+    expect(html).toContain('id="__SUNFALL_ARC_HYDRATION__"');
     expect(renderPlanRootResourceCount).toBe(0);
     expect(renderPlanResourceNames).toEqual(["Start.Project.render"]);
     expect(renderRootScript).not.toContain("Start.Project.render");
@@ -486,8 +486,8 @@ describe("Effect UI Start", () => {
     const html = await response.text();
 
     expect(html.match(/"name":"Start\.Project\.stream-render"/g)).toHaveLength(1);
-    expect(html).toContain('id="__EFFECT_UI_HYDRATION__"');
-    expect(html).toContain("data-effect-ui-hydration-chunk");
+    expect(html).toContain('id="__SUNFALL_ARC_HYDRATION__"');
+    expect(html).toContain("data-sunfall-arc-hydration-chunk");
   });
 
   it("does not serialize the full legacy hydration script for streamed renderers that do not read it", async () => {
@@ -515,7 +515,7 @@ describe("Effect UI Start", () => {
 
     expect(response.status).toBe(200);
     expect(html).toContain("<main>stream shell</main>");
-    expect(html).toContain('id="__EFFECT_UI_HYDRATION__"');
+    expect(html).toContain('id="__SUNFALL_ARC_HYDRATION__"');
     expect(html).not.toContain("Start.Project.lazy-legacy-script");
   });
 
@@ -568,7 +568,7 @@ describe("Effect UI Start", () => {
       "Start.Project.render-plan",
     ]);
     expect(plan.legacy.script).toContain("Start.Project.render-plan");
-    expect(plan.root.script).toContain("__EFFECT_UI_HYDRATION__");
+    expect(plan.root.script).toContain("__SUNFALL_ARC_HYDRATION__");
     expect(plan.root.script).toContain("Start.Collection.render-plan");
     expect(plan.root.script).not.toContain("Start.Project.render-plan");
     expect(streamedPairs).toEqual(["Start.Project.render-plan:Start.Project.render-plan:atlas"]);
@@ -595,7 +595,7 @@ describe("Effect UI Start", () => {
       }),
     );
 
-    expect(plan.root.script).toContain("__EFFECT_UI_HYDRATION__");
+    expect(plan.root.script).toContain("__SUNFALL_ARC_HYDRATION__");
     expect(plan.root.script).not.toContain("Start.Project.lazy-plan");
     expect(() => plan.legacy.script).toThrow(StartHydrationPayloadSerializeError);
   });
@@ -657,7 +657,7 @@ describe("Effect UI Start", () => {
       handler(
         new Request("https://example.com/projects/atlas?tab=activity", {
           headers: {
-            "x-effect-ui-request-id": "req-ssr-atlas",
+            "x-sunfall-arc-request-id": "req-ssr-atlas",
             authorization: "Bearer top-secret",
             cookie: "session=s3cr3t",
             "x-api-key": "key-secret",
@@ -680,7 +680,7 @@ describe("Effect UI Start", () => {
             { name: "authorization", value: "<redacted>" },
             { name: "cookie", value: "<redacted>" },
             { name: "x-api-key", value: "<redacted>" },
-            { name: "x-effect-ui-request-id", value: "req-ssr-atlas" },
+            { name: "x-sunfall-arc-request-id", value: "req-ssr-atlas" },
           ]),
           cookies: [
             {
@@ -808,7 +808,7 @@ describe("Effect UI Start", () => {
           Effect.gen(function* () {
             calls.push(`${id}:${request.url.pathname}`);
             yield* response.setStatus(209);
-            yield* response.setHeader("x-effect-ui-local-server-client", "yes");
+            yield* response.setHeader("x-sunfall-arc-local-server-client", "yes");
             return { id, path: request.url.pathname };
           }),
         ),
@@ -842,7 +842,7 @@ describe("Effect UI Start", () => {
 
     expect(calls).toEqual(["atlas:/local-server-client/atlas"]);
     expect(response.status).toBe(209);
-    expect(response.headers.get("x-effect-ui-local-server-client")).toBe("yes");
+    expect(response.headers.get("x-sunfall-arc-local-server-client")).toBe("yes");
     await expect(response.text()).resolves.toContain("<main>atlas</main>");
   });
 
@@ -1623,7 +1623,7 @@ describe("Effect UI Start", () => {
     interface Projects {
       readonly get: (id: string) => Effect.Effect<{ readonly id: string; readonly name: string }>;
     }
-    const Projects = Context.Service<Projects>("@effect-ui/start/test/Projects");
+    const Projects = Context.Service<Projects>("@sunfall/arc-start/test/Projects");
     const ProjectsLive = Layer.succeed(Projects)({
       get: (id) => Effect.succeed({ id, name: "Layered Atlas" }),
     });
@@ -1743,7 +1743,7 @@ describe("Effect UI Start", () => {
       handler(
         new Request("https://example.com/", {
           headers: {
-            "x-effect-ui-request-id": "req-cancel",
+            "x-sunfall-arc-request-id": "req-cancel",
           },
         }),
       ),
@@ -1813,7 +1813,7 @@ describe("Effect UI Start", () => {
       handler(
         new Request("https://example.com/", {
           headers: {
-            "x-effect-ui-request-id": "req-stream-failure",
+            "x-sunfall-arc-request-id": "req-stream-failure",
           },
         }),
       ),
@@ -2041,7 +2041,7 @@ describe("Effect UI Start", () => {
         handler(
           new Request("https://example.com/", {
             headers: {
-              "x-effect-ui-request-id": "req-failure",
+              "x-sunfall-arc-request-id": "req-failure",
             },
           }),
         ),
@@ -2107,7 +2107,7 @@ describe("Effect UI Start", () => {
         handler(
           new Request("https://example.com/", {
             headers: {
-              "x-effect-ui-request-id": "req-cleanup-failure",
+              "x-sunfall-arc-request-id": "req-cleanup-failure",
             },
           }),
         ),
@@ -2153,7 +2153,7 @@ describe("Effect UI Start", () => {
       handler(
         new Request("https://example.com/", {
           headers: {
-            "x-effect-ui-request-id": "req-interrupted",
+            "x-sunfall-arc-request-id": "req-interrupted",
           },
         }),
       ),
@@ -2324,7 +2324,7 @@ describe("Effect UI Start", () => {
         ResponseContext.use((response) =>
           Effect.gen(function* () {
             yield* response.setStatus(202);
-            yield* response.setHeader("x-effect-ui-render-context", "yes");
+            yield* response.setHeader("x-sunfall-arc-render-context", "yes");
             yield* response.setCookie("theme", "dark", {
               path: "/",
               secure: true,
@@ -2338,7 +2338,7 @@ describe("Effect UI Start", () => {
     const response = await Effect.runPromise(handler(new Request("https://example.com/")));
 
     expect(response.status).toBe(202);
-    expect(response.headers.get("x-effect-ui-render-context")).toBe("yes");
+    expect(response.headers.get("x-sunfall-arc-render-context")).toBe("yes");
     expect(response.headers.get("content-type")).toBe("text/html");
     expect(response.headers.getSetCookie()).toEqual(["theme=dark; Path=/; Secure; SameSite=None"]);
     await expect(response.text()).resolves.toContain("context");
@@ -2431,7 +2431,7 @@ describe("Effect UI Start", () => {
     const echo = Server.implement(Echo, ({ value }) =>
       ResponseContext.use((response) =>
         Effect.gen(function* () {
-          yield* response.setHeader("x-effect-ui-rpc-context", "yes");
+          yield* response.setHeader("x-sunfall-arc-rpc-context", "yes");
           yield* response.setCookie("rpc", value, { path: "/rpc" });
           return { value: value.toUpperCase() };
         }),
@@ -2459,7 +2459,7 @@ describe("Effect UI Start", () => {
       _tag: "Success",
       value: { value: "ADA" },
     });
-    expect(response.headers.get("x-effect-ui-rpc-context")).toBe("yes");
+    expect(response.headers.get("x-sunfall-arc-rpc-context")).toBe("yes");
     expect(response.headers.getSetCookie()).toEqual(["rpc=ada; Path=/rpc"]);
   });
 
@@ -2640,7 +2640,7 @@ describe("Effect UI Start", () => {
           method: "POST",
           headers: {
             "content-type": "application/json",
-            "x-effect-ui-request-id": "req-rpc-trace",
+            "x-sunfall-arc-request-id": "req-rpc-trace",
           },
           body: JSON.stringify({
             name: echo.name,
@@ -2661,7 +2661,7 @@ describe("Effect UI Start", () => {
           method: "POST",
           headers: {
             "content-type": "application/json",
-            "x-effect-ui-request-id": "req-action-trace",
+            "x-sunfall-arc-request-id": "req-action-trace",
           },
           body: JSON.stringify({
             name: Ping.name,
@@ -2913,7 +2913,7 @@ describe("Effect UI Start", () => {
       StartTransportEndpointConflictError,
     );
     const invalidPathHandlerExit = await Effect.runPromiseExit(
-      createRequestHandlerEffect(app, { rpcPath: "/__effect-ui/rpc\nx" })(
+      createRequestHandlerEffect(app, { rpcPath: "/__sunfall-arc/rpc\nx" })(
         new Request("https://example.com/"),
       ),
     );
@@ -2939,7 +2939,7 @@ describe("Effect UI Start", () => {
     );
     expect(() =>
       shouldHandleSsrRequest(
-        { method: "POST", url: "/__effect-ui/rpc", headers: {} },
+        { method: "POST", url: "/__sunfall-arc/rpc", headers: {} },
         { rpcPath: "https://example.com/rpc" },
       ),
     ).toThrow(StartTransportEndpointPathError);
@@ -3044,7 +3044,7 @@ describe("Effect UI Start", () => {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-effect-ui-request-id": id,
+          "x-sunfall-arc-request-id": id,
           ...init.headers,
         },
         body: JSON.stringify(body),
@@ -3054,7 +3054,7 @@ describe("Effect UI Start", () => {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-effect-ui-request-id": id,
+          "x-sunfall-arc-request-id": id,
         },
         body: JSON.stringify(body),
       });
@@ -3099,7 +3099,7 @@ describe("Effect UI Start", () => {
         new Request(`https://example.com${serverRpcPath}`, {
           method: "GET",
           headers: {
-            "x-effect-ui-request-id": "req-rpc-transport-failure",
+            "x-sunfall-arc-request-id": "req-rpc-transport-failure",
           },
         }),
       ),
@@ -3256,7 +3256,7 @@ describe("Effect UI Start", () => {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-effect-ui-request-id": id,
+          "x-sunfall-arc-request-id": id,
         },
         body: JSON.stringify({ name, input }),
       });
@@ -3406,7 +3406,7 @@ describe("Effect UI Start", () => {
     interface Names {
       readonly submit: (input: SubmitNameInput) => Effect.Effect<SubmitNameResult>;
     }
-    const Names = Context.Service<Names>("@effect-ui/start/test/Names");
+    const Names = Context.Service<Names>("@sunfall/arc-start/test/Names");
     const submitted: Array<string> = [];
     const NamesLive = Layer.succeed(Names)({
       submit: (input) =>
@@ -4454,7 +4454,7 @@ describe("Effect UI Start", () => {
       expect(failure).toBeInstanceOf(ServerTransportError);
       expect(failure).toMatchObject({
         reason: "InvalidResponse",
-        message: "Action response did not match the Effect UI Start action protocol.",
+        message: "Action response did not match the Sunfall Arc Start action protocol.",
       });
     }
   });
@@ -4697,7 +4697,7 @@ describe("Effect UI Start", () => {
       readonly token: string;
     }
     const TransportToken = Context.Service<TransportToken>(
-      "@effect-ui/start/test/ActionTransportToken",
+      "@sunfall/arc-start/test/ActionTransportToken",
     );
     const Project = Resource.family({
       name: "Start.action.client.response-runtime",
@@ -5347,7 +5347,7 @@ describe("Effect UI Start", () => {
     const script = createHydrationScript(payload);
     const document = {
       getElementById: (id: string) =>
-        id === "__EFFECT_UI_HYDRATION__"
+        id === "__SUNFALL_ARC_HYDRATION__"
           ? {
               textContent: script.replace(/^<script[^>]*>/, "").replace("</script>", ""),
             }
@@ -5385,14 +5385,14 @@ describe("Effect UI Start", () => {
     const script = createHydrationScript(payload);
     const document = {
       getElementById: (id: string) =>
-        id === "__EFFECT_UI_HYDRATION__"
+        id === "__SUNFALL_ARC_HYDRATION__"
           ? {
               textContent: script.replace(/^<script[^>]*>/, "").replace("</script>", ""),
             }
           : null,
     };
 
-    hydrateFromDocument(document as Pick<Document, "getElementById">, "__EFFECT_UI_HYDRATION__", {
+    hydrateFromDocument(document as Pick<Document, "getElementById">, "__SUNFALL_ARC_HYDRATION__", {
       collections: [Projects],
     });
 
@@ -5593,7 +5593,7 @@ describe("Effect UI Start", () => {
   it("surfaces malformed document hydration JSON through the Effect error channel", async () => {
     const document = {
       getElementById: (id: string) =>
-        id === "__EFFECT_UI_HYDRATION__" ? { textContent: "{" } : null,
+        id === "__SUNFALL_ARC_HYDRATION__" ? { textContent: "{" } : null,
       querySelectorAll: () => [],
     };
 
@@ -5608,7 +5608,7 @@ describe("Effect UI Start", () => {
   it("rejects root hydration payloads with malformed collection data", async () => {
     const document = {
       getElementById: (id: string) =>
-        id === "__EFFECT_UI_HYDRATION__"
+        id === "__SUNFALL_ARC_HYDRATION__"
           ? { textContent: JSON.stringify({ resources: [], collections: "not-array" }) }
           : null,
       querySelectorAll: () => [],
@@ -5625,7 +5625,7 @@ describe("Effect UI Start", () => {
   it("surfaces empty document hydration scripts as malformed JSON", async () => {
     const document = {
       getElementById: (id: string) =>
-        id === "__EFFECT_UI_HYDRATION__" ? { textContent: "" } : null,
+        id === "__SUNFALL_ARC_HYDRATION__" ? { textContent: "" } : null,
       querySelectorAll: () => [],
     };
 
@@ -5790,14 +5790,14 @@ describe("Effect UI Start", () => {
       const script = createHydrationScript(payload);
       const document = {
         getElementById: (id: string) =>
-          id === "__EFFECT_UI_HYDRATION__"
+          id === "__SUNFALL_ARC_HYDRATION__"
             ? {
                 textContent: script.replace(/^<script[^>]*>/, "").replace("</script>", ""),
               }
             : null,
       };
 
-      hydrateFromDocument(document as Pick<Document, "getElementById">, "__EFFECT_UI_HYDRATION__", {
+      hydrateFromDocument(document as Pick<Document, "getElementById">, "__SUNFALL_ARC_HYDRATION__", {
         collections: [Projects],
         runtime,
       });
@@ -5850,19 +5850,19 @@ describe("Effect UI Start", () => {
       const streamElement = makeStreamHydrationElement(createStreamHydrationScript(payload, 0), 0);
       const document = {
         getElementById: (id: string) =>
-          id === "__EFFECT_UI_HYDRATION__" ? { textContent: mainText } : null,
+          id === "__SUNFALL_ARC_HYDRATION__" ? { textContent: mainText } : null,
         querySelectorAll: (selector: string) =>
           selector === `[${streamHydrationAttribute}]` ? [streamElement] : [],
       };
 
       hydrateFromDocument(
         document as Parameters<typeof hydrateFromDocument>[0],
-        "__EFFECT_UI_HYDRATION__",
+        "__SUNFALL_ARC_HYDRATION__",
         { runtime },
       );
       hydrateFromDocument(
         document as Parameters<typeof hydrateFromDocument>[0],
-        "__EFFECT_UI_HYDRATION__",
+        "__SUNFALL_ARC_HYDRATION__",
         { runtime },
       );
 
@@ -5927,7 +5927,7 @@ describe("Effect UI Start", () => {
       );
       const document = {
         getElementById: (id: string) =>
-          id === "__EFFECT_UI_HYDRATION__"
+          id === "__SUNFALL_ARC_HYDRATION__"
             ? { textContent: scriptText(createHydrationScript(rootPayload)) }
             : null,
         querySelectorAll: (selector: string) =>
@@ -5938,7 +5938,7 @@ describe("Effect UI Start", () => {
         runtime,
         hydrateFromDocumentEffect(
           document as Parameters<typeof hydrateFromDocumentEffect>[0],
-          "__EFFECT_UI_HYDRATION__",
+          "__SUNFALL_ARC_HYDRATION__",
         ),
       );
 
@@ -6229,7 +6229,7 @@ describe("Effect UI Start", () => {
   it("rejects malformed root hydration payloads with typed repair guidance", () => {
     const document = {
       getElementById: (id: string) =>
-        id === "__EFFECT_UI_HYDRATION__"
+        id === "__SUNFALL_ARC_HYDRATION__"
           ? { textContent: JSON.stringify({ resources: "invalid" }) }
           : null,
       querySelectorAll: () => [],
@@ -6307,14 +6307,14 @@ describe("Effect UI Start", () => {
     expect(
       shouldHandleSsrRequest({
         method: "POST",
-        url: "/__effect-ui/rpc",
+        url: "/__sunfall-arc/rpc",
         headers: { accept: "application/json" },
       }),
     ).toBe(true);
     expect(
       shouldHandleSsrRequest({
         method: "POST",
-        url: "/__effect-ui/action",
+        url: "/__sunfall-arc/action",
         headers: { accept: "text/html" },
       }),
     ).toBe(true);
@@ -6322,7 +6322,7 @@ describe("Effect UI Start", () => {
       shouldHandleSsrRequest(
         {
           method: "POST",
-          url: "/__effect-ui/rpc",
+          url: "/__sunfall-arc/rpc",
           headers: { accept: "application/json" },
         },
         {
@@ -6360,7 +6360,7 @@ describe("Effect UI Start", () => {
   });
 
   it("keeps .server modules out of the client transform graph", () => {
-    const plugin = effectUiStart();
+    const plugin = sunfallArcStart();
 
     expect(isServerOnlyModule("/src/domain.server.ts")).toBe(true);
     expect(isServerOnlyModule("/src/domain.server.tsrx")).toBe(true);
@@ -6436,7 +6436,7 @@ describe("Effect UI Start", () => {
         },
       ],
     });
-    const plugin = effectUiStart({
+    const plugin = sunfallArcStart({
       serverFunctionManifest: [
         {
           name: "Start.Project.manifest",
@@ -6471,7 +6471,7 @@ describe("Effect UI Start", () => {
     });
     expect(config).toMatchObject({
       define: {
-        __EFFECT_UI_SERVER_FUNCTIONS__: manifest,
+        __SUNFALL_ARC_SERVER_FUNCTIONS__: manifest,
       },
     });
     expect(resolved).toBe(`\0${serverFunctionManifestVirtualModuleId}`);
@@ -6494,7 +6494,7 @@ describe("Effect UI Start", () => {
         },
       ],
     });
-    const plugin = effectUiStart({
+    const plugin = sunfallArcStart({
       actionManifest: [
         {
           name: "Start.Project.renameAction",
@@ -6513,7 +6513,7 @@ describe("Effect UI Start", () => {
 
     expect(JSON.parse(manifest)).toMatchObject({
       version: 1,
-      actionPath: "/__effect-ui/action",
+      actionPath: "/__sunfall-arc/action",
       entries: [
         {
           name: "Start.Project.renameAction",
@@ -6530,7 +6530,7 @@ describe("Effect UI Start", () => {
     });
     expect(config).toMatchObject({
       define: {
-        __EFFECT_UI_ACTIONS__: manifest,
+        __SUNFALL_ARC_ACTIONS__: manifest,
       },
     });
     expect(resolved).toBe(`\0${actionManifestVirtualModuleId}`);
@@ -6547,7 +6547,7 @@ describe("Effect UI Start", () => {
       },
     };
     const manifest = serializeStartFileRouteManifest(options);
-    const plugin = effectUiStart(options);
+    const plugin = sunfallArcStart(options);
     const config = plugin.config();
     const resolved = plugin.resolveId(fileRouteManifestVirtualModuleId);
     const loaded = resolved === null ? undefined : plugin.load(resolved);
@@ -6570,7 +6570,7 @@ describe("Effect UI Start", () => {
     });
     expect(config).toMatchObject({
       define: {
-        __EFFECT_UI_FILE_ROUTES__: manifest,
+        __SUNFALL_ARC_FILE_ROUTES__: manifest,
       },
     });
     expect(resolved).toBe(`\0${fileRouteManifestVirtualModuleId}`);
@@ -6612,7 +6612,7 @@ describe("Effect UI Start", () => {
   });
 
   it("loads typed file route definitions from the Vite preset", async () => {
-    const plugin = effectUiStart({
+    const plugin = sunfallArcStart({
       fileRoutes: ["src/routes/projects/$id.tsx", "src/routes/index.tsx"],
       fileRouteOptions: {
         routeDirectory: "src/routes",
@@ -6638,7 +6638,7 @@ describe("Effect UI Start", () => {
   });
 
   it("discovers file routes from the Vite root when no explicit route input is supplied", async () => {
-    const root = mkdtempSync(join(tmpdir(), "effect-ui-routes-"));
+    const root = mkdtempSync(join(tmpdir(), "sunfall-arc-routes-"));
 
     try {
       mkdirSync(join(root, "src/routes/projects"), { recursive: true });
@@ -6650,7 +6650,7 @@ describe("Effect UI Start", () => {
       writeFileSync(join(root, "src/routes/projects/types.d.cts"), "export {};\n");
       writeFileSync(join(root, "src/routes/projects/readme.md"), "# project routes\n");
 
-      const plugin = effectUiStart();
+      const plugin = sunfallArcStart();
       const config = plugin.config({ root });
       const resolved = plugin.resolveId(fileRouteManifestVirtualModuleId);
       const loaded = resolved === null ? undefined : plugin.load(resolved);
@@ -6662,10 +6662,10 @@ describe("Effect UI Start", () => {
       ]);
       expect(config).toMatchObject({
         define: {
-          __EFFECT_UI_FILE_ROUTES__: expect.any(String),
+          __SUNFALL_ARC_FILE_ROUTES__: expect.any(String),
         },
       });
-      const serializedFileRoutes = config.define?.__EFFECT_UI_FILE_ROUTES__;
+      const serializedFileRoutes = config.define?.__SUNFALL_ARC_FILE_ROUTES__;
       expect(typeof serializedFileRoutes).toBe("string");
       expect(JSON.parse(String(serializedFileRoutes))).toMatchObject({
         version: 1,
@@ -6690,21 +6690,21 @@ describe("Effect UI Start", () => {
   });
 
   it("writes generated file route definitions into the Vite root", async () => {
-    const root = mkdtempSync(join(tmpdir(), "effect-ui-generated-routes-"));
+    const root = mkdtempSync(join(tmpdir(), "sunfall-arc-generated-routes-"));
 
     try {
       mkdirSync(join(root, "src/routes/projects"), { recursive: true });
       writeFileSync(join(root, "src/routes/index.tsx"), "export default null;\n");
       writeFileSync(join(root, "src/routes/projects/$id.tsx"), "export default null;\n");
 
-      const plugin = effectUiStart();
+      const plugin = sunfallArcStart();
       plugin.configResolved({ root });
 
       const generatedPath = join(root, defaultFileRouteGeneratedFile);
       const generated = readFileSync(generatedPath, "utf8");
 
-      expect(generated).toContain("This file is generated by @effect-ui/start. Do not edit.");
-      expect(generated).toContain('import { Route } from "@effect-ui/core";');
+      expect(generated).toContain("This file is generated by @sunfall/arc-start. Do not edit.");
+      expect(generated).toContain('import { Route } from "@sunfall/arc-core";');
       expect(generated).toContain('import { Route as route_root } from "./routes/index.js";');
       expect(generated).toContain(
         'import { Route as route_projects_$id } from "./routes/projects/$id.js";',
@@ -6730,13 +6730,13 @@ describe("Effect UI Start", () => {
   });
 
   it("does not rediscover generated route definitions written under the route directory", async () => {
-    const root = mkdtempSync(join(tmpdir(), "effect-ui-generated-routes-under-routes-"));
+    const root = mkdtempSync(join(tmpdir(), "sunfall-arc-generated-routes-under-routes-"));
 
     try {
       mkdirSync(join(root, "src/routes"), { recursive: true });
       writeFileSync(join(root, "src/routes/index.tsx"), "export default null;\n");
 
-      const plugin = effectUiStart({
+      const plugin = sunfallArcStart({
         fileRouteGeneration: {
           outputFile: "src/routes/routeTree.gen.ts",
         },
@@ -6747,7 +6747,7 @@ describe("Effect UI Start", () => {
       expect(existsSync(generatedPath)).toBe(true);
 
       const config = plugin.config({ root });
-      const serializedFileRoutes = config.define?.__EFFECT_UI_FILE_ROUTES__;
+      const serializedFileRoutes = config.define?.__SUNFALL_ARC_FILE_ROUTES__;
       const manifest = JSON.parse(String(serializedFileRoutes));
       expect(manifest.entries).toEqual([
         expect.objectContaining({
@@ -6781,13 +6781,13 @@ describe("Effect UI Start", () => {
   });
 
   it("refreshes generated route artifacts and virtual modules on route hot updates", async () => {
-    const root = mkdtempSync(join(tmpdir(), "effect-ui-generated-routes-hot-"));
+    const root = mkdtempSync(join(tmpdir(), "sunfall-arc-generated-routes-hot-"));
 
     try {
       mkdirSync(join(root, "src/routes/projects"), { recursive: true });
       writeFileSync(join(root, "src/routes/index.tsx"), "export default null;\n");
 
-      const plugin = effectUiStart();
+      const plugin = sunfallArcStart();
       plugin.configResolved({ root, command: "serve" });
 
       const generatedPath = join(root, defaultFileRouteGeneratedFile);
@@ -6857,13 +6857,13 @@ describe("Effect UI Start", () => {
   });
 
   it("can disable generated file route definition writes", async () => {
-    const root = mkdtempSync(join(tmpdir(), "effect-ui-generated-routes-disabled-"));
+    const root = mkdtempSync(join(tmpdir(), "sunfall-arc-generated-routes-disabled-"));
 
     try {
       mkdirSync(join(root, "src/routes"), { recursive: true });
       writeFileSync(join(root, "src/routes/index.tsx"), "export default null;\n");
 
-      const plugin = effectUiStart({
+      const plugin = sunfallArcStart({
         fileRouteGeneration: {
           outputFile: false,
         },
@@ -6877,13 +6877,13 @@ describe("Effect UI Start", () => {
   });
 
   it("rejects generated file route definitions outside the Vite root", async () => {
-    const root = mkdtempSync(join(tmpdir(), "effect-ui-generated-routes-outside-"));
+    const root = mkdtempSync(join(tmpdir(), "sunfall-arc-generated-routes-outside-"));
 
     try {
       mkdirSync(join(root, "src/routes"), { recursive: true });
       writeFileSync(join(root, "src/routes/index.tsx"), "export default null;\n");
 
-      const plugin = effectUiStart({
+      const plugin = sunfallArcStart({
         fileRouteGeneration: {
           outputFile: "../routeTree.gen.ts",
         },
@@ -6923,7 +6923,7 @@ describe("Effect UI Start", () => {
       },
     };
     const graph = serializeStartAppGraph(options);
-    const plugin = effectUiStart(options);
+    const plugin = sunfallArcStart(options);
     const config = plugin.config();
     const resolved = plugin.resolveId(appGraphVirtualModuleId);
     const loaded = resolved === null ? undefined : plugin.load(resolved);
@@ -6957,13 +6957,13 @@ describe("Effect UI Start", () => {
     });
     expect(config).toMatchObject({
       define: {
-        __EFFECT_UI_APP_GRAPH__: graph,
+        __SUNFALL_ARC_APP_GRAPH__: graph,
       },
     });
     expect(resolved).toBe(`\0${appGraphVirtualModuleId}`);
     expect(String(loaded)).toMatchInlineSnapshot(`
-      "export const graph = {"version":1,"routes":{"version":1,"routeDirectory":"src/routes","entries":[{"id":"index","routeId":"route_root","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","routePath":"/","segments":[],"params":[]},{"id":"projects/$id","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}]}],"modules":[{"id":"index","kind":"Route","routeId":"route_root","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","routePath":"/","segments":[],"params":[],"exportName":"Route"},{"id":"projects/$id","kind":"Route","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}],"exportName":"Route"}]},"serverFunctions":{"version":1,"rpcPath":"/__effect-ui/rpc","entries":[{"id":"sf_1pkzsl7_start-project-appgraph","name":"Start.Project.appGraph","server":{"module":"/src/project/project.server.ts","exportName":"getProject","moduleKind":"server-only","hasHandler":true},"client":{"_tag":"Rpc","id":"sf_1pkzsl7_start-project-appgraph","name":"Start.Project.appGraph","rpcPath":"/__effect-ui/rpc"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false}}]},"actions":{"version":1,"actionPath":"/__effect-ui/action","entries":[{"id":"act_11c8g85_start-project-appgraph-rename","name":"Start.Project.appGraph.rename","server":{"module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"client":{"_tag":"Post","id":"act_11c8g85_start-project-appgraph-rename","name":"Start.Project.appGraph.rename","actionPath":"/__effect-ui/action"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false},"behavior":{"invalidates":"unknown","optimistic":"unknown","retry":"unknown","concurrency":"unknown"}}]}};
-      export const diagnostics = {"version":1,"routeCount":2,"serverFunctionCount":1,"actionCount":1,"routePaths":["/","/projects/:id"],"routeModules":[{"routeId":"route_root","routePath":"/","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","pathParamCount":0,"hasPathParams":false,"params":[],"paramsSchema":"unknown","searchSchema":"unknown","preload":"unknown","preloadResources":{"status":"unknown","families":[]},"preloadCollections":{"status":"unknown","collections":[]},"component":"unknown"},{"routeId":"route_projects_$id","routePath":"/projects/:id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","pathParamCount":1,"hasPathParams":true,"params":[{"name":"id","optional":false}],"paramsSchema":"unknown","searchSchema":"unknown","preload":"unknown","preloadResources":{"status":"unknown","families":[]},"preloadCollections":{"status":"unknown","collections":[]},"component":"unknown"}],"serverFunctionModules":[{"id":"sf_1pkzsl7_start-project-appgraph","name":"Start.Project.appGraph","server":{"module":"/src/project/project.server.ts","exportName":"getProject","moduleKind":"server-only","hasHandler":true},"client":{"_tag":"Rpc","rpcPath":"/__effect-ui/rpc"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false,"complete":false,"missing":["error"]}}],"actionModules":[{"id":"act_11c8g85_start-project-appgraph-rename","name":"Start.Project.appGraph.rename","server":{"module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"client":{"_tag":"Post","actionPath":"/__effect-ui/action"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false,"complete":false,"missing":["error"]},"behavior":{"invalidates":"unknown","optimistic":"unknown","retry":"unknown","concurrency":"unknown"}}],"resourceFamilies":[],"resourceTags":[],"collectionDefinitions":[],"serverOnlyModules":["/src/project/project.server.ts"],"browserClientModules":[],"rpcPath":"/__effect-ui/rpc","actionPath":"/__effect-ui/action","schemaCoverage":{"serverFunctions":{"total":1,"input":1,"output":1,"error":0},"actions":{"total":1,"input":1,"output":1,"error":0}},"missingSchemas":[{"kind":"serverFunction","name":"Start.Project.appGraph","input":true,"output":true,"error":false},{"kind":"action","name":"Start.Project.appGraph.rename","input":true,"output":true,"error":false}],"unknownActionBehavior":[{"kind":"action","name":"Start.Project.appGraph.rename","invalidates":"unknown","optimistic":"unknown","retry":"unknown","concurrency":"unknown"}],"unknownRoutePreloadResources":[],"unknownRoutePreloadCollections":[]};
+      "export const graph = {"version":1,"routes":{"version":1,"routeDirectory":"src/routes","entries":[{"id":"index","routeId":"route_root","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","routePath":"/","segments":[],"params":[]},{"id":"projects/$id","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}]}],"modules":[{"id":"index","kind":"Route","routeId":"route_root","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","routePath":"/","segments":[],"params":[],"exportName":"Route"},{"id":"projects/$id","kind":"Route","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}],"exportName":"Route"}]},"serverFunctions":{"version":1,"rpcPath":"/__sunfall-arc/rpc","entries":[{"id":"sf_1pkzsl7_start-project-appgraph","name":"Start.Project.appGraph","server":{"module":"/src/project/project.server.ts","exportName":"getProject","moduleKind":"server-only","hasHandler":true},"client":{"_tag":"Rpc","id":"sf_1pkzsl7_start-project-appgraph","name":"Start.Project.appGraph","rpcPath":"/__sunfall-arc/rpc"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false}}]},"actions":{"version":1,"actionPath":"/__sunfall-arc/action","entries":[{"id":"act_11c8g85_start-project-appgraph-rename","name":"Start.Project.appGraph.rename","server":{"module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"client":{"_tag":"Post","id":"act_11c8g85_start-project-appgraph-rename","name":"Start.Project.appGraph.rename","actionPath":"/__sunfall-arc/action"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false},"behavior":{"invalidates":"unknown","optimistic":"unknown","retry":"unknown","concurrency":"unknown"}}]}};
+      export const diagnostics = {"version":1,"routeCount":2,"serverFunctionCount":1,"actionCount":1,"routePaths":["/","/projects/:id"],"routeModules":[{"routeId":"route_root","routePath":"/","moduleId":"src/routes/index.tsx","filePath":"src/routes/index.tsx","pathParamCount":0,"hasPathParams":false,"params":[],"paramsSchema":"unknown","searchSchema":"unknown","preload":"unknown","preloadResources":{"status":"unknown","families":[]},"preloadCollections":{"status":"unknown","collections":[]},"component":"unknown"},{"routeId":"route_projects_$id","routePath":"/projects/:id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","pathParamCount":1,"hasPathParams":true,"params":[{"name":"id","optional":false}],"paramsSchema":"unknown","searchSchema":"unknown","preload":"unknown","preloadResources":{"status":"unknown","families":[]},"preloadCollections":{"status":"unknown","collections":[]},"component":"unknown"}],"serverFunctionModules":[{"id":"sf_1pkzsl7_start-project-appgraph","name":"Start.Project.appGraph","server":{"module":"/src/project/project.server.ts","exportName":"getProject","moduleKind":"server-only","hasHandler":true},"client":{"_tag":"Rpc","rpcPath":"/__sunfall-arc/rpc"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false,"complete":false,"missing":["error"]}}],"actionModules":[{"id":"act_11c8g85_start-project-appgraph-rename","name":"Start.Project.appGraph.rename","server":{"module":"/src/project/project.actions.ts","exportName":"RenameProject","moduleKind":"shared"},"client":{"_tag":"Post","actionPath":"/__sunfall-arc/action"},"wire":{"inputSchema":true,"outputSchema":true,"errorSchema":false,"complete":false,"missing":["error"]},"behavior":{"invalidates":"unknown","optimistic":"unknown","retry":"unknown","concurrency":"unknown"}}],"resourceFamilies":[],"resourceTags":[],"collectionDefinitions":[],"serverOnlyModules":["/src/project/project.server.ts"],"browserClientModules":[],"rpcPath":"/__sunfall-arc/rpc","actionPath":"/__sunfall-arc/action","schemaCoverage":{"serverFunctions":{"total":1,"input":1,"output":1,"error":0},"actions":{"total":1,"input":1,"output":1,"error":0}},"missingSchemas":[{"kind":"serverFunction","name":"Start.Project.appGraph","input":true,"output":true,"error":false},{"kind":"action","name":"Start.Project.appGraph.rename","input":true,"output":true,"error":false}],"unknownActionBehavior":[{"kind":"action","name":"Start.Project.appGraph.rename","invalidates":"unknown","optimistic":"unknown","retry":"unknown","concurrency":"unknown"}],"unknownRoutePreloadResources":[],"unknownRoutePreloadCollections":[]};
       export const diagnosticsPolicyViolations = [];
       export const routes = graph.routes;
       export const serverFunctions = graph.serverFunctions;
@@ -6972,7 +6972,7 @@ describe("Effect UI Start", () => {
     `);
     expect(String(loaded)).toContain("export const graph = ");
     expect(String(loaded)).toContain("export const diagnostics = {");
-    expect(String(loaded)).not.toContain('import { Resource, Route } from "@effect-ui/core";');
+    expect(String(loaded)).not.toContain('import { Resource, Route } from "@sunfall/arc-core";');
     expect(String(loaded)).not.toContain("startAppGraphCollectionDefinitions");
     expect(String(loaded)).not.toContain("describeStartAppGraphRuntimeDiagnostics");
     expect(String(loaded)).not.toContain("validateStartAppGraphDiagnosticsPolicyExceptionEffect");
@@ -7020,7 +7020,7 @@ describe("Effect UI Start", () => {
         exportName: "RenameProject",
       },
     ]);
-    const plugin = effectUiStart({
+    const plugin = sunfallArcStart({
       serverFunctionSources: serverFunctionSources.iterable,
       actionSources: actionSources.iterable,
       fileRoutes: fileRoutes.iterable,
@@ -7037,7 +7037,7 @@ describe("Effect UI Start", () => {
     expect(fileRoutes.iteratorCalls).toBe(1);
     expect(serverFunctionSources.iteratorCalls).toBe(1);
     expect(actionSources.iteratorCalls).toBe(1);
-    expect(String(config.define?.__EFFECT_UI_APP_GRAPH__)).toContain(
+    expect(String(config.define?.__SUNFALL_ARC_APP_GRAPH__)).toContain(
       "Start.Project.one-shot-manifest",
     );
     expect(String(appGraphModule)).toContain("Start.Project.one-shot-manifest.rename");
@@ -7067,7 +7067,7 @@ describe("Effect UI Start", () => {
         exportName: "RenameProject",
       },
     ]);
-    const plugin = effectUiStartVirtualModules({
+    const plugin = sunfallArcStartVirtualModules({
       serverFunctionSources: serverFunctionSources.iterable,
       actionSources: actionSources.iterable,
       fileRoutes: fileRoutes.iterable,
@@ -7089,7 +7089,7 @@ describe("Effect UI Start", () => {
   });
 
   it("keeps route implementation imports behind the runtime diagnostics virtual module", () => {
-    const plugin = effectUiStart({
+    const plugin = sunfallArcStart({
       fileRoutes: ["src/routes/projects/$id.tsx", "src/routes/index.tsx"],
       fileRouteOptions: {
         routeDirectory: "src/routes",
@@ -7102,7 +7102,7 @@ describe("Effect UI Start", () => {
     expect(String(loaded)).toContain(
       "export const diagnostics = describeStartAppGraphRuntimeDiagnostics(graph, {",
     );
-    expect(String(loaded)).toContain('import { Resource, Route } from "@effect-ui/core";');
+    expect(String(loaded)).toContain('import { Resource, Route } from "@sunfall/arc-core";');
     expect(String(loaded)).toContain('import { Route as route_root } from "/src/routes/index.js";');
     expect(String(loaded)).toContain(
       'import { Route as route_projects_$id } from "/src/routes/projects/$id.js";',
@@ -7114,7 +7114,7 @@ describe("Effect UI Start", () => {
   });
 
   it("emits a resolved diagnostics policy guard in the runtime diagnostics virtual module", async () => {
-    const plugin = effectUiStart({
+    const plugin = sunfallArcStart({
       buildPolicy: {
         wireSchemas: false,
         diagnostics: {
@@ -7136,12 +7136,12 @@ describe("Effect UI Start", () => {
 
     expect(String(loaded)).toMatchInlineSnapshot(`
       "import { Effect } from "effect";
-      import { Resource, Route } from "@effect-ui/core";
-      import { describeStartAppGraphRuntimeDiagnostics, startAppGraphCollectionDefinitions, validateStartAppGraphDiagnosticsPolicyExceptionEffect } from "@effect-ui/start";
+      import { Resource, Route } from "@sunfall/arc-core";
+      import { describeStartAppGraphRuntimeDiagnostics, startAppGraphCollectionDefinitions, validateStartAppGraphDiagnosticsPolicyExceptionEffect } from "@sunfall/arc-start";
 
       import { Route as route_projects_$id } from "/src/routes/projects/$id.js";
 
-      export const graph = {"version":1,"routes":{"version":1,"routeDirectory":"src/routes","entries":[{"id":"projects/$id","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}]}],"modules":[{"id":"projects/$id","kind":"Route","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}],"exportName":"Route"}]},"serverFunctions":{"version":1,"rpcPath":"/__effect-ui/rpc","entries":[]},"actions":{"version":1,"actionPath":"/__effect-ui/action","entries":[]}};
+      export const graph = {"version":1,"routes":{"version":1,"routeDirectory":"src/routes","entries":[{"id":"projects/$id","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}]}],"modules":[{"id":"projects/$id","kind":"Route","routeId":"route_projects_$id","moduleId":"src/routes/projects/$id.tsx","filePath":"src/routes/projects/$id.tsx","routePath":"/projects/:id","segments":[{"_tag":"Static","value":"projects"},{"_tag":"Dynamic","name":"id","optional":false}],"params":[{"name":"id","optional":false}],"exportName":"Route"}]},"serverFunctions":{"version":1,"rpcPath":"/__sunfall-arc/rpc","entries":[]},"actions":{"version":1,"actionPath":"/__sunfall-arc/action","entries":[]}};
       const resourceDiagnostics = Resource.diagnostics();
       const collectionDefinitions = startAppGraphCollectionDefinitions();
       const routeModuleCandidates = [
@@ -7174,12 +7174,12 @@ describe("Effect UI Start", () => {
     );
     expect(String(loaded)).not.toContain("formatStartAppGraphDiagnosticsPolicyViolation");
     expect(String(loaded)).not.toContain(
-      "new Error(`Effect UI app graph diagnostics policy failed",
+      "new Error(`Sunfall Arc app graph diagnostics policy failed",
     );
   });
 
   it("serializes disabled resolved diagnostics policy through the runtime diagnostics virtual module", () => {
-    const plugin = effectUiStart({
+    const plugin = sunfallArcStart({
       buildPolicy: {
         wireSchemas: false,
         diagnostics: false,
@@ -7199,15 +7199,15 @@ describe("Effect UI Start", () => {
   });
 
   it("loads resolved app graph diagnostics through Vite for CI scripts", async () => {
-    const root = mkdtempSync(join(tmpdir(), "effect-ui-diagnostics-runner-"));
+    const root = mkdtempSync(join(tmpdir(), "sunfall-arc-diagnostics-runner-"));
 
     try {
       mkdirSync(join(root, "src/routes"), { recursive: true });
       writeFileSync(
         join(root, "src/routes/index.ts"),
         [
-          'import { Resource, route } from "@effect-ui/core";',
-          'import { Collection } from "@effect-ui/db";',
+          'import { Resource, route } from "@sunfall/arc-core";',
+          'import { Collection } from "@sunfall/arc-db";',
           "const ProjectById = Resource.family({",
           '  name: "Runner.Project.byId",',
           "  load: (id: string) => ({ id })",
@@ -7323,19 +7323,19 @@ describe("Effect UI Start", () => {
     expect(closeCalls).toBe(1);
     expect(failure).toBeInstanceOf(StartAppGraphDiagnosticsRunnerError);
     expect(failure).toMatchObject({
-      message: "Could not close the temporary Vite server for Effect UI app graph diagnostics.",
+      message: "Could not close the temporary Vite server for Sunfall Arc app graph diagnostics.",
     });
   });
 
   it("allows resolved app graph diagnostics policy opt-outs through Vite", async () => {
-    const root = mkdtempSync(join(tmpdir(), "effect-ui-diagnostics-runner-opt-out-"));
+    const root = mkdtempSync(join(tmpdir(), "sunfall-arc-diagnostics-runner-opt-out-"));
 
     try {
       mkdirSync(join(root, "src/routes"), { recursive: true });
       writeFileSync(
         join(root, "src/routes/index.ts"),
         [
-          'import { route } from "@effect-ui/core";',
+          'import { route } from "@sunfall/arc-core";',
           'export const Route = route("/", {',
           "  preload: () => undefined",
           "});",
@@ -7374,13 +7374,13 @@ describe("Effect UI Start", () => {
   }, 20000);
 
   it("loads diagnostics from an inline Start Vite plugin without separate Start options", async () => {
-    const root = mkdtempSync(join(tmpdir(), "effect-ui-diagnostics-inline-start-"));
+    const root = mkdtempSync(join(tmpdir(), "sunfall-arc-diagnostics-inline-start-"));
 
     try {
       mkdirSync(join(root, "src/routes"), { recursive: true });
       writeFileSync(
         join(root, "src/routes/index.ts"),
-        ['import { route } from "@effect-ui/core";', 'export const Route = route("/", {});'].join(
+        ['import { route } from "@sunfall/arc-core";', 'export const Route = route("/", {});'].join(
           "\n",
         ),
       );
@@ -7392,7 +7392,7 @@ describe("Effect UI Start", () => {
           vite: {
             ...startDiagnosticsRunnerViteConfig(),
             plugins: [
-              effectUiStart({
+              sunfallArcStart({
                 fileRoutes: ["src/routes/index.ts"],
                 fileRouteOptions: {
                   routeDirectory: "src/routes",
@@ -7416,30 +7416,30 @@ describe("Effect UI Start", () => {
   }, 20000);
 
   it("prefers explicit Start diagnostics options over config-file Start plugins", async () => {
-    const root = mkdtempSync(join(tmpdir(), "effect-ui-diagnostics-explicit-start-"));
+    const root = mkdtempSync(join(tmpdir(), "sunfall-arc-diagnostics-explicit-start-"));
 
     try {
       mkdirSync(join(root, "src/routes"), { recursive: true });
       writeFileSync(
         join(root, "src/routes/config.ts"),
         [
-          'import { route } from "@effect-ui/core";',
+          'import { route } from "@sunfall/arc-core";',
           'export const Route = route("/config", {});',
         ].join("\n"),
       );
       writeFileSync(
         join(root, "src/routes/explicit.ts"),
         [
-          'import { route } from "@effect-ui/core";',
+          'import { route } from "@sunfall/arc-core";',
           'export const Route = route("/explicit", {});',
         ].join("\n"),
       );
       writeFileSync(
         join(root, "vite.config.ts"),
         [
-          'import { effectUiStart } from "@effect-ui/start/vite";',
+          'import { sunfallArcStart } from "@sunfall/arc-start/vite";',
           "export default {",
-          "  plugins: [effectUiStart({",
+          "  plugins: [sunfallArcStart({",
           '    fileRoutes: ["src/routes/config.ts"],',
           '    fileRouteOptions: { routeDirectory: "src/routes" }',
           "  })]",
@@ -7473,7 +7473,7 @@ describe("Effect UI Start", () => {
   }, 20000);
 
   it("rejects loaded diagnostics that are not coherent with their graph", async () => {
-    const root = mkdtempSync(join(tmpdir(), "effect-ui-diagnostics-incoherent-"));
+    const root = mkdtempSync(join(tmpdir(), "sunfall-arc-diagnostics-incoherent-"));
 
     try {
       const startOptions = {
@@ -7497,7 +7497,7 @@ describe("Effect UI Start", () => {
             vite: {
               plugins: [
                 {
-                  name: "effect-ui-start-test-incoherent-diagnostics",
+                  name: "sunfall-arc-start-test-incoherent-diagnostics",
                   resolveId(id) {
                     return id === appGraphRuntimeDiagnosticsVirtualModuleId
                       ? resolvedDiagnosticsId
@@ -7528,14 +7528,14 @@ describe("Effect UI Start", () => {
   }, 20000);
 
   it("rejects resolved app graph diagnostics policy violations through Vite", async () => {
-    const root = mkdtempSync(join(tmpdir(), "effect-ui-diagnostics-runner-fail-"));
+    const root = mkdtempSync(join(tmpdir(), "sunfall-arc-diagnostics-runner-fail-"));
 
     try {
       mkdirSync(join(root, "src/routes"), { recursive: true });
       writeFileSync(
         join(root, "src/routes/index.ts"),
         [
-          'import { route } from "@effect-ui/core";',
+          'import { route } from "@sunfall/arc-core";',
           'export const Route = route("/", {',
           "  preload: () => undefined",
           "});",
@@ -7576,7 +7576,7 @@ describe("Effect UI Start", () => {
   }, 20000);
 
   it("fails the Vite build diagnostics gate without importing the app graph virtual module", async () => {
-    const root = mkdtempSync(join(tmpdir(), "effect-ui-diagnostics-build-gate-"));
+    const root = mkdtempSync(join(tmpdir(), "sunfall-arc-diagnostics-build-gate-"));
 
     try {
       mkdirSync(join(root, "src/routes"), { recursive: true });
@@ -7595,7 +7595,7 @@ describe("Effect UI Start", () => {
       writeFileSync(
         join(root, "src/routes/index.ts"),
         [
-          'import { route } from "@effect-ui/core";',
+          'import { route } from "@sunfall/arc-core";',
           'export const Route = route("/", {',
           "  preload: () => undefined",
           "});",
@@ -7610,7 +7610,7 @@ describe("Effect UI Start", () => {
           logLevel: "silent",
           ...startDiagnosticsRunnerViteConfig(),
           plugins: [
-            effectUiStart({
+            sunfallArcStart({
               fileRoutes: ["src/routes/index.ts"],
               fileRouteOptions: {
                 routeDirectory: "src/routes",
@@ -7642,7 +7642,7 @@ describe("Effect UI Start", () => {
   }, 20000);
 
   it("skips the Vite build diagnostics gate when diagnostics policy is disabled", async () => {
-    const root = mkdtempSync(join(process.cwd(), ".tmp-effect-ui-diagnostics-build-gate-opt-out-"));
+    const root = mkdtempSync(join(process.cwd(), ".tmp-sunfall-arc-diagnostics-build-gate-opt-out-"));
 
     try {
       mkdirSync(join(root, "src/routes"), { recursive: true });
@@ -7661,7 +7661,7 @@ describe("Effect UI Start", () => {
       writeFileSync(
         join(root, "src/routes/index.ts"),
         [
-          'import { route } from "@effect-ui/core";',
+          'import { route } from "@sunfall/arc-core";',
           'export const Route = route("/", {',
           "  preload: () => undefined",
           "});",
@@ -7675,7 +7675,7 @@ describe("Effect UI Start", () => {
           logLevel: "silent",
           ...startDiagnosticsRunnerViteConfig(),
           plugins: [
-            effectUiStart({
+            sunfallArcStart({
               fileRoutes: ["src/routes/index.ts"],
               fileRouteOptions: {
                 routeDirectory: "src/routes",
@@ -7932,7 +7932,7 @@ describe("Effect UI Start", () => {
     expect(helpResult.exitCode).toBe(0);
     expect(helpStderr).toEqual([]);
     expect(helpStdout.join("\n")).toContain("USAGE");
-    expect(helpStdout.join("\n")).toContain("effect-ui-start <subcommand> [flags]");
+    expect(helpStdout.join("\n")).toContain("sunfall-arc-start <subcommand> [flags]");
 
     const graphHelpStdout: string[] = [];
     const graphHelpStderr: string[] = [];
@@ -7946,7 +7946,7 @@ describe("Effect UI Start", () => {
     expect(graphHelpResult.exitCode).toBe(0);
     expect(graphHelpStderr).toEqual([]);
     const graphHelp = graphHelpStdout.join("\n");
-    expect(graphHelp).toContain("effect-ui-start graph [flags] <query...>");
+    expect(graphHelp).toContain("sunfall-arc-start graph [flags] <query...>");
     expect(graphHelp).toContain("Optional graph kind and query text.");
     expect(graphHelp).not.toContain("graph <subcommand>");
 
@@ -7962,7 +7962,7 @@ describe("Effect UI Start", () => {
     expect(impactHelpResult.exitCode).toBe(0);
     expect(impactHelpStderr).toEqual([]);
     const impactHelp = impactHelpStdout.join("\n");
-    expect(impactHelp).toContain("effect-ui-start impact [flags] <query...>");
+    expect(impactHelp).toContain("sunfall-arc-start impact [flags] <query...>");
     expect(impactHelp).toContain("Required impact query text with optional kind");
     expect(impactHelp).not.toContain("impact <subcommand>");
 
@@ -7977,7 +7977,7 @@ describe("Effect UI Start", () => {
     );
     expect(versionResult.exitCode).toBe(0);
     expect(versionStderr).toEqual([]);
-    expect(versionStdout.join("\n")).toContain("effect-ui-start v0.0.0-alpha.0");
+    expect(versionStdout.join("\n")).toContain("sunfall-arc-start v0.0.0-alpha.0");
 
     const stdout: string[] = [];
     const stderr: string[] = [];
@@ -7990,8 +7990,8 @@ describe("Effect UI Start", () => {
             graph: {
               version: 1,
               routes: { version: 1, entries: [], modules: [], routeDirectory: "src/routes" },
-              serverFunctions: { version: 1, rpcPath: "/__effect-ui/rpc", entries: [] },
-              actions: { version: 1, actionPath: "/__effect-ui/action", entries: [] },
+              serverFunctions: { version: 1, rpcPath: "/__sunfall-arc/rpc", entries: [] },
+              actions: { version: 1, actionPath: "/__sunfall-arc/action", entries: [] },
             },
             diagnostics: {
               version: 1,
@@ -8007,8 +8007,8 @@ describe("Effect UI Start", () => {
               collectionDefinitions: [],
               serverOnlyModules: [],
               browserClientModules: [],
-              rpcPath: "/__effect-ui/rpc",
-              actionPath: "/__effect-ui/action",
+              rpcPath: "/__sunfall-arc/rpc",
+              actionPath: "/__sunfall-arc/action",
               schemaCoverage: {
                 serverFunctions: { total: 0, input: 0, output: 0, error: 0 },
                 actions: { total: 0, input: 0, output: 0, error: 0 },
@@ -8045,8 +8045,8 @@ describe("Effect UI Start", () => {
             graph: {
               version: 1,
               routes: { version: 1, entries: [], modules: [], routeDirectory: "src/routes" },
-              serverFunctions: { version: 1, rpcPath: "/__effect-ui/rpc", entries: [] },
-              actions: { version: 1, actionPath: "/__effect-ui/action", entries: [] },
+              serverFunctions: { version: 1, rpcPath: "/__sunfall-arc/rpc", entries: [] },
+              actions: { version: 1, actionPath: "/__sunfall-arc/action", entries: [] },
             },
             diagnostics: {
               version: 1,
@@ -8084,8 +8084,8 @@ describe("Effect UI Start", () => {
               collectionDefinitions: [],
               serverOnlyModules: [],
               browserClientModules: [],
-              rpcPath: "/__effect-ui/rpc",
-              actionPath: "/__effect-ui/action",
+              rpcPath: "/__sunfall-arc/rpc",
+              actionPath: "/__sunfall-arc/action",
               schemaCoverage: {
                 serverFunctions: { total: 0, input: 0, output: 0, error: 0 },
                 actions: { total: 0, input: 0, output: 0, error: 0 },
@@ -8120,8 +8120,8 @@ describe("Effect UI Start", () => {
         graph: {
           version: 1 as const,
           routes: { version: 1 as const, entries: [], modules: [], routeDirectory: "src/routes" },
-          serverFunctions: { version: 1 as const, rpcPath: "/__effect-ui/rpc", entries: [] },
-          actions: { version: 1 as const, actionPath: "/__effect-ui/action", entries: [] },
+          serverFunctions: { version: 1 as const, rpcPath: "/__sunfall-arc/rpc", entries: [] },
+          actions: { version: 1 as const, actionPath: "/__sunfall-arc/action", entries: [] },
         },
         diagnostics: {
           version: 1 as const,
@@ -8253,8 +8253,8 @@ describe("Effect UI Start", () => {
             "/src/project/project.contract.ts",
             "/src/project/project.actions.ts",
           ],
-          rpcPath: "/__effect-ui/rpc",
-          actionPath: "/__effect-ui/action",
+          rpcPath: "/__sunfall-arc/rpc",
+          actionPath: "/__sunfall-arc/action",
           schemaCoverage: {
             serverFunctions: { total: 1, input: 1, output: 1, error: 0 },
             actions: { total: 1, input: 1, output: 1, error: 1 },
@@ -8340,8 +8340,8 @@ describe("Effect UI Start", () => {
       expect(impactPayload.query?.kind).toBe(kind);
       expect(impactPayload.matches).toBeGreaterThan(0);
       expect(impactPayload.items?.[0]?.verify).toEqual([
-        "effect-ui-start diagnostics --root=examples/project-console --config=vite.config.ts --mode=ci",
-        `effect-ui-start graph --root=examples/project-console --config=vite.config.ts --mode=ci ${kind} ${startAgentGraphCliQueryTextByKind[kind]}`,
+        "sunfall-arc-start diagnostics --root=examples/project-console --config=vite.config.ts --mode=ci",
+        `sunfall-arc-start graph --root=examples/project-console --config=vite.config.ts --mode=ci ${kind} ${startAgentGraphCliQueryTextByKind[kind]}`,
       ]);
     }
   });
@@ -8373,8 +8373,8 @@ describe("Effect UI Start", () => {
               graph: {
                 version: 1,
                 routes: { version: 1, entries: [], modules: [], routeDirectory: "src/routes" },
-                serverFunctions: { version: 1, rpcPath: "/__effect-ui/rpc", entries: [] },
-                actions: { version: 1, actionPath: "/__effect-ui/action", entries: [] },
+                serverFunctions: { version: 1, rpcPath: "/__sunfall-arc/rpc", entries: [] },
+                actions: { version: 1, actionPath: "/__sunfall-arc/action", entries: [] },
               },
               diagnostics: {
                 version: 1,
@@ -8412,8 +8412,8 @@ describe("Effect UI Start", () => {
                 collectionDefinitions: [],
                 serverOnlyModules: [],
                 browserClientModules: [],
-                rpcPath: "/__effect-ui/rpc",
-                actionPath: "/__effect-ui/action",
+                rpcPath: "/__sunfall-arc/rpc",
+                actionPath: "/__sunfall-arc/action",
                 schemaCoverage: {
                   serverFunctions: { total: 0, input: 0, output: 0, error: 0 },
                   actions: { total: 0, input: 0, output: 0, error: 0 },
@@ -8445,8 +8445,8 @@ describe("Effect UI Start", () => {
       },
     ]);
     expect(payload.items?.[0]?.verify).toEqual([
-      "effect-ui-start diagnostics --root='examples/project console' --config='vite config.ts' --mode='ci mode'",
-      "effect-ui-start graph --root='examples/project console' --config='vite config.ts' --mode='ci mode' route '/project spaces/:id'",
+      "sunfall-arc-start diagnostics --root='examples/project console' --config='vite config.ts' --mode='ci mode'",
+      "sunfall-arc-start graph --root='examples/project console' --config='vite config.ts' --mode='ci mode' route '/project spaces/:id'",
     ]);
     expect(
       parseStartDiagnosticsCliArgs(shellSplitStartCliArgs(payload.items?.[0]?.verify?.[1] ?? "")),
@@ -8474,8 +8474,8 @@ describe("Effect UI Start", () => {
     });
 
     expect(commands).toEqual([
-      "effect-ui-start diagnostics --root=examples/project-console",
-      "effect-ui-start graph --root=examples/project-console route --query=--root",
+      "sunfall-arc-start diagnostics --root=examples/project-console",
+      "sunfall-arc-start graph --root=examples/project-console route --query=--root",
     ]);
     expect(parseStartDiagnosticsCliArgs(shellSplitStartCliArgs(commands[1] ?? ""))).toEqual({
       _tag: "Graph",
@@ -8494,8 +8494,8 @@ describe("Effect UI Start", () => {
     );
 
     expect(textOnlyCommands).toEqual([
-      "effect-ui-start diagnostics --root=examples/project-console",
-      "effect-ui-start graph --root=examples/project-console --query=--root",
+      "sunfall-arc-start diagnostics --root=examples/project-console",
+      "sunfall-arc-start graph --root=examples/project-console --query=--root",
     ]);
     expect(parseStartDiagnosticsCliArgs(shellSplitStartCliArgs(textOnlyCommands[1] ?? ""))).toEqual(
       {
@@ -8524,8 +8524,8 @@ describe("Effect UI Start", () => {
         },
       ),
     ).toEqual([
-      "effect-ui-start diagnostics --root=-app --config=-vite.config.ts --mode=-ci",
-      "effect-ui-start graph --root=-app --config=-vite.config.ts --mode=-ci route /projects/:id",
+      "sunfall-arc-start diagnostics --root=-app --config=-vite.config.ts --mode=-ci",
+      "sunfall-arc-start graph --root=-app --config=-vite.config.ts --mode=-ci route /projects/:id",
     ]);
   });
 
@@ -8543,8 +8543,8 @@ describe("Effect UI Start", () => {
               graph: {
                 version: 1,
                 routes: { version: 1, entries: [], modules: [], routeDirectory: "src/routes" },
-                serverFunctions: { version: 1, rpcPath: "/__effect-ui/rpc", entries: [] },
-                actions: { version: 1, actionPath: "/__effect-ui/action", entries: [] },
+                serverFunctions: { version: 1, rpcPath: "/__sunfall-arc/rpc", entries: [] },
+                actions: { version: 1, actionPath: "/__sunfall-arc/action", entries: [] },
               },
               diagnostics: {
                 version: 1,
@@ -8582,8 +8582,8 @@ describe("Effect UI Start", () => {
                 collectionDefinitions: [],
                 serverOnlyModules: [],
                 browserClientModules: [],
-                rpcPath: "/__effect-ui/rpc",
-                actionPath: "/__effect-ui/action",
+                rpcPath: "/__sunfall-arc/rpc",
+                actionPath: "/__sunfall-arc/action",
                 schemaCoverage: {
                   serverFunctions: { total: 0, input: 0, output: 0, error: 0 },
                   actions: { total: 0, input: 0, output: 0, error: 0 },
@@ -8606,9 +8606,9 @@ describe("Effect UI Start", () => {
     expect(text).toContain("Contracts");
     expect(text).toContain("- preloads: resources Project.byId; collections ProjectRows");
     expect(text).toContain("Depends on");
-    expect(text).toContain("- effect-ui-start diagnostics --root=examples/project-console");
+    expect(text).toContain("- sunfall-arc-start diagnostics --root=examples/project-console");
     expect(text).toContain(
-      "- effect-ui-start graph --root=examples/project-console route /projects/:id",
+      "- sunfall-arc-start graph --root=examples/project-console route /projects/:id",
     );
     expect(text).not.toContain("route:route_projects_$id");
   });
@@ -8624,7 +8624,7 @@ describe("Effect UI Start", () => {
     );
 
     expect(result.exitCode).toBe(1);
-    expect(stderr.join("\n")).toContain('Unknown subcommand "unknown" for "effect-ui-start"');
+    expect(stderr.join("\n")).toContain('Unknown subcommand "unknown" for "sunfall-arc-start"');
 
     const extraGraphStderr: string[] = [];
     const extraGraphResult = await Effect.runPromise(
@@ -8672,7 +8672,7 @@ describe("Effect UI Start", () => {
     }
 
     expect(observedExitCode).toBe(1);
-    expect(stderr).toEqual(["Effect UI diagnostics CLI failed: Could not write stdout output."]);
+    expect(stderr).toEqual(["Sunfall Arc diagnostics CLI failed: Could not write stdout output."]);
   });
 
   it("keeps invalid diagnostics CLI loaders inside the Effect boundary", async () => {
@@ -8711,7 +8711,7 @@ describe("Effect UI Start", () => {
       expect(result.exitCode, testCase.label).toBe(1);
       expect(stdout, testCase.label).toEqual([]);
       expect(stderr.join("\n"), testCase.label).toContain(
-        `Effect UI Start diagnostics failed: ${testCase.message}`,
+        `Sunfall Arc Start diagnostics failed: ${testCase.message}`,
       );
     }
   });
@@ -8721,8 +8721,8 @@ describe("Effect UI Start", () => {
       graph: {
         version: 1 as const,
         routes: { version: 1 as const, entries: [], modules: [], routeDirectory: "src/routes" },
-        serverFunctions: { version: 1 as const, rpcPath: "/__effect-ui/rpc", entries: [] },
-        actions: { version: 1 as const, actionPath: "/__effect-ui/action", entries: [] },
+        serverFunctions: { version: 1 as const, rpcPath: "/__sunfall-arc/rpc", entries: [] },
+        actions: { version: 1 as const, actionPath: "/__sunfall-arc/action", entries: [] },
       },
       diagnostics: {
         version: 1 as const,
@@ -8765,7 +8765,7 @@ describe("Effect UI Start", () => {
             },
             client: {
               _tag: "Rpc" as const,
-              rpcPath: "/__effect-ui/rpc",
+              rpcPath: "/__sunfall-arc/rpc",
             },
             wire: {
               inputSchema: true,
@@ -8787,7 +8787,7 @@ describe("Effect UI Start", () => {
             },
             client: {
               _tag: "Post" as const,
-              actionPath: "/__effect-ui/action",
+              actionPath: "/__sunfall-arc/action",
             },
             wire: {
               inputSchema: false,
@@ -8809,8 +8809,8 @@ describe("Effect UI Start", () => {
         collectionDefinitions: [],
         serverOnlyModules: ["src/project/project.actions.ts", "src/project/project.server.ts"],
         browserClientModules: [],
-        rpcPath: "/__effect-ui/rpc",
-        actionPath: "/__effect-ui/action",
+        rpcPath: "/__sunfall-arc/rpc",
+        actionPath: "/__sunfall-arc/action",
         schemaCoverage: {
           serverFunctions: { total: 1, input: 1, output: 0, error: 0 },
           actions: { total: 1, input: 0, output: 1, error: 0 },
@@ -8955,8 +8955,8 @@ describe("Effect UI Start", () => {
         collectionDefinitions: [],
         serverOnlyModules: [],
         browserClientModules: [],
-        rpcPath: "/__effect-ui/rpc",
-        actionPath: "/__effect-ui/action",
+        rpcPath: "/__sunfall-arc/rpc",
+        actionPath: "/__sunfall-arc/action",
         schemaCoverage: {
           serverFunctions: { total: 0, input: 0, output: 0, error: 0 },
           actions: { total: 0, input: 0, output: 0, error: 0 },
@@ -8977,7 +8977,7 @@ describe("Effect UI Start", () => {
 
     expect(result.exitCode).toBe(1);
     expect(stderr.join("\n")).toContain("Routes with preload must declare preloadResources.");
-    expect(stderr.join("\n")).toContain("Effect UI Start Diagnostics Report");
+    expect(stderr.join("\n")).toContain("Sunfall Arc Start Diagnostics Report");
     expect(stderr.join("\n")).toContain("Owner: src/routes/index.ts");
     expect(stderr.join("\n")).toContain("Add `preloadResources: [...]`");
     expect(stderr.join("\n")).toContain("Owner: StartBuildPolicy.diagnostics");
@@ -9071,7 +9071,7 @@ describe("Effect UI Start", () => {
   });
 
   it("enforces configured build policy before the Vite preset emits app graph defines", () => {
-    const plugin = effectUiStart({
+    const plugin = sunfallArcStart({
       buildPolicy: true,
       serverFunctionManifest: [
         {
@@ -9400,7 +9400,7 @@ describe("Effect UI Start", () => {
     interface DevSsrToken {
       readonly value: string;
     }
-    const DevSsrToken = Context.Service<DevSsrToken>("@effect-ui/start/test/DevSsrToken");
+    const DevSsrToken = Context.Service<DevSsrToken>("@sunfall/arc-start/test/DevSsrToken");
     const runtime = makeRuntime(Layer.succeed(DevSsrToken)({ value: "runtime-token" }));
     const done = Effect.runSync(Deferred.make<void>());
     const headers = new Map<string, string | readonly string[]>();
@@ -9412,7 +9412,7 @@ describe("Effect UI Start", () => {
           next: (error?: unknown) => void,
         ) => void)
       | undefined;
-    const plugin = effectUiStart({
+    const plugin = sunfallArcStart({
       serverEntry: "/src/server.tsx",
       devSsr: { runtime },
     });
@@ -9487,7 +9487,7 @@ describe("Effect UI Start", () => {
           next: (error?: unknown) => void,
         ) => void)
       | undefined;
-    const plugin = effectUiStart({
+    const plugin = sunfallArcStart({
       serverEntry: "/src/server.tsx",
       devSsr: {
         runtime: {

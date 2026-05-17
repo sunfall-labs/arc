@@ -1,4 +1,4 @@
-import { type AnyCollection } from "@effect-ui/db";
+import { type AnyCollection } from "@sunfall/arc-db";
 import { Data, Effect } from "effect";
 
 /** Registry shape Start can use to resolve collection names emitted by routes or hydration payloads. */

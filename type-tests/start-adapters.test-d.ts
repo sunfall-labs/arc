@@ -18,9 +18,9 @@ import {
   type StartNodeServerHandler,
   type StartNodeServerHandlerOptions,
   type StartNodeServerHandlerRuntimeOptions,
-} from "@effect-ui/start/adapters";
-import type { EffectUiRuntime } from "@effect-ui/core";
-import type { StartRequestHandlerEffect } from "@effect-ui/start";
+} from "@sunfall/arc-start/adapters";
+import type { SunfallArcRuntime } from "@sunfall/arc-core";
+import type { StartRequestHandlerEffect } from "@sunfall/arc-start";
 import { Scope } from "effect";
 
 const startAdapterExports: Array<unknown> = [
@@ -56,7 +56,7 @@ declare const scopeOnlyHandler: StartRequestHandlerEffect<Scope.Scope>;
 declare const servicefulHandler: StartRequestHandlerEffect<
   Scope.Scope | RootFetchAdapterTestService
 >;
-declare const serviceRuntime: EffectUiRuntime<RootFetchAdapterTestService>;
+declare const serviceRuntime: SunfallArcRuntime<RootFetchAdapterTestService>;
 
 const rootFetchPromiseHandler: StartFetchPromiseHandler = createFetchHandler(scopeOnlyHandler);
 const rootFetchEffectHandler: StartFetchHandlerEffect<Scope.Scope> =

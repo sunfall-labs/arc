@@ -1,5 +1,5 @@
-import { Route, RouterOutlet, RouterProvider, useResource } from "@effect-ui/solid";
-import type { EffectUiRuntime } from "@effect-ui/core";
+import { Route, RouterOutlet, RouterProvider, useResource } from "@sunfall/arc-solid";
+import type { SunfallArcRuntime } from "@sunfall/arc-core";
 import { CookbookRoute, HomeRoute, RecipeRoute, app } from "./app-definition.js";
 import {
   RecipeBySlug,
@@ -17,7 +17,7 @@ const CookbookUiRoute = Route.withComponent(CookbookRoute, CookbookIndexView);
 const RecipeUiRoute = Route.withComponent(RecipeRoute, RecipeRouteView);
 const routes = [HomeUiRoute, CookbookUiRoute, RecipeUiRoute] as const;
 type DocsSiteRuntime<RuntimeServices = DocsContentApi> = [DocsContentApi] extends [RuntimeServices]
-  ? EffectUiRuntime<RuntimeServices, never>
+  ? SunfallArcRuntime<RuntimeServices, never>
   : never;
 
 export interface AppProps<RuntimeServices = DocsContentApi> {
@@ -43,7 +43,7 @@ const recipeHref = (slug: RecipeSlug): string => `/cookbook/${slug}`;
 export default function App<RuntimeServices = DocsContentApi>(
   props: AppProps<RuntimeServices> = {},
 ) {
-  const runtime = (props.runtime ?? app.runtime) as EffectUiRuntime<
+  const runtime = (props.runtime ?? app.runtime) as SunfallArcRuntime<
     DocsContentApi | RuntimeServices,
     never
   >;
@@ -66,7 +66,7 @@ function DocsShell() {
         <a href={Route.href(HomeUiRoute)} class="brandLink">
           <span class="brandMark">E</span>
           <span>
-            <strong>Effect UI</strong>
+            <strong>Sunfall Arc</strong>
             <small>Cookbook</small>
           </span>
         </a>
@@ -128,7 +128,7 @@ function HomeView() {
     <article class="pageStack">
       <header class="heroBand">
         <p class="eyebrow">Dogfooded docs</p>
-        <h1>Cookbook recipes backed by Effect UI Resources.</h1>
+        <h1>Cookbook recipes backed by Sunfall Arc Resources.</h1>
         <p>
           This docs site is itself a Start app: content is loaded through server functions, exposed
           through a Capability, preloaded by file routes, and hydrated before the UI mounts.
@@ -156,7 +156,7 @@ function CookbookIndexView() {
     <article class="pageStack">
       <header class="pageHeader">
         <p class="eyebrow">Cookbook</p>
-        <h1>Idiomatic Effect UI examples</h1>
+        <h1>Idiomatic Sunfall Arc examples</h1>
         <p>
           Each recipe is intentionally small enough to copy, but still follows the framework rules:
           Effect-first callbacks, typed schemas, and explicit route data ownership.

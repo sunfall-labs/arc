@@ -1,11 +1,11 @@
-import { defineApp, makeRuntime, Resource, route, runWithRuntime, Server } from "@effect-ui/core";
-import { Collection, eq } from "@effect-ui/db";
+import { defineApp, makeRuntime, Resource, route, runWithRuntime, Server } from "@sunfall/arc-core";
+import { Collection, eq } from "@sunfall/arc-db";
 import {
   createServerRpcResponseEffect,
   preloadRequestEffect,
   serverRpcPath,
   startJsonMediaType,
-} from "@effect-ui/start";
+} from "@sunfall/arc-start";
 import { Effect, Schema } from "effect";
 import { bench, describe } from "vitest";
 import { handleRequest } from "../examples/project-console/src/server.js";
@@ -77,7 +77,7 @@ const BenchProjectCards = Collection.liveQuery<ProjectCard, string>({
       .orderBy(({ project }) => project.name),
 });
 
-describe("Effect UI release baseline", () => {
+describe("Sunfall Arc release baseline", () => {
   bench("project console streaming SSR", async () => {
     const response = await handleRequest(
       new Request("https://example.test/projects/atlas?tab=activity"),

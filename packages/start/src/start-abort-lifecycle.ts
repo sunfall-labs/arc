@@ -1,4 +1,4 @@
-import { defaultRuntime } from "@effect-ui/core";
+import { defaultRuntime } from "@sunfall/arc-core";
 import { Effect, Fiber, Scope } from "effect";
 
 /** Shared cleanup handle for Start AbortSignal lifecycle helpers. */

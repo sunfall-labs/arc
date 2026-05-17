@@ -2,10 +2,10 @@ import { Cause, Context, Data, Effect, Exit, Fiber, PubSub, Scope } from "effect
 
 /** Runtime marker for the Resource Store service. */
 export const ResourceStoreTypeId: unique symbol = Symbol.for(
-  "@effect-ui/core/ResourceStore",
+  "@sunfall/arc-core/ResourceStore",
 ) as typeof ResourceStoreTypeId;
 const ResourceStoreImplementationTypeId: unique symbol = Symbol(
-  "@effect-ui/core/ResourceStoreImplementation",
+  "@sunfall/arc-core/ResourceStoreImplementation",
 ) as typeof ResourceStoreImplementationTypeId;
 
 /** Erased fiber tracked by a Resource Store for interruption on disposal. */
@@ -150,7 +150,7 @@ export interface ResourceStoreDiagnostics {
 }
 
 /**
- * Public Resource Store seams exposed by an Effect UI runtime.
+ * Public Resource Store seams exposed by an Sunfall Arc runtime.
  *
  * Most applications interact with resource state through `Resource.*` helpers.
  * Adapters and diagnostics can use these supported seams without depending on
@@ -174,7 +174,7 @@ class InvalidResourceStore extends Data.TaggedError("InvalidResourceStore")<{
   readonly received: unknown;
 }> {}
 
-/** @internal Mutable runtime state shared by Resources inside one Effect UI runtime. */
+/** @internal Mutable runtime state shared by Resources inside one Sunfall Arc runtime. */
 export interface MutableResourceStore extends ResourceStore {
   /** @internal Resource family definitions available in this runtime. */
   readonly families: Map<string, unknown>;
@@ -341,4 +341,4 @@ export const disposeResourceStoreEffect = (
   }).pipe(Effect.ensuring(store.eventBus.shutdownEffect));
 
 /** Effect Context service used to provide the active Resource Store. */
-export const ResourceStore = Context.Service<ResourceStore>("@effect-ui/core/ResourceStore");
+export const ResourceStore = Context.Service<ResourceStore>("@sunfall/arc-core/ResourceStore");

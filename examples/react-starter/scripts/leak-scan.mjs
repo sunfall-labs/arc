@@ -63,11 +63,11 @@ const readConfig = Effect.gen(function* () {
     try: () => JSON.parse(packageJsonText),
     catch: (cause) => fail("Failed to parse package.json.", "Keep package.json valid JSON.", cause),
   });
-  const config = packageJson.effectUiLeakScan;
+  const config = packageJson.sunfallArcLeakScan;
   if (!config || !Array.isArray(config.patterns)) {
     return yield* Effect.fail(
       fail(
-        "Missing effectUiLeakScan.patterns in package.json.",
+        "Missing sunfallArcLeakScan.patterns in package.json.",
         "Declare the server-only text patterns this starter must keep out of dist.",
       ),
     );

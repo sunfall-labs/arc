@@ -20,7 +20,7 @@ import {
   type ActionResultInvalidationRequirements,
   type EffectInput,
   type EffectInputCallbackError,
-  type EffectUiRuntime,
+  type SunfallArcRuntime,
   type ForkScopedOptions,
   type ProgramEvent,
   type ProgramFailure,
@@ -35,7 +35,7 @@ import {
   type ResourceState,
   type ResourceStore,
   type WritableSignal,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Effect, Fiber, Stream } from "effect";
 import {
   useCallback,
@@ -75,7 +75,7 @@ export interface UseResourceOptions<E = never, ER = never> {
 }
 
 /**
- * React-facing handle for an Effect UI resource.
+ * React-facing handle for an Sunfall Arc resource.
  *
  * Values update through React's external-store subscription API.
  * `refreshEffect` and `prefetchEffect` keep resource work in Effect and are
@@ -111,7 +111,7 @@ export interface RuntimeEffectRunner<ER = never> {
   <A, E, R>(effect: Effect.Effect<A, E, R>, options?: ForkScopedOptions): Fiber.Fiber<A, E | ER>;
 }
 
-/** React-facing handle for an Effect UI Program. */
+/** React-facing handle for an Sunfall Arc Program. */
 export interface ProgramHandle<Model, Message, E = never, DispatchE = E> {
   readonly instance: Program.Instance<Model, Message, E, DispatchE>;
   /** Current centralized Program model. */
@@ -150,7 +150,7 @@ type ReactActionInstance<I, A, E, R, ER> = ActionInstance<
 >;
 
 /**
- * React-facing handle for an Effect UI Action.
+ * React-facing handle for an Sunfall Arc Action.
  *
  * `state` and `invalidationPlan` are React values subscribed through
  * `useSyncExternalStore`; `instance` keeps the underlying Core controller
@@ -197,7 +197,7 @@ interface ResourceBinding<I, A, E, R, ER> {
   readonly controller: ResourceUiBindingController<I, A, E, R, ER>;
 }
 
-/** Bridges an Effect UI readable signal into a React value. */
+/** Bridges an Sunfall Arc readable signal into a React value. */
 export const useSignal = <A>(signal: ReadableSignal<A>): A => {
   const subscribe = useCallback((notify: () => void) => signal.subscribe(notify), [signal]);
   const getSnapshot = useCallback(() => coreRead(signal), [signal]);
@@ -305,7 +305,7 @@ const makeProgramBinding = <Model, Message, RuntimeError>(
 };
 
 /**
- * Starts an Effect UI Program and exposes its model, failures, and timeline as
+ * Starts an Sunfall Arc Program and exposes its model, failures, and timeline as
  * React values.
  */
 export const useProgram = <Model, Message, E = never, R = never, ER = never>(
@@ -323,7 +323,7 @@ export const useProgram = <Model, Message, E = never, R = never, ER = never>(
     const started = runWithRuntime(runtime, () =>
       runWithScope(scope, () =>
         Program.start<Model, Message, E, R, ER>(definition, {
-          runtime: runtime as unknown as EffectUiRuntime<R, ER>,
+          runtime: runtime as unknown as SunfallArcRuntime<R, ER>,
         }),
       ),
     );
@@ -458,7 +458,7 @@ export const useResourceError = <I, A, E, R = unknown, ER = never>(
 };
 
 /**
- * Creates a React handle for an Effect UI resource.
+ * Creates a React handle for an Sunfall Arc resource.
  *
  * The hook subscribes to resource state, prefetches initial resources, and
  * exposes Effect-returning refresh/prefetch methods for event handlers or
@@ -550,11 +550,11 @@ export const useResourceSuspense = <I, A, E, R = unknown>(ref: ResourceInput<I, 
 export const useAction = <I, A, E, R, ER = never>(
   definition: Action.Definition<I, A, E, R>,
 ): ActionHandle<I, A, E, R, ER> => {
-  const runtime = useRuntime<ER>() as EffectUiRuntime<R, ER>;
+  const runtime = useRuntime<ER>() as SunfallArcRuntime<R, ER>;
   const instanceRef = useRef<
     | {
         readonly definition: Action.Definition<I, A, E, R>;
-        readonly runtime: EffectUiRuntime<R, ER>;
+        readonly runtime: SunfallArcRuntime<R, ER>;
         readonly instance: ReactActionInstance<I, A, E, R, ER>;
       }
     | undefined

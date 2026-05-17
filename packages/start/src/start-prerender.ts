@@ -1,5 +1,5 @@
-import { Cause, Data, Effect, Scope } from "effect";
-import { isPromiseLikeValue, toEffect, type EffectInput } from "@effect-ui/core";
+import { Cause, Data, Effect, Exit, Scope } from "effect";
+import { isPromiseLikeValue, toEffect, type EffectInput } from "@sunfall/arc-core";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { createServer, type InlineConfig, type ViteDevServer } from "vite";
@@ -154,7 +154,7 @@ type StartPrerenderViteServer = StartViteDevServer & Pick<ViteDevServer, "close"
 const closePrerenderServerHandle = (
   close: (() => unknown) | undefined,
   message: string,
-): Effect.Effect<void> =>
+): Effect.Effect<void, StartPrerenderError> =>
   close === undefined
     ? Effect.void
     : Effect.try({
@@ -169,10 +169,9 @@ const closePrerenderServerHandle = (
               }).pipe(Effect.asVoid)
             : Effect.void,
         ),
-        Effect.catch(() => Effect.void),
       );
 
-const defaultPrerenderOrigin = "https://effect-ui.static";
+const defaultPrerenderOrigin = "https://sunfall-arc.static";
 
 const assetScriptPattern =
   /<script\b(?=[^>]*\btype="module")(?=[^>]*\bsrc="\/assets\/[^"]+\.js")[^>]*><\/script>/g;
@@ -469,20 +468,49 @@ const createPrerenderServer = (
     catch: startPrerenderHostError("create-server", "Could not create the Vite prerender server."),
   });
 
-const closePrerenderServer = (server: StartPrerenderViteServer): Effect.Effect<void> =>
+const closePrerenderServer = (
+  server: StartPrerenderViteServer,
+): Effect.Effect<void, StartPrerenderError> =>
   Effect.gen(function* () {
-    yield* closePrerenderServerHandle(
+    const websocketExit = yield* closePrerenderServerHandle(
       server.ws.close.bind(server.ws),
       "Could not close the Vite prerender websocket server.",
-    );
-    yield* closePrerenderServerHandle(
+    ).pipe(Effect.exit);
+    const hotExit = yield* closePrerenderServerHandle(
       server.hot.close.bind(server.hot),
       "Could not close the Vite prerender hot channel.",
-    );
-    yield* closePrerenderServerHandle(
+    ).pipe(Effect.exit);
+    const serverExit = yield* closePrerenderServerHandle(
       server.close.bind(server),
       "Could not close the Vite prerender server.",
-    );
+    ).pipe(Effect.exit);
+
+    if (Exit.isFailure(websocketExit)) {
+      return yield* Effect.failCause(websocketExit.cause);
+    }
+    if (Exit.isFailure(hotExit)) {
+      return yield* Effect.failCause(hotExit.cause);
+    }
+    if (Exit.isFailure(serverExit)) {
+      return yield* Effect.failCause(serverExit.cause);
+    }
+  });
+
+const runWithPrerenderServer = <A, R>(
+  server: StartPrerenderViteServer,
+  effect: Effect.Effect<A, StartPrerenderError, R>,
+): Effect.Effect<A, StartPrerenderError, R> =>
+  Effect.gen(function* () {
+    const useExit = yield* effect.pipe(Effect.exit);
+    const closeExit = yield* closePrerenderServer(server).pipe(Effect.exit);
+
+    if (Exit.isFailure(useExit)) {
+      return yield* Effect.failCause(useExit.cause);
+    }
+    if (Exit.isFailure(closeExit)) {
+      return yield* Effect.failCause(closeExit.cause);
+    }
+    return useExit.value;
   });
 
 const sleepEffect = (milliseconds: number): Effect.Effect<void> =>
@@ -651,140 +679,148 @@ export const runStartPrerenderEffect = (
       runOptions.mode,
       runOptions.vite,
     );
-    return yield* Effect.gen(function* () {
-      const queue = [...planStartPrerenderPages(runOptions.manifest, runOptions.prerender)];
-      const queued = new Set(queue.map((page) => page.path));
-      const rendered = new Set<string>();
-      const pages: StartPrerenderSuccessEvent[] = [];
-      const failures: StartPrerenderFailureEvent[] = [];
+    return yield* runWithPrerenderServer(
+      server,
+      Effect.gen(function* () {
+        const queue = [...planStartPrerenderPages(runOptions.manifest, runOptions.prerender)];
+        const queued = new Set(queue.map((page) => page.path));
+        const rendered = new Set<string>();
+        const pages: StartPrerenderSuccessEvent[] = [];
+        const failures: StartPrerenderFailureEvent[] = [];
 
-      for (let index = 0; index < queue.length; index += 1) {
-        const page = queue[index];
-        if (page === undefined) {
-          continue;
-        }
-        if (rendered.has(page.path)) {
-          continue;
-        }
-        rendered.add(page.path);
-
-        const renderOutcome = yield* renderPageWithRetries(server, page, runOptions, options).pipe(
-          Effect.map((response) => ({ _tag: "Success" as const, response })),
-          Effect.catch((error) => Effect.succeed({ _tag: "Failure" as const, error })),
-        );
-        if (renderOutcome._tag === "Failure") {
-          const event = {
-            page,
-            error: renderOutcome.error,
-            attempts: options.retryCount + 1,
-          } satisfies StartPrerenderFailureEvent;
-          failures.push(event);
-          yield* callError(options, event);
-          if (options.failOnError) {
-            return yield* Effect.fail(renderOutcome.error);
+        for (let index = 0; index < queue.length; index += 1) {
+          const page = queue[index];
+          if (page === undefined) {
+            continue;
           }
-          continue;
-        }
+          if (rendered.has(page.path)) {
+            continue;
+          }
+          rendered.add(page.path);
 
-        if (renderOutcome.response.status < 200 || renderOutcome.response.status >= 300) {
-          const error = startPrerenderError(
-            "render-page",
-            `Prerendering ${page.path} returned HTTP ${renderOutcome.response.status}.`,
-            { path: page.path },
+          const renderOutcome = yield* renderPageWithRetries(
+            server,
+            page,
+            runOptions,
+            options,
+          ).pipe(
+            Effect.map((response) => ({ _tag: "Success" as const, response })),
+            Effect.catch((error) => Effect.succeed({ _tag: "Failure" as const, error })),
           );
-          const event = {
-            page,
-            error,
-            attempts: options.retryCount + 1,
-          } satisfies StartPrerenderFailureEvent;
-          failures.push(event);
-          yield* callError(options, event);
-          if (options.failOnError) {
-            return yield* Effect.fail(error);
+          if (renderOutcome._tag === "Failure") {
+            const event = {
+              page,
+              error: renderOutcome.error,
+              attempts: options.retryCount + 1,
+            } satisfies StartPrerenderFailureEvent;
+            failures.push(event);
+            yield* callError(options, event);
+            if (options.failOnError) {
+              return yield* Effect.fail(renderOutcome.error);
+            }
+            continue;
           }
-          continue;
-        }
 
-        const rawHtml = yield* suspendResponseStreamSuccessFinalizerEffect(
-          renderOutcome.response,
-          Effect.tryPromise({
-            try: () => renderOutcome.response.text(),
-            catch: startPrerenderHostError(
+          if (renderOutcome.response.status < 200 || renderOutcome.response.status >= 300) {
+            const error = startPrerenderError(
               "render-page",
-              `Could not read prerendered HTML for ${page.path}.`,
+              `Prerendering ${page.path} returned HTTP ${renderOutcome.response.status}.`,
+              { path: page.path },
+            );
+            const event = {
+              page,
+              error,
+              attempts: options.retryCount + 1,
+            } satisfies StartPrerenderFailureEvent;
+            failures.push(event);
+            yield* callError(options, event);
+            if (options.failOnError) {
+              return yield* Effect.fail(error);
+            }
+            continue;
+          }
+
+          const rawHtml = yield* suspendResponseStreamSuccessFinalizerEffect(
+            renderOutcome.response,
+            Effect.tryPromise({
+              try: () => renderOutcome.response.text(),
+              catch: startPrerenderHostError(
+                "render-page",
+                `Could not read prerendered HTML for ${page.path}.`,
+                page.path,
+              ),
+            }),
+            {
+              stream: {
+                name: "response",
+                state: "errored",
+                chunkCount: 0,
+              },
+              status: "failure",
+              failureKind: "transport",
+              teardownReason: "prerender-read-error",
+            },
+          );
+          const html = yield* injectProductionAssets(rawHtml, assets);
+          const outputPath = outputPathForPage(page, options);
+          const absoluteOutputPath = yield* resolveOutputPath(outDir, outputPath);
+          yield* Effect.tryPromise({
+            try: () => mkdir(dirname(absoluteOutputPath), { recursive: true }),
+            catch: startPrerenderHostError(
+              "create-directory",
+              `Could not create ${relative(runOptions.root, dirname(absoluteOutputPath))}.`,
               page.path,
             ),
-          }),
-          {
-            stream: {
-              name: "response",
-              state: "errored",
-              chunkCount: 0,
-            },
-            status: "failure",
-            failureKind: "transport",
-            teardownReason: "prerender-read-error",
-          },
-        );
-        const html = yield* injectProductionAssets(rawHtml, assets);
-        const outputPath = outputPathForPage(page, options);
-        const absoluteOutputPath = yield* resolveOutputPath(outDir, outputPath);
-        yield* Effect.tryPromise({
-          try: () => mkdir(dirname(absoluteOutputPath), { recursive: true }),
-          catch: startPrerenderHostError(
-            "create-directory",
-            `Could not create ${relative(runOptions.root, dirname(absoluteOutputPath))}.`,
-            page.path,
-          ),
-        });
-        yield* Effect.tryPromise({
-          try: () => writeFile(absoluteOutputPath, html),
-          catch: startPrerenderHostError(
-            "write-page",
-            `Could not write ${relative(runOptions.root, absoluteOutputPath)}.`,
-            page.path,
-          ),
-        });
+          });
+          yield* Effect.tryPromise({
+            try: () => writeFile(absoluteOutputPath, html),
+            catch: startPrerenderHostError(
+              "write-page",
+              `Could not write ${relative(runOptions.root, absoluteOutputPath)}.`,
+              page.path,
+            ),
+          });
 
-        const event = {
-          page,
-          outputPath,
-          status: renderOutcome.response.status,
-        } satisfies StartPrerenderSuccessEvent;
-        pages.push(event);
-        yield* callSuccess(options, event);
+          const event = {
+            page,
+            outputPath,
+            status: renderOutcome.response.status,
+          } satisfies StartPrerenderSuccessEvent;
+          pages.push(event);
+          yield* callSuccess(options, event);
 
-        if (options.crawlLinks) {
-          for (const link of extractStartStaticHtmlLinks(html, {
-            origin: options.origin,
-            fromPath: page.path,
-          })) {
-            if (queued.has(link)) {
-              continue;
+          if (options.crawlLinks) {
+            for (const link of extractStartStaticHtmlLinks(html, {
+              origin: options.origin,
+              fromPath: page.path,
+            })) {
+              if (queued.has(link)) {
+                continue;
+              }
+              const crawled = { path: link, source: "crawl" as const };
+              if (options.filter?.(crawled) === false) {
+                continue;
+              }
+              queued.add(link);
+              queue.push(crawled);
             }
-            const crawled = { path: link, source: "crawl" as const };
-            if (options.filter?.(crawled) === false) {
-              continue;
-            }
-            queued.add(link);
-            queue.push(crawled);
           }
         }
-      }
 
-      yield* Effect.sync(() => {
-        if (pages.length > 0) {
-          console.log(
-            [
-              `Start prerender wrote ${pages.length} pages.`,
-              ...pages.map(
-                (page) => `- ${relative(runOptions.root, join(outDir, page.outputPath))}`,
-              ),
-            ].join("\n"),
-          );
-        }
-      });
+        yield* Effect.sync(() => {
+          if (pages.length > 0) {
+            console.log(
+              [
+                `Start prerender wrote ${pages.length} pages.`,
+                ...pages.map(
+                  (page) => `- ${relative(runOptions.root, join(outDir, page.outputPath))}`,
+                ),
+              ].join("\n"),
+            );
+          }
+        });
 
-      return { pages, failures };
-    }).pipe(Effect.ensuring(closePrerenderServer(server)));
+        return { pages, failures };
+      }),
+    );
   });

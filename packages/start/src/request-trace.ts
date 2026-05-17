@@ -4,11 +4,11 @@ import {
   runWithRuntime,
   toEffect,
   type EffectInput,
-  type EffectUiRuntime,
+  type SunfallArcRuntime,
   type ResourceStoreDiagnosticsSnapshot,
   type Route,
-} from "@effect-ui/core";
-import type { AnyCollection } from "@effect-ui/db";
+} from "@sunfall/arc-core";
+import type { AnyCollection } from "@sunfall/arc-db";
 import { Cause, Clock, Duration, Effect, Exit, Metric, Redacted } from "effect";
 import { makeStartRequestIdEffect, startRequestIdHeader, startTraceparentHeader } from "./rpc.js";
 import {
@@ -433,8 +433,8 @@ const requestLogAnnotations = (
   request: Request,
   facts: StartRequestTraceFacts,
 ): Record<string, string> => ({
-  "effect-ui.request.id": facts.requestId,
-  "effect-ui.request.transport": facts.transport,
+  "sunfall-arc.request.id": facts.requestId,
+  "sunfall-arc.request.transport": facts.transport,
   "http.request.method": request.method,
   "url.path": requestPath(request),
 });
@@ -498,7 +498,7 @@ export const withStartRequestObservability = <A, E, R>(
 
   return observed.pipe(
     Effect.annotateLogs(requestLogAnnotations(request, facts)),
-    Effect.withSpan("effect-ui.start.request", {
+    Effect.withSpan("sunfall-arc.start.request", {
       kind: "server",
       attributes: requestSpanAttributes(request, facts),
     }),
@@ -510,11 +510,11 @@ export const withStartRpcObservability = <A, E, R>(
   effect: Effect.Effect<A, E, R>,
 ): Effect.Effect<A, E, R> =>
   effect.pipe(
-    Effect.annotateLogs("effect-ui.rpc.name", name),
-    Effect.withSpan("effect-ui.start.rpc", {
+    Effect.annotateLogs("sunfall-arc.rpc.name", name),
+    Effect.withSpan("sunfall-arc.start.rpc", {
       kind: "server",
       attributes: {
-        "effect-ui.rpc.name": name,
+        "sunfall-arc.rpc.name": name,
       },
     }),
   );
@@ -524,11 +524,11 @@ export const withStartActionObservability = <A, E, R>(
   effect: Effect.Effect<A, E, R>,
 ): Effect.Effect<A, E, R> =>
   effect.pipe(
-    Effect.annotateLogs("effect-ui.action.name", name),
-    Effect.withSpan("effect-ui.start.action", {
+    Effect.annotateLogs("sunfall-arc.action.name", name),
+    Effect.withSpan("sunfall-arc.start.action", {
       kind: "server",
       attributes: {
-        "effect-ui.action.name": name,
+        "sunfall-arc.action.name": name,
       },
     }),
   );
@@ -581,7 +581,7 @@ const uniqueCollections = (collections: Iterable<AnyCollection>): ReadonlyArray<
 };
 
 const collectionTraceState = <RuntimeServices, RuntimeError>(
-  runtime: EffectUiRuntime<RuntimeServices, RuntimeError>,
+  runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>,
   collection: AnyCollection,
 ): string | undefined => {
   try {
@@ -592,7 +592,7 @@ const collectionTraceState = <RuntimeServices, RuntimeError>(
 };
 
 export const traceCollectionPreload = <RuntimeServices, RuntimeError>(
-  runtime: EffectUiRuntime<RuntimeServices, RuntimeError>,
+  runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>,
   collectionPreload: StartCollectionPreloadTraceInput,
 ): ReadonlyArray<StartRequestTraceCollection> =>
   uniqueCollections([
@@ -676,11 +676,11 @@ export const buildStartRequestTrace = (
 };
 
 export const requestRuntimeTeardownSnapshot = <RuntimeServices, RuntimeError>(
-  runtime: EffectUiRuntime<RuntimeServices, RuntimeError>,
+  runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>,
 ): StartRequestTraceTeardownSnapshot => runtime.resourceStore.diagnostics.snapshotUnsafe();
 
 export const requestRuntimeDisposeTraceEffect = <RuntimeServices, RuntimeError>(
-  runtime: EffectUiRuntime<RuntimeServices, RuntimeError>,
+  runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>,
 ): Effect.Effect<{
   readonly runtimeDisposed: boolean;
   readonly beforeDispose: StartRequestTraceTeardownSnapshot;

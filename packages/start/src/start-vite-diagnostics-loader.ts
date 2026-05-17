@@ -18,7 +18,7 @@ import {
   defaultServerEntry,
   normalizeStartManifestIterableOptions,
   withDiscoveredFileRoutes,
-  type EffectUiStartOptions,
+  type SunfallArcStartOptions,
 } from "./start-manifest-wall.js";
 import {
   appGraphRuntimeDiagnosticsVirtualModuleId,
@@ -31,8 +31,8 @@ import {
   type StartTransportEndpointPathError,
 } from "./start-transport-endpoints.js";
 import {
-  effectUiStartPluginName,
-  effectUiStartVirtualModulesPluginName,
+  sunfallArcStartPluginName,
+  sunfallArcStartVirtualModulesPluginName,
 } from "./start-vite-plugin-names.js";
 
 /** Options for loading resolved app graph diagnostics through Vite. */
@@ -40,7 +40,7 @@ export interface LoadStartAppGraphDiagnosticsOptions {
   readonly root?: string;
   readonly configFile?: string | false;
   readonly mode?: string;
-  readonly start?: EffectUiStartOptions;
+  readonly start?: SunfallArcStartOptions;
   readonly vite?: InlineConfig;
 }
 
@@ -86,24 +86,24 @@ const diagnosticsRunnerError = (
     ? cause
     : new StartAppGraphDiagnosticsRunnerError({ message, cause });
 
-interface EffectUiStartVirtualModulesPlugin {
-  readonly name: typeof effectUiStartVirtualModulesPluginName;
+interface SunfallArcStartVirtualModulesPlugin {
+  readonly name: typeof sunfallArcStartVirtualModulesPluginName;
   readonly configResolved: (config: { readonly root: string }) => void;
   readonly resolveId: (id: string) => string | null;
   readonly load: (id: string) => string | null;
 }
 
-export const effectUiStartVirtualModules = (
-  options: EffectUiStartOptions = {},
-): EffectUiStartVirtualModulesPlugin => {
+export const sunfallArcStartVirtualModules = (
+  options: SunfallArcStartOptions = {},
+): SunfallArcStartVirtualModulesPlugin => {
   const normalizedOptions = normalizeStartManifestIterableOptions(options);
   const serverEntry = normalizedOptions.serverEntry ?? defaultServerEntry;
   let viteRoot = process.cwd();
-  const currentOptions = (): EffectUiStartOptions =>
+  const currentOptions = (): SunfallArcStartOptions =>
     withDiscoveredFileRoutes({ ...normalizedOptions, serverEntry }, viteRoot);
 
   return {
-    name: effectUiStartVirtualModulesPluginName,
+    name: sunfallArcStartVirtualModulesPluginName,
     configResolved(config) {
       viteRoot = config.root;
     },
@@ -120,9 +120,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
 const temporaryServerExcludedPluginNames = new Set([
-  effectUiStartPluginName,
-  effectUiStartVirtualModulesPluginName,
-  "effect-ui-tsrx-deps",
+  sunfallArcStartPluginName,
+  sunfallArcStartVirtualModulesPluginName,
+  "sunfall-arc-tsrx-deps",
 ]);
 
 const isStartPluginRecord = (value: unknown): value is { readonly name: string } =>
@@ -171,7 +171,7 @@ const startDiagnosticsViteServerEffect = (
   ) as InlineConfig["plugins"] | undefined;
   const plugins = [
     ...pluginOptionArray(inlinePlugins),
-    ...(options.start === undefined ? [] : [effectUiStartVirtualModules(options.start)]),
+    ...(options.start === undefined ? [] : [sunfallArcStartVirtualModules(options.start)]),
   ];
   const root = options.root ?? inlineConfig.root;
   const configFile =
@@ -198,7 +198,7 @@ const startDiagnosticsViteServerEffect = (
       }),
     catch: (cause) =>
       diagnosticsRunnerError(
-        "Could not create the temporary Vite server for Effect UI app graph diagnostics.",
+        "Could not create the temporary Vite server for Sunfall Arc app graph diagnostics.",
         cause,
       ),
   });
@@ -211,7 +211,7 @@ const closeStartDiagnosticsViteServerEffect = (
     try: () => server.close(),
     catch: (cause) =>
       diagnosticsRunnerError(
-        "Could not close the temporary Vite server for Effect UI app graph diagnostics.",
+        "Could not close the temporary Vite server for Sunfall Arc app graph diagnostics.",
         cause,
       ),
   }).pipe(Effect.asVoid);
@@ -231,7 +231,7 @@ export const loadStartAppGraphDiagnosticsFromServerEffect = (
       try: () => server.ssrLoadModule(appGraphRuntimeDiagnosticsVirtualModuleId),
       catch: (cause) =>
         diagnosticsRunnerError(
-          "Could not load resolved Effect UI app graph diagnostics through Vite.",
+          "Could not load resolved Sunfall Arc app graph diagnostics through Vite.",
           cause,
         ),
     });
@@ -261,7 +261,7 @@ const decodeStartAppGraphFromModuleEffect = (
     try: () => JSON.stringify(value),
     catch: (cause) =>
       diagnosticsRunnerError(
-        "The loaded Effect UI app graph virtual module exported a graph that could not be serialized for validation.",
+        "The loaded Sunfall Arc app graph virtual module exported a graph that could not be serialized for validation.",
         cause,
       ),
   }).pipe(
@@ -269,7 +269,7 @@ const decodeStartAppGraphFromModuleEffect = (
       deserializeStartAppGraph(serialized).pipe(
         Effect.mapError((cause) =>
           diagnosticsRunnerError(
-            "The loaded Effect UI app graph virtual module did not match the Start app graph contract.",
+            "The loaded Sunfall Arc app graph virtual module did not match the Start app graph contract.",
             cause,
           ),
         ),
@@ -377,7 +377,7 @@ const validateLoadedStartAppGraphDiagnosticsCoherenceEffect = (
     ? Effect.void
     : Effect.fail(
         new StartAppGraphDiagnosticsRunnerError({
-          message: `The loaded Effect UI app graph diagnostics are not coherent with the loaded graph: ${reason}`,
+          message: `The loaded Sunfall Arc app graph diagnostics are not coherent with the loaded graph: ${reason}`,
           cause: { reason },
         }),
       );
@@ -435,7 +435,7 @@ export const loadStartAppGraphDiagnosticsEffect = (
 
 /**
  * Runs the resolved Start diagnostics policy through Vite without requiring
- * application code to import `virtual:effect-ui/app-graph`.
+ * application code to import `virtual:sunfall-arc/app-graph`.
  */
 export const runStartViteDiagnosticsGateEffect = (
   options: LoadStartAppGraphDiagnosticsOptions = {},

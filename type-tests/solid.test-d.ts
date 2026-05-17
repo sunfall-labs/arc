@@ -3,7 +3,7 @@ import {
   makeMemoryBrowserHistoryAdapter,
   route,
   type EffectInputCallbackError,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Effect, Stream } from "effect";
 import {
   Action,
@@ -57,7 +57,7 @@ import {
   type RuntimeEffectRunner,
   type RuntimeProviderProps,
   type UseResourceOptions,
-} from "@effect-ui/solid";
+} from "@sunfall/arc-solid";
 
 interface SolidProject {
   readonly id: string;

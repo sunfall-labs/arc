@@ -80,7 +80,7 @@ Starter Catalog Manifest in `scripts/starter-catalog.mjs` is the source of
 truth for starter ids, source package names, generated package names, generated
 Vite/TypeScript/README content, and generated route/virtual artifact lists. Each
 generated starter rewrites workspace protocol dependencies to local
-`.effect-ui-packages/*` file dependencies, removes monorepo Vite aliases, writes
+`.sunfall-arc-packages/*` file dependencies, removes monorepo Vite aliases, writes
 a standalone `tsconfig.json`, verifies the app file manifest against the
 copyable source manifest, installs outside the workspace, runs the generated
 starter's own `verify` script, rejects generated route/virtual artifact content drift,
@@ -88,10 +88,10 @@ removes generated install/build/test artifacts, and rechecks the manifest after
 verification. Each generated app also carries a starter-local `.gitignore` for
 `node_modules`, `dist`, `.test-dist`, build info, and macOS metadata.
 The generated artifact drift check covers `src/routeTree.gen.ts` and
-`src/effect-ui-start-virtual.d.ts` for every generated starter, plus
+`src/sunfall-arc-start-virtual.d.ts` for every generated starter, plus
 `src/virtual-manifest-types.ts` for the project-console starter, so route,
 virtual-module, and manifest editor contracts stay source-attributed.
-The generated package manifests include `.effect-ui-packages`, and the packager
+The generated package manifests include `.sunfall-arc-packages`, and the packager
 dry-runs each generated starter tarball to prove those local file-package
 Adapters are actually included while the non-local tarball app files exactly
 match the post-verify generated app file manifest.

@@ -5,7 +5,7 @@ import type {
   ResourceInvalidationPlan,
   ResourceStoreEvent,
   Route,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Effect } from "effect";
 import { DevtoolsActionInvalidationPlanConflict } from "./devtools-contract.js";
 import type {

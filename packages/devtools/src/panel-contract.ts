@@ -377,7 +377,7 @@ export const isDevtoolsPanelItem = (value: unknown): value is DevtoolsPanelItem 
   normalizeDevtoolsPanelItem(value) !== undefined;
 
 const panelOverflowItemIdPrefix = (panelId: DevtoolsPanelId): string =>
-  `__effect-ui-devtools-overflow:${panelId}`;
+  `__sunfall-arc-devtools-overflow:${panelId}`;
 
 const panelOverflowItemId = (panelId: DevtoolsPanelId, usedIds: ReadonlySet<string>): string => {
   const base = panelOverflowItemIdPrefix(panelId);
@@ -731,7 +731,7 @@ export const resolveDevtoolsPanelsInput = (
  * Invalid payloads return `undefined`; invalid selected ids are simply ignored
  * so an extension can still render the valid panel model.
  */
-export const normalizeEffectUiDevtoolsBridgePayload = (
+export const normalizeSunfallArcDevtoolsBridgePayload = (
   value: unknown,
 ): DevtoolsBridgePayload | undefined => {
   if (!isRecord(value)) {
@@ -755,7 +755,7 @@ export const normalizeEffectUiDevtoolsBridgePayload = (
 };
 
 /** Resolves an inspected-window bridge value with typed panel-contract diagnostics on failure. */
-export const resolveEffectUiDevtoolsBridgePayload = (
+export const resolveSunfallArcDevtoolsBridgePayload = (
   value: unknown,
 ): DevtoolsBridgePayloadContractResolution => {
   if (!isRecord(value)) {

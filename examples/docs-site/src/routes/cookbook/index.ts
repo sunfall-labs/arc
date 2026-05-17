@@ -1,4 +1,4 @@
-import { defineFileRoute } from "@effect-ui/start";
+import { defineFileRoute } from "@sunfall/arc-start";
 import { RecipeIndex } from "../../content.js";
 
 const RouteBuilder = defineFileRoute("/cookbook");

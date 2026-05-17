@@ -1,9 +1,9 @@
-# Effect UI Architecture
+# Sunfall Arc Architecture
 
-Effect UI is a client-first, server-capable framework built around Effect v4 and TSRX.
+Sunfall Arc is a client-first, server-capable framework built around Effect v4 and TSRX.
 
 The v0 implementation deliberately uses TSRX's Solid target instead of a custom compiler
-target. The public API is owned by Effect UI:
+target. The public API is owned by Sunfall Arc:
 
 - `Signal` for fine-grained client state.
 - `Resource` for typed async/cache state.
@@ -36,7 +36,7 @@ domain vocabulary.
 2. Generated graph layer: file-route manifests, server function manifests,
    action manifests, generated route definitions, and Start app graph
    diagnostics turn definitions into deterministic machine-readable artifacts.
-3. Runtime layer: `EffectUiRuntime`, request runtimes, `ResourceStore`,
+3. Runtime layer: `SunfallArcRuntime`, request runtimes, `ResourceStore`,
    `Collection.Store`, UI scopes, route scopes, action fibers, server clients,
    response context, hydration, and event streams execute the graph through
    Effect services and scopes.
@@ -50,7 +50,7 @@ Effect event when it changes, and a test that proves the contract.
 
 ## Design Pressures
 
-Effect UI should stay unusually strict in these places:
+Sunfall Arc should stay unusually strict in these places:
 
 - server contracts are shared, handlers are server-only;
 - request work gets a fresh runtime and store;
@@ -127,7 +127,7 @@ export const makeProjectId = (id: string): ProjectId => Schema.decodeUnknownSync
 
 ## Runtime Spine
 
-Every app has an `EffectUiRuntime`, backed by Effect `ManagedRuntime`. A
+Every app has an `SunfallArcRuntime`, backed by Effect `ManagedRuntime`. A
 client-only app gets the default empty runtime; a full-stack app gets a runtime
 from `defineApp({ server })`, usually an Effect `Layer`.
 
@@ -197,7 +197,7 @@ hand-wired per feature.
 ## Capability Services
 
 Application features should depend on capabilities, not directly on transport
-details. A capability is a thin Effect UI convention over `Context.Service` plus
+details. A capability is a thin Sunfall Arc convention over `Context.Service` plus
 layer helpers:
 
 ```ts
@@ -236,7 +236,7 @@ export const handleRequest = createRequestHandler(app, {
 });
 ```
 
-`POST /__effect-ui/action` accepts either JSON (`{ name, input }`) or ordinary
+`POST /__sunfall-arc/action` accepts either JSON (`{ name, input }`) or ordinary
 form bodies. Start decodes the input with the Action Definition schema, runs the
 action through the Request Runtime, and maps `ActionResult` values to HTTP:
 
@@ -336,7 +336,7 @@ plan.entries.map((entry) => ({
 ```
 
 `Action.use(...)` exposes the latest `invalidationPlan` as a signal, and
-`@effect-ui/devtools` can serialize the plan into plain data for a panel or
+`@sunfall/arc-devtools` can serialize the plan into plain data for a panel or
 trace view. The intended debugging loop is “this mutation invalidated these
 domain facts, which matched these live resource refs, for these causes.”
 
@@ -350,7 +350,7 @@ Teardown facts include runtime disposal, reason, start/completion timestamps,
 duration, and before/after Resource Store snapshots.
 
 The same request boundary is also wrapped in Effect observability primitives.
-Start adds an `effect-ui.start.request` span with request annotations, child
+Start adds an `sunfall-arc.start.request` span with request annotations, child
 spans for server RPC and Start action execution, log annotations for request
 identity, and exported Effect metrics for request count, request duration, and
 request status. The JSON-safe `onRequestTrace` hook remains the devtools data
@@ -366,7 +366,7 @@ and scoped fibers are interrupted. Plain Solid components stay unscoped until
 they opt into one of those Solid Adapter seams.
 
 ```ts
-const title = Signal.make("Effect UI");
+const title = Signal.make("Sunfall Arc");
 
 watch(
   () => read(title),
@@ -426,7 +426,7 @@ reading private cache maps.
 
 ## Streaming Responses
 
-`@effect-ui/start` exposes an Effect-native streaming Module for SSR shells and
+`@sunfall/arc-start` exposes an Effect-native streaming Module for SSR shells and
 progressive resource payloads:
 
 ```ts
@@ -505,9 +505,9 @@ explain which resources a navigation touched and which hydration entries it
 would send before rendering the page. Start uses this same route plan for
 SSR preload. If a touched resource cannot be serialized, planning fails through
 the typed `ResourceSnapshotCodecError` Effect error channel. When
-`@effect-ui/start` is present, it separately composes
+`@sunfall/arc-start` is present, it separately composes
 `Collection.collectEffect` around the route plan so DB collection preload can be
-observed without making `@effect-ui/core` depend on `@effect-ui/db`.
+observed without making `@sunfall/arc-core` depend on `@sunfall/arc-db`.
 
 Routes can also declare the resource families and DB collections their preload
 is expected to touch through `preloadResources` and `preloadCollections`. The app
@@ -544,8 +544,8 @@ collapse to the same route path after route groups and pathless segments are
 removed, and malformed dynamic segments like `$123`, keeping bad route graphs
 out of builds. Discovered `.d.ts` files are ignored before manifest generation.
 The Start Vite plugin exposes the same artifact as
-`__EFFECT_UI_FILE_ROUTES__` and as the Vite virtual module
-`virtual:effect-ui/file-routes`, which exports `manifest`, `entries`, and the
+`__SUNFALL_ARC_FILE_ROUTES__` and as the Vite virtual module
+`virtual:sunfall-arc/file-routes`, which exports `manifest`, `entries`, and the
 default manifest. Serialized artifacts can be parsed again with
 `deserializeFileRouteManifest`, which revalidates the branded ids and rejects
 route-id/segment mismatches before the router sees them.
@@ -571,7 +571,7 @@ The generated file imports those route modules, checks each imported route's
 literal `path` against the manifest, and then emits a `routes` tuple, a
 `routeTree` alias, a `routeById` map, a `routeByPath` map, and direct typed href
 helpers such as `hrefById(...)` and `hrefByPath(...)`. The matching Vite virtual
-module `virtual:effect-ui/routes` exposes runtime helpers with Vite-root
+module `virtual:sunfall-arc/routes` exposes runtime helpers with Vite-root
 absolute imports. Precise app-specific route id, params, search, href, and match
 type maps live in the written `src/routeTree.gen.ts` module, where editors and
 non-Vite tooling can index them without relying on virtual-module inference. The
@@ -579,17 +579,17 @@ generated file also exports friendly aliases such as `RouteId`, `RoutePath`,
 `ParamsById`, `SearchByPath`, `Href`, `HrefById`, `HrefByPath`, and `Match`,
 giving agents and editors a route-id/path indexed view without introducing a
 second runtime link abstraction. Apps can disable or move the generated file with
-`effectUiStart({ fileRouteGeneration: { outputFile: false } })` or a custom
+`sunfallArcStart({ fileRouteGeneration: { outputFile: false } })` or a custom
 `outputFile`.
 
 Apps that import these virtual modules should opt into their ambient types with
-a checked declaration file such as `src/effect-ui-start-virtual.d.ts` containing
-`import "@effect-ui/start/virtual";`, alongside the usual `"types":
+a checked declaration file such as `src/sunfall-arc-start-virtual.d.ts` containing
+`import "@sunfall/arc-start/virtual";`, alongside the usual `"types":
 ["vite/client"]` Vite setting.
 
 ## SSR Hydration
 
-Route preload is also the server data graph. `@effect-ui/start` can match a
+Route preload is also the server data graph. `@sunfall/arc-start` can match a
 request, run the matched route preload, collect every resource touched by
 `Resource.prefetchEffect`, and serialize successful resource cache entries:
 
@@ -656,7 +656,7 @@ one script into the same Runtime Spine that the UI will use:
 const runtime = createEffectRuntime(AppLive);
 
 yield *
-  hydrateFromDocumentEffect(document, "__EFFECT_UI_HYDRATION__", {
+  hydrateFromDocumentEffect(document, "__SUNFALL_ARC_HYDRATION__", {
     runtime,
     collections: [Projects, Tasks],
   });
@@ -672,7 +672,7 @@ hydration Effect directly. Lower-level resource-only hosts should prefer
 for synchronous current-runtime host facades.
 
 Streamed SSR chunks are emitted as JSON scripts with
-`data-effect-ui-hydration-chunk`. Browser entries that progressively inspect the
+`data-sunfall-arc-hydration-chunk`. Browser entries that progressively inspect the
 document can run the chunk-only transport directly:
 
 ```ts
@@ -687,7 +687,7 @@ that already run inside the browser runtime. Streamed chunk hydration is
 progressive by design: each parsed Start hydration payload validates before that
 payload mutates Resource or Collection state, but a later chunk failure does not
 roll back chunks that already applied. Consumed DOM chunks are marked with
-`data-effect-ui-hydration-consumed` only after the full chunk scan succeeds,
+`data-sunfall-arc-hydration-consumed` only after the full chunk scan succeeds,
 making repeated scans skip the same script unless `markConsumed: false` is
 passed.
 Malformed root hydration payload scripts fail with
@@ -696,9 +696,9 @@ Malformed root hydration payload scripts fail with
 fail with the corresponding snapshot codec error.
 
 The DOM renderer still owns its own hydration bootstrap. The Solid example emits
-`generateHydrationScript()` in the document head and the Effect UI resource
+`generateHydrationScript()` in the document head and the Sunfall Arc resource
 payload next to the root. Those scripts solve different problems: Solid maps the
-existing DOM nodes back to computations, while Effect UI restores typed resource
+existing DOM nodes back to computations, while Sunfall Arc restores typed resource
 state and Effect `Cache` entries.
 
 `createRequestHandlerEffect(app)` is the native Effect request boundary.
@@ -717,9 +717,9 @@ preload and render work, so app services can be normal Effect `Layer`s.
 Every request gets a fresh Request Runtime, so SSR behaves like TanStack Start's
 isomorphic request model without sharing cache state across users.
 
-Deployment adapter implementations live in `@effect-ui/start/adapters`.
+Deployment adapter implementations live in `@sunfall/arc-start/adapters`.
 Application imports should prefer the host-shaped facades:
-`@effect-ui/start-fetch` for Fetch-style hosts and `@effect-ui/start-node` for
+`@sunfall/arc-start-fetch` for Fetch-style hosts and `@sunfall/arc-start-node` for
 Node HTTP. Effect-capable hosts should use `toFetchHandlerEffect(handler)` or
 `toFetchHandler(handler)`. Edge-style hosts that require a Promise-shaped
 export can wrap `createRequestHandlerEffect(app)` with
@@ -812,8 +812,8 @@ preload and render, so shared clients dispatch to registered local handlers
 through the Effect runtime even when the app runtime also provides a remote
 client service. In the browser, `BrowserRpcLive` provides a fetch-backed
 `ServerClient` that posts to the configured Start RPC endpoint, defaulting to
-`POST /__effect-ui/rpc`. Start action clients and progressive forms use the same
-shared endpoint policy, defaulting to `POST /__effect-ui/action`, so custom
+`POST /__sunfall-arc/rpc`. Start action clients and progressive forms use the same
+shared endpoint policy, defaulting to `POST /__sunfall-arc/action`, so custom
 `rpcPath`/`actionPath` values can flow from manifests and handler options into
 clients without a second transport rule. The resource/action/router code above
 does not change.
@@ -829,17 +829,17 @@ RPC-only or browser-safe import client references, tracks whether input/output/
 error schemas exist, and rejects duplicate names, ids, server module exports,
 and invalid import-client module/export references before bundling. The Start
 Vite plugin exposes the artifact as
-`__EFFECT_UI_SERVER_FUNCTIONS__` and as the Vite virtual module
-`virtual:effect-ui/server-functions`. Progressive action manifests mirror this
-for `Action.define(...)` values through `__EFFECT_UI_ACTIONS__` and
-`virtual:effect-ui/actions`, with deterministic branded `act_*` ids and
+`__SUNFALL_ARC_SERVER_FUNCTIONS__` and as the Vite virtual module
+`virtual:sunfall-arc/server-functions`. Progressive action manifests mirror this
+for `Action.define(...)` values through `__SUNFALL_ARC_ACTIONS__` and
+`virtual:sunfall-arc/actions`, with deterministic branded `act_*` ids and
 typed deserialization through `deserializeActionManifest`.
 
 The same Vite boundary also emits a Start App Graph. The graph is versioned,
 deterministic, and machine-readable: `routes`, `serverFunctions`, and `actions`
 are the exact manifest artifacts that builds already validate. Agents and
-devtools should prefer `virtual:effect-ui/app-graph` or
-`__EFFECT_UI_APP_GRAPH__` when they need topology, because it keeps the app's
+devtools should prefer `virtual:sunfall-arc/app-graph` or
+`__SUNFALL_ARC_APP_GRAPH__` when they need topology, because it keeps the app's
 compile-time facts in one inspectable object. `deserializeStartAppGraph`
 round-trips the artifact and revalidates each nested manifest before tooling
 trusts it.
@@ -857,10 +857,10 @@ Server function and action diagnostics include stable ids, server exports,
 client transport/import references, module kinds, and wire-schema completeness.
 Static graph diagnostics mark route-module features like params schemas, search
 schemas, preloads, declared preload resources/collections, and components as
-`unknown`; the `virtual:effect-ui/app-graph` module stays a pure static DTO and
+`unknown`; the `virtual:sunfall-arc/app-graph` module stays a pure static DTO and
 does not import application route implementations. Runtime route-module facts
 are available only from the explicit
-`virtual:effect-ui/app-graph/runtime-diagnostics` module, which SSR-loads the
+`virtual:sunfall-arc/app-graph/runtime-diagnostics` module, which SSR-loads the
 route modules and resolves those feature flags to `present` or `absent` for
 devtools and agents that ask for runtime diagnostics. Declared preload resource
 families are exposed as source-attributed route facts, and declared preload
@@ -878,33 +878,33 @@ projects can opt into requiring error schemas too. Resolved route-module policy
 lives on `StartBuildPolicy.diagnostics`. During Vite builds, the Start Vite
 Diagnostics Gate SSR-loads the resolved graph through Vite and fails the build
 if configured resource or collection preload declarations are still unknown,
-even when application code never imports `virtual:effect-ui/app-graph`. The
+even when application code never imports `virtual:sunfall-arc/app-graph`. The
 runtime diagnostics virtual module exports `diagnosticsPolicyViolations` as a readonly
 `StartAppGraphDiagnosticsPolicyViolation[]` after the diagnostics policy guard
 succeeds; if the guard finds unknown preload declarations, module evaluation
 fails with the diagnostics-bearing policy exception instead.
 CI scripts can call `loadStartAppGraphDiagnostics({ root })` from
-`@effect-ui/start/vite` to run the same gate explicitly and receive the resolved
+`@sunfall/arc-start/vite` to run the same gate explicitly and receive the resolved
 diagnostics as JSON-safe data. The package binary wraps that API as:
 
 ```sh
-effect-ui-start diagnostics --root . --json
+sunfall-arc-start diagnostics --root . --json
 ```
 
 Without `--json`, the command prints an agent-readable repair report grouped by
 owning route, action, or server module. The same report model is available from
-`@effect-ui/start/diagnostics-report` via `createStartDiagnosticsReport(...)`
+`@sunfall/arc-start/diagnostics-report` via `createStartDiagnosticsReport(...)`
 and `formatStartDiagnosticsReport(...)`, so CI bots can attach exact "what to
 edit" guidance without reverse-engineering the raw graph payload.
 For semantic inspection, the same resolved diagnostics can be projected into a
 Start Agent Graph:
 
 ```sh
-effect-ui-start impact route /projects/:id
-effect-ui-start impact action Project.rename --json
-effect-ui-start graph route /projects/:id
-effect-ui-start graph route /projects/:id --verbose
-effect-ui-start graph action Project.rename --json
+sunfall-arc-start impact route /projects/:id
+sunfall-arc-start impact action Project.rename --json
+sunfall-arc-start graph route /projects/:id
+sunfall-arc-start graph route /projects/:id --verbose
+sunfall-arc-start graph action Project.rename --json
 ```
 
 `createStartAgentGraph(...)` turns diagnostics into typed Route, Action,

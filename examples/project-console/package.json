@@ -1,5 +1,5 @@
 {
-  "name": "@effect-ui/example-project-console",
+  "name": "@sunfall/arc-example-project-console",
   "version": "0.0.0-alpha.0",
   "private": true,
   "license": "MIT",
@@ -23,12 +23,12 @@
     "verify": "pnpm typecheck && pnpm test && pnpm build && pnpm leak-scan"
   },
   "dependencies": {
-    "@effect-ui/core": "workspace:*",
-    "@effect-ui/db": "workspace:*",
-    "@effect-ui/solid": "workspace:*",
-    "@effect-ui/solid-db": "workspace:*",
-    "@effect-ui/start": "workspace:*",
-    "@effect-ui/tsrx": "workspace:*",
+    "@sunfall/arc-core": "workspace:*",
+    "@sunfall/arc-db": "workspace:*",
+    "@sunfall/arc-solid": "workspace:*",
+    "@sunfall/arc-solid-db": "workspace:*",
+    "@sunfall/arc-start": "workspace:*",
+    "@sunfall/arc-tsrx": "workspace:*",
     "effect": "^4.0.0-beta.66",
     "solid-js": "^1.9.12"
   },
@@ -39,7 +39,7 @@
     "vite": "^8.0.12",
     "vitest": "^4.1.6"
   },
-  "effectUiLeakScan": {
+  "sunfallArcLeakScan": {
     "dist": "dist",
     "patterns": [
       "seedProjects",

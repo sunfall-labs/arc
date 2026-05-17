@@ -25,7 +25,7 @@ import {
   type ProgramRuntimeTimelineEventInput,
 } from "./program-runtime-timeline.js";
 import { makeProgramRuntimeScheduler } from "./program-runtime-scheduler.js";
-import type { AnyEffectUiRuntime } from "./runtime.js";
+import type { AnySunfallArcRuntime } from "./runtime.js";
 import { Signal } from "./signal.js";
 
 interface QueuedMessage<Message, E> {
@@ -35,7 +35,7 @@ interface QueuedMessage<Message, E> {
 
 export interface ProgramRuntimeInstanceOptions<Model, Message, E, R, ER> {
   readonly definition: ProgramDefinition<Model, Message, E, R>;
-  readonly runtime: AnyEffectUiRuntime<ER>;
+  readonly runtime: AnySunfallArcRuntime<ER>;
   readonly scope:
     | {
         addFinalizer(finalizer: () => Effect.Effect<void>): void;

@@ -1,4 +1,4 @@
-import { ResourceFailure, provideRequest, Server, ServerClient } from "@effect-ui/core";
+import { ResourceFailure, provideRequest, Server, ServerClient } from "@sunfall/arc-core";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
 import {
@@ -97,7 +97,7 @@ describe("project console domain", () => {
           provideRequest(
             new Request("https://example.com/projects/meridian", {
               headers: {
-                "x-effect-ui-now-label": "request scoped",
+                "x-sunfall-arc-now-label": "request scoped",
               },
             }),
           )(

@@ -41,7 +41,7 @@ zero hits.
 - The devtools extension transport structurally validates inspected-window
   `DevtoolsPanels` payloads before rendering them, so the bridge normalizer no
   longer needs a raw panel payload cast.
-- `effectUiStart(...)` now returns the concrete `EffectUiStartPlugin`
+- `sunfallArcStart(...)` now returns the concrete `SunfallArcStartPlugin`
   interface, so Start tests call Vite plugin hooks directly instead of
   re-narrowing a broad `PluginOption` with `as never` hook-context casts.
 - No package, example, script, or type-test source currently contains `as any`
@@ -76,7 +76,7 @@ zero hits.
 - Core runtime service erasure now sits at the `ManagedRuntime<any, ER>` value
   boundary inside `fromManagedRuntime(...)`; the runtime no longer casts provided
   Effects themselves to satisfy `ManagedRuntime` run methods.
-- `EffectUiRuntime.provide(...)` now returns a scoped Effect, and its
+- `SunfallArcRuntime.provide(...)` now returns a scoped Effect, and its
   ManagedRuntime service satisfaction is centralized behind
   `provideRuntimeServices(...)`. Solid router preloads can fork that Effect under
   `UiScope` without a local service-erasure cast.
@@ -99,7 +99,7 @@ zero hits.
   values through Effect/runtime helpers directly.
 - Start request-runtime provision, request-handler runners, StartAction
   submission fibers, response stream pull/cancel programs, and hydration sync
-  helpers now pass Effects directly through `EffectUiRuntime`/Effect primitives
+  helpers now pass Effects directly through `SunfallArcRuntime`/Effect primitives
   instead of erasing requirements at each call site.
 - Start RPC/action request-runtime failures now become explicit protocol defect
   responses through Effect error handling, and Start action hydration runtime
@@ -156,14 +156,15 @@ zero hits.
 
 ## Verification Evidence
 
-The current full verification gate is recorded in the Review 240 ledgers: 11
+The current full verification gate is recorded in the Review 492 ledgers: 11
 package builds, workspace typecheck, type tests, public API inventory audit,
-Effect-first audit over 415 files, 53 root test files / 1170 tests,
-package-level verifies, generated starter-suite packaging/verifies for
-basic/react/project-console, 16-target package dry-run gate, project-console
-typecheck, 4 project-console test files / 27 tests, build, and leak scans. The
-remaining command-result bullets in this section are historical evidence for
-the individual cleanup slices that produced this audit.
+Effect-first audit over 449 physical and virtual files, 58 root test files /
+1223 tests, package-level verifies, generated starter-suite
+packaging/verifies for basic/react/project-console, 17-target package dry-run
+gate, project-console typecheck, 4 project-console test files / 27 tests,
+build, and leak scans. The remaining command-result bullets in this section
+are historical evidence for the individual cleanup slices that produced this
+audit.
 Review 165 kept the sharp-edge docs current while tightening committed Program
 dispatch acknowledgement races, DB hydration/snapshot correctness, Start host
 EffectInput/abort seams, generated route identity, public API pins, and Promise
@@ -195,7 +196,7 @@ static extraction guardrails.
   file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
-- `pnpm --filter @effect-ui/start typecheck`, `pnpm typecheck:types`, and
+- `pnpm --filter @sunfall/arc-start typecheck`, `pnpm typecheck:types`, and
   `pnpm exec vitest run packages/start/test/adapters.test.ts` passed after the
   adapter test raw Promise helper cleanup.
 - Historical `pnpm verify` passed after the adapter test Promise helper cleanup: 9 package
@@ -251,11 +252,11 @@ static extraction guardrails.
   with 1 extension test file / 6 tests, basic starter verify, project-console
   starter packaging, project-console typecheck, 4 project-console test files /
   23 tests, project-console build, and leak scan.
-- `pnpm --filter @effect-ui/example-devtools-extension typecheck` and
-  `pnpm --filter @effect-ui/example-devtools-extension test` passed after
+- `pnpm --filter @sunfall/arc-example-devtools-extension typecheck` and
+  `pnpm --filter @sunfall/arc-example-devtools-extension test` passed after
   replacing the inspected-window bridge payload cast with structural
   `DevtoolsPanels` validation.
-- `pnpm --filter @effect-ui/example-devtools-extension verify` passed after
+- `pnpm --filter @sunfall/arc-example-devtools-extension verify` passed after
   replacing the inspected-window bridge payload cast with structural
   `DevtoolsPanels` validation.
 - `pnpm verify` passed after structurally validating devtools extension bridge
@@ -264,12 +265,12 @@ static extraction guardrails.
   extension test file / 6 tests, basic starter verify, project-console starter
   packaging, project-console typecheck, 4 project-console test files / 23
   tests, project-console build, and leak scan.
-- `pnpm --filter @effect-ui/start typecheck`, `pnpm typecheck:types`,
+- `pnpm --filter @sunfall/arc-start typecheck`, `pnpm typecheck:types`,
   `pnpm exec vitest run packages/start/test/start.test.ts -t "Vite preset|server modules|generated file route definitions|build policy"`,
   and `pnpm exec vitest run packages/start/test/start.test.ts` passed after
-  tightening `effectUiStart(...)` to return `EffectUiStartPlugin` and removing
+  tightening `sunfallArcStart(...)` to return `SunfallArcStartPlugin` and removing
   Start Vite plugin hook `as never` casts.
-- `pnpm verify` passed after adding `EffectUiStartPlugin`: 9 package builds,
+- `pnpm verify` passed after adding `SunfallArcStartPlugin`: 9 package builds,
   workspace typecheck, type tests, 38 root test files / 320 tests,
   devtools-panel verify, devtools-extension verify with 1 extension test file /
   6 tests, basic starter verify, project-console starter packaging,
@@ -279,7 +280,7 @@ static extraction guardrails.
   `pnpm exec vitest run packages/devtools/test/devtools.test.ts packages/db/test/server-collection.test.ts packages/core/test/form.test.ts packages/core/test/server.test.ts`
   passed after replacing negative-test `as unknown as` casts with explicit
   `@ts-expect-error` assertions: 4 files, 32 tests.
-- `pnpm --filter @effect-ui/start typecheck` and
+- `pnpm --filter @sunfall/arc-start typecheck` and
   `pnpm exec vitest run packages/start/test/start.test.ts` passed after
   replacing the legacy Effect Cause shape fallback casts with public
   `cause.reasons` access.
@@ -289,7 +290,7 @@ static extraction guardrails.
   6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
-- `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck:types`, and
+- `pnpm --filter @sunfall/arc-db typecheck`, `pnpm typecheck:types`, and
   `pnpm exec vitest run packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
   passed after removing the `QueryRoot.from(...)` builder `as never` cast: 2
   files, 35 tests.
@@ -299,7 +300,7 @@ static extraction guardrails.
   1 extension test file / 6 tests, basic starter verify, project-console starter
   packaging, project-console typecheck, 4 project-console test files / 23
   tests, project-console build, and leak scan.
-- `pnpm --filter @effect-ui/db typecheck` and
+- `pnpm --filter @sunfall/arc-db typecheck` and
   `pnpm exec vitest run packages/db/test/live-query-collection.test.ts packages/db/test/collection.test.ts`
   passed after replacing the inline IVM custom operator `as never` cast with the
   named `IOperator` bridge: 2 files, 35 tests.
@@ -309,7 +310,7 @@ static extraction guardrails.
   devtools-extension verify with 1 extension test file / 6 tests, basic starter
   verify, project-console starter packaging, project-console typecheck, 4
   project-console test files / 23 tests, project-console build, and leak scan.
-- `pnpm --filter @effect-ui/core typecheck`, `pnpm typecheck:types`, and
+- `pnpm --filter @sunfall/arc-core typecheck`, `pnpm typecheck:types`, and
   `pnpm exec vitest run packages/core/test/capability.test.ts` passed after
   replacing the `Capability.define(...)` implementation bottom casts with
   typed overloads and direct `Effect.provideService(...)` return typing: 1 test
@@ -320,7 +321,7 @@ static extraction guardrails.
   with 1 extension test file / 6 tests, basic starter verify, project-console
   starter packaging, project-console typecheck, 4 project-console test files /
   23 tests, project-console build, and leak scan.
-- `pnpm --filter @effect-ui/core typecheck`, `pnpm typecheck:types`, and
+- `pnpm --filter @sunfall/arc-core typecheck`, `pnpm typecheck:types`, and
   `pnpm exec vitest run packages/core/test/runtime.test.ts packages/core/test/resource.test.ts packages/core/test/action.test.ts`
   passed after replacing repeated runtime run-method service-erasure casts with
   exact ResourceStore provision plus a named `provideManagedServices(...)`
@@ -331,7 +332,7 @@ static extraction guardrails.
   file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
-- `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck:types`, and
+- `pnpm --filter @sunfall/arc-db typecheck`, `pnpm typecheck:types`, and
   `pnpm exec vitest run packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
   passed after replacing the `QueryBuilder.projectorFor(...)` broad `unknown`
   bridge with a direct projector assertion: 2 files, 35 tests.
@@ -341,8 +342,8 @@ static extraction guardrails.
   with 1 extension test file / 6 tests, basic starter verify, project-console
   starter packaging, project-console typecheck, 4 project-console test files /
   23 tests, project-console build, and leak scan.
-- `pnpm --filter @effect-ui/core typecheck`,
-  `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck:types`, and
+- `pnpm --filter @sunfall/arc-core typecheck`,
+  `pnpm --filter @sunfall/arc-db typecheck`, `pnpm typecheck:types`, and
   `pnpm exec vitest run packages/core/test/action-result.test.ts packages/core/test/server.test.ts packages/core/test/action.test.ts packages/core/test/form.test.ts packages/core/test/signal.test.ts packages/core/test/resource.test.ts packages/core/test/capability.test.ts packages/core/test/runtime.test.ts packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
   passed after replacing type-id `as never` declarations with self-type
   assertions: 10 files, 111 tests.
@@ -352,9 +353,9 @@ static extraction guardrails.
   file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
-- `pnpm --filter @effect-ui/core typecheck`,
-  `pnpm --filter @effect-ui/solid typecheck`,
-  `pnpm --filter @effect-ui/solid-db typecheck`, `pnpm typecheck:types`, and
+- `pnpm --filter @sunfall/arc-core typecheck`,
+  `pnpm --filter @sunfall/arc-solid typecheck`,
+  `pnpm --filter @sunfall/arc-solid-db typecheck`, `pnpm typecheck:types`, and
   `pnpm exec vitest run packages/solid-db/test/solid-db.test.ts packages/core/test/runtime.test.ts`
   passed after moving runtime-provided scoped Effects into the core runtime
   boundary and removing Solid/Solid-DB hook call-site casts: 2 files, 7 tests.
@@ -364,7 +365,7 @@ static extraction guardrails.
   test file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
-- `pnpm --filter @effect-ui/core typecheck`, `pnpm typecheck:types`, and
+- `pnpm --filter @sunfall/arc-core typecheck`, `pnpm typecheck:types`, and
   `pnpm exec vitest run packages/core/test/action.test.ts packages/core/test/resource.test.ts packages/core/test/runtime.test.ts`
   passed after removing Action/Resource runtime call-site casts: 3 files, 48
   tests.
@@ -374,7 +375,7 @@ static extraction guardrails.
   file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
-- `pnpm --filter @effect-ui/core typecheck`, `pnpm typecheck:types`, and
+- `pnpm --filter @sunfall/arc-core typecheck`, `pnpm typecheck:types`, and
   `pnpm exec vitest run packages/core/test/runtime.test.ts packages/core/test/scope.test.ts packages/core/test/signal.test.ts`
   passed after removing core runtime/scope/signal helper casts: 3 files, 15
   tests.
@@ -384,7 +385,7 @@ static extraction guardrails.
   file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
-- `pnpm --filter @effect-ui/core typecheck`, `pnpm --filter @effect-ui/start
+- `pnpm --filter @sunfall/arc-core typecheck`, `pnpm --filter @sunfall/arc-start
 typecheck`, `pnpm typecheck:types`, and
   `pnpm exec vitest run packages/core/test/server.test.ts packages/core/test/route-server.test.ts packages/start/test/rpc.test.ts packages/start/test/start.test.ts -t "server function|Server|RPC|browser runtimes call server functions"`
   passed after tightening `ServerClient` requirement typing and centralizing
@@ -395,7 +396,7 @@ typecheck`, `pnpm typecheck:types`, and
   tests, basic starter verify, project-console starter packaging, project-console
   typecheck, 4 project-console test files / 23 tests, project-console build, and
   leak scan.
-- `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck:types`, and
+- `pnpm --filter @sunfall/arc-db typecheck`, `pnpm typecheck:types`, and
   `pnpm exec vitest run packages/db/test/sync-adapter.test.ts packages/db/test/sqlite-persistence.test.ts packages/db/test/flush-policy.test.ts packages/db/test/server-collection.test.ts`
   passed after removing DB adapter-local EffectInput casts: 4 files, 20 tests.
 - `pnpm verify` passed after the DB adapter EffectInput cleanup: 9 package
@@ -404,7 +405,7 @@ typecheck`, `pnpm typecheck:types`, and
   tests, basic starter verify, project-console starter packaging, project-console
   typecheck, 4 project-console test files / 23 tests, project-console build, and
   leak scan.
-- `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck:types`, and
+- `pnpm --filter @sunfall/arc-db typecheck`, `pnpm typecheck:types`, and
   `pnpm exec vitest run packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts packages/db/test/change-feed.test.ts`
   passed after replacing DB collection index-source Effect casts: 2 matched files,
   35 tests.
@@ -414,7 +415,7 @@ typecheck`, `pnpm typecheck:types`, and
   tests, basic starter verify, project-console starter packaging, project-console
   typecheck, 4 project-console test files / 23 tests, project-console build, and
   leak scan.
-- `pnpm --filter @effect-ui/start typecheck`, `pnpm typecheck:types`, and
+- `pnpm --filter @sunfall/arc-start typecheck`, `pnpm typecheck:types`, and
   `pnpm exec vitest run packages/start/test/adapters.test.ts packages/start/test/start.test.ts -t "hydration|adapter|Node|fetch|StartAction|stream|request handler"`
   passed after removing Start runtime call-site casts: 2 files, 20 selected
   tests.
@@ -424,8 +425,8 @@ typecheck`, `pnpm typecheck:types`, and
   tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
-- `pnpm --filter @effect-ui/start typecheck`,
-  `pnpm --filter @effect-ui/example-project-console typecheck`, and
+- `pnpm --filter @sunfall/arc-start typecheck`,
+  `pnpm --filter @sunfall/arc-example-project-console typecheck`, and
   `pnpm exec vitest run packages/start/test/start.test.ts packages/start/test/rpc.test.ts packages/start/test/adapters.test.ts examples/project-console/src/*.test.ts -t "server function|RPC|action|StartAction|request handler|hydration|adapter|App"`
   passed after the Start runtime-boundary and project-console UI effect cast
   cleanup: 7 files, 42 selected tests.
@@ -435,8 +436,8 @@ typecheck`, `pnpm typecheck:types`, and
   test file / 6 tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
-- `pnpm --filter @effect-ui/core typecheck`, `pnpm --filter @effect-ui/start
-typecheck`, `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck:types`,
+- `pnpm --filter @sunfall/arc-core typecheck`, `pnpm --filter @sunfall/arc-start
+typecheck`, `pnpm --filter @sunfall/arc-db typecheck`, `pnpm typecheck:types`,
   and
   `pnpm exec vitest run packages/core/test/server.test.ts packages/core/test/form.test.ts packages/core/test/runtime.test.ts packages/core/test/route-server.test.ts packages/start/test/start.test.ts packages/start/test/rpc.test.ts packages/start/test/adapters.test.ts packages/db/test/collection.test.ts packages/db/test/live-query-collection.test.ts`
   passed after the schema, EffectInput, Start preload/adapter, and DB query
@@ -447,7 +448,7 @@ typecheck`, `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck:types`,
   tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
-- `pnpm --filter @effect-ui/core typecheck`, `pnpm typecheck:types`, and
+- `pnpm --filter @sunfall/arc-core typecheck`, `pnpm typecheck:types`, and
   `pnpm exec vitest run packages/core/test/runtime.test.ts packages/core/test/resource.test.ts packages/core/test/action.test.ts packages/core/test/scope.test.ts packages/core/test/server.test.ts`
   passed after moving core runtime service erasure to the ManagedRuntime value
   boundary: 5 files, 55 tests.
@@ -457,8 +458,8 @@ typecheck`, `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck:types`,
   tests, basic starter verify, project-console starter packaging,
   project-console typecheck, 4 project-console test files / 23 tests,
   project-console build, and leak scan.
-- `pnpm --filter @effect-ui/db typecheck`,
-  `pnpm --filter @effect-ui/start typecheck`, `pnpm typecheck:types`, and
+- `pnpm --filter @sunfall/arc-db typecheck`,
+  `pnpm --filter @sunfall/arc-start typecheck`, `pnpm typecheck:types`, and
   `pnpm exec vitest run packages/db/test/sync-adapter.test.ts packages/start/test/streaming.test.ts`
   passed after replacing the last test-only `as Effect.Effect` assertions with
   `toEffect(...)` and an explicitly typed stream effect.

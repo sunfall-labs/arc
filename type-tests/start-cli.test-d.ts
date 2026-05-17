@@ -15,7 +15,7 @@ import {
   type StartDiagnosticsCliResult,
   type StartGraphCliOptions,
   type StartImpactCliOptions,
-} from "@effect-ui/start/cli";
+} from "@sunfall/arc-start/cli";
 
 const cliIo: StartDiagnosticsCliIo = {
   stdout: (line) => {

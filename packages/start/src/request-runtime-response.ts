@@ -1,4 +1,4 @@
-import { type EffectInput, type EffectUiRuntime } from "@effect-ui/core";
+import { type EffectInput, type SunfallArcRuntime } from "@sunfall/arc-core";
 import { Effect } from "effect";
 import {
   invokeStartEffectInputCallbackEffect,
@@ -28,7 +28,7 @@ export interface RequestRuntimeStreamFinalizeState extends RequestRuntimeFinaliz
 }
 
 const requestRuntimeStreamFinalizer = <RuntimeServices, RuntimeError>(
-  runtime: EffectUiRuntime<RuntimeServices, RuntimeError>,
+  runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>,
   options: {
     readonly onFinalize?: (state: RequestRuntimeFinalizeState) => EffectInput<void, never, never>;
     readonly onStreamFinalize?: (
@@ -67,7 +67,7 @@ const requestRuntimeStreamFinalizer = <RuntimeServices, RuntimeError>(
 };
 
 export const completeRequestRuntimeWithResponse = <RuntimeServices, RuntimeError>(
-  runtime: EffectUiRuntime<RuntimeServices, RuntimeError>,
+  runtime: SunfallArcRuntime<RuntimeServices, RuntimeError>,
   response: Response,
   options: {
     readonly onFinalize?: (state: RequestRuntimeFinalizeState) => EffectInput<void, never, never>;

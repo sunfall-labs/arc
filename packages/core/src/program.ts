@@ -91,8 +91,8 @@ export { makeProgramStory } from "./program-story.js";
 import type { ResourceStore as ResourceStoreState } from "./resource-store.js";
 import {
   currentOrDefaultRuntime,
-  type AnyEffectUiRuntime,
-  type EffectUiRuntime,
+  type AnySunfallArcRuntime,
+  type SunfallArcRuntime,
 } from "./runtime.js";
 import { getCurrentScope } from "./scope.js";
 
@@ -110,21 +110,21 @@ type ProgramRuntimeSatisfied<RIn, RProvided> = [
 /** Options for starting a Program on an explicit typed Runtime Spine. */
 export interface ProgramStartOptions<RRuntime = never, ER = never> {
   /** Runtime whose services satisfy the Program's update, command, and subscription requirements. */
-  readonly runtime: EffectUiRuntime<RRuntime, ER>;
+  readonly runtime: SunfallArcRuntime<RRuntime, ER>;
 }
 
 type ProgramRuntimeBoundStartOptions<R, RRuntime, ER> = {
-  readonly runtime: EffectUiRuntime<RRuntime, ER> & ProgramRuntimeSatisfied<R, RRuntime>;
+  readonly runtime: SunfallArcRuntime<RRuntime, ER> & ProgramRuntimeSatisfied<R, RRuntime>;
 };
 type ProgramStartImplementationOptions<ER> = {
-  readonly runtime?: AnyEffectUiRuntime<ER>;
+  readonly runtime?: AnySunfallArcRuntime<ER>;
 };
 
 const startProgramImplementation = <Model, Message, E = never, ER = never>(
   definition: ProgramDefinition<Model, Message, E, never>,
   options?: ProgramStartImplementationOptions<ER>,
 ): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>> => {
-  const runtime = (options?.runtime ?? currentOrDefaultRuntime()) as AnyEffectUiRuntime<ER>;
+  const runtime = (options?.runtime ?? currentOrDefaultRuntime()) as AnySunfallArcRuntime<ER>;
   const scope = getCurrentScope();
   return makeProgramRuntimeInstance<Model, Message, E, never, ER>({
     definition,
@@ -134,7 +134,7 @@ const startProgramImplementation = <Model, Message, E = never, ER = never>(
 };
 
 /**
- * Starts a service-free Program against the current Effect UI runtime and optional UI scope.
+ * Starts a service-free Program against the current Sunfall Arc runtime and optional UI scope.
  *
  * Programs whose update, command, or subscription Effects require services must
  * use `Program.start(definition, { runtime })` so TypeScript can verify the

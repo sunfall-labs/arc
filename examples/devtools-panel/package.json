@@ -1,5 +1,5 @@
 {
-  "name": "@effect-ui/example-devtools-panel",
+  "name": "@sunfall/arc-example-devtools-panel",
   "version": "0.0.0-alpha.0",
   "private": true,
   "license": "MIT",
@@ -21,7 +21,7 @@
     "verify": "pnpm typecheck && pnpm test && pnpm build"
   },
   "dependencies": {
-    "@effect-ui/devtools": "workspace:*",
+    "@sunfall/arc-devtools": "workspace:*",
     "effect": "^4.0.0-beta.66"
   },
   "devDependencies": {

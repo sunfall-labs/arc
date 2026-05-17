@@ -252,7 +252,7 @@ describe("Form", () => {
       readonly has: (name: string) => Effect.Effect<boolean>;
     }
 
-    const ReservedNames = Context.Service<ReservedNames>("@effect-ui/core/test/ReservedNames");
+    const ReservedNames = Context.Service<ReservedNames>("@sunfall/arc-core/test/ReservedNames");
 
     class ProjectNameReserved extends Data.TaggedError("ProjectNameReserved")<{
       readonly name: string;

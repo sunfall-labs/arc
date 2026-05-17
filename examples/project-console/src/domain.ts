@@ -1,5 +1,5 @@
-import { Action, ActionResult, Capability, Resource, Server, Signal } from "@effect-ui/core";
-import { StartAction, type StartActionForm } from "@effect-ui/start";
+import { Action, ActionResult, Capability, Resource, Server, Signal } from "@sunfall/arc-core";
+import { StartAction, type StartActionForm } from "@sunfall/arc-start";
 import { Effect, Schedule, Schema, Stream } from "effect";
 import {
   AdvanceProjectInput,
@@ -86,7 +86,7 @@ export interface ProjectApi {
 }
 
 export const ProjectApi = Capability.define<ProjectApi>(
-  "@effect-ui/example-project-console/ProjectApi",
+  "@sunfall/arc-example-project-console/ProjectApi",
 );
 
 export const normalizeProjectNameSubmissionResult = (

@@ -19,7 +19,7 @@ interface ProjectApi {
   readonly get: (id: string) => Effect.Effect<Project>;
 }
 
-const ProjectApi = Context.Service<ProjectApi>("@effect-ui/core/test/ResourceUiProjectApi");
+const ProjectApi = Context.Service<ProjectApi>("@sunfall/arc-core/test/ResourceUiProjectApi");
 
 describe("Resource UI Binding Controller", () => {
   it("passes previous-value presence through match metadata", () => {

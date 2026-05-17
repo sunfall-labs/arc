@@ -8,9 +8,9 @@ import {
   type AppDefinitionRegistryRequirements,
   type ActionDefinitionRequirements,
   type EffectInput,
-  type EffectUiRuntime,
+  type SunfallArcRuntime,
   type ResourceStore as ResourceStoreState,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Effect, Scope } from "effect";
 import { type StartCollectionHydrationOptions } from "./hydration.js";
 import {
@@ -87,7 +87,7 @@ export interface StartRenderContext<
 > extends StartPreloadResult<Routes> {
   readonly request: Request;
   readonly app: AppDefinition<Routes, Client, ServerServices, ServerError, Registry>;
-  readonly runtime: EffectUiRuntime<ServerServices, ServerError>;
+  readonly runtime: SunfallArcRuntime<ServerServices, ServerError>;
   readonly resourceStore: ResourceStoreState;
   /** Full hydration payload script for non-streaming renderers. */
   readonly legacyHydrationScript: string;
@@ -299,7 +299,7 @@ export const createRequestHandlerEffect = <
 
         return new Response(
           JSON.stringify({
-            framework: "effect-ui-start",
+            framework: "sunfall-arc-start",
             fullStack: app.fullStack,
             routes: app.routes.map((routeDefinition) => routeDefinition.path),
             match: preloaded.match?.href,

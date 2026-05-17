@@ -14,12 +14,12 @@ import { isDevtoolsPanelId, isDevtoolsPanelOverflowItem } from "./panel-contract
 
 export type DevtoolsPanelsResolver = (input: DevtoolsPanelUiInput) => DevtoolsPanels;
 
-const defaultDevtoolsPanelTitle = "Effect UI Devtools";
+const defaultDevtoolsPanelTitle = "Sunfall Arc Devtools";
 const defaultDevtoolsMaxPanelItems = 8;
 
 /** Default CSS used by the embeddable Devtools panel renderer. */
 export const devtoolsPanelStyles = `
-.effect-ui-devtools {
+.sunfall-arc-devtools {
   color: #172033;
   background: #f7f8fb;
   border: 1px solid #d8deea;
@@ -27,10 +27,10 @@ export const devtoolsPanelStyles = `
   font: 13px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   max-width: 1120px;
 }
-.effect-ui-devtools * {
+.sunfall-arc-devtools * {
   box-sizing: border-box;
 }
-.effect-ui-devtools__header {
+.sunfall-arc-devtools__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -38,23 +38,23 @@ export const devtoolsPanelStyles = `
   padding: 14px 16px;
   border-bottom: 1px solid #d8deea;
 }
-.effect-ui-devtools__title {
+.sunfall-arc-devtools__title {
   margin: 0;
   font-size: 16px;
   font-weight: 650;
 }
-.effect-ui-devtools__version {
+.sunfall-arc-devtools__version {
   color: #5d6b82;
   font-size: 12px;
 }
-.effect-ui-devtools__tabs {
+.sunfall-arc-devtools__tabs {
   display: flex;
   gap: 6px;
   overflow-x: auto;
   padding: 10px 12px;
   border-bottom: 1px solid #d8deea;
 }
-.effect-ui-devtools__tab {
+.sunfall-arc-devtools__tab {
   appearance: none;
   background: #ffffff;
   border: 1px solid #cdd5e2;
@@ -68,68 +68,68 @@ export const devtoolsPanelStyles = `
   padding: 6px 10px;
   white-space: nowrap;
 }
-.effect-ui-devtools__tab[aria-selected="true"] {
+.sunfall-arc-devtools__tab[aria-selected="true"] {
   background: #173b68;
   border-color: #173b68;
   color: #ffffff;
 }
-.effect-ui-devtools__severity {
+.sunfall-arc-devtools__severity {
   border-radius: 999px;
   border: 1px solid currentColor;
   font-size: 11px;
   line-height: 1;
   padding: 3px 6px;
 }
-.effect-ui-devtools__body {
+.sunfall-arc-devtools__body {
   padding: 14px 16px 16px;
 }
-.effect-ui-devtools__panel {
+.sunfall-arc-devtools__panel {
   display: grid;
   gap: 12px;
 }
-.effect-ui-devtools__panel[hidden] {
+.sunfall-arc-devtools__panel[hidden] {
   display: none;
 }
-.effect-ui-devtools__panel-header {
+.sunfall-arc-devtools__panel-header {
   display: grid;
   gap: 4px;
 }
-.effect-ui-devtools__panel-title {
+.sunfall-arc-devtools__panel-title {
   margin: 0;
   font-size: 15px;
   font-weight: 650;
 }
-.effect-ui-devtools__summary {
+.sunfall-arc-devtools__summary {
   color: #4d5c73;
   margin: 0;
 }
-.effect-ui-devtools__metrics {
+.sunfall-arc-devtools__metrics {
   display: grid;
   gap: 8px;
   grid-template-columns: repeat(auto-fit, minmax(128px, 1fr));
   margin: 0;
 }
-.effect-ui-devtools__metric {
+.sunfall-arc-devtools__metric {
   background: #ffffff;
   border: 1px solid #d8deea;
   border-radius: 6px;
   padding: 8px 10px;
 }
-.effect-ui-devtools__metric-label {
+.sunfall-arc-devtools__metric-label {
   color: #5d6b82;
   display: block;
   font-size: 11px;
 }
-.effect-ui-devtools__metric-value {
+.sunfall-arc-devtools__metric-value {
   display: block;
   font-size: 14px;
   font-weight: 650;
 }
-.effect-ui-devtools__items {
+.sunfall-arc-devtools__items {
   display: grid;
   gap: 8px;
 }
-.effect-ui-devtools__item {
+.sunfall-arc-devtools__item {
   background: #ffffff;
   border: 1px solid #d8deea;
   border-radius: 6px;
@@ -137,24 +137,24 @@ export const devtoolsPanelStyles = `
   gap: 8px;
   padding: 10px;
 }
-.effect-ui-devtools__item-header {
+.sunfall-arc-devtools__item-header {
   display: flex;
   align-items: start;
   justify-content: space-between;
   gap: 10px;
 }
-.effect-ui-devtools__item-label {
+.sunfall-arc-devtools__item-label {
   font-weight: 650;
   overflow-wrap: anywhere;
 }
-.effect-ui-devtools__item-detail {
+.sunfall-arc-devtools__item-detail {
   color: #5d6b82;
   overflow-wrap: anywhere;
 }
-.effect-ui-devtools__data {
+.sunfall-arc-devtools__data {
   margin: 0;
 }
-.effect-ui-devtools__data pre {
+.sunfall-arc-devtools__data pre {
   background: #101828;
   border-radius: 6px;
   color: #eef4ff;
@@ -163,7 +163,7 @@ export const devtoolsPanelStyles = `
   overflow: auto;
   padding: 10px;
 }
-.effect-ui-devtools__empty {
+.sunfall-arc-devtools__empty {
   color: #5d6b82;
   margin: 0;
 }
@@ -189,29 +189,29 @@ const metricValueText = (metric: DevtoolsPanelMetric): string =>
   metric.unit === undefined ? String(metric.value) : `${metric.value} ${metric.unit}`;
 
 const metricHtml = (metric: DevtoolsPanelMetric): string => `
-<div class="effect-ui-devtools__metric">
-  <span class="effect-ui-devtools__metric-label">${escapeHtml(metric.label)}</span>
-  <span class="effect-ui-devtools__metric-value">${escapeHtml(metricValueText(metric))}</span>
+<div class="sunfall-arc-devtools__metric">
+  <span class="sunfall-arc-devtools__metric-label">${escapeHtml(metric.label)}</span>
+  <span class="sunfall-arc-devtools__metric-value">${escapeHtml(metricValueText(metric))}</span>
 </div>`;
 
 const metricsHtml = (metrics: ReadonlyArray<DevtoolsPanelMetric>): string =>
   metrics.length === 0
     ? ""
-    : `<div class="effect-ui-devtools__metrics">${metrics.map(metricHtml).join("")}</div>`;
+    : `<div class="sunfall-arc-devtools__metrics">${metrics.map(metricHtml).join("")}</div>`;
 
 const dataHtml = (data: DevtoolsSerializableValue | undefined): string =>
   data === undefined
     ? ""
-    : `<details class="effect-ui-devtools__data"><summary>Data</summary><pre>${escapeHtml(JSON.stringify(data, null, 2) ?? "null")}</pre></details>`;
+    : `<details class="sunfall-arc-devtools__data"><summary>Data</summary><pre>${escapeHtml(JSON.stringify(data, null, 2) ?? "null")}</pre></details>`;
 
 const itemHtml = (item: DevtoolsPanelItem): string => `
-<article class="effect-ui-devtools__item" data-effect-ui-devtools-item-id="${escapeHtml(item.id)}" data-severity="${escapeHtml(item.severity)}">
-  <div class="effect-ui-devtools__item-header">
+<article class="sunfall-arc-devtools__item" data-sunfall-arc-devtools-item-id="${escapeHtml(item.id)}" data-severity="${escapeHtml(item.severity)}">
+  <div class="sunfall-arc-devtools__item-header">
     <div>
-      <div class="effect-ui-devtools__item-label">${escapeHtml(item.label)}</div>
-      ${item.detail === undefined ? "" : `<div class="effect-ui-devtools__item-detail">${escapeHtml(item.detail)}</div>`}
+      <div class="sunfall-arc-devtools__item-label">${escapeHtml(item.label)}</div>
+      ${item.detail === undefined ? "" : `<div class="sunfall-arc-devtools__item-detail">${escapeHtml(item.detail)}</div>`}
     </div>
-    <span class="effect-ui-devtools__severity">${escapeHtml(item.severity)}</span>
+    <span class="sunfall-arc-devtools__severity">${escapeHtml(item.severity)}</span>
   </div>
   ${metricsHtml(item.metrics ?? [])}
   ${dataHtml(item.data)}
@@ -257,15 +257,15 @@ const panelHtml = (
   const remainingCount = panel.items.length - items.length;
 
   return `
-<section class="effect-ui-devtools__panel" data-panel-id="${escapeHtml(panel.id)}"${visible ? "" : " hidden"}>
-  <header class="effect-ui-devtools__panel-header">
-    <h3 class="effect-ui-devtools__panel-title">${escapeHtml(panel.title)}</h3>
-    <p class="effect-ui-devtools__summary">${escapeHtml(panel.summary)}</p>
+<section class="sunfall-arc-devtools__panel" data-panel-id="${escapeHtml(panel.id)}"${visible ? "" : " hidden"}>
+  <header class="sunfall-arc-devtools__panel-header">
+    <h3 class="sunfall-arc-devtools__panel-title">${escapeHtml(panel.title)}</h3>
+    <p class="sunfall-arc-devtools__summary">${escapeHtml(panel.summary)}</p>
   </header>
   ${metricsHtml(panel.metrics)}
-  <div class="effect-ui-devtools__items">
-    ${items.length === 0 ? `<p class="effect-ui-devtools__empty">No panel items recorded.</p>` : items.map(itemHtml).join("")}
-    ${remainingCount > 0 ? `<p class="effect-ui-devtools__empty">${remainingCount} more items hidden by the current render limit.</p>` : ""}
+  <div class="sunfall-arc-devtools__items">
+    ${items.length === 0 ? `<p class="sunfall-arc-devtools__empty">No panel items recorded.</p>` : items.map(itemHtml).join("")}
+    ${remainingCount > 0 ? `<p class="sunfall-arc-devtools__empty">${remainingCount} more items hidden by the current render limit.</p>` : ""}
   </div>
 </section>`;
 };
@@ -298,29 +298,29 @@ export const renderDevtoolsPanelsHtmlWithResolver = (
   const includeStyles = input.includeStyles ?? true;
 
   return `${includeStyles ? `<style>${devtoolsPanelStyles}</style>` : ""}
-<article class="effect-ui-devtools" data-effect-ui-devtools-version="${panels.version}"${selectedPanelId === undefined ? "" : ` data-selected-panel="${escapeHtml(selectedPanelId)}"`}>
-  <header class="effect-ui-devtools__header">
-    <h2 class="effect-ui-devtools__title">${escapeHtml(title)}</h2>
-    <span class="effect-ui-devtools__version">panel contract v${panels.version}</span>
+<article class="sunfall-arc-devtools" data-sunfall-arc-devtools-version="${panels.version}"${selectedPanelId === undefined ? "" : ` data-selected-panel="${escapeHtml(selectedPanelId)}"`}>
+  <header class="sunfall-arc-devtools__header">
+    <h2 class="sunfall-arc-devtools__title">${escapeHtml(title)}</h2>
+    <span class="sunfall-arc-devtools__version">panel contract v${panels.version}</span>
   </header>
-  <nav class="effect-ui-devtools__tabs" aria-label="Effect UI devtools panels">
+  <nav class="sunfall-arc-devtools__tabs" aria-label="Sunfall Arc devtools panels">
     ${panels.panels
       .map(
         (panel) => `
       <button
         type="button"
-        class="effect-ui-devtools__tab"
-        data-effect-ui-devtools-panel-target="${escapeHtml(panel.id)}"
+        class="sunfall-arc-devtools__tab"
+        data-sunfall-arc-devtools-panel-target="${escapeHtml(panel.id)}"
         aria-selected="${panel.id === selectedPanelId ? "true" : "false"}"
       >
         <span>${escapeHtml(panel.title)}</span>
-        <span class="effect-ui-devtools__severity">${escapeHtml(panel.severity)}</span>
+        <span class="sunfall-arc-devtools__severity">${escapeHtml(panel.severity)}</span>
       </button>
     `,
       )
       .join("")}
   </nav>
-  <div class="effect-ui-devtools__body">
+  <div class="sunfall-arc-devtools__body">
     ${panels.panels.map((panel) => panelHtml(panel, selectedPanelId, maxItems)).join("")}
   </div>
 </article>`;
@@ -351,11 +351,11 @@ export const mountDevtoolsPanelsWithResolver = (
     if (!(target instanceof Element)) {
       return;
     }
-    const trigger = target.closest<HTMLElement>("[data-effect-ui-devtools-panel-target]");
+    const trigger = target.closest<HTMLElement>("[data-sunfall-arc-devtools-panel-target]");
     if (trigger === null || !root.contains(trigger)) {
       return;
     }
-    const panelId = trigger.dataset.effectUiDevtoolsPanelTarget;
+    const panelId = trigger.dataset.sunfallArcDevtoolsPanelTarget;
     if (!isDevtoolsPanelId(panelId)) {
       return;
     }

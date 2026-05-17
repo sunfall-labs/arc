@@ -1,4 +1,4 @@
-# Effect UI Devtools Extension
+# Sunfall Arc Devtools Extension
 
 This checked package builds the browser-extension shell for the public
 `DevtoolsPanels` renderer and the inspected-window bridge.
@@ -6,7 +6,7 @@ This checked package builds the browser-extension shell for the public
 Verify it:
 
 ```sh
-pnpm --filter @effect-ui/example-devtools-extension verify
+pnpm --filter @sunfall/arc-example-devtools-extension verify
 ```
 
 The build emits a Manifest V3 extension with `devtools.html`, `panel.html`, and
@@ -16,13 +16,13 @@ browser-extension boundary. It renders checked sample facts as a fallback, then
 polls the inspected page for live panel data through:
 
 ```ts
-import { installDevtoolsBridgeEffect } from "@effect-ui/devtools";
+import { installDevtoolsBridgeEffect } from "@sunfall/arc-devtools";
 
 yield *
   installDevtoolsBridgeEffect(() => ({
     panels: store.getPanels(),
     selectedPanelId: "requests",
-    title: "Effect UI Devtools",
+    title: "Sunfall Arc Devtools",
   }));
 ```
 

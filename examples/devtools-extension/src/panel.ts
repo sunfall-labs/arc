@@ -1,5 +1,5 @@
 import { Data } from "effect";
-import { bootDevtoolsPanels, interruptDevtoolsPanelBoot } from "@effect-ui/devtools";
+import { bootDevtoolsPanels, interruptDevtoolsPanelBoot } from "@sunfall/arc-devtools";
 import { sampleDevtoolsPanels } from "./sample.js";
 import { type ChromeInspectedWindowApi } from "./transport.js";
 import { panelTitle, pollInspectedWindowEffect } from "./panel-runtime.js";

@@ -5,7 +5,7 @@ import {
   browserRouterLinkPreloadIdentity,
   isPlainLeftClick as coreIsPlainLeftClick,
   makeBrowserRouterLinkPreloader,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { createMemo, createRenderEffect, onCleanup, splitProps, type JSX } from "solid-js";
 import { createComponent, Dynamic, type DynamicProps } from "solid-js/web";
 import { useRouter } from "./router.js";

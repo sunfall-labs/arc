@@ -16,11 +16,11 @@ import {
   useRouter,
   useRuntimeEffect,
   watch,
-} from "@effect-ui/solid";
-import { Form, type EffectUiRuntime } from "@effect-ui/core";
-import type { CollectionRow } from "@effect-ui/db";
-import { useCollection } from "@effect-ui/solid-db";
-import { StartAction, startActionInputField, startActionNameField } from "@effect-ui/start";
+} from "@sunfall/arc-solid";
+import { Form, type SunfallArcRuntime } from "@sunfall/arc-core";
+import type { CollectionRow } from "@sunfall/arc-db";
+import { useCollection } from "@sunfall/arc-solid-db";
+import { StartAction, startActionInputField, startActionNameField } from "@sunfall/arc-start";
 import { Effect, Schema } from "effect";
 import { For, Show, createEffect, onMount } from "solid-js";
 import { isServer } from "solid-js/web";
@@ -55,7 +55,7 @@ const ProjectUiRoute = Route.withComponent(ProjectRoute, ProjectRouteView);
 const routes = [HomeUiRoute, ProjectsUiRoute, ProjectUiRoute] as const;
 type AppRoutes = typeof routes;
 type ProjectConsoleRuntime<RuntimeServices = ProjectApi> = [ProjectApi] extends [RuntimeServices]
-  ? EffectUiRuntime<RuntimeServices, never>
+  ? SunfallArcRuntime<RuntimeServices, never>
   : never;
 type ProjectSummaryRow = CollectionRow<ProjectSummary, ProjectId>;
 type ProjectNameSubmissionClientResult = StartAction.Result<typeof SubmitProjectName>;
@@ -136,7 +136,7 @@ const SaveIcon = () => (
 );
 
 export default function App<RuntimeServices = ProjectApi>(props: AppProps<RuntimeServices> = {}) {
-  const runtime = (props.runtime ?? app.runtime) as EffectUiRuntime<
+  const runtime = (props.runtime ?? app.runtime) as SunfallArcRuntime<
     ProjectApi | RuntimeServices,
     never
   >;
@@ -186,13 +186,13 @@ function AppShell() {
     const router = useRouter<AppRoutes>();
     const runEffect = useRuntimeEffect();
     const presence = useStream(makePresenceStream(), initialPresence);
-    const title = Signal.make("Effect UI Project Console");
+    const title = Signal.make("Sunfall Arc Project Console");
 
     createEffect(() => {
       const id = projectIdFromMatch(router.match());
       Signal.set(
         title,
-        id ? `${id} · Effect UI Project Console` : "Projects · Effect UI Project Console",
+        id ? `${id} · Sunfall Arc Project Console` : "Projects · Sunfall Arc Project Console",
       );
     });
 
@@ -222,7 +222,7 @@ function AppShell() {
           <div class="brandBlock">
             <div class="brandMark">E</div>
             <div>
-              <p class="eyebrow">Effect UI</p>
+              <p class="eyebrow">Sunfall Arc</p>
               <h1>Project Console</h1>
             </div>
           </div>

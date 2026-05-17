@@ -28,7 +28,7 @@ Last evidence pass: May 17, 2026.
     listener `EPERM`; the approved rerun completed package build, typecheck,
     type tests, runtime tests, example typecheck/tests/build, and leak scan.
 - [x] Friendly comparison blog post exists with code examples.
-  - Evidence: [`docs/effect-ui-framework-comparison.md`](./effect-ui-framework-comparison.md).
+  - Evidence: [`docs/sunfall-arc-framework-comparison.md`](./sunfall-arc-framework-comparison.md).
 - [x] The work stayed scoped.
   - Evidence: implementation edits were limited to Start request tracing,
     devtools request-trace summaries/causal graph support, type coverage, and
@@ -136,7 +136,7 @@ Last evidence pass: May 17, 2026.
   - Evidence: `prefetchEffect`, `refreshEffect`, `submitEffect`,
     `createRequestHandlerEffect`/`createRequestHandler`, collection `*Effect`
     APIs, adapter `*Effect` APIs, and the Start diagnostics CLI's public
-    `@effect-ui/start/cli` `runStartDiagnosticsCliEffect` export are covered by
+    `@sunfall/arc-start/cli` `runStartDiagnosticsCliEffect` export are covered by
     source exports and tests.
 - [x] Promise boundaries are documented as host/platform adapters.
   - Evidence: `docs/effect-style.md`, `docs/architecture.md`, and
@@ -154,7 +154,7 @@ Last evidence pass: May 17, 2026.
       boundary.
   - Evidence: `packages/core/src/action.ts` and `packages/core/src/resource.ts`
     pass `Fiber.join`, interruption, in-flight refresh, and workflow Effects
-    directly through `EffectUiRuntime` methods.
+    directly through `SunfallArcRuntime` methods.
 - [x] Program runtime errors preserve Runtime Spine failures.
   - Evidence: `packages/core/src/program.ts`, `packages/solid/src/hooks.ts`,
     `packages/react/src/hooks.ts`, and `type-tests/framework.test-d.ts` keep
@@ -497,7 +497,7 @@ bodies close` verifies the lifecycle.
       guidance.
   - Evidence: `prints an agent-readable Start diagnostics repair report`.
 - [x] App graph artifacts are consumable by CI, devtools, tests, and agents.
-  - Evidence: `loadStartAppGraphDiagnostics(...)`, `effect-ui-start
+  - Evidence: `loadStartAppGraphDiagnostics(...)`, `sunfall-arc-start
 diagnostics`, devtools summary tests, and generated virtual modules.
 - [x] Start diagnostics CLI command vocabulary has one Effect v4 source of truth.
   - Evidence: `packages/start/src/start-diagnostics-cli-contract.ts` feeds
@@ -538,10 +538,10 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     interruption payloads.
 - [x] Request traces include services, request context, response context,
       resources, collections, fibers, streams, and teardown.
-  - Progress: `@effect-ui/devtools` now exposes a structured
+  - Progress: `@sunfall/arc-devtools` now exposes a structured
     `DevtoolsRequestTrace` data contract, store recording API, summary, and
     causal graph integration.
-  - Progress: `@effect-ui/start` request handlers now emit a structurally
+  - Progress: `@sunfall/arc-start` request handlers now emit a structurally
     compatible trace through `onRequestTrace` for SSR, server RPC, Start
     actions, response stream close, response stream cancellation, and request
     failure paths.
@@ -628,12 +628,12 @@ diagnostics`, devtools summary tests, and generated virtual modules.
 - [x] `docs/winning-spec.md` reflects current execution goals and success
       metrics.
 - [x] `docs/architecture.md` matches implementation reality.
-- [x] `docs/effect-style.md` explains idiomatic Effect UI code.
+- [x] `docs/effect-style.md` explains idiomatic Sunfall Arc code.
 - [x] `docs/invariants.md` captures non-negotiable product guarantees.
 - [x] `docs/competitiveness.md` explains the competitive and winning bars.
 - [x] `docs/devtools.md` documents observable facts and target panels.
 - [x] `docs/migration-notes.md` maps common source-framework patterns onto the
-      Effect UI golden path.
+      Sunfall Arc golden path.
 - [x] `docs/release-notes.md` records the current stable, experimental, and
       limited surfaces.
 - [x] `docs/db.md` explains collections, live queries, persistence, sync, and
@@ -676,19 +676,16 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     generated app graph/route tree artifacts.
 - [x] Friendly comparison blog post explains the current position against
       top-tier frameworks with code examples.
-  - Evidence: [`docs/effect-ui-framework-comparison.md`](./effect-ui-framework-comparison.md).
+  - Evidence: [`docs/sunfall-arc-framework-comparison.md`](./sunfall-arc-framework-comparison.md).
 
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 492 passed focused Core/React/Solid/Start/
-    TSRX tests 6 files / 113 tests, `pnpm --filter @effect-ui/core build`,
-    `pnpm typecheck`, `pnpm audit:effect-first` over 449 files,
-    `pnpm audit:public-api`, `pnpm verify:package-payload-policy`, and
-    `pnpm --filter @effect-ui/example-docs-site verify` while closing the
-    route Suspense runtime, initial Ready hydration preload, prerender
-    callback, resource GC timer, and TSRX dev-server policy work. Latest full
-    verification evidence is Review 492.
+  - Latest focused evidence: Review 493 passed focused Start prerender tests,
+    Start package typecheck, public API inventory audit, Effect-first audit,
+    targeted format checks, and `git diff --check` while closing the
+    prerender server release failure and current evidence policy work. Latest
+    full verification evidence is Review 492.
     Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
     sweeps found Review191, Review192, Review193, Review194, Review195, and
     Review196, Review197, Review198, Review199, Review200, Review201,
@@ -756,9 +753,10 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     found Review247 Scope cleanup capture and namespace public pin work, the
     dirty-lane follow-up found Review490 lazy route Effect Interface and
     formatter-tolerant inventory work, the fresh post-Review490 sweep found
-    Review491 prerender Effect Interface and lazy route probe work, and the
-    fresh post-Review491 sweep found Review492 route Suspense runtime and
-    prerender callback pin work,
+    Review491 prerender Effect Interface and lazy route probe work, the fresh
+    post-Review491 sweep found Review492 route Suspense runtime and prerender
+    callback pin work, and the fresh post-Review492 sweep found Review493
+    prerender server release and current evidence policy work,
     leaving the active counter at 0/30.
     Latest full evidence:
     `pnpm verify` ran after Review 492 with 58 root
@@ -888,7 +886,7 @@ diagnostics`, devtools summary tests, and generated virtual modules.
 - [x] Changed packages/docs/examples listed.
   - Evidence: changed docs include `README.md`,
     `docs/ultimate-goal-prompt.md`, `docs/ultimate-goal-checklist.md`,
-    `docs/effect-ui-framework-comparison.md`,
+    `docs/sunfall-arc-framework-comparison.md`,
     `docs/framework-perfection-charter.md`,
     `docs/public-api-inventory.md`, `docs/perfection-progress.md`,
     `docs/effect-first-audit.md`, and
@@ -921,10 +919,10 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     17-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 492 records focused Core/React/Solid/Start/TSRX tests,
-    workspace typecheck, Effect-first audit, public API audit, package policy,
-    docs-site verify, and full `pnpm verify` after closing route Suspense
-    runtime and prerender callback findings. Review492 records the latest full gate. Clean
+  - Evidence: Review 493 records focused Start prerender tests, Start
+    typecheck, public API inventory audit, Effect-first audit, targeted format
+    checks, and diff hygiene after closing prerender server release and current
+    evidence policy findings. Review492 records the latest full gate. Clean
     Sweep 1 after
     Review190 remains historical 1/30 evidence, but later sweeps found
     Review191, Review192, Review193, Review194, Review195, Review196,
@@ -989,9 +987,10 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     found Review247 Scope cleanup capture and namespace public pin work, the
     dirty-lane follow-up found Review490 lazy route Effect Interface and
     formatter-tolerant inventory work, the fresh post-Review490 sweep found
-    Review491 prerender Effect Interface and lazy route probe work, and the
-    fresh post-Review491 sweep found Review492 route Suspense runtime and
-    prerender callback pin work,
+    Review491 prerender Effect Interface and lazy route probe work, the fresh
+    post-Review491 sweep found Review492 route Suspense runtime and prerender
+    callback pin work, and the fresh post-Review492 sweep found Review493
+    prerender server release and current evidence policy work,
     leaving the active counter at 0/30.
     Full verification is recorded in the latest full gate above.
 
@@ -999,7 +998,7 @@ diagnostics`, devtools summary tests, and generated virtual modules.
 
 - [x] Turn the documented devtools target panels into an actual browser or app
       UI once the trace payload is stable.
-  - Evidence: `@effect-ui/devtools` now exposes deterministic HTML rendering
+  - Evidence: `@sunfall/arc-devtools` now exposes deterministic HTML rendering
     and an Effect-scoped DOM mount helper for the `DevtoolsPanels` contract.
 - [x] Integrate the browser panel renderer into a dedicated app shell.
   - Evidence: `examples/devtools-panel` mounts the renderer in a Vite app shell
@@ -1008,13 +1007,13 @@ diagnostics`, devtools summary tests, and generated virtual modules.
   - Evidence: `examples/devtools-extension` builds a Manifest V3 devtools page
     and panel page around the public renderer, verifies panel registration and
     manifest shape, reads live inspected-page payloads from
-    `globalThis.__EFFECT_UI_DEVTOOLS__` when present, and
+    `globalThis.__SUNFALL_ARC_DEVTOOLS__` when present, and
     `pnpm devtools-extension:verify` passed.
 - [x] Add copyable starter-suite packaging.
   - Evidence: `scripts/package-project-console-starter.mjs` generates
     `.test-dist/starters/basic`, `.test-dist/starters/react`, and
     `.test-dist/starters/project-console`, rewrites workspace protocol
-    dependencies to local `.effect-ui-packages/*` file dependencies, removes
+    dependencies to local `.sunfall-arc-packages/*` file dependencies, removes
     monorepo Vite aliases, writes standalone `tsconfig.json` files, verifies app
     manifests, runs isolated non-workspace installs, and executes generated
     `verify` scripts through `pnpm starter:package`.
@@ -1022,7 +1021,7 @@ diagnostics`, devtools summary tests, and generated virtual modules.
       needed beyond the generic Node/fetch facades.
   - Evidence: current Node/fetch deployment guidance exists in
     `docs/deployment.md`, tested Node/fetch adapter facades exist as
-    `@effect-ui/start-node` and `@effect-ui/start-fetch`, and
+    `@sunfall/arc-start-node` and `@sunfall/arc-start-fetch`, and
     Cloudflare/Vercel Edge/Netlify Edge/Bun/static recipes exist in
     `docs/deployment.md`; platform-specific packages with behavior beyond the
     generic Node/fetch facades remain future work.

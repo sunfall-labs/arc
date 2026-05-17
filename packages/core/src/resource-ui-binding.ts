@@ -1,5 +1,5 @@
 import { Effect, Fiber } from "effect";
-import type { AnyEffectUiRuntime } from "./runtime.js";
+import type { AnySunfallArcRuntime } from "./runtime.js";
 import { runWithRuntime } from "./runtime.js";
 import type { EffectInput } from "./effect-like.js";
 import { invokeEffectInput } from "./effect-like.js";
@@ -67,7 +67,7 @@ export interface ResourceUiAutoPreloadOptions<E, ER> {
 /** Options for a Resource UI Binding Controller. */
 export interface ResourceUiBindingControllerOptions<I, A, E, R, ER> {
   /** Runtime Spine used to provide services and Resource Store state. */
-  readonly runtime: AnyEffectUiRuntime<ER>;
+  readonly runtime: AnySunfallArcRuntime<ER>;
   /** Adapter callback used to bridge keyed preload failures into host reactivity. */
   readonly onPreloadFailureChange?: (
     failure: ResourceUiPreloadFailure<I, A, E, R, ER> | undefined,
@@ -202,7 +202,7 @@ export const resourceUiMatchState = <A, E, B>(
 
 /** Binds a Resource Effect to the adapter runtime that owns Resource Store state. */
 export const resourceUiBindRuntimeEffect = <A, E, R, ER>(
-  runtime: AnyEffectUiRuntime<ER>,
+  runtime: AnySunfallArcRuntime<ER>,
   effect: Effect.Effect<A, E, R>,
 ): Effect.Effect<A, E | ER> => Effect.scoped(runtime.provide(effect));
 
@@ -428,7 +428,7 @@ export const makeResourceUiSuspensePreloadController = <
   ER = never,
   Token = unknown,
 >(
-  runtime: AnyEffectUiRuntime<ER>,
+  runtime: AnySunfallArcRuntime<ER>,
 ): ResourceUiSuspensePreloadController<I, A, E, R, ER, Token> => {
   let preload:
     | {

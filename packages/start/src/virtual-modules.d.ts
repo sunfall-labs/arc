@@ -1,4 +1,4 @@
-declare module "virtual:effect-ui/server-functions" {
+declare module "virtual:sunfall-arc/server-functions" {
   /** Generated server-function manifest discovered by the Start Vite plugin. */
   export type ServerFunctionManifest =
     import("./server-function-manifest.js").ServerFunctionManifest;
@@ -13,7 +13,7 @@ declare module "virtual:effect-ui/server-functions" {
   export default manifest;
 }
 
-declare module "virtual:effect-ui/actions" {
+declare module "virtual:sunfall-arc/actions" {
   /** Generated action manifest discovered by the Start Vite plugin. */
   export type ActionManifest = import("./action-manifest.js").ActionManifest;
   /** One action manifest entry, including server/client modules and behavior facts. */
@@ -26,7 +26,7 @@ declare module "virtual:effect-ui/actions" {
   export default manifest;
 }
 
-declare module "virtual:effect-ui/file-routes" {
+declare module "virtual:sunfall-arc/file-routes" {
   /** Generated file-route manifest discovered by the Start Vite plugin. */
   export type FileRouteManifest = import("./file-routes.js").FileRouteManifest;
   /** One route entry in the generated file-route manifest. */
@@ -41,7 +41,7 @@ declare module "virtual:effect-ui/file-routes" {
   export default manifest;
 }
 
-declare module "virtual:effect-ui/routes" {
+declare module "virtual:sunfall-arc/routes" {
   /**
    * Generated route definitions discovered by the Vite plugin.
    *
@@ -50,7 +50,7 @@ declare module "virtual:effect-ui/routes" {
    * Use the written `routeTree.gen.ts` artifact when an app needs precise
    * route-id, path, params, search, and href-option unions in editor hovers.
    */
-  export const routes: readonly import("@effect-ui/core").Route.Definition<
+  export const routes: readonly import("@sunfall/arc-core").Route.Definition<
     string,
     unknown,
     unknown,
@@ -60,28 +60,28 @@ declare module "virtual:effect-ui/routes" {
   export const routeTree: typeof routes;
   /** Broad virtual map keyed by generated route id. */
   export const routeById: Readonly<
-    Record<string, import("@effect-ui/core").Route.Definition<string, unknown, unknown, any>>
+    Record<string, import("@sunfall/arc-core").Route.Definition<string, unknown, unknown, any>>
   >;
   /** Broad virtual map keyed by route path. */
   export const routeByPath: Readonly<
-    Record<string, import("@effect-ui/core").Route.Definition<string, unknown, unknown, any>>
+    Record<string, import("@sunfall/arc-core").Route.Definition<string, unknown, unknown, any>>
   >;
   /** Broad virtual map from route path to generated route id. */
   export const routeIdByPath: Readonly<Record<string, string>>;
   /** Builds a typed href for a virtual route id. Written generated files narrow this per app. */
   export const hrefById: <Id extends RouteId>(
     id: Id,
-    ...args: import("@effect-ui/core").Route.HrefArgs<RouteById[Id]>
+    ...args: import("@sunfall/arc-core").Route.HrefArgs<RouteById[Id]>
   ) => string;
   /** Builds a typed href for a virtual route path. Written generated files narrow this per app. */
   export const hrefByPath: <Path extends RoutePath>(
     path: Path,
-    ...args: import("@effect-ui/core").Route.HrefArgs<RouteByPath[Path]>
+    ...args: import("@sunfall/arc-core").Route.HrefArgs<RouteByPath[Path]>
   ) => string;
   /** Narrows a broad route match to one virtual route path pattern. */
   export const isRoutePathMatch: <Path extends RoutePath>(
     path: Path,
-    match: import("@effect-ui/core").Route.Match<FileRoute> | undefined,
+    match: import("@sunfall/arc-core").Route.Match<FileRoute> | undefined,
   ) => match is FileRouteMatch<Path>;
   /** Layout modules scoped to each generated route id. */
   export const fileRouteLayoutsById: Readonly<
@@ -135,50 +135,50 @@ declare module "virtual:effect-ui/routes" {
   export type FileRouteByPath = RouteByPath;
   /** Params mapped by route id. Written generated files narrow this per app. */
   export type FileRouteParamsById = {
-    readonly [Id in FileRouteId]: import("@effect-ui/core").Route.Params<RouteById[Id]>;
+    readonly [Id in FileRouteId]: import("@sunfall/arc-core").Route.Params<RouteById[Id]>;
   };
   /** Search values mapped by route id. Written generated files narrow this per app. */
   export type FileRouteSearchById = {
-    readonly [Id in FileRouteId]: import("@effect-ui/core").Route.Search<RouteById[Id]>;
+    readonly [Id in FileRouteId]: import("@sunfall/arc-core").Route.Search<RouteById[Id]>;
   };
   /** Href options mapped by route id. Written generated files narrow this per app. */
   export type FileRouteHrefOptionsById = {
-    readonly [Id in FileRouteId]: import("@effect-ui/core").Route.HrefOptions<RouteById[Id]>;
+    readonly [Id in FileRouteId]: import("@sunfall/arc-core").Route.HrefOptions<RouteById[Id]>;
   };
   /** Href options for one virtual route id. */
   export type FileRouteHrefOptions<Id extends FileRouteId> = FileRouteHrefOptionsById[Id];
   /** Href arguments mapped by route id. Written generated files narrow this per app. */
   export type FileRouteHrefArgsById = {
-    readonly [Id in FileRouteId]: import("@effect-ui/core").Route.HrefArgs<RouteById[Id]>;
+    readonly [Id in FileRouteId]: import("@sunfall/arc-core").Route.HrefArgs<RouteById[Id]>;
   };
   /** Href arguments for one virtual route id. */
   export type FileRouteHrefArgs<Id extends FileRouteId> = FileRouteHrefArgsById[Id];
   /** Params mapped by route path. Written generated files narrow this per app. */
   export type FileRouteParamsByPath = {
-    readonly [Path in keyof FileRouteByPath]: import("@effect-ui/core").Route.Params<
+    readonly [Path in keyof FileRouteByPath]: import("@sunfall/arc-core").Route.Params<
       FileRouteByPath[Path]
     >;
   };
   /** Search values mapped by route path. Written generated files narrow this per app. */
   export type FileRouteSearchByPath = {
-    readonly [Path in keyof FileRouteByPath]: import("@effect-ui/core").Route.Search<
+    readonly [Path in keyof FileRouteByPath]: import("@sunfall/arc-core").Route.Search<
       FileRouteByPath[Path]
     >;
   };
   /** Href options mapped by route path. Written generated files narrow this per app. */
   export type FileRouteHrefOptionsByPath = {
-    readonly [Path in keyof FileRouteByPath]: import("@effect-ui/core").Route.HrefOptions<
+    readonly [Path in keyof FileRouteByPath]: import("@sunfall/arc-core").Route.HrefOptions<
       FileRouteByPath[Path]
     >;
   };
   /** Href arguments mapped by route path. Written generated files narrow this per app. */
   export type FileRouteHrefArgsByPath = {
-    readonly [Path in keyof FileRouteByPath]: import("@effect-ui/core").Route.HrefArgs<
+    readonly [Path in keyof FileRouteByPath]: import("@sunfall/arc-core").Route.HrefArgs<
       FileRouteByPath[Path]
     >;
   };
   /** Route match narrowed to one virtual route path pattern. */
-  export type FileRouteMatch<Path extends FileRoutePath> = import("@effect-ui/core").Route.Match<
+  export type FileRouteMatch<Path extends FileRoutePath> = import("@sunfall/arc-core").Route.Match<
     FileRouteByPath[Path]
   >;
   /** Layout modules keyed by virtual route id. */
@@ -226,7 +226,7 @@ declare module "virtual:effect-ui/routes" {
   export default routes;
 }
 
-declare module "virtual:effect-ui/app-graph" {
+declare module "virtual:sunfall-arc/app-graph" {
   /** Static app graph generated from file routes, server functions, and actions. */
   export type StartAppGraph = import("./app-graph.js").StartAppGraph;
   /** Static diagnostics projected from generated manifests only. */
@@ -250,7 +250,7 @@ declare module "virtual:effect-ui/app-graph" {
   export default graph;
 }
 
-declare module "virtual:effect-ui/app-graph/runtime-diagnostics" {
+declare module "virtual:sunfall-arc/app-graph/runtime-diagnostics" {
   /** Static app graph generated from file routes, server functions, and actions. */
   export type StartAppGraph = import("./app-graph.js").StartAppGraph;
   /** Runtime diagnostics layered onto the generated app graph. */

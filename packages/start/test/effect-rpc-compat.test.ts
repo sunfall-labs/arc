@@ -1,4 +1,4 @@
-import { Server } from "@effect-ui/core";
+import { Server } from "@sunfall/arc-core";
 import { Effect, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import {
@@ -17,7 +17,7 @@ describe("Effect Rpc compatibility", () => {
       input: GetProjectInput,
       output: GetProjectOutput,
       error: GetProjectError,
-      handler: () => ({ name: "Effect UI" }),
+      handler: () => ({ name: "Sunfall Arc" }),
     });
 
     const rpc = serverFunctionToEffectRpc(getProject);
@@ -70,7 +70,7 @@ describe("Effect Rpc compatibility", () => {
               outputSchema: true,
             },
           ],
-          { rpcPath: "/__effect-ui/test-rpc" },
+          { rpcPath: "/__sunfall-arc/test-rpc" },
         );
 
         yield* Effect.sync(() => {
@@ -79,7 +79,7 @@ describe("Effect Rpc compatibility", () => {
             primitive: "effect/unstable/rpc",
             endpoint: {
               method: "POST",
-              path: "/__effect-ui/test-rpc",
+              path: "/__sunfall-arc/test-rpc",
               requestMediaType: "application/json",
               responseMediaType: "application/json",
               protocolVersion: "1",

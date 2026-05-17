@@ -1,22 +1,22 @@
-import { effectUiTsrx } from "@effect-ui/tsrx";
+import { sunfallArcTsrx } from "@sunfall/arc-tsrx";
 import { defineConfig } from "vite";
-import { effectUiStart } from "../../packages/start/src/vite.js";
+import { sunfallArcStart } from "../../packages/start/src/vite.js";
 import { docsSiteStartOptions } from "./src/start-options.js";
 
 const fromRoot = (path: string): string => new URL(`../../${path}`, import.meta.url).pathname;
 
 export default defineConfig({
-  plugins: [...effectUiTsrx({ solid: { ssr: true } }), effectUiStart(docsSiteStartOptions)],
+  plugins: [...sunfallArcTsrx({ solid: { ssr: true } }), sunfallArcStart(docsSiteStartOptions)],
   build: {
     manifest: true,
   },
   resolve: {
     alias: [
-      { find: "@effect-ui/core", replacement: fromRoot("packages/core/src/index.ts") },
-      { find: "@effect-ui/solid", replacement: fromRoot("packages/solid/src/index.ts") },
-      { find: "@effect-ui/start/vite", replacement: fromRoot("packages/start/src/vite.ts") },
-      { find: "@effect-ui/start", replacement: fromRoot("packages/start/src/index.ts") },
-      { find: "@effect-ui/tsrx", replacement: fromRoot("packages/tsrx/src/index.ts") },
+      { find: "@sunfall/arc-core", replacement: fromRoot("packages/core/src/index.ts") },
+      { find: "@sunfall/arc-solid", replacement: fromRoot("packages/solid/src/index.ts") },
+      { find: "@sunfall/arc-start/vite", replacement: fromRoot("packages/start/src/vite.ts") },
+      { find: "@sunfall/arc-start", replacement: fromRoot("packages/start/src/index.ts") },
+      { find: "@sunfall/arc-tsrx", replacement: fromRoot("packages/tsrx/src/index.ts") },
     ],
   },
 });

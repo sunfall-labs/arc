@@ -1,5 +1,5 @@
 import { Data, Effect } from "effect";
-import { invokeEffectInput, isPromiseLikeValue, type EffectInput } from "@effect-ui/core";
+import { invokeEffectInput, isPromiseLikeValue, type EffectInput } from "@sunfall/arc-core";
 import {
   createStartAgentGraph,
   createStartAgentGraphImpact,
@@ -273,8 +273,8 @@ export const runStartDiagnosticsCliCommandEffect = (
         "stderr",
         stderr,
         report === undefined
-          ? `Effect UI Start diagnostics failed: ${payload.message}`
-          : `Effect UI Start diagnostics failed: ${payload.message}\n\n${formatStartDiagnosticsReport(report)}`,
+          ? `Sunfall Arc Start diagnostics failed: ${payload.message}`
+          : `Sunfall Arc Start diagnostics failed: ${payload.message}\n\n${formatStartDiagnosticsReport(report)}`,
       );
     }
     return { exitCode: 1 };

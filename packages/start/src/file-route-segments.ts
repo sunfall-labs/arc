@@ -5,7 +5,7 @@ import {
   routePathSlug,
   type RoutePathParam,
   type RoutePathSegment,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 import { Data, Effect, Exit } from "effect";
 
 export type ParsedFileRouteSegment =

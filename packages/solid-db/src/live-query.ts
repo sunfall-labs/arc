@@ -6,9 +6,9 @@ import {
   type LiveQuery,
   type LiveQueryState,
   type QueryEvaluationError,
-} from "@effect-ui/db";
-import type { EffectInput } from "@effect-ui/core";
-import { useRuntime } from "@effect-ui/solid";
+} from "@sunfall/arc-db";
+import type { EffectInput } from "@sunfall/arc-core";
+import { useRuntime } from "@sunfall/arc-solid";
 import { Effect } from "effect";
 import { createMemo, type Accessor } from "solid-js";
 import {

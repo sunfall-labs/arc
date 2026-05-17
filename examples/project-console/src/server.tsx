@@ -1,10 +1,10 @@
-import { defineApp } from "@effect-ui/core";
-import { RuntimeProvider } from "@effect-ui/solid";
+import { defineApp } from "@sunfall/arc-core";
+import { RuntimeProvider } from "@sunfall/arc-solid";
 import {
   createStartStreamedHtmlResponseEffect,
   createRequestHandler,
   htmlChunk,
-} from "@effect-ui/start";
+} from "@sunfall/arc-start";
 import { Effect, Layer, Stream } from "effect";
 import { createComponent, generateHydrationScript, renderToString } from "solid-js/web";
 import App from "./App.js";
@@ -33,7 +33,7 @@ const shellOpen = (options: {
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="effect-ui-start-graph" content="${projectConsoleStartGraphHeader}" />
+    <meta name="sunfall-arc-start-graph" content="${projectConsoleStartGraphHeader}" />
     <title>${options.title}</title>
     ${options.solidHydrationScript}
   </head>
@@ -61,8 +61,8 @@ export const handleRequest = createRequestHandler(serverApp, {
         }),
       );
       const title = isRoutePathMatch("/projects/:id", match)
-        ? `${match.params.id} · Effect UI Project Console`
-        : "Effect UI Project Console";
+        ? `${match.params.id} · Sunfall Arc Project Console`
+        : "Sunfall Arc Project Console";
       return yield* createStartStreamedHtmlResponseEffect({
         shell: htmlChunk(
           shellOpen({
@@ -74,9 +74,9 @@ export const handleRequest = createRequestHandler(serverApp, {
         hydrationPlan,
         tail: htmlChunk(shellClose(hydrationPlan.root.script)),
         headers: {
-          "x-effect-ui-render": "streaming",
-          "x-effect-ui-start-graph": projectConsoleStartGraphHeader,
-          "x-effect-ui-start-routes": projectConsoleStartGraphSummary.routes.join(","),
+          "x-sunfall-arc-render": "streaming",
+          "x-sunfall-arc-start-graph": projectConsoleStartGraphHeader,
+          "x-sunfall-arc-start-routes": projectConsoleStartGraphSummary.routes.join(","),
         },
       });
     });

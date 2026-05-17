@@ -1,4 +1,4 @@
-# Effect UI Devtools Panel
+# Sunfall Arc Devtools Panel
 
 This example is the checked app-shell integration for the browser-embeddable
 devtools renderer.
@@ -6,13 +6,13 @@ devtools renderer.
 Run it locally:
 
 ```sh
-pnpm --filter @effect-ui/example-devtools-panel dev
+pnpm --filter @sunfall/arc-example-devtools-panel dev
 ```
 
 Verify it:
 
 ```sh
-pnpm --filter @effect-ui/example-devtools-panel verify
+pnpm --filter @sunfall/arc-example-devtools-panel verify
 ```
 
 The example mounts `DevtoolsPanels` into the DOM through

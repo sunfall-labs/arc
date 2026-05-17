@@ -34,7 +34,7 @@ const selfTestFailures = [];
 const packagePayloadPolicies = new Map([
   ...workspaceDistPackagePayloadPolicies,
   [
-    "@effect-ui/example-devtools-extension",
+    "@sunfall/arc-example-devtools-extension",
     {
       payload: "source-package",
       requiresGitignore: true,
@@ -54,7 +54,7 @@ const packagePayloadPolicies = new Map([
     },
   ],
   [
-    "@effect-ui/example-devtools-panel",
+    "@sunfall/arc-example-devtools-panel",
     {
       payload: "source-package",
       requiresGitignore: true,
@@ -70,7 +70,7 @@ const packagePayloadPolicies = new Map([
     },
   ],
   [
-    "@effect-ui/example-docs-site",
+    "@sunfall/arc-example-docs-site",
     {
       payload: "source-package",
       requiresGitignore: true,
@@ -285,7 +285,7 @@ const assertSourcePackageManifestPolicy = (
 };
 
 const validDistPackageSelfTest = {
-  label: "@effect-ui/self-test",
+  label: "@sunfall/arc-self-test",
   payload: "dist-package",
   packageJson: {
     license: "MIT",
@@ -334,7 +334,7 @@ assertManifestMetadataPolicy(
 assertManifestMetadataPolicy(
   "source package missing gitignore",
   {
-    label: "@effect-ui/source-self-test",
+    label: "@sunfall/arc-source-self-test",
     payload: "source-package",
     requiresGitignore: true,
     packageJson: {
@@ -349,7 +349,7 @@ assertManifestMetadataPolicy(
 assertManifestMetadataPolicy(
   "source package missing verify script",
   {
-    label: "@effect-ui/source-self-test",
+    label: "@sunfall/arc-source-self-test",
     payload: "source-package",
     packageJson: {
       private: true,
@@ -363,7 +363,7 @@ assertManifestMetadataPolicy(
 assertManifestMetadataPolicy(
   "source package missing private flag",
   {
-    label: "@effect-ui/source-self-test",
+    label: "@sunfall/arc-source-self-test",
     payload: "source-package",
     packageJson: {
       license: "MIT",
@@ -375,7 +375,7 @@ assertManifestMetadataPolicy(
 );
 
 const sourcePackageSelfTest = {
-  label: "@effect-ui/source-self-test",
+  label: "@sunfall/arc-source-self-test",
   payload: "source-package",
   requiredFiles: ["README.md", "index.html", "src/main.ts"],
   requiredDirectories: ["src"],
@@ -562,16 +562,16 @@ const collectSourcePackageFiles = (target) =>
   });
 
 const verifyStartCliSymlinkBinEffect = (target) => {
-  if (target.label !== "@effect-ui/start") {
+  if (target.label !== "@sunfall/arc-start") {
     return Effect.void;
   }
 
   return Effect.gen(function* () {
-    const binTarget = target.packageJson.bin?.["effect-ui-start"];
+    const binTarget = target.packageJson.bin?.["sunfall-arc-start"];
     if (!isNonEmptyString(binTarget)) {
       return yield* Effect.fail(
         fail(
-          "@effect-ui/start package.json is missing the effect-ui-start bin target.",
+          "@sunfall/arc-start package.json is missing the sunfall-arc-start bin target.",
           "Keep the diagnostics CLI bin declared so package-manager installs expose the Start diagnostics command.",
         ),
       );
@@ -579,26 +579,26 @@ const verifyStartCliSymlinkBinEffect = (target) => {
 
     const cliPath = join(target.directory, binTarget);
     const tempDirectory = yield* fsEffect(
-      "create effect-ui-start symlink bin check directory",
-      () => mkdtemp(join(tmpdir(), "effect-ui-start-bin-")),
+      "create sunfall-arc-start symlink bin check directory",
+      () => mkdtemp(join(tmpdir(), "sunfall-arc-start-bin-")),
     );
 
     return yield* Effect.gen(function* () {
-      const linkedBin = join(tempDirectory, "effect-ui-start");
-      yield* fsEffect("create effect-ui-start bin symlink", () =>
+      const linkedBin = join(tempDirectory, "sunfall-arc-start");
+      yield* fsEffect("create sunfall-arc-start bin symlink", () =>
         symlink(cliPath, linkedBin, "file"),
       );
 
       const { stdout } = yield* commandEffect(
-        "@effect-ui/start symlinked CLI bin version check",
+        "@sunfall/arc-start symlinked CLI bin version check",
         process.platform === "win32" ? process.execPath : linkedBin,
         process.platform === "win32" ? [linkedBin, "--version"] : ["--version"],
       );
-      const expected = `effect-ui-start v${target.packageJson.version}`;
+      const expected = `sunfall-arc-start v${target.packageJson.version}`;
       if (stdout.trim() !== expected) {
         return yield* Effect.fail(
           fail(
-            "@effect-ui/start symlinked CLI bin did not execute.",
+            "@sunfall/arc-start symlinked CLI bin did not execute.",
             [
               "Keep the CLI main-module guard resilient to package-manager symlink entrypoints.",
               `Expected stdout: ${expected}`,
@@ -622,7 +622,7 @@ const verifyStartCliSymlinkBinEffect = (target) => {
       ).pipe(
         Effect.mapError((result) =>
           fail(
-            "@effect-ui/start symlinked CLI invalid subcommand unexpectedly succeeded.",
+            "@sunfall/arc-start symlinked CLI invalid subcommand unexpectedly succeeded.",
             [
               "Usage errors must keep a non-zero process exit code through the Effect main-runner teardown.",
               result.stdout.trim() === "" ? "stdout was empty." : `stdout: ${result.stdout.trim()}`,
@@ -639,7 +639,7 @@ const verifyStartCliSymlinkBinEffect = (target) => {
       ) {
         return yield* Effect.fail(
           fail(
-            "@effect-ui/start symlinked CLI invalid subcommand did not fail with usage semantics.",
+            "@sunfall/arc-start symlinked CLI invalid subcommand did not fail with usage semantics.",
             [
               "Keep Effect CLI parse failures mapped to process exit code 1.",
               `Exit code: ${invalidCommandError.code}`,
@@ -656,7 +656,7 @@ const verifyStartCliSymlinkBinEffect = (target) => {
       }
     }).pipe(
       Effect.ensuring(
-        fsEffect("remove effect-ui-start symlink bin check directory", () =>
+        fsEffect("remove sunfall-arc-start symlink bin check directory", () =>
           rm(tempDirectory, { recursive: true, force: true }),
         ).pipe(Effect.catchCause(() => Effect.void)),
       ),

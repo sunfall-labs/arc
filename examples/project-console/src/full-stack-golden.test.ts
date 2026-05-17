@@ -5,17 +5,17 @@ import {
   ResponseContext,
   route,
   Server,
-  type AnyEffectUiRuntime,
-  type EffectUiRuntime,
-} from "@effect-ui/core";
-import { Collection } from "@effect-ui/db";
+  type AnySunfallArcRuntime,
+  type SunfallArcRuntime,
+} from "@sunfall/arc-core";
+import { Collection } from "@sunfall/arc-db";
 import {
   createRequestHandler,
   serverActionPath,
   startActionForm,
   streamHydrationAttribute,
   type StartHydrationChunk,
-} from "@effect-ui/start";
+} from "@sunfall/arc-start";
 import { Effect, Schema } from "effect";
 import { describe, expect, it } from "vitest";
 import {
@@ -36,10 +36,10 @@ const streamHydrationChunksFrom = (html: string): ReadonlyArray<StartHydrationCh
     .map((match) => JSON.parse(match[1] ?? "") as StartHydrationChunk);
 
 const runInRuntime = <A, E, R, RuntimeServices, RuntimeError>(
-  runtime: EffectUiRuntime<RuntimeServices, RuntimeError> | AnyEffectUiRuntime<RuntimeError>,
+  runtime: SunfallArcRuntime<RuntimeServices, RuntimeError> | AnySunfallArcRuntime<RuntimeError>,
   effect: Effect.Effect<A, E, R>,
 ): Promise<A> =>
-  Effect.runPromise((runtime as unknown as AnyEffectUiRuntime<RuntimeError>).provide(effect));
+  Effect.runPromise((runtime as unknown as AnySunfallArcRuntime<RuntimeError>).provide(effect));
 
 const postActionForm = async (
   form: ReturnType<typeof startActionForm>,
@@ -71,7 +71,7 @@ describe("project console full-stack golden path", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("x-effect-ui-render")).toBe("streaming");
+    expect(response.headers.get("x-sunfall-arc-render")).toBe("streaming");
     expect(html).toContain("Meridian Analytics");
     expect(html).toContain("Recent activity");
     expect(html).toContain("Dehydrate report cache into the first SSR payload.");
@@ -157,7 +157,7 @@ describe("project console full-stack golden path", () => {
         const response = yield* ResponseContext;
         const path = new URL(request.url).pathname;
         yield* response.setStatus(207, "Multi-Status");
-        yield* response.setHeader("x-effect-ui-golden-runtime", path);
+        yield* response.setHeader("x-sunfall-arc-golden-runtime", path);
         yield* response
           .setCookie("golden-project", id, {
             httpOnly: true,
@@ -237,7 +237,7 @@ describe("project console full-stack golden path", () => {
 
     expect(response.status).toBe(207);
     expect(response.statusText).toBe("Multi-Status");
-    expect(response.headers.get("x-effect-ui-golden-runtime")).toBe("/golden/atlas");
+    expect(response.headers.get("x-sunfall-arc-golden-runtime")).toBe("/golden/atlas");
     expect(response.headers.getSetCookie()).toEqual([
       "golden-project=atlas; Path=/; HttpOnly; SameSite=Lax",
     ]);

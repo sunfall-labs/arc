@@ -1,4 +1,4 @@
-import { defineApp } from "@effect-ui/core";
+import { defineApp } from "@sunfall/arc-core";
 import { routeTree } from "./routeTree.gen.js";
 
 export const app = defineApp({

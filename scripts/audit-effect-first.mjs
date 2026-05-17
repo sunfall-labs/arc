@@ -1041,7 +1041,7 @@ const banned = [
     name: "async function syntax",
     seams: [
       seam(
-        "docs/effect-ui-framework-comparison.md:83:snippet-3.ts",
+        "docs/sunfall-arc-framework-comparison.md:83:snippet-3.ts",
         "React Router comparison action",
         /export async function action/,
       ),
@@ -1053,12 +1053,12 @@ const banned = [
     name: "await keyword",
     seams: [
       seam(
-        "docs/effect-ui-framework-comparison.md:83:snippet-3.ts",
+        "docs/sunfall-arc-framework-comparison.md:83:snippet-3.ts",
         "React Router comparison formData await",
         /await request\.formData\(\)/,
       ),
       seam(
-        "docs/effect-ui-framework-comparison.md:83:snippet-3.ts",
+        "docs/sunfall-arc-framework-comparison.md:83:snippet-3.ts",
         "React Router comparison mutation await",
         /await renameProject\(name\)/,
       ),

@@ -115,10 +115,10 @@ import {
   type BrowserRouterLinkPreloadDecision,
   type ActionSubmissionState,
   type ActionUseOptions,
-  type AnyEffectUiRuntime,
+  type AnySunfallArcRuntime,
   type DisposeRuntimeProviderLifecycleOptions,
   type DurationInput,
-  type EffectUiRuntime,
+  type SunfallArcRuntime,
   type FormInstance,
   type ParamsForPath,
   type ResourceInvalidationPlan,
@@ -141,11 +141,11 @@ import {
   type RuntimeProviderLifecycleEntry,
   type RuntimeProviderLifecycleOptions,
   type RuntimeUiScopeFrame,
-} from "@effect-ui/core";
+} from "@sunfall/arc-core";
 // @ts-expect-error ResourceCollector is an internal preload planning service, not a root export.
-type ResourceCollectorIsInternal = typeof import("@effect-ui/core").ResourceCollector;
+type ResourceCollectorIsInternal = typeof import("@sunfall/arc-core").ResourceCollector;
 // @ts-expect-error ResourceCollected is exposed as Resource.Collected, not as a root export.
-type ResourceCollectedIsNamespaced = import("@effect-ui/core").ResourceCollected;
+type ResourceCollectedIsNamespaced = import("@sunfall/arc-core").ResourceCollected;
 
 const runtime = makeRuntime();
 const requestRuntime = withResourceStore(runtime, makeResourceStore());
@@ -190,7 +190,7 @@ const coreLazyRouteComponentPreloadEffect: Effect.Effect<
 Route.isLazyComponent(coreLazyRouteComponent);
 Route.readComponent(coreNamedLazyRouteComponent);
 Route.withComponent(coreRoutes[0], coreLazyRouteComponent);
-declare const browserRouterKernelRuntime: AnyEffectUiRuntime<never>;
+declare const browserRouterKernelRuntime: AnySunfallArcRuntime<never>;
 const browserRouterKernelOptions: BrowserRouterKernelOptions<typeof coreRoutes, never> = {
   runtime: browserRouterKernelRuntime,
   initialHref: "/projects/atlas",
@@ -507,8 +507,8 @@ const resourceUiSuspenseInterruptEffect: Effect.Effect<void> =
   resourceUiSuspensePreloadController.interruptEffect();
 const resourceUiSuspenseDisposeEffect: Effect.Effect<void> =
   resourceUiSuspensePreloadController.disposeEffect();
-type RuntimeShape = EffectUiRuntime;
-type AnyRuntimeShape = AnyEffectUiRuntime;
+type RuntimeShape = SunfallArcRuntime;
+type AnyRuntimeShape = AnySunfallArcRuntime;
 type RouterKernelShape = BrowserRouterKernel<typeof coreRoutes>;
 type RouterKernelOptionsShape = BrowserRouterKernelOptions<typeof coreRoutes, never>;
 type RouterHostShape = BrowserRouterHostController;
@@ -584,7 +584,7 @@ const scopedValue = scoped(() => "scoped");
 onScopeDispose(() => Effect.void);
 onDispose(() => undefined);
 
-const request = new Request("https://effect-ui.test/projects/atlas?tab=overview");
+const request = new Request("https://sunfall-arc.test/projects/atlas?tab=overview");
 const requestContext = makeRequestContext(request);
 const requestContextEffect = makeRequestContextEffect(request);
 const responseContext = makeResponseContext();

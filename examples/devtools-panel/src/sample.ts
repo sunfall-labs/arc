@@ -1,4 +1,4 @@
-import { describeDevtoolsPanels, type DevtoolsPanels } from "@effect-ui/devtools";
+import { describeDevtoolsPanels, type DevtoolsPanels } from "@sunfall/arc-devtools";
 
 export const sampleDevtoolsPanels = (): DevtoolsPanels =>
   describeDevtoolsPanels({
