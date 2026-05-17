@@ -13,6 +13,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
 - Clean Sweep 8 after Review511 found no actionable public type-test follow-up:
   current package-root, DB-family, lazy route, and Start trace pins still cover
   the public Interfaces exposed to callers and LSP.
+- Clean Sweep 9 after Review511 found no actionable public type-test follow-up:
+  current package-root, DB-family, lazy route, and Start trace pins still cover
+  the public Interfaces exposed to callers and LSP.
 - Clean Sweep 7 after Review510 found no actionable public type-test follow-up:
   current package-root, DB-family, lazy route, and Start trace pins still cover
   the public Interfaces exposed to callers and LSP.

@@ -94,7 +94,11 @@ or command result that proves it.
   found no actionable Module, Interface, Seam, Adapter, Locality, Depth,
   Leverage, Effect-first, LSP/JSDoc, package, generated-artifact, formatting,
   lint, or docs-honesty work. The active Thirty-Sweep clean counter is 8/30
-  after Clean Sweep 8 after Review511.
+  after Clean Sweep 8 after Review511. Clean Sweep 9 after Review511 is
+  recorded: the next fresh sweep again found no actionable Module, Interface,
+  Seam, Adapter, Locality, Depth, Leverage, Effect-first, LSP/JSDoc, package,
+  generated-artifact, formatting, lint, or docs-honesty work. The active
+  Thirty-Sweep clean counter is 9/30 after Clean Sweep 9 after Review511.
 - Public release metadata is split by package role: framework packages are
   publishable public scoped packages under the MIT license, while the workspace
   root and copyable examples/starters remain private source fixtures.
@@ -229,6 +233,8 @@ or command result that proves it.
   counter held at 7/30 until the next no-actionable sweep advanced it. The
   fresh post-Review511 sweep found no actionable findings, creating Clean Sweep
   8 after Review511 and moving the active Thirty-Sweep clean counter to 8/30.
+  The next fresh sweep also found no actionable findings, creating Clean Sweep
+  9 after Review511 and moving the active Thirty-Sweep clean counter to 9/30.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
   example, script, and type-test sources while keeping negative runtime
   validation tests explicit.
@@ -886,6 +892,8 @@ or command result that proves it.
 
 | 522 | Clean Sweep 8 after Review511 | `docs/architecture-deepening-review.md`; `docs/docs-drift-audit.md`; `docs/effect-first-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/type-test-coverage-audit.md`; `docs/ultimate-goal-checklist.md`; `scripts/audit-public-api-inventory.mjs`; `scripts/public-api-symbol-policy.mjs` | Recorded the fresh post-Review511 no-actionable sweep. Core/React/Solid, DB/React-DB/Solid-DB, Start/docs/package/generated-artifact, and evidence lanes reported no actionable Module, Interface, Seam, Adapter, Locality, Depth, Leverage, Effect-first, LSP/JSDoc, package, formatting/lint, or docs-honesty work. | Active clean counter reached 8/30. Evidence included public type tests, public API audit, Effect-first audit, package payload policy, package dry-run verification, focused Core/React/Solid tests, DB-family tests, Start tests, DB-family package typechecks, starter packaging, formatting, lint, and clean `git diff --check`. |
 
+| 523 | Clean Sweep 9 after Review511 | `docs/architecture-deepening-review.md`; `docs/docs-drift-audit.md`; `docs/effect-first-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/type-test-coverage-audit.md`; `docs/ultimate-goal-checklist.md`; `scripts/audit-public-api-inventory.mjs`; `scripts/public-api-symbol-policy.mjs` | Recorded the ninth active no-actionable sweep. Core/React/Solid, DB/React-DB/Solid-DB, Start/docs/package/generated-artifact, and evidence lanes again reported no actionable Module, Interface, Seam, Adapter, Locality, Depth, Leverage, Effect-first, LSP/JSDoc, package, formatting/lint, or docs-honesty work. | Active clean counter reached 9/30. Evidence included public type tests, public API audit, Effect-first audit, package payload policy, package dry-run verification, focused Core/React/Solid tests, DB-family tests, Start tests, DB-family package typechecks, starter packaging, formatting, lint, and clean `git diff --check`. |
+
 ## Thirty-Sweep Gate
 
 The final goal requires 30 full code sweeps without finding more improvements.
@@ -1026,7 +1034,10 @@ after Clean Sweep 7 after Review510. The next Clean Sweep 8 candidate found
 Review511 format policy drift work. The active counter therefore held at 7/30
 until the next no-actionable sweep advanced it. The fresh post-Review511 sweep
 found no actionable findings, creating Clean Sweep 8 after Review511. The
-active counter therefore is 8/30 after Clean Sweep 8 after Review511.
+active counter therefore is 8/30 after Clean Sweep 8 after Review511. The next
+fresh sweep also found no actionable findings, creating Clean Sweep 9 after
+Review511. The active counter therefore is 9/30 after Clean Sweep 9 after
+Review511.
 
 - Re-run the Promise and docs drift audits after each single-command full
   verification.
