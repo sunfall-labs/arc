@@ -10,6 +10,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
 - Review511 Format Policy Drift adds no public type-test change: it restores
   the workspace formatting policy and leaves the active clean counter at 7/30
   until the next no-actionable sweep advances it.
+- Clean Sweep 8 after Review511 found no actionable public type-test follow-up:
+  current package-root, DB-family, lazy route, and Start trace pins still cover
+  the public Interfaces exposed to callers and LSP.
 - Clean Sweep 7 after Review510 found no actionable public type-test follow-up:
   current package-root, DB-family, lazy route, and Start trace pins still cover
   the public Interfaces exposed to callers and LSP.

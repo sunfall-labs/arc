@@ -89,7 +89,12 @@ or command result that proves it.
   generated-artifact, or docs-honesty work. The active Thirty-Sweep clean
   counter is 7/30 after Clean Sweep 7 after Review510. The next Clean Sweep 8
   candidate found Review511 format policy drift work. The active Thirty-Sweep
-  clean counter holds at 7/30 until the next no-actionable sweep advances it.
+  clean counter held at 7/30 until the next no-actionable sweep advanced it.
+  Clean Sweep 8 after Review511 is recorded: the fresh post-Review511 sweep
+  found no actionable Module, Interface, Seam, Adapter, Locality, Depth,
+  Leverage, Effect-first, LSP/JSDoc, package, generated-artifact, formatting,
+  lint, or docs-honesty work. The active Thirty-Sweep clean counter is 8/30
+  after Clean Sweep 8 after Review511.
 - Public release metadata is split by package role: framework packages are
   publishable public scoped packages under the MIT license, while the workspace
   root and copyable examples/starters remain private source fixtures.
@@ -221,7 +226,9 @@ or command result that proves it.
   actionable findings, creating Clean Sweep 7 after Review510 and moving the
   active Thirty-Sweep clean counter to 7/30. The next Clean Sweep 8 candidate
   found Review511 format policy drift work, so the active Thirty-Sweep clean
-  counter holds at 7/30 until the next no-actionable sweep advances it.
+  counter held at 7/30 until the next no-actionable sweep advanced it. The
+  fresh post-Review511 sweep found no actionable findings, creating Clean Sweep
+  8 after Review511 and moving the active Thirty-Sweep clean counter to 8/30.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
   example, script, and type-test sources while keeping negative runtime
   validation tests explicit.
@@ -877,6 +884,8 @@ or command result that proves it.
 
 | 521 | Review 511 Format Policy Drift | `docs/architecture-deepening-review.md`; `docs/competitiveness.md`; `docs/docs-drift-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md`; `examples/devtools-extension/src/devtools.ts`; `examples/devtools-extension/src/extension.test.ts`; `examples/project-console/vite.config.ts`; `examples/react-starter/package.json`; `packages/core/src/request-context.ts`; `packages/db/test/sync-adapter.test.ts`; `packages/devtools/test/devtools.test.ts`; `packages/start/src/app-graph.ts`; `packages/start/src/node-adapter.ts`; `packages/start/src/start-host-runtime-runner.ts`; `packages/start/src/start-manifest-wall.ts`; `packages/start/src/start-transport-protocol.ts`; `packages/start/test/route-code-splitting.test.ts`; `scripts/audit-public-api-inventory.mjs`; `scripts/public-api-symbol-policy.mjs`; `type-tests/tsrx.test-d.ts`; `vitest.config.ts` | The full workspace formatting policy now passes after mechanical formatter updates across docs, examples, Core, Start, DB/Devtools tests, public type tests, and Vitest config. | Focused verification passed: `pnpm format:check`, public type tests, public API inventory audit, Effect-first audit, lint, and `git diff --check`. This small gate-hygiene fix does not reset the active Thirty-Sweep clean counter; it holds at 7/30 until the next no-actionable sweep advances it. |
 
+| 522 | Clean Sweep 8 after Review511 | `docs/architecture-deepening-review.md`; `docs/docs-drift-audit.md`; `docs/effect-first-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/type-test-coverage-audit.md`; `docs/ultimate-goal-checklist.md`; `scripts/audit-public-api-inventory.mjs`; `scripts/public-api-symbol-policy.mjs` | Recorded the fresh post-Review511 no-actionable sweep. Core/React/Solid, DB/React-DB/Solid-DB, Start/docs/package/generated-artifact, and evidence lanes reported no actionable Module, Interface, Seam, Adapter, Locality, Depth, Leverage, Effect-first, LSP/JSDoc, package, formatting/lint, or docs-honesty work. | Active clean counter reached 8/30. Evidence included public type tests, public API audit, Effect-first audit, package payload policy, package dry-run verification, focused Core/React/Solid tests, DB-family tests, Start tests, DB-family package typechecks, starter packaging, formatting, lint, and clean `git diff --check`. |
+
 ## Thirty-Sweep Gate
 
 The final goal requires 30 full code sweeps without finding more improvements.
@@ -1014,8 +1023,10 @@ Review510. The next fresh sweep also found no actionable findings across
 Core/React/Solid, DB/public API, Start/docs/package, and evidence lanes,
 creating Clean Sweep 7 after Review510. The active counter therefore is 7/30
 after Clean Sweep 7 after Review510. The next Clean Sweep 8 candidate found
-Review511 format policy drift work. The active counter therefore holds at 7/30
-until the next no-actionable sweep advances it.
+Review511 format policy drift work. The active counter therefore held at 7/30
+until the next no-actionable sweep advanced it. The fresh post-Review511 sweep
+found no actionable findings, creating Clean Sweep 8 after Review511. The
+active counter therefore is 8/30 after Clean Sweep 8 after Review511.
 
 - Re-run the Promise and docs drift audits after each single-command full
   verification.

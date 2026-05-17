@@ -129,6 +129,11 @@ Latest full gate on May 17, 2026 after Review 492:
   audit, Effect-first audit, lint, and `git diff --check` passed, so the active
   Thirty-Sweep clean counter holds at 7/30 until the next no-actionable sweep
   advances it.
+- Clean Sweep 8 after Review511 found no actionable Module, Interface, Seam,
+  Adapter, Locality, Depth, Leverage, Effect-first, LSP/JSDoc, package,
+  generated-artifact, formatting, lint, or docs-honesty work across
+  Core/React/Solid, DB-family, Start/docs/package, and evidence lanes, moving
+  the active Thirty-Sweep clean counter to 8/30.
 - Review 510 Package Dry-Run Count Evidence updates the current release
   snapshot to match the 150-file `@sunfall/arc-db` package dry-run rehearsal.
   Clean Sweep 2 after Review509 found this docs-honesty drift, so the active

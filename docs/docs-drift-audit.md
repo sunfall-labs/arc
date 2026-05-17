@@ -6,7 +6,7 @@ Current release-tracking truth lives in `docs/architecture-deepening-review.md`
 and `docs/perfection-progress.md`. As of Review511, the latest full
 `pnpm verify` gate is the Review492 run with 58 root test files / 1223 tests,
 the focused Effect-first audit covers 449 physical and virtual files, and the
-active Thirty-Sweep clean counter is 7/30 after Review511.
+active Thirty-Sweep clean counter is 8/30 after Clean Sweep 8 after Review511.
 
 This historical audit checks release-tracking docs for claims that no longer match the
 implementation after the request trace, Effect-first, typed-error, package
@@ -179,6 +179,10 @@ diff --check` checks passed.
 - Review511 restored the full workspace formatting policy after the Clean
   Sweep 8 candidate found small mechanical format drift. Because this was gate
   hygiene, the active Thirty-Sweep counter held at 7/30.
+- Clean Sweep 8 after Review511 found no actionable docs or evidence drift
+  after public API inventory policy, Effect-first audit, package payload
+  policy, package dry-run verification, starter packaging, public type tests,
+  formatting, lint, and `git diff --check` checks passed.
 - Review209 refreshed current ledgers after Clean Sweep 2 found the
   broad-`unknown` Promise callback rejection hole and reset the active
   Thirty-Sweep counter to 0/30.

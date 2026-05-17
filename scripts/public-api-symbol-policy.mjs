@@ -1419,7 +1419,7 @@ export const currentDocsEvidencePolicy = {
   rootTestFiles: 58,
   rootTestCount: 1223,
   effectFirstFiles: 449,
-  activeCleanCounter: "7/30",
+  activeCleanCounter: "8/30",
 };
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -1481,7 +1481,7 @@ export const currentDocsTextPolicies = [
       {
         name: "Architecture tip must record the current clean sweep",
         pattern: new RegExp(
-          `active\\s+Thirty-Sweep\\s+clean\\s+counter\\s+holds\\s+at ${activeCleanCounterPattern} until\\s+the\\s+next\\s+no-actionable\\s+sweep`,
+          `active\\s+Thirty-Sweep\\s+clean\\s+counter\\s+is ${activeCleanCounterPattern}\\s+after\\s+Clean\\s+Sweep\\s+8\\s+after\\s+Review${currentDocsEvidencePolicy.latestFocusedReview}`,
         ),
       },
     ],
@@ -1512,7 +1512,7 @@ export const currentDocsTextPolicies = [
       {
         name: "Perfection progress must record the current clean sweep",
         pattern: new RegExp(
-          `active\\s+Thirty-Sweep\\s+clean\\s+counter\\s+holds\\s+at ${activeCleanCounterPattern} until\\s+the\\s+next\\s+no-actionable\\s+sweep`,
+          `active\\s+Thirty-Sweep\\s+clean\\s+counter\\s+is ${activeCleanCounterPattern}\\s+after\\s+Clean\\s+Sweep\\s+8\\s+after\\s+Review${currentDocsEvidencePolicy.latestFocusedReview}`,
         ),
       },
     ],
@@ -1563,9 +1563,7 @@ export const currentDocsTextPolicies = [
       {
         name: "Release notes must record the current clean sweep",
         pattern: new RegExp(
-          `Review ${currentDocsEvidencePolicy.latestFocusedReview} ${spacedTextPattern(
-            currentDocsEvidencePolicy.latestFocusedTitle,
-          )}[\\s\\S]*?active\\s+Thirty-Sweep\\s+clean\\s+counter\\s+holds\\s+at ${activeCleanCounterPattern}`,
+          `Clean Sweep 8 after Review${currentDocsEvidencePolicy.latestFocusedReview}\\s+found no actionable`,
         ),
       },
     ],
@@ -1610,7 +1608,7 @@ export const currentDocsTextPolicies = [
       {
         name: "Docs drift audit must record the current clean sweep",
         pattern: new RegExp(
-          `counter is ${activeCleanCounterPattern} after Review${currentDocsEvidencePolicy.latestFocusedReview}`,
+          `counter is ${activeCleanCounterPattern}\\s+after Clean Sweep 8 after Review${currentDocsEvidencePolicy.latestFocusedReview}`,
         ),
       },
     ],
