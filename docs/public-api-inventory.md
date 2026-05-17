@@ -70,11 +70,11 @@ declaration groups must be reachable from a package export or re-exported
 source module, and those declarations must keep JSDoc for LSP hovers. Together
 these checks keep hover/LSP docs from drifting away from exported source files.
 The curated hover declarations currently cover the Core Program,
-browser-router/router Adapter, Start diagnostics, generated file-route module,
-fetch, and Node Adapter seams, Devtools DTO/normalizer/panel contract seams,
-and the DB Collection contract, Collection/Query namespace aliases, Query plan,
-flush/background-sync, reactive binding, server collection, and SQLite
-persistence seams. The broad
+browser-router/router Adapter, React/Solid runtime and hook Adapter seams,
+Start diagnostics, generated file-route module, fetch, and Node Adapter seams,
+Devtools DTO/normalizer/panel contract seams, and the DB Collection contract,
+Collection/Query namespace aliases, Query plan, flush/background-sync,
+reactive binding, server collection, and SQLite persistence seams. The broad
 `type-tests/framework.test-d.ts` file remains as cross-package integration
 coverage.
 

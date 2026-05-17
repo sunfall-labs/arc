@@ -544,7 +544,7 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 203 `pnpm verify` run recorded in
+- The current full gate is the Review 204 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
   over 408 files, 53 root test files / 1062 tests, package-level verifies,
@@ -557,6 +557,10 @@ interruption.
   after moving the verify failure path to Effect v4 generator composition and
   keeping package-local typecheck commands no-emit without build-mode reference
   hazards.
+- Review 204 focused verification kept `pnpm audit:effect-first` green over
+  408 package/example/config/script/type-test/docs/generated virtual files
+  after tightening React/Solid hook hover-doc policy and adapter-root resource
+  alias type pins.
 - Review 202 focused verification kept `pnpm audit:effect-first` green over 408
   package/example/config/script/type-test/docs/generated virtual files after
   moving package payload policy into a shared script module, making package
@@ -1362,8 +1366,8 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The current full `pnpm verify` passed after the Review 203 adapter router
-  pins, fetch abort lifetime, and package verification command fixes: 11 package
+- The current full `pnpm verify` passed after the Review 204 React/Solid hook
+  hover policy and adapter resource alias pins: 11 package
   builds, workspace typecheck, type tests,
   public API inventory audit, Effect-first audit over 408
   package/example/config/script/type-test/generated/docs files, 53 root test

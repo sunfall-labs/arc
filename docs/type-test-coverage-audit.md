@@ -98,6 +98,11 @@ are easiest to regress while refactoring internals toward Effect primitives.
   re-exports, runtime helpers, `RouterLink`, `RouterOutlet`, `useRouter`,
   `isPlainLeftClick`, `BrowserNavigateOptions`, router errors, and route/path
   helper types.
+- React and Solid hook hover policy now covers the public hook handles,
+  resource render aliases, options, and hook functions exported from
+  `packages/react/src/hooks.ts` and `packages/solid/src/hooks.ts`; the focused
+  adapter type tests require `ResourceMatch` and `ResourceSuccessMeta` as
+  direct root imports.
 - Solid resource and Solid DB hook type tests pin runtime-bound returned
   Effects, optional runtime-error generics, and the fact that Solid DB handles
   no longer expose service requirements already provided by the Solid runtime.

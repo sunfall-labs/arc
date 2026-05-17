@@ -669,6 +669,28 @@ export const publicHoverDocGroups = [
     ]
   },
   {
+    file: "packages/react/src/hooks.ts",
+    declarations: [
+      "ResourceSuccessMeta",
+      "ResourceMatch",
+      "UseResourceOptions",
+      "ResourceHandle",
+      "RuntimeEffectRunner",
+      "ProgramHandle",
+      "ActionHandle",
+      "useSignal",
+      "useStream",
+      "useRuntimeEffect",
+      "useProgram",
+      "useResourceResult",
+      "useResourceValue",
+      "useResourceError",
+      "useResource",
+      "useResourceSuspense",
+      "useAction"
+    ]
+  },
+  {
     file: "packages/solid/src/router.ts",
     declarations: [
       "BrowserRouter",
@@ -699,6 +721,28 @@ export const publicHoverDocGroups = [
       "useRuntime",
       "RuntimeProvider",
       "createComponentScope"
+    ]
+  },
+  {
+    file: "packages/solid/src/hooks.ts",
+    declarations: [
+      "ResourceSuccessMeta",
+      "ResourceMatch",
+      "UseResourceOptions",
+      "ResourceHandle",
+      "RuntimeEffectRunner",
+      "ProgramHandle",
+      "ActionHandle",
+      "useSignal",
+      "useStream",
+      "useRuntimeEffect",
+      "useProgram",
+      "useResourceResult",
+      "useResourceValue",
+      "useResourceError",
+      "useResource",
+      "useResourceSuspense",
+      "useAction"
     ]
   },
   {

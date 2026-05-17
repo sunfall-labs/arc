@@ -11,15 +11,13 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review203, the post-Review202 sweep
-fixing adapter router public pins, fetch facade merged-abort stream lifetime,
-Effect v4 verify failure handling, package-local no-emit typecheck commands,
-and current evidence metadata. The newest full verification checkpoint is
-Review203. Clean
+The newest completed focused review is Review204, the post-Review203 sweep
+fixing React/Solid hook hover-doc policy and adapter-root resource alias pins.
+The newest full verification checkpoint is Review204. Clean
 Sweep 1 after Review190 remains
 historical evidence, but later sweeps found Review191, Review192, Review193,
 Review194, Review195, Review196, Review197, Review198, Review199, and
-Review200, Review201, Review202, and Review203 work, so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review203 sweep reports no actionable
+Review200, Review201, Review202, Review203, and Review204 work, so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review204 sweep reports no actionable
 findings. Some older review entries
 remain below this tip from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
@@ -50,8 +48,58 @@ Review201 script/docs, Core/React/Solid public surface, and DB contract work.
 The first post-Review201 sweep found Review202 adapter-root, DB, scripts, and
 docs work. The first post-Review202 sweep found Review203 adapter router,
 Start fetch abort-lifetime, package typecheck, verify failure-path, and docs
-metadata work. The counter remains inactive until a fresh post-Review203 sweep
-is clean.
+metadata work. The first post-Review203 sweep found Review204 React/Solid hook
+LSP policy and adapter-root resource alias pin work. The counter remains
+inactive until a fresh post-Review204 sweep is clean.
+
+## Review 204: React And Solid Hook Hover Policy
+
+Review204 fixed actionable findings from the fresh post-Review203 sweep. The
+DB, Start/devtools, and docs lanes reported no actionable findings. The
+Core/React/Solid lane found that React and Solid hook APIs were public and
+documented but not covered by the hover-doc policy, and that two public
+resource render aliases were used in type tests without being manifest-required
+adapter-root imports.
+
+1. React/Solid Hook LSP Policy
+   - Status: fixed.
+   - Files: `scripts/public-api-symbol-policy.mjs`,
+     `docs/public-api-inventory.md`, `docs/type-test-coverage-audit.md`.
+   - Problem: `packages/react/src/hooks.ts` and `packages/solid/src/hooks.ts`
+     export public hook handles, resource options, render aliases, and hook
+     functions, but the public hover-doc policy only covered router, link, and
+     runtime adapter modules.
+   - Fix: public hover-doc groups now cover React and Solid hook exports,
+     including `ResourceSuccessMeta`, `ResourceMatch`, `UseResourceOptions`,
+     `ResourceHandle`, `RuntimeEffectRunner`, `ProgramHandle`,
+     `ActionHandle`, and the exported hook functions.
+   - Benefits: LSP hovers for the primary adapter hook surface cannot regress
+     silently while public API audits still pass.
+
+2. Adapter Resource Alias Manifest Pins
+   - Status: fixed.
+   - Files: `type-tests/public-api.manifest.json`,
+     `type-tests/react.test-d.ts`, `type-tests/solid.test-d.ts`,
+     `docs/type-test-coverage-audit.md`.
+   - Problem: React and Solid type tests directly imported and exercised
+     `ResourceSuccessMeta` and `ResourceMatch`, but those public aliases were
+     not listed in the manifest-required import policy.
+   - Fix: both aliases are now required imports for the React and Solid root
+     public type tests.
+   - Benefits: adapter-root resource render ergonomics are pinned by both
+     source-level LSP policy and manifest-level public type coverage.
+
+Focused verification for Review204 passed: `pnpm typecheck`,
+`pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first` over
+408 files, React/Solid package typechecks, Core/React/Solid tests with 22 files
+/ 357 tests, DB-family focused tests with 8 files / 245 tests, Start/devtools
+focused verification from the clean lane, stale-current-gate greps, and
+`git diff --check`. Full `pnpm verify` passed after Review204: 11 package
+builds, workspace typecheck, public type tests, public API audit, Effect-first
+audit over 408 files, 53 root test files / 1062 tests, package-level verifies,
+generated starter packaging, 16-target package dry-run gate, project-console
+checks, and leak scans. This sweep found work, so the active clean counter
+remains 0/30.
 
 ## Review 203: Adapter Router Pins, Fetch Abort Lifetime, And Verify Commands
 
