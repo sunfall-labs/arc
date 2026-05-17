@@ -65,7 +65,7 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 17, 2026 after Review 228:
+Latest full gate on May 17, 2026 after Review 229:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
@@ -86,6 +86,17 @@ Latest full gate on May 17, 2026 after Review 228:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 229 closed the post-Review228 sweep findings: Start action request,
+  form, and client helpers now have root-export, hover-policy, inventory, and
+  type-test ownership; the Effect command runner owns stdout/stderr collectors
+  with Effect v4 `Effect.forkChild(...)` and verifies noisy interruption;
+  public DB Collection Stores are diagnostics/events-only, public live queries
+  no longer expose their internal builder, and `Query.Builder` is a fluent DSL
+  Interface without execution-plan fields; Action and StartAction sync
+  `reset()` conveniences are runtime-owned while `resetEffect()` remains the
+  Effect-first Interface; direct Core Resource symbols and Solid path helpers
+  now have explicit LSP/type-test ownership. The active Thirty-Sweep clean
+  counter remains 0/30 until a fresh post-Review229 sweep is clean.
 - Review 228 closed the post-Review227 sweep findings: Core browser-router
   helper types, Stable Identity Codec errors, and Resource duration helper
   types now have public hover-policy, inventory, and type-test ownership; DB
@@ -94,7 +105,7 @@ Latest full gate on May 17, 2026 after Review 228:
   constructor is no longer a package-root export; and public Start file-route
   resource refs now reject Promise-shaped and malformed selector results as
   typed `FileRoutePreloadError` values. The active Thirty-Sweep clean counter
-  remains 0/30 until a fresh post-Review228 sweep is clean.
+  remained 0/30; a later post-Review228 sweep found Review229 work.
 - Review 227 closed the post-Review226 sweep findings: Core now owns
   `isPromiseLikeValue(...)` as the shared Promise-shaped runtime probe for
   EffectInput and host seams, including throwing `then` getters; Start fetch
@@ -376,8 +387,9 @@ Latest full gate on May 17, 2026 after Review 228:
   the post-Review222 local sweep found Review223 work, the post-Review223
   sweep found Review224 work, the post-Review224 sweep found Review225 work,
   the post-Review225 sweep found Review226 work, the post-Review226 sweep
-  found Review227 work, and the post-Review227 sweep found Review228 work.
-  The active Thirty-Sweep clean counter is 0/30 until a fresh post-Review228
+  found Review227 work, the post-Review227 sweep found Review228 work, and the
+  post-Review228 sweep found Review229 work.
+  The active Thirty-Sweep clean counter is 0/30 until a fresh post-Review229
   sweep reports no
   actionable findings.
 - Review 192 refreshed stale current-gate docs wording that still named
@@ -1318,9 +1330,9 @@ Latest full gate on May 17, 2026 after Review 228:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 228 public helper
-  ownership, DB shared Promise-shaped probe reuse, `QueryBuilder` root export
-  tightening, and public file-route resource ref guardrails.
+- The latest full `pnpm verify` passed after Review 229 public surface
+  ownership, structured command-runner collector fibers, DB Query/Store public
+  seam tightening, runtime-owned reset conveniences, and Core/Solid LSP pins.
   Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
   sweeps found Review191, Review192, Review193, Review194, Review195, and
   Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, Review208, Review209, Review210, Review211, Review212, and Review213 work.
@@ -1339,8 +1351,9 @@ Latest full gate on May 17, 2026 after Review 228:
   and the post-Review222 local sweep found Review223 work, and the
   post-Review223 sweep found Review224 work, the post-Review224 sweep found
   Review225 work, the post-Review225 sweep found Review226 work, the
-  post-Review226 sweep found Review227 work, and the post-Review227 sweep
-  found Review228 work, so the active counter is 0/30.
+  post-Review226 sweep found Review227 work, the post-Review227 sweep found
+  Review228 work, and the post-Review228 sweep found Review229 work, so the
+  active counter is 0/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
   Effect-first audit over 411 physical/virtual files, 53 root test files / 1139

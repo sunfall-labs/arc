@@ -28,9 +28,15 @@ import {
   createLiveQuery,
   createLiveQueryCollection,
   defaultCollectionDefinitionRegistry,
+  and,
   eq,
   flushCollectionsPendingMutationsEffect,
+  gt,
+  gte,
+  includes,
   isCollection,
+  lt,
+  lte,
   liveQueryStateError,
   makeCollectionDefinitionRegistry,
   makeLiveQueryCollection,
@@ -46,6 +52,10 @@ import {
   serverCollectionSyncAdapter,
   snapshotCollectionReactiveDeps,
   subscribeCollectionReactiveSource,
+  neq,
+  not,
+  or,
+  UnsupportedLiveQuery,
   type AnyCollection,
   type CollectionBackgroundSyncResult,
   type CollectionError,
@@ -125,6 +135,16 @@ const sqliteRow: SQLitePersistenceRow = {
 const collectionAlias: typeof Collection.define = createCollection;
 const liveQueryAlias: typeof Query.live = createLiveQuery;
 const liveQueryCollectionAlias: typeof Collection.liveQuery = createLiveQueryCollection;
+const publicQueryBuilder: Query.Builder<any, Project, any, any> =
+  Query.from({ project: dbStaticProjectsCollection }).select(({ project }) => project);
+const publicQueryRows: ReadonlyArray<Project> = publicQueryBuilder.execute();
+// @ts-expect-error public Query.Builder does not expose execution-plan internals.
+publicQueryBuilder.sources;
+const publicLiveQuery = Query.live((query) =>
+  query.from({ project: dbStaticProjectsCollection }).select(({ project }) => project)
+);
+// @ts-expect-error public LiveQuery handles do not expose their internal builder.
+publicLiveQuery.builder;
 const directLiveQueryCollection = makeLiveQueryCollection<Project, string, unknown>({
   name: "type-tests/direct-live-query-projects",
   getKey: (project) => project.id,
@@ -135,9 +155,24 @@ const defaultCollectionRegistry = defaultCollectionDefinitionRegistry;
 const collectionTypeId: typeof CollectionTypeId = CollectionTypeId;
 const collectionStoreTypeId: typeof CollectionStoreTypeId = CollectionStoreTypeId;
 const directCollectionCheck: boolean = isCollection(dbProjectsCollection);
+const queryPredicatePins: ReadonlyArray<boolean> = [
+  eq("atlas", "atlas"),
+  neq("atlas", "zephyr"),
+  gt(2, 1),
+  gte(2, 2),
+  lt(1, 2),
+  lte(2, 2),
+  includes(["atlas"], "atlas"),
+  and(true, true),
+  or(false, true),
+  not(false)
+];
 const unknownCollectionIndex = new UnknownCollectionIndex({
   collection: "projects",
   index: "byStatus"
+});
+const unsupportedLiveQuery = new UnsupportedLiveQuery({
+  reason: "Live queries with joins require at least one non-join source collection."
 });
 const collectionRowKeyChanged = new CollectionRowKeyChanged({
   collection: "projects",
@@ -170,6 +205,8 @@ const collectionCurrentStore: Collection.Store = Collection.currentStore();
 const collectionStoreEffect: Effect.Effect<Collection.Store> = Collection.storeEffect();
 const collectionEventsEffect: Effect.Effect<PubSub.Subscription<Collection.StoreEvent>, never, Scope.Scope> =
   Collection.subscribeEventsEffect();
+// @ts-expect-error public Collection.Store is diagnostics/events-only; runtime disposal is internal.
+collectionCurrentStore.disposeEffect;
 
 const dbExports: Array<unknown> = [
   Collection,
@@ -220,13 +257,18 @@ const dbExports: Array<unknown> = [
   collectionAlias,
   liveQueryAlias,
   liveQueryCollectionAlias,
+  publicQueryBuilder,
+  publicQueryRows,
+  publicLiveQuery,
   directLiveQueryCollection,
   isolatedCollectionRegistry,
   defaultCollectionRegistry,
   collectionTypeId,
   collectionStoreTypeId,
   directCollectionCheck,
+  queryPredicatePins,
   unknownCollectionIndex,
+  unsupportedLiveQuery,
   collectionRowKeyChanged,
   collectionRowNotFound,
   readonlyCollectionMutation,

@@ -11,10 +11,11 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review228, the post-Review227 sweep
-fixing Core helper public ownership, DB shared Promise-shaped probes,
-QueryBuilder root constructor leakage, and public file-route resource refs
-guardrails. The newest full verification checkpoint is Review228.
+The newest completed focused review is Review229, the post-Review228 sweep
+fixing Start action public ownership, Effect command-runner output fiber
+lifetime, DB store/query public seams, Solid router path-helper type pins, Core
+Action reset runtime ownership, and direct Core Resource symbol ownership. The
+newest full verification checkpoint is Review229.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -33,7 +34,8 @@ and the post-Review224 sweep found Review225 work,
 and the post-Review225 sweep found Review226 work,
 and the post-Review226 sweep found Review227 work,
 and the post-Review227 sweep found Review228 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review228
+and the post-Review228 sweep found Review229 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review229
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -41,7 +43,7 @@ Review199, Review200, Review201, Review202, Review203, Review204, Review205,
 Review206, Review207, Review208, Review209, Review210, Review211, Review212,
 Review213, Review214, Review215, Review216, Review217, Review218, Review219,
 Review220, Review221, Review222, Review223, Review224, Review225,
-Review226, Review227, and Review228 work.
+Review226, Review227, Review228, and Review229 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -114,7 +116,93 @@ and the post-Review226 sweep found Review227 Core, Start, DB, and docs/LSP
 work,
 and the post-Review227 sweep found Review228 Core, DB, and Start public seam
 work,
+and the post-Review228 sweep found Review229 Core, Solid, DB, Start, and script
+public seam work,
 so the counter remains 0/30.
+
+## Review 229: Public Surface Ownership And Scoped Command Runners
+
+Review229 fixed actionable findings from the fresh post-Review228 sweep.
+
+1. Start Action Public Ownership
+   - Status: fixed.
+   - Files: `packages/start/src/index.ts`,
+     `packages/start/src/start-action-client.ts`,
+     `packages/start/src/start-action-request-codec.ts`,
+     `scripts/public-api-symbol-policy.mjs`,
+     `type-tests/start.test-d.ts`, and
+     `type-tests/public-api.manifest.json`.
+   - Problem: Start action request/form helpers, `StartAction`, and
+     `submitStartActionEffect(...)` were documented public API, but hover
+     policy and required type-test imports only pinned the narrow form-field
+     subset.
+   - Fix: the full Start action bridge now has public hover-policy ownership,
+     `readStartActionRequestEffect(...)` is a root export with JSDoc, and the
+     Start type test exercises the request codec, form codec, form facade,
+     `StartAction.form(...)`, `StartAction.use(...)`, and
+     `submitStartActionEffect(...)`.
+   - Benefits: LSP and type-test ownership match the public Start action
+     Interface users actually compose with.
+
+2. Effect Command Runner Output Fiber Lifetime
+   - Status: fixed.
+   - Files: `scripts/effect-command-runner.mjs` and
+     `scripts/verify-effect-command-runner.mjs`.
+   - Problem: stdout/stderr collectors were detached with
+     `Effect.forkDetach(...)`, so interruption did not structurally own stream
+     collector fibers.
+   - Fix: collectors now use Effect v4 `Effect.forkChild(...)`, keeping them
+     parent-owned without deadlocking child-process scope finalizers. The
+     command-runner self-test now interrupts a noisy stdout/stderr command.
+   - Benefits: script command execution remains Effect-owned without detached
+     background stream work.
+
+3. DB Store And Query Public Seam Tightening
+   - Status: fixed.
+   - Files: `packages/db/src/collection-contract.ts`,
+     `packages/db/src/live-query-state.ts`, `packages/db/src/query-builder.ts`,
+     `type-tests/db.test-d.ts`, and
+     `type-tests/public-api.manifest.json`.
+   - Problem: public `Collection.Store` exposed `disposeEffect`, public
+     `LiveQuery` exposed the internal builder, and `Query.Builder` revealed
+     execution-plan fields even though Query Execution Plan owns those
+     internals. The DB manifest also lacked a source-surface gate and direct
+     helper pins for several root query symbols.
+   - Fix: public Collection Store is diagnostics/events-only, live query handles
+     no longer expose `builder`, public `Query.Builder` is a fluent DSL
+     Interface without plan fields, and the DB manifest now owns its root source
+     surface plus direct query helper and `UnsupportedLiveQuery` pins.
+   - Benefits: runtime disposal and query-plan storage stay local to their
+     implementation Modules while public callers keep the fluent Query
+     Interface.
+
+4. Core And Solid Public Type Ownership
+   - Status: fixed.
+   - Files: `packages/core/src/action-submission.ts`,
+     `packages/core/src/action.ts`, `packages/core/src/resource.ts`,
+     `packages/core/test/action.test.ts`, `type-tests/core.test-d.ts`, and
+     `type-tests/solid.test-d.ts`.
+   - Problem: the shared action submission controller owned a raw
+     fire-and-forget reset runner; direct `ResourceTag`,
+     `ResourceTagDefinition`, `ResourceInvalidationPlan`, and `ResourceStatus`
+     symbols lacked top-level public ownership; and Solid router path helpers
+     were documented but not all adapter type-pinned.
+   - Fix: `reset()` is now owned by Action/StartAction runtime facades while
+     `resetEffect()` remains the Effect-first Interface; direct Resource
+     symbols have JSDoc, hover policy, manifest pins, and Core type-test usage;
+     and Solid type tests call `hrefByPath(...)`, `navigateByPath(...)`,
+     `matchByPath(...)`, and `preloadByPathEffect(...)`.
+   - Benefits: public sync conveniences stay at runtime-owning facades, and LSP
+     ownership matches direct Core/Solid exports.
+
+Focused workspace evidence for this pass: Core/DB/Start/Solid typechecks, DB
+declaration build, Start declaration build, public type tests, public API
+audit, Effect-first audit, Effect command-runner self-test, focused Core
+Action/React hooks/Solid hooks tests, Solid router tests, DB collection and
+live-query collection tests, and `git diff --check` passed. Full `pnpm verify`
+passed after Review229 with the same 53 root test files / 1139 tests and
+411-file Effect-first audit as Review228. This sweep found work, so the active
+clean counter remains 0/30.
 
 ## Review 228: Public Helper Ownership And Guarded Resource Refs
 
@@ -1667,9 +1755,9 @@ found Review221 work, the fresh post-Review221 sweep found Review222 work, and
 the post-Review222 local sweep found Review223 work, and the post-Review223
 sweep found Review224 work, the post-Review224 sweep found Review225 work, the
 post-Review225 sweep found Review226 work, the post-Review226 sweep found
-Review227 work, and the post-Review227 sweep found Review228 work. The active
-counter is 0/30 until a fresh post-Review228 sweep reports no actionable
-findings.
+Review227 work, the post-Review227 sweep found Review228 work, and the
+post-Review228 sweep found Review229 work. The active counter is 0/30 until a
+fresh post-Review229 sweep reports no actionable findings.
 
 ## Review 208: Runtime Provider Observers, CLI Bin Execution, And Docs Drift
 

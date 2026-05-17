@@ -653,7 +653,7 @@ describe("Action", () => {
     }
   });
 
-  it("resets state after the captured action runtime has been disposed", async () => {
+  it("keeps the sync reset convenience owned by the captured action runtime", async () => {
     const runtime = makeRuntime();
     const Save = Action.define<void, string>({
       name: "save.runtime-reset-disposed",
@@ -671,6 +671,12 @@ describe("Action", () => {
     action.reset();
     await Effect.runPromise(Effect.sleep("10 millis"));
 
+    expect(read(action.state)).toMatchObject({
+      _tag: "Success",
+      value: "saved"
+    });
+
+    await Effect.runPromise(action.resetEffect());
     expect(read(action.state)).toEqual({ _tag: "Idle" });
   });
 

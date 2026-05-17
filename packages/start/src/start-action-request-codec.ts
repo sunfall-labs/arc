@@ -309,6 +309,13 @@ const readActionFormEffect = (request: Request): Effect.Effect<StartActionReques
     };
   });
 
+/**
+ * Reads one Start action request from JSON or progressive form data.
+ *
+ * JSON bodies must contain `{ name, input }`; form bodies use
+ * `startActionNameField`, optional `startActionInputField`, and remaining
+ * fields as user input.
+ */
 export const readStartActionRequestEffect = (
   request: Request
 ): Effect.Effect<StartActionRequest, ServerRpcProtocolError> =>

@@ -165,7 +165,9 @@ export interface ActionInstance<
   readonly invalidationPlan: ReadableSignal<ResourceInvalidationPlan<InvalidationRequirements> | undefined>;
   /** Runs the action workflow as an Effect, preserving typed errors and requirements. */
   submitEffect(input: I): Effect.Effect<A, E | EffectInputCallbackError | ActionInterrupted, R>;
+  /** Resets visible action state as an Effect. */
   resetEffect(): Effect.Effect<void>;
+  /** Runtime-owned synchronous convenience for UI event handlers. */
   reset(): void;
 }
 
@@ -552,7 +554,7 @@ export namespace Action {
       submitEffect,
       resetEffect: workflow.resetEffect,
       reset: () => {
-        submissions.reset();
+        void runtime.runFork(workflow.resetEffect().pipe(Effect.catch(() => Effect.void)));
       }
     };
   }

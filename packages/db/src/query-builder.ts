@@ -51,6 +51,88 @@ import type {
  * Builders are cheap descriptions. `execute` reads current collection state
  * synchronously; `Query.onceEffect` and `Query.live` preload sources first.
  */
+export interface QueryBuilderInterface<TContext extends AnyQueryContext, TResult, E = never, R = never> {
+  readonly Type?: {
+    readonly Error: E;
+    readonly Requirements: R;
+  };
+  /** Returns a new query with an additional boolean filter. */
+  where(predicate: (row: TContext) => boolean): QueryBuilderInterface<TContext, TResult, E, R>;
+  /** Returns a new query that projects each matching context to a result value. */
+  select<Next>(
+    projector: (row: TContext) => Next & RejectPlainQueryRecord<Next>
+  ): QueryBuilderInterface<TContext, Next, E, R>;
+  /** Inner-joins another collection by comparing keys from the left context and right rows. */
+  join<const Alias extends string, C extends AnyCollection>(
+    alias: Alias,
+    collection: C,
+    leftKey: (row: TContext) => QueryJoinKey,
+    rightKey: (row: CollectionRowValue<C>) => QueryJoinKey
+  ): QueryBuilderInterface<
+    QueryJoinedContext<TContext, Alias, C>,
+    QueryJoinResult<TContext, TResult, QueryJoinedContext<TContext, Alias, C>>,
+    E | CollectionRuntimeError<CollectionError<C>>,
+    R | CollectionRequirements<C>
+  >;
+  /** Inner-joins another collection through one of its declared secondary indexes. */
+  joinIndexed<const Alias extends string, C extends AnyCollection>(
+    alias: Alias,
+    collection: C,
+    leftKey: (row: TContext) => QueryJoinKey,
+    index: string
+  ): QueryBuilderInterface<
+    QueryJoinedContext<TContext, Alias, C>,
+    QueryJoinResult<TContext, TResult, QueryJoinedContext<TContext, Alias, C>>,
+    E | CollectionRuntimeError<CollectionError<C>>,
+    R | CollectionRequirements<C>
+  >;
+  /** Alias for `join`. */
+  innerJoin<const Alias extends string, C extends AnyCollection>(
+    alias: Alias,
+    collection: C,
+    leftKey: (row: TContext) => QueryJoinKey,
+    rightKey: (row: CollectionRowValue<C>) => QueryJoinKey
+  ): QueryBuilderInterface<
+    QueryJoinedContext<TContext, Alias, C>,
+    QueryJoinResult<TContext, TResult, QueryJoinedContext<TContext, Alias, C>>,
+    E | CollectionRuntimeError<CollectionError<C>>,
+    R | CollectionRequirements<C>
+  >;
+  /** Alias for `joinIndexed`. */
+  innerJoinIndexed<const Alias extends string, C extends AnyCollection>(
+    alias: Alias,
+    collection: C,
+    leftKey: (row: TContext) => QueryJoinKey,
+    index: string
+  ): QueryBuilderInterface<
+    QueryJoinedContext<TContext, Alias, C>,
+    QueryJoinResult<TContext, TResult, QueryJoinedContext<TContext, Alias, C>>,
+    E | CollectionRuntimeError<CollectionError<C>>,
+    R | CollectionRequirements<C>
+  >;
+  /** Groups filtered source rows by a key object and evaluates aggregate selectors. */
+  groupBy<
+    TKey extends Record<string, unknown>,
+    Aggregates extends QueryAggregateRecord<TContext>
+  >(
+    key: (row: TContext) => QueryGroupKey<TKey>,
+    aggregates: Aggregates
+  ): QueryBuilderInterface<
+    QueryAggregateResult<QueryGroupKey<TKey>, Aggregates>,
+    QueryAggregateResult<QueryGroupKey<TKey>, Aggregates>,
+    E,
+    R
+  >;
+  /** Adds a stable sort. Multiple `orderBy` calls are evaluated in order. */
+  orderBy(selector: (row: TContext) => QuerySortValue, direction?: QuerySortDirection): QueryBuilderInterface<TContext, TResult, E, R>;
+  /** Skips the first `count` results after filtering and sorting. */
+  offset(count: number): QueryBuilderInterface<TContext, TResult, E, R>;
+  /** Limits the number of results after filtering, sorting, and offset. */
+  limit(count: number): QueryBuilderInterface<TContext, TResult, E, R>;
+  /** Synchronously evaluates the query against the current collection state. */
+  execute(): ReadonlyArray<TResult>;
+}
+
 export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, R = never> {
   declare readonly Type?: {
     readonly Error: E;
@@ -315,7 +397,7 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
 
 export type AnyQueryBuilder<TResult = any, E = any, R = any> = QueryBuilder<any, TResult, E, R>;
 
-export type QueryFactory<TResult, E = never, R = never> = (query: QueryRoot) => AnyQueryBuilder<TResult, E, R>;
+export type QueryFactory<TResult, E = never, R = never> = (query: QueryRoot) => QueryBuilderInterface<any, TResult, E, R>;
 
 class QueryFactoryResultRejected extends Data.TaggedError("QueryFactoryResultRejected")<{
   readonly reason: "promise" | "effect" | "builder";
@@ -361,7 +443,7 @@ export interface QueryRoot {
    */
   from<const Sources extends SourceRecord>(
     sources: Sources
-  ): QueryBuilder<
+  ): QueryBuilderInterface<
     QueryContext<Sources>,
     QueryContext<Sources>,
     QuerySourcesError<Sources>,
@@ -384,7 +466,6 @@ export type LiveQueryState<T, E = never> =
  * expose the union of source collection error and requirement channels.
  */
 export interface LiveQuery<T, E = never, R = never> {
-  readonly builder: AnyQueryBuilder<T, E, R>;
   readonly data: ReadableSignal<ReadonlyArray<T>>;
   readonly state: ReadableSignal<LiveQueryState<T, E | QueryEvaluationError>>;
   readonly sources: ReadonlyArray<AnyCollection>;
@@ -396,7 +477,7 @@ export interface LiveQuery<T, E = never, R = never> {
 const queryRoot: QueryRoot = {
   from: <const Sources extends SourceRecord>(
     sources: Sources
-  ): QueryBuilder<
+  ): QueryBuilderInterface<
     QueryContext<Sources>,
     QueryContext<Sources>,
     QuerySourcesError<Sources>,
@@ -408,7 +489,12 @@ const queryRoot: QueryRoot = {
     QuerySourcesRequirements<Sources>
   >(
     Object.entries(sources) as ReadonlyArray<readonly [string, AnyCollection]>
-  )
+  ) as unknown as QueryBuilderInterface<
+    QueryContext<Sources>,
+    QueryContext<Sources>,
+    QuerySourcesError<Sources>,
+    QuerySourcesRequirements<Sources>
+  >
 };
 
 /** Equality predicate using `Object.is`, matching signal and collection change checks. */
@@ -524,9 +610,9 @@ const aggregateMax = <TContext, V extends number | string | Date | bigint>(
  * builder. Use `onceEffect` for one-shot reads and `live` for reactive data.
  */
 export namespace Query {
-  /** Immutable query builder carrying context, result, error, and requirement types. */
+  /** Immutable query builder DSL carrying context, result, error, and requirement types without exposing plan internals. */
   export type Builder<TContext extends AnyQueryContext, TResult, E = never, R = never> =
-    QueryBuilder<TContext, TResult, E, R>;
+    QueryBuilderInterface<TContext, TResult, E, R>;
   /** Function that receives the query root DSL and returns a builder. */
   export type Factory<TResult, E = never, R = never> = QueryFactory<TResult, E, R>;
   /** Reactive query handle backed by source collection state. */
@@ -578,9 +664,9 @@ export namespace Query {
    * factory results, and other non-builder factory results are normalized and
    * thrown as `QueryEvaluationError` with operation `"evaluate"`.
    */
-  export const build = <T, E = never, R = never>(factory: QueryFactory<T, E, R>): AnyQueryBuilder<T, E, R> => {
+  export const build = <T, E = never, R = never>(factory: QueryFactory<T, E, R>): QueryBuilderInterface<any, T, E, R> => {
     try {
-      return validateQueryFactoryResult<T, E, R>(factory(queryRoot));
+      return validateQueryFactoryResult<T, E, R>(factory(queryRoot)) as unknown as QueryBuilderInterface<any, T, E, R>;
     } catch (cause) {
       throw toQueryEvaluationError("evaluate", cause);
     }
@@ -590,7 +676,7 @@ export namespace Query {
     factory: QueryFactory<T, E, R>
   ): AnyQueryBuilder<T, E, R> => {
     try {
-      return build(factory);
+      return validateQueryFactoryResult<T, E, R>(factory(queryRoot));
     } catch (cause) {
       throw toQueryEvaluationError("evaluate", cause);
     }
@@ -629,7 +715,7 @@ export namespace Query {
   ): Effect.Effect<ReadonlyArray<T>, E | QueryEvaluationError, R> =>
     Effect.gen(function* () {
       const builder = yield* Effect.try({
-        try: () => build(factory),
+        try: () => buildOrThrowQueryEvaluationError(factory),
         catch: (cause) => toQueryEvaluationError("evaluate", cause)
       });
       yield* preloadQueryExecutionPlanEffect<E, R>(builder, false);

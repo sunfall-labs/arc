@@ -502,7 +502,6 @@ export interface CollectionStoreDiagnostics {
  */
 export interface CollectionStore {
   readonly [CollectionStoreTypeId]: typeof CollectionStoreTypeId;
-  readonly disposeEffect: Effect.Effect<void>;
   readonly diagnostics: CollectionStoreDiagnostics;
   subscribeEventsEffect(): Effect.Effect<PubSub.Subscription<CollectionStoreEvent>, never, Scope.Scope>;
 }

@@ -177,7 +177,6 @@ export const makeLiveQueryState = <T, E = never, R = never>(
   const state = currentStoreSignal((signals) => signals.state);
 
   return {
-    builder,
     data,
     state,
     sources,

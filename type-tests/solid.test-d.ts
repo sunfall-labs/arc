@@ -64,7 +64,7 @@ interface SolidProject {
   readonly name: string;
 }
 
-const solidRoutes = [route("/", {})] as const;
+const solidRoutes = [route("/", {}), route("/projects/:id", {})] as const;
 const solidHistory = makeMemoryBrowserHistoryAdapter({ initialHref: "/" });
 const solidBrowserOptions: BrowserRouterOptions<typeof solidRoutes> = {
   history: solidHistory,
@@ -82,6 +82,15 @@ const solidRouteForPath: SolidRouteForHome = solidRoutes[0];
 const solidRouteHref: string = Route.href(solidRoutes[0]);
 const solidNavigateArgs: BrowserNavigateArgs<typeof solidRoutes[0]> = [];
 const solidNavigateOptions: BrowserNavigateOptions = { replace: true };
+const solidHrefByPath: string = solidRouter.hrefByPath("/projects/:id", {
+  params: { id: "atlas" }
+});
+solidRouter.navigateByPath("/projects/:id", {
+  params: { id: "atlas" }
+}, solidNavigateOptions);
+const solidMatchByPath = solidRouter.matchByPath("/projects/:id");
+const solidPreloadByPathEffect: Effect.Effect<void, Route.NavigationError> =
+  solidRouter.preloadByPathEffect("/projects/:id", { params: { id: "atlas" } });
 const solidPlainLeftClick: boolean = isPlainLeftClick({
   button: 0,
   metaKey: false,
@@ -238,6 +247,9 @@ const solidExports: Array<unknown> = [
   solidRouteHref,
   solidNavigateArgs,
   solidNavigateOptions,
+  solidHrefByPath,
+  solidMatchByPath,
+  solidPreloadByPathEffect,
   solidPlainLeftClick,
   solidRouterLinkProps,
   solidRouterLinkNode,

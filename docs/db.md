@@ -37,7 +37,7 @@ without choosing between correctness, inspectability, and ergonomics.
 - Collection state is stored per active Effect UI runtime/resource store.
 - Each Resource Store owns an explicit `Collection.Store`, exposed with
   `Collection.storeEffect()` for diagnostics and event subscriptions without
-  exposing private row maps.
+  exposing private row maps or runtime disposal.
 - Collection Stores expose runtime-local diagnostics through
   `store.diagnostics.snapshot()` and `store.diagnostics.snapshotEffect`, so
   tests, adapters, and devtools can inspect collection, row, mutation, loading,
@@ -134,8 +134,11 @@ const ActiveProjectNames = Query.live((query) =>
 
 The concrete `QueryBuilder` constructor is internal to the package source; apps
 use `Query.from(...)`, `Query.build(...)`, `Query.onceEffect(...)`,
-`Query.live(...)`, and the `Query.Builder` type alias. That keeps malformed
-builder construction behind the Query Module seam.
+`Query.live(...)`, and the `Query.Builder` fluent Interface. The public
+builder type does not expose execution-plan storage, and public `LiveQuery`
+handles expose data/state/source metadata and lifecycle Effects rather than the
+internal builder. That keeps malformed builder construction and plan mutation
+behind the Query Module seam.
 
 Internally, Query Builder, Query Execution Plan, Live Query State, and Live
 Query Runtime read source collections through the Collection Query Source
@@ -196,7 +199,8 @@ derived from a D2 graph rather than owned by a Collection Store, so the runtime
 builds index buckets from the materialized projection and caches them per
 projection revision.
 
-Collection Store diagnostics are intentionally counts, not mutable state:
+Collection Store diagnostics are intentionally counts, not mutable state or
+runtime disposal:
 
 ```ts
 const store = yield* Collection.storeEffect()

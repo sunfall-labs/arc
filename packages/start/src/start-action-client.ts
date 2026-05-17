@@ -1,5 +1,6 @@
 import {
   ActionInterrupted,
+  currentOrDefaultRuntime,
   getCurrentRuntime,
   makeActionSubmissionController,
   Server,
@@ -259,6 +260,7 @@ export namespace StartAction {
   ): Instance<D, RuntimeError, FetchRequirements> {
     const ambientRuntime = getCurrentRuntime() as AnyEffectUiRuntime<RuntimeError> | undefined;
     const responseRuntime = options.responseRuntime ?? options.runtime ?? ambientRuntime;
+    const resetRuntime = responseRuntime ?? currentOrDefaultRuntime();
     const transportRuntime = options.transportRuntime ?? options.runtime;
     const hydration = Signal.make<StartHydrationPayload | undefined>(undefined);
     const submissions = makeActionSubmissionController<
@@ -366,8 +368,7 @@ export namespace StartAction {
       submitEffect,
       resetEffect,
       reset: () => {
-        submissions.reset();
-        hydration.set(undefined);
+        void resetRuntime.runFork(resetEffect().pipe(Effect.catch(() => Effect.void)));
       }
     };
   }

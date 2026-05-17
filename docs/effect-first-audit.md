@@ -20,6 +20,13 @@ interruption.
 
 ## Current Sweep Results
 
+- Review229 kept the post-Review228 fixes Effect-first: Start action request
+  helpers now expose their decoding work as Effects from the public root, the
+  script command runner replaced detached stream collectors with Effect v4
+  `Effect.forkChild(...)`, Action and StartAction sync `reset()` conveniences
+  are owned by captured runtimes while `resetEffect()` stays public, and DB
+  Query/Store changes tightened public Interfaces without adding Promise
+  surfaces.
 - Review228 kept the post-Review227 fixes Effect-first: DB query factory,
   query-plan, and collection-detachment seams now reuse Core's guarded
   `isPromiseLikeValue(...)` probe for Promise-shaped and throwing-`then`
@@ -645,7 +652,7 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 228 `pnpm verify` run recorded in
+- The current full gate is the Review 229 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
   over 411 files, 53 root test files / 1139 tests, package-level verifies,
@@ -1469,9 +1476,9 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The current full `pnpm verify` passed after Review 228 public helper
-  ownership, DB shared Promise-shaped probe reuse, `QueryBuilder` root export
-  tightening, and public file-route resource ref guardrails:
+- The current full `pnpm verify` passed after Review 229 public surface
+  ownership, structured command-runner collector fibers, DB Query/Store public
+  seam tightening, runtime-owned reset conveniences, and Core/Solid LSP pins:
   11 package builds, workspace
   typecheck, type tests, public API
   inventory audit, Effect-first audit over 411

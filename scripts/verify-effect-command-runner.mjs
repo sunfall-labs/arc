@@ -63,6 +63,36 @@ const interruptionSelfTest = Effect.gen(function* () {
   yield* assert(exit._tag === "Failure", "interrupted command fiber should fail instead of succeeding.", exit);
 });
 
+const interruptionWithActiveCollectorsSelfTest = Effect.gen(function* () {
+  let stdout = "";
+  let stderr = "";
+  const fiber = Effect.runFork(runScriptCommandEffect(process.execPath, [
+    "-e",
+    [
+      "setInterval(() => {",
+      "  process.stdout.write('out\\n');",
+      "  process.stderr.write('err\\n');",
+      "}, 5)"
+    ].join("")
+  ], {
+    onStdoutChunk: (chunk) => {
+      stdout += chunk;
+    },
+    onStderrChunk: (chunk) => {
+      stderr += chunk;
+    },
+  }));
+
+  yield* Effect.gen(function* () {
+    while (!stdout.includes("out") || !stderr.includes("err")) {
+      yield* Effect.sleep("10 millis");
+    }
+  }).pipe(Effect.timeout("2 seconds"));
+  yield* Fiber.interrupt(fiber).pipe(Effect.timeout("3 seconds"));
+  const exit = yield* Fiber.await(fiber);
+  yield* assert(exit._tag === "Failure", "interrupted noisy command fiber should fail instead of succeeding.", exit);
+});
+
 const forceKillSelfTest = Effect.gen(function* () {
   let stderr = "";
   const fiber = Effect.runFork(runScriptCommandEffect(process.execPath, [
@@ -89,6 +119,7 @@ const selfTest = Effect.gen(function* () {
   yield* nonzeroExitSelfTest;
   yield* spawnFailureSelfTest;
   yield* interruptionSelfTest;
+  yield* interruptionWithActiveCollectorsSelfTest;
   yield* forceKillSelfTest;
   yield* Effect.sync(() => {
     console.log("Verified Effect command runner policy.");

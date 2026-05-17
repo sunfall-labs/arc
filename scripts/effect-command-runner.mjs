@@ -154,11 +154,11 @@ export const runScriptCommandEffect = (command, args, options = {}) =>
     const stdoutFiber = yield* collectProcessOutputEffect(
       handle.stdout,
       options.onStdoutChunk
-    ).pipe(Effect.forkDetach({ startImmediately: true }));
+    ).pipe(Effect.forkChild({ startImmediately: true }));
     const stderrFiber = yield* collectProcessOutputEffect(
       handle.stderr,
       options.onStderrChunk
-    ).pipe(Effect.forkDetach({ startImmediately: true }));
+    ).pipe(Effect.forkChild({ startImmediately: true }));
     const code = yield* handle.exitCode;
     const stdout = yield* Fiber.join(stdoutFiber);
     const stderr = yield* Fiber.join(stderrFiber);

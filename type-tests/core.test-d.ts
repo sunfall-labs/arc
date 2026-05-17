@@ -115,6 +115,10 @@ import {
   type EffectUiRuntime,
   type FormInstance,
   type ParamsForPath,
+  type ResourceInvalidationPlan,
+  type ResourceStatus,
+  type ResourceTag,
+  type ResourceTagDefinition,
   type MemoryBrowserHistoryAdapter,
   type ResourceSnapshotCodecOperation,
   type ResourceHydrationInput,
@@ -237,6 +241,11 @@ const stableEncodeFailure = new StableStringifyEncodeFailure({
   cause: new Error("host read failed"),
   guidance: "use readable data"
 });
+declare const coreResourceTag: ResourceTag;
+declare const coreResourceTagDefinition: ResourceTagDefinition<string>;
+declare const coreResourceInvalidationPlan: ResourceInvalidationPlan;
+declare const coreResourceStatus: ResourceStatus<string, { readonly id: string }>;
+const coreResourceTagFromDefinition: ResourceTag = coreResourceTagDefinition("atlas");
 const resourceStaleFor: DurationInput = "5 seconds";
 const resourceUnsupportedDuration = new UnsupportedDuration({ duration: "forever" });
 const coreExports: Array<unknown> = [
@@ -340,6 +349,11 @@ const coreExports: Array<unknown> = [
   stableUnsupportedValue,
   stableInvalidDate,
   stableEncodeFailure,
+  coreResourceTag,
+  coreResourceTagDefinition,
+  coreResourceInvalidationPlan,
+  coreResourceStatus,
+  coreResourceTagFromDefinition,
   resourceStaleFor,
   resourceUnsupportedDuration
 ];

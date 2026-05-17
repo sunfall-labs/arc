@@ -302,9 +302,13 @@ export const publicHoverDocGroups = [
   {
     file: "packages/core/src/resource.ts",
     declarations: [
+      "ResourceTag",
+      "ResourceTagDefinition",
+      "ResourceInvalidationPlan",
       "ResourceHydrationSnapshot",
       "ResourceHydrationPayload",
       "ResourceHydrationInput",
+      "ResourceStatus",
       "Resource"
     ],
     namespaceDeclarations: {
@@ -1083,8 +1087,27 @@ export const publicHoverDocGroups = [
   {
     file: "packages/start/src/start-action-request-codec.ts",
     declarations: [
+      "StartActionRequest",
       "StartActionFormField",
-      "StartActionFormOptions"
+      "StartActionForm",
+      "StartActionFormOptions",
+      "StartActionDefinition",
+      "startActionNameField",
+      "startActionInputField",
+      "StartActionFormEncodeError",
+      "encodeStartActionInputEffect",
+      "encodeStartActionPartialInputEffect",
+      "encodeStartActionRequestEffect",
+      "encodeStartActionFormInputEffect",
+      "startActionForm",
+      "readStartActionRequestEffect"
+    ]
+  },
+  {
+    file: "packages/start/src/start-action-client.ts",
+    declarations: [
+      "submitStartActionEffect",
+      "StartAction"
     ]
   },
   {

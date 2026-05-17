@@ -122,6 +122,10 @@ Golden-path public groups:
   `Resource.InvalidationTarget`, `Resource.HydrationPayload`, and
   `Resource.Status` are public LSP vocabulary for invalidation, hydration, and
   diagnostics adapters.
+- Direct Resource symbols such as `ResourceTag`, `ResourceTagDefinition`,
+  `ResourceInvalidationPlan`, and `ResourceStatus` are also Core-owned public
+  vocabulary. Type-test and hover-policy pins keep adapters from depending on
+  namespace-only imports when a top-level type is the clearer LSP target.
 - Top-level Resource hydration symbols `ResourceHydrationPayload` and
   `ResourceHydrationInput` describe the shared Core/Start payload-only
   contract. `Resource.hydrateEffect(...)` and `Resource.hydrate(...)` accept the
@@ -448,10 +452,14 @@ The root export includes:
 - RPC/action client status validation delegates to the shared Start Transport
   Status Policy so semantic transport bodies and HTTP statuses cannot drift
   between server functions and actions.
-- form bridge APIs: `startActionForm`, `StartAction`, and transport result
-  types.
+- form bridge APIs: `startActionForm`, `StartAction`, Start action request
+  encode/decode helpers such as `encodeStartAction*Effect(...)` and
+  `readStartActionRequestEffect(...)`, hidden-field constants, and transport
+  result types.
 - `StartActionFormEncodeError` is public hover vocabulary for the synchronous
   progressive form facade when schema-backed defaults cannot be encoded.
+  `submitStartActionEffect(...)` is the Effect-first client submission seam,
+  while `StartAction.use(...)` is the runtime-owned stateful UI facade.
 - request trace types: `StartRequestTrace`, request/response/resource/
   collection/action/server-function/fiber/stream/teardown trace records,
   cleanup failure summaries, and `StartRequestTraceHandler`.
@@ -744,7 +752,7 @@ Release decisions:
   `Collection.StoreDiagnosticsSnapshot` are the public runtime-local diagnostic
   view over a Collection Store. They expose counts for registered collections,
   rows, pending/active optimistic mutations, optimistic rows, loading states,
-  and failures without exposing mutable row/index maps.
+  and failures without exposing mutable row/index maps or runtime disposal.
 - `Collection.FlushAllPendingMutationsError`,
   `Collection.FlushAllPendingMutationsRequirements`,
   `Collection.BackgroundSyncError`, and
@@ -896,8 +904,10 @@ Release decisions:
   source, aggregate, build, diagnostics, once, and live helpers, so this
   factory-result guidance stays visible in LSP hovers. The concrete
   `QueryBuilder` constructor is not a package-root export; public callers use
-  `Query.from(...)`, factory callbacks, and the `Query.Builder` type alias so
-  the Query Module owns builder construction.
+  `Query.from(...)`, factory callbacks, and the `Query.Builder` fluent
+  Interface so the Query Module owns builder construction and execution-plan
+  storage. Public `LiveQuery` handles expose data/state/source metadata and
+  lifecycle Effects, not the internal builder.
 - `QueryGroupKey` and `Query.GroupKey` are the public grouped-query key
   contracts for `Query.groupBy(...)`. They reject Promise-shaped values inside
   nested records, arrays, Maps, and Sets at the type seam, and runtime evaluation reports
@@ -1221,7 +1231,9 @@ Release decisions:
 - `BrowserRouter` mirrors generated route path ergonomics with
   `hrefByPath(...)`, `navigateByPath(...)`, `matchByPath(...)`, and
   `preloadByPathEffect(...)`; route-object helpers remain available for callers
-  already holding concrete route definitions.
+  already holding concrete route definitions. Solid type tests pin each path
+  helper so adapter LSP coverage does not rely only on React/router-object
+  examples.
 - `RouterOutlet` delegates branch rendering, route-owned `UiScope` lifetime,
   Solid root cleanup, runtime-bound route finalizers, transition disposal
   ordering, and stale queued-render suppression to the internal Solid Route

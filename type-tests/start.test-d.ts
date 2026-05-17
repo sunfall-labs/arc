@@ -66,7 +66,17 @@ import {
   StartTransportEndpointConflictError,
   StartTransportEndpointPathError,
   FileRoutePreloadError,
+  StartAction,
   StartAppGraphUnknownActionBehavior,
+  StartActionFormEncodeError,
+  encodeStartActionFormInputEffect,
+  encodeStartActionInputEffect,
+  encodeStartActionPartialInputEffect,
+  encodeStartActionRequestEffect,
+  readStartActionRequestEffect,
+  startActionForm,
+  startActionInputField,
+  startActionNameField,
   submitStartActionEffect,
   validateStartAppGraphActionBehaviorEffect,
   validateStartAppGraphDiagnosticsPolicyEffect,
@@ -85,8 +95,11 @@ import {
   type StartAppGraphDiagnosticsPolicyViolation,
   type StartAppGraphRoutePreloadCollectionsPolicy,
   type StartAppGraphRoutePreloadResourcesPolicy,
+  type StartActionDefinition,
+  type StartActionForm,
   type StartActionFormField,
   type StartActionFormOptions,
+  type StartActionRequest,
   type StartEndpointConflictErrorInput,
   type StartEndpointPathErrorInput,
   type StartFetch,
@@ -154,7 +167,7 @@ import {
   type StartRequestHandler,
   type StartRequestTrace
 } from "@effect-ui/start";
-import type { EffectUiRuntime } from "@effect-ui/core";
+import type { ActionDefinition, EffectUiRuntime } from "@effect-ui/core";
 
 const startExports: Array<unknown> = [
   collectStartAppGraphDiagnosticsPolicyViolations,
@@ -217,13 +230,23 @@ const startExports: Array<unknown> = [
   StartAppGraphDiagnosticsDtoError,
   FileRouteDefinitionsModuleInvalidExportName,
   FileRouteDefinitionsModuleInvalidIdentifier,
+  StartAction,
   FileRoutePreloadError,
+  StartActionFormEncodeError,
   StartActionDuplicateName,
   StartAppGraphMissingWireSchemas,
   StartAppGraphParseError,
   StartTransportEndpointConflictError,
   StartTransportEndpointPathError,
   StartAppGraphUnknownActionBehavior,
+  encodeStartActionFormInputEffect,
+  encodeStartActionInputEffect,
+  encodeStartActionPartialInputEffect,
+  encodeStartActionRequestEffect,
+  readStartActionRequestEffect,
+  startActionForm,
+  startActionInputField,
+  startActionNameField,
   submitStartActionEffect,
   validateStartAppGraphActionBehaviorEffect,
   validateStartAppGraphDiagnosticsPolicyEffect,
@@ -244,8 +267,11 @@ type StartTypes =
   | StartAppGraphDiagnosticsPolicyViolation
   | StartAppGraphRoutePreloadCollectionsPolicy
   | StartAppGraphRoutePreloadResourcesPolicy
+  | StartActionDefinition
+  | StartActionForm
   | StartActionFormField
   | StartActionFormOptions<{ readonly id: string }>
+  | StartActionRequest
   | StartEndpointConflictErrorInput
   | StartEndpointPathErrorInput
   | ActionBehaviorMetadata
@@ -334,6 +360,64 @@ void fileRouteFromBuilder;
 void fileRoutePreloadOptions;
 void fileRoutePreloadRouteOptions;
 void fileRoutePreloadOperation;
+
+declare const startActionDefinition: ActionDefinition<{ readonly id: string }, unknown, never, never>;
+const startActionDefinitionPin: StartActionDefinition = startActionDefinition;
+const startActionRequest: StartActionRequest = {
+  name: startActionDefinition.name,
+  input: { id: "atlas" }
+};
+const startActionFormOptions: StartActionFormOptions<{ readonly id: string }> = {
+  input: { id: "atlas" }
+};
+const progressiveStartActionForm: StartActionForm =
+  startActionForm(startActionDefinition, startActionFormOptions);
+const namespaceStartActionForm: StartActionForm =
+  StartAction.form(startActionDefinition, startActionFormOptions);
+const startActionHiddenField: StartActionFormField = {
+  name: startActionNameField,
+  value: startActionDefinition.name
+};
+const startActionInputHiddenField: StartActionFormField = {
+  name: startActionInputField,
+  value: "{}"
+};
+const startActionFormEncodeError = new StartActionFormEncodeError({
+  actionName: startActionDefinition.name,
+  operation: "json-stringify",
+  input: undefined,
+  cause: "not serializable",
+  guidance: "use serializable defaults"
+});
+const encodedStartActionInputEffect = encodeStartActionInputEffect(startActionDefinition, { id: "atlas" });
+const encodedStartActionPartialInputEffect =
+  encodeStartActionPartialInputEffect(startActionDefinition, { id: "atlas" });
+const encodedStartActionRequestEffect =
+  encodeStartActionRequestEffect(startActionDefinition, { id: "atlas" });
+const encodedStartActionFormInputEffect =
+  encodeStartActionFormInputEffect(startActionDefinition, { id: "atlas" });
+const readStartActionRequest = readStartActionRequestEffect(
+  new Request("https://example.com/_actions", {
+    method: "POST",
+    body: JSON.stringify(startActionRequest),
+    headers: { "content-type": "application/json" }
+  })
+);
+const startActionSubmitEffect = submitStartActionEffect(startActionDefinition, { id: "atlas" });
+const startActionInstance = StartAction.use(startActionDefinition);
+void progressiveStartActionForm;
+void namespaceStartActionForm;
+void startActionHiddenField;
+void startActionInputHiddenField;
+void startActionFormEncodeError;
+void encodedStartActionInputEffect;
+void encodedStartActionPartialInputEffect;
+void encodedStartActionRequestEffect;
+void encodedStartActionFormInputEffect;
+void readStartActionRequest;
+void startActionSubmitEffect;
+void startActionInstance;
+void startActionDefinitionPin;
 
 declare const startRenderContext: StartRenderContext;
 const legacyHydrationScript: string = startRenderContext.legacyHydrationScript;

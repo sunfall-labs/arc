@@ -152,6 +152,7 @@ export interface ResourceFamilyDiagnostics {
   };
 }
 
+/** Stable invalidation tag attached to Resource refs through `Resource.tag(...)`. */
 export interface ResourceTag {
   readonly [ResourceTagTypeId]: typeof ResourceTagTypeId;
   readonly [ResourceTagIdentityTypeId]?: ResourceTagIdentity;
@@ -170,6 +171,7 @@ export type ResourceTagIdentity =
       readonly key: string;
     };
 
+/** Callable tag definition that creates keyed or unkeyed Resource invalidation tags. */
 export interface ResourceTagDefinition<Input> {
   readonly [ResourceTagTypeId]: typeof ResourceTagTypeId;
   readonly name: string;
@@ -210,6 +212,7 @@ export interface ResourceInvalidationPlanEntry<R = any> {
   readonly causes: ReadonlyArray<ResourceInvalidationCause>;
 }
 
+/** Resolved invalidation plan listing targets and loaded refs matched by those targets. */
 export interface ResourceInvalidationPlan<R = any> {
   readonly targets: ReadonlyArray<ResourceInvalidation<R>>;
   readonly entries: ReadonlyArray<ResourceInvalidationPlanEntry<R>>;
@@ -285,6 +288,7 @@ interface ResourceStatusBase<I, A, E, R, RefError = E> {
   readonly gcInMillis: number | undefined;
 }
 
+/** Computed Resource read status used by adapters, devtools, and diagnostics. */
 export type ResourceStatus<I, A, E = never, R = never, RefError = E> =
   | (ResourceStatusBase<I, A, E, R, RefError> & {
       readonly _tag: "Initial";

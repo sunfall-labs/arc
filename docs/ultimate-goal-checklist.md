@@ -661,12 +661,13 @@ Last evidence pass: May 17, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 228 passed Core/Start/DB typechecks,
-    public type tests, public API audit, Effect-first audit, focused DB/Start
-    throwing-then and public file-route refs regressions, and full
-    `pnpm verify` after closing Core helper public ownership, DB shared
-    Promise-shaped probe reuse, `QueryBuilder` root export tightening, and
-    public file-route resource ref guardrails.
+  - Latest focused evidence: Review 229 passed Core/DB/Start/Solid
+    typechecks, DB and Start declaration builds, public type tests, public API
+    audit, Effect-first audit, Effect command-runner self-test, focused
+    Core/React/Solid hook tests, Solid router tests, DB collection/live-query
+    tests, and full `pnpm verify` after closing Start action bridge ownership,
+    structured command-runner collector fibers, DB Query/Store public seams,
+    runtime-owned reset conveniences, and Core/Solid LSP pins.
     Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
     sweeps found Review191, Review192, Review193, Review194, Review195, and
     Review196, Review197, Review198, Review199, Review200, Review201,
@@ -674,7 +675,7 @@ Last evidence pass: May 17, 2026.
     Review208, Review209, Review210, Review211, Review212, Review213,
     Review214, Review215, Review216, Review217, Review218, Review219,
     Review220, Review221, Review222, Review223, Review224, Review225,
-    Review226, Review227, and Review228 work.
+    Review226, Review227, Review228, and Review229 work.
     Clean Sweep 1 after Review208 remains historical 1/30 evidence, but Clean
     Sweep 2 found Review209 work and the local post-Review209 pass found
     Review210 work; the first post-Review210 sweep found Review211 work, and
@@ -690,11 +691,12 @@ Last evidence pass: May 17, 2026.
     sweep found Review223 work, the post-Review223 sweep found Review224
     work, the post-Review224 sweep found Review225 work, and the
     post-Review225 sweep found Review226 work, the post-Review226 sweep
-    found Review227 work, and the post-Review227 sweep found Review228 work,
+    found Review227 work, the post-Review227 sweep found Review228 work, and
+    the post-Review228 sweep found Review229 work,
     leaving the
     active counter at 0/30.
     Latest full evidence:
-    `pnpm verify` ran after Review 228 with 53 root
+    `pnpm verify` ran after Review 229 with 53 root
     test files / 1139
     tests, plus 4 project-console test files / 27 tests in the package-level
     gate.
@@ -836,16 +838,16 @@ Last evidence pass: May 17, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 228 public helper ownership,
-    DB shared Promise-shaped probe reuse, `QueryBuilder` root export tightening,
-    and public file-route resource ref guardrails.
+  - Evidence: no new ADR required for the Review 229 public surface ownership,
+    structured command-runner collector lifetime, DB Query/Store public seam,
+    runtime-owned reset convenience, and Core/Solid LSP cleanup.
     Future architecture sweeps remain tracked in
     `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
   - Evidence: root `pnpm verify` passed on May 17,
-    2026 after Review 228 public helper ownership, DB shared Promise-shaped
-    probe reuse, `QueryBuilder` root export tightening, and public file-route
-    resource ref guardrails:
+    2026 after Review 229 public surface ownership, structured command-runner
+    collector fibers, DB Query/Store public seam tightening, runtime-owned
+    reset conveniences, and Core/Solid LSP pins:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
     411 physical/virtual files, 53 root test files / 1139 tests,
@@ -854,10 +856,11 @@ Last evidence pass: May 17, 2026.
     16-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 228 records Core/Start/DB typechecks, public type tests,
-    public API audit, Effect-first audit, focused DB/Start throwing-then and
-    public file-route refs regressions, and full `pnpm verify` after closing
-    the Review228 findings. Clean
+  - Evidence: Review 229 records Core/DB/Start/Solid typechecks, DB and Start
+    declaration builds, public type tests, public API audit, Effect-first
+    audit, Effect command-runner self-test, focused Core/React/Solid hook
+    tests, Solid router tests, DB collection/live-query tests, and full
+    `pnpm verify` after closing the Review229 findings. Clean
     Sweep 1 after
     Review190 remains historical 1/30 evidence, but later sweeps found
     Review191, Review192, Review193, Review194, Review195, Review196,
@@ -866,7 +869,7 @@ Last evidence pass: May 17, 2026.
     Review209, Review210, Review211, Review212, Review213, Review214,
     Review215, Review216, Review217, Review218, Review219, Review220,
     Review221, Review222, Review223, Review224, Review225, Review226,
-    Review227, and Review228 work.
+    Review227, Review228, and Review229 work.
     Clean
     Sweep 1 after Review208 remains historical 1/30 evidence, but Clean Sweep
     2 found Review209 work and the local post-Review209 pass found Review210
@@ -882,7 +885,8 @@ Last evidence pass: May 17, 2026.
     the post-Review222 local sweep found Review223 work, the post-Review223
     sweep found Review224 work, the post-Review224 sweep found Review225 work,
     the post-Review225 sweep found Review226 work, the post-Review226 sweep
-    found Review227 work, and the post-Review227 sweep found Review228 work,
+    found Review227 work, the post-Review227 sweep found Review228 work, and
+    the post-Review228 sweep found Review229 work,
     leaving the active counter at 0/30.
     Full verification is recorded in the latest full gate above.
 

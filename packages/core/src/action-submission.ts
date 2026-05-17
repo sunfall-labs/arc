@@ -79,7 +79,6 @@ export interface ActionSubmissionController<I, A, E, P = ResourceInvalidationPla
   ) => Effect.Effect<void>;
   readonly clearCurrentEffect: (token: object) => Effect.Effect<void>;
   readonly resetEffect: () => Effect.Effect<void>;
-  readonly reset: () => void;
 }
 
 export interface ActionSubmissionControllerOptions {
@@ -224,9 +223,6 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
           currentSubmission = undefined;
         }
       }),
-    resetEffect,
-    reset: () => {
-      void Effect.runFork(resetEffect());
-    }
+    resetEffect
   };
 };

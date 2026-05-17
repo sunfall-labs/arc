@@ -115,6 +115,12 @@ are easiest to regress while refactoring internals toward Effect primitives.
   helper types; DB now has a negative type pin proving the concrete
   `QueryBuilder` constructor is no longer a package-root export. It moved the
   current full verification evidence to the Review228 gate.
+- Review229 added Start action request/form/client bridge pins, direct Core
+  Resource symbol pins, Solid path-helper pins, DB source-surface and direct
+  query-helper pins, and negative public-surface pins proving
+  `Collection.Store.disposeEffect`, `LiveQuery.builder`, and QueryBuilder plan
+  fields are not public API. It moved the current full verification evidence
+  to the Review229 gate.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them
@@ -234,11 +240,13 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Verification Evidence
 
-- `pnpm typecheck:types` and full `pnpm verify` passed after Review228 with
+- `pnpm typecheck:types` and full `pnpm verify` passed after Review229 with
   53 root test files / 1139 tests, including the latest Core helper ownership
-  pins, Stable Identity Codec pins, Resource duration pins, DB `QueryBuilder`
-  root-export negative pin, Core `isPromiseLikeValue(...)` pin, direct DB root
-  export pins, Start diagnostics CLI loader Effect-only negative pin, Resource
+  pins, Stable Identity Codec pins, Resource duration pins, Start action bridge
+  pins, Core Resource direct symbol pins, Solid path-helper pins, DB Query/Store
+  public-surface negative pins, DB `QueryBuilder` root-export negative pin,
+  Core `isPromiseLikeValue(...)` pin, direct DB root export pins, Start
+  diagnostics CLI loader Effect-only negative pin, Resource
   hydration top-level
   payload/input manifest ownership, query-sync key namespace pins,
   payload-only pins, Router Link Preloader identity
