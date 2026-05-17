@@ -35,7 +35,7 @@ export interface CollectionIndexCacheEntry<A extends object, K extends Collectio
 }
 
 const collectionIndexGuidance =
-  "Collection secondary index selectors must return scalar plain values: string, number, boolean, Date, null, undefined, or arrays of those values.";
+  "Collection secondary index selectors must return scalar plain values: string, number, boolean, valid Date, null, undefined, or arrays of those values.";
 
 const collectionIndexError = (
   operation: string,

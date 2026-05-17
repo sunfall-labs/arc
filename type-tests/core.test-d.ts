@@ -106,6 +106,8 @@ import {
   type ParamsForPath,
   type MemoryBrowserHistoryAdapter,
   type ResourceSnapshotCodecOperation,
+  type ResourceHydrationInput,
+  type ResourceHydrationPayload,
   type ResourceUiAutoPreloadOptions,
   type ResourceUiBindingController,
   type ResourceUiBindingControllerOptions,
@@ -316,6 +318,22 @@ const typeTestResource = Resource.family<string, string, string>({
   load: (id) => Effect.succeed(id)
 });
 const typeTestResourceRef = typeTestResource("atlas");
+const typeTestResourceSnapshot: Resource.Snapshot<string, string, string> = {
+  name: typeTestResource.family.options.name,
+  key: typeTestResourceRef.key,
+  input: "atlas",
+  state: {
+    _tag: "Success",
+    waiting: false,
+    value: "atlas",
+    updatedAt: 1
+  }
+};
+const typeTestResourceHydrationPayload: ResourceHydrationPayload = {
+  resources: [typeTestResourceSnapshot]
+};
+const typeTestResourceHydrationInput: ResourceHydrationInput = typeTestResourceHydrationPayload;
+const typeTestResourceNamespacePayload: Resource.HydrationPayload = typeTestResourceHydrationInput;
 const collectedResourceEffect: Effect.Effect<Resource.Collected<string>, Resource.LoadError<string>> =
   Resource.collectEffect(Resource.prefetchEffect(typeTestResourceRef));
 Effect.map(collectedResourceEffect, (collected) => {
@@ -530,6 +548,10 @@ void actionPendingWithUndefinedPrevious;
 void actionFailureWithUndefinedPrevious;
 void matchedResourceState;
 void typeTestResourceRef;
+void typeTestResourceSnapshot;
+void typeTestResourceHydrationPayload;
+void typeTestResourceHydrationInput;
+void typeTestResourceNamespacePayload;
 void resourceUiBindingController;
 void resourceUiAutoPreloadOptions;
 void resourceUiAutoPreloadEffectOptions;

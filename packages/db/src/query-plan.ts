@@ -32,8 +32,8 @@ export type QueryEvaluationOperation =
   | "evaluate";
 
 /**
- * Error raised when user-provided synchronous query callbacks throw or return
- * Promise-shaped values during evaluation.
+ * Error raised when query factories, plan validation, or user-provided
+ * synchronous query callbacks fail during evaluation.
  *
  * Query factory throws are normalized with operation `"evaluate"`. One-shot
  * query Effects report this value in their error channel, while synchronous
@@ -59,7 +59,7 @@ class QueryCallbackEffectRejected extends Data.TaggedError(
 
 /** Sort direction accepted by Query order clauses. */
 export type QuerySortDirection = "asc" | "desc";
-/** Comparable scalar value accepted by Query ordering. */
+/** Comparable scalar value accepted by Query ordering; numbers must not be NaN and Dates must be valid. */
 export type QuerySortValue = string | number | boolean | Date | null | undefined;
 type NormalizedQuerySortValue = string | number | boolean | null | undefined;
 /** Scalar join key before stable string normalization. */

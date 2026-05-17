@@ -153,7 +153,7 @@ zero hits.
 
 ## Verification Evidence
 
-The current full verification gate is recorded in the Review 221 ledgers: 11
+The current full verification gate is recorded in the Review 222 ledgers: 11
 package builds, workspace typecheck, type tests, public API inventory audit,
 Effect-first audit over 411 files, 53 root test files / 1129 tests,
 package-level verifies, generated starter-suite packaging/verifies for

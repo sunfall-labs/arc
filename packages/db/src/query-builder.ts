@@ -242,7 +242,12 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
     );
   }
 
-  /** Adds a stable sort. Multiple `orderBy` calls are evaluated in order. */
+  /**
+   * Adds a stable sort. Multiple `orderBy` calls are evaluated in order.
+   *
+   * Selectors must return comparable scalar values. Invalid Dates and `NaN`
+   * fail as `QueryEvaluationError` with operation `"order"`.
+   */
   orderBy(selector: (row: TContext) => QuerySortValue, direction: QuerySortDirection = "asc"): QueryBuilder<TContext, TResult, E, R> {
     return new QueryBuilder<TContext, TResult, E, R>(
       this.sources,
@@ -489,7 +494,7 @@ export namespace Query {
   export type Live<T, E = never, R = never> = LiveQuery<T, E, R>;
   /** Load state emitted by a live query. */
   export type LiveState<T, E = never> = LiveQueryState<T, E>;
-  /** Error raised when query factory or callback evaluation fails. */
+  /** Error raised when query factory, callback, plan, or order comparable evaluation fails. */
   export type EvaluationError = QueryEvaluationError;
   /** Execution strategy selected for one query join. */
   export type JoinStrategy = QueryJoinStrategy;
@@ -544,14 +549,18 @@ export namespace Query {
   /**
    * Return query plan diagnostics for joins, filters, ordering, and row counts.
    *
-   * Synchronous factory throws are normalized and thrown as
+   * Synchronous factory and plan-validation throws are normalized and thrown as
    * `QueryEvaluationError` with operation `"evaluate"`.
    */
   export const diagnostics = <T, E = never, R = never>(
     factory: QueryFactory<T, E, R>
   ): QueryPlanDiagnostics => {
     const builder = buildOrThrowQueryEvaluationError(factory);
-    return queryExecutionPlanDiagnostics(builder);
+    try {
+      return queryExecutionPlanDiagnostics(builder);
+    } catch (cause) {
+      throw toQueryEvaluationError("evaluate", cause);
+    }
   };
 
   /**

@@ -155,7 +155,8 @@ const ProjectTasks = Query.live((query) =>
 Declare Collection Secondary Indexes when a relationship is queried repeatedly.
 The active Collection Store materializes each index into runtime/request-local
 lookup buckets and invalidates those buckets when the collection version
-changes:
+changes. Index values must be scalar plain values; Dates are supported only
+when valid:
 
 ```ts
 const Tasks = Collection.define<Task>({
@@ -223,6 +224,11 @@ plan.joins[0]
 //   estimatedComparisons: 4
 // }
 ```
+
+`Query.diagnostics(...)`, `Query.onceEffect(...)`, and `Query.live(...)` use
+the same typed failure envelope. Unsupported plan shapes, invalid source aliases
+or indexes, and invalid `orderBy(...)` comparable values such as `NaN` or
+invalid Dates fail as `QueryEvaluationError` instead of leaking raw exceptions.
 
 Grouped aggregates are also live:
 

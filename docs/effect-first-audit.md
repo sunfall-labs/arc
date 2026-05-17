@@ -20,6 +20,11 @@ interruption.
 
 ## Current Sweep Results
 
+- Review222 kept the post-Review221 fixes Effect-first: Resource hydration
+  remains payload-only at the public boundary, query diagnostics now normalize
+  plan-validation failures into the typed `QueryEvaluationError` envelope, and
+  DB comparable/index guidance names malformed values without adding Promise
+  internals.
 - Review221 kept the post-Review220 fixes Effect-first: Resource hydration now
   exposes one payload-only input Interface, DB secondary index and query order
   validation normalize malformed values into typed Effect errors, and the
@@ -608,7 +613,7 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 221 `pnpm verify` run recorded in
+- The current full gate is the Review 222 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
   over 411 files, 53 root test files / 1129 tests, package-level verifies,
@@ -1433,9 +1438,9 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The current full `pnpm verify` passed after Review 221 Resource hydration
-  payload-only input cleanup, DB invalid-Date secondary index validation, DB
-  comparable order-value validation, and command-runner force-kill coverage:
+- The current full `pnpm verify` passed after Review 222 Resource hydration
+  public/LSP ownership, sync hydrate raw-array rejection coverage, DB query
+  diagnostics envelope normalization, and valid-Date/comparable hover guidance:
   11 package builds, workspace
   typecheck, type tests, public API
   inventory audit, Effect-first audit over 411

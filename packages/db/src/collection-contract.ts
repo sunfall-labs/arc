@@ -97,7 +97,7 @@ export interface CollectionSyncDiagnostics {
   readonly adapter: string;
 }
 
-/** Value that can be normalized into a stable secondary-index bucket key. */
+/** Value that can be normalized into a stable secondary-index bucket key; Dates must be valid. */
 export type CollectionIndexValue = string | number | boolean | Date | null | undefined;
 /** One or more bucket keys emitted for a row by a secondary index. */
 export type CollectionIndexResult = CollectionIndexValue | ReadonlyArray<CollectionIndexValue>;
@@ -105,8 +105,9 @@ export type CollectionIndexResult = CollectionIndexValue | ReadonlyArray<Collect
 /**
  * Secondary index definition used by `collection.index` and indexed joins.
  *
- * Return one value for a one-to-one lookup, or several values when a row should
- * appear in multiple buckets. `unique` is diagnostic metadata only.
+ * Return one valid scalar value for a one-to-one lookup, or several valid
+ * scalar values when a row should appear in multiple buckets. Invalid Dates
+ * fail as `EffectInputCallbackError`. `unique` is diagnostic metadata only.
  */
 export interface CollectionIndexDefinition<A extends object> {
   readonly key: (value: A) => CollectionIndexResult;

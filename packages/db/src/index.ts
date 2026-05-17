@@ -409,7 +409,7 @@ export namespace Collection {
   export type Policy<E = never> = CollectionPolicy<E>;
   /** Sync adapter diagnostic facts for a collection. */
   export type SyncDiagnostics = CollectionSyncDiagnostics;
-  /** Scalar value accepted by collection secondary indexes. */
+  /** Scalar value accepted by collection secondary indexes; Dates must be valid. */
   export type IndexValue = CollectionIndexValue;
   /** Result row stored under one secondary index key. */
   export type IndexResult = CollectionIndexResult;

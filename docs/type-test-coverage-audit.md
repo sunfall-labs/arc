@@ -88,6 +88,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
 - Review221 added Resource hydration payload-only negative pins for raw snapshot
   arrays and moved the current full verification evidence to the Review221
   gate.
+- Review222 added direct top-level `ResourceHydrationPayload`/
+  `ResourceHydrationInput` pins plus sync `Resource.hydrate(...)` raw-array
+  negative coverage and moved the current full verification evidence to the
+  Review222 gate.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them
@@ -207,10 +211,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Verification Evidence
 
-- `pnpm typecheck:types` and full `pnpm verify` passed after Review221 with
+- `pnpm typecheck:types` and full `pnpm verify` passed after Review222 with
   53 root test files / 1129 tests, including the latest Resource hydration
-  payload-only pins, Router Link Preloader identity pin, Runtime Provider
-  Lifecycle typed disposal/export pins,
+  top-level payload/input and payload-only pins, Router Link Preloader identity
+  pin, Runtime Provider Lifecycle typed disposal/export pins,
   project-console runtime service probe, SQLite
   persistence metadata error typing, plain-data pins for Program models/
   messages, ActionResult payloads/errors, Form validation errors, collection

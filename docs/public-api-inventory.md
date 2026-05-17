@@ -122,6 +122,11 @@ Golden-path public groups:
   `Resource.InvalidationTarget`, `Resource.HydrationPayload`, and
   `Resource.Status` are public LSP vocabulary for invalidation, hydration, and
   diagnostics adapters.
+- Top-level Resource hydration symbols `ResourceHydrationPayload` and
+  `ResourceHydrationInput` describe the shared Core/Start payload-only
+  contract. `Resource.hydrateEffect(...)` and `Resource.hydrate(...)` accept the
+  payload object shape; raw snapshot arrays must be wrapped with
+  `Resource.hydrationPayload(...)` or `Resource.hydrationPayloadEffect(...)`.
 - `Action.planInvalidationEffect(...)` for adapters/tests that need action
   invalidation planning with synchronous `invalidates` callback throws reported
   as `EffectInputCallbackError`.
@@ -843,9 +848,10 @@ Release decisions:
   channels to `never`, not `any`. Serviceful query factories must spell their
   `E`/`R` parameters so `Query.onceEffect(...)`, `Query.live(...)`, and live
   query collections cannot hide collection failures or service requirements.
-  `Query.diagnostics(...)` and `Query.live(...)` normalize synchronous factory
-  throws as `QueryEvaluationError` values, matching the one-shot query
-  diagnostic seam instead of leaking raw defects through tooling.
+  `Query.diagnostics(...)`, `Query.onceEffect(...)`, and `Query.live(...)`
+  normalize synchronous factory and plan-validation throws as
+  `QueryEvaluationError` values, and invalid `orderBy(...)` comparables such as
+  `NaN` or invalid Dates fail with operation `"order"`.
 - `QueryGroupKey` and `Query.GroupKey` are the public grouped-query key
   contracts for `Query.groupBy(...)`. They reject Promise-shaped values inside
   nested records, arrays, Maps, and Sets at the type seam, and runtime evaluation reports

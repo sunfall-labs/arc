@@ -63,6 +63,8 @@ import {
   type MemoryBrowserHistoryAdapter,
   type ParamsForPath,
   type RoutePreloadResult,
+  type ResourceHydrationInput,
+  type ResourceHydrationPayload,
   type ResourceSnapshotCodecOperation,
   type ResourceStore,
   type RuntimeUiScopeFrame,
@@ -1515,10 +1517,12 @@ const resourceSnapshot: Resource.Snapshot<string, Project> = {
     updatedAt: 1
   }
 };
+const directResourceHydrationPayload: ResourceHydrationPayload = { resources: [resourceSnapshot] };
+const directResourceHydrationInput: ResourceHydrationInput = directResourceHydrationPayload;
 const validatedResourceSnapshotsEffect: Effect.Effect<
   ReadonlyArray<Resource.Snapshot>,
   ResourceSnapshotCodecError
-> = validateResourceHydrationInputEffect({ resources: [resourceSnapshot] }, resourceSnapshotOperation);
+> = validateResourceHydrationInputEffect(directResourceHydrationInput, resourceSnapshotOperation);
 void resourceFamilyRegistration;
 void resourceTagRegistration;
 void resourceDefinitionDiagnostics;
@@ -1651,6 +1655,8 @@ const resourceHydrateEffect: Effect.Effect<
   Resource.hydrateEffect({ resources: [] });
 // @ts-expect-error Resource hydration accepts payload objects, not raw snapshot arrays
 Resource.hydrateEffect([resourceSnapshot]);
+// @ts-expect-error synchronous Resource hydration accepts payload objects, not raw snapshot arrays
+Resource.hydrate([resourceSnapshot]);
 // @ts-expect-error Resource hydration validation accepts payload objects, not raw snapshot arrays
 validateResourceHydrationInputEffect([resourceSnapshot], resourceSnapshotOperation);
 const resourceDecodeEffect: Effect.Effect<Resource.HydrationPayload, ResourceSnapshotCodecError> =
@@ -1672,6 +1678,8 @@ declare const frameworkResourceHydrationOptionsAlias: Resource.HydrationOptions;
 declare const frameworkResourceStatusAlias: Resource.Status<string, Project>;
 void resourceDehydrateEffect;
 void resourceHydrationPayloadEffect;
+void directResourceHydrationPayload;
+void directResourceHydrationInput;
 void frameworkResourceTagAlias;
 void frameworkResourceInvalidationAlias;
 void frameworkResourceInvalidationTargetAlias;

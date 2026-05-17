@@ -279,6 +279,9 @@ export const publicHoverDocGroups = [
   {
     file: "packages/core/src/resource.ts",
     declarations: [
+      "ResourceHydrationSnapshot",
+      "ResourceHydrationPayload",
+      "ResourceHydrationInput",
       "Resource"
     ],
     namespaceDeclarations: {

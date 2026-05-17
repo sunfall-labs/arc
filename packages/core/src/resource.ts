@@ -223,11 +223,19 @@ export interface ResourceHydrationSnapshot<I = unknown, A = unknown, E = never> 
   readonly state: Extract<ResourceState<A, E>, { readonly _tag: "Success" }>;
 }
 
+/**
+ * Payload object accepted by `Resource.hydrateEffect(...)` and `Resource.hydrate(...)`.
+ *
+ * Resource hydration APIs intentionally accept this wrapper shape only; raw
+ * snapshot arrays must first be wrapped with `Resource.hydrationPayload(...)`
+ * or `Resource.hydrationPayloadEffect(...)`.
+ */
 export interface ResourceHydrationPayload {
+  /** Successful Resource snapshots to restore into the active Resource Store. */
   readonly resources: ReadonlyArray<ResourceHydrationSnapshot>;
 }
 
-/** Hydration payload accepted by Resource hydration APIs. */
+/** Top-level alias for the payload object accepted by Resource hydration APIs. */
 export type ResourceHydrationInput = ResourceHydrationPayload;
 
 /** Resource load failures plus synchronous Resource callback failures. */

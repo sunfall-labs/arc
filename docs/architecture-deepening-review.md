@@ -11,10 +11,10 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review221, the post-Review220 sweep
-fixing Resource hydration payload-only inputs, DB invalid Date/comparable order
-guardrails, and the Effect v4 command-runner force-kill path. The newest full
-verification checkpoint is Review221.
+The newest completed focused review is Review222, the post-Review221 sweep
+fixing Resource hydration public/LSP ownership, DB query diagnostics error
+envelopes, and DB valid-Date/order hover guidance. The newest full
+verification checkpoint is Review222.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -25,15 +25,16 @@ post-Review214 sweep found Review215 work, and the first post-Review215 sweep
 found Review216 work, the first post-Review216 sweep found Review217 work, and
 the first post-Review217 sweep found Review218 work, and the first
 post-Review218 sweep found Review219 work, the fresh post-Review219 sweep
-found Review220 work, and the fresh post-Review220 sweep found Review221 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review221
+found Review220 work, the fresh post-Review220 sweep found Review221 work, and
+the fresh post-Review221 sweep found Review222 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review222
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
 Review206, Review207, Review208, Review209, Review210, Review211, Review212,
-Review213, Review214, Review215, Review216, Review217, Review218, and
-Review219, Review220, and Review221 work.
+Review213, Review214, Review215, Review216, Review217, Review218, Review219,
+Review220, Review221, and Review222 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -93,8 +94,66 @@ DB, project-console, package, and docs work, and the first post-Review218
 sweep found Review219 Core, DB, Start, script, package-policy, and docs work,
 and the fresh post-Review219 sweep found Review220 Core, DB, Start, script,
 package-policy, and docs work, and the fresh post-Review220 sweep found
-Review221 Core, DB, and script work,
+Review221 Core, DB, and script work, and the fresh post-Review221 sweep found
+Review222 Core, DB, and docs/LSP work,
 so the counter remains 0/30.
+
+## Review 222: Hydration Hovers And Query Diagnostics Envelope
+
+Review222 fixed actionable findings from the fresh post-Review221 sweep.
+
+1. Resource Hydration Public LSP Ownership
+   - Status: fixed.
+   - Files: `packages/core/src/resource.ts`,
+     `packages/core/test/resource.test.ts`, `scripts/public-api-symbol-policy.mjs`,
+     `type-tests/core.test-d.ts`, `type-tests/framework.test-d.ts`, and
+     `docs/public-api-inventory.md`.
+   - Problem: the top-level `ResourceHydrationPayload` and
+     `ResourceHydrationInput` exports were the actual Core/Start shared
+     contract but lacked direct hover-policy and type-test ownership, and the
+     sync `Resource.hydrate(...)` facade did not have its own raw-array
+     rejection regression.
+   - Fix: added top-level payload JSDoc, public API hover policy entries,
+     direct type-test imports/usages, public inventory wording, and sync
+     runtime/type-test regressions rejecting legacy snapshot arrays.
+   - Benefits: Resource hydration has one discoverable payload-only Interface
+     across Core, Start, docs, LSP hovers, runtime tests, and type tests.
+
+2. Query Diagnostics Typed Plan Failures
+   - Status: fixed.
+   - Files: `packages/db/src/query-builder.ts` and
+     `packages/db/test/collection.test.ts`.
+   - Problem: `Query.diagnostics(...)` normalized factory throws but still let
+     query plan validation failures such as zero-source, reserved alias,
+     duplicate alias, missing join source, and missing indexed-join index escape
+     as raw `UnsupportedLiveQuery` while once/live APIs wrapped them in
+     `QueryEvaluationError`.
+   - Fix: wrapped diagnostics plan validation with
+     `toQueryEvaluationError("evaluate", cause)` and updated regressions to
+     assert the shared `QueryEvaluationError` envelope with the original
+     `UnsupportedLiveQuery` cause.
+   - Benefits: diagnostics, one-shot, and live query APIs now share one public
+     query failure envelope for tooling and adapters.
+
+3. DB Comparable And Index Hover Guidance
+   - Status: fixed.
+   - Files: `packages/db/src/query-plan.ts`,
+     `packages/db/src/query-builder.ts`, `packages/db/src/collection-contract.ts`,
+     `packages/db/src/collection-index-materialization.ts`,
+     `packages/db/src/index.ts`, `docs/db.md`, and
+     `docs/public-api-inventory.md`.
+   - Problem: LSP hovers and docs still said Query order and Collection index
+     values accepted `number`/`Date` without naming Review221's runtime policy:
+     NaN and invalid Dates fail as typed errors.
+   - Fix: updated Query and Collection JSDoc, index runtime guidance, DB docs,
+     and public inventory wording to name valid Dates and invalid order
+     comparables explicitly.
+   - Benefits: users see the same comparable-value and valid-Date rule in
+     hovers, docs, and runtime failures.
+
+Focused verification for Review222 passed: Core/DB typechecks, public type
+tests, public API audit, focused Resource legacy hydration regression, and
+focused DB diagnostics/order regression tests.
 
 ## Review 221: Payload Hydration, Comparable Ordering, And Force Kill Depth
 
@@ -1194,8 +1253,9 @@ first post-Review215 sweep found Review216 work, and the first post-Review216
 sweep found Review217 work, the first post-Review217 sweep found Review218
 work, the first post-Review218 sweep found Review219 work, and the fresh
 post-Review219 sweep found Review220 work, and the fresh post-Review220 sweep
-found Review221 work. The active counter is 0/30 until a fresh post-Review221
-sweep reports no actionable findings.
+found Review221 work, and the fresh post-Review221 sweep found Review222 work.
+The active counter is 0/30 until a fresh post-Review222 sweep reports no
+actionable findings.
 
 ## Review 208: Runtime Provider Observers, CLI Bin Execution, And Docs Drift
 
