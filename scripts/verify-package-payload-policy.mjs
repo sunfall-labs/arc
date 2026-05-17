@@ -91,7 +91,11 @@ const populatePackageEffect = (directory, options = {}) =>
     yield* writeTextEffect(directory, "src/feature.ts", "export const feature = 'feature';\n");
     yield* writeTextEffect(directory, "src/virtual.ts", "export const virtual = 'virtual';\n");
     yield* writeTextEffect(directory, "src/virtual-modules.d.ts", virtualDeclaration);
-    yield* writeTextEffect(directory, "dist/index.js", "export const index = 'index';\n");
+    yield* writeTextEffect(
+      directory,
+      "dist/index.js",
+      options.indexText ?? "export const index = 'index';\n",
+    );
     yield* writeTextEffect(directory, "dist/index.js.map", "{}\n");
     yield* writeTextEffect(directory, "dist/index.d.ts", "export declare const index = 'index';\n");
     yield* writeTextEffect(directory, "dist/index.d.ts.map", "{}\n");

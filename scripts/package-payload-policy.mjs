@@ -35,7 +35,12 @@ export const workspaceDistPackagePayloadPolicies = new Map([
 
 export const knownPayloadPolicies = new Set(["dist-package", "source-package"]);
 
-const forbiddenDistPayloadTokens = ["@effect-ui", "Effect UI", "EffectUiRuntime", "AnyEffectUiRuntime"];
+const forbiddenDistPayloadTokens = [
+  "@effect-ui",
+  "Effect UI",
+  "EffectUiRuntime",
+  "AnyEffectUiRuntime",
+];
 
 const fail = (message, repair, cause) => new PackagePayloadPolicyError({ message, repair, cause });
 
