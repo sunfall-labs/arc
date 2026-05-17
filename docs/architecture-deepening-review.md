@@ -11,11 +11,11 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review235 Solid Route Render Scope
-Cleanup Sequencing, the fresh post-Review234 follow-up that made same-state
-Solid outlet renderer swaps use the same Effect/Fiber cleanup sequencing as
-route transitions and exposed an awaitable internal `disposeEffect()`. The
-newest full verification checkpoint is Review235.
+The newest completed focused review is Review236 Solid Failed Render Cleanup
+Sequencing, the fresh post-Review235 framework sweep that moved partially
+constructed failed Solid route frames into the same Effect/Fiber cleanup chain
+as successful route frames. The newest full verification checkpoint is
+Review236.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -41,7 +41,8 @@ and the post-Review231 DB pass found Review232 Shared DB Query Stage Plan work,
 and the fresh post-Review232 sweep found Review233 work,
 and the fresh post-Review233 sweep found Review234 work,
 and the fresh post-Review234 Solid route-render follow-up found Review235 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review235
+and the fresh post-Review235 framework sweep found Review236 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review236
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -50,8 +51,8 @@ Review206, Review207, Review208, Review209, Review210, Review211, Review212,
 Review213, Review214, Review215, Review216, Review217, Review218, Review219,
 Review220, Review221, Review222, Review223, Review224, Review225,
 Review226, Review227, Review228, Review229, Review230, Review231, and
-Review232 Shared DB Query Stage Plan work, Review233 work, Review234 work, and
-Review235 work.
+Review232 Shared DB Query Stage Plan work, Review233 work, Review234 work,
+Review235 work, and Review236 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -133,8 +134,39 @@ work, and the post-Review231 DB pass found Review232 Shared DB Query Stage
 Plan work, and the fresh post-Review232 sweep found Review233 Stage Plan and
 UI cleanup work, and the fresh post-Review233 sweep found Review234 cleanup
 Effect and public-surface work, and the fresh post-Review234 Solid route-render
-follow-up found Review235 cleanup sequencing work,
+follow-up found Review235 cleanup sequencing work, and the fresh post-Review235
+framework sweep found Review236 failed-render cleanup work,
 so the counter remains 0/30.
+
+## Review 236: Solid Failed Render Cleanup Sequencing
+
+Review236 fixed the actionable Solid route-render finding from the fresh
+post-Review235 framework sweep.
+
+1. Solid Failed Render Cleanup Chain
+   - Status: fixed.
+   - Files: `CONTEXT.md`, `packages/solid/src/route-render-scope.ts`,
+     `packages/solid/test/router.test.ts`, and `docs/public-api-inventory.md`.
+   - Problem: Review235 made successful renderer swaps use one transition
+     cleanup Effect, but failed render attempts still called
+     `runtime.runFork(frame.disposeEffect())` from inside the render helper and
+     threw the original error. That detached partially-created route frames
+     from the controller disposal Fiber, so the next renderer could start
+     before a failed branch's route-scope finalizers completed.
+   - Fix: failed route renders now throw an internal structured failure that
+     carries the original error plus the same cleanup Effect shape used by
+     successful route frames. `SolidRouteRenderScopeController` starts that
+     cleanup through its disposal Fiber, stale-suppresses queued renders, and
+     schedules the host ErrorBoundary with the original error.
+   - Benefits: Solid route rendering now has one lifetime Locality for success,
+     same-state renderer swaps, failed partial renders, stale transitions, and
+     unmount. Hidden fire-and-forget cleanup is gone from the route render
+     helper.
+
+Focused verification passed: Solid typecheck, Solid router tests 1 file / 35
+tests, and `git diff --check`. Full `pnpm verify` passed after Review236 with
+53 root test files / 1152 tests. The active Thirty-Sweep clean counter remains
+0/30 until a fresh post-Review236 sweep is clean.
 
 ## Review 235: Solid Route Render Scope Cleanup Sequencing
 
@@ -164,8 +196,9 @@ fresh post-Review234 follow-up.
 
 Focused verification passed: Solid typecheck, Solid router tests 1 file / 34
 tests, and `git diff --check`. Full `pnpm verify` passed after Review235 with
-53 root test files / 1151 tests. The active Thirty-Sweep clean counter remains
-0/30 until a fresh post-Review235 sweep is clean.
+53 root test files / 1151 tests. The active Thirty-Sweep clean counter
+remained 0/30; the later fresh post-Review235 framework sweep found Review236
+failed-render cleanup work.
 
 ## Review 234: Cleanup Effects And Public Surface Pins
 

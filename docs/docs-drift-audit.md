@@ -3,9 +3,9 @@
 Last updated: 2026-05-17.
 
 Current release-tracking truth lives in `docs/architecture-deepening-review.md`
-and `docs/perfection-progress.md`. As of Review235, the latest full
-`pnpm verify` gate passed with 53 root test files / 1151 tests, and the active
-Thirty-Sweep clean counter is 0/30 until a fresh post-Review235 sweep reports
+and `docs/perfection-progress.md`. As of Review236, the latest full
+`pnpm verify` gate passed with 53 root test files / 1152 tests, and the active
+Thirty-Sweep clean counter is 0/30 until a fresh post-Review236 sweep reports
 no actionable findings.
 
 This historical audit checks release-tracking docs for claims that no longer match the
@@ -196,6 +196,9 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Review235 Solid Route Render Scope Cleanup Sequencing refreshed current
   ledgers after the post-Review234 Solid follow-up found same-state renderer
   swaps using a shallower cleanup path than navigation transitions.
+- Review236 Solid Failed Render Cleanup Sequencing refreshed current ledgers
+  after the post-Review235 framework sweep found failed partial route renders
+  cleaning up outside the controller disposal chain.
 - Review201 refreshed the current release ledgers after script command,
   Resource public-surface, React/Solid router LSP, DB erased-channel, and
   generated-starter README guardrail fixes; the historical enumeration above

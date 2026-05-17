@@ -65,14 +65,14 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 17, 2026 after Review 235:
+Latest full gate on May 17, 2026 after Review 236:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
 - Effect-first audit over 411 package/example/config/script/type-test/generated
   template/docs-snippet physical and virtual files;
-- 53 root test files / 1151 tests;
+- 53 root test files / 1152 tests;
 - package-level verifies for the devtools panel, devtools extension, basic
   starter, React starter, and project console packages;
 - starter-suite packaging for basic (19 app files / 5 local packages), React
@@ -86,13 +86,19 @@ Latest full gate on May 17, 2026 after Review 235:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 236 Solid Failed Render Cleanup Sequencing closed the post-Review235
+  framework finding: failed Solid route renders now carry the partially-created
+  frame cleanup Effect back into the controller disposal chain, preserving the
+  original render error for the host ErrorBoundary without detached cleanup
+  fibers. The active Thirty-Sweep clean counter remains 0/30 until a fresh
+  post-Review236 sweep is clean.
 - Review 235 Solid Route Render Scope Cleanup Sequencing closed the remaining
   Solid route-render cleanup follow-up: same-state outlet renderer swaps now
   share the same Effect/Fiber disposal sequencing as route transitions, and the
   internal route render controller exposes awaitable `disposeEffect()` cleanup
   while preserving sync `dispose()` for Solid cleanup hooks. The active
-  Thirty-Sweep clean counter remains 0/30 until a fresh post-Review235 sweep is
-  clean.
+  Thirty-Sweep clean counter remained 0/30; the later post-Review235 framework
+  sweep found Review236 failed-render cleanup work.
 - Review 234 Cleanup Effects And Public Surface Pins closed bounded
   post-Review233 findings: DB and Core preload controllers now expose
   awaitable cleanup Effects while preserving sync host cleanup conveniences
@@ -447,8 +453,10 @@ Latest full gate on May 17, 2026 after Review 235:
   the fresh post-Review232 sweep found Review233 Stage Plan And UI Cleanup
   Effects work, and the fresh post-Review233 sweep found Review234 cleanup
   Effect and public-surface work, and the fresh post-Review234 Solid
-  route-render follow-up found Review235 cleanup sequencing work.
-  The active Thirty-Sweep clean counter is 0/30 until a fresh post-Review235
+  route-render follow-up found Review235 cleanup sequencing work, and the
+  fresh post-Review235 framework sweep found Review236 failed-render cleanup
+  work.
+  The active Thirty-Sweep clean counter is 0/30 until a fresh post-Review236
   sweep reports no
   actionable findings.
 - Review 192 refreshed stale current-gate docs wording that still named
@@ -1389,10 +1397,9 @@ Latest full gate on May 17, 2026 after Review 235:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 235 Solid Route Render
-  Scope Cleanup Sequencing: Solid same-state renderer swaps now share
-  Effect/Fiber disposal sequencing with route transitions, and the internal
-  route render controller exposes awaitable `disposeEffect()` cleanup.
+- The latest full `pnpm verify` passed after Review 236 Solid Failed Render
+  Cleanup Sequencing: failed Solid route renders now send their cleanup Effects
+  through the controller disposal chain instead of detached cleanup fibers.
   Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
   sweeps found Review191, Review192, Review193, Review194, Review195, and
   Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, Review208, Review209, Review210, Review211, Review212, and Review213 work.
@@ -1419,10 +1426,11 @@ Latest full gate on May 17, 2026 after Review 235:
   Stage Plan And UI Cleanup Effects work, and the fresh post-Review233 sweep
   found Review234 cleanup Effect and public-surface work, and the fresh
   post-Review234 Solid route-render follow-up found Review235 cleanup
-  sequencing work, so the active counter is 0/30.
+  sequencing work, and the fresh post-Review235 framework sweep found
+  Review236 failed-render cleanup work, so the active counter is 0/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 411 physical/virtual files, 53 root test files / 1151
+  Effect-first audit over 411 physical/virtual files, 53 root test files / 1152
   tests, package-level verifies for the devtools/starter/example packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console

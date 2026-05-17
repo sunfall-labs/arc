@@ -37,6 +37,15 @@ interface RenderedRouteScope {
   readonly dispose?: Effect.Effect<void, never, never>;
 }
 
+class SolidRouteRenderFailure {
+  readonly _tag = "SolidRouteRenderFailure";
+
+  constructor(
+    readonly error: unknown,
+    readonly dispose: Effect.Effect<void, never, never>
+  ) {}
+}
+
 const defaultPending = (): JSX.Element => undefined;
 
 const defaultFailure = <ER>(
@@ -60,16 +69,18 @@ const renderInRouteScope = <ER>(
   const frame = makeRuntimeUiScopeFrame(runtime);
   let disposeSolid: (() => void) | undefined;
   let renderFailure: { readonly error: unknown } | undefined;
-  const cleanupFailedRender = (): void => {
-    try {
-      frame.run(() => {
-        disposeSolid?.();
-      });
-    } catch {
-      // Preserve the original render error for the host ErrorBoundary.
-    }
-    void runtime.runFork(frame.disposeEffect());
-  };
+  const dispose = Effect.andThen(
+    Effect.sync(() => {
+      try {
+        frame.run(() => {
+          disposeSolid?.();
+        });
+      } catch {
+        // Preserve the original render error or cleanup outcome.
+      }
+    }),
+    frame.disposeEffect()
+  ).pipe(Effect.catchCause(() => Effect.void));
   let node: JSX.Element;
   try {
     node = createRoot((disposeRoot) => {
@@ -84,21 +95,11 @@ const renderInRouteScope = <ER>(
       });
     });
   } catch (error) {
-    cleanupFailedRender();
-    throw error;
+    throw new SolidRouteRenderFailure(error, dispose);
   }
   if (renderFailure !== undefined) {
-    cleanupFailedRender();
-    throw renderFailure.error;
+    throw new SolidRouteRenderFailure(renderFailure.error, dispose);
   }
-  const dispose = Effect.andThen(
-    Effect.sync(() => {
-      frame.run(() => {
-        disposeSolid?.();
-      });
-    }),
-    frame.disposeEffect()
-  ).pipe(Effect.catchCause(() => Effect.void));
 
   return { node, dispose };
 };
@@ -132,6 +133,9 @@ const disposeRenderedRoute = (
 ): Effect.Effect<void> =>
   dispose ?? Effect.void;
 
+const solidRouteRenderFailure = (error: unknown): SolidRouteRenderFailure | undefined =>
+  error instanceof SolidRouteRenderFailure ? error : undefined;
+
 const scheduleRouteRenderError = (
   onCurrentTransition: () => boolean,
   setRenderError: Setter<unknown>,
@@ -159,7 +163,17 @@ export const makeSolidRouteRenderScopeController = <Routes extends readonly AnyR
     renderers: options.initialInput.renderers,
     defaults: routeRenderDefaults
   });
-  const initial = renderRouteState(renderedState, options.initialInput.renderers, options.runtime);
+  let initial: RenderedRouteScope;
+  try {
+    initial = renderRouteState(renderedState, options.initialInput.renderers, options.runtime);
+  } catch (error) {
+    const failure = solidRouteRenderFailure(error);
+    if (failure !== undefined) {
+      void options.runtime.runFork(failure.dispose);
+      throw failure.error;
+    }
+    throw error;
+  }
   options.setNode(() => initial.node);
   let disposeRoute: Effect.Effect<void, never, never> | undefined = initial.dispose;
   let transitionVersion = 0;
@@ -178,10 +192,11 @@ export const makeSolidRouteRenderScopeController = <Routes extends readonly AnyR
       ? Effect.void
       : Fiber.join(fiber).pipe(Effect.catchCause(() => Effect.void));
 
-  const startCurrentRouteDisposal = (): Fiber.Fiber<void, unknown> => {
+  const startRouteDisposal = (
+    routeDispose: Effect.Effect<void, never, never> | undefined
+  ): Fiber.Fiber<void, unknown> => {
     const previousDisposalFiber = disposalFiber;
-    const currentDisposal = disposeRenderedRoute(disposeRoute);
-    disposeRoute = undefined;
+    const currentDisposal = disposeRenderedRoute(routeDispose);
     const fiber = options.runtime.runFork(
       Effect.gen(function* () {
         yield* joinRouteDisposal(previousDisposalFiber);
@@ -190,6 +205,12 @@ export const makeSolidRouteRenderScopeController = <Routes extends readonly AnyR
     );
     disposalFiber = fiber;
     return fiber;
+  };
+
+  const startCurrentRouteDisposal = (): Fiber.Fiber<void, unknown> => {
+    const currentDispose = disposeRoute;
+    disposeRoute = undefined;
+    return startRouteDisposal(currentDispose);
   };
 
   const renderTransition = (
@@ -207,12 +228,16 @@ export const makeSolidRouteRenderScopeController = <Routes extends readonly AnyR
       try {
         next = renderRouteState(input.state, input.renderers, options.runtime);
       } catch (error) {
+        const failure = solidRouteRenderFailure(error);
+        if (failure !== undefined) {
+          startRouteDisposal(failure.dispose);
+        }
         if (transition === transitionVersion) {
           options.setNode(() => undefined);
           scheduleRouteRenderError(
             () => transition === transitionVersion,
             options.setRenderError,
-            error
+            failure?.error ?? error
           );
         }
         return;
