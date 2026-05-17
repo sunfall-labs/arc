@@ -18,8 +18,19 @@ export const ProgramSubscriptionTypeId: unique symbol = Symbol.for("@effect-ui/c
 /** Runtime phase that produced a Program failure or timeline event. */
 export type ProgramPhase = "Update" | "Command" | "Subscription";
 
+type IsAny<T> = 0 extends (1 & T) ? true : false;
+type ProgramUnknownMessageValue = Exclude<PromiseSafeValue<unknown>, undefined>;
+type NonUndefinedProgramMessage<Message> =
+  IsAny<Message> extends true
+    ? ProgramUnknownMessageValue
+    : [unknown] extends [Message]
+      ? ProgramUnknownMessageValue
+      : [Message] extends [void]
+        ? never
+        : undefined extends Message ? never : PromiseSafeValue<Message>;
+
 /** Plain Program message value. Promise-shaped messages must be adapted through Effects first. */
-export type ProgramMessageValue<Message> = PromiseSafeValue<Message>;
+export type ProgramMessageValue<Message> = NonUndefinedProgramMessage<Message>;
 
 /** Plain Program model value. Promise-shaped models must be resolved inside Effects first. */
 export type ProgramModelValue<Model> = PromiseSafeValue<Model>;

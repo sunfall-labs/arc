@@ -38,6 +38,20 @@ describe("Action", () => {
     });
   });
 
+  it("preserves explicitly wrapped Effect values as action outputs", async () => {
+    const domainEffect = Effect.succeed(42);
+    const BuildComputation = Action.define<void, Effect.Effect<number>>({
+      name: "computation.effect-valued",
+      run: () => Effect.succeed(domainEffect)
+    });
+    const action = Action.use(BuildComputation);
+
+    const value = await Effect.runPromise(action.submitEffect(undefined));
+
+    expect(value).toBe(domainEffect);
+    await expect(Effect.runPromise(value)).resolves.toBe(42);
+  });
+
   it("preserves successful undefined as previous action state", () =>
     Effect.runPromise(
       Effect.gen(function* () {

@@ -6,10 +6,16 @@ type CallableThenableMember<Out> = Out extends { readonly then?: infer Then }
 type PromiseShapedMember<Out> = Out extends unknown
   ? Out extends PromiseLike<unknown> ? Out : CallableThenableMember<Out>
   : never;
+type EffectShapedMember<Out> = Out extends unknown
+  ? Out extends Effect.Effect<unknown, unknown, unknown> ? Out : never
+  : never;
 
 type HasPromiseLike<Out> = [unknown] extends [Out]
   ? false
   : [PromiseShapedMember<Out>] extends [never] ? false : true;
+type HasEffectLike<Out> = [unknown] extends [Out]
+  ? false
+  : [EffectShapedMember<Out>] extends [never] ? false : true;
 type IsAny<T> = 0 extends (1 & T) ? true : false;
 
 type NonPromiseLikeUnknown =
@@ -34,6 +40,15 @@ export type PromiseSafeValue<A> =
       ? NonPromiseLikeUnknown
       : HasPromiseLike<A> extends true ? never : A;
 
+type DirectEffectInputValue<A> =
+  IsAny<A> extends true
+    ? NonPromiseLikeUnknown
+    : [unknown] extends [A]
+      ? NonPromiseLikeUnknown
+      : HasPromiseLike<A> extends true
+        ? never
+        : HasEffectLike<A> extends true ? never : A;
+
 /**
  * Input accepted by convenience APIs that can run either a plain value or an Effect.
  *
@@ -43,12 +58,12 @@ export type PromiseSafeValue<A> =
  * `Effect.tryPromise(...)` before returning from an EffectInput boundary.
  */
 export type EffectInput<A, E = never, R = never> =
-  | PromiseSafeValue<A>
+  | DirectEffectInputValue<A>
   | Effect.Effect<PromiseSafeValue<A>, E, R>;
 
 export type EffectInputValue<Out> = Out extends Effect.Effect<infer A, infer _E, infer _R>
   ? PromiseSafeValue<A>
-  : PromiseSafeValue<Out>;
+  : DirectEffectInputValue<Out>;
 
 export type EffectInputError<Out> = Out extends Effect.Effect<infer _A, infer E, infer _R> ? E : never;
 
@@ -59,7 +74,7 @@ export type EnsureEffectInputValue<Out, A> =
 
 export type EnsureEffectInput<Out> = Out extends Effect.Effect<infer A, infer E, infer R>
   ? PromiseSafeValue<A> extends never ? never : Effect.Effect<PromiseSafeValue<A>, E, R>
-  : PromiseSafeValue<Out> extends never ? never : PromiseSafeValue<Out>;
+  : DirectEffectInputValue<Out> extends never ? never : DirectEffectInputValue<Out>;
 
 export function isEffectLike<A, E, R>(value: unknown): value is Effect.Effect<A, E, R>;
 export function isEffectLike(value: unknown): value is Effect.Effect<unknown, never, never>;

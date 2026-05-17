@@ -87,7 +87,10 @@ export const defineProgram = <Model, Message, E = never, R = never>(
   definition: ProgramDefinition<Model, Message, E, R> &
     ([ProgramModelValue<Model>] extends [never] ? never : unknown) &
     ([ProgramMessageValue<Message>] extends [never] ? never : unknown)
-): ProgramDefinition<Model, Message, E, R> => definition;
+): ProgramDefinition<Model, Message, E, R> => {
+  validateProgramModelSync("Program.initial", definition.initial);
+  return definition;
+};
 
 /** Runs one Program update and normalizes the result into a ProgramStep. */
 export const programStepEffect = <Model, Message, E = never, R = never>(
@@ -115,6 +118,9 @@ const programModelPromiseGuidance =
 
 const programMessagePromiseGuidance =
   "Program messages must be plain values. Move host Promise work into Effect.tryPromise(...) inside Program.command(...) or a subscription stream before emitting a resolved follow-up message.";
+
+const programMessageUndefinedGuidance =
+  "Program messages cannot be undefined because undefined is reserved for command Effects that intentionally emit no follow-up message. Use a tagged message value instead.";
 
 export const validateProgramStepModelEffect = <Model, Message, E, R>(
   step: ProgramStep<Model, Message, E, R>
@@ -149,12 +155,21 @@ export const validateProgramMessageEffect = <Message>(
   message: Message
 ): Effect.Effect<ProgramMessageValue<Message>, EffectInputCallbackError> =>
   Effect.try({
-    try: () =>
-      rejectPromiseLikeSyncCallbackValue(
+    try: () => {
+      if (message === undefined) {
+        throw new EffectInputCallbackError({
+          operation,
+          cause: new TypeError("Program messages cannot be undefined."),
+          guidance: programMessageUndefinedGuidance
+        });
+      }
+
+      return rejectPromiseLikeSyncCallbackValue(
         operation,
         message,
         programMessagePromiseGuidance
-      ) as ProgramMessageValue<Message>,
+      ) as ProgramMessageValue<Message>;
+    },
     catch: (cause) =>
       cause instanceof EffectInputCallbackError
         ? cause
@@ -177,7 +192,10 @@ export const programNext = <Model, Message, E = never, R = never>(
 
 /** Effect command that emits its successful value as the next message. */
 export const programCommand = <Message, E = never, R = never>(
-  effect: Effect.Effect<ProgramMessageValue<Message> | void, E, R>
+  effect: Effect.Effect<ProgramMessageValue<Message> | void, E, R>,
+  ..._invalidMessageType: [ProgramMessageValue<Message>] extends [never]
+    ? ["Program message types cannot be undefined or void."]
+    : []
 ): ProgramCommand<Message, E, R> => ({
   [ProgramCommandTypeId]: ProgramCommandTypeId,
   effect
@@ -186,14 +204,18 @@ export const programCommand = <Message, E = never, R = never>(
 /** Command that immediately dispatches a message. */
 export const programDispatch = <Message>(
   message: ProgramMessageValue<Message>
-): ProgramCommand<Message> =>
-  programCommand(Effect.succeed(message));
+): ProgramCommand<Message> => ({
+  [ProgramCommandTypeId]: ProgramCommandTypeId,
+  effect: Effect.succeed(message)
+});
 
 /** Command for background Effects that do not emit follow-up messages. */
 export const programEffect = <Message = never, E = never, R = never>(
   effect: Effect.Effect<void, E, R>
-): ProgramCommand<Message, E, R> =>
-  programCommand<Message, E, R>(effect);
+): ProgramCommand<Message, E, R> => ({
+  [ProgramCommandTypeId]: ProgramCommandTypeId,
+  effect
+});
 
 /** Groups commands for use with `Program.next(model, Program.commands(...))`. */
 export const programCommands = <Message, E = never, R = never>(

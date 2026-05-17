@@ -1,6 +1,6 @@
 # Framework Perfection Progress
 
-Last updated: 2026-05-16.
+Last updated: 2026-05-17.
 
 This ledger tracks implementation evidence for
 `docs/framework-perfection-charter.md`. It is intentionally conservative: a
@@ -41,17 +41,16 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest focused Review213 slice is green for closing Promise-safe broad
-  values, Program model/message gates, ActionResult validation/failure gates,
-  DB queued direct-emit shutdown interruption, Start CLI help, and host-only
-  Promise boundary wording.
+- The latest focused Review214 slice is green for closing Effect-valued output
+  ambiguity, Program undefined-message sentinels, Program command failure
+  source attribution, Devtools app-graph normalization, and the root typecheck
+  gate.
 - The latest implementation and full verification gate is green after
-  Review213:
-  `pnpm verify` and `pnpm verify:serial` completed with 53 root test files /
-  1080 tests, public API inventory audit, Effect-first audit over 408
-  physical/virtual files, package-level verifies, parallel example package
-  verifies and leak scans, generated starter packaging, and the 16-target
-  package dry-run gate.
+  Review214:
+  `pnpm verify` completed with 53 root test files / 1085 tests, public API
+  inventory audit, Effect-first audit over 408 physical/virtual files,
+  package-level verifies, parallel example package verifies and leak scans,
+  generated starter packaging, and the 16-target package dry-run gate.
 - Historical Review166, Review165, and Review163 slices remain green evidence
   for mounted Resource UI retention, Program dispatch disposal semantics,
   payload-atomic DB hydration, Start CLI EffectInput writers, dev SSR
@@ -89,9 +88,10 @@ or command result that proves it.
   active counter stayed at 0/30. The first post-Review210 sweep found
   Review211 Core, DB, docs/LSP, and evidence work, and the first
   post-Review211 sweep found Review212 Core, DB, docs/LSP, and evidence work,
-  and the first post-Review212 sweep found Review213 Core, DB, Start CLI,
-  adapter, docs, and evidence work, so the active counter stays at 0/30 until a
-  fresh post-Review213 sweep is clean.
+  the first post-Review212 sweep found Review213 Core, DB, Start CLI, adapter,
+  docs, and evidence work, and the first post-Review213 sweep found Review214
+  Core, Devtools, LSP/adapter cleanup, and root verification gate work, so the
+  active counter stays at 0/30 until a fresh post-Review214 sweep is clean.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
   example, script, and type-test sources while keeping negative runtime
   validation tests explicit.
@@ -676,6 +676,7 @@ or command result that proves it.
 | 452 | Review 211 Program steps, optimistic signal patches, and cleanup defects | `docs/architecture-deepening-review.md`; `docs/effect-first-audit.md`; `docs/perfection-progress.md`; `docs/public-api-inventory.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/type-test-coverage-audit.md`; `docs/ultimate-goal-checklist.md`; `packages/core/src/action-optimistic.ts`; `packages/core/src/program-contract.ts`; `packages/core/src/program-primitives.ts`; `packages/core/src/program-runtime.ts`; `packages/core/test/action.test.ts`; `packages/core/test/program.test.ts`; `packages/db/src/collection-change-feed-runtime.ts`; `packages/db/src/sync-adapter.ts`; `packages/db/test/sync-adapter.test.ts`; `packages/react/src/hooks.ts`; `packages/solid/src/hooks.ts`; `type-tests/framework.test-d.ts` | Fixed post-Review210 findings. `Program.next(...)` and Program runtime commits now reject Promise-shaped models; optimistic action signal patches reject Promise-shaped direct values and updater returns before writing/rebasing signals; DB change-feed unsubscribe defects are published as `CollectionChangeFeedFailure` and swallowed during scope release; React/Solid preload observer JSDoc mirrors Core's Promise-rejection/failing-Effect behavior; and ledgers distinguish 26 Promise return-type allowances from negative fixtures while naming root test counts. | Focused verification passed: `pnpm typecheck:types`, Core/DB/React/Solid typechecks, public API audit, Effect-first audit over 408 files with 26 Promise return-type allowances, 6 `PromiseLike` allowances, and 8 structural thenable allowances, focused Core Program/Action and DB sync-adapter tests 3 files / 76 tests, and `git diff --check`. Full `pnpm verify` and `pnpm verify:serial` passed after Review211: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 408 files, 53 root test files / 1068 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. This sweep found work, so the active clean counter remains 0/30. |
 | 453 | Review 212 ActionResult payloads, Program messages, and change-feed cleanup | `docs/architecture-deepening-review.md`; `docs/docs-drift-audit.md`; `docs/effect-first-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/type-test-coverage-audit.md`; `docs/ultimate-goal-checklist.md`; `examples/project-console/src/App.tsx`; `packages/core/src/action-result.ts`; `packages/core/src/action-optimistic.ts`; `packages/core/src/program-contract.ts`; `packages/core/src/program-primitives.ts`; `packages/core/src/program-runtime.ts`; `packages/core/src/program-story.ts`; `packages/core/src/program.ts`; `packages/core/test/action-result.test.ts`; `packages/core/test/program.test.ts`; `packages/db/src/collection-change-feed-runtime.ts`; `packages/db/test/sync-adapter.test.ts`; `packages/start/src/start-request-handler.ts`; `type-tests/framework.test-d.ts` | Fixed post-Review211 findings. `ActionResult` success/failure helpers now reject nested Promise-shaped payloads at type and runtime; Program command, dispatch, subscription, and story message seams reject Promise-shaped messages and report erased values as typed Program failures without enqueueing them; DB change-feed failed subscribe setup now shuts down captured emitters, and in-flight direct emits complete when scope release interrupts apply work; Core/Start hovers and Effect-first evidence wording now match those contracts. Project Console command emissions now annotate the full Program message union under the stricter command type. | Focused verification passed: `pnpm typecheck:types`, Core/DB/Start/React/Solid typechecks, focused Core ActionResult/Program and DB sync-adapter tests 3 files / 53 tests, public API audit, Effect-first audit over 408 files with 26 Promise return-type allowances, 6 `PromiseLike` allowances, and 8 structural thenable allowances, and `git diff --check`. Full `pnpm verify` and `pnpm verify:serial` passed after Review212: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 408 files, 53 root test files / 1076 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. This sweep found work, so the active clean counter remains 0/30. |
 | 454 | Review 213 promise-safe broad values and CLI help | `docs/architecture-deepening-review.md`; `docs/effect-first-audit.md`; `docs/framework-perfection-charter.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/type-test-coverage-audit.md`; `docs/ultimate-goal-checklist.md`; `packages/core/src/action-result.ts`; `packages/core/src/action.ts`; `packages/core/src/capability.ts`; `packages/core/src/effect-like.ts`; `packages/core/src/program-contract.ts`; `packages/core/src/program-primitives.ts`; `packages/core/src/program-runtime.ts`; `packages/core/src/program-story.ts`; `packages/core/src/resource.ts`; `packages/core/test/action-result.test.ts`; `packages/core/test/program.test.ts`; `packages/db/src/change-feed-dispatcher.ts`; `packages/db/test/sync-adapter.test.ts`; `packages/react/src/hooks.ts`; `packages/solid/src/hooks.ts`; `packages/start/src/cli.ts`; `packages/start/test/start.test.ts`; `type-tests/framework.test-d.ts`; `type-tests/react.test-d.ts`; `type-tests/solid.test-d.ts` | Fixed post-Review212 findings. `PromiseSafeValue` closes broad `any`/`unknown` holes in `EffectInput`, Program initial models/messages, ActionResult payloads/validation/failure errors, Capability callbacks, and React/Solid ProgramHandle dispatch. Program definitions, stories, resets, and runtime commits now validate Promise-shaped models before state writes; ActionResult validation errors reject Promise-shaped values at type and runtime; DB queued direct change-feed emitters are interrupted on dispatcher shutdown; and Start diagnostics `graph`/`impact` help no longer models query kinds as required subcommands. Docs now name Promise seams as host/UI compatibility boundaries rather than framework API promises. | Focused verification passed: `pnpm typecheck:types`, Core/DB/Start/React/Solid typechecks, focused Core ActionResult/Program and DB sync-adapter tests 3 files / 57 tests, focused Start CLI tests, public API audit, Effect-first audit over 408 files with 26 Promise return-type allowances, 6 `PromiseLike` allowances, and 8 structural thenable allowances, example typechecks, and `git diff --check`. Full `pnpm verify` and `pnpm verify:serial` passed after Review213: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 408 files, 53 root test files / 1080 tests, package-level verifies, generated starter packaging for basic/react/project-console at 19/24/30 app files, 16-target package dry-run gate, project-console checks, and leak scans. This sweep found work, so the active clean counter remains 0/30. |
+| 455 | Review 214 Effect-valued outputs and Program sentinels | `docs/architecture-deepening-review.md`; `docs/perfection-progress.md`; `package.json`; `packages/core/src/action.ts`; `packages/core/src/effect-like.ts`; `packages/core/src/program-contract.ts`; `packages/core/src/program-primitives.ts`; `packages/core/src/program-runtime.ts`; `packages/core/src/resource.ts`; `packages/core/test/action.test.ts`; `packages/core/test/effect-like.test.ts`; `packages/core/test/program.test.ts`; `packages/core/test/resource.test.ts`; `packages/devtools/src/app-graph-normalizer.ts`; `packages/devtools/test/devtools.test.ts`; `packages/react/src/hooks.ts`; `type-tests/framework.test-d.ts` | Fixed post-Review213 findings. Direct EffectInput values now reject Effect-shaped domain outputs unless explicitly wrapped as an Effect success; Resource and Action no-output inference overloads infer from callbacks instead of exposing a bypassable callback-output generic. Program message types reject `undefined`/`void`, erased undefined dispatches become typed failures, Program definitions validate initial models immediately, and command failures preserve source messages in failures and timeline. Devtools app-graph normalization derives unknown action behavior from normalized action modules. The root typecheck script now runs package typechecks plus public type tests, avoiding the `tsgo -b --noEmit` referenced-project failure. | Focused verification passed: `pnpm typecheck`, `pnpm typecheck:types`, Core/React/Solid/Devtools typechecks, focused Core EffectInput/Resource/Action/Program plus Devtools tests 5 files / 211 tests, public API audit, Effect-first audit over 408 files, and `git diff --check`. Full `pnpm verify` passed after Review214: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 408 files, 53 root test files / 1085 tests, package-level verifies, generated starter packaging for basic/react/project-console, 16-target package dry-run gate, project-console checks, and leak scans. This sweep found work, so the active clean counter remains 0/30. |
 
 ## Thirty-Sweep Gate
 
@@ -713,8 +714,9 @@ and Start evidence work. The first post-Review210 sweep found Review211 Core,
 DB, docs/LSP, and evidence work. The first post-Review211 sweep found
 Review212 Core, DB, docs/LSP, and evidence work. The first post-Review212
 sweep found Review213 Core, DB, Start CLI, adapter, docs, and evidence work.
-The active counter is therefore 0/30 until a fresh post-Review213 sweep reports no actionable
-findings.
+The first post-Review213 sweep found Review214 Core, Devtools, LSP/adapter
+cleanup, and root verification gate work. The active counter is therefore
+0/30 until a fresh post-Review214 sweep reports no actionable findings.
 
 - Re-run the Promise and docs drift audits after each single-command full
   verification.

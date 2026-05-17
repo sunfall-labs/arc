@@ -1819,6 +1819,10 @@ describe("devtools invalidation plans", () => {
             errorSchema: true,
             complete: true,
             missing: []
+          },
+          behavior: {
+            ...appGraphDiagnostics.actionModules[0]!.behavior,
+            invalidates: "unknown"
           }
         }
       ],
@@ -1872,7 +1876,8 @@ describe("devtools invalidation plans", () => {
             collections: ["Stale.collection"]
           }
         }
-      ]
+      ],
+      unknownActionBehavior: []
     };
     const store = makeDevtoolsStore();
 
@@ -1938,6 +1943,16 @@ describe("devtools invalidation plans", () => {
             collections: []
           }
         }
+      ],
+      unknownActionBehavior: [
+        {
+          kind: "action",
+          name: "User.rename",
+          invalidates: "unknown",
+          optimistic: "absent",
+          retry: "present",
+          concurrency: "latest"
+        }
       ]
     });
     expect(snapshotAppGraph?.missingSchemas).toEqual([
@@ -1965,6 +1980,7 @@ describe("devtools invalidation plans", () => {
         serverFunctionCount: 1,
         actionCount: 1,
         missingSchemaCount: 2,
+        unknownActionBehaviorCount: 1,
         unknownRoutePreloadResourcesCount: 1,
         unknownRoutePreloadCollectionsCount: 1
       });
@@ -2014,6 +2030,16 @@ describe("devtools invalidation plans", () => {
         output: 0,
         error: 1
       });
+      expect(summary.graph.actions.unknownBehavior).toEqual([
+        {
+          kind: "action",
+          name: "User.rename",
+          invalidates: "unknown",
+          optimistic: "absent",
+          retry: "present",
+          concurrency: "latest"
+        }
+      ]);
     }
 
     const panels = describeDevtoolsPanels({ appGraph: staleAppGraph });

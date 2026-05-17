@@ -11,21 +11,22 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review213, the post-Review212 sweep
-fixing Promise-safe broad values, Program model/message gates, ActionResult
-validation/failure gates, DB queued direct-emit shutdown interruption, Start
-CLI help, and host-only Promise boundary wording. The newest full verification
-checkpoint is Review213. Clean Sweep 1 after Review208 remains historical 1/30
+The newest completed focused review is Review214, the post-Review213 sweep
+fixing Effect-valued output ambiguity, Program undefined-message sentinels,
+Program command failure source attribution, Devtools app-graph normalization,
+and the root typecheck gate. The newest full verification checkpoint is
+Review214. Clean Sweep 1 after Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
 post-Review210 sweep found Review211 work, the first post-Review211 sweep
-found Review212 work, and the first post-Review212 sweep found Review213 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review213
+found Review212 work, the first post-Review212 sweep found Review213 work, and
+the first post-Review213 sweep found Review214 work, so the active
+Thirty-Sweep clean counter is 0/30 until a fresh post-Review214
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
-Review206, Review207, Review208, Review209, Review210, Review211, and
-Review212 and Review213 work.
+Review206, Review207, Review208, Review209, Review210, Review211, Review212,
+Review213, and Review214 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -74,8 +75,81 @@ Core, DB, scripts, docs, and Start evidence work, so the counter stayed at
 0/30. The first post-Review210 sweep found Review211 Core, DB, docs/LSP, and
 evidence work, and the first post-Review211 sweep found Review212 Core, DB,
 docs/LSP, and evidence work. The first post-Review212 sweep found Review213
-Core, DB, Start CLI, adapter, docs, and evidence work, so the counter remains
-0/30.
+Core, DB, Start CLI, adapter, docs, and evidence work. The first
+post-Review213 sweep found Review214 Core, Devtools, LSP/adapter cleanup, and
+root verification gate work, so the counter remains 0/30.
+
+## Review 214: Effect-Valued Outputs, Program Sentinels, And Devtools Graphs
+
+Review214 fixed actionable findings from the fresh post-Review213 sweep. Core
+found remaining type/runtime ambiguity around Effect-valued domain outputs and
+`undefined` Program messages, Devtools found a stale app-graph normalization
+seam, and verification found the root typecheck script no longer matched the
+package-reference setup.
+
+1. Effect-Valued Output Ambiguity
+   - Status: fixed.
+   - Files: `packages/core/src/effect-like.ts`,
+     `packages/core/src/action.ts`, `packages/core/src/resource.ts`,
+     `packages/core/test/effect-like.test.ts`,
+     `packages/core/test/action.test.ts`, `packages/core/test/resource.test.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: explicit Effect-valued outputs could be accepted as direct
+     EffectInput values and then executed as work, instead of being preserved
+     as domain values.
+   - Fix: direct EffectInput values now reject Effect-shaped domain values
+     unless the Effect value is explicitly wrapped as an Effect success.
+     Resource and Action inference overloads infer from callback functions
+     rather than exposing a public callback-output generic that could bypass
+     the explicit output contract.
+   - Benefits: users can still return Effects as work, but an Effect object as
+     data must be written as `Effect.succeed(effectValue)`, making intent clear
+     in the LSP and runtime behavior.
+
+2. Program Undefined Message Sentinel And Failure Source
+   - Status: fixed.
+   - Files: `packages/core/src/program-contract.ts`,
+     `packages/core/src/program-primitives.ts`,
+     `packages/core/src/program-runtime.ts`,
+     `packages/core/test/program.test.ts`, `type-tests/framework.test-d.ts`.
+   - Problem: `undefined` could be used as a Program message type even though
+     command Effects already use `undefined` as the "no emitted message"
+     sentinel. Command failures also recorded their source in the timeline but
+     not in the accumulated failure.
+   - Fix: Program message types now reject `undefined` and `void`, erased
+     dispatches of `undefined` fail as typed `EffectInputCallbackError`s,
+     Program definitions validate initial models at definition time, and
+     command failures carry the source message in both failures and timeline.
+   - Benefits: Program messages are plain, concrete values; the command
+     sentinel has one meaning, and diagnostics no longer lose causal context.
+
+3. Devtools App-Graph Unknown Action Behavior
+   - Status: fixed.
+   - Files: `packages/devtools/src/app-graph-normalizer.ts`,
+     `packages/devtools/test/devtools.test.ts`.
+   - Problem: app-graph normalization repaired action modules but trusted a
+     supplied `unknownActionBehavior` array that could be stale or empty.
+   - Fix: normalized app graphs now derive unknown action behavior from the
+     normalized action modules.
+   - Benefits: summary and panel data now reflect the repaired graph rather
+     than stale caller-provided summary fields.
+
+4. Root Typecheck Verification Gate
+   - Status: fixed.
+   - Files: `package.json`.
+   - Problem: the root `typecheck` script used `tsgo -b --noEmit`, which fails
+     with `TS6310` under the current referenced package configuration even
+     though every package typecheck passes.
+   - Fix: the root gate now runs all package typecheck scripts and then the
+     public type-test project.
+   - Benefits: `pnpm verify` once again exercises the same package type gates
+     that developers use directly, and the full verification command is usable.
+
+Focused evidence for Review214 passed: `pnpm typecheck`, `pnpm typecheck:types`,
+Core/React/Solid/Devtools package typechecks, focused Core EffectInput/
+Resource/Action/Program plus Devtools tests 5 files / 211 tests, public API
+audit, Effect-first audit over 408 files, `pnpm test` with 53 files / 1085
+tests, `pnpm build`, `pnpm verify`, and `git diff --check`.
 
 ## Review 213: Promise-Safe Broad Values, Queued Emit Shutdown, And CLI Help
 
@@ -489,8 +563,9 @@ At the Clean Sweep 1 checkpoint, the Thirty-Sweep clean counter reached 1/30.
 Clean Sweep 2 later found Review209 work and the post-Review209 sweep found
 Review210 work, and the first post-Review210 sweep found Review211 work, so
 the first post-Review211 sweep found Review212 work, and the first
-post-Review212 sweep found Review213 work. The active counter is 0/30 until a
-fresh post-Review213 sweep reports no actionable findings.
+post-Review212 sweep found Review213 work, and the first post-Review213 sweep
+found Review214 work. The active counter is 0/30 until a fresh post-Review214
+sweep reports no actionable findings.
 
 ## Review 208: Runtime Provider Observers, CLI Bin Execution, And Docs Drift
 

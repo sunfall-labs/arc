@@ -39,6 +39,19 @@ describe("Resource", () => {
     expect(load).toHaveBeenCalledTimes(1);
   });
 
+  it("preserves explicitly wrapped Effect values as resource values", async () => {
+    const domainEffect = Effect.succeed(42);
+    const Computation = Resource.family<string, Effect.Effect<number>>({
+      name: "Computation.effect-valued",
+      load: () => Effect.succeed(domainEffect)
+    });
+
+    const value = await Effect.runPromise(Resource.prefetchEffect(Computation("answer")));
+
+    expect(value).toBe(domainEffect);
+    await expect(Effect.runPromise(value)).resolves.toBe(42);
+  });
+
   it("encodes common built-ins in default resource keys", () => {
     const AnyInput = Resource.family<unknown, string>({
       name: "ResourceKey.codec-builtins",

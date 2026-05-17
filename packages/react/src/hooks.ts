@@ -283,10 +283,10 @@ const makeProgramBinding = <Model, Message, RuntimeError>(
     dispatch: (message) => {
       binding.current?.dispatch(message);
     },
-	    dispatchEffect: (message) =>
-	      Effect.suspend(() =>
-	        binding.current?.dispatchEffect(message) ?? Effect.fail(disposedDispatchFailure(message as Message))
-	      ),
+    dispatchEffect: (message) =>
+      Effect.suspend(() =>
+        binding.current?.dispatchEffect(message) ?? Effect.fail(disposedDispatchFailure(message as Message))
+      ),
     clearFailures: () => {
       binding.failures.set([]);
       binding.current?.clearFailures();
@@ -312,7 +312,7 @@ export const useProgram = <Model, Message, E = never, R = never, ER = never>(
   const scope = useComponentScope();
   type RuntimeError = ReactProgramRuntimeError<E, ER>;
   const binding = useMemo(
-	    () => makeProgramBinding<Model, Message, RuntimeError>(definition.initial as Model),
+    () => makeProgramBinding<Model, Message, RuntimeError>(definition.initial as Model),
     [definition, runtime, scope]
   );
 

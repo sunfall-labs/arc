@@ -309,31 +309,31 @@ export namespace Action {
   >;
   export function define<
     const Input extends Schema.Top,
-    Out,
+    Run extends (input: Schema.Schema.Type<Input>) => unknown,
     InvalidationRequirements = never
   >(
     definition: Omit<
       ActionOptions<
         Schema.Schema.Type<Input>,
-        EffectInputValue<Out>,
-        EffectInputError<Out>,
-        EffectInputRequirements<Out>
+        EffectInputValue<ReturnType<Run>>,
+        EffectInputError<ReturnType<Run>>,
+        EffectInputRequirements<ReturnType<Run>>
       >,
       "input" | "output" | "run" | "invalidates"
     > & {
       readonly input: Input;
       readonly output?: never;
-      readonly run: (input: Schema.Schema.Type<Input>) => EnsureEffectInput<Out>;
+      readonly run: Run & ((input: Schema.Schema.Type<Input>) => EnsureEffectInput<ReturnType<Run>>);
       readonly invalidates?: (
-        value: EffectInputValue<Out>,
+        value: EffectInputValue<ReturnType<Run>>,
         input: Schema.Schema.Type<Input>
       ) => ReadonlyArray<ResourceInvalidation<InvalidationRequirements>>;
-    } & RejectPromiseEffectInput<Out>
+    } & RejectPromiseEffectInput<ReturnType<Run>>
   ): ActionDefinition<
     Schema.Schema.Type<Input>,
-    EffectInputValue<Out>,
-    EffectInputError<Out>,
-    ActionInferredRequirements<Out, never, InvalidationRequirements>
+    EffectInputValue<ReturnType<Run>>,
+    EffectInputError<ReturnType<Run>>,
+    ActionInferredRequirements<ReturnType<Run>, never, InvalidationRequirements>
   >;
   export function define<
     I,
@@ -352,33 +352,6 @@ export namespace Action {
     > & {
       readonly input?: never;
       readonly output: Output;
-      readonly run: (input: I) => EnsureEffectInput<Out>;
-      readonly invalidates?: (
-        value: EffectInputValue<Out>,
-        input: I
-      ) => ReadonlyArray<ResourceInvalidation<InvalidationRequirements>>;
-    } & RejectPromiseEffectInput<Out>
-  ): ActionDefinition<
-    I,
-    EffectInputValue<Out>,
-    EffectInputError<Out>,
-    ActionInferredRequirements<Out, never, InvalidationRequirements>
-  >;
-  export function define<
-    I,
-    Out,
-    InvalidationRequirements = never
-  >(
-    definition: Omit<
-      ActionOptions<
-        I,
-        EffectInputValue<Out>,
-        EffectInputError<Out>,
-        EffectInputRequirements<Out>
-      >,
-      "output" | "run" | "invalidates"
-    > & {
-      readonly output?: never;
       readonly run: (input: I) => EnsureEffectInput<Out>;
       readonly invalidates?: (
         value: EffectInputValue<Out>,
@@ -421,9 +394,36 @@ export namespace Action {
   >(
     definition: Definition & CheckedActionRun<I, Definition>
   ): ActionDefinition<I, A, E, R | NormalizeRequirements<InvalidationRequirements> | ActionResultInvalidationRequirements<A>>;
-	  export function define(
-	    definition: unknown
-	  ): any {
+  export function define<
+    I,
+    Run extends (input: I) => unknown,
+    InvalidationRequirements = never
+  >(
+    definition: Omit<
+      ActionOptions<
+        I,
+        EffectInputValue<ReturnType<Run>>,
+        EffectInputError<ReturnType<Run>>,
+        EffectInputRequirements<ReturnType<Run>>
+      >,
+      "output" | "run" | "invalidates"
+    > & {
+      readonly output?: never;
+      readonly run: Run & ((input: I) => EnsureEffectInput<ReturnType<Run>>);
+      readonly invalidates?: (
+        value: EffectInputValue<ReturnType<Run>>,
+        input: I
+      ) => ReadonlyArray<ResourceInvalidation<InvalidationRequirements>>;
+    } & RejectPromiseEffectInput<ReturnType<Run>>
+  ): ActionDefinition<
+    I,
+    EffectInputValue<ReturnType<Run>>,
+    EffectInputError<ReturnType<Run>>,
+    ActionInferredRequirements<ReturnType<Run>, never, InvalidationRequirements>
+  >;
+  export function define(
+    definition: unknown
+  ): any {
     const options = definition as Omit<ActionOptions<any, any, any, any>, "run" | "optimistic"> & {
       readonly run: (input: any) => EffectInput<any, any, any>;
       readonly optimistic?: (

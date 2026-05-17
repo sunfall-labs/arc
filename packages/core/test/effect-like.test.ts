@@ -15,6 +15,17 @@ describe("EffectInput", () => {
       })
     ));
 
+  it("preserves explicitly wrapped Effect values as domain values", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const domainEffect = Effect.succeed(42);
+        const value = yield* toEffect<Effect.Effect<number>>(Effect.succeed(domainEffect));
+
+        expect(value).toBe(domainEffect);
+        expect(yield* value).toBe(42);
+      })
+    ));
+
   it("rejects thenables at runtime", () =>
     Effect.runPromise(
       Effect.gen(function* () {

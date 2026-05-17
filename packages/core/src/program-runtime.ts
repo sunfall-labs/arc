@@ -140,7 +140,11 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
             command.effect.pipe(
               Effect.matchEffect({
                 onFailure: (error: RuntimeFailure) => {
-                  const failure = makeProgramFailure<Message, RuntimeFailure>("Command", error);
+                  const failure = makeProgramFailure<Message, RuntimeFailure>(
+                    "Command",
+                    error,
+                    source as Message
+                  );
                   return Effect.sync(() => {
                     appendFailure(failure);
                     recordTimeline({

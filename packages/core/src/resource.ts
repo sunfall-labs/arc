@@ -466,26 +466,26 @@ export namespace Resource {
   >;
   export function family<
     const Input extends Schema.Top,
-    Out
+    Load extends (input: Schema.Schema.Type<Input>) => unknown
   >(
     options: Omit<
       ResourceFamilyOptions<
         Schema.Schema.Type<Input>,
-        EffectInputValue<Out>,
-        EffectInputError<Out>,
-        EffectInputRequirements<Out>
+        EffectInputValue<ReturnType<Load>>,
+        EffectInputError<ReturnType<Load>>,
+        EffectInputRequirements<ReturnType<Load>>
       >,
       "input" | "output" | "load"
     > & {
       readonly input: Input;
       readonly output?: never;
-      readonly load: (input: Schema.Schema.Type<Input>) => EnsureEffectInput<Out>;
-    } & RejectPromiseEffectInput<Out>
+      readonly load: Load & ((input: Schema.Schema.Type<Input>) => EnsureEffectInput<ReturnType<Load>>);
+    } & RejectPromiseEffectInput<ReturnType<Load>>
   ): ResourceRefFactory<
     Schema.Schema.Type<Input>,
-    EffectInputValue<Out>,
-    EffectInputError<Out>,
-    EffectInputRequirements<Out>
+    EffectInputValue<ReturnType<Load>>,
+    EffectInputError<ReturnType<Load>>,
+    EffectInputRequirements<ReturnType<Load>>
   >;
   export function family<
     I,
@@ -513,28 +513,6 @@ export namespace Resource {
   >;
   export function family<
     I,
-    Out
-  >(
-    options: Omit<
-      ResourceFamilyOptions<
-        I,
-        EffectInputValue<Out>,
-        EffectInputError<Out>,
-        EffectInputRequirements<Out>
-      >,
-      "output" | "load"
-    > & {
-      readonly output?: never;
-      readonly load: (input: I) => EnsureEffectInput<Out>;
-    } & RejectPromiseEffectInput<Out>
-  ): ResourceRefFactory<
-    I,
-    EffectInputValue<Out>,
-    EffectInputError<Out>,
-    EffectInputRequirements<Out>
-  >;
-  export function family<
-    I,
     A,
     E = never,
     R = never,
@@ -546,11 +524,33 @@ export namespace Resource {
   >(
     options: Definition & CheckedResourceLoad<I, Definition>
   ): ResourceRefFactory<I, A, E, R>;
-	  export function family(
-	    options: unknown
-	  ): any {
-	    return makeResourceFamily(options as ResourceFamilyOptions<unknown, unknown, unknown, unknown>);
-	  }
+  export function family<
+    I,
+    Load extends (input: I) => unknown
+  >(
+    options: Omit<
+      ResourceFamilyOptions<
+        I,
+        EffectInputValue<ReturnType<Load>>,
+        EffectInputError<ReturnType<Load>>,
+        EffectInputRequirements<ReturnType<Load>>
+      >,
+      "output" | "load"
+    > & {
+      readonly output?: never;
+      readonly load: Load & ((input: I) => EnsureEffectInput<ReturnType<Load>>);
+    } & RejectPromiseEffectInput<ReturnType<Load>>
+  ): ResourceRefFactory<
+    I,
+    EffectInputValue<ReturnType<Load>>,
+    EffectInputError<ReturnType<Load>>,
+    EffectInputRequirements<ReturnType<Load>>
+  >;
+  export function family(
+    options: unknown
+  ): any {
+    return makeResourceFamily(options as ResourceFamilyOptions<unknown, unknown, unknown, unknown>);
+  }
 
   /**
    * Defines a resource family backed by an Effect RequestResolver.

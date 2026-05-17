@@ -489,6 +489,7 @@ declare const promisedString: Promise<string>;
 declare const promisedNumber: Promise<number>;
 declare const promisedVoid: Promise<void>;
 declare const promisedStartDevModule: Promise<Record<string, unknown>>;
+declare const effectNumberValue: Effect.Effect<number>;
 declare const thenableProject: { readonly then: () => void; readonly id: string; readonly name: string };
 declare const optionalThenableProject: { readonly then?: () => void; readonly id: string; readonly name: string };
 // @ts-expect-error direct EffectInput values cannot be Promise-shaped
@@ -509,6 +510,11 @@ toEffect<unknown>(Effect.succeed(promisedProject));
 toEffect(Effect.succeed(thenableProject));
 // @ts-expect-error EffectInput Effects cannot succeed with optional callable-then-shaped values
 toEffect(Effect.succeed(optionalThenableProject));
+// @ts-expect-error direct EffectInput values cannot be Effect-shaped domain values; wrap them in Effect.succeed(...)
+toEffect<Effect.Effect<number>>(effectNumberValue);
+const wrappedEffectValue = toEffect<Effect.Effect<number>>(Effect.succeed(effectNumberValue));
+const wrappedEffectValueCheck: Effect.Effect<Effect.Effect<number>> = wrappedEffectValue;
+void wrappedEffectValueCheck;
 // @ts-expect-error Program.next models cannot be Promise-shaped values
 Program.next(promisedProject);
 // @ts-expect-error Program.next models cannot hide Promise-shaped values behind explicit unknown
@@ -523,6 +529,14 @@ Program.dispatch(promisedProject);
 Program.subscription(Stream.succeed(promisedProject));
 // @ts-expect-error Program message types cannot be Promise-shaped
 Program.define<number, typeof promisedNumber>({ initial: 0, update: (model: number) => model });
+// @ts-expect-error Program message types cannot be undefined because command Effects use undefined as the no-message sentinel
+Program.define<number, undefined>({ initial: 0, update: (model: number) => model });
+// @ts-expect-error Program message types cannot be void because command Effects use undefined as the no-message sentinel
+Program.define<number, void>({ initial: 0, update: (model: number) => model });
+// @ts-expect-error Program dispatch commands cannot accept undefined messages
+Program.dispatch<undefined>(undefined);
+// @ts-expect-error Program commands cannot use undefined as their message type
+Program.command<undefined>(Effect.succeed(undefined));
 // @ts-expect-error Program initial models cannot be Promise-shaped
 Program.define<typeof promisedNumber, "noop">({ initial: promisedNumber, update: (model) => model });
 const promiseResetStory = Program.story(Program.define<number, "noop">({
@@ -1564,21 +1578,32 @@ Resource.family<string, unknown>({
   load: () => Effect.succeed(promisedProject)
 });
 
+Resource.family<string, Effect.Effect<number>>({
+  name: "Project.effectValuedResource",
+  // @ts-expect-error explicit Effect-valued resource outputs must be wrapped in Effect.succeed(...)
+  load: () => effectNumberValue
+});
+
+Resource.family<string, Effect.Effect<number>>({
+  name: "Project.wrappedEffectValuedResource",
+  load: () => Effect.succeed(effectNumberValue)
+});
+
+// @ts-expect-error unannotated resource loaders must return Effect or a pure value, not Promise
 Resource.family({
   name: "Project.asyncResourceInferred",
-  // @ts-expect-error unannotated resource loaders must return Effect or a pure value, not Promise
   load: () => promisedProject
 });
 
+// @ts-expect-error unannotated resource loaders cannot return callable-then-shaped values
 Resource.family({
   name: "Project.thenableResourceInferred",
-  // @ts-expect-error unannotated resource loaders cannot return callable-then-shaped values
   load: () => thenableProject
 });
 
+// @ts-expect-error unannotated resource loaders cannot return Effects that succeed with callable-then-shaped values
 Resource.family({
   name: "Project.thenableResourceEffectInferred",
-  // @ts-expect-error unannotated resource loaders cannot return Effects that succeed with callable-then-shaped values
   load: () => Effect.succeed(thenableProject)
 });
 
@@ -4495,21 +4520,32 @@ Action.define<{ readonly id: string }, unknown>({
   run: () => Effect.succeed(promisedProject)
 });
 
+Action.define<{ readonly id: string }, Effect.Effect<number>>({
+  name: "Project.effectValuedAction",
+  // @ts-expect-error explicit Effect-valued action outputs must be wrapped in Effect.succeed(...)
+  run: () => effectNumberValue
+});
+
+Action.define<{ readonly id: string }, Effect.Effect<number>>({
+  name: "Project.wrappedEffectValuedAction",
+  run: () => Effect.succeed(effectNumberValue)
+});
+
+// @ts-expect-error unannotated actions must return Effect or a pure value, not Promise
 Action.define({
   name: "Project.asyncAction.inferred",
-  // @ts-expect-error unannotated actions must return Effect or a pure value, not Promise
   run: () => promisedProject
 });
 
+// @ts-expect-error unannotated actions cannot return callable-then-shaped values
 Action.define({
   name: "Project.thenableAction.inferred",
-  // @ts-expect-error unannotated actions cannot return callable-then-shaped values
   run: () => thenableProject
 });
 
+// @ts-expect-error unannotated actions cannot return Effects that succeed with callable-then-shaped values
 Action.define({
   name: "Project.thenableActionEffect.inferred",
-  // @ts-expect-error unannotated actions cannot return Effects that succeed with callable-then-shaped values
   run: () => Effect.succeed(thenableProject)
 });
 

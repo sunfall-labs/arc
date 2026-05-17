@@ -166,10 +166,10 @@ describe("Program", () => {
       })
     ));
 
-	  it("reports erased Promise-shaped Program.next models as typed failures", () =>
-	    Effect.runPromise(
-	      Effect.gen(function* () {
-	        const program = Program.start(Program.define<number, "promise-step">({
+  it("reports erased Promise-shaped Program.next models as typed failures", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const program = Program.start(Program.define<number, "promise-step">({
           initial: 0,
           update: () => Program.next(Promise.resolve(1) as never)
         }));
@@ -187,37 +187,37 @@ describe("Program", () => {
         expect(read(program.failures)).toEqual([failure]);
 
         yield* program.disposeEffect;
-	      })
-	    ));
+      })
+    ));
 
-	  it("rejects erased Promise-shaped initial models before starting a Program", () => {
-	    expect(() =>
-	      Program.start(Program.define<number, "noop">({
-	        initial: Promise.resolve(0) as never,
-	        update: (model) => model
-	      }))
-	    ).toThrow(EffectInputCallbackError);
-	  });
+  it("rejects erased Promise-shaped initial models before starting a Program", () => {
+    expect(() =>
+      Program.start(Program.define<number, "noop">({
+        initial: Promise.resolve(0) as never,
+        update: (model) => model
+      }))
+    ).toThrow(EffectInputCallbackError);
+  });
 
-	  it("rejects erased Promise-shaped story initial and reset models", () => {
-	    expect(() =>
-	      Program.story(Program.define<number, "noop">({
-	        initial: 0,
-	        update: (model) => model
-	      }), {
-	        initial: Promise.resolve(0) as never
-	      })
-	    ).toThrow(EffectInputCallbackError);
+  it("rejects erased Promise-shaped story initial and reset models", () => {
+    expect(() =>
+      Program.story(Program.define<number, "noop">({
+        initial: 0,
+        update: (model) => model
+      }), {
+        initial: Promise.resolve(0) as never
+      })
+    ).toThrow(EffectInputCallbackError);
 
-	    const story = Program.story(Program.define<number, "noop">({
-	      initial: 0,
-	      update: (model) => model
-	    }));
+    const story = Program.story(Program.define<number, "noop">({
+      initial: 0,
+      update: (model) => model
+    }));
 
-	    expect(() => story.reset(Promise.resolve(1) as never)).toThrow(EffectInputCallbackError);
-	  });
+    expect(() => story.reset(Promise.resolve(1) as never)).toThrow(EffectInputCallbackError);
+  });
 
-	  it("reports erased Promise-shaped dispatch messages as typed failures", () =>
+  it("reports erased Promise-shaped dispatch messages as typed failures", () =>
     Effect.runPromise(
       Effect.gen(function* () {
         const program = Program.start(Program.define<number, "increment">({
@@ -242,6 +242,31 @@ describe("Program", () => {
       })
     ));
 
+  it("reports erased undefined dispatch messages as typed failures", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const program = Program.start(Program.define<number, "increment">({
+          initial: 0,
+          update: (model) => model + 1
+        }));
+
+        const failure = yield* Effect.flip(
+          program.dispatchEffect(undefined as never)
+        );
+
+        expect(read(program.model)).toBe(0);
+        expect(failure).toMatchObject({
+          _tag: "ProgramFailure",
+          phase: "Update",
+          error: expect.any(EffectInputCallbackError)
+        });
+        expect((failure.error as EffectInputCallbackError).cause).toBeInstanceOf(TypeError);
+        expect(read(program.failures)).toEqual([failure]);
+
+        yield* program.disposeEffect;
+      })
+    ));
+
   it("reports erased Promise-shaped command messages without enqueueing them", () =>
     Effect.runPromise(
       Effect.gen(function* () {
@@ -251,7 +276,7 @@ describe("Program", () => {
             message === "load"
               ? Program.next(
                   model,
-                  Program.command(Effect.succeed(Promise.resolve("loaded") as never))
+                  Program.command<"load" | "loaded">(Effect.succeed(Promise.resolve("loaded") as never))
                 )
               : model + 1
         }));
@@ -268,6 +293,43 @@ describe("Program", () => {
           error: expect.any(EffectInputCallbackError)
         });
         expect((failure?.error as EffectInputCallbackError).cause).toBeInstanceOf(EffectInputPromiseRejected);
+
+        yield* program.disposeEffect;
+      })
+    ));
+
+  it("records command failure source messages in failures and timeline", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const program = Program.start(Program.define<number, "load">({
+          initial: 0,
+          update: (model, message) =>
+            message === "load"
+              ? Program.next(model, Program.command<"load", string>(Effect.fail("offline")))
+              : model
+        }));
+
+        yield* program.dispatchEffect("load");
+        yield* Effect.sleep("0 millis");
+
+        const [failure] = read(program.failures);
+        expect(failure).toMatchObject({
+          _tag: "ProgramFailure",
+          phase: "Command",
+          message: "load",
+          error: "offline"
+        });
+        const commandFailure = read(program.timeline).find(
+          (event) => event._tag === "CommandFailed"
+        );
+        expect(commandFailure).toMatchObject({
+          _tag: "CommandFailed",
+          source: "load",
+          failure: {
+            message: "load",
+            error: "offline"
+          }
+        });
 
         yield* program.disposeEffect;
       })
