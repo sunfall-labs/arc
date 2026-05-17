@@ -2,6 +2,7 @@ import { Cause, Data, Effect, Exit, Scope } from "effect";
 import { toEffect, type EffectInput } from "@effect-ui/core";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import {
+  nodeRequestLifecycle,
   nodeRequestToWebRequestEffect,
   writeNodeExchangeResponseEffect,
   type StartNodeRequestOptions
@@ -15,7 +16,11 @@ import {
   resolveStartTransportEndpoints,
   type StartTransportEndpointSource
 } from "./start-transport-endpoints.js";
-import { runStartAbortFinalizerOnSignalEffect } from "./start-abort-lifecycle.js";
+import {
+  interruptStartHostFiberOnSignal,
+  mergeStartAbortSignals,
+  runStartAbortFinalizerOnSignalEffect
+} from "./start-abort-lifecycle.js";
 
 /**
  * Handler export shape used by the Vite dev SSR middleware.
@@ -83,6 +88,12 @@ class StartHandlerInvalidResponse extends Data.TaggedError("StartHandlerInvalidR
 
 /** Vite middleware continuation callback. */
 export type StartDevMiddlewareNext = (error?: unknown) => void;
+
+/** Options for Vite dev SSR middleware lifecycle and request handling. */
+export interface HandleSsrDevMiddlewareOptions extends HandleSsrDevRequestOptions {
+  /** Effect runtime options used when request aborts interrupt the middleware fiber. */
+  readonly runOptions?: Effect.RunOptions;
+}
 
 const fixSsrStacktraceBestEffort = <R>(
   server: StartDevServer<R>,
@@ -239,18 +250,48 @@ export const handleSsrDevMiddlewareEffect = <R = never>(
   request: IncomingMessage,
   response: ServerResponse,
   next: StartDevMiddlewareNext,
-  options: HandleSsrDevRequestOptions = {}
+  options: HandleSsrDevMiddlewareOptions = {}
 ): Effect.Effect<void, never, R> =>
-  Effect.gen(function* () {
-    if (!shouldHandleSsrRequest(request, options)) {
-      yield* callMiddlewareNextBestEffort(next);
-      return;
-    }
+  Effect.withFiber((fiber) =>
+    Effect.acquireUseRelease(
+      Effect.sync(() => {
+        const nodeLifecycle = nodeRequestLifecycle(request, response);
+        const mergedLifecycle = mergeStartAbortSignals([
+          nodeLifecycle.signal,
+          options.nodeRequest?.signal
+        ]);
+        const disposeInterrupt = interruptStartHostFiberOnSignal(
+          fiber,
+          mergedLifecycle.signal,
+          options.runOptions === undefined ? {} : { runOptions: options.runOptions }
+        );
 
-    const webRequest = yield* nodeRequestToWebRequestEffect(request, options.nodeRequest);
-    const webResponse = yield* handleSsrDevRequestEffect(server, webRequest, options);
-    yield* writeNodeExchangeResponseEffect(request, response, webResponse);
-  }).pipe(
+        return {
+          signal: mergedLifecycle.signal,
+          dispose: () => {
+            disposeInterrupt();
+            mergedLifecycle.cleanup();
+            nodeLifecycle.dispose();
+          }
+        };
+      }),
+      ({ signal }) =>
+        Effect.gen(function* () {
+          if (!shouldHandleSsrRequest(request, options)) {
+            yield* callMiddlewareNextBestEffort(next);
+            return;
+          }
+
+          const webRequest = yield* nodeRequestToWebRequestEffect(request, {
+            ...options.nodeRequest,
+            signal
+          });
+          const webResponse = yield* handleSsrDevRequestEffect(server, webRequest, options);
+          yield* writeNodeExchangeResponseEffect(request, response, webResponse);
+        }),
+      ({ dispose }) => Effect.sync(dispose)
+    )
+  ).pipe(
     Effect.catch((error) => reportSsrDevMiddlewareError(server, next, error)),
     Effect.catchCause((cause) =>
       reportSsrDevMiddlewareError(server, next, Cause.squash(cause))

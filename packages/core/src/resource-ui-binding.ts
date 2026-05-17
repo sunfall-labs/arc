@@ -200,18 +200,24 @@ export const resourceUiBindRuntimeEffect = <A, E, R, ER>(
 ): Effect.Effect<A, E | ER> =>
   Effect.scoped(runtime.provide(effect));
 
+interface ResourceUiBindingPreload<I, A, E, R> {
+  readonly ref: ResourceRef<I, A, E, R>;
+  readonly fiber: Fiber.Fiber<unknown, unknown>;
+}
+
+interface ResourceUiBindingDisposal<I, A, E, R> {
+  readonly preload: ResourceUiBindingPreload<I, A, E, R> | undefined;
+  readonly retainedRef: ResourceRef<I, A, E, R> | undefined;
+  readonly retentionFiber: Fiber.Fiber<void, unknown> | undefined;
+}
+
 /** Creates the adapter-neutral Resource UI binding controller. */
 export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never>(
   options: ResourceUiBindingControllerOptions<I, A, E, R, ER>
 ): ResourceUiBindingController<I, A, E, R, ER> => {
   let currentRef: ResourceRef<I, A, E, R> | undefined;
   let preloadFailure: ResourceUiPreloadFailure<I, A, E, R, ER> | undefined;
-  let preload:
-    | {
-        readonly ref: ResourceRef<I, A, E, R>;
-        readonly fiber: Fiber.Fiber<unknown, unknown>;
-      }
-    | undefined;
+  let preload: ResourceUiBindingPreload<I, A, E, R> | undefined;
   let retainedRef: ResourceRef<I, A, E, R> | undefined;
   let retentionFiber: Fiber.Fiber<void, unknown> | undefined;
 
@@ -230,21 +236,27 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
     }
   };
 
-  const interruptPreloadEffect = (): Effect.Effect<void> =>
-    Effect.gen(function* () {
-      const current = preload;
-      preload = undefined;
-      if (current !== undefined) {
-        yield* Fiber.interrupt(current.fiber).pipe(Effect.catchCause(() => Effect.void));
-      }
-    });
-
-  const interruptPreload = (): void => {
+  const takePreload = (): ResourceUiBindingPreload<I, A, E, R> | undefined => {
     const current = preload;
     preload = undefined;
+    return current;
+  };
+
+  const interruptTakenPreloadEffect = (
+    current: ResourceUiBindingPreload<I, A, E, R> | undefined
+  ): Effect.Effect<void> =>
+    current === undefined
+      ? Effect.void
+      : Fiber.interrupt(current.fiber).pipe(Effect.catchCause(() => Effect.void));
+
+  const interruptPreloadEffect = (): Effect.Effect<void> =>
+    Effect.suspend(() => interruptTakenPreloadEffect(takePreload()));
+
+  const interruptPreload = (): void => {
+    const current = takePreload();
     if (current !== undefined) {
       void options.runtime.runFork(
-        Fiber.interrupt(current.fiber).pipe(Effect.catchCause(() => Effect.void))
+        interruptTakenPreloadEffect(current)
       );
     }
   };
@@ -269,17 +281,42 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
     }
   };
 
-  const disposeEffect = (): Effect.Effect<void> =>
+  const captureDisposal = (): ResourceUiBindingDisposal<I, A, E, R> => {
+    const currentPreload = takePreload();
+    const currentRetainedRef = retainedRef;
+    const currentRetentionFiber = retentionFiber;
+    currentRef = undefined;
+    retainedRef = undefined;
+    retentionFiber = undefined;
+    setPreloadFailure(undefined);
+    return {
+      preload: currentPreload,
+      retainedRef: currentRetainedRef,
+      retentionFiber: currentRetentionFiber
+    };
+  };
+
+  const releaseCapturedRetainedRefEffect = (
+    ref: ResourceRef<I, A, E, R>
+  ): Effect.Effect<void> =>
+    resourceUiBindRuntimeEffect(options.runtime, releaseResourceRefEffect(ref)).pipe(
+      Effect.catchCause(() => Effect.void)
+    );
+
+  const disposeCapturedEffect = (
+    captured: ResourceUiBindingDisposal<I, A, E, R>
+  ): Effect.Effect<void> =>
     Effect.gen(function* () {
-      yield* interruptPreloadEffect();
-      releaseRetainedRef();
-      currentRef = undefined;
-      setPreloadFailure(undefined);
-      const currentRetention = retentionFiber;
-      if (currentRetention !== undefined) {
-        yield* Fiber.join(currentRetention).pipe(Effect.catchCause(() => Effect.void));
+      yield* interruptTakenPreloadEffect(captured.preload);
+      if (captured.retentionFiber !== undefined) {
+        yield* Fiber.join(captured.retentionFiber).pipe(Effect.catchCause(() => Effect.void));
+      }
+      if (captured.retainedRef !== undefined) {
+        yield* releaseCapturedRetainedRefEffect(captured.retainedRef);
       }
     });
+  const disposeEffect = (): Effect.Effect<void> =>
+    Effect.suspend(() => disposeCapturedEffect(captureDisposal()));
 
   const retainRef = (ref: ResourceRef<I, A, E, R>): void => {
     retainedRef = ref;
@@ -368,7 +405,7 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
     interruptPreload,
     disposeEffect,
     dispose: () => {
-      void options.runtime.runFork(disposeEffect());
+      void options.runtime.runFork(disposeCapturedEffect(captureDisposal()));
     },
     preloadFailureFor: (ref) => resourceUiPreloadFailureFor(preloadFailure, ref)
   };

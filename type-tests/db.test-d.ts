@@ -331,6 +331,18 @@ const queryPredicatePins: ReadonlyArray<boolean> = [
   or(false, true),
   not(false)
 ];
+const publicQueryPredicatePins: ReadonlyArray<boolean> = [
+  Query.eq("atlas", "atlas"),
+  Query.neq("atlas", "zephyr"),
+  Query.gt(2, 1),
+  Query.gte(2, 2),
+  Query.lt(1, 2),
+  Query.lte(2, 2),
+  Query.includes(["atlas"], "atlas"),
+  Query.and(true, true),
+  Query.or(false, true),
+  Query.not(false)
+];
 const unknownCollectionIndex = new UnknownCollectionIndex({
   collection: "projects",
   index: "byStatus"
@@ -453,6 +465,7 @@ const dbExports: Array<unknown> = [
   collectionStoreTypeId,
   directCollectionCheck,
   queryPredicatePins,
+  publicQueryPredicatePins,
   unknownCollectionIndex,
   unsupportedLiveQuery,
   collectionRowKeyChanged,

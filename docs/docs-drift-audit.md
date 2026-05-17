@@ -3,10 +3,10 @@
 Last updated: 2026-05-17.
 
 Current release-tracking truth lives in `docs/architecture-deepening-review.md`
-and `docs/perfection-progress.md`. As of Review245, the latest full
+and `docs/perfection-progress.md`. As of Review246, the latest full
 `pnpm verify` gate is the Review240 run with 53 root test files / 1170 tests,
 the Effect-first audit covers 415 files, and the active Thirty-Sweep clean
-counter is 0/30 until a fresh post-Review245 sweep reports no actionable
+counter is 0/30 until a fresh post-Review246 sweep reports no actionable
 findings.
 
 This historical audit checks release-tracking docs for claims that no longer match the
@@ -233,6 +233,10 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   current ledgers after the post-Review244 sweep found public hover policy
   symbol reachability gaps, memory history same-href drift, and RouterLink
   download prop normalization gaps.
+- Review246 Effect Cleanup Capture And Vite Middleware Lifecycle refreshed
+  current ledgers after the post-Review245 sweep found Action reset cleanup
+  capture, Resource UI disposal capture, Query predicate namespace ownership,
+  and Vite dev SSR middleware lifecycle gaps.
 - Review201 refreshed the current release ledgers after script command,
   Resource public-surface, React/Solid router LSP, DB erased-channel, and
   generated-starter README guardrail fixes; the historical enumeration above

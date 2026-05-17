@@ -643,9 +643,13 @@ Release decisions:
   implementation lives behind the Start Vite Dev SSR Adapter Module rather than
   the plugin assembly code.
 - Vite dev SSR request conversion accepts the same Node origin and forwarded
-  header policy as the Node adapter through `HandleSsrDevRequestOptions` and
-  `EffectUiStartOptions.nodeRequest`, so development and production host
-  adapters do not disagree about public request URLs.
+  header policy as the Node adapter through `HandleSsrDevRequestOptions`,
+  `HandleSsrDevMiddlewareOptions`, and `EffectUiStartOptions.nodeRequest`, so
+  development and production host adapters do not disagree about public request
+  URLs. The middleware Adapter owns the Node request lifecycle, merged abort
+  signal injection, host-fiber interruption, response writing, `next(error)`
+  containment, and listener disposal for both the plugin path and direct
+  custom callers.
 - Serviceful Vite dev SSR handlers should provide app services through
   `EffectUiStartOptions.devSsr.runtime`. The server-entry handler still owns
   request/runtime construction; the Vite Adapter only owns the host callback
@@ -935,8 +939,9 @@ Release decisions:
   and lifecycle Effects, not the internal builder.
 - Top-level Query type mirrors such as `QueryRoot`, `QueryFactory`,
   `LiveQuery`, `LiveQueryState`, query plan diagnostics, sort/join scalar
-  types, and aggregate types remain expert-public compatibility exports. New
-  application code should prefer the `Query.*` namespace, including
+  types, aggregate types, and predicate helpers remain expert-public
+  compatibility exports. New application code should prefer the `Query.*`
+  namespace, including `Query.eq(...)`, `Query.and(...)`, `Query.includes(...)`,
   `Query.JoinKey`, `Query.SortDirection`, and `Query.SortValue`, but the direct
   mirrors are intentionally documented and pinned so Query public Interface
   drift is visible to the type-test manifest and public API audit.

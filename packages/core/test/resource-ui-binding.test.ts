@@ -374,6 +374,68 @@ describe("Resource UI Binding Controller", () => {
     );
   });
 
+  it("captures retained refs before queued sync disposal executes", () => {
+    const baseRuntime = makeRuntime();
+    const queuedDisposals: Array<Effect.Effect<void>> = [];
+    let queueNextDispose = false;
+    const runtime: typeof baseRuntime = {
+      ...baseRuntime,
+      runFork: <A, E, R>(
+        effect: Effect.Effect<A, E, R>,
+        options?: Effect.RunOptions
+      ): Fiber.Fiber<A, E> => {
+        if (queueNextDispose) {
+          queueNextDispose = false;
+          queuedDisposals.push(effect as Effect.Effect<void>);
+          return baseRuntime.runFork(Effect.never as Effect.Effect<A, E, never>, options);
+        }
+        return baseRuntime.runFork(effect as Effect.Effect<A, E, never>, options);
+      }
+    };
+    const ProjectById = Resource.family<string, Project>({
+      name: "ResourceUiBinding.queued-dispose-owner",
+      load: (id) => Effect.succeed({ id, name: id })
+    });
+    const firstRef = ProjectById("first");
+    const secondRef = ProjectById("second");
+    const controller = makeResourceUiBindingController<string, Project, never, never, never>({
+      runtime
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        controller.bindRef(firstRef);
+        yield* Effect.sleep("20 millis");
+
+        const store = unsafeMutableResourceStore(baseRuntime.resourceStore);
+        expect([...store.retainedRefs.entries()]).toEqual([
+          [resourceRefStoreKey(firstRef), 1]
+        ]);
+
+        queueNextDispose = true;
+        controller.dispose();
+        controller.bindRef(secondRef);
+        yield* Effect.sleep("20 millis");
+
+        expect(queuedDisposals).toHaveLength(1);
+        expect([...store.retainedRefs.entries()]).toEqual([
+          [resourceRefStoreKey(firstRef), 1],
+          [resourceRefStoreKey(secondRef), 1]
+        ]);
+
+        yield* queuedDisposals[0]!;
+        yield* Effect.sleep("20 millis");
+
+        expect([...store.retainedRefs.entries()]).toEqual([
+          [resourceRefStoreKey(secondRef), 1]
+        ]);
+      }).pipe(
+        Effect.ensuring(controller.disposeEffect()),
+        Effect.ensuring(baseRuntime.disposeEffect)
+      )
+    );
+  });
+
   it("dedupes Suspense preload host tokens per ref", () => {
     const runtime = makeRuntime();
     const ProjectById = Resource.family<string, Project>({

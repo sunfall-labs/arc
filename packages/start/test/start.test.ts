@@ -1,4 +1,5 @@
 import { Cause, Context, Deferred, Effect, Exit, Fiber, Layer, Metric, Schema, Scope, Stream } from "effect";
+import { EventEmitter } from "node:events";
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { tmpdir } from "node:os";
@@ -9408,8 +9409,8 @@ describe("Effect UI Start", () => {
     });
 
     expect(nextErrors).toEqual([setupError]);
-    expect(requestOffCount).toBe(1);
-    expect(responseOffCount).toBe(2);
+    expect(requestOffCount).toBe(0);
+    expect(responseOffCount).toBe(0);
   });
 
   it("keeps Vite dev SSR pass-through Scope alive until streamed bodies are cancelled", async () => {
@@ -9667,6 +9668,73 @@ describe("Effect UI Start", () => {
     expect(nextErrors).toEqual([]);
     expect(responseEnded).toBe(true);
     expect(handledUrl).toBe("http://internal.local/settings");
+  });
+
+  it("owns Node abort lifecycle when Vite dev SSR middleware runs directly", async () => {
+    const request = Object.assign(new EventEmitter(), {
+      headers: {
+        accept: "text/html",
+        host: "example.com"
+      },
+      method: "GET",
+      url: "/projects/atlas"
+    }) as unknown as IncomingMessage;
+    const responseEvents = new EventEmitter();
+    const responseState = { writableEnded: false };
+    const response = Object.assign(responseEvents, {
+      get writableEnded() {
+        return responseState.writableEnded;
+      },
+      set writableEnded(value: boolean) {
+        responseState.writableEnded = value;
+      },
+      setHeader: () => undefined,
+      end: () => {
+        responseState.writableEnded = true;
+        responseEvents.emit("finish");
+      }
+    }) as unknown as ServerResponse;
+    const cancelledReads: Array<unknown> = [];
+    const nextErrors: Array<unknown> = [];
+    const body = new ReadableStream<Uint8Array>({
+      start: (controller) => {
+        controller.enqueue(new TextEncoder().encode("<html>"));
+      },
+      cancel: (reason) => {
+        cancelledReads.push(reason);
+      }
+    });
+
+    const fiber = Effect.runFork(
+      handleSsrDevMiddlewareEffect(
+        {
+          ssrLoadModule: () =>
+            Effect.succeed({
+              default: () =>
+                new Response(body, {
+                  headers: { "content-type": "text/html" }
+                })
+            }),
+          transformIndexHtml: () => Effect.sync(() => {
+            expect.fail("aborted dev SSR reads should not transform HTML");
+          })
+        },
+        request,
+        response,
+        (error) => {
+          nextErrors.push(error);
+        },
+        { serverEntry: "/src/server.tsx" }
+      )
+    );
+
+    await Effect.runPromise(Effect.sleep("20 millis"));
+    response.emit("close");
+    await Effect.runPromise(Fiber.await(fiber));
+    await Effect.runPromise(Effect.sleep("20 millis"));
+
+    expect(cancelledReads).toHaveLength(1);
+    expect(nextErrors.length).toBeLessThanOrEqual(1);
   });
 
   it("continues middleware error reporting when Vite ssrFixStacktrace throws", async () => {

@@ -501,26 +501,37 @@ const queryRoot: QueryRoot = {
   >
 };
 
-/** Equality predicate using `Object.is`, matching signal and collection change checks. */
-export const eq = <A>(left: A, right: A): boolean => Object.is(left, right);
-/** Negated `Object.is` equality predicate. */
-export const neq = <A>(left: A, right: A): boolean => !Object.is(left, right);
-/** Greater-than predicate for sortable scalar values. */
-export const gt = <A extends number | string | Date>(left: A, right: A): boolean => left > right;
-/** Greater-than-or-equal predicate for sortable scalar values. */
-export const gte = <A extends number | string | Date>(left: A, right: A): boolean => left >= right;
-/** Less-than predicate for sortable scalar values. */
-export const lt = <A extends number | string | Date>(left: A, right: A): boolean => left < right;
-/** Less-than-or-equal predicate for sortable scalar values. */
-export const lte = <A extends number | string | Date>(left: A, right: A): boolean => left <= right;
-/** Boolean conjunction helper for composing filters. */
-export const and = (...values: ReadonlyArray<boolean>): boolean => values.every(Boolean);
-/** Boolean disjunction helper for composing filters. */
-export const or = (...values: ReadonlyArray<boolean>): boolean => values.some(Boolean);
-/** Boolean negation helper for composing filters. */
-export const not = (value: boolean): boolean => !value;
-/** Array membership predicate using JavaScript `includes` semantics. */
-export const includes = <A>(values: ReadonlyArray<A>, value: A): boolean => values.includes(value);
+const queryPredicateEq = <A>(left: A, right: A): boolean => Object.is(left, right);
+const queryPredicateNeq = <A>(left: A, right: A): boolean => !Object.is(left, right);
+const queryPredicateGt = <A extends number | string | Date>(left: A, right: A): boolean => left > right;
+const queryPredicateGte = <A extends number | string | Date>(left: A, right: A): boolean => left >= right;
+const queryPredicateLt = <A extends number | string | Date>(left: A, right: A): boolean => left < right;
+const queryPredicateLte = <A extends number | string | Date>(left: A, right: A): boolean => left <= right;
+const queryPredicateAnd = (...values: ReadonlyArray<boolean>): boolean => values.every(Boolean);
+const queryPredicateOr = (...values: ReadonlyArray<boolean>): boolean => values.some(Boolean);
+const queryPredicateNot = (value: boolean): boolean => !value;
+const queryPredicateIncludes = <A>(values: ReadonlyArray<A>, value: A): boolean => values.includes(value);
+
+/** Equality predicate using `Object.is`, matching signal and collection change checks. Prefer `Query.eq(...)` in new code. */
+export const eq = queryPredicateEq;
+/** Negated `Object.is` equality predicate. Prefer `Query.neq(...)` in new code. */
+export const neq = queryPredicateNeq;
+/** Greater-than predicate for sortable scalar values. Prefer `Query.gt(...)` in new code. */
+export const gt = queryPredicateGt;
+/** Greater-than-or-equal predicate for sortable scalar values. Prefer `Query.gte(...)` in new code. */
+export const gte = queryPredicateGte;
+/** Less-than predicate for sortable scalar values. Prefer `Query.lt(...)` in new code. */
+export const lt = queryPredicateLt;
+/** Less-than-or-equal predicate for sortable scalar values. Prefer `Query.lte(...)` in new code. */
+export const lte = queryPredicateLte;
+/** Boolean conjunction helper for composing filters. Prefer `Query.and(...)` in new code. */
+export const and = queryPredicateAnd;
+/** Boolean disjunction helper for composing filters. Prefer `Query.or(...)` in new code. */
+export const or = queryPredicateOr;
+/** Boolean negation helper for composing filters. Prefer `Query.not(...)` in new code. */
+export const not = queryPredicateNot;
+/** Array membership predicate using JavaScript `includes` semantics. Prefer `Query.includes(...)` in new code. */
+export const includes = queryPredicateIncludes;
 
 const aggregateCount = <TContext, A = unknown>(
   value: (row: TContext) => A & PlainValue<A> =
@@ -656,6 +667,26 @@ export namespace Query {
 
   /** Start a query from one or more named collection sources. */
   export const from = queryRoot.from;
+  /** Equality predicate using `Object.is`, matching signal and collection change checks. */
+  export const eq = queryPredicateEq;
+  /** Negated `Object.is` equality predicate. */
+  export const neq = queryPredicateNeq;
+  /** Greater-than predicate for sortable scalar values. */
+  export const gt = queryPredicateGt;
+  /** Greater-than-or-equal predicate for sortable scalar values. */
+  export const gte = queryPredicateGte;
+  /** Less-than predicate for sortable scalar values. */
+  export const lt = queryPredicateLt;
+  /** Less-than-or-equal predicate for sortable scalar values. */
+  export const lte = queryPredicateLte;
+  /** Boolean conjunction helper for composing filters. */
+  export const and = queryPredicateAnd;
+  /** Boolean disjunction helper for composing filters. */
+  export const or = queryPredicateOr;
+  /** Boolean negation helper for composing filters. */
+  export const not = queryPredicateNot;
+  /** Array membership predicate using JavaScript `includes` semantics. */
+  export const includes = queryPredicateIncludes;
   /** Count non-null aggregate values in `groupBy`. */
   export const count = aggregateCount;
   /** Sum numeric aggregate values in `groupBy`. */

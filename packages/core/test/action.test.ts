@@ -653,7 +653,7 @@ describe("Action", () => {
     }
   });
 
-  it("keeps the sync reset convenience owned by the captured action runtime", async () => {
+  it("clears sync reset state even when the captured action runtime cannot run cleanup", async () => {
     const runtime = makeRuntime();
     const Save = Action.define<void, string>({
       name: "save.runtime-reset-disposed",
@@ -671,13 +671,82 @@ describe("Action", () => {
     action.reset();
     await Effect.runPromise(Effect.sleep("10 millis"));
 
-    expect(read(action.state)).toMatchObject({
-      _tag: "Success",
-      value: "saved"
-    });
+    expect(read(action.state)).toEqual({ _tag: "Idle" });
 
     await Effect.runPromise(action.resetEffect());
     expect(read(action.state)).toEqual({ _tag: "Idle" });
+  });
+
+  it("captures active submissions before queued sync reset cleanup executes", async () => {
+    const baseRuntime = makeRuntime();
+    const queuedResets: Array<Effect.Effect<void>> = [];
+    let queueNextReset = false;
+    const runtime: typeof baseRuntime = {
+      ...baseRuntime,
+      runFork: <A, E, R>(
+        effect: Effect.Effect<A, E, R>,
+        options?: Effect.RunOptions
+      ): Fiber.Fiber<A, E> => {
+        if (queueNextReset) {
+          queueNextReset = false;
+          queuedResets.push(effect as Effect.Effect<void>);
+          return baseRuntime.runFork(Effect.never as Effect.Effect<A, E, never>, options);
+        }
+        return baseRuntime.runFork(effect as Effect.Effect<A, E, never>, options);
+      }
+    };
+    const firstStarted = Effect.runSync(Deferred.make<void>());
+    const firstInterrupted = Effect.runSync(Deferred.make<void>());
+    const secondStarted = Effect.runSync(Deferred.make<void>());
+    const secondRelease = Effect.runSync(Deferred.make<void>());
+    const Save = Action.define<string, string>({
+      name: "save.queued-reset-owner",
+      run: (value) =>
+        value === "first"
+          ? Effect.gen(function* () {
+              yield* Deferred.succeed(firstStarted, undefined);
+              return yield* Effect.never.pipe(
+                Effect.onInterrupt(() => Deferred.succeed(firstInterrupted, undefined))
+              );
+            })
+          : Effect.gen(function* () {
+              yield* Deferred.succeed(secondStarted, undefined);
+              return yield* Deferred.await(secondRelease).pipe(Effect.as(value));
+            })
+    });
+    const action = Action.use(Save, { runtime });
+
+    try {
+      const first = Effect.runFork(action.submitEffect("first"));
+      await Effect.runPromise(Deferred.await(firstStarted));
+      expect(read(action.state)).toMatchObject({
+        _tag: "Pending",
+        input: "first"
+      });
+
+      queueNextReset = true;
+      action.reset();
+
+      expect(queuedResets).toHaveLength(1);
+      expect(read(action.state)).toEqual({ _tag: "Idle" });
+
+      const second = Effect.runFork(action.submitEffect("second"));
+      await Effect.runPromise(Deferred.await(secondStarted));
+
+      await Effect.runPromise(queuedResets[0]!);
+      await Effect.runPromise(Deferred.await(firstInterrupted));
+      await Effect.runPromise(Deferred.succeed(secondRelease, undefined));
+
+      await expect(Effect.runPromise(Fiber.join(second))).resolves.toBe("second");
+      await Effect.runPromise(Fiber.await(first));
+      expect(read(action.state)).toMatchObject({
+        _tag: "Success",
+        input: "second",
+        value: "second"
+      });
+    } finally {
+      await Effect.runPromise(baseRuntime.disposeEffect);
+    }
   });
 
   it("exposes the latest invalidation plan for submitted actions", async () => {

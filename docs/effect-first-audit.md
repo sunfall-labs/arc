@@ -20,6 +20,13 @@ interruption.
 
 ## Current Sweep Results
 
+- Review246 Effect Cleanup Capture And Vite Middleware Lifecycle keeps the
+  post-Review245 fixes Effect-first: Action reset and Resource UI disposal
+  capture owner slots synchronously and return Effects for interruption and
+  release work, Query predicate aliases are pure namespace helpers, and Vite
+  dev SSR middleware owns Node abort lifecycle through Effect fibers and
+  signals without adding Promise-shaped library APIs. The Effect-first audit
+  over 415 files remains green.
 - Review245 Public API Symbol Reachability And Router Adapter Parity keeps the
   post-Review244 fixes Effect-first: public API symbol reachability is an audit
   policy change, memory history parity is synchronous Adapter behavior, and

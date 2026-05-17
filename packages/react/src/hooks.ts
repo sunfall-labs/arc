@@ -398,9 +398,9 @@ const useResourceBinding = <I, A, E, R = unknown, ER = never>(
 
   useEffect(() => {
     return () => {
-      void runtime.runFork(controller.disposeEffect().pipe(Effect.catchCause(() => Effect.void)));
+      controller.dispose();
     };
-  }, [runtime, controller]);
+  }, [controller]);
 
   useEffect(() => {
     controller.startInitialPreload(currentRef, {
@@ -565,9 +565,9 @@ export const useAction = <I, A, E, R, ER = never>(
 
   useEffect(() => {
     return () => {
-      void runtime.runFork(instance.resetEffect().pipe(Effect.catchCause(() => Effect.void)));
+      instance.reset();
     };
-  }, [runtime, instance]);
+  }, [instance]);
 
   return useMemo(
     () => ({

@@ -322,7 +322,7 @@ const createResourceBinding = <I, A, E, R = unknown, ER = never>(
 
   onCleanup(() => {
     unsubscribe?.();
-    void runtime.runFork(controller.disposeEffect().pipe(Effect.catchCause(() => Effect.void)));
+    controller.dispose();
   });
 
   return {
@@ -481,7 +481,7 @@ export const useAction = <I, A, E, R, ER = never>(
   const invalidationPlan = useSignal(instance.invalidationPlan);
 
   onCleanup(() => {
-    void runtime.runFork(instance.resetEffect().pipe(Effect.catchCause(() => Effect.void)));
+    instance.reset();
   });
 
   return {

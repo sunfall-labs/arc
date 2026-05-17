@@ -190,6 +190,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
   symbol-level public hover policy checks so type-test imports, manifest
   required imports, and public hover declarations cannot drift apart at the
   package Interface seam.
+- Review246 Effect Cleanup Capture And Vite Middleware Lifecycle added
+  `Query.*` predicate pins, Vite dev SSR middleware option pins, and current
+  evidence policy pins so namespace ownership and middleware lifecycle
+  Interfaces remain visible to type tests and LSP-facing docs.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them

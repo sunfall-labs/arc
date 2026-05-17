@@ -352,13 +352,13 @@ export namespace StartAction {
         });
       });
 
+    const reset = (): Effect.Effect<void> => {
+      const interruptActiveSubmissions = submissions.reset();
+      hydration.set(undefined);
+      return interruptActiveSubmissions;
+    };
     const resetEffect = (): Effect.Effect<void> =>
-      Effect.gen(function* () {
-        yield* submissions.resetEffect();
-        yield* Effect.sync(() => {
-          hydration.set(undefined);
-        });
-      });
+      Effect.suspend(() => reset());
 
     return {
       definition,
@@ -368,7 +368,7 @@ export namespace StartAction {
       submitEffect,
       resetEffect,
       reset: () => {
-        void resetRuntime.runFork(resetEffect().pipe(Effect.catchCause(() => Effect.void)));
+        void resetRuntime.runFork(reset().pipe(Effect.catchCause(() => Effect.void)));
       }
     };
   }

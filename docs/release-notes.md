@@ -86,13 +86,23 @@ Latest full gate on May 17, 2026 after Review 240:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 246 Effect Cleanup Capture And Vite Middleware Lifecycle closed the
+  post-Review245 sweep: Action reset and StartAction reset synchronously
+  capture active submission fibers before forking cleanup, Resource UI Binding
+  disposal captures the current preload and retained ref owners, Query
+  predicate helpers are now owned by the `Query.*` namespace, and Vite dev SSR
+  middleware owns Node lifecycle setup, abort signal injection, host-fiber
+  interruption, response writing, and `next(error)` containment for plugin and
+  direct callers. The active Thirty-Sweep clean counter remains 0/30 until a
+  fresh post-Review246 sweep reports no actionable findings.
 - Review 245 Public API Symbol Reachability And Router Adapter Parity closed
   the post-Review244 sweep: public hover policy now checks symbol reachability
   through package entrypoints, namespace-only aliases are explicit, memory
   history same-href commits match the window Adapter, and RouterLink download
   facts normalize framework-absent `false`/`null` values before Core click and
-  preload decisions. The active Thirty-Sweep clean counter remains 0/30 until
-  a fresh post-Review245 sweep reports no actionable findings.
+  preload decisions. The active Thirty-Sweep clean counter remained 0/30; the later
+  post-Review245 sweep found Review246 Effect cleanup capture and Vite
+  middleware lifecycle work.
 - Review 244 Effect Cleanup Ownership, DB Pins, And Evidence Policy closed the
   post-Review243 sweep: DB Query namespace scalar aliases now match the
   documented namespace-first Interface, React/Solid DB Effect handles are
@@ -530,9 +540,11 @@ Latest full gate on May 17, 2026 after Review 240:
   post-Review242 sweep found Review243 Browser Router Kernel and DB public
   Interface work, and the fresh post-Review243 sweep found Review244 Effect
   cleanup ownership, DB pins, Devtools typed failure, and current-evidence
-  policy work, and the fresh post-Review244 sweep found Review245 public API
-  symbol reachability and router Adapter parity work.
-  The active Thirty-Sweep clean counter is 0/30 until a fresh post-Review245
+  policy work, the fresh post-Review244 sweep found Review245 public API
+  symbol reachability and router Adapter parity work, and the fresh
+  post-Review245 sweep found Review246 Effect cleanup capture and Vite
+  middleware lifecycle work.
+  The active Thirty-Sweep clean counter is 0/30 until a fresh post-Review246
   sweep reports no actionable findings.
 - Review 192 refreshed stale current-gate docs wording that still named
   Review190 or active 1/30 progress after Review191.
@@ -1516,8 +1528,10 @@ Latest full gate on May 17, 2026 after Review 240:
   and the fresh post-Review242 sweep found Review243 Browser Router Kernel and
   DB public Interface work, and the fresh post-Review243 sweep found Review244
   Effect cleanup ownership, DB pins, Devtools typed failure, and
-  current-evidence policy work, and the fresh post-Review244 sweep found
-  Review245 public API symbol reachability and router Adapter parity work, so
+  current-evidence policy work, the fresh post-Review244 sweep found
+  Review245 public API symbol reachability and router Adapter parity work, and
+  the fresh post-Review245 sweep found Review246 Effect cleanup capture and
+  Vite middleware lifecycle work, so
   the active counter is 0/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,

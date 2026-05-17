@@ -106,6 +106,31 @@ export interface StartNodeRequestLifecycle {
   dispose(): void;
 }
 
+type NodeLifecycleEventTarget = {
+  readonly once?: (event: string, listener: () => void) => unknown;
+  readonly off?: (event: string, listener: () => void) => unknown;
+};
+
+const addNodeLifecycleListener = (
+  target: NodeLifecycleEventTarget | undefined,
+  event: string,
+  listener: () => void
+): void => {
+  if (typeof target?.once === "function") {
+    target.once(event, listener);
+  }
+};
+
+const removeNodeLifecycleListener = (
+  target: NodeLifecycleEventTarget | undefined,
+  event: string,
+  listener: () => void
+): void => {
+  if (typeof target?.off === "function") {
+    target.off(event, listener);
+  }
+};
+
 /** Creates a per-request AbortSignal from Node request/response disconnects. */
 export const nodeRequestLifecycle = (
   request: IncomingMessage,
@@ -123,14 +148,14 @@ export const nodeRequestLifecycle = (
     }
   };
   const dispose = (): void => {
-    request.off("aborted", abort);
-    response?.off("close", abortOnResponseClose);
-    response?.off("finish", dispose);
+    removeNodeLifecycleListener(request, "aborted", abort);
+    removeNodeLifecycleListener(response, "close", abortOnResponseClose);
+    removeNodeLifecycleListener(response, "finish", dispose);
   };
 
-  request.once("aborted", abort);
-  response?.once("close", abortOnResponseClose);
-  response?.once("finish", dispose);
+  addNodeLifecycleListener(request, "aborted", abort);
+  addNodeLifecycleListener(response, "close", abortOnResponseClose);
+  addNodeLifecycleListener(response, "finish", dispose);
 
   return {
     signal: controller.signal,

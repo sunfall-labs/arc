@@ -11,11 +11,11 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review245 Public API Symbol Reachability
-And Router Adapter Parity, the fresh post-Review244 sweep that deepened public
-hover policy to symbol reachability, aligned memory history same-href commits
-with browser history, and normalized RouterLink download facts across Core,
-React, and Solid. The newest full verification checkpoint remains Review240.
+The newest focused review is Review246 Effect Cleanup Capture
+And Vite Middleware Lifecycle, the fresh post-Review245 sweep that made Action
+reset and Resource UI disposal capture current owners synchronously, moved Vite
+dev SSR Node lifecycle ownership into the middleware Adapter, and added Query
+predicate helpers to the namespace-owned public Interface. The newest full verification checkpoint remains Review240.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -51,7 +51,8 @@ and the fresh post-Review241 framework follow-up found Review242 work,
 and the fresh post-Review242 sweep found Review243 work,
 and the fresh post-Review243 sweep found Review244 work,
 and the fresh post-Review244 sweep found Review245 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review245
+and the fresh post-Review245 sweep found Review246 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review246
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -62,8 +63,8 @@ Review220, Review221, Review222, Review223, Review224, Review225,
 Review226, Review227, Review228, Review229, Review230, Review231, and
 Review232 Shared DB Query Stage Plan work, Review233 work, Review234 work,
 Review235 work, Review236 work, Review237 work, Review238 work, Review239
-work, Review240 work, Review241 work, Review242 work, Review243 work, and
-Review244 work, and Review245 work.
+work, Review240 work, Review241 work, Review242 work, Review243 work,
+Review244 work, Review245 work, and Review246 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -163,7 +164,77 @@ and the fresh post-Review243 sweep found Review244 Effect cleanup ownership,
 DB public Interface, Devtools, and current-evidence policy work,
 and the fresh post-Review244 sweep found Review245 public API symbol
 reachability and router Adapter parity work,
+and the fresh post-Review245 sweep found Review246 Effect cleanup capture and
+Vite middleware lifecycle work,
 so the counter remains 0/30.
+
+## Review 246: Effect Cleanup Capture And Vite Middleware Lifecycle
+
+Review246 fixes the actionable findings from the fresh post-Review245 sweep.
+
+1. Action Reset Cleanup Capture
+   - Status: fixed.
+   - Files: `packages/core/src/action-submission.ts`,
+     `packages/core/src/action-execution-workflow.ts`,
+     `packages/core/src/action.ts`, `packages/react/src/hooks.ts`,
+     `packages/solid/src/hooks.ts`, and `packages/start/src/start-action-client.ts`.
+   - Problem: the sync `reset()` convenience forked a lazy `resetEffect()`,
+     so delayed host runtimes could clear or interrupt newer submissions
+     instead of the submissions visible when cleanup was requested.
+   - Solution: add a synchronous Action Submission Controller reset capture
+     that increments the state generation, clears visible state and
+     invalidation state, snapshots active fibers, and returns an Effect that
+     interrupts only those captured fibers.
+   - Benefits: Locality improves because reset ownership is concentrated in
+     the Action Submission Controller Interface; Leverage improves because
+     Core Actions, Start Actions, React, and Solid all consume the same
+     captured cleanup policy.
+
+2. Resource UI Binding Disposal Capture
+   - Status: fixed.
+   - Files: `packages/core/src/resource-ui-binding.ts`,
+     `packages/react/src/hooks.ts`, and `packages/solid/src/hooks.ts`.
+   - Problem: sync UI cleanup forked a lazy `disposeEffect()` that read the
+     controller's current preload and retained-ref slots when the runtime
+     eventually executed it, allowing replayed cleanup to release newer owners.
+   - Solution: make disposal synchronously take the current preload, retained
+     ref, and retention fiber before forking captured release work; React and
+     Solid cleanup hooks call the sync controller convenience.
+   - Benefits: Locality improves because Resource UI owner transfer lives in
+     one Core Module; Leverage improves because both framework Adapters inherit
+     the same replay-safe cleanup semantics.
+
+3. Query Predicate Namespace Ownership
+   - Status: fixed.
+   - Files: `packages/db/src/query-builder.ts`,
+     `scripts/public-api-symbol-policy.mjs`, `type-tests/db.test-d.ts`,
+     `type-tests/public-api.manifest.json`, and
+     `docs/public-api-inventory.md`.
+   - Problem: top-level Query predicate helpers were public and manifest-pinned
+     but were not owned by the preferred `Query.*` namespace Interface.
+   - Solution: add `Query.eq`, `Query.neq`, `Query.gt`, `Query.gte`,
+     `Query.lt`, `Query.lte`, `Query.and`, `Query.or`, `Query.not`, and
+     `Query.includes` aliases with LSP docs and type-test/manifest pins.
+   - Benefits: Locality improves because the Query Builder Module owns its
+     public predicate vocabulary; Leverage improves because docs, hovers, and
+     type tests point users at one namespace-first Interface.
+
+4. Start Vite Dev SSR Middleware Lifecycle
+   - Status: fixed.
+   - Files: `packages/start/src/start-vite-dev-ssr.ts`,
+     `packages/start/src/vite.ts`, `packages/start/src/node-web-exchange.ts`,
+     `packages/start/test/start.test.ts`, and `type-tests/start-vite.test-d.ts`.
+   - Problem: the plugin wrapper owned Node request lifecycle setup, signal
+     injection, host-fiber interruption, and listener disposal around
+     `handleSsrDevMiddlewareEffect(...)`, so direct middleware callers had to
+     know the same choreography.
+   - Solution: move lifecycle ownership into the Vite dev SSR middleware
+     Adapter: it creates the Node lifecycle, merges abort signals, injects the
+     signal into the Web Request, interrupts its host fiber on disconnect,
+     writes the response, contains `next(error)`, and disposes listeners.
+   - Benefits: Locality improves because Vite dev SSR callback behavior is
+     owned by one Adapter Interface; Leverage improves because plugin and
+     custom middleware callers now exercise the same tested lifecycle.
 
 ## Review 245: Public API Symbol Reachability And Router Adapter Parity
 

@@ -35,6 +35,7 @@ import {
   type FileRouteDiscoveryOptions,
   type FileRouteDefinitionsFileWriteFailure,
   type FileRouteDefinitionsFileWriteResult,
+  type HandleSsrDevMiddlewareOptions,
   type HandleSsrDevRequestOptions,
   type LoadedStartAppGraphDiagnostics,
   type LoadStartAppGraphDiagnosticsOptions,
@@ -119,6 +120,7 @@ type ViteTypes =
   | StartViteDevServer
   | StartSsrHandlerModule
   | StartViteDevSsrOptions
+  | HandleSsrDevMiddlewareOptions
   | HandleSsrDevRequestOptions;
 interface ViteDevSsrService {
   readonly value: string;
@@ -146,6 +148,10 @@ const devSsrRequestOptions: HandleSsrDevRequestOptions = {
   rpcPath: "/__effect-ui/rpc",
   actionPath: "/__effect-ui/action"
 };
+const devSsrMiddlewareOptions: HandleSsrDevMiddlewareOptions = {
+  ...devSsrRequestOptions,
+  runOptions: { signal: new AbortController().signal }
+};
 void devSsrStartOptions;
 void devSsrOptions;
 void servicefulDevSsrEffect;
@@ -153,6 +159,7 @@ void servicefulDevSsrModule;
 void hostViteDevServer;
 void devMiddlewareNext;
 void devSsrRequestOptions;
+void devSsrMiddlewareOptions;
 declare const viteRoot: string;
 const discoveryOptions: FileRouteDiscoveryOptions = {
   root: viteRoot,

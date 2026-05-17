@@ -1,4 +1,4 @@
-import { Data, Effect, Fiber } from "effect";
+import { Data, Effect } from "effect";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve as resolvePath } from "node:path";
 import type { UserConfig } from "vite";
@@ -39,23 +39,10 @@ import {
 } from "./start-vite-dev-ssr.js";
 import {
   forkStartHostEffect,
-  interruptStartHostFiberOnSignal,
   runStartHostPromise
 } from "./start-host-runtime-runner.js";
 import { isStartManifestServerOnlyModule } from "./manifest-entry-core.js";
-import { nodeRequestLifecycle } from "./node-web-exchange.js";
 import { effectUiStartPluginName } from "./start-vite-plugin-names.js";
-
-const callViteDevMiddlewareNextBestEffort = (
-  next: StartDevMiddlewareNext,
-  error: unknown
-): void => {
-  try {
-    next(error);
-  } catch {
-    // Vite owns middleware error reporting; setup failures should not escape.
-  }
-};
 
 export {
   defaultFileRouteDirectory,
@@ -136,6 +123,7 @@ export {
   startDevServerFromVite
 } from "./start-vite-dev-ssr.js";
 export type {
+  HandleSsrDevMiddlewareOptions,
   HandleSsrDevRequestOptions,
   StartDevMiddlewareNext,
   StartDevServer,
@@ -362,12 +350,10 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
       return () => {
         server.middlewares.use((request, response, next) => {
           const activeOptions = currentOptions();
-          const lifecycle = nodeRequestLifecycle(request, response);
           const devSsr = activeOptions.devSsr;
-          let fiber: Fiber.Fiber<void, unknown> | undefined;
 
           try {
-            const startedFiber = forkStartHostEffect(
+            forkStartHostEffect(
               handleSsrDevMiddlewareEffect(
                 startServer,
                 request,
@@ -384,27 +370,22 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
                   ...(normalizedOptions.handlerExport === undefined
                     ? {}
                     : { handlerExport: normalizedOptions.handlerExport }),
+                  ...(devSsr?.runOptions === undefined
+                    ? {}
+                    : { runOptions: devSsr.runOptions }),
                   nodeRequest: {
-                    ...normalizedOptions.nodeRequest,
-                    signal: lifecycle.signal
+                    ...normalizedOptions.nodeRequest
                   }
                 }
               ),
               devSsr
             );
-            fiber = startedFiber;
-            const disposeInterrupt = interruptStartHostFiberOnSignal(startedFiber, lifecycle.signal, devSsr);
-            startedFiber.addObserver(() => {
-              disposeInterrupt();
-              lifecycle.dispose();
-            });
           } catch (error) {
-            lifecycle.dispose();
-            const startedFiber = fiber;
-            if (startedFiber !== undefined) {
-              void Effect.runFork(Fiber.interrupt(startedFiber).pipe(Effect.ignore));
+            try {
+              next(error);
+            } catch {
+              // Vite owns middleware error reporting; setup failures should not escape.
             }
-            callViteDevMiddlewareNextBestEffort(next, error);
           }
         });
       };

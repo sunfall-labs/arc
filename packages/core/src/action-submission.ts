@@ -78,6 +78,7 @@ export interface ActionSubmissionController<I, A, E, P = ResourceInvalidationPla
     error: E
   ) => Effect.Effect<void>;
   readonly clearCurrentEffect: (token: object) => Effect.Effect<void>;
+  readonly reset: () => Effect.Effect<void>;
   readonly resetEffect: () => Effect.Effect<void>;
 }
 
@@ -117,22 +118,25 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
     submission.version === version;
   const acceptsStateUpdate = (submission: ActionSubmissionRun<A, E>): boolean =>
     !submission.updateOnlyLatest || isLatest(submission);
-  const resetStateEffect = (): Effect.Effect<void> =>
-    Effect.sync(() => {
-      version++;
-      invalidationPlan.set(undefined);
-      state.set({ _tag: "Idle" });
-    });
-  const resetEffect = (): Effect.Effect<void> =>
+  const interruptFibersEffect = (
+    fibers: ReadonlyArray<ActionSubmissionFiber<A, E>>
+  ): Effect.Effect<void> =>
     Effect.gen(function* () {
-      const fibers = Array.from(activeSubmissions.values());
-      currentSubmission = undefined;
-      activeSubmissions.clear();
       for (const fiber of fibers) {
-        yield* Fiber.interrupt(fiber);
+        yield* Fiber.interrupt(fiber).pipe(Effect.catchCause(() => Effect.void));
       }
-      yield* resetStateEffect();
     });
+  const reset = (): Effect.Effect<void> => {
+    const fibers = Array.from(activeSubmissions.values());
+    version++;
+    currentSubmission = undefined;
+    activeSubmissions.clear();
+    invalidationPlan.set(undefined);
+    state.set({ _tag: "Idle" });
+    return interruptFibersEffect(fibers);
+  };
+  const resetEffect = (): Effect.Effect<void> =>
+    Effect.suspend(() => reset());
 
   return {
     state,
@@ -223,6 +227,7 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
           currentSubmission = undefined;
         }
       }),
+    reset,
     resetEffect
   };
 };

@@ -118,6 +118,7 @@ export interface ActionExecutionWorkflow<I, A, E, R, ER> {
     E | ER | EffectInputCallbackError | ActionInterrupted,
     R | ActionResultInvalidationRequirements<A>
   >;
+  readonly reset: () => Effect.Effect<void>;
   readonly resetEffect: () => Effect.Effect<void>;
 }
 
@@ -257,6 +258,7 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
 
   return {
     submitEffect,
+    reset: submissions.reset,
     resetEffect: submissions.resetEffect
   };
 };
