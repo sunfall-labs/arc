@@ -25,6 +25,8 @@ exports. It supports the release-engineering charter workstream.
     adapters, hydration, routing, and streaming modules.
   - `packages/start/package.json` now declares `effect` as a direct dependency
     instead of relying on transitive workspace packages.
+  - The Vite Adapter entrypoints import Vite types/helpers directly, and
+    `packages/start/package.json` declares `vite` as a peer dependency.
   - `pnpm-lock.yaml` was updated to keep the workspace lock consistent.
 - Other package manifests match direct runtime imports found in this sweep:
   - `@effect-ui/core`: `effect`
@@ -135,13 +137,13 @@ exports. It supports the release-engineering charter workstream.
   all 16 package payloads: 11 framework dist packages, 19 basic starter files,
   24 React starter files, 30 project-console files, 10 devtools panel files,
   and 15 devtools extension files.
-- The current full `pnpm verify` passed after Review219 with 11 package builds,
+- The current full `pnpm verify` passed after Review220 with 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 409 files, 53 root test files / 1125 tests, derived
+  Effect-first audit over 411 files, 53 root test files / 1126 tests, derived
   package-level verifies for the five copyable source packages, generated
-  starter packaging, and the 16-target dry-run gate. Review219 also records
-  that generated starter packaging and package dry-runs share the same dist
-  package payload policy Interface. Review179
+  starter packaging, and the 16-target dry-run gate. Review220 also records
+  that generated starter packaging and package dry-runs share the same tested
+  dist package payload policy Interface. Review179
   remains the focused package-hygiene evidence for concrete source-map artifact
   validation and source-package verify-script enforcement.
 - Review203 focused package hygiene kept all 11 package-local typecheck scripts

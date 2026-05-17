@@ -308,11 +308,11 @@ describe("browser router kernel", () => {
             }
           });
 
-          preloader.bindTarget("/projects/atlas");
+          preloader.bindPreloadIdentity({ key: "/projects/atlas", enabled: true });
           preloader.preload();
           yield* Effect.promise(() => vi.waitFor(() => expect(starts).toEqual([1])));
 
-          preloader.bindTarget("/projects/curie");
+          preloader.bindPreloadIdentity({ key: "/projects/curie", enabled: true });
           yield* Effect.promise(() =>
             vi.waitFor(() => {
               expect(starts).toEqual([1]);
@@ -322,7 +322,7 @@ describe("browser router kernel", () => {
 
           preloader.preload();
           yield* Effect.promise(() => vi.waitFor(() => expect(starts).toEqual([1, 2])));
-          preloader.bindTarget("/projects/curie");
+          preloader.bindPreloadIdentity({ key: "/projects/curie", enabled: true });
           yield* Effect.sleep("20 millis");
           expect(finalizers).toEqual([1]);
         })

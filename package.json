@@ -38,6 +38,8 @@
     "starter:project-console:package": "pnpm starter:package",
     "audit:public-api": "node scripts/audit-public-api-inventory.mjs",
     "audit:effect-first": "node scripts/audit-effect-first.mjs",
+    "verify:command-runner": "node scripts/verify-effect-command-runner.mjs",
+    "verify:package-payload-policy": "node scripts/verify-package-payload-policy.mjs",
     "test": "vitest run",
     "typecheck": "pnpm -r --filter './packages/*' typecheck && pnpm typecheck:types",
     "typecheck:types": "tsgo -p tsconfig.type-tests.json --noEmit --pretty false",

@@ -1699,6 +1699,48 @@ describe("Collection.liveQuery", () => {
       })
     ));
 
+  it("rejects empty change application because derived collections are read-only", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const Projects = Collection.define<Project>({
+            name: "Projects.live-query-collection.readonly-empty-apply-source",
+            getKey: (project) => project.id,
+            initialData: [
+              { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+            ]
+          });
+          const ActiveProjectCards = Collection.liveQuery<ProjectCard, string>({
+            name: "ProjectCards.live-query-collection.readonly-empty-apply",
+            getKey: (project) => project.id,
+            query: (query) =>
+              query
+                .from({ project: Projects })
+                .select(({ project }) => ({
+                  id: project.id,
+                  name: project.name,
+                  progress: project.progress
+                }))
+          });
+          const subscription = yield* Collection.subscribeEventsEffect();
+
+          const failure = yield* Effect.flip(Collection.applyChangesEffect(ActiveProjectCards, []));
+          const event = yield* PubSub.take(subscription).pipe(
+            Effect.timeoutOption("20 millis")
+          );
+
+          expect(failure).toBeInstanceOf(ReadonlyCollectionMutation);
+          expect(failure).toMatchObject({
+            collection: "ProjectCards.live-query-collection.readonly-empty-apply",
+            operation: "applyChangesEffect"
+          });
+          expect(Option.isNone(event)).toBe(true);
+          expect(ActiveProjectCards.rows().map((project) => project.id)).toEqual(["atlas"]);
+          expect(Projects.rows().map((project) => project.id)).toEqual(["atlas"]);
+        })
+      )
+    ));
+
   it("rejects namespace change application because derived collections are read-only", () =>
     Effect.runPromise(
       Effect.scoped(

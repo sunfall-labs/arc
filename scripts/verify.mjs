@@ -187,6 +187,8 @@ const verify = Effect.gen(function* () {
   yield* runAll("source static gates", [
     run("workspace typecheck", ["typecheck"]),
     run("public API audit", ["audit:public-api"]),
+    run("Effect command runner policy", ["verify:command-runner"]),
+    run("package payload policy", ["verify:package-payload-policy"]),
     run("Effect-first audit", ["audit:effect-first"])
   ]);
 

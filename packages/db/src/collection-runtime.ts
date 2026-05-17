@@ -360,15 +360,15 @@ const applyCollectionChangesWithStoreEffect = <A extends object, K extends Colle
   options: CollectionWriteOptions = {}
 ): Effect.Effect<void, CollectionRuntimeError<E>, R> =>
   Effect.gen(function* () {
-    if (changes.length === 0) {
-      return;
-    }
-
     if (definition.readOnly === true) {
       return yield* Effect.fail(new ReadonlyCollectionMutation({
         collection: definition.name,
         operation: "applyChangesEffect"
       }) as CollectionRuntimeError<E>);
+    }
+
+    if (changes.length === 0) {
+      return;
     }
 
     const state = yield* collectionStateEffect(definition, dbStore);

@@ -499,6 +499,8 @@ const coreLinkPreloadIdentity: BrowserRouterLinkPreloadIdentity = {
   enabled: true
 };
 coreLinkPreloaderShape.bindPreloadIdentity(coreLinkPreloadIdentity);
+// @ts-expect-error Core Router Link Preloader exposes only full preload identity ownership facts
+coreLinkPreloaderShape.bindTarget("/projects/atlas");
 const coreLinkPreloaderRuntime: BrowserRouterLinkPreloaderRuntime = runtime;
 const coreLinkPreloaderOptions: BrowserRouterLinkPreloaderOptions = {
   runtime: coreLinkPreloaderRuntime,

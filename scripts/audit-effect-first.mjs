@@ -268,6 +268,8 @@ const allowed = [
       seam("packages/start/src/streaming.ts", "ReadableStream finalizer host runner", /const runResponseStreamEffect:\s*StartResponseStreamRunner\s*=\s*\(effect\)\s*=>\s*Effect\.runPromise\(effect\);/),
       seam("packages/start/src/start-host-runtime-runner.ts", "Start host Promise runtime runner", /export const runStartHostPromise[\s\S]*?Effect\.runPromise\(/),
       seam("packages/start/src/cli.ts", "Start diagnostics CLI bin runner", /void Effect\.runPromise\(runStartDiagnosticsCliMainEffect\(\)\);/),
+      seam("scripts/verify-effect-command-runner.mjs", "Effect command runner policy script runner", /await Effect\.runPromise\(/),
+      seam("scripts/verify-package-payload-policy.mjs", "Package payload policy script runner", /await Effect\.runPromise\(/),
       seam("scripts/package-project-console-starter.mjs", "Project console starter packaging script runner", /await Effect\.runPromise\(/),
       seam("scripts/verify.mjs", "Workspace verify orchestration script runner", /Effect\.runPromise\(/),
       seam("scripts/verify-package-dry-runs.mjs", "Package dry-run verification script runner", /await Effect\.runPromise\(/),
@@ -282,7 +284,6 @@ const allowed = [
     seams: [
       seam("packages/start/src/fetch-adapter.ts", "Fetch host Promise handler facade", /export type StartFetchPromiseHandler\s*=\s*\(request:\s*Request\)\s*=>\s*Promise<Response>;/),
       seam("packages/start/src/start-host-runtime-runner.ts", "generic host Promise runner return", /export const runStartHostPromise[\s\S]*?\):\s*Promise<A>\s*=>/),
-      seam("packages/start/src/start-host-runtime-runner.ts", "request-scoped host Promise response return", /export const runStartHostResponsePromise[\s\S]*?\):\s*Promise<Response>\s*=>/),
       seam("packages/start/src/start-vite-dev-ssr.ts", "Vite ssrLoadModule host method", /ssrLoadModule\(id:\s*string\):\s*Promise<Record<string,\s*unknown>>;/),
       seam("packages/start/src/start-vite-dev-ssr.ts", "Vite transformIndexHtml host method", /transformIndexHtml\(url:\s*string,\s*html:\s*string\):\s*Promise<string>;/),
       seam("packages/start/src/start-vite-dev-ssr.ts", "Vite module loader host callback", /f:\s*\(\)\s*=>\s*Promise<A>/),
@@ -902,6 +903,8 @@ const banned = [
     seams: [
       seam("docs/effect-ui-framework-comparison.md:83:snippet-3.ts", "React Router comparison formData await", /await request\.formData\(\)/),
       seam("docs/effect-ui-framework-comparison.md:83:snippet-3.ts", "React Router comparison mutation await", /await renameProject\(name\)/),
+      seam("scripts/verify-effect-command-runner.mjs", "Effect command runner policy script runner", /await Effect\.runPromise\(/),
+      seam("scripts/verify-package-payload-policy.mjs", "Package payload policy script runner", /await Effect\.runPromise\(/),
       seam("scripts/package-project-console-starter.mjs", "Project console starter packaging script runner", /await Effect\.runPromise\(/),
       seam("scripts/verify-package-dry-runs.mjs", "Package dry-run verification script runner", /await Effect\.runPromise\(/),
       seam("examples/basic-starter/scripts/leak-scan.mjs", "Basic starter leak-scan script runner", /await Effect\.runPromise\(/),

@@ -20,14 +20,19 @@ interruption.
 
 ## Current Sweep Results
 
+- Review220 kept the post-Review219 fixes Effect-first: Core Router Link
+  preloading now exposes only full preload identity facts, DB read-only
+  live-query mutation policy rejects empty batches before no-op handling, Start
+  removed an unused Promise response helper, and script/package policy gates
+  now exercise Effect v4 command and dist payload Interfaces directly.
 - Review219 kept the post-Review218 fixes Effect-first: Core exposes a typed
   provider-owned runtime disposal Effect while React/Solid adapters keep the
   observer cleanup helper, Start diagnostics distinguishes borrowed and owned
   Vite server lifetimes, the script runner executes Effect v4 ChildProcess
   commands through a local Node spawner, and package dry-runs/generated
-  starters share one Effect-returning dist payload policy. The Effect-first
-  audit still covers 409 physical/virtual files with the same anchored
-  host-boundary Promise allowances.
+  starters share one Effect-returning dist payload policy. That Effect-first
+  audit covered 409 physical/virtual files with the same anchored host-boundary
+  Promise allowances.
 - Review213 closed the post-Review212 Effect boundary findings:
   `PromiseSafeValue` now keeps broad `any` and `unknown` values from smuggling
   Promise-shaped successes through `EffectInput`, Program initial
@@ -598,10 +603,10 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 219 `pnpm verify` run recorded in
+- The current full gate is the Review 220 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
-  over 409 files, 53 root test files / 1125 tests, package-level verifies,
+  over 411 files, 53 root test files / 1126 tests, package-level verifies,
   generated starter packaging, 16-target package dry-run gate, project-console
   checks, and leak scans. Review 185 remains historical focused evidence for
   the starter catalog typed-error seam, and Review 165 remains historical
@@ -1423,17 +1428,18 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The current full `pnpm verify` passed after Review 219 typed lifecycle,
-  borrowed diagnostics, DB guardrail, script runner, and package-policy fixes:
+- The current full `pnpm verify` passed after Review 220 preload identity,
+  read-only batch policy, Start host runner, command-runner, package-policy,
+  and docs/LSP fixes:
   11 package builds, workspace
   typecheck, type tests, public API
-  inventory audit, Effect-first audit over 409
+  inventory audit, Effect-first audit over 411
   package/example/config/script/type-test/generated/docs files, 53 root test
-  files / 1125 tests, package-level verifies for copyable/source packages,
+  files / 1126 tests, package-level verifies for copyable/source packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console
   test files / 27 tests, build, and leak scans. The Effect-first audit now
-  anchors 26 Promise return-type allowances: 8 host/facade seams, 17 Promise
+  anchors 25 Promise return-type allowances: 7 host/facade seams, 17 Promise
   negative fixtures, and 1 Start fetch Promise facade assertion. It also
   anchors 6 `PromiseLike` occurrences and 8 structural thenable
   guard/type-surface occurrences.

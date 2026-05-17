@@ -1,6 +1,5 @@
 import { type AnyEffectUiRuntime, defaultRuntime, type EffectUiRuntime } from "@effect-ui/core";
-import { Effect, Fiber, Scope } from "effect";
-import { responseWithScopeLifetimeEffect } from "./response-lifetime.js";
+import { Effect, Fiber } from "effect";
 export { interruptStartHostFiberOnSignal } from "./start-abort-lifecycle.js";
 
 /** Options shared by host facades that resolve an Effect to a platform Promise. */
@@ -46,13 +45,6 @@ export const runStartHostPromise = <A, E, R, RuntimeError = never>(
     hostPromiseRuntime(options.runtime).provide(effect),
     options.runOptions
   );
-
-/** Runs a scoped response Effect to the Promise shape required by Fetch hosts. */
-export const runStartHostResponsePromise = <E, R, RuntimeError = never>(
-  effect: Effect.Effect<Response, E, R | Scope.Scope>,
-  options: StartHostPromiseRunnerOptions<RuntimeError> = {}
-): Promise<Response> =>
-  runStartHostPromise(responseWithScopeLifetimeEffect(effect), options);
 
 /** Forks a scoped host facade Effect from callback-shaped hosts such as Node and Vite. */
 export const forkStartHostEffect = <A, E, R, RuntimeError = never>(

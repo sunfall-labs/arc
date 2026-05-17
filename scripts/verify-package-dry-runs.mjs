@@ -7,8 +7,6 @@ import { fileURLToPath } from "node:url";
 import { Data, Effect } from "effect";
 import { runScriptCommandEffect } from "./effect-command-runner.mjs";
 import {
-  declarationArtifactPackFailures,
-  distPackageArtifactDriftFailures,
   isNonEmptyString,
   knownPayloadPolicies,
   validateDistPackagePayloadEffect,
@@ -218,22 +216,6 @@ const assertSourcePackageManifestPolicy = (name, target, expectedFiles, actualFi
   }
 };
 
-const assertDeclarationArtifactPolicy = (name, target, files, expectedFragments) => {
-  const failures = declarationArtifactPackFailures(target, files);
-  if (failures.length !== expectedFragments.length) {
-    failSelfTest(
-      `${name} declaration artifact self-test expected ${expectedFragments.length} failures but found ${failures.length}: ${failures.join(" ")}`
-    );
-  }
-  for (const expectedFragment of expectedFragments) {
-    if (!failures.some((failure) => failure.includes(expectedFragment))) {
-      failSelfTest(
-        `${name} declaration artifact self-test did not find expected failure fragment ${expectedFragment}: ${failures.join(" ")}`
-      );
-    }
-  }
-};
-
 const validDistPackageSelfTest = {
   label: "@effect-ui/self-test",
   payload: "dist-package",
@@ -326,87 +308,6 @@ assertSourcePackageManifestPolicy(
   ["README.md", "index.html", "package.json", "src/main.ts", "src/styles.css"],
   ["README.md", "index.html", "package.json", "src/main.ts", "src/old.css"],
   ["src/styles.css", "src/old.css"],
-);
-
-const distSourceStemsSelfTest = new Set(["index", "feature"]);
-const distArtifactFilesSelfTest = [
-  "package.json",
-  "dist/index.js",
-  "dist/index.js.map",
-  "dist/index.d.ts",
-  "dist/index.d.ts.map",
-  "dist/feature.js",
-  "dist/feature.js.map",
-  "dist/feature.d.ts",
-  "dist/feature.d.ts.map",
-];
-const distArtifactDriftSelfTest = [
-  ...distArtifactFilesSelfTest,
-  "dist/stale.js",
-  "dist/stale.d.ts",
-];
-const distArtifactMissingSelfTest = distArtifactFilesSelfTest.filter((file) => file !== "dist/feature.d.ts");
-const distArtifactMissingJsMapSelfTest = distArtifactFilesSelfTest.filter((file) => file !== "dist/feature.js.map");
-const distArtifactMissingTypesMapSelfTest = distArtifactFilesSelfTest.filter((file) => file !== "dist/feature.d.ts.map");
-const distArtifactDeclarationAdapterSelfTest = {
-  ...validDistPackageSelfTest,
-  declarationArtifacts: [
-    {
-      source: "src/virtual-modules.d.ts",
-      output: "dist/feature.d.ts",
-      forbidden: ["dist/feature.d.ts.map"],
-    },
-  ],
-};
-const distArtifactDeclarationAdapterFilesSelfTest = distArtifactFilesSelfTest.filter((file) => file !== "dist/feature.d.ts.map");
-assertSourcePackageManifestPolicy(
-  "dist artifact drift self-test helper baseline",
-  sourcePackageSelfTest,
-  [],
-  [],
-  [],
-);
-if (distPackageArtifactDriftFailures(validDistPackageSelfTest, distArtifactFilesSelfTest, distSourceStemsSelfTest).length !== 0) {
-  failSelfTest("dist artifact drift self-test expected the baseline payload to pass.");
-}
-if (!distPackageArtifactDriftFailures(validDistPackageSelfTest, distArtifactDriftSelfTest, distSourceStemsSelfTest).some((failure) => failure.includes("stale dist artifacts"))) {
-  failSelfTest("dist artifact drift self-test did not catch stale dist artifacts.");
-}
-if (!distPackageArtifactDriftFailures(validDistPackageSelfTest, distArtifactMissingSelfTest, distSourceStemsSelfTest).some((failure) => failure.includes("dist/feature.d.ts"))) {
-  failSelfTest("dist artifact drift self-test did not catch missing dist artifacts.");
-}
-if (!distPackageArtifactDriftFailures(validDistPackageSelfTest, distArtifactMissingJsMapSelfTest, distSourceStemsSelfTest).some((failure) => failure.includes("dist/feature.js.map"))) {
-  failSelfTest("dist artifact drift self-test did not catch missing JS source maps.");
-}
-if (!distPackageArtifactDriftFailures(validDistPackageSelfTest, distArtifactMissingTypesMapSelfTest, distSourceStemsSelfTest).some((failure) => failure.includes("dist/feature.d.ts.map"))) {
-  failSelfTest("dist artifact drift self-test did not catch missing declaration maps.");
-}
-if (distPackageArtifactDriftFailures(distArtifactDeclarationAdapterSelfTest, distArtifactDeclarationAdapterFilesSelfTest, distSourceStemsSelfTest).length !== 0) {
-  failSelfTest("dist artifact drift self-test expected copied declaration adapters to omit declaration maps.");
-}
-
-const declarationArtifactSelfTest = {
-  label: "@effect-ui/declaration-self-test",
-  payload: "dist-package",
-  declarationArtifacts: [
-    {
-      source: "src/virtual-modules.d.ts",
-      output: "dist/virtual.d.ts",
-      forbidden: ["dist/virtual.d.ts.map"],
-    },
-  ],
-};
-assertDeclarationArtifactPolicy(
-  "valid declaration artifact",
-  declarationArtifactSelfTest,
-  ["package.json", "dist/virtual.js", "dist/virtual.d.ts"],
-  [],
-);
-assertDeclarationArtifactPolicy(
-  "declaration artifact drift",
-  declarationArtifactSelfTest,
-  ["package.json", "dist/virtual.js", "dist/virtual.d.ts.map"],
-  ["dist/virtual.d.ts", "dist/virtual.d.ts.map"],
 );
 
 const workspacePackageTargets = collectWorkspacePackageManifests(workspaceRoot).pipe(

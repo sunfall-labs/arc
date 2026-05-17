@@ -31,7 +31,7 @@ const nodeChildProcessHandle = (child, command) =>
   Effect.gen(function* () {
     const exitCode = yield* Deferred.make();
     const completeExit = (effect) => {
-      void Effect.runFork(effect.pipe(Effect.catchCause(() => Effect.void)));
+      Effect.runSync(effect.pipe(Effect.catchCause(() => Effect.void)));
     };
 
     child.once("error", (cause) => {

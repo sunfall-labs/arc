@@ -11,12 +11,12 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review219, the post-Review218 sweep
-fixing typed Core Runtime Provider lifecycle disposal, direct SQLite
-string-field ingress, borrowed Start diagnostics server ownership,
-runtime-wildcard docs drift, Effect v4 script command execution, and shared
-dist-package payload validation. The newest full verification checkpoint is
-Review219. Clean Sweep 1 after
+The newest completed focused review is Review220, the post-Review219 sweep
+fixing the Core Router Link preload identity Interface, read-only live-query
+empty-batch policy, a dead Start host response runner seam, Effect v4 script
+runner regression coverage, shared dist-package payload policy self-tests, and
+docs/LSP evidence drift. The newest full verification checkpoint is Review220.
+Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
 post-Review210 sweep found Review211 work, the first post-Review211 sweep
@@ -25,15 +25,15 @@ the first post-Review213 sweep found Review214 work, and the first
 post-Review214 sweep found Review215 work, and the first post-Review215 sweep
 found Review216 work, the first post-Review216 sweep found Review217 work, and
 the first post-Review217 sweep found Review218 work, and the first
-post-Review218 sweep found Review219 work, so the active
-Thirty-Sweep clean counter is 0/30 until a fresh post-Review219
-sweep reports no actionable findings. Clean Sweep 1 after
+post-Review218 sweep found Review219 work, and the fresh post-Review219 sweep
+found Review220 work, so the active Thirty-Sweep clean counter is 0/30 until a
+fresh post-Review220 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
 Review206, Review207, Review208, Review209, Review210, Review211, Review212,
 Review213, Review214, Review215, Review216, Review217, Review218, and
-Review219 work.
+Review219 and Review220 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -91,7 +91,105 @@ sweep found Review217 Core, DB, Devtools, runtime LSP, example, and docs work,
 and the first post-Review217 sweep found Review218 runtime lifecycle, Start,
 DB, project-console, package, and docs work, and the first post-Review218
 sweep found Review219 Core, DB, Start, script, package-policy, and docs work,
+and the fresh post-Review219 sweep found Review220 Core, DB, Start, script,
+package-policy, and docs work,
 so the counter remains 0/30.
+
+## Review 220: Preload Identity, Readonly Batches, And Policy-Owned Gates
+
+Review220 fixed actionable findings from the fresh post-Review219 sweep.
+
+1. Core Router Link Preloader Full Identity Interface
+   - Status: fixed.
+   - Files: `packages/core/src/browser-router-link.ts`,
+     `packages/core/test/browser-router.test.ts`, `type-tests/core.test-d.ts`,
+     and `docs/public-api-inventory.md`.
+   - Problem: `BrowserRouterLinkPreloader` still exposed the older
+     target-only compatibility path even though React and Solid already use the
+     deeper `bindPreloadIdentity(...)` Interface with href, preload, route
+     ownership, target, and download facts.
+   - Fix: removed the target-only binding from the public Interface, updated
+     Core tests to use full preload identities, and added public type-test
+     coverage rejecting the legacy method.
+   - Benefits: future adapters must pass the same ownership facts Core uses to
+     interrupt stale hover work.
+
+2. DB Readonly Live Query Empty-Batch Policy
+   - Status: fixed.
+   - Files: `packages/db/src/collection-runtime.ts`,
+     `packages/db/test/live-query-collection.test.ts`, and `docs/db.md`.
+   - Problem: `Collection.applyChangesEffect(readOnlyLiveQueryCollection, [])`
+     returned as a no-op before the read-only guard, while the public Interface
+     says derived live-query collections reject write APIs.
+   - Fix: moved the read-only guard before the empty-batch return and added a
+     regression that proves empty batches fail with `ReadonlyCollectionMutation`
+     without publishing events or mutating source rows.
+   - Benefits: read-only mutation policy now lives in one Collection Runtime
+     guard regardless of batch size.
+
+3. Start Host Runtime Runner Dead Response Seam
+   - Status: fixed.
+   - Files: `packages/start/src/start-host-runtime-runner.ts` and
+     `scripts/audit-effect-first.mjs`.
+   - Problem: `runStartHostResponsePromise(...)` was exported from the
+     internal runner but had no callers; the real Fetch facade composes
+     abort-aware response lifetime before calling `runStartHostPromise(...)`.
+   - Fix: removed the unused helper and its Promise-return allowance.
+   - Benefits: Start host runtime vocabulary now names only the Promise and
+     fork seams that real host adapters consume.
+
+4. Effect Command Runner Policy-Owned Coverage
+   - Status: fixed.
+   - Files: `scripts/effect-command-runner.mjs`,
+     `scripts/verify-effect-command-runner.mjs`, `scripts/verify.mjs`,
+     `scripts/audit-effect-first.mjs`, and `package.json`.
+   - Problem: the shared Effect v4 ChildProcess runner was covered by ad hoc
+     Review219 smoke checks rather than a reusable policy gate.
+   - Fix: completed child process event `Deferred`s synchronously at the Node
+     Adapter boundary and added `pnpm verify:command-runner` for success,
+     stdout/stderr capture, nonzero failure payloads, spawn failures, and
+     interrupted long-running children. The full verify plan now runs this
+     gate.
+   - Benefits: release scripts depend on a tested command runner Interface
+     rather than inheriting unowned process semantics.
+
+5. Shared Dist Package Payload Policy Self-Test
+   - Status: fixed.
+   - Files: `scripts/package-payload-policy.mjs`,
+     `scripts/verify-package-payload-policy.mjs`,
+     `scripts/verify-package-dry-runs.mjs`, `scripts/verify.mjs`,
+     `docs/generated-artifact-audit.md`, and `package.json`.
+   - Problem: dist artifact and declaration artifact checks lived in the
+     package dry-run consumer instead of directly exercising the shared
+     `validateDistPackagePayloadEffect(...)` Interface used by package dry-runs
+     and generated starter local-package adapters.
+   - Fix: added `pnpm verify:package-payload-policy` with temp package trees
+     for valid payloads, stale artifacts, missing maps, declaration content
+     drift, forbidden declaration maps, and generated-local-package manifest
+     labels; the full verify plan now runs this gate.
+   - Benefits: generated starter packaging and package dry-runs now share a
+     policy whose behavior is tested where it lives.
+
+6. Docs And LSP Evidence Drift
+   - Status: fixed.
+   - Files: `docs/public-api-inventory.md`, `docs/release-notes.md`,
+     `docs/package-hygiene-audit.md`, and
+     `docs/generated-artifact-audit.md`.
+   - Problem: current docs omitted
+     `DisposeRuntimeProviderLifecycleOptions`, under-reported React/React DB
+     hover coverage, skipped Start's Vite peer dependency, and still pointed
+     generated artifact evidence at an older Review173 slice.
+   - Fix: refreshed those current-facing docs to match the public symbol
+     policy, package manifests, and Review219/Review220 generated/package
+     gates.
+   - Benefits: editor-facing docs now describe the actual expert-public
+     Interfaces and release policy seams.
+
+Focused verification for Review220 passed: Core/React/Solid/DB/Start/
+Start Fetch/Start Node typechecks, public type tests, focused Core/DB/Start
+tests at 4 files / 229 tests, public API audit, Effect-first audit over 411
+files, `pnpm verify:command-runner`, `pnpm verify:package-payload-policy`,
+`pnpm example:pack-dry-run`, and `pnpm starter:package`.
 
 ## Review 219: Typed Lifecycle, Borrowed Diagnostics, And Script Policy Depth
 
@@ -1027,9 +1125,9 @@ post-Review212 sweep found Review213 work, and the first post-Review213 sweep
 found Review214 work, the first post-Review214 sweep found Review215 work, the
 first post-Review215 sweep found Review216 work, and the first post-Review216
 sweep found Review217 work, the first post-Review217 sweep found Review218
-work, and the first post-Review218 sweep found Review219 work. The active
-counter is 0/30 until a fresh post-Review219 sweep reports no actionable
-findings.
+work, the first post-Review218 sweep found Review219 work, and the fresh
+post-Review219 sweep found Review220 work. The active counter is 0/30 until a
+fresh post-Review220 sweep reports no actionable findings.
 
 ## Review 208: Runtime Provider Observers, CLI Bin Execution, And Docs Drift
 
@@ -4653,9 +4751,9 @@ script guardrail findings from the post-Review155 sweeps.
      identity includes all preload-affecting adapter facts and an enabled bit.
      React and Solid compute that identity from href, preload, route
      membership, target, and download before starting hover work.
-   - Benefits: the link preloader Seam now has enough Locality to interrupt
-     stale work when any fact that changes ownership changes, while preserving
-     the older `bindTarget(...)` compatibility path.
+   - Benefits: the link preloader Seam gained enough Locality to interrupt
+     stale work when any fact that changes ownership changes. Review220 later
+     removed the older target-only compatibility path before release.
 
 2. DB Durable Load Commit Races
    - Status: fixed.
@@ -4751,11 +4849,13 @@ guardrail findings from the post-Review154 sweeps.
      link whose target changed could keep stale work alive. Solid providers
      also captured runtime/router inputs at construction rather than giving the
      Adapter a keyed remount seam.
-   - Fix: the Core preloader now exposes `bindTarget(...)` and interrupts stale
-     work when the target identity changes. React and Solid links bind their
-     current href into that Interface. Solid runtime/router providers now mount
-     keyed provider instances under a dedicated owner, and Solid links sync href
-     through `createRenderEffect(...)`.
+   - Fix: the Core preloader exposed a target-identity binding and interrupted
+     stale work when the target identity changed. React and Solid links bound
+     their current href into that Interface. Solid runtime/router providers now
+     mount keyed provider instances under a dedicated owner, and Solid links
+     sync href through `createRenderEffect(...)`. Review220 later replaced the
+     target-only binding with the full preload-identity Interface before
+     release.
    - Benefits: hover preload ownership now has target Locality, and Solid keeps
      runtime/router provider ownership explicit instead of relying on captured
      construction state.

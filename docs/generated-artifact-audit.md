@@ -1,6 +1,6 @@
 # Generated Artifact Audit
 
-Last updated: 2026-05-16.
+Last updated: 2026-05-17.
 
 This audit checks generated Start artifacts for deterministic ordering, stable
 serialization, source attribution, and browser-safe references.
@@ -71,6 +71,14 @@ repeating stale package/test totals.
     `packages/start/src/virtual-modules.d.ts` must match
     `packages/start/dist/virtual.d.ts`, and stale `dist/virtual.d.ts.map`
     artifacts are forbidden.
+- Shared generated/package payload policy
+  - Review219 moved dist-package source-stem, declaration artifact, and
+    manifest target validation into the shared
+    `validateDistPackagePayloadEffect(...)` Interface used by package dry-runs
+    and generated starter local-package Adapters.
+  - Review220 adds policy-owned self-tests for success, stale dist artifacts,
+    missing maps, declaration content drift, forbidden declaration maps, and
+    generated-local-package manifest target labels.
 
 ## Verification Evidence
 
@@ -100,6 +108,11 @@ repeating stale package/test totals.
   @effect-ui/start build` and `pnpm example:pack-dry-run` with the copied
   virtual declaration Adapter byte check and stale declaration-map rejection
   active.
+- Review219 focused package verification passed `pnpm example:pack-dry-run`
+  and `pnpm starter:package` with both consumers using
+  `validateDistPackagePayloadEffect(...)`.
+- Review220 focused generated/package policy verification passed
+  `pnpm verify:package-payload-policy`.
 
 ## Follow-Up
 

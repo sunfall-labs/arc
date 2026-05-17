@@ -107,6 +107,7 @@ Golden-path public groups:
   `AnyEffectUiRuntime`
 - Runtime Provider lifecycle vocabulary:
   `RuntimeProviderDisposeObserver`, `RuntimeProviderLifecycleOptions`,
+  `DisposeRuntimeProviderLifecycleOptions`,
   `RuntimeProviderLifecycleEntry`, `makeRuntimeProviderLifecycleEntry(...)`,
   `disposeRuntimeProviderLifecycleEntryEffect(...)`, and
   `disposeRuntimeProviderLifecycleEffect(...)`. Core callers can compose the
@@ -198,9 +199,9 @@ Release decisions:
   `BrowserRouterLinkClickDecision`, and `BrowserRouterLinkIgnoreReason` are
   expert-public for React, Solid, tests, and future adapters; app code should
   normally keep using framework `RouterLink` components. The
-  `makeBrowserRouterLinkPreloader(...)` seam accepts only requirement-free
-  preload Effects, so framework adapters must provide route services before
-  handing hover work to Core.
+  `makeBrowserRouterLinkPreloader(...)` seam accepts only full preload identity
+  facts and requirement-free preload Effects, so framework adapters must
+  provide route services before handing hover work to Core.
 - Browser route render decisions live in Core so framework adapters share the
   same outlet state meaning. `browserRouteRenderDecision(...)`,
   `browserRouteRenderKey(...)`, `BrowserRouteOutletRenderers`,

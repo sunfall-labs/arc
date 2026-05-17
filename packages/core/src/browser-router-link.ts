@@ -131,8 +131,6 @@ export const browserRouterLinkClickDecision = (
 export interface BrowserRouterLinkPreloader {
   /** Binds the current preload identity and interrupts stale hover preload work when it changes or becomes disabled. */
   bindPreloadIdentity(identity: BrowserRouterLinkPreloadIdentity): void;
-  /** Binds the current link target and interrupts any stale hover preload when it changes. */
-  bindTarget(targetKey: string): void;
   /** Starts a fresh preload, interrupting any previous hover preload first. */
   preload(): void;
   /** Interrupts the active hover preload, when one is running. */
@@ -235,10 +233,6 @@ export const makeBrowserRouterLinkPreloader = <ER>(
     interrupt();
   };
 
-  const bindTarget = (nextTargetKey: string): void => {
-    bindPreloadIdentity({ key: nextTargetKey, enabled: true });
-  };
-
   const preload = (): void => {
     if (preloadIdentity?.enabled === false || !options.enabled()) {
       return;
@@ -257,5 +251,5 @@ export const makeBrowserRouterLinkPreloader = <ER>(
     );
   };
 
-  return { bindPreloadIdentity, bindTarget, interrupt, preload };
+  return { bindPreloadIdentity, interrupt, preload };
 };

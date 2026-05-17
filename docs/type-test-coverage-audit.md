@@ -81,7 +81,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
   provide `ProjectApi`; SQLite persistence type pins now include
   `SQLitePersistenceInvalidRow` in direct storage error channels.
 - Review219 added the typed Runtime Provider lifecycle disposal export pin and
-  moved the current full verification evidence to the Review219 gate.
+  moved the then-current full verification evidence to the Review219 gate.
+- Review220 added the Router Link Preloader negative export pin for the removed
+  target-only compatibility method and moved the current full verification
+  evidence to the Review220 gate.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them
@@ -201,9 +204,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Verification Evidence
 
-- `pnpm typecheck:types` and full `pnpm verify` passed after Review219 with
-  53 root test files / 1125 tests, including the latest Runtime Provider
-  Lifecycle typed disposal/export pins, project-console runtime service probe, SQLite
+- `pnpm typecheck:types` and full `pnpm verify` passed after Review220 with
+  53 root test files / 1126 tests, including the latest Router Link Preloader
+  identity pin, Runtime Provider Lifecycle typed disposal/export pins,
+  project-console runtime service probe, SQLite
   persistence metadata error typing, plain-data pins for Program models/
   messages, ActionResult payloads/errors, Form validation errors, collection
   row ingress, query sync keys, secondary index values, and nested query
