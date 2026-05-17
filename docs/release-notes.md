@@ -87,14 +87,21 @@ Latest full gate on May 17, 2026 after Review 492:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 499 Request Metrics And Evidence Policy moves Start request count,
+  duration, and status metrics onto one finalization path with SSR route-template
+  labels, narrows request trace resource docs to SSR route-plan resources,
+  records React/Solid router path-helper type-test parity in public inventory,
+  and derives current-evidence docs policy patterns from the shared evidence
+  object. The active Thirty-Sweep clean counter remains 0/30 until a fresh
+  post-Review499 sweep reports no actionable findings.
 - Review 498 Router Docs And Legacy Identity Policy updates React/Solid router
   hovers to describe path-plus-search initial hrefs and Solid matched-state
   semantics, adds React router path-helper type pins matching Solid parity,
   renames underscore-form legacy Effect UI runtime identities to Sunfall Arc
   names, rejects `effect_ui` / `__effect_ui` payload tokens, and pins the
   Ultimate Goal Checklist latest-focused subsection. The active Thirty-Sweep
-  clean counter remains 0/30 until a fresh post-Review498 sweep reports no
-  actionable findings.
+  clean counter remained 0/30; the later fresh post-Review498 sweep found
+  Review499 request metrics and evidence policy work.
 - Review 497 React Solid DB Hover Copy Policy fixes the public React DB and
   Solid DB `useCollection(...)` hover docs to say "to a Sunfall Arc collection,"
   keeping adapter Interface copy polished for LSP consumers. The active

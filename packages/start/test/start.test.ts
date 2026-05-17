@@ -271,7 +271,10 @@ const startDiagnosticsRunnerViteConfig = () => ({
   resolve: {
     alias: [
       { find: "effect", replacement: workspacePackageAlias("node_modules/effect/dist/index.js") },
-      { find: "@sunfall/arc-core", replacement: workspacePackageAlias("packages/core/src/index.ts") },
+      {
+        find: "@sunfall/arc-core",
+        replacement: workspacePackageAlias("packages/core/src/index.ts"),
+      },
       { find: "@sunfall/arc-db", replacement: workspacePackageAlias("packages/db/src/index.ts") },
       {
         find: "@sunfall/arc-start",
@@ -1849,8 +1852,8 @@ describe("Sunfall Arc Start", () => {
     ]);
   });
 
-  it("records Effect metrics for Start request handling", () => {
-    const ObservedRoute = route("/observed-metrics", {});
+  it("records Effect metrics with low-cardinality route paths for Start request handling", () => {
+    const ObservedRoute = route("/observed-metrics/:id", {});
     const app = defineApp({
       routes: [ObservedRoute] as const,
       client: {},
@@ -1861,7 +1864,7 @@ describe("Sunfall Arc Start", () => {
     const attributes = {
       transport: "ssr",
       method: "GET",
-      path: "/observed-metrics",
+      path: "/observed-metrics/:id",
     };
     const requestCount = Metric.withAttributes(startRequestCountMetric, attributes);
     const requestDuration = Metric.withAttributes(startRequestDurationMetric, attributes);
@@ -1877,14 +1880,14 @@ describe("Sunfall Arc Start", () => {
         const beforeStatus = yield* Metric.value(requestStatus);
         const beforeSuccessCount = beforeStatus.occurrences.get("success") ?? 0;
 
-        const response = yield* handler(new Request("https://example.com/observed-metrics"));
+        const response = yield* handler(new Request("https://example.com/observed-metrics/atlas"));
         const text = yield* Effect.tryPromise(() => response.text());
         const afterCount = yield* Metric.value(requestCount);
         const afterDuration = yield* Metric.value(requestDuration);
         const afterStatus = yield* Metric.value(requestStatus);
 
         yield* Effect.sync(() => {
-          expect(text).toContain("/observed-metrics");
+          expect(text).toContain("/observed-metrics/atlas");
           expect(afterCount.count).toBe(beforeCount.count + 1);
           expect(afterDuration.count).toBe(beforeDuration.count + 1);
           expect(afterStatus.occurrences.get("success")).toBe(beforeSuccessCount + 1);
@@ -2007,13 +2010,15 @@ describe("Sunfall Arc Start", () => {
         const reader = response.body!.getReader();
         yield* Effect.tryPromise(() => reader.read());
         yield* Effect.tryPromise(() => reader.cancel("metrics-client-left"));
+        const afterCount = yield* Metric.value(requestCount);
         const afterDuration = yield* Metric.value(requestDuration);
         const afterCancelled = yield* Metric.value(requestCancelledStatus);
 
         yield* Effect.sync(() => {
-          expect(midCount.count).toBe(beforeCount.count + 1);
+          expect(midCount.count).toBe(beforeCount.count);
           expect(midDuration.count).toBe(beforeDuration.count);
           expect(midCancelledCount).toBe(beforeCancelledCount);
+          expect(afterCount.count).toBe(beforeCount.count + 1);
           expect(afterDuration.count).toBe(beforeDuration.count + 1);
           expect(afterCancelled.occurrences.get("cancelled")).toBe(beforeCancelledCount + 1);
         });
@@ -5797,10 +5802,14 @@ describe("Sunfall Arc Start", () => {
             : null,
       };
 
-      hydrateFromDocument(document as Pick<Document, "getElementById">, "__SUNFALL_ARC_HYDRATION__", {
-        collections: [Projects],
-        runtime,
-      });
+      hydrateFromDocument(
+        document as Pick<Document, "getElementById">,
+        "__SUNFALL_ARC_HYDRATION__",
+        {
+          collections: [Projects],
+          runtime,
+        },
+      );
 
       expect(Resource.status(ref)._tag).toBe("Initial");
       expect(Projects.get("atlas")).toBeUndefined();
@@ -7642,7 +7651,9 @@ describe("Sunfall Arc Start", () => {
   }, 20000);
 
   it("skips the Vite build diagnostics gate when diagnostics policy is disabled", async () => {
-    const root = mkdtempSync(join(process.cwd(), ".tmp-sunfall-arc-diagnostics-build-gate-opt-out-"));
+    const root = mkdtempSync(
+      join(process.cwd(), ".tmp-sunfall-arc-diagnostics-build-gate-opt-out-"),
+    );
 
     try {
       mkdirSync(join(root, "src/routes"), { recursive: true });

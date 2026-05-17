@@ -260,6 +260,38 @@ const assertCurrentDocsTextPolicySelfTest = () => {
       `current docs text policy self-test rejected current evidence: ${currentFailures.join(" ")}`,
     );
   }
+
+  const ultimatePolicy = currentDocsTextPolicies.find(
+    (policy) => policy.file === "docs/ultimate-goal-checklist.md",
+  );
+  if (!ultimatePolicy) {
+    failSelfTest("current docs text policy self-test could not find ultimate checklist policy");
+  }
+  const currentUltimateFailures = currentDocsTextPolicyFailures(
+    ultimatePolicy,
+    `Latest focused evidence: Review ${latestFocusedReview}; Latest focused verification recorded.\n  - Evidence: Review ${latestFocusedReview} records request metrics and evidence policy\n    findings. Review${latestFullGateReview} records the\n    latest full gate, leaving the active counter at ${currentDocsEvidencePolicy.activeCleanCounter}.`,
+  );
+  if (currentUltimateFailures.length > 0) {
+    failSelfTest(
+      `ultimate checklist production policy rejected current evidence: ${currentUltimateFailures.join(" ")}`,
+    );
+  }
+  const staleUltimateFailures = currentDocsTextPolicyFailures(
+    ultimatePolicy,
+    `Latest focused evidence: Review ${staleFocusedReview}; Latest focused verification recorded.\n  - Evidence: Review ${staleFocusedReview} records request metrics and evidence policy\n    findings. Review${staleFullGateReview} records the\n    latest full gate, leaving the active counter at ${staleCleanCounter}.`,
+  );
+  for (const expected of [
+    "Ultimate goal checklist must name current latest focused evidence",
+    "Ultimate goal checklist must pin latest focused verification subsection",
+    "Ultimate goal checklist must keep Review492 as latest full evidence",
+    "Ultimate goal checklist must keep active clean counter at current evidence value",
+  ]) {
+    if (!staleUltimateFailures.some((failure) => failure.includes(expected))) {
+      failSelfTest(
+        `ultimate checklist production policy did not catch ${expected}: ${staleUltimateFailures.join(" ")}`,
+      );
+    }
+  }
 };
 
 const auditCurrentDocsTextPolicies = () => {

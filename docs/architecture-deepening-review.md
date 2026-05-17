@@ -11,10 +11,11 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review498 Router Docs And Legacy Identity Policy,
-the post-Review497 follow-up that fixes router hover truth, React path-helper
-type pins, current checklist evidence, and underscore-form legacy Effect UI
-payload identities.
+The newest focused review is Review499 Request Metrics And Evidence Policy,
+the post-Review498 follow-up that moves Start request metrics to
+low-cardinality route labels, narrows request trace resource docs to SSR route
+preload resources, records React/Solid router path-helper parity in public
+inventory, and deepens current-evidence policy generation.
 The newest full verification checkpoint is Review492.
 Clean Sweep 1 after
 Review208 remains historical 1/30
@@ -58,9 +59,9 @@ Review491 work, the fresh post-Review491 sweep found Review492 work, the fresh
 post-Review492 sweep found Review493 work, the fresh post-Review493 sweep
 found Review494 work, the fresh post-Review494 sweep found Review495 work, and
 the fresh post-Review495 sweep found Review496 work, the fresh
-post-Review496 sweep found Review497 work, and the fresh post-Review497 sweep
-found Review498 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review498
+post-Review496 sweep found Review497 work, the fresh post-Review497 sweep
+found Review498 work, and the fresh post-Review498 sweep found Review499 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review499
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -74,7 +75,8 @@ Review235 work, Review236 work, Review237 work, Review238 work, Review239
 work, Review240 work, Review241 work, Review242 work, Review243 work,
 Review244 work, Review245 work, Review246 work, Review247 work, Review490
 work, Review491 work, Review492 work, Review493 work, Review494 work,
-Review495 work, Review496 work, Review497 work, and Review498 work.
+Review495 work, Review496 work, Review497 work, Review498 work, and Review499
+work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -196,7 +198,59 @@ and the fresh post-Review496 sweep found Review497 React/Solid DB hover copy
 policy work,
 and the fresh post-Review497 sweep found Review498 router docs, React
 path-helper type pins, docs-policy, and legacy underscore identity work,
+and the fresh post-Review498 sweep found Review499 request metrics, public
+inventory parity, request trace resource docs, and current-evidence policy work,
 so the counter remains 0/30.
+
+## Review 499: Request Metrics And Evidence Policy
+
+Review499 fixes the actionable findings from the fresh post-Review498 sweep.
+
+1. Low-Cardinality Start Request Metrics
+   - Status: fixed.
+   - Files: `packages/start/src/request-trace.ts` and
+     `packages/start/test/start.test.ts`.
+   - Problem: Start request metrics used raw URL paths as metric labels, so SSR
+     dynamic routes could create one time series per concrete URL. Count metrics
+     were also incremented before the route plan was known.
+   - Solution: request count, duration, and status metrics now finalize together
+     after the request outcome is known. SSR metrics use the matched route path
+     template when available and `<unmatched>` otherwise; RPC/action transports
+     keep endpoint paths.
+   - Benefits: the metrics Interface stays small and stable while the
+     Implementation owns route-vs-URL cardinality policy in one Module.
+
+2. Request Trace Resource Scope
+   - Status: fixed.
+   - Files: `packages/start/src/request-trace.ts`.
+   - Problem: request trace resource docs promised resources touched during
+     route preload or request handling, but the Implementation records SSR route
+     plan/preload resources.
+   - Solution: public JSDoc now describes SSR route-plan resources explicitly.
+   - Benefits: LSP docs match the current recorder Interface without implying
+     RPC/action resource tracking that does not exist.
+
+3. Router Path Helper Public Inventory Parity
+   - Status: fixed.
+   - Files: `docs/public-api-inventory.md`.
+   - Problem: the public inventory still said Solid type tests pin router path
+     helpers after Review498 added equivalent React pins.
+   - Solution: the inventory now records React and Solid path-helper type-test
+     parity.
+   - Benefits: public Interface docs reflect both framework Adapter seams.
+
+4. Current Evidence Policy Depth
+   - Status: fixed.
+   - Files: `scripts/public-api-symbol-policy.mjs` and
+     `scripts/audit-public-api-inventory.mjs`.
+   - Problem: `currentDocsEvidencePolicy` centralized latest review/count data,
+     but production docs policies still duplicated those values in hand-written
+     regexes and the self-test mostly exercised a synthetic policy.
+   - Solution: production required patterns now derive from
+     `currentDocsEvidencePolicy`, and the self-test checks the real Ultimate
+     Goal Checklist policy against generated current/stale evidence.
+   - Benefits: latest-review bookkeeping has more Depth and Locality: one
+     evidence Interface drives the production policy shape.
 
 ## Review 498: Router Docs And Legacy Identity Policy
 

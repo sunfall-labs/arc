@@ -492,7 +492,9 @@ The root export includes:
   cleanup failure summaries, and `StartRequestTraceHandler`.
 - Effect-native observability metrics:
   `startRequestCountMetric`, `startRequestDurationMetric`, and
-  `startRequestStatusMetric`.
+  `startRequestStatusMetric`. SSR metric labels use the matched route path
+  template when available, falling back to `<unmatched>` instead of raw
+  high-cardinality URL paths.
 - The `@sunfall/arc-start/cli` subpath exposes the Effect-native diagnostics CLI
   parser and runner for tests, agents, and embedding: `parseStartDiagnosticsCliArgsEffect(...)`,
   `parseStartDiagnosticsCliArgs(...)`, `runStartDiagnosticsCliEffect(...)`,
@@ -1320,8 +1322,8 @@ Release decisions:
 - `BrowserRouter` mirrors generated route path ergonomics with
   `hrefByPath(...)`, `navigateByPath(...)`, `matchByPath(...)`, and
   `preloadByPathEffect(...)`; route-object helpers remain available for callers
-  already holding concrete route definitions. Solid type tests pin each path
-  helper so adapter LSP coverage does not rely only on React/router-object
+  already holding concrete route definitions. React and Solid type tests pin
+  each path helper so adapter LSP coverage does not rely only on route-object
   examples.
 - `RouterOutlet` delegates branch rendering, route-owned `UiScope` lifetime,
   Solid root cleanup, runtime-bound route finalizers, transition, same-state

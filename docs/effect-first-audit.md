@@ -20,6 +20,11 @@ interruption.
 
 ## Current Sweep Results
 
+- Review499 Request Metrics And Evidence Policy keeps the post-Review498 fixes
+  Effect-first: request metrics finalize through Effect metrics after route
+  facts are known, request trace resource docs are narrowed without new async
+  surfaces, and current-evidence policy generation remains synchronous audit
+  code.
 - Review498 Router Docs And Legacy Identity Policy keeps the post-Review497
   fixes Effect-first: router hover and type-test pins add no Promise surface,
   Start progressive form field names and request metrics now use Sunfall Arc

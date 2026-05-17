@@ -1413,8 +1413,8 @@ export const namespaceBackedSurfaceModules = new Map([
 ]);
 
 export const currentDocsEvidencePolicy = {
-  latestFocusedReview: 498,
-  latestFocusedTitle: "Router Docs And Legacy Identity Policy",
+  latestFocusedReview: 499,
+  latestFocusedTitle: "Request Metrics And Evidence Policy",
   latestFullGateReview: 492,
   rootTestFiles: 58,
   rootTestCount: 1223,
@@ -1422,14 +1422,22 @@ export const currentDocsEvidencePolicy = {
   activeCleanCounter: "0/30",
 };
 
+const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const spacedTextPattern = (value) => escapeRegExp(value).replace(/\s+/g, "\\s+");
+const latestFocusedReviewPattern = `Review${currentDocsEvidencePolicy.latestFocusedReview}\\s+${spacedTextPattern(
+  currentDocsEvidencePolicy.latestFocusedTitle,
+)}`;
+const latestFullGateReviewPattern = `Review ?${currentDocsEvidencePolicy.latestFullGateReview}`;
+const activeCleanCounterPattern = escapeRegExp(currentDocsEvidencePolicy.activeCleanCounter);
+
 const staleFocusedReviewPattern =
-  /(?:The latest focused Review|Latest focused evidence: Review|newest focused review is Review) ?(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0-7])\b/;
+  /(?:The latest focused Review|Latest focused evidence: Review|newest focused review is Review) ?(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0-8])\b/;
 const staleAsOfReviewPattern =
-  /As of Review(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0-7]), the latest full/;
+  /As of Review(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0-8]), the latest full/;
 const staleFullGateReviewPattern =
   /(?:The latest full verification gate is green after Review|Latest full gate[^.\n]*after Review|latest full `pnpm verify` passed after Review|current full gate is the Review) ?(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0-1])\b/;
 const stalePostReviewWaitPattern =
-  /until\s+a fresh\s+post-Review(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0-7])\s+sweep reports no actionable\s+findings/;
+  /until\s+a fresh\s+post-Review(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0-8])\s+sweep reports no actionable\s+findings/;
 
 export const currentDocsTextPolicies = [
   {
@@ -1463,18 +1471,20 @@ export const currentDocsTextPolicies = [
     file: "docs/architecture-deepening-review.md",
     required: [
       {
-        name: "Architecture tip must name the current focused Review498",
-        pattern:
-          /The newest focused review is Review498\s+Router\s+Docs\s+And\s+Legacy\s+Identity\s+Policy/,
+        name: "Architecture tip must name the current focused review",
+        pattern: new RegExp(`The newest focused review is ${latestFocusedReviewPattern}`),
       },
       {
         name: "Architecture tip must keep Review492 as the newest full checkpoint",
-        pattern: /newest full verification checkpoint is Review492/,
+        pattern: new RegExp(
+          `newest full verification checkpoint is Review${currentDocsEvidencePolicy.latestFullGateReview}`,
+        ),
       },
       {
-        name: "Architecture tip must wait on the post-Review498 clean sweep",
-        pattern:
-          /active Thirty-Sweep clean counter is 0\/30 until\s+a fresh post-Review498\s+sweep reports no actionable\s+findings/,
+        name: "Architecture tip must wait on the current post-review clean sweep",
+        pattern: new RegExp(
+          `active Thirty-Sweep clean counter is ${activeCleanCounterPattern} until\\s+a fresh post-Review${currentDocsEvidencePolicy.latestFocusedReview}\\s+sweep reports no actionable\\s+findings`,
+        ),
       },
     ],
     banned: [
@@ -1493,16 +1503,19 @@ export const currentDocsTextPolicies = [
     required: [
       {
         name: "Perfection progress must name the current focused review from currentDocsEvidencePolicy",
-        pattern: /The latest focused Review498\s+Router Docs And Legacy Identity Policy/,
+        pattern: new RegExp(`The latest focused ${latestFocusedReviewPattern}`),
       },
       {
         name: "Perfection progress must keep the Review492 full gate as current full evidence",
-        pattern: /latest full verification gate is green after Review492/,
+        pattern: new RegExp(
+          `latest full verification gate is green after Review${currentDocsEvidencePolicy.latestFullGateReview}`,
+        ),
       },
       {
-        name: "Perfection progress must keep the active Thirty-Sweep counter at 0/30 after Review498 work",
-        pattern:
-          /active Thirty-Sweep clean counter remains 0\/30 until\s+a fresh post-Review498 sweep reports no\s+actionable findings/,
+        name: "Perfection progress must keep the active Thirty-Sweep counter at current evidence value",
+        pattern: new RegExp(
+          `active Thirty-Sweep clean counter remains ${activeCleanCounterPattern} until\\s+a fresh post-Review${currentDocsEvidencePolicy.latestFocusedReview} sweep reports no\\s+actionable findings`,
+        ),
       },
     ],
     banned: [
@@ -1536,16 +1549,24 @@ export const currentDocsTextPolicies = [
     file: "docs/release-notes.md",
     required: [
       {
-        name: "Release notes must include the current focused Review498 entry",
-        pattern: /Review 498 Router Docs And Legacy Identity Policy/,
+        name: "Release notes must include the current focused review entry",
+        pattern: new RegExp(
+          `Review ${currentDocsEvidencePolicy.latestFocusedReview} ${spacedTextPattern(
+            currentDocsEvidencePolicy.latestFocusedTitle,
+          )}`,
+        ),
       },
       {
         name: "Release notes must keep the Review492 full gate snapshot",
-        pattern: /Latest full gate on May 17, 2026 after Review 492/,
+        pattern: new RegExp(
+          `Latest full gate on May 17, 2026 after Review ${currentDocsEvidencePolicy.latestFullGateReview}`,
+        ),
       },
       {
-        name: "Release notes must wait on the post-Review498 clean sweep",
-        pattern: /until\s+a fresh\s+post-Review498\s+sweep\s+reports no\s+actionable\s+findings/,
+        name: "Release notes must wait on the current post-review clean sweep",
+        pattern: new RegExp(
+          `until\\s+a fresh\\s+post-Review${currentDocsEvidencePolicy.latestFocusedReview}\\s+sweep\\s+reports no\\s+actionable\\s+findings`,
+        ),
       },
     ],
     banned: [
@@ -1575,16 +1596,22 @@ export const currentDocsTextPolicies = [
     file: "docs/docs-drift-audit.md",
     required: [
       {
-        name: "Docs drift audit must name the current focused Review498 evidence",
-        pattern: /As of Review498, the latest full/,
+        name: "Docs drift audit must name the current focused review evidence",
+        pattern: new RegExp(
+          `As of Review${currentDocsEvidencePolicy.latestFocusedReview}, the latest full`,
+        ),
       },
       {
         name: "Docs drift audit must keep Review492 full gate counts",
-        pattern: /Review492 run with 58 root test files \/ 1223 tests/,
+        pattern: new RegExp(
+          `Review${currentDocsEvidencePolicy.latestFullGateReview} run with ${currentDocsEvidencePolicy.rootTestFiles} root test files / ${currentDocsEvidencePolicy.rootTestCount} tests`,
+        ),
       },
       {
-        name: "Docs drift audit must wait on the post-Review498 clean sweep",
-        pattern: /counter is 0\/30 until a fresh post-Review498 sweep reports no actionable/,
+        name: "Docs drift audit must wait on the current post-review clean sweep",
+        pattern: new RegExp(
+          `counter is ${activeCleanCounterPattern} until a fresh post-Review${currentDocsEvidencePolicy.latestFocusedReview} sweep reports no actionable`,
+        ),
       },
     ],
     banned: [
@@ -1611,16 +1638,19 @@ export const currentDocsTextPolicies = [
     required: [
       {
         name: "Type-test audit must name Review492 public type-test pins",
-        pattern: /Review492 Route Suspense Runtime And Prerender Callback Pins/,
+        pattern: new RegExp(
+          `Review${currentDocsEvidencePolicy.latestFullGateReview} Route Suspense Runtime And Prerender Callback Pins`,
+        ),
       },
       {
-        name: "Type-test audit must record Review498 current evidence policy",
-        pattern: /Review498 Router Docs And Legacy Identity Policy/,
+        name: "Type-test audit must record current evidence policy",
+        pattern: new RegExp(latestFocusedReviewPattern),
       },
       {
         name: "Type-test audit must keep Review492 full gate counts",
-        pattern:
-          /Full `pnpm verify` passed after Review492 with\s+58 root test files \/ 1223 tests/,
+        pattern: new RegExp(
+          `Full ${escapeRegExp("`pnpm verify`")} passed after Review${currentDocsEvidencePolicy.latestFullGateReview} with\\s+${currentDocsEvidencePolicy.rootTestFiles} root test files / ${currentDocsEvidencePolicy.rootTestCount} tests`,
+        ),
       },
     ],
     banned: [
@@ -1634,16 +1664,20 @@ export const currentDocsTextPolicies = [
     file: "docs/effect-first-audit.md",
     required: [
       {
-        name: "Effect-first audit must name Review498 as current sweep work",
-        pattern: /Review498 Router Docs And Legacy Identity Policy/,
+        name: "Effect-first audit must name current sweep work",
+        pattern: new RegExp(latestFocusedReviewPattern),
       },
       {
         name: "Effect-first audit must keep the 449-file audit count",
-        pattern: /Effect-first audit\s+over 449 physical and virtual files/,
+        pattern: new RegExp(
+          `Effect-first audit\\s+over ${currentDocsEvidencePolicy.effectFirstFiles} physical and virtual files`,
+        ),
       },
       {
         name: "Effect-first audit must keep the Review492 full gate as current full evidence",
-        pattern: /current full gate is the Review 492/,
+        pattern: new RegExp(
+          `current full gate is the Review ${currentDocsEvidencePolicy.latestFullGateReview}`,
+        ),
       },
     ],
     banned: [
@@ -1697,21 +1731,26 @@ export const currentDocsTextPolicies = [
     file: "docs/ultimate-goal-checklist.md",
     required: [
       {
-        name: "Ultimate goal checklist must name Review498 as latest focused evidence",
-        pattern: /Latest focused evidence: Review 498/,
+        name: "Ultimate goal checklist must name current latest focused evidence",
+        pattern: new RegExp(
+          `Latest focused evidence: Review ${currentDocsEvidencePolicy.latestFocusedReview}`,
+        ),
       },
       {
         name: "Ultimate goal checklist must pin latest focused verification subsection",
-        pattern:
-          /Latest focused verification recorded\.[\s\S]*?Evidence: Review 498 records[\s\S]*?router docs and legacy\s+identity policy findings/,
+        pattern: new RegExp(
+          `Latest focused verification recorded\\.[\\s\\S]*?Evidence: Review ${currentDocsEvidencePolicy.latestFocusedReview} records[\\s\\S]*?request metrics and evidence policy\\s+findings`,
+        ),
       },
       {
         name: "Ultimate goal checklist must keep Review492 as latest full evidence",
-        pattern: /Review492 records the\s+latest full gate/,
+        pattern: new RegExp(
+          `Review${currentDocsEvidencePolicy.latestFullGateReview} records the\\s+latest full gate`,
+        ),
       },
       {
-        name: "Ultimate goal checklist must keep active clean counter at 0/30 after Review492",
-        pattern: /leaving the active counter at 0\/30/,
+        name: "Ultimate goal checklist must keep active clean counter at current evidence value",
+        pattern: new RegExp(`leaving the active counter at ${activeCleanCounterPattern}`),
       },
     ],
     banned: [

@@ -63,7 +63,7 @@ export interface StartRequestTraceRequest {
   readonly method: string;
   /** Full request URL. */
   readonly url: string;
-  /** URL pathname used for request metrics. */
+  /** Raw URL pathname captured at the request boundary. */
   readonly path: string;
   /** Start transport that handled the request. */
   readonly transport: StartRequestTraceTransport;
@@ -85,7 +85,7 @@ export interface StartRequestTraceResponse {
   readonly setCookieCount?: number;
 }
 
-/** Resource touched during route preload or request handling. */
+/** Resource declared or touched while SSR route preload was planned. */
 export interface StartRequestTraceResource {
   /** Stable Resource ref key. */
   readonly key: string;
@@ -190,7 +190,7 @@ export interface StartRequestTrace {
   readonly services: ReadonlyArray<string>;
   /** Route planning summary for SSR requests. */
   readonly routePlan?: StartRequestTraceRoutePlan;
-  /** Resources touched during the request. */
+  /** SSR route-plan resources; RPC/action resource touches are not recorded here. */
   readonly resources: ReadonlyArray<StartRequestTraceResource>;
   /** Collections touched during route preload, registration, or dehydration. */
   readonly collections: ReadonlyArray<StartRequestTraceCollection>;
@@ -426,7 +426,10 @@ const requestMetricAttributes = (
 ): Record<string, string> => ({
   transport: facts.transport,
   method: request.method,
-  path: requestPath(request),
+  path:
+    facts.transport === "ssr"
+      ? (facts.routePlan?.match?.path ?? "<unmatched>")
+      : requestPath(request),
 });
 
 const requestLogAnnotations = (
@@ -467,6 +470,7 @@ export const finalizeStartRequestMetricsEffect = (
   const attributes = requestMetricAttributes(request, facts);
   const status = startRequestFinalStatus(facts, options.status);
   return Effect.gen(function* () {
+    yield* Metric.update(Metric.withAttributes(startRequestCountMetric, attributes), 1);
     yield* Metric.update(
       Metric.withAttributes(startRequestDurationMetric, attributes),
       Duration.millis(Math.max(0, options.completedAt - facts.startedAt)),
@@ -486,9 +490,7 @@ export const withStartRequestObservability = <A, E, R>(
   facts: StartRequestTraceFacts,
   effect: Effect.Effect<A, E, R>,
 ): Effect.Effect<A, E, R> => {
-  const attributes = requestMetricAttributes(request, facts);
   const observed = Effect.gen(function* () {
-    yield* Metric.update(Metric.withAttributes(startRequestCountMetric, attributes), 1);
     const exit = yield* Effect.exit(effect);
     if (Exit.isSuccess(exit)) {
       return exit.value;
