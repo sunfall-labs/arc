@@ -12,6 +12,20 @@ repeating stale package/test totals.
 
 ## Current Sweep Results
 
+- Review512 generated route artifact formatting
+  - `createFileRouteDefinitionsModule(...)` now emits formatter-stable
+    TypeScript literals for generated route maps, file-route module metadata,
+    and route relationship metadata instead of JSON-shaped object literals.
+  - The built Start diagnostics CLI is idempotent for
+    `examples/project-console/src/routeTree.gen.ts`: `graph route
+/projects/:id --root examples/project-console --json` no longer rewrites
+    the committed generated artifact.
+  - `pnpm example:pack-dry-run` snapshots source generated starter artifacts
+    around source package dry-runs, so the package verification Adapter fails
+    if a dry-run silently repairs `routeTree.gen.ts` or virtual declaration
+    artifacts.
+  - Clean Sweep 12 after Review512 found no actionable generated-artifact
+    follow-up; the active clean counter reached 12/30.
 - File route manifests
   - `generateFileRouteManifestArtifact(...)` sorts entries and modules
     deterministically.
@@ -93,6 +107,15 @@ repeating stale package/test totals.
 - `pnpm exec vitest run packages/start/test/file-routes.test.ts packages/start/test/file-route-modules.test.ts packages/start/test/server-function-manifest.test.ts packages/start/test/action-manifest.test.ts packages/start/test/app-graph.test.ts`
   passed after the audit.
 - `pnpm --filter @sunfall/arc-start typecheck` passed after the audit.
+- Review512 focused generated-artifact verification passed:
+  `pnpm exec vitest run packages/start/test/file-route-modules.test.ts packages/start/test/file-routes.test.ts`,
+  `pnpm --filter @sunfall/arc-start build`, the built Start diagnostics CLI
+  idempotence check against `examples/project-console/src/routeTree.gen.ts`,
+  and `pnpm example:pack-dry-run`.
+- Clean Sweep 12 after Review512 reran public API inventory policy,
+  Effect-first audit, package dry-run verification, route module tests, file
+  route tests, package typechecks, formatting, lint, and `git diff --check`
+  without generated-artifact findings.
 - Review163 focused Start verification covered the Vite 8 `hotUpdate(...)`
   create/delete artifact regression among 1 Start test file / 8 selected tests
   plus Start package typecheck and public type tests.

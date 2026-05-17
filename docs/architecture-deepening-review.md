@@ -16,7 +16,7 @@ the generated-artifact Locality follow-up that makes Start route definitions
 formatter-stable and hardens source package dry-run verification. Clean Sweep 7
 after Review510 remains historical no-actionable evidence, and Clean Sweep 8
 after Review511, Clean Sweep 9 after Review511, Clean Sweep 10 after Review511,
-and Clean Sweep 11 after Review511 remain the latest no-actionable sweeps.
+and Clean Sweep 11 after Review511 remain no-actionable predecessor sweeps.
 Clean Sweep 12 after Review512 is the newest no-actionable sweep.
 The newest full verification checkpoint is Review492.
 Clean Sweep 1 after
