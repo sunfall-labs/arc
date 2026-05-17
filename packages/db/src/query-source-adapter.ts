@@ -49,8 +49,3 @@ export const makeQuerySourceAdapter = (
   preloadEffect: (force) =>
     force ? collection.refetchEffect() : collection.preloadEffect()
 });
-
-export const makeQuerySourceAdapters = (
-  sources: ReadonlyArray<readonly [string, AnyCollection]>
-): ReadonlyArray<QueryCollectionSourceAdapter> =>
-  Array.from(new Set(sources.map(([, collection]) => collection)), makeQuerySourceAdapter);

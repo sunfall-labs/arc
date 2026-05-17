@@ -24,6 +24,8 @@ import {
   applyResponseContext,
   applyResponseContextEffect,
   browserRouteRenderDecision,
+  browserRouteActiveRenderer,
+  browserRouteRenderIdentity,
   browserRouteRenderKey,
   browserRouterInitialMatchedState,
   browserRouterLinkClickDecision,
@@ -94,7 +96,11 @@ import {
   type BrowserRouterInitialMatchedStateOptions,
   type BrowserNavigateOptions,
   type BrowserNavigateArgs,
+  type BrowserRouteOutletDefaultRenderers,
+  type BrowserRouteOutletRenderers,
+  type BrowserRouteReadyRenderProps,
   type BrowserRouteRenderDecision,
+  type BrowserRouteRenderIdentityInput,
   type BrowserRouterPath,
   type BrowserRouterRouteForPath,
   type BrowserRouterKernel,
@@ -278,7 +284,9 @@ const coreExports: Array<unknown> = [
   UiScope,
   applyResponseContext,
   applyResponseContextEffect,
+  browserRouteActiveRenderer,
   browserRouteRenderDecision,
+  browserRouteRenderIdentity,
   browserRouteRenderKey,
   browserRouterLinkClickDecision,
   browserRouterLinkPreloadDecision,
@@ -421,6 +429,8 @@ const resourceUiBindingControllerOptions: ResourceUiBindingControllerOptions<str
 };
 const resourceUiBindingController: ResourceUiBindingController<string, string, string, never, never> =
   makeResourceUiBindingController(resourceUiBindingControllerOptions);
+const resourceUiBindingInterruptPreloadEffect: Effect.Effect<void> =
+  resourceUiBindingController.interruptPreloadEffect();
 const resourceUiBindingDisposeEffect: Effect.Effect<void> = resourceUiBindingController.disposeEffect();
 const resourceUiAutoPreloadOptions: ResourceUiAutoPreloadOptions<string, never> = {
   preload: true,
@@ -569,6 +579,29 @@ const readyState = {
 const renderKey = browserRouteRenderKey(readyState);
 const renderDecision: BrowserRouteRenderDecision<typeof coreRoutes, never> =
   browserRouteRenderDecision(readyState);
+const routeReadyProps: BrowserRouteReadyRenderProps<CoreProjectRoute> = {
+  params: browserRouterInitialMatch!.params,
+  search: browserRouterInitialMatch!.search,
+  match: browserRouterInitialMatch!
+};
+const routeOutletRenderers: BrowserRouteOutletRenderers<typeof coreRoutes, never, string> = {
+  pending: () => "pending"
+};
+const routeOutletDefaultRenderers: BrowserRouteOutletDefaultRenderers<typeof coreRoutes, never, string> = {
+  pending: () => "pending",
+  failure: () => "failure",
+  notFound: () => "missing"
+};
+const routeRenderIdentityInput: BrowserRouteRenderIdentityInput<typeof coreRoutes, never, string> = {
+  state: readyState,
+  renderers: routeOutletRenderers,
+  defaults: routeOutletDefaultRenderers
+};
+const routeActiveRenderer = browserRouteActiveRenderer(routeRenderIdentityInput);
+const routeRenderIdentity: string = browserRouteRenderIdentity(routeRenderIdentityInput);
+void routeReadyProps;
+void routeActiveRenderer;
+void routeRenderIdentity;
 const preloadDecision: BrowserRouterLinkPreloadDecision = browserRouterLinkPreloadDecision({
   defaultPrevented: false,
   preload: true,

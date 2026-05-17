@@ -196,6 +196,7 @@
 - **Solid DB Adapter**: the Solid-facing Adapter that projects Collection Definitions and Live Query graphs into Solid accessors while leaving row state, mutation queues, and incremental query work in the DB Module.
 - **Solid DB Reactive Binding**: the Solid DB Module that owns runtime capture, collection source subscription, Solid invalidation ticks, owner-scoped cleanup, mount-time preload fiber interruption, preload failure capture, and runtime-bound read, mutation, and flush Effect methods for `useCollection(...)` and `useLiveQuery(...)`. Returned Solid DB Effects expose runtime errors through an optional `ER` generic and do not re-expose service requirements already supplied by the Solid runtime.
 - **Collection Reactive Live Query Selection**: the DB-owned helper policy shared by React DB and Solid DB for dependency equality, dependency snapshotting, prebuilt Live Query reuse, and runtime-bound `Query.live(...)` creation. Framework adapters provide host reactivity; DB owns the selection semantics.
+- **Collection Reactive Preload Controller**: the DB-owned preload lifecycle Module in `packages/db/src/collection-reactive-binding.ts` shared by React DB and Solid DB. It owns mount-time collection/live-query preload fibers, generation retirement, stale success/failure suppression, observer invocation, sync host cleanup convenience, and awaitable `interruptEffect()` cleanup.
 
 ## Architectural Commitments
 

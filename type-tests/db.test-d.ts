@@ -3,7 +3,7 @@ import {
   PubSub,
   Scope
 } from "effect";
-import type { EffectInput, EffectInputCallbackError } from "@effect-ui/core";
+import type { AnyEffectUiRuntime, EffectInput, EffectInputCallbackError } from "@effect-ui/core";
 import {
   Collection,
   Query,
@@ -228,6 +228,13 @@ declare const publicQueryAggregateResult: Query.AggregateResult<
 >;
 const publicQueryAggregateCount: number = publicQueryAggregateResult.count;
 publicQueryRoot.from({ project: dbStaticProjectsCollection });
+const collectionReactivePreloadController = makeCollectionReactivePreloadController({
+  runtime: null as unknown as AnyEffectUiRuntime<never>,
+  onSuccess: () => Effect.void,
+  onFailure: () => Effect.void
+});
+const collectionReactivePreloadInterruptEffect: Effect.Effect<void> =
+  collectionReactivePreloadController.interruptEffect();
 // @ts-expect-error public LiveQuery handles do not expose their internal builder.
 publicLiveQuery.builder;
 const directLiveQueryCollection = makeLiveQueryCollection<Project, string, unknown>({

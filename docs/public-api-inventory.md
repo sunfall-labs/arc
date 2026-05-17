@@ -238,7 +238,9 @@ Release decisions:
   runtime-owned host cleanup convenience for framework owner hooks.
 - Browser route render decisions live in Core so framework adapters share the
   same outlet state meaning. `browserRouteRenderDecision(...)`,
-  `browserRouteRenderKey(...)`, `BrowserRouteOutletRenderers`,
+  `browserRouteRenderKey(...)`, `browserRouteActiveRenderer(...)`,
+  `browserRouteRenderIdentity(...)`, `BrowserRouteOutletRenderers`,
+  `BrowserRouteOutletDefaultRenderers`, `BrowserRouteRenderIdentityInput`,
   `BrowserRouteReadyRenderProps`, and `BrowserRouteRenderDecision` are
   expert-public for React, Solid, tests, and future adapters; app code should
   normally keep using framework router outlets.
@@ -728,6 +730,10 @@ The root export includes:
 - sync adapters, server collection helpers, SQLite persistence helpers, and
   background flush policies;
 - collection store diagnostics and events for devtools.
+- React DB and Solid DB share `collection-reactive-binding` for source
+  subscriptions, live-query selection, and mount-time preload cleanup. Its
+  `CollectionReactivePreloadController` exposes awaitable `interruptEffect()`
+  cleanup while retaining sync host cleanup convenience for adapter unmounts.
 
 Release decisions:
 
@@ -1195,8 +1201,9 @@ Release decisions:
   `live-query`.
 - `useCollection(...)` and `useLiveQuery(...)` share one internal React DB
   Reactive Binding Module for runtime capture, source subscriptions, cleanup,
-  automatic preload, and runtime-bound returned Effects. The public handles
-  remain the supported app surface. Returned `preloadEffect(...)` and
+  automatic preload through the DB-owned Collection Reactive Preload
+  Controller, and runtime-bound returned Effects. The public handles remain the
+  supported app surface. Returned `preloadEffect(...)` and
   `refetchEffect(...)` are already bound to the React runtime, so they no longer
   expose the collection/query service requirement `R`; pass the optional `ER`
   generic when a fallible Runtime Provider should be reflected in the error
@@ -1316,8 +1323,9 @@ Release decisions:
   `live-query`.
 - `useCollection(...)` and `useLiveQuery(...)` share one internal Solid DB
   Reactive Binding Module for runtime capture, source subscriptions, cleanup,
-  automatic preload, and runtime-bound returned Effects. The public handles
-  remain the supported app surface. Returned `preloadEffect(...)` and
+  automatic preload through the DB-owned Collection Reactive Preload
+  Controller, and runtime-bound returned Effects. The public handles remain the
+  supported app surface. Returned `preloadEffect(...)` and
   `refetchEffect(...)` are already bound to the Solid runtime, so they no longer
   expose the collection/query service requirement `R`; pass the optional `ER`
   generic when a fallible Runtime Provider should be reflected in the error

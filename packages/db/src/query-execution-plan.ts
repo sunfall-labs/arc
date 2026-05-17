@@ -1,6 +1,5 @@
 import { Effect } from "effect";
 import {
-  buildQueryExecution,
   buildQueryExecutionFromStagePlan,
   compareRows,
   compareValue,
@@ -9,7 +8,6 @@ import {
   evaluateQueryStructuredOperation,
   projectCurrentContext,
   toQueryEvaluationError,
-  validateQueryPlan,
   type AnyQueryContext,
   type QueryEvaluationError,
   type QueryPlanBuilder,
@@ -35,19 +33,6 @@ export interface QueryExecutionPlanBuilder<TContext extends AnyQueryContext, TRe
   extends QueryPlanBuilder<TContext> {
   readonly projector: ((row: TContext) => TResult) | undefined;
 }
-
-/** Source adapters used by a query execution plan, de-duped by collection identity. */
-export const queryExecutionPlanSourceAdapters = (
-  builder: QueryPlanBuilder<any>
-): ReadonlyArray<QueryCollectionSourceAdapter> =>
-  compileQueryStagePlan(builder).sourceAdapters;
-
-/** Validates alias, join, offset, and limit invariants for a query execution plan. */
-export const validateQueryExecutionPlan = <TContext extends AnyQueryContext>(
-  builder: QueryPlanBuilder<TContext>
-): void => {
-  validateQueryPlan(builder);
-};
 
 export interface QueryOrderedContext<TContext extends AnyQueryContext> {
   readonly row: TContext;
@@ -137,8 +122,7 @@ export const executeQueryPlan = <TContext extends AnyQueryContext, TResult>(
 export const queryExecutionPlanDiagnostics = (
   builder: QueryPlanBuilder<any>
 ): QueryPlanDiagnostics => {
-  validateQueryExecutionPlan(builder);
-  return buildQueryExecution(builder).diagnostics;
+  return buildQueryExecutionFromStagePlan(compileQueryStagePlan(builder)).diagnostics;
 };
 
 export const preloadQueryExecutionPlanSourcesEffect = <E, R>(

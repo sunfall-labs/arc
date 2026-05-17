@@ -391,14 +391,33 @@ export const publicHoverDocGroups = [
       "DevtoolsSummaryInvalidationPlan",
       "DevtoolsSummaryRoutePlan",
       "DevtoolsSummaryResource",
+      "DevtoolsPanelId",
+      "DevtoolsPanelSeverity",
       "DevtoolsPanelMetric",
-      "DevtoolsPanelItem"
+      "DevtoolsPanelItem",
+      "DevtoolsPanel",
+      "DevtoolsPanels",
+      "DevtoolsPanelsInput",
+      "DevtoolsPanelUiOptions",
+      "DevtoolsPanelUiInput",
+      "DevtoolsPanelMountOptions",
+      "DevtoolsPanelMount",
+      "DevtoolsPanelBootOptions",
+      "DevtoolsPanelBoot"
     ]
   },
   {
     file: "packages/devtools/src/index.ts",
     declarations: [
-      "makeDevtoolsStore"
+      "makeDevtoolsStore",
+      "describeDevtoolsPanels",
+      "describeDevtoolsPanelsEffect",
+      "renderDevtoolsPanelsHtml",
+      "renderDevtoolsPanelsHtmlEffect",
+      "mountDevtoolsPanels",
+      "mountDevtoolsPanelsEffect",
+      "interruptDevtoolsPanelBoot",
+      "bootDevtoolsPanels"
     ]
   },
   {
@@ -430,7 +449,17 @@ export const publicHoverDocGroups = [
       "DevtoolsPanelContractErrorReason",
       "DevtoolsPanelContractResolution",
       "DevtoolsBridgePayloadContractResolution",
+      "devtoolsPanelIds",
+      "devtoolsPanelSeverities",
+      "isDevtoolsPanelId",
+      "isDevtoolsPanelSeverity",
+      "isDevtoolsPanelMetric",
+      "isDevtoolsPanelItem",
+      "isDevtoolsPanelOverflowItem",
+      "isDevtoolsPanel",
+      "isDevtoolsPanels",
       "normalizeDevtoolsPanels",
+      "resolveDevtoolsPanelContract",
       "resolveDevtoolsPanelsInput"
     ]
   },

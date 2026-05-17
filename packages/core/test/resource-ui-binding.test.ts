@@ -241,6 +241,34 @@ describe("Resource UI Binding Controller", () => {
     );
   });
 
+  it("interrupts automatic preloads through an awaitable Effect", () => {
+    const runtime = makeRuntime();
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const started = yield* Deferred.make<void>();
+        let releases = 0;
+        const ProjectById = Resource.family<string, Project>({
+          name: "ResourceUiBinding.interrupt-preload-effect",
+          load: (id) =>
+            Effect.acquireRelease(
+              Deferred.succeed(started, undefined).pipe(Effect.as({ id, name: id })),
+              () => Effect.sync(() => {
+                releases++;
+              })
+            ).pipe(Effect.andThen(Effect.never))
+        });
+        const controller = makeResourceUiBindingController({ runtime });
+        const ref = ProjectById("atlas");
+
+        controller.startInitialPreload(ref);
+        yield* Deferred.await(started);
+        yield* controller.interruptPreloadEffect();
+
+        expect(releases).toBe(1);
+      }).pipe(Effect.ensuring(runtime.disposeEffect))
+    );
+  });
+
   it("disposeEffect lets the same ref bind retain again after cleanup replay", () => {
     const runtime = makeRuntime();
     const ProjectById = Resource.family<string, Project>({

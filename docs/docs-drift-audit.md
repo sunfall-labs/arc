@@ -3,9 +3,9 @@
 Last updated: 2026-05-17.
 
 Current release-tracking truth lives in `docs/architecture-deepening-review.md`
-and `docs/perfection-progress.md`. As of Review233, the latest full
-`pnpm verify` gate passed with 53 root test files / 1147 tests, and the active
-Thirty-Sweep clean counter is 0/30 until a fresh post-Review233 sweep reports
+and `docs/perfection-progress.md`. As of Review234, the latest full
+`pnpm verify` gate passed with 53 root test files / 1149 tests, and the active
+Thirty-Sweep clean counter is 0/30 until a fresh post-Review234 sweep reports
 no actionable findings.
 
 This historical audit checks release-tracking docs for claims that no longer match the
@@ -189,6 +189,10 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   the post-Review232 sweep deepened Query Stage Plan source/identity facts,
   added Effect cleanup to Resource Suspense and Router Link preload
   controllers, and removed accidental React commit-scope root exports.
+- Review234 Cleanup Effects And Public Surface Pins refreshed current ledgers
+  after the post-Review233 sweeps found sync-only automatic preload cleanup
+  Interfaces, shallow Query Stage Plan helper seams, and Devtools/Core
+  route-render public surface pin gaps.
 - Review201 refreshed the current release ledgers after script command,
   Resource public-surface, React/Solid router LSP, DB erased-channel, and
   generated-starter README guardrail fixes; the historical enumeration above

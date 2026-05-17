@@ -1,5 +1,5 @@
 import { EffectInputCallbackError, makeResourceStore, makeRuntime, read, ResourceStore, runWithRuntime, toEffect, type EffectUiRuntime } from "@effect-ui/core";
-import { Collection, CollectionRowKeyChanged, CollectionRowNotFound, CollectionStorageError, Query, QueryEvaluationError, UnknownCollectionIndex, and, eq, gt } from "@effect-ui/db";
+import { Collection, CollectionRowKeyChanged, CollectionRowNotFound, CollectionStorageError, Query, QueryEvaluationError, UnknownCollectionIndex, and, eq, gt, makeCollectionReactivePreloadController } from "@effect-ui/db";
 import { Cause, Deferred, Effect, Exit, Fiber, Option, PubSub, Schedule, Schema } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -84,6 +84,35 @@ const ProjectSchema = Schema.Struct({
 const ProjectRowsSchema = Schema.Array(ProjectSchema);
 
 describe("Collection", () => {
+  it("interrupts reactive preloads through an awaitable Effect", () => {
+    const runtime = makeRuntime();
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const started = yield* Deferred.make<void>();
+        let releases = 0;
+        const controller = makeCollectionReactivePreloadController({
+          runtime,
+          onSuccess: () => Effect.void,
+          onFailure: () => Effect.void
+        });
+
+        controller.start(
+          Effect.acquireRelease(
+            Deferred.succeed(started, undefined),
+            () => Effect.sync(() => {
+              releases++;
+            })
+          ).pipe(Effect.andThen(Effect.never)),
+          true
+        );
+        yield* Deferred.await(started);
+        yield* controller.interruptEffect();
+
+        expect(releases).toBe(1);
+      }).pipe(Effect.ensuring(runtime.disposeEffect))
+    );
+  });
+
   it("loads rows into a runtime-scoped collection", async () => {
     const load = vi.fn(() =>
       Effect.succeed<ReadonlyArray<Project>>([

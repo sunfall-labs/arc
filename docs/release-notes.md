@@ -65,14 +65,14 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 17, 2026 after Review 233:
+Latest full gate on May 17, 2026 after Review 234:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
 - Effect-first audit over 411 package/example/config/script/type-test/generated
   template/docs-snippet physical and virtual files;
-- 53 root test files / 1147 tests;
+- 53 root test files / 1149 tests;
 - package-level verifies for the devtools panel, devtools extension, basic
   starter, React starter, and project console packages;
 - starter-suite packaging for basic (19 app files / 5 local packages), React
@@ -86,14 +86,22 @@ Latest full gate on May 17, 2026 after Review 233:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 234 Cleanup Effects And Public Surface Pins closed bounded
+  post-Review233 findings: DB and Core preload controllers now expose
+  awaitable cleanup Effects while preserving sync host cleanup conveniences
+  where immediate generation/current-ref ownership matters; Query diagnostics
+  consumes one compiled Stage Plan and stale shallow helper seams were removed;
+  Devtools panel lifecycle declarations and Core route-render identity helpers
+  are pinned for public LSP/type-test ownership. The active Thirty-Sweep clean
+  counter remains 0/30 until a fresh post-Review234 sweep is clean.
 - Review 233 Stage Plan And UI Cleanup Effects closed the post-Review232
   findings: Query Stage Plan now owns unique source adapters and identity alias
   ordering consumed by projection, preload/refetch, and Live Query State;
   Resource Suspense and Browser Router Link preload controllers expose
   awaitable cleanup Effects; React root exports hide commit-scope internals;
   and public Query namespace aliases plus cleanup Effects are type-test pinned.
-  The active Thirty-Sweep clean counter remains 0/30 until a fresh
-  post-Review233 sweep is clean.
+  The active Thirty-Sweep clean counter remained 0/30; the later
+  post-Review233 sweep found Review234 cleanup Effect and public-surface work.
 - Review 232 Shared DB Query Stage Plan closed the Review231 DB Query Stage
   Planning candidate: Query Builder now compiles one internal Query Stage Plan
   for source roles,
@@ -429,8 +437,9 @@ Latest full gate on May 17, 2026 after Review 233:
   found Review230 work, the post-Review230 sweep found Review231 work, and the
   post-Review231 DB pass found Review232 Shared DB Query Stage Plan work, and
   the fresh post-Review232 sweep found Review233 Stage Plan And UI Cleanup
-  Effects work.
-  The active Thirty-Sweep clean counter is 0/30 until a fresh post-Review233
+  Effects work, and the fresh post-Review233 sweep found Review234 cleanup
+  Effect and public-surface work.
+  The active Thirty-Sweep clean counter is 0/30 until a fresh post-Review234
   sweep reports no
   actionable findings.
 - Review 192 refreshed stale current-gate docs wording that still named
@@ -1371,11 +1380,10 @@ Latest full gate on May 17, 2026 after Review 233:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 233 Stage Plan And UI
-  Cleanup Effects: Query Stage Plan now owns unique source adapters and
-  identity alias ordering, Resource Suspense and Browser Router Link preload
-  cleanup expose awaitable Effects, and React root exports hide commit-scope
-  internals.
+- The latest full `pnpm verify` passed after Review 234 Cleanup Effects And
+  Public Surface Pins: DB/Core preload controllers now expose awaitable cleanup
+  Effects, Query Stage Plan helper seams were tightened, and Devtools/Core
+  public surfaces are LSP/type-test pinned.
   Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
   sweeps found Review191, Review192, Review193, Review194, Review195, and
   Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, Review208, Review209, Review210, Review211, Review212, and Review213 work.
@@ -1399,10 +1407,12 @@ Latest full gate on May 17, 2026 after Review 233:
   post-Review229 sweep found Review230 work, the post-Review230 sweep found
   Review231 work, and the post-Review231 DB pass found Review232 Shared DB
   Query Stage Plan work, and the fresh post-Review232 sweep found Review233
-  Stage Plan And UI Cleanup Effects work, so the active counter is 0/30.
+  Stage Plan And UI Cleanup Effects work, and the fresh post-Review233 sweep
+  found Review234 cleanup Effect and public-surface work, so the active counter
+  is 0/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 411 physical/virtual files, 53 root test files / 1147
+  Effect-first audit over 411 physical/virtual files, 53 root test files / 1149
   tests, package-level verifies for the devtools/starter/example packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console

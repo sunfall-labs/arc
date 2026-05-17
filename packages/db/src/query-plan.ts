@@ -810,11 +810,6 @@ export const buildQueryExecutionFromStagePlan = <TContext extends AnyQueryContex
   };
 };
 
-export const buildQueryExecution = <TContext extends AnyQueryContext>(
-  builder: QueryPlanBuilder<TContext>
-): QueryExecution<TContext> =>
-  buildQueryExecutionFromStagePlan(compileQueryStagePlan(builder));
-
 export const groupContexts = (
   contexts: ReadonlyArray<AnyQueryContext>,
   grouping: AnyQueryGrouping

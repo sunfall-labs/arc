@@ -107,7 +107,9 @@ export const selectCollectionReactiveLiveQuery = <T, E, R, Runtime extends AnyEf
 export interface CollectionReactivePreloadController<E, ER = never> {
   /** Starts a new preload when enabled, interrupting any previous one first. */
   start(preloadEffect: Effect.Effect<void, E, unknown> | undefined, enabled: boolean): void;
-  /** Interrupts the current preload fiber and retires its generation. */
+  /** Interrupts the current preload fiber and retires its generation as an Effect. */
+  interruptEffect(): Effect.Effect<void>;
+  /** Runtime-owned synchronous convenience for framework cleanup hooks. */
   interrupt(): void;
 }
 
@@ -145,13 +147,26 @@ export const makeCollectionReactivePreloadController = <E, ER = never>(
   let preloadFiber: Fiber.Fiber<void, unknown> | undefined;
   let preloadGeneration = 0;
 
-  const interrupt = (): void => {
+  const retireCurrentPreload = (): Fiber.Fiber<void, unknown> | undefined => {
     preloadGeneration++;
-    if (preloadFiber) {
+    const fiber = preloadFiber;
+    preloadFiber = undefined;
+    return fiber;
+  };
+
+  const interruptEffect = (): Effect.Effect<void> => Effect.suspend(() => {
+    const fiber = retireCurrentPreload();
+    return fiber === undefined
+      ? Effect.void
+      : Fiber.interrupt(fiber).pipe(Effect.catch(() => Effect.void));
+  });
+
+  const interrupt = (): void => {
+    const fiber = retireCurrentPreload();
+    if (fiber !== undefined) {
       void options.runtime.runFork(
-        Fiber.interrupt(preloadFiber).pipe(Effect.catch(() => Effect.void))
+        Fiber.interrupt(fiber).pipe(Effect.catch(() => Effect.void))
       );
-      preloadFiber = undefined;
     }
   };
 
@@ -188,5 +203,5 @@ export const makeCollectionReactivePreloadController = <E, ER = never>(
     );
   };
 
-  return { interrupt, start };
+  return { interruptEffect, interrupt, start };
 };

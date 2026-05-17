@@ -258,6 +258,8 @@ const devtoolsPanelBootOptions: DevtoolsPanelBootOptions = {
     Effect.sync(() => mount.update({ selectedPanelId: "diagnostics" }))
 };
 const devtoolsPanelBoot: DevtoolsPanelBoot = bootDevtoolsPanels(devtoolsPanelBootOptions);
+const devtoolsPanelBootInterruptEffect: Effect.Effect<void> =
+  devtoolsPanelBoot.interruptEffect;
 const interruptedDevtoolsPanelBootEffect: Effect.Effect<void> =
   interruptDevtoolsPanelBoot(devtoolsPanelBoot.fiber);
 const devtoolsBootFiber: Fiber.Fiber<void, never> = devtoolsPanelBoot.fiber;
@@ -558,6 +560,7 @@ void devtoolsPanelMountEffect;
 void devtoolsCssText;
 void renderedDevtoolsHtml;
 void renderedDevtoolsHtmlEffect;
+void devtoolsPanelBootInterruptEffect;
 void interruptedDevtoolsPanelBootEffect;
 void devtoolsBootFiber;
 void devtoolsSerializedWithPolicy;

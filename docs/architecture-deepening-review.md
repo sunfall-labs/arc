@@ -11,11 +11,10 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review233 Stage Plan And UI Cleanup
-Effects, the fresh post-Review232 sweep that deepened DB Query Stage Plan
-Locality, added awaitable UI preload cleanup Effects, and closed React
-commit-scope public export drift. The newest full verification checkpoint is
-Review233.
+The newest completed focused review is Review234 Cleanup Effects And Public
+Surface Pins, the fresh post-Review233 sweep that added awaitable preload
+cleanup Effects, tightened Query Stage Plan helper Locality, and pinned public
+route/devtools surfaces. The newest full verification checkpoint is Review234.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -39,7 +38,8 @@ and the post-Review229 sweep found Review230 work,
 and the post-Review230 sweep found Review231 work,
 and the post-Review231 DB pass found Review232 Shared DB Query Stage Plan work,
 and the fresh post-Review232 sweep found Review233 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review233
+and the fresh post-Review233 sweep found Review234 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review234
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -48,7 +48,7 @@ Review206, Review207, Review208, Review209, Review210, Review211, Review212,
 Review213, Review214, Review215, Review216, Review217, Review218, Review219,
 Review220, Review221, Review222, Review223, Review224, Review225,
 Review226, Review227, Review228, Review229, Review230, Review231, and
-Review232 Shared DB Query Stage Plan work, and Review233 work.
+Review232 Shared DB Query Stage Plan work, Review233 work, and Review234 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -128,8 +128,93 @@ the post-Review230 sweep found Review231 Core/React/Solid browser-router,
 Resource UI Binding replay, React route-scope, and DB public source ownership
 work, and the post-Review231 DB pass found Review232 Shared DB Query Stage
 Plan work, and the fresh post-Review232 sweep found Review233 Stage Plan and
-UI cleanup work,
+UI cleanup work, and the fresh post-Review233 sweep found Review234 cleanup
+Effect and public-surface work,
 so the counter remains 0/30.
+
+## Review 234: Cleanup Effects And Public Surface Pins
+
+Review234 fixed the bounded actionable findings from the fresh post-Review233
+sweeps.
+
+1. Collection Reactive Preload Cleanup Effect
+   - Status: fixed.
+   - Files: `CONTEXT.md`, `packages/db/src/collection-reactive-binding.ts`,
+     `packages/db/test/collection.test.ts`, and `type-tests/db.test-d.ts`.
+   - Problem: the shared Collection Reactive Preload Controller owned
+     mount-time preload fibers, generation checks, and stale failure
+     suppression for React DB and Solid DB, but its Interface exposed only
+     sync `interrupt()`. Deterministic tests and non-host callers could not
+     await preload interruption through the DB-owned Seam.
+   - Fix: `CollectionReactivePreloadController` now exposes
+     `interruptEffect()` for awaitable cleanup while preserving sync
+     `interrupt()` for framework cleanup hooks that must retire the generation
+     before returning. DB tests assert the interrupt finalizer completes, and
+     public type tests pin the Effect Interface.
+   - Benefits: Collection reactive preload lifetime now has the same Depth as
+     Resource Suspense and Router Link preload cleanup: framework Adapters keep
+     host cleanup local, while DB owns fiber interruption and stale observer
+     suppression behind one Interface.
+
+2. Resource UI Binding Automatic Preload Cleanup Effect
+   - Status: fixed.
+   - Files: `packages/core/src/resource-ui-binding.ts`,
+     `packages/core/test/resource-ui-binding.test.ts`, and
+     `type-tests/core.test-d.ts`.
+   - Problem: `ResourceUiBindingController` owned automatic preload fibers and
+     already had an internal interrupt Effect, but the public Interface exposed
+     only sync `interruptPreload()`.
+   - Fix: the controller now exposes `interruptPreloadEffect()` beside the sync
+     host cleanup convenience, with a focused test proving automatic preload
+     finalizers complete before the Effect returns.
+   - Benefits: automatic Resource preload lifetime now matches the Effect-first
+     cleanup Depth of Resource Suspense, Router Link, and Collection reactive
+     preload cleanup.
+
+3. Query Stage Plan Helper Locality
+   - Status: fixed.
+   - Files: `packages/db/src/query-source-adapter.ts`,
+     `packages/db/src/query-execution-plan.ts`, and
+     `packages/db/src/query-plan.ts`.
+   - Problem: after Review233 centralized source and identity facts in
+     `QueryStagePlan`, a few unused or shallow sibling helpers still presented
+     alternate-looking query/source seams.
+   - Fix: unused source-adapter and execution-plan helper exports were removed,
+     and diagnostics now compiles one `QueryStagePlan` before consuming
+     `buildQueryExecutionFromStagePlan(...)`.
+   - Benefits: source, identity, diagnostics, preload, once, and live query
+     behavior stay local to the compiled Stage Plan Interface.
+
+4. Devtools Panel Lifecycle LSP Pins
+   - Status: fixed.
+   - Files: `scripts/public-api-symbol-policy.mjs` and
+     `type-tests/devtools.test-d.ts`.
+   - Problem: Devtools panel boot and mount helpers were public and documented,
+     but hover policy and type tests under-pinned the lifecycle Interface.
+   - Fix: Devtools panel model, mount, render, and boot declarations are now in
+     the public hover policy, and type tests assert
+     `DevtoolsPanelBoot.interruptEffect` directly.
+   - Benefits: Devtools panel Adapter shells get checked LSP docs and an
+     Effect-first interrupt Interface that cannot drift silently.
+
+5. Browser Route Render Public Surface Pins
+   - Status: fixed.
+   - Files: `docs/public-api-inventory.md` and `type-tests/core.test-d.ts`.
+   - Problem: Core's route-render identity helpers were root-exported and
+     hover-documented, but the inventory and focused type tests only pinned part
+     of the expert-public surface.
+   - Fix: the inventory now names route-render identity helpers and default
+     renderer/input types, and Core type tests import and exercise them.
+   - Benefits: React, Solid, tests, and future adapters share an explicit Core
+     route-render Module contract instead of relying on a star-export accident.
+
+Focused workspace evidence for this pass: Core/DB/Devtools, React DB, and
+Solid DB typechecks, public type tests, public API audit, focused Core Resource
+UI Binding tests, focused DB collection tests, focused React DB tests, focused
+Solid DB tests, and `git diff --check` passed before the full Review234 gate.
+Full `pnpm verify` passed after Review234 with 53 root test files / 1149 tests
+and the 411-file Effect-first audit. This sweep found work, so the active clean
+counter remains 0/30 until a fresh post-Review234 sweep is clean.
 
 ## Review 233: Stage Plan And UI Cleanup Effects
 

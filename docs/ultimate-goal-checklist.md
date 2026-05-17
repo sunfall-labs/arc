@@ -649,9 +649,10 @@ Last evidence pass: May 17, 2026.
     adapter starter, and documents the generated project-console starter
     payload.
 - [x] New architectural decisions are recorded in docs or ADRs.
-  - Evidence: Review233 added Query Stage Plan source/identity locality,
-    Resource Suspense Preload Controller, and Browser Router Link Preloader
-    vocabulary to `CONTEXT.md`;
+  - Evidence: Review234 added Collection Reactive Preload Controller
+    vocabulary to `CONTEXT.md`; Review233 added Query Stage Plan
+    source/identity locality, Resource Suspense Preload Controller, and Browser
+    Router Link Preloader vocabulary;
     no ADR was needed.
 - [x] Agent workflows can discover owners through docs and generated artifacts.
   - Evidence: this checklist ownership map, Start diagnostics repair report, and
@@ -663,11 +664,11 @@ Last evidence pass: May 17, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 233 passed Core/DB/React/Solid typechecks,
-    public type tests, public API audit, focused Core Resource UI Binding and
-    Browser Router tests, focused DB query-context, collection, and live-query
-    collection tests, React/Solid builds, and full `pnpm verify` after closing
-    Review233 Stage Plan And UI Cleanup Effects.
+  - Latest focused evidence: Review 234 passed Core/DB/Devtools, React DB, and
+    Solid DB typechecks, public type tests, public API audit, focused Core
+    Resource UI Binding tests, focused DB collection tests, focused React DB
+    tests, focused Solid DB tests, and full `pnpm verify` after closing
+    Review234 Cleanup Effects And Public Surface Pins.
     Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
     sweeps found Review191, Review192, Review193, Review194, Review195, and
     Review196, Review197, Review198, Review199, Review200, Review201,
@@ -676,8 +677,9 @@ Last evidence pass: May 17, 2026.
     Review214, Review215, Review216, Review217, Review218, Review219,
     Review220, Review221, Review222, Review223, Review224, Review225,
     Review226, Review227, Review228, Review229, Review230, Review231,
-    Review232 Shared DB Query Stage Plan work, and Review233 Stage Plan And UI
-    Cleanup Effects work.
+    Review232 Shared DB Query Stage Plan work, Review233 Stage Plan And UI
+    Cleanup Effects work, and Review234 Cleanup Effects And Public Surface
+    Pins work.
     Clean Sweep 1 after Review208 remains historical 1/30 evidence, but Clean
     Sweep 2 found Review209 work and the local post-Review209 pass found
     Review210 work; the first post-Review210 sweep found Review211 work, and
@@ -698,12 +700,13 @@ Last evidence pass: May 17, 2026.
     sweep found Review230 work, the post-Review230 sweep found Review231 work,
     and the post-Review231 DB pass found Review232 Shared DB Query Stage Plan
     work, and the fresh post-Review232 sweep found Review233 Stage Plan And UI
-    Cleanup Effects work,
+    Cleanup Effects work, and the fresh post-Review233 sweep found Review234
+    Cleanup Effects And Public Surface Pins work,
     leaving the
     active counter at 0/30.
     Latest full evidence:
-    `pnpm verify` ran after Review 233 with 53 root
-    test files / 1147
+    `pnpm verify` ran after Review 234 with 53 root
+    test files / 1149
     tests, plus 4 project-console test files / 27 tests in the package-level
     gate.
 - [x] Type tests pass after compile-time API changes.
@@ -844,26 +847,26 @@ Last evidence pass: May 17, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 233 Stage Plan and UI cleanup
-    work.
+  - Evidence: no new ADR required for the Review 234 cleanup Effect and public
+    surface work.
     Future architecture sweeps remain tracked in
     `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
   - Evidence: root `pnpm verify` passed on May 17,
-    2026 after Review 233 Stage Plan And UI Cleanup Effects:
+    2026 after Review 234 Cleanup Effects And Public Surface Pins:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
-    411 physical/virtual files, 53 root test files / 1147 tests,
+    411 physical/virtual files, 53 root test files / 1149 tests,
     package-level verifies for the devtools/starter/example packages,
     generated starter-suite packaging/verifies for basic/react/project-console,
     16-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 233 records Core/DB/React/Solid typechecks, public type
-    tests, public API audit, focused Core Resource UI Binding and Browser Router
-    tests, focused DB query-context, collection, and live-query collection
-    tests, React/Solid builds, and full `pnpm verify` after closing the
-    Review233 Stage Plan And UI Cleanup Effects finding. Clean
+  - Evidence: Review 234 records Core/DB/Devtools, React DB, and Solid DB
+    typechecks, public type tests, public API audit, focused Core Resource UI
+    Binding tests, focused DB collection tests, focused React DB tests, focused
+    Solid DB tests, and full `pnpm verify` after closing the Review234 Cleanup
+    Effects And Public Surface Pins finding. Clean
     Sweep 1 after
     Review190 remains historical 1/30 evidence, but later sweeps found
     Review191, Review192, Review193, Review194, Review195, Review196,
@@ -873,8 +876,8 @@ Last evidence pass: May 17, 2026.
     Review215, Review216, Review217, Review218, Review219, Review220,
     Review221, Review222, Review223, Review224, Review225, Review226,
     Review227, Review228, Review229, Review230, Review231, and Review232
-    Shared DB Query Stage Plan work, and Review233 Stage Plan And UI Cleanup
-    Effects work.
+    Shared DB Query Stage Plan work, Review233 Stage Plan And UI Cleanup
+    Effects work, and Review234 Cleanup Effects And Public Surface Pins work.
     Clean
     Sweep 1 after Review208 remains historical 1/30 evidence, but Clean Sweep
     2 found Review209 work and the local post-Review209 pass found Review210
@@ -895,7 +898,8 @@ Last evidence pass: May 17, 2026.
     found Review230 work, the post-Review230 sweep found Review231 work, and
     the post-Review231 DB pass found Review232 Shared DB Query Stage Plan work,
     and the fresh post-Review232 sweep found Review233 Stage Plan And UI
-    Cleanup Effects work,
+    Cleanup Effects work, and the fresh post-Review233 sweep found Review234
+    Cleanup Effects And Public Surface Pins work,
     leaving the active counter at 0/30.
     Full verification is recorded in the latest full gate above.
 

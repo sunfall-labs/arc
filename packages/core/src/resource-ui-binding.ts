@@ -92,7 +92,9 @@ export interface ResourceUiBindingController<I, A, E, R, ER> {
   bindRef(ref: ResourceRef<I, A, E, R>): void;
   /** Starts the automatic preload when the current Resource state is still initial. */
   startInitialPreload(ref: ResourceRef<I, A, E, R>, options?: ResourceUiAutoPreloadOptions<E, ER>): void;
-  /** Interrupts the current automatic preload join fiber, if any. */
+  /** Interrupts the current automatic preload join fiber as an Effect. */
+  interruptPreloadEffect(): Effect.Effect<void>;
+  /** Runtime-owned synchronous convenience for current-ref cleanup hooks. */
   interruptPreload(): void;
   /** Disposes controller-owned preload and retained-ref work as an Effect. */
   disposeEffect(): Effect.Effect<void>;
@@ -357,6 +359,7 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
     prefetchEffect,
     bindRef,
     startInitialPreload,
+    interruptPreloadEffect,
     interruptPreload,
     disposeEffect,
     dispose: () => {
