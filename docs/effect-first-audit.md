@@ -20,6 +20,10 @@ interruption.
 
 ## Current Sweep Results
 
+- Review506 Lazy Route Suspense Error Pins keeps the lazy route pending marker
+  and Core Suspense helper Effect-first: they preserve
+  `RouteLazyComponentLoadError` plus importer/runtime errors instead of
+  exposing `unknown`.
 - Review505 Lazy Route And DB Type Pins keeps the fresh post-Review504 findings
   Effect-first: Core lazy route component preloads now fail with a typed
   `RouteLazyComponentLoadError` public channel instead of `unknown`, DB preload

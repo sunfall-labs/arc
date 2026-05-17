@@ -87,6 +87,11 @@ Latest full gate on May 17, 2026 after Review 492:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 506 Lazy Route Suspense Error Pins preserves typed lazy route load
+  failures through `RouteLazyComponentPending`, `Route.lazyComponentPendingEffect(...)`,
+  and `Route.forkLazyComponentSuspense(...)` instead of erasing that Seam back
+  to `unknown`. The active Thirty-Sweep clean counter remains 0/30 until a
+  fresh post-Review506 sweep reports no actionable findings.
 - Review 505 Lazy Route And DB Type Pins gives Core lazy route component
   preload failures a typed `RouteLazyComponentLoadError` public channel,
   directly pins DB preload controller Promise-observer rejection, and pins React

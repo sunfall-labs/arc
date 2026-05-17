@@ -7,6 +7,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Current Sweep Results
 
+- Review506 Lazy Route Suspense Error Pins adds compile-time coverage for
+  `Route.LazyComponentPending`, `Route.lazyComponentPendingEffect(...)`, and
+  `Route.forkLazyComponentSuspense(...)` preserving typed lazy load failures.
 - Review505 Lazy Route And DB Type Pins adds compile-time coverage for Core lazy
   route component typed preload failures, DB preload controller Promise observer
   rejection, and React DB/Solid DB live query handle member shapes.

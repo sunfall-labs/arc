@@ -1413,8 +1413,8 @@ export const namespaceBackedSurfaceModules = new Map([
 ]);
 
 export const currentDocsEvidencePolicy = {
-  latestFocusedReview: 505,
-  latestFocusedTitle: "Lazy Route And DB Type Pins",
+  latestFocusedReview: 506,
+  latestFocusedTitle: "Lazy Route Suspense Error Pins",
   latestFullGateReview: 492,
   rootTestFiles: 58,
   rootTestCount: 1223,
@@ -1563,7 +1563,7 @@ export const currentDocsTextPolicies = [
       {
         name: "Release notes must wait on the current post-review clean sweep",
         pattern: new RegExp(
-          `until\\s+a fresh\\s+post-Review${currentDocsEvidencePolicy.latestFocusedReview}\\s+sweep\\s+reports no\\s+actionable\\s+findings`,
+          `until\\s+a\\s+fresh\\s+post-Review${currentDocsEvidencePolicy.latestFocusedReview}\\s+sweep\\s+reports no\\s+actionable\\s+findings`,
         ),
       },
     ],
@@ -1737,7 +1737,7 @@ export const currentDocsTextPolicies = [
       {
         name: "Ultimate goal checklist must pin latest focused verification subsection",
         pattern: new RegExp(
-          `Latest focused verification recorded\\.[\\s\\S]*?Evidence: Review ${currentDocsEvidencePolicy.latestFocusedReview} records[\\s\\S]*?lazy route typed errors and DB preload/live\\s+query type pins`,
+          `Latest focused verification recorded\\.[\\s\\S]*?Evidence: Review ${currentDocsEvidencePolicy.latestFocusedReview} records[\\s\\S]*?lazy route Suspense typed error pins`,
         ),
       },
       {

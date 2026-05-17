@@ -1,4 +1,4 @@
-import { Context, Effect, Schema, Stream } from "effect";
+import { Context, Effect, Fiber, Schema, Stream } from "effect";
 import {
   Action,
   ActionTypeId,
@@ -198,10 +198,35 @@ const coreLazyRouteComponentImportErrorPreloadEffect: Effect.Effect<
   Route.Component<(typeof coreRoutes)[0]>,
   CoreLazyRouteImportError | Route.LazyComponentLoadError
 > = coreLazyRouteComponentWithImportError.preloadEffect();
+const coreLazyRoutePending = new Route.LazyComponentPending<CoreLazyRouteImportError>({
+  exportName: "default",
+  preloadEffect: coreLazyRouteComponentWithImportError.preloadEffect(),
+});
+const coreLazyRoutePendingEffect: Effect.Effect<
+  unknown,
+  CoreLazyRouteImportError | Route.LazyComponentLoadError
+> = coreLazyRoutePending.preloadEffect;
+const coreLazyRoutePendingExtractedEffect: Effect.Effect<
+  unknown,
+  CoreLazyRouteImportError | Route.LazyComponentLoadError
+> = Route.lazyComponentPendingEffect<CoreLazyRouteImportError>(coreLazyRoutePending)!;
+declare const coreLazyRouteSuspenseRuntime: Route.LazyComponentSuspenseRuntime<CoreAdapterCleanupError>;
+const coreLazyRouteSuspenseFiber:
+  | Fiber.Fiber<
+      void,
+      CoreLazyRouteImportError | Route.LazyComponentLoadError | CoreAdapterCleanupError
+    >
+  | undefined = Route.forkLazyComponentSuspense<CoreAdapterCleanupError, CoreLazyRouteImportError>(
+  coreLazyRoutePending,
+  coreLazyRouteSuspenseRuntime,
+);
 Route.isLazyComponent(coreLazyRouteComponent);
 Route.readComponent(coreNamedLazyRouteComponent);
 Route.withComponent(coreRoutes[0], coreLazyRouteComponent);
 void coreLazyRouteComponentImportErrorPreloadEffect;
+void coreLazyRoutePendingEffect;
+void coreLazyRoutePendingExtractedEffect;
+void coreLazyRouteSuspenseFiber;
 declare const browserRouterKernelRuntime: AnySunfallArcRuntime<never>;
 const browserRouterKernelOptions: BrowserRouterKernelOptions<typeof coreRoutes, never> = {
   runtime: browserRouterKernelRuntime,

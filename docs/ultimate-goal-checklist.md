@@ -681,11 +681,10 @@ diagnostics`, devtools summary tests, and generated virtual modules.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 505 passed public type tests,
-    Core/React/Solid/DB/React-DB/Solid-DB typechecks, public API inventory
-    audit, focused Core/React/Solid route tests, focused DB-family tests, and
-    targeted format checks while closing lazy route typed errors and DB
-    preload/live query type pins.
+  - Latest focused evidence: Review 506 passed public type tests,
+    Core/React/Solid typechecks, public API inventory audit, Effect-first
+    audit, focused Core/React/Solid route tests, and targeted format checks
+    while closing lazy route Suspense typed error pins.
     Latest full verification evidence is Review 492.
     Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
     sweeps found Review191, Review192, Review193, Review194, Review195, and
@@ -772,9 +771,10 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     action trace invalidation hover work, the fresh post-Review502 sweep found
     Review503 React/Solid DB live query handle hover work, and the fresh
     post-Review503 sweep found Review504 Resource preload observer Promise pin
-    work, Clean Sweep 1 after Review504 found no actionable follow-up, and the
-    next fresh sweep found Review505 lazy route and DB type-test work, leaving
-    the active counter at 0/30.
+    work, Clean Sweep 1 after Review504 found no actionable follow-up, the next
+    fresh sweep found Review505 lazy route and DB type-test work, and the fresh
+    post-Review505 sweep found Review506 lazy route Suspense typed-error work,
+    leaving the active counter at 0/30.
     Latest full evidence:
     `pnpm verify` ran after Review 492 with 58 root
     test files / 1223
@@ -936,13 +936,13 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     17-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 505 records lazy route typed errors and DB preload/live
-    query type pins. Public type tests, Core/React/Solid/DB/React-DB/Solid-DB
-    typechecks, public API inventory audit, focused Core/React/Solid route
-    tests, focused DB-family tests, and targeted format checks passed. Clean
-    Sweep 1 after Review504 found no actionable Module, Interface, Seam,
-    Adapter, Locality, Depth, Leverage, Effect-first, LSP/JSDoc, package, or
-    docs-honesty work, but the next fresh sweep found Review505 work.
+  - Evidence: Review 506 records lazy route Suspense typed error pins. Public
+    type tests, Core/React/Solid typechecks, public API inventory audit,
+    Effect-first audit, focused Core/React/Solid route tests, and targeted
+    format checks passed. Clean Sweep 1 after Review504 found no actionable
+    Module, Interface, Seam, Adapter, Locality, Depth, Leverage, Effect-first,
+    LSP/JSDoc, package, or docs-honesty work, but later sweeps found Review505
+    and Review506 work.
     Review492 records the latest
     full gate. Clean
     Sweep 1 after
@@ -1027,9 +1027,10 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     action trace invalidation hover work, the fresh post-Review502 sweep found
     Review503 React/Solid DB live query handle hover work, and the fresh
     post-Review503 sweep found Review504 Resource preload observer Promise pin
-    work, Clean Sweep 1 after Review504 found no actionable follow-up, and the
-    next fresh sweep found Review505 lazy route and DB type-test work, leaving
-    the active counter at 0/30.
+    work, Clean Sweep 1 after Review504 found no actionable follow-up, the next
+    fresh sweep found Review505 lazy route and DB type-test work, and the fresh
+    post-Review505 sweep found Review506 lazy route Suspense typed-error work,
+    leaving the active counter at 0/30.
     Full verification is recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items

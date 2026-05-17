@@ -115,9 +115,11 @@ export interface RouteLazyComponent<Component = unknown, E = never> {
 }
 
 /** Error thrown by `Route.readComponent(...)` when a lazy route component is still loading. */
-export class RouteLazyComponentPending extends Data.TaggedError("RouteLazyComponentPending")<{
+export class RouteLazyComponentPending<E = never> extends Data.TaggedError(
+  "RouteLazyComponentPending",
+)<{
   readonly exportName: string;
-  readonly preloadEffect: Effect.Effect<unknown, unknown>;
+  readonly preloadEffect: Effect.Effect<unknown, E | RouteLazyComponentLoadError>;
 }> {}
 
 /** Error failed by lazy route component preload Effects when the loaded module is invalid. */
@@ -238,10 +240,12 @@ export const isRouteLazyComponent = (value: unknown): value is RouteLazyComponen
 export const readRouteComponent = (component: unknown): unknown =>
   isRouteLazyComponent(component) ? component.read() : component;
 
-export const routeLazyComponentPendingEffect = (
+export const routeLazyComponentPendingEffect = <E = never>(
   value: unknown,
-): Effect.Effect<unknown, unknown> | undefined =>
-  value instanceof RouteLazyComponentPending ? value.preloadEffect : undefined;
+): Effect.Effect<unknown, E | RouteLazyComponentLoadError> | undefined =>
+  value instanceof RouteLazyComponentPending
+    ? (value.preloadEffect as Effect.Effect<unknown, E | RouteLazyComponentLoadError>)
+    : undefined;
 
 /** Runtime capability needed to launch lazy route component Suspense preload work. */
 export interface RouteLazyComponentSuspenseRuntime<RuntimeError = never> {
@@ -255,11 +259,11 @@ export interface RouteLazyComponentSuspenseRuntime<RuntimeError = never> {
  * UI adapters keep the final host Suspense token conversion, but Core owns the
  * lazy route pending classification and preload launch policy.
  */
-export const forkRouteLazyComponentSuspense = <RuntimeError>(
+export const forkRouteLazyComponentSuspense = <RuntimeError, E = never>(
   value: unknown,
   runtime: RouteLazyComponentSuspenseRuntime<RuntimeError>,
-): Fiber.Fiber<void, unknown | RuntimeError> | undefined => {
-  const pendingEffect = routeLazyComponentPendingEffect(value);
+): Fiber.Fiber<void, E | RouteLazyComponentLoadError | RuntimeError> | undefined => {
+  const pendingEffect = routeLazyComponentPendingEffect<E>(value);
   return pendingEffect === undefined
     ? undefined
     : runtime.runFork(pendingEffect.pipe(Effect.asVoid));
@@ -716,6 +720,14 @@ export namespace Route {
   /** Typed failure used when a lazy component module does not contain the requested export. */
   export const LazyComponentLoadError = RouteLazyComponentLoadError;
 
+  export type LazyComponentPending<E = never> = RouteLazyComponentPending<E>;
+
+  /** Tagged pending marker thrown while a lazy route component is loading. */
+  export const LazyComponentPending = RouteLazyComponentPending;
+
+  export type LazyComponentSuspenseRuntime<RuntimeError = never> =
+    RouteLazyComponentSuspenseRuntime<RuntimeError>;
+
   export type LazyComponentModule<
     ComponentValue,
     ExportName extends string = "default",
@@ -733,6 +745,9 @@ export namespace Route {
 
   /** Reads a route component, throwing tagged lazy load states for UI adapters. */
   export const readComponent = readRouteComponent;
+
+  /** Extracts preload work from a thrown lazy route pending marker. */
+  export const lazyComponentPendingEffect = routeLazyComponentPendingEffect;
 
   /** Forks a pending lazy component preload for framework Suspense adapters. */
   export const forkLazyComponentSuspense = forkRouteLazyComponentSuspense;
