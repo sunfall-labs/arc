@@ -183,6 +183,12 @@ export const publicHoverDocGroups = [
     ]
   },
   {
+    file: "packages/core/src/effect-like.ts",
+    declarations: [
+      "isPromiseLikeValue"
+    ]
+  },
+  {
     file: "packages/core/src/program-contract.ts",
     declarations: [
       "ProgramStepTypeId",
@@ -485,7 +491,51 @@ export const publicHoverDocGroups = [
     ]
   },
   {
+    file: "packages/db/src/collection-ids.ts",
+    declarations: [
+      "CollectionStoreTypeId",
+      "CollectionTypeId"
+    ]
+  },
+  {
+    file: "packages/db/src/collection-index-materialization.ts",
+    declarations: [
+      "UnknownCollectionIndex"
+    ]
+  },
+  {
+    file: "packages/db/src/collection-errors.ts",
+    declarations: [
+      "CollectionRowKeyChanged",
+      "CollectionRowNotFound",
+      "ReadonlyCollectionMutation"
+    ]
+  },
+  {
+    file: "packages/db/src/collection-snapshot-codec.ts",
+    declarations: [
+      "CollectionSnapshotCodecError"
+    ]
+  },
+  {
+    file: "packages/db/src/collection-preload.ts",
+    allDeclarations: [
+      "CollectionPreloadCollector"
+    ]
+  },
+  {
+    file: "packages/db/src/collection-registry.ts",
+    declarations: [
+      "defaultCollectionDefinitionRegistry",
+      "makeCollectionDefinitionRegistry"
+    ]
+  },
+  {
     file: "packages/db/src/index.ts",
+    declarations: [
+      "isCollection",
+      "makeLiveQueryCollection"
+    ],
     namespaceDeclarations: {
       Collection: [
         "Definition",

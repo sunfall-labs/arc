@@ -1218,6 +1218,40 @@ describe("Effect UI Start", () => {
     expect((routeFailure.cause as FileRoutePreloadError).guidance).toContain("Effect.tryPromise");
   });
 
+  it("rejects file route preload helper work with throwing then getters as typed preload failure", async () => {
+    const ProjectRouteBuilder = defineFileRoute("/file-helper-throwing-then");
+    const throwingThen = Object.defineProperty({}, "then", {
+      get: () => {
+        throw new Error("then getter failed");
+      }
+    });
+    const ProjectRoute = ProjectRouteBuilder({
+      ...ProjectRouteBuilder.preload(
+        {},
+        (() => throwingThen) as never
+      )
+    });
+    const app = defineApp({
+      routes: [ProjectRoute] as const,
+      client: {}
+    });
+
+    const failure = await Effect.runPromise(
+      Effect.flip(preloadRequest(app, new Request("https://example.com/file-helper-throwing-then")))
+    );
+
+    expect(failure).toBeInstanceOf(StartPreloadError);
+    expect(failure.operation).toBe("route-navigation");
+    expect(failure.cause).toBeInstanceOf(RoutePreloadError);
+    const routeFailure = failure.cause as RoutePreloadError;
+    expect(routeFailure.cause).toBeInstanceOf(FileRoutePreloadError);
+    expect(routeFailure.cause).toMatchObject({
+      operation: "custom-preload",
+      path: "/file-helper-throwing-then"
+    });
+    expect((routeFailure.cause as FileRoutePreloadError).guidance).toContain("Effect.tryPromise");
+  });
+
   it("rejects Promise-shaped file route resource selector output as typed preload failure", async () => {
     const ProjectById = Resource.family<string, { readonly id: string }>({
       name: "Start.FileRoutePreloadHelper.promise-selector.projectById",
@@ -1251,6 +1285,48 @@ describe("Effect UI Start", () => {
     expect(routeFailure.cause).toMatchObject({
       operation: "resource-selector",
       path: "/file-helper-promise-selector"
+    });
+    expect((routeFailure.cause as FileRoutePreloadError).guidance).toContain("Effect.tryPromise");
+  });
+
+  it("rejects file route resource selector output with throwing then getters as typed preload failure", async () => {
+    const ProjectById = Resource.family<string, { readonly id: string }>({
+      name: "Start.FileRoutePreloadHelper.throwing-then-selector.projectById",
+      load: (id) => Effect.succeed({ id })
+    });
+    const throwingThen = Object.defineProperty({}, "then", {
+      get: () => {
+        throw new Error("then getter failed");
+      }
+    });
+    const ProjectRouteBuilder = defineFileRoute("/file-helper-throwing-then-selector");
+    const ProjectRoute = ProjectRouteBuilder({
+      ...ProjectRouteBuilder.preload({
+        resources: [
+          ProjectRouteBuilder.resource(
+            ProjectById,
+            (() => throwingThen) as never
+          )
+        ]
+      })
+    });
+    const app = defineApp({
+      routes: [ProjectRoute] as const,
+      client: {}
+    });
+
+    const failure = await Effect.runPromise(
+      Effect.flip(preloadRequest(app, new Request("https://example.com/file-helper-throwing-then-selector")))
+    );
+
+    expect(failure).toBeInstanceOf(StartPreloadError);
+    expect(failure.operation).toBe("route-navigation");
+    expect(failure.cause).toBeInstanceOf(RoutePreloadError);
+    const routeFailure = failure.cause as RoutePreloadError;
+    expect(routeFailure.cause).toBeInstanceOf(FileRoutePreloadError);
+    expect(routeFailure.cause).toMatchObject({
+      operation: "resource-selector",
+      path: "/file-helper-throwing-then-selector"
     });
     expect((routeFailure.cause as FileRoutePreloadError).guidance).toContain("Effect.tryPromise");
   });

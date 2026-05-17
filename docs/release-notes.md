@@ -65,14 +65,14 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 17, 2026 after Review 226:
+Latest full gate on May 17, 2026 after Review 227:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
 - Effect-first audit over 411 package/example/config/script/type-test/generated
   template/docs-snippet physical and virtual files;
-- 53 root test files / 1132 tests;
+- 53 root test files / 1136 tests;
 - package-level verifies for the devtools panel, devtools extension, basic
   starter, React starter, and project console packages;
 - starter-suite packaging for basic (19 app files / 5 local packages), React
@@ -86,13 +86,23 @@ Latest full gate on May 17, 2026 after Review 226:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 227 closed the post-Review226 sweep findings: Core now owns
+  `isPromiseLikeValue(...)` as the shared Promise-shaped runtime probe for
+  EffectInput and host seams, including throwing `then` getters; Start fetch
+  headers, file-route preload helpers, Capability sync callbacks, and the Start
+  diagnostics CLI loader reuse that probe; direct DB root exports now have
+  hover-policy, public inventory, and type-test ownership; the Start CLI loader
+  type-test seam now owns Effect-only loader returns; and current diagnostics
+  Vite server lifetime docs name `Effect.acquireUseRelease(...)`. The active
+  Thirty-Sweep clean counter remains 0/30 until a fresh post-Review227 sweep is
+  clean.
 - Review 226 closed the post-Review225 sweep findings: Query entrypoint hovers
   now name Promise-shaped, Effect-shaped, and other non-builder factory-result
   rejection explicitly, public hover policy owns the full Query DSL namespace
   value surface, and injected Start diagnostics CLI loaders now reject sync
   throws, Promise-shaped returns, and plain non-Effect returns through
-  `StartAppGraphDiagnosticsRunnerError`. The active Thirty-Sweep clean counter
-  remains 0/30 until a fresh post-Review226 sweep is clean.
+  `StartAppGraphDiagnosticsRunnerError`. A later post-Review226 sweep found
+  Review227 work, so the active Thirty-Sweep clean counter stayed at 0/30.
 - Review 225 closed the post-Review224 sweep findings: Resource hydration
   payload helper hovers now say the helpers build validated payloads from loaded
   Resource refs, public hover policy owns both helper names, and DB public type
@@ -356,8 +366,9 @@ Latest full gate on May 17, 2026 after Review 226:
   found Review221 work, the fresh post-Review221 sweep found Review222 work,
   the post-Review222 local sweep found Review223 work, the post-Review223
   sweep found Review224 work, the post-Review224 sweep found Review225 work,
-  and the post-Review225 sweep found Review226 work. The active Thirty-Sweep
-  clean counter is 0/30 until a fresh post-Review226 sweep reports no
+  the post-Review225 sweep found Review226 work, and the post-Review226 sweep
+  found Review227 work. The active Thirty-Sweep clean counter is 0/30 until a
+  fresh post-Review227 sweep reports no
   actionable findings.
 - Review 192 refreshed stale current-gate docs wording that still named
   Review190 or active 1/30 progress after Review191.
@@ -738,9 +749,10 @@ Latest full gate on May 17, 2026 after Review 226:
   Module: JSON request, action form, and response text reads now share typed
   body-failure mapping before transport protocol parsing continues.
 - Review 102 made the Start diagnostics Vite server lifetime explicit with
-  `Effect.acquireRelease(...)` inside `Effect.scoped(...)`, so the Effect v4 CLI
-  diagnostics runner, CI loader, and build gate all close temporary Vite
-  servers through the same scoped resource policy.
+  Effect acquire/use/release policy; the current loader uses
+  `Effect.acquireUseRelease(...)`, so the Effect v4 CLI diagnostics runner, CI
+  loader, and build gate all close temporary Vite servers through the same
+  resource policy.
 - Review 103 moved DB SQLite statement contract ownership back to
   `sqlite-persistence.ts`; the root `Collection.SQLiteStatement*` names now
   alias the storage Adapter contracts instead of redefining them.
@@ -1296,8 +1308,9 @@ Latest full gate on May 17, 2026 after Review 226:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 226 Query hover ownership
-  and the Start diagnostics CLI loader Effect seam.
+- The latest full `pnpm verify` passed after Review 227 shared
+  Promise-shaped runtime probes, direct DB root public ownership, Start
+  diagnostics CLI loader ownership, and diagnostics Vite server lifetime docs.
   Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
   sweeps found Review191, Review192, Review193, Review194, Review195, and
   Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, Review208, Review209, Review210, Review211, Review212, and Review213 work.
@@ -1315,11 +1328,11 @@ Latest full gate on May 17, 2026 after Review 226:
   found Review221 work, the fresh post-Review221 sweep found Review222 work,
   and the post-Review222 local sweep found Review223 work, and the
   post-Review223 sweep found Review224 work, the post-Review224 sweep found
-  Review225 work, and the post-Review225 sweep found Review226 work, so the active
-  counter is 0/30.
+  Review225 work, the post-Review225 sweep found Review226 work, and the
+  post-Review226 sweep found Review227 work, so the active counter is 0/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 411 physical/virtual files, 53 root test files / 1132
+  Effect-first audit over 411 physical/virtual files, 53 root test files / 1136
   tests, package-level verifies for the devtools/starter/example packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console

@@ -1,6 +1,7 @@
 import { Context } from "effect";
 import type { AnyCollection } from "./collection-contract.js";
 
+/** Effect service that records collections preloaded during route work. */
 export interface CollectionPreloadCollector {
   /**
    * Ordered collection preload facts observed in the current collector.
@@ -13,6 +14,7 @@ export interface CollectionPreloadCollector {
   readonly definitions: AnyCollection[];
 }
 
+/** Context tag for the active Collection preload collector. */
 export const CollectionPreloadCollector = Context.Service<CollectionPreloadCollector>(
   "@effect-ui/db/CollectionPreloadCollector"
 );

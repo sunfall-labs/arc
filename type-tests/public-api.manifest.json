@@ -23,7 +23,8 @@
         "ResourceHydrationInput",
         "ResourceHydrationPayload",
         "disposeRuntimeProviderLifecycleEntryEffect",
-        "isActionDefinition"
+        "isActionDefinition",
+        "isPromiseLikeValue"
       ]
     },
     {
@@ -35,22 +36,34 @@
       "typeTest": "type-tests/db.test-d.ts",
       "requiredTypeTestImports": [
         "Collection",
+        "CollectionPreloadCollector",
+        "CollectionRowKeyChanged",
+        "CollectionRowNotFound",
+        "CollectionSnapshotCodecError",
+        "CollectionStoreTypeId",
+        "CollectionTypeId",
         "Query",
+        "ReadonlyCollectionMutation",
         "SQLitePersistence",
         "SQLitePersistenceInvalidRow",
         "SQLitePersistenceInvalidStatementParams",
         "SQLitePersistenceInvalidTableName",
         "SQLitePersistenceUnsupportedStatement",
         "ServerCollectionMissingIdentity",
+        "UnknownCollectionIndex",
         "bindCollectionRuntimeEffect",
         "collectionReactiveDepsValue",
         "collectionStateError",
         "createCollection",
         "createLiveQuery",
         "createLiveQueryCollection",
+        "defaultCollectionDefinitionRegistry",
         "eq",
         "flushCollectionsPendingMutationsEffect",
+        "isCollection",
         "liveQueryStateError",
+        "makeCollectionDefinitionRegistry",
+        "makeLiveQueryCollection",
         "makeCollectionReactivePreloadController",
         "makeSQLiteMemoryStatementDatabase",
         "makeSQLitePreparedStatementDatabase",
@@ -435,6 +448,7 @@
         "start-diagnostics-cli-runner"
       ],
       "requiredTypeTestImports": [
+        "StartDiagnosticsCliIo",
         "StartDiagnosticsCliWriteError"
       ]
     },

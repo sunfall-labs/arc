@@ -136,6 +136,10 @@ Golden-path public groups:
   seams. Promise-shaped values must be adapted through `Effect.tryPromise(...)`,
   and direct Effect values are executable work unless wrapped as
   `Effect.succeed(effectValue)` to cross as domain data.
+- `isPromiseLikeValue(...)` is the shared runtime probe for Promise-shaped
+  values at Core and Start host seams. It treats throwing `then` getters as
+  Promise-shaped so each caller can report its typed boundary error instead of
+  surfacing the getter throw as a defect.
 - Action direct root symbols such as `ActionPolicy`, `ActionDefinition`,
   `ActionOptions`, `ActionInstance`, `ActionUseOptions`, `ActionTypeId`, and
   `isActionDefinition(...)` are expert-public LSP vocabulary for adapters,
@@ -450,7 +454,10 @@ The root export includes:
   typed failures, assigns exit code `1`, and best-effort reports one compact
   stderr line instead of leaking an unhandled Promise rejection. Process
   stdout/stderr defaults are resolved in this CLI Adapter, not in the lower
-  diagnostics command runner. The package bin remains the normal app entrypoint;
+  diagnostics command runner. Injected diagnostics loaders must return Effects;
+  synchronous throws, Promise-shaped returns, and plain non-Effect returns are
+  reported through the typed diagnostics load failure path. The package bin
+  remains the normal app entrypoint;
   embedders should use this subpath instead of private source imports or process
   spawning.
 - Effect RPC compatibility descriptors:
@@ -798,6 +805,15 @@ Release decisions:
   the `UnknownCollectionIndex` error. Keep the error public for tests and
   adapter diagnostics while normal apps continue to use `Collection.index(...)`,
   `Collection.firstByIndex(...)`, and `Query` joins.
+- Direct DB root symbols such as `CollectionTypeId`, `CollectionStoreTypeId`,
+  `UnknownCollectionIndex`, `CollectionRowKeyChanged`,
+  `CollectionRowNotFound`, `ReadonlyCollectionMutation`,
+  `CollectionSnapshotCodecError`, `CollectionPreloadCollector`,
+  `makeCollectionDefinitionRegistry`, `defaultCollectionDefinitionRegistry`,
+  `makeLiveQueryCollection`, and `isCollection(...)` are expert-public
+  contract vocabulary for adapters, diagnostics, and focused tests. Public
+  hover policy and type tests own these names so root import compatibility and
+  LSP intent cannot drift from the Collection namespace aliases.
 - Multi-collection flush and background sync error channels use
   `CollectionRuntimeError<E>` for each collection, so handler failures, snapshot
   codec failures, and synchronous callback failures stay visible through the

@@ -3,9 +3,9 @@
 Last updated: 2026-05-17.
 
 Current release-tracking truth lives in `docs/architecture-deepening-review.md`
-and `docs/perfection-progress.md`. As of Review226, the latest full
-`pnpm verify` gate passed with 53 root test files / 1132 tests, and the active
-Thirty-Sweep clean counter is 0/30 until a fresh post-Review226 sweep reports
+and `docs/perfection-progress.md`. As of Review227, the latest full
+`pnpm verify` gate passed with 53 root test files / 1136 tests, and the active
+Thirty-Sweep clean counter is 0/30 until a fresh post-Review227 sweep reports
 no actionable findings.
 
 This historical audit checks release-tracking docs for claims that no longer match the
@@ -161,6 +161,10 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Review226 refreshed current ledgers after the post-Review225 sweep found DB
   Query entrypoint hover ownership and Start diagnostics CLI loader Effect seam
   work.
+- Review227 refreshed current ledgers after the post-Review226 sweep found
+  shared Promise-shaped runtime probe ownership, direct DB root public
+  ownership, Start diagnostics CLI loader type-test ownership, and stale
+  diagnostics Vite server lifetime wording.
 - Review201 refreshed the current release ledgers after script command,
   Resource public-surface, React/Solid router LSP, DB erased-channel, and
   generated-starter README guardrail fixes; the historical enumeration above
@@ -537,8 +541,8 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   response text reads live behind a shared Effect v4 body-reader Module.
 - Added Review 102 and progress entry 341 evidence for the Start diagnostics
   Vite server lifetime cleanup. Current docs now record that the Effect v4 CLI
-  diagnostics path acquires temporary Vite servers through scoped
-  `Effect.acquireRelease(...)`.
+  diagnostics path acquires and releases temporary Vite servers through
+  `Effect.acquireUseRelease(...)`.
 - Added Review 103 and progress entry 342 evidence for the DB SQLite statement
   contract ownership cleanup. Current docs now record that the SQLite
   persistence module owns statement contracts while the DB root aliases them.

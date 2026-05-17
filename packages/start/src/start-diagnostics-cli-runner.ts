@@ -1,5 +1,5 @@
 import { Data, Effect } from "effect";
-import { invokeEffectInput, type EffectInput } from "@effect-ui/core";
+import { invokeEffectInput, isPromiseLikeValue, type EffectInput } from "@effect-ui/core";
 import {
   createStartAgentGraph,
   createStartAgentGraphImpact,
@@ -63,23 +63,6 @@ const impactOptions = (
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
-
-const isPromiseShaped = (value: unknown): boolean => {
-  if (value === null) {
-    return false;
-  }
-
-  const valueType = typeof value;
-  if (valueType !== "object" && valueType !== "function") {
-    return false;
-  }
-
-  try {
-    return typeof Reflect.get(value as object, "then") === "function";
-  } catch {
-    return false;
-  }
-};
 
 export const startDiagnosticsCliErrorPayload = (cause: unknown): Record<string, unknown> => {
   if (cause instanceof Error) {
@@ -145,7 +128,7 @@ const loadDiagnosticsFromIo = (
 
           return Effect.fail(
             new StartAppGraphDiagnosticsRunnerError({
-              message: isPromiseShaped(result)
+              message: isPromiseLikeValue(result)
                 ? "Diagnostics CLI loader returned Promise-shaped work instead of an Effect."
                 : "Diagnostics CLI loader must return an Effect.",
               cause: result

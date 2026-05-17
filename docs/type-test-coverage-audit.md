@@ -104,6 +104,12 @@ are easiest to regress while refactoring internals toward Effect primitives.
 - Review226 added a Start diagnostics CLI loader negative pin proving
   `loadDiagnosticsEffect` must return an Effect, not host Promise work, and
   moved the current full verification evidence to the Review226 gate.
+- Review227 added Core `isPromiseLikeValue(...)` public pins, direct DB root
+  export pins for type ids, registry helpers, preload collectors, collection
+  errors, snapshot codec errors, live-query collection helpers, and
+  `isCollection(...)`, plus a focused Start CLI loader IO fixture and host
+  Promise-return negative. It moved the current full verification evidence to
+  the Review227 gate.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them
@@ -223,9 +229,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Verification Evidence
 
-- `pnpm typecheck:types` and full `pnpm verify` passed after Review226 with
-  53 root test files / 1132 tests, including the latest Start diagnostics CLI
-  loader Promise-return negative pin, Resource hydration top-level
+- `pnpm typecheck:types` and full `pnpm verify` passed after Review227 with
+  53 root test files / 1136 tests, including the latest Core
+  `isPromiseLikeValue(...)` pin, direct DB root export pins, Start diagnostics
+  CLI loader Effect-only negative pin, Resource hydration top-level
   payload/input manifest ownership, query-sync key namespace pins,
   payload-only pins, Router Link Preloader identity
   pin, Runtime Provider Lifecycle typed disposal/export pins,

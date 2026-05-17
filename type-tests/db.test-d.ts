@@ -13,15 +13,27 @@ import {
   SQLitePersistenceInvalidTableName,
   SQLitePersistenceUnsupportedStatement,
   ServerCollectionMissingIdentity,
+  CollectionPreloadCollector,
+  CollectionRowKeyChanged,
+  CollectionRowNotFound,
+  CollectionSnapshotCodecError,
+  CollectionStoreTypeId,
+  CollectionTypeId,
+  ReadonlyCollectionMutation,
+  UnknownCollectionIndex,
   bindCollectionRuntimeEffect,
   collectionReactiveDepsValue,
   collectionStateError,
   createCollection,
   createLiveQuery,
   createLiveQueryCollection,
+  defaultCollectionDefinitionRegistry,
   eq,
   flushCollectionsPendingMutationsEffect,
+  isCollection,
   liveQueryStateError,
+  makeCollectionDefinitionRegistry,
+  makeLiveQueryCollection,
   makeCollectionReactivePreloadController,
   makeSQLiteMemoryStatementDatabase,
   makeSQLitePreparedStatementDatabase,
@@ -77,6 +89,11 @@ interface DbAdapterService {
 declare const sqliteStatementDatabase: SQLiteStatementDatabase<SQLitePersistenceInvalidRow>;
 declare const sqlitePreparedStatementDatabase: SQLitePreparedStatementDatabase;
 declare const dbProjectsCollection: Collection.Definition<Project, string, "load", DbRuntimeService>;
+const dbStaticProjectsCollection = Collection.define<Project>({
+  name: "type-tests/static-projects",
+  getKey: (project) => project.id,
+  initialData: []
+});
 declare const erasedCollection: AnyCollection;
 declare const erasedCollectionError: CollectionError<typeof erasedCollection>;
 declare const erasedCollectionRequirements: CollectionRequirements<typeof erasedCollection>;
@@ -105,6 +122,39 @@ const sqliteRow: SQLitePersistenceRow = {
 const collectionAlias: typeof Collection.define = createCollection;
 const liveQueryAlias: typeof Query.live = createLiveQuery;
 const liveQueryCollectionAlias: typeof Collection.liveQuery = createLiveQueryCollection;
+const directLiveQueryCollection = makeLiveQueryCollection<Project, string, unknown>({
+  name: "type-tests/direct-live-query-projects",
+  getKey: (project) => project.id,
+  query: (query) => query.from({ project: dbStaticProjectsCollection }).select(({ project }) => project)
+}, makeCollectionDefinitionRegistry());
+const isolatedCollectionRegistry = makeCollectionDefinitionRegistry();
+const defaultCollectionRegistry = defaultCollectionDefinitionRegistry;
+const collectionTypeId: typeof CollectionTypeId = CollectionTypeId;
+const collectionStoreTypeId: typeof CollectionStoreTypeId = CollectionStoreTypeId;
+const directCollectionCheck: boolean = isCollection(dbProjectsCollection);
+const unknownCollectionIndex = new UnknownCollectionIndex({
+  collection: "projects",
+  index: "byStatus"
+});
+const collectionRowKeyChanged = new CollectionRowKeyChanged({
+  collection: "projects",
+  key: "atlas",
+  nextKey: "zephyr",
+  guidance: "keep keys stable"
+});
+const collectionRowNotFound = new CollectionRowNotFound({
+  collection: "projects",
+  key: "missing"
+});
+const readonlyCollectionMutation = new ReadonlyCollectionMutation({
+  collection: "derived-projects",
+  operation: "insert"
+});
+const collectionSnapshotCodecError = new CollectionSnapshotCodecError({
+  operation: "decode",
+  path: "$.collections",
+  reason: "invalid"
+});
 const serverOptions = serverCollectionOptions<Project>({
   name: "projects",
   getKey: (project) => project.id
@@ -127,15 +177,27 @@ const dbExports: Array<unknown> = [
   SQLitePersistenceInvalidTableName,
   SQLitePersistenceUnsupportedStatement,
   ServerCollectionMissingIdentity,
+  CollectionPreloadCollector,
+  CollectionTypeId,
+  CollectionStoreTypeId,
+  UnknownCollectionIndex,
+  CollectionRowKeyChanged,
+  CollectionRowNotFound,
+  ReadonlyCollectionMutation,
+  CollectionSnapshotCodecError,
   bindCollectionRuntimeEffect,
   collectionReactiveDepsValue,
   collectionStateError,
   createCollection,
   createLiveQuery,
   createLiveQueryCollection,
+  defaultCollectionDefinitionRegistry,
   eq,
   flushCollectionsPendingMutationsEffect,
+  isCollection,
   liveQueryStateError,
+  makeCollectionDefinitionRegistry,
+  makeLiveQueryCollection,
   makeCollectionReactivePreloadController,
   makeSQLiteMemoryStatementDatabase,
   makeSQLitePreparedStatementDatabase,
@@ -155,6 +217,17 @@ const dbExports: Array<unknown> = [
   collectionAlias,
   liveQueryAlias,
   liveQueryCollectionAlias,
+  directLiveQueryCollection,
+  isolatedCollectionRegistry,
+  defaultCollectionRegistry,
+  collectionTypeId,
+  collectionStoreTypeId,
+  directCollectionCheck,
+  unknownCollectionIndex,
+  collectionRowKeyChanged,
+  collectionRowNotFound,
+  readonlyCollectionMutation,
+  collectionSnapshotCodecError,
   serverOptions,
   serverSync,
   collectionCurrentStore,

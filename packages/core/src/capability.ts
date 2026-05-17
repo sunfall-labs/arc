@@ -4,6 +4,7 @@ import { isEffectLikeValue } from "./effect-input-sync.js";
 import {
   EffectInputCallbackError,
   EffectInputPromiseRejected,
+  isPromiseLikeValue,
   invokeEffectInput
 } from "./effect-like.js";
 
@@ -61,11 +62,6 @@ export const isCapability = (value: unknown): value is Capability<unknown, unkno
   value !== null &&
   (value as { readonly [CapabilityTypeId]?: unknown })[CapabilityTypeId] === CapabilityTypeId;
 
-const isPromiseLike = (value: unknown): value is PromiseLike<unknown> =>
-  value !== null &&
-  (typeof value === "object" || typeof value === "function") &&
-  typeof (value as { readonly then?: unknown }).then === "function";
-
 /** Helpers for defining, providing, and using typed UI capabilities. */
 export namespace Capability {
   /** Any Capability definition, useful for registries and diagnostics. */
@@ -121,7 +117,7 @@ export namespace Capability {
       useSync: (f) =>
         tag.use((service) =>
           Effect.flatMap(Effect.sync(() => f(service)), (value) =>
-            isPromiseLike(value)
+            isPromiseLikeValue(value)
               ? Effect.die(new EffectInputPromiseRejected({
                   guidance: `Capability.useSync(${key}) callbacks must return synchronous values, not Promises. Use Capability.useEffect(...) with Effect.tryPromise(...) at the host adapter seam.`
                 }))

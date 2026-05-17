@@ -23,7 +23,13 @@ const cliIo: StartDiagnosticsCliIo = {
   },
   stderr: (line) => Effect.sync(() => {
     void line;
-  })
+  }),
+  loadDiagnosticsEffect: () => Effect.die("unused")
+};
+declare const diagnosticsLoaderHostWork: ReturnType<typeof fetch>;
+const promiseStartDiagnosticsCliLoaderIo: StartDiagnosticsCliIo = {
+  // @ts-expect-error diagnostics CLI loaders must return Effect, not host Promise work
+  loadDiagnosticsEffect: () => diagnosticsLoaderHostWork
 };
 const parsedStartCliCommand: StartCliCommand = parseStartDiagnosticsCliArgs(["--help"]);
 const parsedStartCliCommandEffect: Effect.Effect<StartCliCommand, StartDiagnosticsCliUsageError> =

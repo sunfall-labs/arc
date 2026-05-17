@@ -1,5 +1,6 @@
 import {
   Resource,
+  isPromiseLikeValue,
   route,
   toEffect,
   type EffectInputRequirements,
@@ -126,11 +127,6 @@ export class FileRoutePreloadError extends Data.TaggedError("FileRoutePreloadErr
   readonly guidance: string;
 }> {}
 
-const isPromiseLike = (value: unknown): value is PromiseLike<unknown> =>
-  value !== null &&
-  (typeof value === "object" || typeof value === "function") &&
-  typeof (value as { readonly then?: unknown }).then === "function";
-
 const fileRoutePreloadError = (
   path: string,
   operation: FileRoutePreloadError["operation"],
@@ -178,7 +174,7 @@ const customPreloadEffect = <Path extends string>(
         )
     }),
     (input) => {
-      if (isPromiseLike(input)) {
+      if (isPromiseLikeValue(input)) {
         return Effect.fail(
           fileRoutePreloadError(
             path,
@@ -342,7 +338,7 @@ const makeDefineFileRouteBuilder = <const Path extends string>(
     family: { name: family.family.options.name },
     refs: (context) => {
       const selectedInput = input(context);
-      if (isPromiseLike(selectedInput)) {
+      if (isPromiseLikeValue(selectedInput)) {
         throw fileRoutePreloadError(
           path,
           "resource-selector",

@@ -189,6 +189,7 @@ export const makeCollectionDefinitionRegistry = (
   };
 };
 
+/** Process-wide Collection Definition Registry used by default collection factories. */
 export const defaultCollectionDefinitionRegistry = makeCollectionDefinitionRegistry();
 
 export const registerCollectionDefinition = (

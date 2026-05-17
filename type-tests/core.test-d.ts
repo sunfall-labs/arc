@@ -37,6 +37,7 @@ import {
   hrefForRouteInput,
   isActionDefinition,
   isPlainLeftClick,
+  isPromiseLikeValue,
   isRouteParamName,
   isRoutePathSegmentPrefix,
   makeRequestContext,
@@ -202,6 +203,7 @@ const coreActionState: ActionState<string, string> = {
   value: "ok"
 };
 const coreActionDefinitionCheck: boolean = isActionDefinition(coreActionDefinition);
+const corePromiseLikeDetected: boolean = isPromiseLikeValue(null);
 const coreExports: Array<unknown> = [
   Action,
   ActionTypeId,
@@ -236,6 +238,7 @@ const coreExports: Array<unknown> = [
   hrefForRouteInput,
   isActionDefinition,
   isPlainLeftClick,
+  isPromiseLikeValue,
   isRouteParamName,
   isRoutePathSegmentPrefix,
   makeRequestContext,
@@ -272,6 +275,7 @@ const coreExports: Array<unknown> = [
   coreActionInstance,
   coreActionState,
   coreActionDefinitionCheck,
+  corePromiseLikeDetected,
   runtime,
   requestRuntime,
   runtimeDisposeEffect,

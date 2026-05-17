@@ -1,18 +1,10 @@
 import { Effect } from "effect";
-import { EffectInputCallbackError, EffectInputPromiseRejected } from "./effect-like.js";
-
-export const isPromiseLikeValue = (value: unknown): boolean => {
-  if (value === null) {
-    return false;
-  }
-
-  const valueType = typeof value;
-  if (valueType !== "object" && valueType !== "function") {
-    return false;
-  }
-
-  return typeof Reflect.get(value as object, "then") === "function";
-};
+import {
+  EffectInputCallbackError,
+  EffectInputPromiseRejected,
+  isPromiseLikeValue
+} from "./effect-like.js";
+export { isPromiseLikeValue } from "./effect-like.js";
 
 export const promiseLikeSyncCallbackError = (
   operation: string,

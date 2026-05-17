@@ -525,6 +525,40 @@ describe("Start RPC transport", () => {
       })
     ));
 
+  it("rejects RPC client headers with throwing then getters as transport errors", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const Echo = Server.contract<string, string>("Start.transport.throwing-then-headers", {
+          input: Schema.String,
+          output: Schema.String
+        });
+        const echo = Server.client(Echo);
+        const throwingThenHeaders = Object.defineProperty({}, "then", {
+          get: () => {
+            throw new Error("then getter failed");
+          }
+        });
+        const headerRuntime = Layer.succeed(ServerClient)(
+          makeRpcClient({
+            headers: () => throwingThenHeaders as never
+          })
+        );
+
+        const exit = yield* Effect.exit(Effect.provide(echo.effect("hello"), headerRuntime));
+
+        yield* Effect.sync(() => {
+          const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
+
+          expect(failure).toBeInstanceOf(ServerTransportError);
+          expect(failure).toMatchObject({
+            reason: "Network",
+            message: "Could not construct Start transport headers.",
+            cause: expect.any(EffectInputPromiseRejected)
+          });
+        });
+      })
+    ));
+
   it("aborts the default global fetch when the client Effect is interrupted", () => {
     const previousFetch = globalThis.fetch;
 

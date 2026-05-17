@@ -122,7 +122,14 @@ export class EffectInputCallbackError extends Data.TaggedError(
   readonly guidance: string;
 }> {}
 
-const isPromiseLike = (value: unknown): value is PromiseLike<unknown> => {
+/**
+ * Runtime guard for Promise-shaped values crossing EffectInput and host seams.
+ *
+ * Some hostile thenables expose a throwing `then` getter. Those values are
+ * still treated as Promise-shaped so callers can map them into their typed
+ * boundary error instead of surfacing the getter throw as a defect.
+ */
+export const isPromiseLikeValue = (value: unknown): boolean => {
   if (value === null) {
     return false;
   }
@@ -132,7 +139,11 @@ const isPromiseLike = (value: unknown): value is PromiseLike<unknown> => {
     return false;
   }
 
-  return typeof (value as { readonly then?: unknown }).then === "function";
+  try {
+    return typeof Reflect.get(value as object, "then") === "function";
+  } catch {
+    return true;
+  }
 };
 
 const promiseRejectedDefect = (): EffectInputPromiseRejected =>
@@ -151,13 +162,13 @@ export const toEffect = <A, E = never, R = never>(
 ): Effect.Effect<A, E, R> => {
   if (isEffectLike(value)) {
     return Effect.flatMap(value, (success) =>
-      isPromiseLike(success)
+      isPromiseLikeValue(success)
         ? Effect.die(promiseRejectedDefect())
         : Effect.succeed(success as A)
     ) as Effect.Effect<A, E, R>;
   }
 
-  if (isPromiseLike(value)) {
+  if (isPromiseLikeValue(value)) {
     return Effect.die(promiseRejectedDefect());
   }
 

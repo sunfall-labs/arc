@@ -1,6 +1,7 @@
 import {
   EffectInputPromiseRejected,
   isEffectLike,
+  isPromiseLikeValue,
   ServerTransportError,
   type AnyEffectUiRuntime,
   type EffectUiRuntime
@@ -21,19 +22,6 @@ class StartFetchInvalidReturn extends Data.TaggedError("StartFetchInvalidReturn"
   readonly message: string;
   readonly received: unknown;
 }> {}
-
-const isPromiseLike = (value: unknown): value is PromiseLike<unknown> => {
-  if (value === null) {
-    return false;
-  }
-
-  const valueType = typeof value;
-  if (valueType !== "object" && valueType !== "function") {
-    return false;
-  }
-
-  return typeof (value as { readonly then?: unknown }).then === "function";
-};
 
 /** Input accepted by the Start client transport fetch hook. */
 export type StartFetchInput = Parameters<typeof globalThis.fetch>[0];
@@ -89,7 +77,7 @@ export const getStartTransportHeadersEffect = (
           cause
         })
     });
-    if (isPromiseLike(headersInit)) {
+    if (isPromiseLikeValue(headersInit)) {
       return yield* Effect.fail(new ServerTransportError({
         reason: "Network",
         message: "Could not construct Start transport headers.",

@@ -314,10 +314,6 @@ const allowed = [
     name: "PromiseLike return type",
     seams: [
       seam("packages/core/src/effect-like.ts", "EffectInput union Promise rejection helper", /type PromiseShapedMember[\s\S]*?Out extends PromiseLike<unknown>/),
-      seam("packages/core/src/effect-like.ts", "EffectInput runtime Promise-like guard", /const isPromiseLike\s*=\s*\(value:\s*unknown\):\s*value is PromiseLike<unknown>/),
-      seam("packages/core/src/capability.ts", "Capability useSync runtime Promise-like guard", /const isPromiseLike\s*=\s*\(value:\s*unknown\):\s*value is PromiseLike<unknown>/),
-      seam("packages/start/src/file-route.ts", "File route preload runtime Promise-like guard", /const isPromiseLike\s*=\s*\(value:\s*unknown\):\s*value is PromiseLike<unknown>/),
-      seam("packages/start/src/start-fetch.ts", "Start transport headers runtime Promise-like guard", /const isPromiseLike\s*=\s*\(value:\s*unknown\):\s*value is PromiseLike<unknown>/),
       seam("packages/start/src/streaming.ts", "ReadableStream finalizer host return contract", /export type StartResponseStreamRunner[\s\S]*?PromiseLike<A>;/)
     ]
   },
@@ -326,11 +322,7 @@ const allowed = [
     name: "structural thenable type surface",
     seams: [
       seam("packages/core/src/effect-like.ts", "EffectInput callable thenable type detector", /type CallableThenableMember[\s\S]*?readonly then\?:\s*infer Then/),
-      seam("packages/core/src/effect-like.ts", "EffectInput runtime thenable guard property", /value as \{ readonly then\?: unknown \}/),
       seam("packages/core/src/effect-like.ts", "EffectInput broad unknown non-thenable guard", /object\s*&\s*\{\s*readonly then\?: never;\s*readonly \[Effect\.TypeId\]\?: never\s*\}/),
-      seam("packages/core/src/capability.ts", "Capability useSync runtime thenable guard property", /value as \{ readonly then\?: unknown \}/),
-      seam("packages/start/src/file-route.ts", "File route preload runtime thenable guard property", /value as \{ readonly then\?: unknown \}/),
-      seam("packages/start/src/start-fetch.ts", "Start transport headers runtime thenable guard property", /value as \{ readonly then\?: unknown \}/),
       seam("type-tests/framework.test-d.ts", "EffectInput callable thenable negative fixture", /declare const thenableProject:\s*\{ readonly then:\s*\(\) => void;/),
       seam("type-tests/framework.test-d.ts", "EffectInput optional callable thenable negative fixture", /declare const optionalThenableProject:\s*\{ readonly then\?:\s*\(\) => void;/)
     ]

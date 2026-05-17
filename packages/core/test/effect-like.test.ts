@@ -42,6 +42,26 @@ describe("EffectInput", () => {
       })
     ));
 
+  it("rejects values with throwing then getters as Promise-shaped values", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const thenGetterCause = new Error("then getter failed");
+        const value = Object.defineProperty({}, "then", {
+          get: () => {
+            throw thenGetterCause;
+          }
+        });
+        const exit = yield* Effect.exit(toEffect(value));
+
+        expect(Exit.isFailure(exit)).toBe(true);
+        if (Exit.isFailure(exit)) {
+          const defect = exit.cause.reasons.find(Cause.isDieReason)?.defect;
+          expect(defect).toBeInstanceOf(EffectInputPromiseRejected);
+          expect((defect as EffectInputPromiseRejected).guidance).toContain("Effect.tryPromise");
+        }
+      })
+    ));
+
   it("rejects Effect successes that are thenables at runtime", () =>
     Effect.runPromise(
       Effect.gen(function* () {

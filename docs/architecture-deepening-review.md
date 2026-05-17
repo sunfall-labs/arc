@@ -11,9 +11,10 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review226, the post-Review225 sweep
-fixing DB Query entrypoint hover ownership and the Start diagnostics CLI loader
-Effect seam. The newest full verification checkpoint is Review226.
+The newest completed focused review is Review227, the post-Review226 sweep
+fixing shared Promise-shaped runtime probes, direct DB root public ownership,
+Start diagnostics CLI loader ownership, and stale Start diagnostics Vite server
+lifetime docs. The newest full verification checkpoint is Review227.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -30,15 +31,16 @@ and the post-Review222 local sweep found Review223 work,
 and the post-Review223 sweep found Review224 work,
 and the post-Review224 sweep found Review225 work,
 and the post-Review225 sweep found Review226 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review226
+and the post-Review226 sweep found Review227 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review227
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
 Review206, Review207, Review208, Review209, Review210, Review211, Review212,
 Review213, Review214, Review215, Review216, Review217, Review218, Review219,
-Review220, Review221, Review222, Review223, Review224, Review225, and
-Review226 work.
+Review220, Review221, Review222, Review223, Review224, Review225,
+Review226, and Review227 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -107,7 +109,109 @@ and the post-Review224 sweep found Review225 Core/DB LSP/type-test ownership
 work,
 and the post-Review225 sweep found Review226 DB LSP and Start host Adapter
 work,
+and the post-Review226 sweep found Review227 Core, Start, DB, and docs/LSP
+work,
 so the counter remains 0/30.
+
+## Review 227: Promise Probe And Public DB Ownership
+
+Review227 fixed actionable findings from the fresh post-Review226 sweep.
+
+1. Shared Promise-Shaped Runtime Probe
+   - Status: fixed.
+   - Files: `packages/core/src/effect-like.ts`,
+     `packages/core/src/effect-input-sync.ts`,
+     `packages/core/src/capability.ts`, `packages/start/src/start-fetch.ts`,
+     `packages/start/src/file-route.ts`,
+     `packages/start/src/start-diagnostics-cli-runner.ts`,
+     `packages/core/test/effect-like.test.ts`,
+     `packages/start/test/start.test.ts`, `packages/start/test/rpc.test.ts`,
+     `scripts/audit-effect-first.mjs`,
+     `scripts/public-api-symbol-policy.mjs`,
+     `docs/public-api-inventory.md`, `type-tests/core.test-d.ts`, and
+     `type-tests/public-api.manifest.json`.
+   - Problem: Core and Start each had local structural Promise probes. Several
+     read `.then` directly, so hostile thenables with throwing getters could
+     escape as defects instead of crossing the typed Effect boundary for that
+     Module.
+   - Fix: Core now exposes `isPromiseLikeValue(...)` as the shared
+     Promise-shaped probe. It uses `Reflect.get(...)`, treats throwing `then`
+     getters as Promise-shaped, and is owned by public hover policy plus type
+     tests. Capability sync callbacks, sync EffectInput helpers, Start fetch
+     headers, file-route preload helpers, and the Start diagnostics CLI loader
+     now reuse the same Adapter probe. Runtime regressions cover Core
+     EffectInput, Start RPC headers, file-route custom preload work, and
+     file-route resource selectors.
+   - Benefits: Promise detection is a single deep Interface instead of repeated
+     shallow local guards. Locality improves because future guard behavior and
+     audit allowances change in one Core Module while Start keeps reporting
+     typed boundary errors.
+
+2. Direct DB Root Public Ownership
+   - Status: fixed.
+   - Files: `packages/db/src/collection-ids.ts`,
+     `packages/db/src/collection-preload.ts`,
+     `packages/db/src/collection-registry.ts`,
+     `scripts/public-api-symbol-policy.mjs`,
+     `docs/public-api-inventory.md`, `type-tests/db.test-d.ts`, and
+     `type-tests/public-api.manifest.json`.
+   - Problem: direct DB root symbols such as `CollectionTypeId`,
+     `CollectionStoreTypeId`, registry helpers, preload collector tags, row
+     errors, snapshot codec errors, and live-query collection helpers were
+     exported and usable, but LSP hover policy and type tests mainly exercised
+     the higher-level `Collection` namespace. That made root import
+     compatibility a shallow, under-documented Interface.
+   - Fix: public hover policy now owns the direct DB root exports, DB type tests
+     import and use each important direct symbol, the type-test manifest requires
+     those imports, and the public API inventory classifies them as expert-public
+     contract vocabulary for adapters, diagnostics, and focused tests.
+   - Benefits: the DB package root Interface now has explicit LSP and
+     compile-time ownership instead of incidental namespace coverage. Adapters
+     get stable root imports, and maintainers get audit-visible drift when a
+     direct export loses its purpose.
+
+3. Start Diagnostics CLI Loader Public Ownership
+   - Status: fixed.
+   - Files: `docs/public-api-inventory.md`,
+     `type-tests/start-cli.test-d.ts`, and
+     `type-tests/public-api.manifest.json`.
+   - Problem: Review226 made `StartDiagnosticsCliIo.loadDiagnosticsEffect` an
+     Effect-only Adapter seam at runtime, but the public inventory and focused
+     Start CLI type-test manifest still under-described that loader ownership.
+   - Fix: the Start CLI inventory now says injected diagnostics loaders must
+     return Effects and that sync throws, Promise-shaped returns, and plain
+     non-Effect returns take the typed diagnostics load failure path. The
+     focused CLI type test includes the loader in valid IO fixtures and rejects
+     host Promise work for loader returns; the manifest now requires the loader
+     IO and write-error imports.
+   - Benefits: the CLI loader Interface is discoverable through LSP-facing docs
+     and compile-time pins, not only runtime tests.
+
+4. Start Diagnostics Vite Server Lifetime Docs
+   - Status: fixed.
+   - Files: `CONTEXT.md`, `docs/effect-first-audit.md`,
+     `docs/release-notes.md`, `docs/docs-drift-audit.md`,
+     `docs/perfection-progress.md`, and this ledger.
+   - Problem: several current docs still described the diagnostics loader with
+     the older acquire/release-in-scope wording, while the actual loader uses
+     `Effect.acquireUseRelease(...)`.
+   - Fix: current docs now name `Effect.acquireUseRelease(...)` for the owned
+     Vite diagnostics server lifetime.
+   - Benefits: the documented Seam matches the implementation, so future
+     architecture reviews do not chase stale Effect v4 lifecycle vocabulary.
+
+Focused workspace evidence for this pass: `pnpm --filter @effect-ui/core build`,
+`pnpm --filter @effect-ui/core typecheck`, `pnpm --filter @effect-ui/start
+typecheck`, `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck:types`,
+`pnpm audit:public-api`, `pnpm audit:effect-first`, `pnpm exec vitest run
+packages/core/test/effect-like.test.ts packages/start/test/start.test.ts
+packages/start/test/rpc.test.ts -t "then getter|throwing then|Promise-shaped|file
+route|headers"`, stale lifetime/probe greps, and `git diff --check` passed.
+Full `pnpm verify` passed after Review227: 11 package builds, workspace
+typecheck, public type tests, public API audit, Effect-first audit over 411
+files, 53 root test files / 1136 tests, package-level verifies, generated
+starter packaging, 16-target package dry-run gate, project-console checks, and
+leak scans. This sweep found work, so the active clean counter remains 0/30.
 
 ## Review 226: Query Hovers And Diagnostics Loader Effect Seam
 
@@ -116,7 +220,8 @@ Review226 fixed actionable findings from the fresh post-Review225 sweep.
 1. Query Entrypoint Hover Ownership
    - Status: fixed.
    - Files: `packages/db/src/query-builder.ts` and
-     `scripts/public-api-symbol-policy.mjs`.
+     `scripts/public-api-symbol-policy.mjs`, and
+     `docs/public-api-inventory.md`.
    - Problem: `Query.build(...)`, `Query.diagnostics(...)`,
      `Query.onceEffect(...)`, and `Query.live(...)` already reject erased
      Promise-shaped, Effect-shaped, and other non-builder factory results, but
@@ -1475,9 +1580,10 @@ work, the first post-Review218 sweep found Review219 work, and the fresh
 post-Review219 sweep found Review220 work, and the fresh post-Review220 sweep
 found Review221 work, the fresh post-Review221 sweep found Review222 work, and
 the post-Review222 local sweep found Review223 work, and the post-Review223
-sweep found Review224 work, the post-Review224 sweep found Review225 work, and
-the post-Review225 sweep found Review226 work. The active counter is 0/30 until
-a fresh post-Review226 sweep reports no actionable findings.
+sweep found Review224 work, the post-Review224 sweep found Review225 work, the
+post-Review225 sweep found Review226 work, and the post-Review226 sweep found
+Review227 work. The active counter is 0/30 until a fresh post-Review227 sweep
+reports no actionable findings.
 
 ## Review 208: Runtime Provider Observers, CLI Bin Execution, And Docs Drift
 
@@ -7299,9 +7405,9 @@ Status: fixed for this fresh post-Review86 sweep and fully verified in the
 current worktree. Fresh sweeps still found actionable candidates, so the
 Thirty-Sweep clean counter remains at 0.
 
-- Start Vite diagnostics: `packages/start/src/vite.ts` now acquires the
-  temporary middleware-mode Vite server with `Effect.acquireRelease(...)` inside
-  `Effect.scoped(...)`.
+- Start Vite diagnostics: `packages/start/src/vite.ts` now acquires and
+  releases the temporary middleware-mode Vite server with
+  `Effect.acquireUseRelease(...)`.
 - CLI locality: `effect-ui-start diagnostics`, `graph`, `impact`, and the Vite
   build diagnostics gate continue to consume `loadStartAppGraphDiagnostics*`,
   but the server lifetime is now an explicit scoped Effect resource.
