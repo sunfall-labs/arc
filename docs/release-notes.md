@@ -65,14 +65,14 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 17, 2026 after Review 227:
+Latest full gate on May 17, 2026 after Review 228:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
 - Effect-first audit over 411 package/example/config/script/type-test/generated
   template/docs-snippet physical and virtual files;
-- 53 root test files / 1136 tests;
+- 53 root test files / 1139 tests;
 - package-level verifies for the devtools panel, devtools extension, basic
   starter, React starter, and project console packages;
 - starter-suite packaging for basic (19 app files / 5 local packages), React
@@ -86,6 +86,15 @@ Latest full gate on May 17, 2026 after Review 227:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 228 closed the post-Review227 sweep findings: Core browser-router
+  helper types, Stable Identity Codec errors, and Resource duration helper
+  types now have public hover-policy, inventory, and type-test ownership; DB
+  query factory, query plan, and collection detachment guardrails all reuse the
+  shared guarded `isPromiseLikeValue(...)` probe; the concrete `QueryBuilder`
+  constructor is no longer a package-root export; and public Start file-route
+  resource refs now reject Promise-shaped and malformed selector results as
+  typed `FileRoutePreloadError` values. The active Thirty-Sweep clean counter
+  remains 0/30 until a fresh post-Review228 sweep is clean.
 - Review 227 closed the post-Review226 sweep findings: Core now owns
   `isPromiseLikeValue(...)` as the shared Promise-shaped runtime probe for
   EffectInput and host seams, including throwing `then` getters; Start fetch
@@ -93,9 +102,9 @@ Latest full gate on May 17, 2026 after Review 227:
   diagnostics CLI loader reuse that probe; direct DB root exports now have
   hover-policy, public inventory, and type-test ownership; the Start CLI loader
   type-test seam now owns Effect-only loader returns; and current diagnostics
-  Vite server lifetime docs name `Effect.acquireUseRelease(...)`. The active
-  Thirty-Sweep clean counter remains 0/30 until a fresh post-Review227 sweep is
-  clean.
+  Vite server lifetime docs name `Effect.acquireUseRelease(...)`. A later
+  post-Review227 sweep found Review228 work, so the active Thirty-Sweep clean
+  counter stayed at 0/30.
 - Review 226 closed the post-Review225 sweep findings: Query entrypoint hovers
   now name Promise-shaped, Effect-shaped, and other non-builder factory-result
   rejection explicitly, public hover policy owns the full Query DSL namespace
@@ -366,9 +375,10 @@ Latest full gate on May 17, 2026 after Review 227:
   found Review221 work, the fresh post-Review221 sweep found Review222 work,
   the post-Review222 local sweep found Review223 work, the post-Review223
   sweep found Review224 work, the post-Review224 sweep found Review225 work,
-  the post-Review225 sweep found Review226 work, and the post-Review226 sweep
-  found Review227 work. The active Thirty-Sweep clean counter is 0/30 until a
-  fresh post-Review227 sweep reports no
+  the post-Review225 sweep found Review226 work, the post-Review226 sweep
+  found Review227 work, and the post-Review227 sweep found Review228 work.
+  The active Thirty-Sweep clean counter is 0/30 until a fresh post-Review228
+  sweep reports no
   actionable findings.
 - Review 192 refreshed stale current-gate docs wording that still named
   Review190 or active 1/30 progress after Review191.
@@ -1308,9 +1318,9 @@ Latest full gate on May 17, 2026 after Review 227:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 227 shared
-  Promise-shaped runtime probes, direct DB root public ownership, Start
-  diagnostics CLI loader ownership, and diagnostics Vite server lifetime docs.
+- The latest full `pnpm verify` passed after Review 228 public helper
+  ownership, DB shared Promise-shaped probe reuse, `QueryBuilder` root export
+  tightening, and public file-route resource ref guardrails.
   Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
   sweeps found Review191, Review192, Review193, Review194, Review195, and
   Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, Review208, Review209, Review210, Review211, Review212, and Review213 work.
@@ -1328,11 +1338,12 @@ Latest full gate on May 17, 2026 after Review 227:
   found Review221 work, the fresh post-Review221 sweep found Review222 work,
   and the post-Review222 local sweep found Review223 work, and the
   post-Review223 sweep found Review224 work, the post-Review224 sweep found
-  Review225 work, the post-Review225 sweep found Review226 work, and the
-  post-Review226 sweep found Review227 work, so the active counter is 0/30.
+  Review225 work, the post-Review225 sweep found Review226 work, the
+  post-Review226 sweep found Review227 work, and the post-Review227 sweep
+  found Review228 work, so the active counter is 0/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 411 physical/virtual files, 53 root test files / 1136
+  Effect-first audit over 411 physical/virtual files, 53 root test files / 1139
   tests, package-level verifies for the devtools/starter/example packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console

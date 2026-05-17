@@ -303,7 +303,6 @@ export type {
 } from "./collection-registry.js";
 export {
   Query,
-  QueryBuilder,
   and,
   eq,
   gt,

@@ -110,6 +110,11 @@ are easiest to regress while refactoring internals toward Effect primitives.
   `isCollection(...)`, plus a focused Start CLI loader IO fixture and host
   Promise-return negative. It moved the current full verification evidence to
   the Review227 gate.
+- Review228 added public type pins for Core browser-router helper types, Stable
+  Identity Codec errors and `stableStringify(...)`, and Resource duration
+  helper types; DB now has a negative type pin proving the concrete
+  `QueryBuilder` constructor is no longer a package-root export. It moved the
+  current full verification evidence to the Review228 gate.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them
@@ -229,10 +234,12 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Verification Evidence
 
-- `pnpm typecheck:types` and full `pnpm verify` passed after Review227 with
-  53 root test files / 1136 tests, including the latest Core
-  `isPromiseLikeValue(...)` pin, direct DB root export pins, Start diagnostics
-  CLI loader Effect-only negative pin, Resource hydration top-level
+- `pnpm typecheck:types` and full `pnpm verify` passed after Review228 with
+  53 root test files / 1139 tests, including the latest Core helper ownership
+  pins, Stable Identity Codec pins, Resource duration pins, DB `QueryBuilder`
+  root-export negative pin, Core `isPromiseLikeValue(...)` pin, direct DB root
+  export pins, Start diagnostics CLI loader Effect-only negative pin, Resource
+  hydration top-level
   payload/input manifest ownership, query-sync key namespace pins,
   payload-only pins, Router Link Preloader identity
   pin, Runtime Provider Lifecycle typed disposal/export pins,

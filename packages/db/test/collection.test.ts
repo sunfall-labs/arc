@@ -1,5 +1,5 @@
 import { EffectInputCallbackError, makeResourceStore, makeRuntime, read, ResourceStore, runWithRuntime, toEffect, type EffectUiRuntime } from "@effect-ui/core";
-import { Collection, CollectionRowKeyChanged, CollectionRowNotFound, CollectionStorageError, Query, QueryBuilder, QueryEvaluationError, UnknownCollectionIndex, and, eq, gt } from "@effect-ui/db";
+import { Collection, CollectionRowKeyChanged, CollectionRowNotFound, CollectionStorageError, Query, QueryEvaluationError, UnknownCollectionIndex, and, eq, gt } from "@effect-ui/db";
 import { Cause, Deferred, Effect, Exit, Fiber, Option, PubSub, Schedule, Schema } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -12,6 +12,7 @@ import {
 } from "../src/collection-runtime.js";
 import { advanceCollectionTransactionIdentity } from "../src/collection-mutation-queue.js";
 import { CollectionSnapshotCodecError, hydrateCollectionSnapshotStateEffect } from "../src/collection-snapshot-codec.js";
+import { QueryBuilder } from "../src/query-builder.js";
 
 interface Project {
   readonly id: string;
@@ -794,6 +795,11 @@ describe("Collection", () => {
   });
 
   it("does not expose Promise-shaped or Effect-shaped row values", () => {
+    const throwingThen = Object.defineProperty({}, "then", {
+      get: () => {
+        throw new Error("then getter failed");
+      }
+    });
     const PromiseRows = Collection.define<Project>({
       name: "Projects.initial-data-promise-row-ingress",
       getKey: (project) => project.id,
@@ -806,6 +812,13 @@ describe("Collection", () => {
       getKey: (project) => project.id,
       initialData: [
         { id: "atlas", name: Effect.succeed("Atlas"), status: "active", progress: 72 } as never
+      ]
+    });
+    const ThrowingThenRows = Collection.define<Project>({
+      name: "Projects.initial-data-throwing-then-row-ingress",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: throwingThen, status: "active", progress: 72 } as never
       ]
     });
 
@@ -825,6 +838,15 @@ describe("Collection", () => {
         _tag: "CollectionSnapshotCodecError",
         operation: "load",
         reason: "EffectLikeValue"
+      }
+    });
+    expect(ThrowingThenRows.rows()).toEqual([]);
+    expect(ThrowingThenRows.state().get()).toMatchObject({
+      _tag: "Failure",
+      error: {
+        _tag: "CollectionSnapshotCodecError",
+        operation: "load",
+        reason: "PromiseLikeValue"
       }
     });
   });
@@ -6617,6 +6639,11 @@ describe("Query", () => {
         initialData: [{ id: "atlas", name: "Atlas", status: "active", progress: 72 }]
       }) }))
     );
+    const throwingThenFactoryResult = Object.defineProperty({}, "then", {
+      get: () => {
+        throw new Error("then getter failed");
+      }
+    });
     const cases: ReadonlyArray<{
       readonly label: string;
       readonly reason: "promise" | "effect" | "builder";
@@ -6626,6 +6653,11 @@ describe("Query", () => {
         label: "promise",
         reason: "promise",
         factory: (() => promised) as never
+      },
+      {
+        label: "throwing then",
+        reason: "promise",
+        factory: (() => throwingThenFactoryResult) as never
       },
       {
         label: "effect",
@@ -7216,6 +7248,12 @@ describe("Query", () => {
     });
     const promised = <A,>(value: A): A =>
       Effect.runPromise(Effect.succeed(value)) as never;
+    const throwingThen = (): unknown =>
+      Object.defineProperty({}, "then", {
+        get: () => {
+          throw new Error("then getter failed");
+        }
+      });
     const cases: ReadonlyArray<{
       readonly operation: "filter" | "join" | "order" | "projection" | "aggregate";
       readonly factory: (query: Query.Root) => Query.Builder<any, any, any, any>;
@@ -7241,6 +7279,13 @@ describe("Query", () => {
           query
             .from({ project: Projects })
             .select((() => ({ nested: { value: promised("Atlas") } })) as never)
+      },
+      {
+        operation: "projection",
+        factory: (query) =>
+          query
+            .from({ project: Projects })
+            .select((() => ({ nested: { value: throwingThen() } })) as never)
       },
       {
         operation: "join",
@@ -7276,6 +7321,17 @@ describe("Query", () => {
             .from({ project: Projects })
             .groupBy(
               (({ project }) => ({ status: project.status, asyncKey: promised("active") })) as never,
+              { count: Query.count() }
+            )
+            .select((group) => group.count)
+      },
+      {
+        operation: "aggregate",
+        factory: (query) =>
+          query
+            .from({ project: Projects })
+            .groupBy(
+              (({ project }) => ({ status: project.status, asyncKey: throwingThen() })) as never,
               { count: Query.count() }
             )
             .select((group) => group.count)

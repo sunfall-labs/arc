@@ -1,22 +1,26 @@
 import { Data } from "effect";
 
+/** Error raised when stable identity encoding finds cyclic data. */
 export class StableStringifyCircularData extends Data.TaggedError("StableStringifyCircularData")<{
   readonly path: string;
   readonly referencePath: string;
   readonly guidance: string;
 }> {}
 
+/** Error raised when stable identity data contains unsupported executable values. */
 export class StableStringifyUnsupportedValue extends Data.TaggedError("StableStringifyUnsupportedValue")<{
   readonly path: string;
   readonly valueType: string;
   readonly guidance: string;
 }> {}
 
+/** Error raised when stable identity data contains an invalid Date. */
 export class StableStringifyInvalidDate extends Data.TaggedError("StableStringifyInvalidDate")<{
   readonly path: string;
   readonly guidance: string;
 }> {}
 
+/** Error raised when reading host object data fails during stable identity encoding. */
 export class StableStringifyEncodeFailure extends Data.TaggedError("StableStringifyEncodeFailure")<{
   readonly path: string;
   readonly cause: unknown;
@@ -96,6 +100,14 @@ const stableSortKey = (value: unknown, path: string): string => {
   return encoded;
 };
 
+/**
+ * Encodes stable cache identity data with deterministic key ordering.
+ *
+ * Supports JSON-compatible data plus Date, URL, Map, Set, ArrayBuffer,
+ * DataView, typed arrays, bigint, undefined, sparse array holes, and tagged
+ * non-finite numbers. Cycles, invalid Dates, functions, symbols, and hostile
+ * host object reads fail with typed stable-stringify errors.
+ */
 export const stableStringify = (value: unknown): string => {
   const active = new WeakMap<object, string>();
 

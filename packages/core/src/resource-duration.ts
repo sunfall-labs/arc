@@ -1,7 +1,9 @@
 import { Data } from "effect";
 
+/** Duration accepted by Resource lifecycle policies, measured in milliseconds. */
 export type DurationInput = number | `${number} ${"millisecond" | "milliseconds" | "second" | "seconds" | "minute" | "minutes"}`;
 
+/** Error raised when a Resource lifecycle duration cannot be parsed. */
 export class UnsupportedDuration extends Data.TaggedError("UnsupportedDuration")<{
   readonly duration: unknown;
 }> {}

@@ -1,4 +1,4 @@
-import { isEffectLike } from "@effect-ui/core";
+import { isEffectLike, isPromiseLikeValue } from "@effect-ui/core";
 import { Data } from "effect";
 import type {
   CollectionKey,
@@ -35,17 +35,6 @@ const readCollectionValue = <A>(
   }
 };
 
-const isPromiseLikeCollectionValue = (value: unknown, path: string): boolean => {
-  if (
-    value === null ||
-    (typeof value !== "object" && typeof value !== "function")
-  ) {
-    return false;
-  }
-
-  return typeof readCollectionValue(path, () => Reflect.get(value as object, "then")) === "function";
-};
-
 const isEffectLikeCollectionValue = (value: unknown): boolean =>
   value instanceof Error ? false : isEffectLike(value);
 
@@ -54,7 +43,7 @@ export const collectionExecutableValuePath = (
   path = "$",
   active = new WeakSet<object>()
 ): CollectionExecutableValuePath | undefined => {
-  if (isPromiseLikeCollectionValue(value, path)) {
+  if (isPromiseLikeValue(value)) {
     return { path, reason: "PromiseLikeValue" };
   }
   if (isEffectLikeCollectionValue(value)) {

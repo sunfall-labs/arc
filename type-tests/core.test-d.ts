@@ -15,6 +15,11 @@ import {
   RuntimeDisposeError,
   Server,
   Signal,
+  StableStringifyCircularData,
+  StableStringifyEncodeFailure,
+  StableStringifyInvalidDate,
+  StableStringifyUnsupportedValue,
+  UnsupportedDuration,
   UiScope,
   applyResponseContext,
   applyResponseContextEffect,
@@ -70,6 +75,7 @@ import {
   scoped,
   serializeResponseCookie,
   serializeResponseCookieEffect,
+  stableStringify,
   withResourceStore,
   type ActionConcurrency,
   type ActionDefinition,
@@ -87,7 +93,10 @@ import {
   type BrowserRouterInitialMatchedHost,
   type BrowserRouterInitialMatchedStateOptions,
   type BrowserNavigateOptions,
+  type BrowserNavigateArgs,
   type BrowserRouteRenderDecision,
+  type BrowserRouterPath,
+  type BrowserRouterRouteForPath,
   type BrowserRouterKernel,
   type BrowserRouterKernelOptions,
   type BrowserRouterHostController,
@@ -102,6 +111,7 @@ import {
   type ActionUseOptions,
   type AnyEffectUiRuntime,
   type DisposeRuntimeProviderLifecycleOptions,
+  type DurationInput,
   type EffectUiRuntime,
   type FormInstance,
   type ParamsForPath,
@@ -157,6 +167,9 @@ const browserRouterKernelOptions: BrowserRouterKernelOptions<typeof coreRoutes, 
   initialHref: "/projects/atlas"
 };
 const browserRouterKernel = createBrowserRouterKernel(coreRoutes, browserRouterKernelOptions);
+const browserRouterPath: BrowserRouterPath<typeof coreRoutes> = "/projects/:id";
+type CoreProjectRoute = BrowserRouterRouteForPath<typeof coreRoutes, "/projects/:id">;
+const browserNavigateArgs: BrowserNavigateArgs<CoreProjectRoute> = [{ params: { id: "atlas" } }];
 const browserRouterInitialHost: BrowserRouterInitialMatchedHost = "browser";
 const browserRouterInitialMatch = coreRoutes[0].match("/projects/atlas");
 if (browserRouterInitialMatch) {
@@ -204,6 +217,28 @@ const coreActionState: ActionState<string, string> = {
 };
 const coreActionDefinitionCheck: boolean = isActionDefinition(coreActionDefinition);
 const corePromiseLikeDetected: boolean = isPromiseLikeValue(null);
+const stableIdentity: string = stableStringify(new Map([["project", "atlas"]]));
+const stableCircularData = new StableStringifyCircularData({
+  path: "$.self",
+  referencePath: "$",
+  guidance: "break cycles"
+});
+const stableUnsupportedValue = new StableStringifyUnsupportedValue({
+  path: "$.fn",
+  valueType: "function",
+  guidance: "use data"
+});
+const stableInvalidDate = new StableStringifyInvalidDate({
+  path: "$.createdAt",
+  guidance: "use valid dates"
+});
+const stableEncodeFailure = new StableStringifyEncodeFailure({
+  path: "$.host",
+  cause: new Error("host read failed"),
+  guidance: "use readable data"
+});
+const resourceStaleFor: DurationInput = "5 seconds";
+const resourceUnsupportedDuration = new UnsupportedDuration({ duration: "forever" });
 const coreExports: Array<unknown> = [
   Action,
   ActionTypeId,
@@ -220,6 +255,11 @@ const coreExports: Array<unknown> = [
   RuntimeDisposeError,
   Server,
   Signal,
+  StableStringifyCircularData,
+  StableStringifyEncodeFailure,
+  StableStringifyInvalidDate,
+  StableStringifyUnsupportedValue,
+  UnsupportedDuration,
   UiScope,
   applyResponseContext,
   applyResponseContextEffect,
@@ -291,7 +331,17 @@ const coreExports: Array<unknown> = [
   routePathSlug,
   scoped,
   serializeResponseCookie,
-  serializeResponseCookieEffect
+  serializeResponseCookieEffect,
+  stableStringify,
+  browserRouterPath,
+  browserNavigateArgs,
+  stableIdentity,
+  stableCircularData,
+  stableUnsupportedValue,
+  stableInvalidDate,
+  stableEncodeFailure,
+  resourceStaleFor,
+  resourceUnsupportedDuration
 ];
 const actionPendingWithUndefinedPrevious: ActionSubmissionState<string, void, string> = {
   _tag: "Pending",

@@ -132,6 +132,11 @@ const ActiveProjectNames = Query.live((query) =>
 )
 ```
 
+The concrete `QueryBuilder` constructor is internal to the package source; apps
+use `Query.from(...)`, `Query.build(...)`, `Query.onceEffect(...)`,
+`Query.live(...)`, and the `Query.Builder` type alias. That keeps malformed
+builder construction behind the Query Module seam.
+
 Internally, Query Builder, Query Execution Plan, Live Query State, and Live
 Query Runtime read source collections through the Collection Query Source
 Adapter. That keeps rows, row counts, secondary-index probes, version/state

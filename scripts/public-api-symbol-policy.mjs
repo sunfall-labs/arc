@@ -189,6 +189,23 @@ export const publicHoverDocGroups = [
     ]
   },
   {
+    file: "packages/core/src/stable-stringify.ts",
+    declarations: [
+      "StableStringifyCircularData",
+      "StableStringifyEncodeFailure",
+      "StableStringifyInvalidDate",
+      "StableStringifyUnsupportedValue",
+      "stableStringify"
+    ]
+  },
+  {
+    file: "packages/core/src/resource-duration.ts",
+    declarations: [
+      "DurationInput",
+      "UnsupportedDuration"
+    ]
+  },
+  {
     file: "packages/core/src/program-contract.ts",
     declarations: [
       "ProgramStepTypeId",
@@ -847,6 +864,13 @@ export const publicHoverDocGroups = [
     }
   },
   {
+    file: "packages/core/src/browser-router-state.ts",
+    declarations: [
+      "BrowserRouterPath",
+      "BrowserRouterRouteForPath"
+    ]
+  },
+  {
     file: "packages/core/src/browser-router-history-adapter.ts",
     declarations: [
       "BrowserNavigateOptions",
@@ -860,6 +884,7 @@ export const publicHoverDocGroups = [
   {
     file: "packages/core/src/browser-router-kernel.ts",
     declarations: [
+      "BrowserNavigateArgs",
       "BrowserRouterInitialMatchedHost",
       "BrowserRouterInitialMatchedStateOptions",
       "browserRouterInitialMatchedState",

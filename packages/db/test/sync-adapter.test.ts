@@ -514,6 +514,41 @@ describe("Collection.syncOptions", () => {
     );
   });
 
+  it("classifies query sync keys with throwing then getters as Promise-shaped", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const throwingThen = Object.defineProperty({}, "then", {
+          get: () => {
+            throw new Error("then getter failed");
+          }
+        });
+        const fetchQuery = vi.fn(() => [{ id: "atlas", name: "Atlas", archived: false }]);
+        const sync = Collection.querySyncAdapter<Project>({
+          queryKey: ["projects", throwingThen] as never,
+          queryFn: () => [{ id: "atlas", name: "Atlas", archived: false }],
+          queryClient: {
+            fetchQuery
+          }
+        });
+        const Projects = Collection.define(Collection.syncOptions<Project>({
+          name: "Projects.sync.query-key-throwing-then",
+          getKey: (project) => project.id,
+          sync
+        }));
+
+        const failure = yield* Effect.flip(Projects.preloadEffect());
+
+        expect(failure).toBeInstanceOf(EffectInputCallbackError);
+        expect(failure).toMatchObject({
+          operation: "Collection.querySync.queryKey",
+          cause: expect.objectContaining({
+            message: expect.stringContaining("PromiseLikeValue")
+          })
+        });
+        expect(fetchQuery).not.toHaveBeenCalled();
+      })
+    ));
+
   it("keeps invalid query sync key state independent from later host mutations", () =>
     Effect.runPromise(
       Effect.gen(function* () {

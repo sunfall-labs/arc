@@ -1,4 +1,4 @@
-import { isEffectLike, type PlainValue, type ReadableSignal } from "@effect-ui/core";
+import { isEffectLike, isPromiseLikeValue, type PlainValue, type ReadableSignal } from "@effect-ui/core";
 import { Data, Effect } from "effect";
 import { makeLiveQueryState } from "./live-query-state.js";
 import {
@@ -322,15 +322,6 @@ class QueryFactoryResultRejected extends Data.TaggedError("QueryFactoryResultRej
   readonly guidance: string;
 }> {}
 
-const isPromiseLikeQueryFactoryResult = (value: unknown): boolean => {
-  if (value === null) {
-    return false;
-  }
-
-  const valueType = typeof value;
-  return (valueType === "object" || valueType === "function") && typeof Reflect.get(value as object, "then") === "function";
-};
-
 const queryFactoryResultRejected = (
   reason: "promise" | "effect" | "builder"
 ): QueryFactoryResultRejected =>
@@ -348,7 +339,7 @@ const validateQueryFactoryResult = <T, E, R>(value: unknown): AnyQueryBuilder<T,
   if (value instanceof QueryBuilder) {
     return value as AnyQueryBuilder<T, E, R>;
   }
-  if (isPromiseLikeQueryFactoryResult(value)) {
+  if (isPromiseLikeValue(value)) {
     throw queryFactoryResultRejected("promise");
   }
   if (!(value instanceof Error) && isEffectLike(value)) {

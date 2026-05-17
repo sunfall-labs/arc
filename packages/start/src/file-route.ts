@@ -135,6 +135,9 @@ const fileRoutePreloadError = (
 ): FileRoutePreloadError =>
   new FileRoutePreloadError({ path, operation, cause, guidance });
 
+const fileRouteResourceSelectorGuidance =
+  "File route resource selectors must return an array of Resource refs synchronously. Move async work into the resource loader with Effect.tryPromise(...).";
+
 const resourcePreloadEffect = <Path extends string>(
   path: Path,
   resource: FileRoutePreloadResource<Path, Resource.AnyRef<any>, unknown, unknown>,
@@ -142,7 +145,26 @@ const resourcePreloadEffect = <Path extends string>(
 ): Effect.Effect<void, unknown, unknown> =>
   Effect.flatMap(
     Effect.try({
-      try: () => resource.refs(context),
+      try: () => {
+        const refs = resource.refs(context);
+        if (isPromiseLikeValue(refs)) {
+          throw fileRoutePreloadError(
+            path,
+            "resource-selector",
+            refs,
+            fileRouteResourceSelectorGuidance
+          );
+        }
+        if (!Array.isArray(refs)) {
+          throw fileRoutePreloadError(
+            path,
+            "resource-selector",
+            new TypeError("File route resource selectors must return an array of Resource refs."),
+            fileRouteResourceSelectorGuidance
+          );
+        }
+        return refs;
+      },
       catch: (cause) =>
         cause instanceof FileRoutePreloadError
           ? cause
@@ -150,7 +172,7 @@ const resourcePreloadEffect = <Path extends string>(
               path,
               "resource-selector",
               cause,
-              "File route resource selectors must be synchronous and return Resource refs. Move async work into the resource loader with Effect.tryPromise(...)."
+              fileRouteResourceSelectorGuidance
             )
     }),
     (refs) =>

@@ -140,6 +140,20 @@ Golden-path public groups:
   values at Core and Start host seams. It treats throwing `then` getters as
   Promise-shaped so each caller can report its typed boundary error instead of
   surfacing the getter throw as a defect.
+- Browser router helper types such as `BrowserNavigateArgs`,
+  `BrowserRouterPath`, and `BrowserRouterRouteForPath` are Core-owned route
+  helper vocabulary. React and Solid re-export them for adapter ergonomics, but
+  Core owns the public hover and type-test contract.
+- `stableStringify(...)` and the `StableStringify*` errors are expert-public
+  Stable Identity Codec vocabulary for cache keys, route/resource identity, and
+  diagnostics. The codec supports JSON-compatible data plus Date, URL, Map,
+  Set, ArrayBuffer, DataView, typed arrays, bigint, undefined, sparse array
+  holes, and tagged non-finite numbers; cycles, invalid Dates, functions,
+  symbols, and hostile host object reads fail with typed errors.
+- `DurationInput` and `UnsupportedDuration` describe Resource lifecycle policy
+  durations for `staleFor` and `gcFor`. Numeric values are milliseconds, and
+  string values accept millisecond, second, or minute units before unsupported
+  strings fail as `UnsupportedDuration`.
 - Action direct root symbols such as `ActionPolicy`, `ActionDefinition`,
   `ActionOptions`, `ActionInstance`, `ActionUseOptions`, `ActionTypeId`, and
   `isActionDefinition(...)` are expert-public LSP vocabulary for adapters,
@@ -484,8 +498,11 @@ The root export includes:
   selectors, collection preload metadata, and custom preload Effects in one
   route-local API. `defineFileRoute(path).preload(...).route(...)` is the
   spread-free authoring path; the preload object remains spreadable for existing
-  modules. Collection preload metadata accepts concrete definitions or stable
-  collection names; request preload and hydration resolve those names through
+  modules. Public `FileRoutePreloadResource.refs` adapters must return an array
+  of Resource refs synchronously; Promise-shaped or malformed erased values fail
+  as typed `FileRoutePreloadError` values with resource-selector guidance.
+  Collection preload metadata accepts concrete definitions or stable collection
+  names; request preload and hydration resolve those names through
   `StartCollectionResolutionOptions` (`collections`, `resolveCollection`, or
   `collectionRegistry`) without falling back to process globals implicitly.
   Duplicate direct definitions with the same collection name fail as
@@ -877,7 +894,10 @@ Release decisions:
   `orderBy(...)` comparables such as `NaN` or invalid Dates fail with operation
   `"order"`. Public hover policy owns the Query DSL value surface, including
   source, aggregate, build, diagnostics, once, and live helpers, so this
-  factory-result guidance stays visible in LSP hovers.
+  factory-result guidance stays visible in LSP hovers. The concrete
+  `QueryBuilder` constructor is not a package-root export; public callers use
+  `Query.from(...)`, factory callbacks, and the `Query.Builder` type alias so
+  the Query Module owns builder construction.
 - `QueryGroupKey` and `Query.GroupKey` are the public grouped-query key
   contracts for `Query.groupBy(...)`. They reject Promise-shaped values inside
   nested records, arrays, Maps, and Sets at the type seam, and runtime evaluation reports

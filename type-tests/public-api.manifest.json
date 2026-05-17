@@ -16,15 +16,25 @@
         "ActionState",
         "ActionTypeId",
         "ActionUseOptions",
+        "BrowserNavigateArgs",
+        "BrowserRouterPath",
+        "BrowserRouterRouteForPath",
         "DisposeRuntimeProviderLifecycleOptions",
+        "DurationInput",
         "RuntimeProviderDisposeObserver",
         "RuntimeProviderLifecycleEntry",
         "RuntimeProviderLifecycleOptions",
         "ResourceHydrationInput",
         "ResourceHydrationPayload",
+        "StableStringifyCircularData",
+        "StableStringifyEncodeFailure",
+        "StableStringifyInvalidDate",
+        "StableStringifyUnsupportedValue",
+        "UnsupportedDuration",
         "disposeRuntimeProviderLifecycleEntryEffect",
         "isActionDefinition",
-        "isPromiseLikeValue"
+        "isPromiseLikeValue",
+        "stableStringify"
       ]
     },
     {

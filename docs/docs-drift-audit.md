@@ -3,9 +3,9 @@
 Last updated: 2026-05-17.
 
 Current release-tracking truth lives in `docs/architecture-deepening-review.md`
-and `docs/perfection-progress.md`. As of Review227, the latest full
-`pnpm verify` gate passed with 53 root test files / 1136 tests, and the active
-Thirty-Sweep clean counter is 0/30 until a fresh post-Review227 sweep reports
+and `docs/perfection-progress.md`. As of Review228, the latest full
+`pnpm verify` gate passed with 53 root test files / 1139 tests, and the active
+Thirty-Sweep clean counter is 0/30 until a fresh post-Review228 sweep reports
 no actionable findings.
 
 This historical audit checks release-tracking docs for claims that no longer match the
@@ -165,6 +165,10 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   shared Promise-shaped runtime probe ownership, direct DB root public
   ownership, Start diagnostics CLI loader type-test ownership, and stale
   diagnostics Vite server lifetime wording.
+- Review228 refreshed current ledgers after the post-Review227 sweep found
+  Core helper public ownership, DB shared Promise-shaped probe reuse,
+  `QueryBuilder` root export tightening, and public file-route resource ref
+  guardrail work.
 - Review201 refreshed the current release ledgers after script command,
   Resource public-surface, React/Solid router LSP, DB erased-channel, and
   generated-starter README guardrail fixes; the historical enumeration above

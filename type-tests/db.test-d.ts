@@ -68,6 +68,9 @@ import {
   type SQLitePersistenceRow,
   type SQLiteStatementDatabase
 } from "@effect-ui/db";
+// @ts-expect-error QueryBuilder construction is internal; use Query.from(...) and Query.Builder.
+import { QueryBuilder } from "@effect-ui/db";
+void QueryBuilder;
 
 interface Project {
   readonly id: string;

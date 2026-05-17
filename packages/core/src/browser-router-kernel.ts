@@ -13,6 +13,7 @@ import {
   type BrowserRouterState
 } from "./browser-router-state.js";
 
+/** Positional arguments accepted by router navigation helpers for one route. */
 export type BrowserNavigateArgs<R extends AnyBrowserRoute> =
   {} extends Route.Params<R>
     ? [options?: Route.HrefOptions<R>, navigateOptions?: BrowserNavigateOptions]

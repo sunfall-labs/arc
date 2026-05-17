@@ -1,4 +1,4 @@
-import { isEffectLike, stableStringify, type PlainValue } from "@effect-ui/core";
+import { isEffectLike, isPromiseLikeValue, stableStringify, type PlainValue } from "@effect-ui/core";
 import { Data } from "effect";
 import type {
   AnyCollection,
@@ -246,19 +246,6 @@ export const toQueryEvaluationError = (
       message: cause instanceof Error ? cause.message : String(cause)
     });
 
-const isPromiseShapedQueryValue = (value: unknown): boolean => {
-  if (value === null) {
-    return false;
-  }
-
-  const valueType = typeof value;
-  if (valueType !== "object" && valueType !== "function") {
-    return false;
-  }
-
-  return typeof Reflect.get(value as object, "then") === "function";
-};
-
 const isEffectShapedQueryValue = (value: unknown): boolean =>
   value instanceof Error ? false : isEffectLike(value);
 
@@ -272,7 +259,7 @@ const promiseShapedQueryValuePath = (
   path = "$",
   active = new WeakSet<object>()
 ): string | undefined => {
-  if (isPromiseShapedQueryValue(value)) {
+  if (isPromiseLikeValue(value)) {
     return path;
   }
   if (value === null || typeof value !== "object") {
@@ -457,7 +444,7 @@ export const evaluateQueryOperation = <A>(
 ): A => {
   try {
     const value = evaluate();
-    if (isPromiseShapedQueryValue(value)) {
+    if (isPromiseLikeValue(value)) {
       throw promiseShapedQueryCallbackError(operation);
     }
     if (isEffectShapedQueryValue(value)) {

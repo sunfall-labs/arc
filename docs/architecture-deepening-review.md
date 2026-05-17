@@ -11,10 +11,10 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review227, the post-Review226 sweep
-fixing shared Promise-shaped runtime probes, direct DB root public ownership,
-Start diagnostics CLI loader ownership, and stale Start diagnostics Vite server
-lifetime docs. The newest full verification checkpoint is Review227.
+The newest completed focused review is Review228, the post-Review227 sweep
+fixing Core helper public ownership, DB shared Promise-shaped probes,
+QueryBuilder root constructor leakage, and public file-route resource refs
+guardrails. The newest full verification checkpoint is Review228.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -32,7 +32,8 @@ and the post-Review223 sweep found Review224 work,
 and the post-Review224 sweep found Review225 work,
 and the post-Review225 sweep found Review226 work,
 and the post-Review226 sweep found Review227 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review227
+and the post-Review227 sweep found Review228 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review228
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -40,7 +41,7 @@ Review199, Review200, Review201, Review202, Review203, Review204, Review205,
 Review206, Review207, Review208, Review209, Review210, Review211, Review212,
 Review213, Review214, Review215, Review216, Review217, Review218, Review219,
 Review220, Review221, Review222, Review223, Review224, Review225,
-Review226, and Review227 work.
+Review226, Review227, and Review228 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -111,7 +112,91 @@ and the post-Review225 sweep found Review226 DB LSP and Start host Adapter
 work,
 and the post-Review226 sweep found Review227 Core, Start, DB, and docs/LSP
 work,
+and the post-Review227 sweep found Review228 Core, DB, and Start public seam
+work,
 so the counter remains 0/30.
+
+## Review 228: Public Helper Ownership And Guarded Resource Refs
+
+Review228 fixed actionable findings from the fresh post-Review227 sweep.
+
+1. Core Helper Public Ownership
+   - Status: fixed.
+   - Files: `packages/core/src/browser-router-state.ts`,
+     `packages/core/src/browser-router-kernel.ts`,
+     `packages/core/src/stable-stringify.ts`,
+     `packages/core/src/resource-duration.ts`,
+     `scripts/public-api-symbol-policy.mjs`,
+     `docs/public-api-inventory.md`, `type-tests/core.test-d.ts`, and
+     `type-tests/public-api.manifest.json`.
+   - Problem: Core exported router helper types, the Stable Identity Codec, and
+     Resource duration policy vocabulary, but their owning Module did not have
+     complete hover policy, focused type-test manifest ownership, or public
+     inventory wording. React/Solid adapter type tests referenced some router
+     helpers, but Core still owned the underlying Interface.
+   - Fix: Core helper types now have JSDoc and public hover-policy ownership.
+     Core type tests and the manifest pin `BrowserNavigateArgs`,
+     `BrowserRouterPath`, `BrowserRouterRouteForPath`, `stableStringify(...)`,
+     all `StableStringify*` errors, `DurationInput`, and
+     `UnsupportedDuration`. The public inventory now explains the router helper
+     ownership, Stable Identity Codec supported values/error modes, and Resource
+     lifecycle duration syntax.
+   - Benefits: public LSP and type-test ownership lives at the Core seam that
+     defines the Interface, while adapters remain consumers instead of accidental
+     owners.
+
+2. DB Shared Promise-Shaped Probe And QueryBuilder Root Seam
+   - Status: fixed.
+   - Files: `packages/db/src/query-builder.ts`,
+     `packages/db/src/query-plan.ts`,
+     `packages/db/src/collection-value-detachment.ts`,
+     `packages/db/src/index.ts`, `packages/db/test/collection.test.ts`,
+     `packages/db/test/sync-adapter.test.ts`, `docs/db.md`,
+     `docs/public-api-inventory.md`, and `type-tests/db.test-d.ts`.
+   - Problem: DB still had local `then` probes in query factory validation,
+     query callback/result scanning, and collection executable-value detection.
+     Throwing `then` getters could therefore surface as generic read failures
+     instead of typed Promise-shaped rejection. Separately, the package root
+     exported the concrete `QueryBuilder` constructor even though docs and hover
+     policy describe `Query.*` as the public Query Interface.
+   - Fix: DB now reuses Core's `isPromiseLikeValue(...)` for query factories,
+     query values, collection row values, and query-sync keys. Runtime coverage
+     pins throwing-then behavior across factory results, query projections/group
+     keys, row ingress, and query-sync keys. The DB root no longer exports the
+     `QueryBuilder` constructor; internal tests import it from source when they
+     need malformed builders, and public type tests assert that root callers use
+     `Query.from(...)` plus `Query.Builder` instead.
+   - Benefits: Promise-shaped detection has one shared Core Adapter seam across
+     Core, Start, and DB, and the Query Module keeps builder construction behind
+     its intended factory Interface.
+
+3. Public File-Route Resource Ref Guardrail
+   - Status: fixed.
+   - Files: `packages/start/src/file-route.ts`,
+     `packages/start/test/start.test.ts`, and
+     `docs/public-api-inventory.md`.
+   - Problem: Review227 guarded `defineFileRoute(...).resource(...)` selector
+     output, but manually supplied public `FileRoutePreloadResource.refs`
+     adapters could still return Promise-shaped or non-array erased values.
+     Those bypassed the helper guard and failed as defects such as
+     `refs.map is not a function`.
+   - Fix: `resourcePreloadEffect(...)` now validates the public `refs` result
+     before prefetching. Promise-shaped and malformed non-array returns fail as
+     typed `FileRoutePreloadError` values with resource-selector guidance.
+     Runtime tests cover both public-resource cases.
+   - Benefits: Start keeps the public file-route preload Interface deep and
+     typed even for hand-authored adapters, not only builder-produced resources.
+
+Focused workspace evidence for this pass: Core, DB, and Start package
+typechecks; `pnpm typecheck:types`; `pnpm audit:public-api`; `pnpm
+audit:effect-first`; focused Core stable-stringify, DB collection/query/sync,
+and Start file-route resource tests; direct Promise-probe/QueryBuilder greps;
+and `git diff --check` passed. Full `pnpm verify` passed after Review228: 11
+package builds, workspace typecheck, public type tests, public API audit,
+Effect-first audit over 411 files, 53 root test files / 1139 tests,
+package-level verifies, generated starter packaging, 16-target package dry-run
+gate, project-console checks, and leak scans. This sweep found work, so the
+active clean counter remains 0/30.
 
 ## Review 227: Promise Probe And Public DB Ownership
 
@@ -1581,9 +1666,10 @@ post-Review219 sweep found Review220 work, and the fresh post-Review220 sweep
 found Review221 work, the fresh post-Review221 sweep found Review222 work, and
 the post-Review222 local sweep found Review223 work, and the post-Review223
 sweep found Review224 work, the post-Review224 sweep found Review225 work, the
-post-Review225 sweep found Review226 work, and the post-Review226 sweep found
-Review227 work. The active counter is 0/30 until a fresh post-Review227 sweep
-reports no actionable findings.
+post-Review225 sweep found Review226 work, the post-Review226 sweep found
+Review227 work, and the post-Review227 sweep found Review228 work. The active
+counter is 0/30 until a fresh post-Review228 sweep reports no actionable
+findings.
 
 ## Review 208: Runtime Provider Observers, CLI Bin Execution, And Docs Drift
 
