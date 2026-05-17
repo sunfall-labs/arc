@@ -7,9 +7,9 @@ import {
   type FileRouteDefinitionsModuleError
 } from "./file-route-modules.js";
 import {
-  absoluteFileRouteDirectory,
-  defaultFileRouteDirectory,
   defaultFileRouteGeneratedFile,
+  fileRouteDiscoveryDirectoryExists,
+  fileRouteDiscoveryPlan,
   type EffectUiStartOptions,
   type FileRouteGenerationOptions
 } from "./start-manifest-wall.js";
@@ -112,8 +112,18 @@ export const shouldWriteFileRouteDefinitionsFile = (
     return true;
   }
 
-  const routeDirectory = activeOptions.fileRouteOptions?.routeDirectory ?? defaultFileRouteDirectory;
-  return existsSync(absoluteFileRouteDirectory(root, routeDirectory));
+  return fileRouteDiscoveryDirectoryExists(fileRouteDiscoveryPlan({
+    root,
+    ...(activeOptions.fileRouteOptions?.routeDirectory === undefined
+      ? {}
+      : { routeDirectory: activeOptions.fileRouteOptions.routeDirectory }),
+    ...(activeOptions.fileRouteOptions?.extensions === undefined
+      ? {}
+      : { extensions: activeOptions.fileRouteOptions.extensions }),
+    ...(activeOptions.fileRouteGeneration === undefined
+      ? {}
+      : { fileRouteGeneration: activeOptions.fileRouteGeneration })
+  }));
 };
 
 export const planFileRouteDefinitionsFileWrite = (

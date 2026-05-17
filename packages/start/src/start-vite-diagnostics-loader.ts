@@ -33,6 +33,10 @@ import {
   type StartTransportEndpointConflictError,
   type StartTransportEndpointPathError
 } from "./start-transport-endpoints.js";
+import {
+  effectUiStartPluginName,
+  effectUiStartVirtualModulesPluginName
+} from "./start-vite-plugin-names.js";
 
 /** Options for loading resolved app graph diagnostics through Vite. */
 export interface LoadStartAppGraphDiagnosticsOptions {
@@ -86,7 +90,7 @@ const diagnosticsRunnerError = (
     : new StartAppGraphDiagnosticsRunnerError({ message, cause });
 
 interface EffectUiStartVirtualModulesPlugin {
-  readonly name: "effect-ui-start-virtual-modules";
+  readonly name: typeof effectUiStartVirtualModulesPluginName;
   readonly configResolved: (config: { readonly root: string }) => void;
   readonly resolveId: (id: string) => string | null;
   readonly load: (id: string) => string | null;
@@ -102,7 +106,7 @@ export const effectUiStartVirtualModules = (
     withDiscoveredFileRoutes({ ...normalizedOptions, serverEntry }, viteRoot);
 
   return {
-    name: "effect-ui-start-virtual-modules",
+    name: effectUiStartVirtualModulesPluginName,
     configResolved(config) {
       viteRoot = config.root;
     },
@@ -120,7 +124,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const isStartPluginRecord = (value: unknown): value is { readonly name: string } =>
   isRecord(value) &&
-  (value.name === "effect-ui-start" || value.name === "effect-ui-start-virtual-modules");
+  (value.name === effectUiStartPluginName || value.name === effectUiStartVirtualModulesPluginName);
 
 const removeStartPlugins = (pluginOption: unknown): unknown => {
   if (Array.isArray(pluginOption)) {

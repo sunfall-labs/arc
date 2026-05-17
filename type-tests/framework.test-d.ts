@@ -3096,6 +3096,25 @@ Query.live((query) =>
     )
 );
 
+Query.live((query) =>
+  query
+    .from({ project: ProjectsCollection })
+    // @ts-expect-error Query projections must stay synchronous
+    .select(() => promisedProject)
+);
+
+Query.live((query) =>
+  query
+    .from({ project: ProjectsCollection })
+    .groupBy(
+      ({ project }) => ({ name: project.name }),
+      {
+        // @ts-expect-error aggregate value callbacks must stay synchronous
+        count: Query.count(() => promisedNumber)
+      }
+    )
+);
+
 const projectsHandle = useCollection(ProjectsCollection);
 projectsHandle.rows().map((project) => project.name);
 projectsHandle.get("atlas")?.name.toUpperCase();

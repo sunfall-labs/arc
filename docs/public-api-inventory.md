@@ -459,7 +459,10 @@ Subpath exports:
   `FileRouteDefinitionsFileWriteFailure` for typed route-generation and
   filesystem diagnostics. `FileRouteDefinitionsOutputPathError` rejects
   `fileRouteGeneration.outputFile` values that would write outside the Vite
-  root. Its diagnostics loading exports are implemented by
+  root. File-route discovery uses one shared eligibility policy for generated
+  route-tree exclusion, extension/declaration filtering, route-directory
+  existence checks, and Vite hot-update matching. Its diagnostics loading
+  exports are implemented by
   the internal Start Vite Diagnostics Loader Module, so CLI/CI/build-gate
   temporary Vite server lifetime and diagnostics DTO decoding share one
   Effect-first policy while the public `./vite` Interface stays stable.

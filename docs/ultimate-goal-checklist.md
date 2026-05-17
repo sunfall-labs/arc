@@ -659,17 +659,18 @@ Last evidence pass: May 16, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 197 ran Core/Start/DB typechecks, public
-    type tests, public API audit, Effect-first audit over 405 files, focused
-    Core route/browser-router/action/resource Promise-shaped regressions,
-    focused Start action response-runtime/header/hydration regressions, and
-    focused DB flush-policy skip regressions after tightening sync metadata,
-    Resource key, Start action runtime, and DB flush policy seams.
+  - Latest focused evidence: Review 198 ran DB/Start typechecks, public type
+    tests, public API audit, Effect-first audit over 406 files, focused DB
+    Promise-shaped Query callback regressions, focused Start
+    generated-route/diagnostics regressions, and the full Start file-route test
+    file after tightening Query callback evaluation and Start file-route/Vite
+    policy seams.
     Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
     sweeps found Review191, Review192, Review193, Review194, Review195, and
-    Review196 and Review197 work, leaving the active counter at 0/30.
+    Review196, Review197, and Review198 work, leaving the active counter at
+    0/30.
     Latest full evidence:
-    `pnpm verify` ran after Review 197 with 53 test files / 1054 tests.
+    `pnpm verify` ran after Review 198 with 53 test files / 1055 tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.
@@ -808,29 +809,27 @@ Last evidence pass: May 16, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 197 sync metadata guardrails,
-    Start action runtime split, Resource key hardening, and DB flush-skip
-    normalization.
+  - Evidence: no new ADR required for the Review 198 Query callback guardrails
+    and Start file-route/Vite policy locality.
     Future architecture sweeps remain tracked in
     `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 197
-    sync metadata guardrails, Start action runtime split, Resource key
-    hardening, and DB flush-skip normalization:
+  - Evidence: root `pnpm verify` passed on May 16, 2026 after the Review 198
+    Query callback guardrails and Start file-route/Vite policy locality:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
-    405 physical/virtual files, 53 root test files / 1054 tests,
+    406 physical/virtual files, 53 root test files / 1055 tests,
     package-level verifies for the devtools/starter/example packages,
     generated starter-suite packaging/verifies for basic/react/project-console,
     16-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 197 records Core/Start/DB typechecks, public type tests,
-    public API audit, Effect-first audit, focused Core/Start/DB regressions, and
-    whitespace checks. Clean Sweep 1 after
+  - Evidence: Review 198 records DB/Start typechecks, public type tests, public
+    API audit, Effect-first audit, focused DB/Start regressions, Start
+    file-route tests, and whitespace checks. Clean Sweep 1 after
     Review190 remains historical 1/30 evidence, but later sweeps found
-    Review191, Review192, Review193, Review194, Review195, Review196, and
-    Review197 work, leaving the active counter at 0/30.
+    Review191, Review192, Review193, Review194, Review195, Review196,
+    Review197, and Review198 work, leaving the active counter at 0/30.
     Full verification is recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items

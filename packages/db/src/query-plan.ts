@@ -1,4 +1,4 @@
-import { stableStringify } from "@effect-ui/core";
+import { stableStringify, type RejectPromiseLikeValue } from "@effect-ui/core";
 import { Data } from "effect";
 import type {
   AnyCollection,
@@ -32,8 +32,8 @@ export type QueryEvaluationOperation =
   | "evaluate";
 
 /**
- * Error raised when user-provided synchronous query callbacks throw during
- * evaluation.
+ * Error raised when user-provided synchronous query callbacks throw or return
+ * Promise-shaped values during evaluation.
  *
  * Query factory throws are normalized with operation `"evaluate"`. One-shot
  * query Effects report this value in their error channel, while synchronous
@@ -43,6 +43,12 @@ export class QueryEvaluationError extends Data.TaggedError("QueryEvaluationError
   readonly operation: QueryEvaluationOperation;
   readonly message: string;
   readonly cause: unknown;
+}> {}
+
+class QueryCallbackPromiseRejected extends Data.TaggedError(
+  "QueryCallbackPromiseRejected"
+)<{
+  readonly guidance: string;
 }> {}
 
 /** Sort direction accepted by Query order clauses. */
@@ -147,9 +153,9 @@ export interface QueryExecution<TContext> {
  * Aggregate definition used by `Query.groupBy`.
  */
 export interface QueryAggregate<TContext, R, V = unknown> {
-  readonly preMap: (row: TContext) => V;
-  readonly reduce: (values: Array<[V, number]>) => V;
-  readonly postMap?: (value: V) => R;
+  readonly preMap: (row: TContext) => V & RejectPromiseLikeValue<V>;
+  readonly reduce: (values: Array<[V, number]>) => V & RejectPromiseLikeValue<V>;
+  readonly postMap?: (value: V) => R & RejectPromiseLikeValue<R>;
 }
 
 export type QueryAggregateRecord<TContext> = Record<string, QueryAggregate<TContext, any, any>>;
@@ -213,12 +219,40 @@ export const toQueryEvaluationError = (
       message: cause instanceof Error ? cause.message : String(cause)
     });
 
+const isPromiseShapedQueryValue = (value: unknown): boolean => {
+  if (value === null) {
+    return false;
+  }
+
+  const valueType = typeof value;
+  if (valueType !== "object" && valueType !== "function") {
+    return false;
+  }
+
+  return typeof Reflect.get(value as object, "then") === "function";
+};
+
+const promiseShapedQueryCallbackError = (
+  operation: QueryEvaluationOperation
+): QueryEvaluationError =>
+  new QueryEvaluationError({
+    operation,
+    cause: new QueryCallbackPromiseRejected({
+      guidance: "Query callbacks are synchronous. Move async work into collection load/refetch/sync adapters, or wrap host Promise work in an Effect before it reaches Query evaluation."
+    }),
+    message: `Query ${operation} callbacks must return synchronous values, not Promise-shaped values.`
+  });
+
 export const evaluateQueryOperation = <A>(
   operation: QueryEvaluationOperation,
   evaluate: () => A
 ): A => {
   try {
-    return evaluate();
+    const value = evaluate();
+    if (isPromiseShapedQueryValue(value)) {
+      throw promiseShapedQueryCallbackError(operation);
+    }
+    return value;
   } catch (cause) {
     throw toQueryEvaluationError(operation, cause);
   }

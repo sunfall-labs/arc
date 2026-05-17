@@ -1,13 +1,12 @@
 import { Data, Effect } from "effect";
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { isAbsolute, relative, resolve as resolvePath } from "node:path";
+import { resolve as resolvePath } from "node:path";
 import type { UserConfig } from "vite";
 import {
-  absoluteFileRouteDirectory,
   createStartManifestWallDefineValues,
-  defaultFileRouteDirectory,
   defaultServerEntry,
-  isGeneratedFileRouteDefinitionsOutputFile,
+  fileRouteDiscoveryPlan,
+  isFileRouteDiscoveryFile,
   makeStartBuildAppGraphEffect,
   makeStartFileRouteManifestEffect,
   normalizeStartManifestIterableOptions,
@@ -44,8 +43,8 @@ import {
   runStartHostPromise
 } from "./start-host-runtime-runner.js";
 import { isStartManifestServerOnlyModule } from "./manifest-entry-core.js";
-import { defaultFileRouteExtensions } from "./file-routes.js";
 import { nodeRequestLifecycle } from "./node-web-exchange.js";
+import { effectUiStartPluginName } from "./start-vite-plugin-names.js";
 
 export {
   defaultFileRouteDirectory,
@@ -152,7 +151,7 @@ export interface EffectUiStartResolvedConfig {
 
 /** Vite plugin shape returned by `effectUiStart`. */
 export interface EffectUiStartPlugin {
-  readonly name: "effect-ui-start";
+  readonly name: typeof effectUiStartPluginName;
   readonly config: (config?: UserConfig) => UserConfig;
   readonly configResolved: (config: EffectUiStartResolvedConfig) => void;
   readonly buildStart: () => void | Promise<void>;
@@ -282,28 +281,18 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
   };
   const isFileRouteUpdate = (file: string): boolean => {
     const activeOptions = currentOptions();
-    if (isGeneratedFileRouteDefinitionsOutputFile(viteRoot, activeOptions, file)) {
-      return false;
-    }
-
-    const routeDirectory = absoluteFileRouteDirectory(
-      viteRoot,
-      activeOptions.fileRouteOptions?.routeDirectory ?? defaultFileRouteDirectory
-    );
-    const relativeRouteFile = relative(routeDirectory, resolvePath(file));
-    if (
-      relativeRouteFile === "" ||
-      relativeRouteFile.startsWith("..") ||
-      isAbsolute(relativeRouteFile) ||
-      relativeRouteFile.endsWith(".d.ts") ||
-      relativeRouteFile.endsWith(".d.mts") ||
-      relativeRouteFile.endsWith(".d.cts")
-    ) {
-      return false;
-    }
-
-    const extensions = activeOptions.fileRouteOptions?.extensions ?? defaultFileRouteExtensions;
-    return extensions.some((extension) => relativeRouteFile.endsWith(extension));
+    return isFileRouteDiscoveryFile(fileRouteDiscoveryPlan({
+      root: viteRoot,
+      ...(activeOptions.fileRouteOptions?.routeDirectory === undefined
+        ? {}
+        : { routeDirectory: activeOptions.fileRouteOptions.routeDirectory }),
+      ...(activeOptions.fileRouteOptions?.extensions === undefined
+        ? {}
+        : { extensions: activeOptions.fileRouteOptions.extensions }),
+      ...(activeOptions.fileRouteGeneration === undefined
+        ? {}
+        : { fileRouteGeneration: activeOptions.fileRouteGeneration })
+    }), file);
   };
   const refreshFileRouteArtifacts = (server?: {
     readonly moduleGraph: {
@@ -318,7 +307,7 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
   };
 
   return {
-    name: "effect-ui-start",
+    name: effectUiStartPluginName,
     config(config: UserConfig = {}) {
       viteUserConfig = config;
       viteRoot = resolvePath(config.root ?? process.cwd());

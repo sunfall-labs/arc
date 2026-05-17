@@ -1,4 +1,4 @@
-import type { ReadableSignal } from "@effect-ui/core";
+import type { ReadableSignal, RejectPromiseLikeValue } from "@effect-ui/core";
 import { Effect } from "effect";
 import { makeLiveQueryState } from "./live-query-state.js";
 import {
@@ -25,6 +25,7 @@ import {
   type QuerySortDirection,
   type QuerySortValue,
   type SourceRecord,
+  evaluateQueryOperation,
   toQueryEvaluationError
 } from "./query-plan.js";
 import {
@@ -92,7 +93,9 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
   }
 
   /** Returns a new query that projects each matching context to a result value. */
-  select<Next>(projector: (row: TContext) => Next): QueryBuilder<TContext, Next, E, R> {
+  select<Next>(
+    projector: (row: TContext) => Next & RejectPromiseLikeValue<Next>
+  ): QueryBuilder<TContext, Next, E, R> {
     return new QueryBuilder<TContext, Next, E, R>(
       this.sources,
       this.filters,
@@ -383,10 +386,12 @@ export const not = (value: boolean): boolean => !value;
 /** Array membership predicate using JavaScript `includes` semantics. */
 export const includes = <A>(values: ReadonlyArray<A>, value: A): boolean => values.includes(value);
 
-const aggregateCount = <TContext>(
-  value: (row: TContext) => unknown = (row) => row
+const aggregateCount = <TContext, A = unknown>(
+  value: (row: TContext) => A & RejectPromiseLikeValue<A> =
+    (row) => row as A & RejectPromiseLikeValue<A>
 ): QueryAggregate<TContext, number, number> => ({
-  preMap: (row) => value(row) == null ? 0 : 1,
+  preMap: (row) =>
+    evaluateQueryOperation("aggregate", () => value(row)) == null ? 0 : 1,
   reduce: (values) => {
     let total = 0;
     for (const [present, multiplicity] of values) {
@@ -399,7 +404,7 @@ const aggregateCount = <TContext>(
 const aggregateSum = <TContext>(
   value: (row: TContext) => number
 ): QueryAggregate<TContext, number, number> => ({
-  preMap: value,
+  preMap: (row) => evaluateQueryOperation("aggregate", () => value(row)),
   reduce: (values) => {
     let total = 0;
     for (const [amount, multiplicity] of values) {
@@ -412,7 +417,10 @@ const aggregateSum = <TContext>(
 const aggregateAvg = <TContext>(
   value: (row: TContext) => number
 ): QueryAggregate<TContext, number, { readonly sum: number; readonly count: number }> => ({
-  preMap: (row) => ({ sum: value(row), count: 1 }),
+  preMap: (row) => ({
+    sum: evaluateQueryOperation("aggregate", () => value(row)),
+    count: 1
+  }),
   reduce: (values) => {
     let sum = 0;
     let count = 0;
@@ -428,7 +436,7 @@ const aggregateAvg = <TContext>(
 const aggregateMin = <TContext, V extends number | string | Date | bigint>(
   value: (row: TContext) => V
 ): QueryAggregate<TContext, V | undefined, V | undefined> => ({
-  preMap: value,
+  preMap: (row) => evaluateQueryOperation("aggregate", () => value(row)),
   reduce: (values) => {
     let min: V | undefined;
     for (const [candidate, multiplicity] of values) {
@@ -446,7 +454,7 @@ const aggregateMin = <TContext, V extends number | string | Date | bigint>(
 const aggregateMax = <TContext, V extends number | string | Date | bigint>(
   value: (row: TContext) => V
 ): QueryAggregate<TContext, V | undefined, V | undefined> => ({
-  preMap: value,
+  preMap: (row) => evaluateQueryOperation("aggregate", () => value(row)),
   reduce: (values) => {
     let max: V | undefined;
     for (const [candidate, multiplicity] of values) {

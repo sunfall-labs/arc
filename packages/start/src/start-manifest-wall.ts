@@ -123,6 +123,17 @@ export interface FileRouteDiscoveryOptions {
   readonly root?: string;
   readonly routeDirectory?: string;
   readonly extensions?: readonly string[];
+  /** Generated route definition output to ignore if it lives under the route directory. */
+  readonly fileRouteGeneration?: FileRouteGenerationOptions;
+}
+
+/** Normalized file-route discovery policy shared by discovery and Vite adapters. */
+export interface FileRouteDiscoveryPlan {
+  readonly root: string;
+  readonly routeDirectory: string;
+  readonly directory: string;
+  readonly extensions: readonly string[];
+  readonly generatedDefinitionsFile?: string;
 }
 
 export class FileRouteDiscoveryError extends Data.TaggedError(
@@ -201,6 +212,15 @@ const normalizeDiscoveredFileRoutePath = (path: string): string =>
     .replace(/\/+/g, "/")
     .replace(/\/$/, "");
 
+const isRouteFileName = (
+  fileName: string,
+  extensions: readonly string[]
+): boolean =>
+  !fileName.endsWith(".d.ts") &&
+  !fileName.endsWith(".d.mts") &&
+  !fileName.endsWith(".d.cts") &&
+  extensions.some((extension) => fileName.endsWith(extension));
+
 export const absoluteFileRouteGeneratedFile = (
   root: string,
   options: FileRouteGenerationOptions = {}
@@ -229,30 +249,6 @@ export const isGeneratedFileRouteDefinitionsOutputFile = (
   return normalizeDiscoveredFileRoutePath(absolutePath) === normalizeDiscoveredFileRoutePath(generated);
 };
 
-const generatedFileRouteDefinitionsDiscoveryPath = (
-  root: string,
-  routeDirectory: string,
-  options: FileRouteGenerationOptions = {}
-): string | undefined => {
-  const generated = absoluteFileRouteGeneratedFile(root, options);
-  if (generated === undefined) {
-    return undefined;
-  }
-
-  return normalizeDiscoveredFileRoutePath(
-    isAbsolute(routeDirectory) ? generated : relativePath(root, generated)
-  );
-};
-
-const isRouteFileName = (
-  fileName: string,
-  extensions: readonly string[]
-): boolean =>
-  !fileName.endsWith(".d.ts") &&
-  !fileName.endsWith(".d.mts") &&
-  !fileName.endsWith(".d.cts") &&
-  extensions.some((extension) => fileName.endsWith(extension));
-
 export const absoluteFileRouteDirectory = (
   root: string,
   routeDirectory: string = defaultFileRouteDirectory
@@ -261,15 +257,70 @@ export const absoluteFileRouteDirectory = (
     ? routeDirectory
     : resolvePath(root, routeDirectory);
 
+/** Builds the shared file-route discovery policy for directory scans and Vite hot updates. */
+export const fileRouteDiscoveryPlan = (
+  options: FileRouteDiscoveryOptions = {}
+): FileRouteDiscoveryPlan => {
+  const root = resolvePath(options.root ?? process.cwd());
+  const routeDirectory = options.routeDirectory ?? defaultFileRouteDirectory;
+  const generatedDefinitionsFile = absoluteFileRouteGeneratedFile(root, options.fileRouteGeneration);
+  return {
+    root,
+    routeDirectory,
+    directory: absoluteFileRouteDirectory(root, routeDirectory),
+    extensions: options.extensions ?? defaultFileRouteExtensions,
+    ...(generatedDefinitionsFile === undefined ? {} : { generatedDefinitionsFile })
+  };
+};
+
+/** Checks whether the discovery plan's route directory currently exists. */
+export const fileRouteDiscoveryDirectoryExists = (
+  plan: FileRouteDiscoveryPlan
+): boolean =>
+  existsSync(plan.directory);
+
+/** Returns true when a host file path is a discoverable route module. */
+export const isFileRouteDiscoveryFile = (
+  plan: FileRouteDiscoveryPlan,
+  filePath: string
+): boolean => {
+  const absolutePath = isAbsolute(filePath) ? filePath : resolvePath(plan.root, filePath);
+  if (
+    plan.generatedDefinitionsFile !== undefined &&
+    normalizeDiscoveredFileRoutePath(absolutePath) === normalizeDiscoveredFileRoutePath(plan.generatedDefinitionsFile)
+  ) {
+    return false;
+  }
+
+  const relativeRouteFile = relativePath(plan.directory, absolutePath);
+  if (
+    relativeRouteFile === "" ||
+    relativeRouteFile.startsWith("..") ||
+    isAbsolute(relativeRouteFile)
+  ) {
+    return false;
+  }
+
+  return isRouteFileName(relativeRouteFile, plan.extensions);
+};
+
+/** Converts an absolute route module path to the manifest path for a discovery plan. */
+export const discoveredFileRoutePath = (
+  plan: FileRouteDiscoveryPlan,
+  filePath: string
+): string =>
+  normalizeDiscoveredFileRoutePath(
+    isAbsolute(plan.routeDirectory)
+      ? filePath
+      : relativePath(plan.root, filePath)
+  );
+
 const discoverFileRoutesSync = (
   options: FileRouteDiscoveryOptions = {}
 ): readonly string[] => {
-  const root = resolvePath(options.root ?? process.cwd());
-  const routeDirectory = options.routeDirectory ?? defaultFileRouteDirectory;
-  const directory = absoluteFileRouteDirectory(root, routeDirectory);
-  const extensions = options.extensions ?? defaultFileRouteExtensions;
+  const plan = fileRouteDiscoveryPlan(options);
 
-  if (!existsSync(directory)) {
+  if (!fileRouteDiscoveryDirectoryExists(plan)) {
     return [];
   }
 
@@ -283,16 +334,13 @@ const discoverFileRoutesSync = (
       const fullPath = resolvePath(currentDirectory, entry.name);
       if (entry.isDirectory()) {
         visit(fullPath);
-      } else if (entry.isFile() && isRouteFileName(entry.name, extensions)) {
-        const routeFilePath = isAbsolute(routeDirectory)
-          ? fullPath
-          : relativePath(root, fullPath);
-        discovered.push(normalizeDiscoveredFileRoutePath(routeFilePath));
+      } else if (entry.isFile() && isFileRouteDiscoveryFile(plan, fullPath)) {
+        discovered.push(discoveredFileRoutePath(plan, fullPath));
       }
     }
   };
 
-  visit(directory);
+  visit(plan.directory);
   return discovered.sort();
 };
 
@@ -300,13 +348,11 @@ const discoverFileRoutesSync = (
 export const discoverFileRoutesEffect = (
   options: FileRouteDiscoveryOptions = {}
 ): Effect.Effect<readonly string[], FileRouteDiscoveryError> => {
-  const root = resolvePath(options.root ?? process.cwd());
-  const routeDirectory = options.routeDirectory ?? defaultFileRouteDirectory;
-  const directory = absoluteFileRouteDirectory(root, routeDirectory);
+  const plan = fileRouteDiscoveryPlan(options);
 
   return Effect.try({
     try: () => discoverFileRoutesSync(options),
-    catch: (cause) => new FileRouteDiscoveryError({ directory, cause })
+    catch: (cause) => new FileRouteDiscoveryError({ directory: plan.directory, cause })
   });
 };
 
@@ -504,26 +550,20 @@ export const withDiscoveredFileRoutesEffect = (
 
   const fileRouteOptions = next.fileRouteOptions;
   const routeDirectory = fileRouteOptions?.routeDirectory ?? defaultFileRouteDirectory;
-  const ignoredGeneratedFile = generatedFileRouteDefinitionsDiscoveryPath(
-    root,
-    routeDirectory,
-    next.fileRouteGeneration
-  );
   return Effect.map(
     discoverFileRoutesEffect({
       root,
       routeDirectory,
       ...(fileRouteOptions?.extensions === undefined
         ? {}
-        : { extensions: fileRouteOptions.extensions })
+        : { extensions: fileRouteOptions.extensions }),
+      ...(next.fileRouteGeneration === undefined
+        ? {}
+        : { fileRouteGeneration: next.fileRouteGeneration })
     }),
     (fileRoutes) => ({
       ...next,
-      fileRoutes: ignoredGeneratedFile === undefined
-        ? fileRoutes
-        : fileRoutes.filter((fileRoute) =>
-            normalizeDiscoveredFileRoutePath(fileRoute) !== ignoredGeneratedFile
-          )
+      fileRoutes
     })
   );
 };

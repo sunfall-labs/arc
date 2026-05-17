@@ -31,6 +31,7 @@ import {
   writeFileRouteDefinitionsFileEffect,
   type EffectUiStartOptions,
   type EffectUiStartPlugin,
+  type FileRouteDiscoveryOptions,
   type FileRouteDefinitionsFileWriteFailure,
   type FileRouteDefinitionsFileWriteResult,
   type LoadedStartAppGraphDiagnostics,
@@ -99,6 +100,7 @@ type _StartBuildPolicyErrorExcludesDiagnostics = Assert<
 type ViteTypes =
   | EffectUiStartOptions
   | EffectUiStartPlugin
+  | FileRouteDiscoveryOptions
   | FileRouteDefinitionsFileWriteFailure
   | FileRouteDefinitionsFileWriteResult
   | LoadedStartAppGraphDiagnostics
@@ -108,6 +110,13 @@ type ViteTypes =
   | StartBuildPolicyError
   | StartDevServer;
 declare const viteRoot: string;
+const discoveryOptions: FileRouteDiscoveryOptions = {
+  root: viteRoot,
+  routeDirectory: "src/routes",
+  extensions: [".tsx"],
+  fileRouteGeneration: { outputFile: "src/routes/routeTree.gen.ts" }
+};
+void discoveryOptions;
 declare const viteManifest: Parameters<typeof writeFileRouteDefinitionsFile>[1];
 declare const routeOutputFailure: FileRouteDefinitionsOutputPathError;
 declare const routeWriteFailure: FileRouteDefinitionsFileWriteError;

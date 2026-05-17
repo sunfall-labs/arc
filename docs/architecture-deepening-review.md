@@ -11,14 +11,13 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review197, the post-Review196 sweep
-fixing erased Promise-shaped Route preload, Action/Resource metadata, Resource
-key, DB flush-skip, and Start action runtime seams. The newest full verification
-checkpoint is Review197. Clean
+The newest completed focused review is Review198, the post-Review197 sweep
+fixing Promise-shaped Query callbacks and Start file-route/Vite policy
+locality. The newest full verification checkpoint is Review198. Clean
 Sweep 1 after Review190 remains
 historical evidence, but later sweeps found Review191, Review192, Review193,
-Review194, Review195, Review196, and Review197 work, so the active
-Thirty-Sweep clean counter is 0/30 until a fresh post-Review197 sweep reports no actionable
+Review194, Review195, Review196, Review197, and Review198 work, so the active
+Thirty-Sweep clean counter is 0/30 until a fresh post-Review198 sweep reports no actionable
 findings. Some older review entries
 remain below this tip from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
@@ -41,8 +40,80 @@ first post-Review193 sweep found Review194 Core/Start/docs work. The first
 post-Review194 sweep found Review195 Core/Start/example/docs work, so the
 counter stayed inactive. The first post-Review195 sweep found Review196
 Core/Start/DB/devtools/starter work, and the first post-Review196 sweep found
-Review197 Core/Start/DB work, so the counter remains inactive until the
-post-Review197 sweep is clean.
+Review197 Core/Start/DB work, and the first post-Review197 sweep found
+Review198 DB/Start work, so the counter remains inactive until the
+post-Review198 sweep is clean.
+
+## Review 198: Query Callback And Start Discovery Policy Guardrails
+
+Review198 fixed actionable findings from the fresh post-Review197 subagent
+sweep. The Core/React/Solid lane reported no actionable findings after focused
+verification; the DB and Start lanes found the work below.
+
+1. DB Query Callback Promise Guardrail
+   - Status: fixed.
+   - Files: `packages/db/src/query-plan.ts`,
+     `packages/db/src/query-builder.ts`,
+     `packages/db/test/collection.test.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: Query callbacks are synchronous, but erased Promise-shaped values
+     could still cross filter, join, order, projection, and aggregate callback
+     seams as truthy filters, unstable keys, or projected Promise values instead
+     of typed `QueryEvaluationError` failures. `Query.select(...)` and
+     aggregate value helpers also lacked the same Promise-member type rejection
+     used by EffectInput-backed Interfaces.
+   - Fix: `evaluateQueryOperation(...)` now rejects Promise-shaped callback
+     results as `QueryEvaluationError` with a `QueryCallbackPromiseRejected`
+     cause. Query aggregate helpers route nested value callbacks through that
+     same operation guard, and public type tests reject Promise-shaped
+     projections and aggregate value callbacks.
+   - Benefits: the Query Execution Plan Module owns callback normalization once,
+     so one-shot queries and live queries observe the same typed failure shape
+     while async source work stays behind Collection load/refetch/sync Adapters.
+
+2. Start File-Route Discovery Policy Locality
+   - Status: fixed.
+   - Files: `packages/start/src/start-manifest-wall.ts`,
+     `packages/start/src/generated-route-definitions.ts`,
+     `packages/start/src/vite.ts`,
+     `docs/public-api-inventory.md`,
+     `type-tests/start-vite.test-d.ts`.
+   - Problem: file-route extension/declaration filtering, generated route-tree
+     exclusion, route-directory existence checks, and Vite hot-update matching
+     were spread across three Modules. Changing route eligibility policy
+     required keeping discovery, generated file writes, and Vite invalidation in
+     sync by hand.
+   - Fix: added a shared `FileRouteDiscoveryPlan` policy with directory
+     existence, route-file eligibility, generated-output exclusion, and
+     discovered-path normalization. Discovery, generated route writes, and Vite
+     hot updates now consume that policy.
+   - Benefits: Start File Route Discovery is the owning Module for route-file
+     eligibility, while Vite remains a host Adapter over the shared policy.
+
+3. Start Vite Plugin Name Locality
+   - Status: fixed.
+   - Files: `packages/start/src/start-vite-plugin-names.ts`,
+     `packages/start/src/vite.ts`,
+     `packages/start/src/start-vite-diagnostics-loader.ts`.
+   - Problem: the diagnostics loader stripped Start plugins by hard-coded names
+     while the Vite Adapter and virtual-module Adapter declared those names
+     separately.
+   - Fix: introduced shared internal plugin-name constants consumed by the
+     public Vite Adapter and diagnostics-only virtual-module Adapter.
+   - Benefits: diagnostics temporary Vite servers strip the same plugin names
+     the Start Vite Modules declare, preserving Locality for plugin identity.
+
+Focused workspace evidence for this pass: DB and Start package typechecks
+passed; public type tests passed; Effect-first audit passed over 406
+physical/virtual files; the focused DB Promise-shaped Query callback regression
+passed; focused Start generated-route and diagnostics regressions passed; the
+full Start file-route test file passed; public API audit passed; and
+`git diff --check` passed. Full `pnpm verify` passed after Review198 with 11
+package builds, workspace typecheck, public type tests, public API audit,
+Effect-first audit over 406 files, 53 root test files / 1055 tests,
+package-level verifies, generated starter packaging, 16-target package dry-run
+gate, project-console checks, and leak scans. This sweep found work, so the
+active clean counter remains 0/30.
 
 ## Review 197: Sync Metadata, Runtime Splits, And Promise Guardrails
 

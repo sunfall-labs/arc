@@ -6620,6 +6620,96 @@ describe("Query", () => {
     });
   });
 
+  it("rejects Promise-shaped query callbacks as typed evaluation errors", async () => {
+    const Projects = Collection.define<Project>({
+      name: "Projects.promise-query-callbacks",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 },
+        { id: "lumen", name: "Lumen", status: "blocked", progress: 34 }
+      ]
+    });
+    const Tasks = Collection.define<Task>({
+      name: "Tasks.promise-query-callbacks",
+      getKey: (task) => task.id,
+      initialData: [
+        { id: "t1", projectId: "atlas", title: "Retry workflow", done: false }
+      ]
+    });
+    const promised = <A,>(value: A): A =>
+      Effect.runPromise(Effect.succeed(value)) as never;
+    const cases: ReadonlyArray<{
+      readonly operation: "filter" | "join" | "order" | "projection" | "aggregate";
+      readonly factory: (query: Query.Root) => Query.Builder<any, any, any, any>;
+    }> = [
+      {
+        operation: "filter",
+        factory: (query) =>
+          query
+            .from({ project: Projects })
+            .where((() => promised(true)) as never)
+            .select(({ project }) => project.name)
+      },
+      {
+        operation: "projection",
+        factory: (query) =>
+          query
+            .from({ project: Projects })
+            .select((() => promised("Atlas")) as never)
+      },
+      {
+        operation: "join",
+        factory: (query) =>
+          query
+            .from({ project: Projects })
+            .join("task", Tasks, (() => promised("atlas")) as never, (task) => task.projectId)
+            .select(({ project }) => project.name)
+      },
+      {
+        operation: "order",
+        factory: (query) =>
+          query
+            .from({ project: Projects })
+            .orderBy((() => promised(1)) as never)
+            .select(({ project }) => project.name)
+      },
+      {
+        operation: "aggregate",
+        factory: (query) =>
+          query
+            .from({ project: Projects })
+            .groupBy(
+              ({ project }) => ({ status: project.status }),
+              { count: Query.count((() => promised("present")) as never) }
+            )
+            .select((group) => group.count)
+      }
+    ];
+
+    for (const testCase of cases) {
+      const onceExit = await Effect.runPromiseExit(Query.onceEffect(testCase.factory));
+      expect(Exit.isFailure(onceExit), testCase.operation).toBe(true);
+      if (Exit.isFailure(onceExit)) {
+        const error = onceExit.cause.reasons.find(Cause.isFailReason)?.error;
+        expect(error).toBeInstanceOf(QueryEvaluationError);
+        expect(error).toMatchObject({
+          operation: testCase.operation,
+          cause: { _tag: "QueryCallbackPromiseRejected" }
+        });
+      }
+
+      const live = Query.live(testCase.factory);
+      expect(live.state.get()).toMatchObject({
+        _tag: "Failure",
+        error: {
+          _tag: "QueryEvaluationError",
+          operation: testCase.operation,
+          cause: { _tag: "QueryCallbackPromiseRejected" }
+        }
+      });
+    }
+  });
+
   it("rejects query joins without registered source aliases consistently", async () => {
     const Projects = Collection.define<Project>({
       name: "Projects.missing-query-join-source",
