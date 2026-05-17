@@ -77,6 +77,8 @@
         "FlushCollectionPendingMutationsResult",
         "QueryEvaluationError",
         "QueryGroupKey",
+        "QuerySyncKey",
+        "QuerySyncKeyPart",
         "ServerCollectionDeletePayload",
         "ServerCollectionInsertPayload",
         "ServerCollectionOperation",

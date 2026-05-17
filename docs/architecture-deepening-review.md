@@ -11,9 +11,9 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review224, the post-Review223 sweep
-fixing erased query factory-result validation and current audit-doc evidence.
-The newest full verification checkpoint is Review224.
+The newest completed focused review is Review225, the post-Review224 sweep
+fixing Resource hydration payload helper hover ownership and DB query-sync key
+type-test ownership. The newest full verification checkpoint is Review225.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -28,14 +28,15 @@ found Review220 work, the fresh post-Review220 sweep found Review221 work, and
 the fresh post-Review221 sweep found Review222 work,
 and the post-Review222 local sweep found Review223 work,
 and the post-Review223 sweep found Review224 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review224
+and the post-Review224 sweep found Review225 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review225
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
 Review206, Review207, Review208, Review209, Review210, Review211, Review212,
 Review213, Review214, Review215, Review216, Review217, Review218, Review219,
-Review220, Review221, Review222, Review223, and Review224 work.
+Review220, Review221, Review222, Review223, Review224, and Review225 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -100,7 +101,43 @@ Review222 Core, DB, and docs/LSP work,
 and the post-Review222 local sweep found Review223 Core, DB, starter package,
 and docs/LSP work,
 and the post-Review223 sweep found Review224 DB and docs/current-evidence work,
+and the post-Review224 sweep found Review225 Core/DB LSP/type-test ownership
+work,
 so the counter remains 0/30.
+
+## Review 225: Resource Payload Hovers And Query Sync Type Ownership
+
+Review225 fixed actionable findings from the fresh post-Review224 sweep.
+
+1. Resource Hydration Payload Helper Hovers
+   - Status: fixed.
+   - Files: `packages/core/src/resource.ts` and
+     `scripts/public-api-symbol-policy.mjs`.
+   - Problem: `Resource.hydrationPayload(...)` still described the helper as
+     wrapping dehydrated snapshots, and `hydrationPayloadEffect(...)` only said
+     it was the Effect version, reintroducing the old snapshot-vs-ref ambiguity
+     in LSP hovers.
+   - Fix: both hovers now say they build validated hydration payloads from
+     loaded Resource refs, and public API hover policy pins the helper names.
+   - Benefits: LSP guidance matches the payload-only hydration docs and keeps
+     ref-based payload creation distinct from existing `{ resources: snapshots }`
+     payloads.
+
+2. Query Sync Key Type-Test Ownership
+   - Status: fixed.
+   - Files: `type-tests/db.test-d.ts` and
+     `type-tests/public-api.manifest.json`.
+   - Problem: `Collection.QuerySyncKey` and `Collection.QuerySyncKeyPart` were
+     public, documented, and hover-policy pinned, but the DB type-test manifest
+     did not own them.
+   - Fix: DB public type tests now assert both namespace aliases, and the
+     manifest lists them as DB type-test references.
+   - Benefits: query-sync cache-key vocabulary has compile-time ownership as
+     well as hover-doc ownership.
+
+Focused verification for Review225 passed: public type tests, public API audit,
+Effect-first audit, stale hover wording grep, query-sync type ownership grep,
+and `git diff --check`.
 
 ## Review 224: Query Factory Result And Current Evidence Envelope
 
@@ -1376,8 +1413,9 @@ work, the first post-Review218 sweep found Review219 work, and the fresh
 post-Review219 sweep found Review220 work, and the fresh post-Review220 sweep
 found Review221 work, the fresh post-Review221 sweep found Review222 work, and
 the post-Review222 local sweep found Review223 work, and the post-Review223
-sweep found Review224 work. The active counter is 0/30 until a fresh
-post-Review224 sweep reports no actionable findings.
+sweep found Review224 work, and the post-Review224 sweep found Review225 work.
+The active counter is 0/30 until a fresh post-Review225 sweep reports no
+actionable findings.
 
 ## Review 208: Runtime Provider Observers, CLI Bin Execution, And Docs Drift
 

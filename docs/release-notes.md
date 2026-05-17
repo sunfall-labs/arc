@@ -65,7 +65,7 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 17, 2026 after Review 224:
+Latest full gate on May 17, 2026 after Review 225:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
@@ -86,14 +86,20 @@ Latest full gate on May 17, 2026 after Review 224:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 225 closed the post-Review224 sweep findings: Resource hydration
+  payload helper hovers now say the helpers build validated payloads from loaded
+  Resource refs, public hover policy owns both helper names, and DB public type
+  tests plus the manifest now own `Collection.QuerySyncKey` and
+  `Collection.QuerySyncKeyPart`. The active Thirty-Sweep clean counter remains
+  0/30 until a fresh post-Review225 sweep is clean.
 - Review 224 closed the post-Review223 sweep findings: erased
   Promise-shaped, Effect-shaped, and non-builder query factory results now fail
   immediately as `QueryEvaluationError` operation `"evaluate"` with
   `QueryFactoryResultRejected` cause details across build/execute,
   diagnostics, once, and live query entrypoints. Current Sweep Results sections
-  now name Review223/Review224 evidence instead of stopping at Review222. The
-  active Thirty-Sweep clean counter remains 0/30 until a fresh post-Review224
-  sweep is clean.
+  now name Review223/Review224 evidence instead of stopping at Review222. A
+  later post-Review224 sweep found Review225 work, so the active
+  Thirty-Sweep clean counter stayed at 0/30.
 - Review 223 closed the post-Review222 local findings: `Query.build(...).execute()`
   now validates query plans before projection and wraps plan-validation and
   factory failures in `QueryEvaluationError` operation `"evaluate"`, matching
@@ -341,9 +347,10 @@ Latest full gate on May 17, 2026 after Review 224:
   the first post-Review218 sweep found Review219 work, and the fresh
   post-Review219 sweep found Review220 work, the fresh post-Review220 sweep
   found Review221 work, the fresh post-Review221 sweep found Review222 work,
-  the post-Review222 local sweep found Review223 work, and the post-Review223
-  sweep found Review224 work. The active Thirty-Sweep clean counter is 0/30
-  until a fresh post-Review224 sweep reports no actionable findings.
+  the post-Review222 local sweep found Review223 work, the post-Review223
+  sweep found Review224 work, and the post-Review224 sweep found Review225
+  work. The active Thirty-Sweep clean counter is 0/30 until a fresh
+  post-Review225 sweep reports no actionable findings.
 - Review 192 refreshed stale current-gate docs wording that still named
   Review190 or active 1/30 progress after Review191.
 - Review 190 tightened `Server.fn(...)` so union-shaped Promise handler returns
@@ -1281,8 +1288,8 @@ Latest full gate on May 17, 2026 after Review 224:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 224 query factory-result
-  validation and current audit-doc evidence refresh.
+- The latest full `pnpm verify` passed after Review 225 Resource hydration
+  helper hover ownership and query-sync key type-test ownership.
   Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
   sweeps found Review191, Review192, Review193, Review194, Review195, and
   Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, Review208, Review209, Review210, Review211, Review212, and Review213 work.
@@ -1299,7 +1306,8 @@ Latest full gate on May 17, 2026 after Review 224:
   post-Review219 sweep found Review220 work, the fresh post-Review220 sweep
   found Review221 work, the fresh post-Review221 sweep found Review222 work,
   and the post-Review222 local sweep found Review223 work, and the
-  post-Review223 sweep found Review224 work, so the active
+  post-Review223 sweep found Review224 work, and the post-Review224 sweep found
+  Review225 work, so the active
   counter is 0/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,

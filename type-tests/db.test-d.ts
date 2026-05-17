@@ -177,7 +177,19 @@ type DbErasedCollectionPins =
   | CollectionError<typeof dbProjectsCollection>
   | CollectionRequirements<typeof dbProjectsCollection>
   | QueryGroupKey<{ readonly status: string; readonly meta: { readonly active: boolean } }>
-  | Query.GroupKey<{ readonly status: string; readonly tags: ReadonlySet<string> }>;
+  | Query.GroupKey<{ readonly status: string; readonly tags: ReadonlySet<string> }>
+  | Collection.QuerySyncKey
+  | Collection.QuerySyncKeyPart;
+const collectionQuerySyncKeyPart: Collection.QuerySyncKeyPart = {
+  cursor: "after",
+  page: 2,
+  staleAt: new Date(0),
+  flags: [true, null]
+};
+const collectionQuerySyncKey: Collection.QuerySyncKey = [
+  "projects",
+  collectionQuerySyncKeyPart
+];
 type DbServerPins =
   | ServerCollectionOptions<Project>
   | ServerCollectionOperation<void, ReadonlyArray<Project>>
@@ -265,6 +277,8 @@ void collectionBackgroundSyncErrorPin;
 void collectionBackgroundSyncRequirementsPin;
 void concreteCollectionErrorPin;
 void concreteCollectionRequirementsPin;
+void collectionQuerySyncKeyPart;
+void collectionQuerySyncKey;
 void servicefulErasedPersistencePin;
 void servicefulErasedPersistenceRead;
 void bareErasedPersistencePin;

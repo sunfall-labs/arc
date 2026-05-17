@@ -306,6 +306,8 @@ export const publicHoverDocGroups = [
         "refsForTag",
         "result",
         "status",
+        "hydrationPayload",
+        "hydrationPayloadEffect",
         "value",
         "error"
       ]

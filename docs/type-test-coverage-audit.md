@@ -98,6 +98,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
 - Review224 kept public type tests green and moved the current full verification
   evidence to the Review224 gate after DB query factory-result runtime
   coverage.
+- Review225 added DB namespace pins for `Collection.QuerySyncKey` and
+  `Collection.QuerySyncKeyPart`, and moved the current full verification
+  evidence to the Review225 gate.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them
@@ -217,9 +220,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Verification Evidence
 
-- `pnpm typecheck:types` and full `pnpm verify` passed after Review224 with
+- `pnpm typecheck:types` and full `pnpm verify` passed after Review225 with
   53 root test files / 1131 tests, including the latest Resource hydration
-  top-level payload/input manifest ownership and payload-only pins, Router Link Preloader identity
+  top-level payload/input manifest ownership, query-sync key namespace pins,
+  payload-only pins, Router Link Preloader identity
   pin, Runtime Provider Lifecycle typed disposal/export pins,
   project-console runtime service probe, SQLite
   persistence metadata error typing, plain-data pins for Program models/

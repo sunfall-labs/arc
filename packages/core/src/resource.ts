@@ -899,11 +899,11 @@ export namespace Resource {
   ): Effect.Effect<ReadonlyArray<ResourceHydrationSnapshot>, ResourceSnapshotCodecError> =>
     dehydrateResourcesEffect(refs);
 
-  /** Wraps dehydrated snapshots in the payload shape used by route plans. */
+  /** Builds a validated hydration payload from loaded Resource refs. */
   export const hydrationPayload = (refs: Iterable<AnyResourceRef<any>>): ResourceHydrationPayload =>
     resourceHydrationPayload(refs);
 
-  /** Effect version of hydrationPayload. */
+  /** Builds a validated hydration payload from loaded Resource refs using the ResourceStore in context. */
   export const hydrationPayloadEffect = (
     refs: Iterable<AnyResourceRef<any>>
   ): Effect.Effect<ResourceHydrationPayload, ResourceSnapshotCodecError> =>

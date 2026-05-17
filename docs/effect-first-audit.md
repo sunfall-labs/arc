@@ -20,6 +20,9 @@ interruption.
 
 ## Current Sweep Results
 
+- Review225 kept the post-Review224 fixes Effect-first: Resource hydration
+  payload helper hovers and DB query-sync key type-test ownership changed only
+  LSP/type vocabulary, without adding Promise internals.
 - Review224 kept the post-Review223 fixes Effect-first: erased
   Promise-shaped, Effect-shaped, and non-builder query factory results now fail
   immediately as typed `QueryEvaluationError` values, and current audit docs
@@ -622,7 +625,7 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 224 `pnpm verify` run recorded in
+- The current full gate is the Review 225 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
   over 411 files, 53 root test files / 1131 tests, package-level verifies,
@@ -1447,8 +1450,8 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The current full `pnpm verify` passed after Review 224 query factory-result
-  validation and current audit-doc refresh:
+- The current full `pnpm verify` passed after Review 225 Resource hydration
+  helper hover ownership and query-sync key type-test ownership:
   11 package builds, workspace
   typecheck, type tests, public API
   inventory audit, Effect-first audit over 411
