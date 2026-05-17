@@ -158,14 +158,14 @@ export const makeCollectionReactivePreloadController = <E, ER = never>(
     const fiber = retireCurrentPreload();
     return fiber === undefined
       ? Effect.void
-      : Fiber.interrupt(fiber).pipe(Effect.catch(() => Effect.void));
+      : Fiber.interrupt(fiber).pipe(Effect.catchCause(() => Effect.void));
   });
 
   const interrupt = (): void => {
     const fiber = retireCurrentPreload();
     if (fiber !== undefined) {
       void options.runtime.runFork(
-        Fiber.interrupt(fiber).pipe(Effect.catch(() => Effect.void))
+        Fiber.interrupt(fiber).pipe(Effect.catchCause(() => Effect.void))
       );
     }
   };
@@ -198,7 +198,8 @@ export const makeCollectionReactivePreloadController = <E, ER = never>(
                 Effect.asVoid
               )
             : Effect.void
-        )
+        ),
+        Effect.catchCause(() => Effect.void)
       )
     );
   };

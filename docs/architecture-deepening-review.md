@@ -11,11 +11,11 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review238 Tooling Runner, Resource UI
-Observer, And Hover Cleanup, the fresh post-Review237 sweep that tightened the
-Effect command runner, moved `verify.mjs` onto the Effect v4 CLI command tree,
-closed a Resource UI cleanup defect, and refreshed LSP hovers. The newest full
-verification checkpoint is Review238.
+The newest focused review is Review239 Main Runner, UI Lifetime, And Public
+Hover Cleanup, the fresh post-Review238 sweep that moved script/CLI entrypoints
+to signal-aware Effect main fibers, closed remaining UI lifetime defect and
+framework cleanup gaps, and tightened DB/Start LSP hover/type-test ownership.
+The newest full verification checkpoint is also Review239.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -44,7 +44,8 @@ and the fresh post-Review234 Solid route-render follow-up found Review235 work,
 and the fresh post-Review235 framework sweep found Review236 work,
 and the fresh post-Review236 framework follow-up found Review237 work,
 and the fresh post-Review237 sweep found Review238 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review238
+and the fresh post-Review238 sweep found Review239 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review239
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -54,7 +55,8 @@ Review213, Review214, Review215, Review216, Review217, Review218, Review219,
 Review220, Review221, Review222, Review223, Review224, Review225,
 Review226, Review227, Review228, Review229, Review230, Review231, and
 Review232 Shared DB Query Stage Plan work, Review233 work, Review234 work,
-Review235 work, Review236 work, Review237 work, and Review238 work.
+Review235 work, Review236 work, Review237 work, Review238 work, and
+Review239 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -140,8 +142,124 @@ follow-up found Review235 cleanup sequencing work, and the fresh post-Review235
 framework sweep found Review236 failed-render cleanup work, and the fresh
 post-Review236 framework follow-up found Review237 initial failed-render
 cleanup work, and the fresh post-Review237 sweep found Review238 tooling,
-Resource UI cleanup, and LSP hover work,
+Resource UI cleanup, and LSP hover work, and the fresh post-Review238 sweep
+found Review239 main-runner, UI lifetime, framework cleanup, and public hover
+work,
 so the counter remains 0/30.
+
+## Review 239: Main Runner, UI Lifetime, And Public Hover Cleanup
+
+Review239 fixes the actionable findings from the fresh post-Review238 sweep.
+
+1. Effect Main Runner Signal Ownership
+   - Status: fixed.
+   - Files: `scripts/effect-main-runner.mjs`, `scripts/verify.mjs`,
+     `scripts/verify-effect-command-runner.mjs`,
+     `scripts/verify-package-payload-policy.mjs`,
+     `scripts/verify-package-dry-runs.mjs`,
+     `scripts/package-project-console-starter.mjs`,
+     `examples/basic-starter/scripts/leak-scan.mjs`,
+     `examples/basic-starter/scripts/effect-main-runner.mjs`,
+     `examples/react-starter/scripts/leak-scan.mjs`,
+     `examples/react-starter/scripts/effect-main-runner.mjs`,
+     `examples/project-console/scripts/leak-scan.mjs`,
+     `examples/project-console/scripts/effect-main-runner.mjs`, and
+     `packages/start/src/cli.ts`.
+   - Problem: Review238 made command-runner fibers clean up child process
+     trees when interrupted, but script and CLI entrypoints still used raw
+     `Effect.runPromise(...)`. A terminal signal reaches the Node process
+     first, so the Effect finalizer chain was not guaranteed to run.
+   - Fix: workspace scripts and starter leak scans now run through a shared
+     `Runtime.makeRunMain(...)`-backed script runner that translates
+     `SIGINT`/`SIGTERM` into main-fiber interruption and signal-shaped exit
+     codes while preserving a script-reported non-zero `process.exitCode`.
+     Copyable starter leak scans include the same local runner so generated
+     starters stay standalone. The Start diagnostics bin uses the same Effect
+     v4 main-runner pattern locally. The command-runner self-test now spawns an
+     outer script process, captures its child process id, signals the parent,
+     verifies the child exits, and verifies caught failure reporters keep their
+     non-zero exit status.
+   - Benefits: terminal cancellation now exercises the same Effect
+     interruption and process-tree cleanup path as fiber-level tests.
+
+2. UI Lifetime Defect Swallowing
+   - Status: fixed.
+   - Files: `packages/core/src/scope.ts`,
+     `packages/core/src/browser-router-link.ts`,
+     `packages/core/src/browser-router-kernel.ts`,
+     `packages/db/src/collection-reactive-binding.ts`,
+     `packages/core/test/scope.test.ts`,
+     `packages/core/test/browser-router.test.ts`, and
+     `packages/db/test/collection.test.ts`.
+   - Problem: several fire-and-forget cleanup/preload paths swallowed typed
+     failures but not defects, so a dying finalizer or preload fiber could
+     interrupt later cleanup or leave a failed detached fiber.
+   - Fix: `UiScope` finalizers, Browser Router Link preloads, Browser Router
+     Kernel preload-scope disposal, and Collection Reactive Preload cleanup
+     now use `Effect.catchCause(...)` at the Adapter-owned cleanup seams.
+   - Benefits: lifecycle cleanup has one no-throw contract for failures and
+     defects, with focused regression tests proving later finalizers and
+     detached preload fibers complete cleanly.
+
+3. React Route Render Finalizer Replacement
+   - Status: fixed.
+   - Files: `packages/react/src/runtime.ts`,
+     `packages/react/src/route-render-scope.ts`, and
+     `packages/react/test/router.test.ts`.
+   - Problem: React route render finalizers were buffered only before the
+     first commit. Later same-route rerenders appended render-time finalizers
+     directly to the route `UiScope`, and failed rerenders could register
+     cleanup for UI that never committed.
+   - Fix: the React Commit Scope Adapter now treats every `frame.run(...)` as
+     a render pass. Route render finalizers are staged during render and
+     atomically replace the committed render finalizer set in layout commit;
+     failed render passes are dropped.
+   - Benefits: route `UiScope` cleanup has commit locality across initial
+     render, committed rerenders, failed rerenders, and unmount.
+
+4. Solid Router Owner Cleanup
+   - Status: fixed.
+   - Files: `packages/solid/src/router.ts` and
+     `packages/solid/test/router.test.ts`.
+   - Problem: Solid `createBrowserRouter(...)` disposed the host controller
+     only when browser history listening had started. In non-browser owner
+     lifetimes, programmatic `navigateHref(...)` could start route preload work
+     that outlived the Solid owner until runtime disposal.
+   - Fix: non-browser Solid router cleanup now calls the host controller's
+     runtime-owned `dispose()` path even when history listening was skipped.
+   - Benefits: route preload lifetimes stay tied to the Solid owner in SSR,
+     tests, and other non-browser construction paths.
+
+5. DB And Start Public Hover Ownership
+   - Status: fixed.
+   - Files: `scripts/public-api-symbol-policy.mjs`,
+     `type-tests/db.test-d.ts`, `type-tests/start.test-d.ts`,
+     `type-tests/public-api.manifest.json`,
+     `packages/start/src/hydration.ts`,
+     `packages/start/src/render-hydration-plan.ts`, and
+     `docs/public-api-inventory.md`.
+   - Problem: the docs claimed `Collection.*` hover docs were audited, but the
+     audit did not pin the main runtime facade operations. The root
+     `CollectionLiveQueryOptions` export and Start hydration option Interfaces
+     were also missing direct type-test/hover ownership.
+   - Fix: the public hover policy now covers Collection runtime facade
+     operations, `CollectionLiveQueryOptions`, Start streamed hydration option
+     Interfaces, and render hydration plan options. Type tests import and use
+     the newly pinned root types.
+   - Benefits: LSP hovers for the DB Collection Runtime facade and Start
+     hydration options cannot silently drift from the documented public source
+     surface.
+
+Focused verification passed: `pnpm verify:command-runner`, `pnpm typecheck`,
+`pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first`
+over 415 files, Start typecheck/build, focused Core/DB/React/Solid typechecks,
+focused Core/DB/React/Solid tests 5 files / 240 tests, verify CLI help,
+Start CLI help, `pnpm starter:package`, and `git diff --check`. Full
+`pnpm verify` passed after Review239 with 53 root test files / 1161 tests, an
+Effect-first audit over 415 files, generated starter-suite packaging/verifies
+for basic/react/project-console at 20/25/31 app files with 5/4/6 local
+packages, and the 16-target package dry-run gate. The active Thirty-Sweep clean
+counter remains 0/30 until a fresh post-Review239 sweep is clean.
 
 ## Review 238: Tooling Runner, Resource UI Observer, And Hover Cleanup
 

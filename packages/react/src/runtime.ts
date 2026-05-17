@@ -1,6 +1,7 @@
 import {
   currentOrDefaultRuntime,
   disposeRuntimeProviderLifecycleEffect,
+  invokeEffectInput,
   makeRuntime,
   makeRuntimeProviderLifecycleEntry,
   runWithScope,
@@ -89,7 +90,11 @@ interface ReactCommitUiScopeOptions extends UiScopeOptions {
 
 class ReactCommitUiScope extends UiScope {
   private readonly preCommitFinalizers: ReactPreCommitFinalizerPolicy;
-  private readonly pendingFinalizers: Array<() => EffectInput<void>> = [];
+  private readonly committedRenderFinalizers: Array<() => EffectInput<void>> = [];
+  private pendingRenderFinalizers: Array<() => EffectInput<void>> | undefined;
+  private currentRenderFinalizers: Array<() => EffectInput<void>> | undefined;
+  private renderFinalizerGroupInstalled = false;
+  private inRenderPass = false;
   private committed = false;
 
   constructor(options: ReactCommitUiScopeOptions = {}) {
@@ -98,24 +103,56 @@ class ReactCommitUiScope extends UiScope {
   }
 
   commit(): void {
-    if (this.committed) {
-      return;
+    if (!this.committed) {
+      this.committed = true;
+      if (this.preCommitFinalizers === "buffer") {
+        this.installRenderFinalizerGroup();
+      }
     }
 
-    this.committed = true;
-    for (const finalizer of this.pendingFinalizers.splice(0)) {
-      super.addFinalizer(finalizer);
+    if (this.pendingRenderFinalizers !== undefined) {
+      this.committedRenderFinalizers.splice(
+        0,
+        this.committedRenderFinalizers.length,
+        ...this.pendingRenderFinalizers
+      );
+      this.pendingRenderFinalizers = undefined;
     }
   }
 
   discardPreCommitFinalizers(): void {
-    this.pendingFinalizers.splice(0);
+    this.pendingRenderFinalizers = undefined;
+    this.currentRenderFinalizers = undefined;
+    this.inRenderPass = false;
   }
 
   beginRenderPass(): void {
-    if (!this.committed) {
-      this.pendingFinalizers.splice(0);
+    this.currentRenderFinalizers = this.preCommitFinalizers === "buffer" ? [] : undefined;
+    this.inRenderPass = true;
+  }
+
+  runRenderPass<A>(f: () => A): A {
+    this.beginRenderPass();
+    try {
+      const value = f();
+      this.finishRenderPass(true);
+      return value;
+    } catch (error) {
+      this.finishRenderPass(false);
+      throw error;
     }
+  }
+
+  private finishRenderPass(success: boolean): void {
+    if (
+      success &&
+      this.preCommitFinalizers === "buffer" &&
+      this.currentRenderFinalizers !== undefined
+    ) {
+      this.pendingRenderFinalizers = this.currentRenderFinalizers;
+    }
+    this.currentRenderFinalizers = undefined;
+    this.inRenderPass = false;
   }
 
   private assertCommitted(operation: string): void {
@@ -124,9 +161,39 @@ class ReactCommitUiScope extends UiScope {
     }
   }
 
+  private installRenderFinalizerGroup(): void {
+    if (this.renderFinalizerGroupInstalled) {
+      return;
+    }
+    this.renderFinalizerGroupInstalled = true;
+    const scope = this;
+    super.addFinalizer(() =>
+      Effect.gen(function* () {
+        const finalizers = scope.committedRenderFinalizers.splice(0).reverse();
+        for (const finalizer of finalizers) {
+          yield* invokeEffectInput("ReactRouteRenderScope.finalizer", finalizer).pipe(
+            Effect.catchCause(() => Effect.void)
+          );
+        }
+      })
+    );
+  }
+
   override addFinalizer(finalizer: () => EffectInput<void>): void {
+    if (this.inRenderPass && this.preCommitFinalizers === "buffer") {
+      this.currentRenderFinalizers?.push(finalizer);
+      return;
+    }
+
+    if (this.inRenderPass) {
+      throw new UiScopeDisposed({ operation: "React.useComponentScope.addFinalizer" });
+    }
+
     if (!this.committed && this.preCommitFinalizers === "buffer") {
-      this.pendingFinalizers.push(finalizer);
+      this.pendingRenderFinalizers = [
+        ...(this.pendingRenderFinalizers ?? []),
+        finalizer
+      ];
       return;
     }
 
@@ -138,6 +205,9 @@ class ReactCommitUiScope extends UiScope {
     effect: Effect.Effect<A, E, Scope.Scope>,
     options?: ForkScopedOptions
   ): Fiber.Fiber<A, E> {
+    if (this.inRenderPass) {
+      throw new UiScopeDisposed({ operation: "React.useComponentScope.fork" });
+    }
     this.assertCommitted("React.useComponentScope.fork");
     return super.fork(effect, options);
   }
@@ -176,7 +246,10 @@ export const makeReactRuntimeUiScopeFrame = <ER>(
     commit: () => {
       scope.commit();
     },
-    run: (f) => runWithRuntime(runtime, () => runWithScope(scope, f)),
+    run: (f) =>
+      scope.runRenderPass(() =>
+        runWithRuntime(runtime, () => runWithScope(scope, f))
+      ),
     disposeEffect: () => {
       scope.discardPreCommitFinalizers();
       return runtime.provide(scope.disposeEffect()).pipe(Effect.catchCause(() => Effect.void));

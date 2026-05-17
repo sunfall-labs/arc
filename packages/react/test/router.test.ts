@@ -641,6 +641,100 @@ describe("react router", () => {
     }
   });
 
+  it("replaces same-route render finalizers after committed rerenders", async () => {
+    const runtime = makeRuntime();
+    const disposed: string[] = [];
+    let rerender: (() => void) | undefined;
+    const Home = route("/", {
+      component: () => {
+        const [label, setLabel] = useState("first");
+        rerender = () => setLabel("second");
+        onDispose(() => Effect.sync(() => {
+          disposed.push(label);
+        }));
+        return createElement("h1", {}, label);
+      }
+    });
+    const routes = [Home] as const;
+
+    try {
+      await withReactRoot(async (root, container) => {
+        await act(async () => {
+          root.render(createElement(RouterProvider, { routes, initialHref: "/", runtime }));
+        });
+        await flushReact();
+        expect(container.textContent).toBe("first");
+
+        await act(async () => {
+          rerender?.();
+        });
+        await flushReact();
+
+        expect(container.textContent).toBe("second");
+        expect(disposed).toEqual([]);
+      });
+
+      await Effect.runPromise(Effect.sleep("20 millis"));
+      expect(disposed).toEqual(["second"]);
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("drops finalizers from failed route rerenders after commit", async () => {
+    const runtime = makeRuntime();
+    const renderError = new Error("route rerender failed");
+    const disposed: string[] = [];
+    let rerender: (() => void) | undefined;
+    let caught: unknown;
+    const Home = route("/", {
+      component: () => {
+        const [label, setLabel] = useState("good");
+        rerender = () => setLabel("bad");
+        onDispose(() => Effect.sync(() => {
+          disposed.push(label);
+        }));
+        if (label === "bad") {
+          throw renderError;
+        }
+        return createElement("h1", {}, label);
+      }
+    });
+    const routes = [Home] as const;
+
+    try {
+      await withReactRoot(async (root, container) => {
+        await act(async () => {
+          root.render(
+            createElement(
+              TestErrorBoundary,
+              {
+                onError: (error) => {
+                  caught = error;
+                }
+              },
+              createElement(RouterProvider, { routes, initialHref: "/", runtime })
+            )
+          );
+        });
+        await flushReact();
+        expect(container.textContent).toBe("good");
+
+        await act(async () => {
+          rerender?.();
+        });
+        await flushReact();
+        await Effect.runPromise(Effect.sleep("20 millis"));
+
+        expect(container.textContent).toBe("caught");
+        expect(caught).toBe(renderError);
+        expect(disposed).toEqual(["good"]);
+      });
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
   it("drops uncommitted route scope finalizers when route render throws before commit", async () => {
     const runtime = makeRuntime();
     const renderError = new Error("route render failed");

@@ -574,6 +574,12 @@ export const publicHoverDocGroups = [
     ]
   },
   {
+    file: "packages/db/src/live-query-collection.ts",
+    declarations: [
+      "CollectionLiveQueryOptions"
+    ]
+  },
+  {
     file: "packages/db/src/collection-registry.ts",
     declarations: [
       "defaultCollectionDefinitionRegistry",
@@ -588,6 +594,8 @@ export const publicHoverDocGroups = [
     ],
     namespaceDeclarations: {
       Collection: [
+        "define",
+        "definitions",
         "Definition",
         "Row",
         "Key",
@@ -706,6 +714,33 @@ export const publicHoverDocGroups = [
         "sqlitePreparedStatementDatabase",
         "sqliteStatementDriver",
         "sqliteMemoryStatementDatabase",
+        "isCollection",
+        "diagnostics",
+        "registryDiagnostics",
+        "state",
+        "version",
+        "get",
+        "rows",
+        "index",
+        "firstByIndex",
+        "preloadEffect",
+        "refetchEffect",
+        "collectEffect",
+        "pendingMutationsEffect",
+        "pendingMutations",
+        "flushPendingMutationsEffect",
+        "snapshotEffect",
+        "snapshot",
+        "hydrateEffect",
+        "hydrate",
+        "dehydrate",
+        "dehydrateEffect",
+        "hydratePayloadEffect",
+        "validateHydrationPayloadEffect",
+        "hydratePayload",
+        "applyChangesEffect",
+        "applyChanges",
+        "subscribeChangesEffect",
         "persistEffect",
         "restoreEffect",
         "memoryStorage",
@@ -1165,6 +1200,26 @@ export const publicHoverDocGroups = [
     declarations: [
       "submitStartActionEffect",
       "StartAction"
+    ]
+  },
+  {
+    file: "packages/start/src/hydration.ts",
+    declarations: [
+      "HydrateStartPayloadEffectOptions",
+      "HydrateStartPayloadOptions",
+      "HydrateStartHydrationChunksFromDocumentEffectOptions",
+      "HydrateStartHydrationChunksFromDocumentOptions",
+      "HydrateFromDocumentEffectOptions",
+      "HydrateFromDocumentOptions",
+      "PreloadRequestOptions"
+    ]
+  },
+  {
+    file: "packages/start/src/render-hydration-plan.ts",
+    declarations: [
+      "StartRenderHydrationPlan",
+      "CreateStartRenderHydrationPlanOptions",
+      "createStartRenderHydrationPlanEffect"
     ]
   },
   {

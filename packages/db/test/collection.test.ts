@@ -113,6 +113,40 @@ describe("Collection", () => {
     );
   });
 
+  it("swallows reactive preload defects at the fire-and-forget adapter seam", () => {
+    const baseRuntime = makeRuntime();
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        let preloadFiber: Fiber.Fiber<void, unknown> | undefined;
+        const observedFailures: Array<unknown> = [];
+        const runtime: typeof baseRuntime = {
+          ...baseRuntime,
+          runFork: (effect, options) => {
+            const fiber = baseRuntime.runFork(effect, options);
+            preloadFiber = fiber as Fiber.Fiber<void, unknown>;
+            return fiber;
+          }
+        };
+        const controller = makeCollectionReactivePreloadController({
+          runtime,
+          onSuccess: () => Effect.void,
+          onFailure: (error) => Effect.sync(() => {
+            observedFailures.push(error);
+          })
+        });
+
+        controller.start(Effect.die("reactive preload defect"), true);
+
+        if (preloadFiber === undefined) {
+          expect.fail("Expected reactive preload to fork.");
+        }
+        const exit = yield* Effect.exit(Fiber.join(preloadFiber));
+        expect(exit._tag).toBe("Success");
+        expect(observedFailures).toEqual([]);
+      }).pipe(Effect.ensuring(baseRuntime.disposeEffect))
+    );
+  });
+
   it("loads rows into a runtime-scoped collection", async () => {
     const load = vi.fn(() =>
       Effect.succeed<ReadonlyArray<Project>>([

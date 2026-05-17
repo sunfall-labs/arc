@@ -649,8 +649,12 @@ Last evidence pass: May 17, 2026.
     adapter starter, and documents the generated project-console starter
     payload.
 - [x] New architectural decisions are recorded in docs or ADRs.
-  - Evidence: Review238 updated Resource UI Binding Controller vocabulary for
-    host setter defect swallowing and refreshed command-runner/CLI/LSP ledgers;
+  - Evidence: Review239 updated UI Lifecycle Callback Seam, Browser Router
+    Link Preloader, React Commit Scope Adapter, Solid Runtime Adapter, and
+    Collection Reactive Preload Controller vocabulary for main-runner,
+    defect-swallowing, and framework cleanup ownership; Review238 updated
+    Resource UI Binding Controller vocabulary for host setter defect swallowing
+    and refreshed command-runner/CLI/LSP ledgers;
     Review237 updated Solid Route Render Scope Controller vocabulary
     for initial failed-render cleanup sequencing; Review236 updated the same
     vocabulary for update failed-render cleanup sequencing; Review235 updated the same
@@ -670,12 +674,11 @@ Last evidence pass: May 17, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 238 passed the Effect command-runner
-    self-test, verify CLI help and invalid-concurrency probes, Core Resource
-    UI Binding tests 1 file / 13 tests, Core/React/Solid typechecks, public
-    type tests, public API audit, Effect-first audit, and full `pnpm verify`
-    after closing Review238 Tooling Runner, Resource UI Observer, And Hover
-    Cleanup.
+  - Latest focused evidence: Review 239 passed `pnpm verify:command-runner`,
+    `pnpm typecheck`, `pnpm typecheck:types`, `pnpm audit:public-api`,
+    `pnpm audit:effect-first` over 415 files, Start typecheck/build, focused
+    Core/DB/React/Solid tests 5 files / 240 tests, verify CLI help, Start CLI
+    help, `pnpm starter:package`, and `git diff --check`.
     Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
     sweeps found Review191, Review192, Review193, Review194, Review195, and
     Review196, Review197, Review198, Review199, Review200, Review201,
@@ -688,8 +691,9 @@ Last evidence pass: May 17, 2026.
     Cleanup Effects work, and Review234 Cleanup Effects And Public Surface
     Pins work, Review235 Solid Route Render Scope Cleanup Sequencing work, and
     Review236 Solid Failed Render Cleanup Sequencing work, and Review237 Solid
-    Initial Failed Render Cleanup Sequencing work, and Review238 Tooling
-    Runner, Resource UI Observer, And Hover Cleanup work.
+    Initial Failed Render Cleanup Sequencing work, Review238 Tooling
+    Runner, Resource UI Observer, And Hover Cleanup work, and Review239 Main
+    Runner, UI Lifetime, And Public Hover Cleanup work.
     Clean Sweep 1 after Review208 remains historical 1/30 evidence, but Clean
     Sweep 2 found Review209 work and the local post-Review209 pass found
     Review210 work; the first post-Review210 sweep found Review211 work, and
@@ -717,11 +721,12 @@ Last evidence pass: May 17, 2026.
     cleanup work, and the fresh post-Review236 framework follow-up found
     Review237 initial failed-render cleanup work, and the fresh post-Review237
     sweep found Review238 tooling, Resource UI cleanup, and LSP hover work,
-    leaving the
-    active counter at 0/30.
+    and the fresh post-Review238 sweep found Review239 main-runner, UI
+    lifetime, framework cleanup, and public hover work, leaving the active
+    counter at 0/30.
     Latest full evidence:
-    `pnpm verify` ran after Review 238 with 53 root
-    test files / 1154
+    `pnpm verify` ran after Review 239 with 53 root
+    test files / 1161
     tests, plus 4 project-console test files / 27 tests in the package-level
     gate.
 - [x] Type tests pass after compile-time API changes.
@@ -862,27 +867,29 @@ Last evidence pass: May 17, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 238 command-runner,
-    Resource UI observer cleanup, and LSP hover work.
+  - Evidence: no new ADR required for the Review 239 main-runner, UI lifetime,
+    framework cleanup, and LSP hover work.
     Future architecture sweeps remain tracked in
     `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
   - Evidence: root `pnpm verify` passed on May 17,
-    2026 after Review 238 Tooling Runner, Resource UI Observer, And Hover
+    2026 after Review 239 Main Runner, UI Lifetime, And Public Hover
     Cleanup:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
-    411 physical/virtual files, 53 root test files / 1154 tests,
+    415 physical/virtual files, 53 root test files / 1161 tests,
     package-level verifies for the devtools/starter/example packages,
-    generated starter-suite packaging/verifies for basic/react/project-console,
+    generated starter-suite packaging/verifies for basic/react/project-console
+    at 20/25/31 app files,
     16-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 238 records the Effect command-runner self-test, verify
-    CLI help and invalid-concurrency probes, Core Resource UI Binding tests 1
-    file / 13 tests, Core/React/Solid typechecks, public type tests, public API
-    audit, Effect-first audit, `git diff --check`, and full `pnpm verify`
-    after closing the Review238 Tooling Runner, Resource UI Observer, And Hover
+  - Evidence: Review 239 records `pnpm verify:command-runner`, `pnpm typecheck`,
+    `pnpm typecheck:types`, `pnpm audit:public-api`,
+    `pnpm audit:effect-first` over 415 files, Start typecheck/build, focused
+    Core/DB/React/Solid tests 5 files / 240 tests, verify CLI help, Start CLI
+    help, `pnpm starter:package`, `git diff --check`, and full `pnpm verify`
+    after closing the Review239 Main Runner, UI Lifetime, And Public Hover
     Cleanup finding. Clean
     Sweep 1 after
     Review190 remains historical 1/30 evidence, but later sweeps found
@@ -897,8 +904,9 @@ Last evidence pass: May 17, 2026.
     Effects work, Review234 Cleanup Effects And Public Surface Pins work, and
     Review235 Solid Route Render Scope Cleanup Sequencing work, and Review236
     Solid Failed Render Cleanup Sequencing work, and Review237 Solid Initial
-    Failed Render Cleanup Sequencing work, and Review238 Tooling Runner,
-    Resource UI Observer, And Hover Cleanup work.
+    Failed Render Cleanup Sequencing work, Review238 Tooling Runner,
+    Resource UI Observer, And Hover Cleanup work, and Review239 Main Runner,
+    UI Lifetime, And Public Hover Cleanup work.
     Clean
     Sweep 1 after Review208 remains historical 1/30 evidence, but Clean Sweep
     2 found Review209 work and the local post-Review209 pass found Review210
@@ -924,8 +932,10 @@ Last evidence pass: May 17, 2026.
     Solid route-render follow-up found Review235 cleanup sequencing work, and
     the fresh post-Review235 framework sweep found Review236 failed-render
     cleanup work, and the fresh post-Review236 framework follow-up found
-    Review237 initial failed-render cleanup work, and the fresh post-Review237
+    Review237 initial failed-render cleanup work, the fresh post-Review237
     sweep found Review238 tooling, Resource UI cleanup, and LSP hover work,
+    and the fresh post-Review238 sweep found Review239 main-runner, UI
+    lifetime, framework cleanup, and public hover work,
     leaving the active counter at 0/30.
     Full verification is recorded in the latest full gate above.
 

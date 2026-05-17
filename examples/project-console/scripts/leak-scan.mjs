@@ -3,6 +3,7 @@
 import { readFile, readdir } from "node:fs";
 import { relative, resolve, sep } from "node:path";
 import { Data, Effect } from "effect";
+import { runScriptMainEffect } from "./effect-main-runner.mjs";
 
 class LeakScanError extends Data.TaggedError("LeakScanError") {}
 
@@ -100,7 +101,7 @@ const program = Effect.gen(function* () {
   }
 });
 
-await Effect.runPromise(
+runScriptMainEffect(
   program.pipe(
     Effect.catch((cause) =>
       Effect.sync(() => {

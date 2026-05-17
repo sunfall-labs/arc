@@ -266,16 +266,7 @@ const allowed = [
       seam("packages/react/src/hooks.ts", "React Suspense token Adapter", /toHostToken:\s*\(fiber\)\s*=>\s*Effect\.runPromise\(Fiber\.join\(fiber\)\)/),
       seam("packages/start/src/request-runtime-response.ts", "Request Runtime response host runner", /runEffect:\s*\(effect\)\s*=>\s*Effect\.runPromise\(runtime\.provide\(effect\)\)/),
       seam("packages/start/src/streaming.ts", "ReadableStream finalizer host runner", /const runResponseStreamEffect:\s*StartResponseStreamRunner\s*=\s*\(effect\)\s*=>\s*Effect\.runPromise\(effect\);/),
-      seam("packages/start/src/start-host-runtime-runner.ts", "Start host Promise runtime runner", /export const runStartHostPromise[\s\S]*?Effect\.runPromise\(/),
-      seam("packages/start/src/cli.ts", "Start diagnostics CLI bin runner", /void Effect\.runPromise\(runStartDiagnosticsCliMainEffect\(\)\);/),
-      seam("scripts/verify-effect-command-runner.mjs", "Effect command runner policy script runner", /await Effect\.runPromise\(/),
-      seam("scripts/verify-package-payload-policy.mjs", "Package payload policy script runner", /await Effect\.runPromise\(/),
-      seam("scripts/package-project-console-starter.mjs", "Project console starter packaging script runner", /await Effect\.runPromise\(/),
-      seam("scripts/verify.mjs", "Workspace verify orchestration script runner", /Effect\.runPromise\(/),
-      seam("scripts/verify-package-dry-runs.mjs", "Package dry-run verification script runner", /await Effect\.runPromise\(/),
-      seam("examples/basic-starter/scripts/leak-scan.mjs", "Basic starter leak-scan script runner", /await Effect\.runPromise\(/),
-      seam("examples/react-starter/scripts/leak-scan.mjs", "React starter leak-scan script runner", /await Effect\.runPromise\(/),
-      seam("examples/project-console/scripts/leak-scan.mjs", "Project console leak-scan script runner", /await Effect\.runPromise\(/)
+      seam("packages/start/src/start-host-runtime-runner.ts", "Start host Promise runtime runner", /export const runStartHostPromise[\s\S]*?Effect\.runPromise\(/)
     ]
   },
   {
@@ -894,14 +885,7 @@ const banned = [
     name: "await keyword",
     seams: [
       seam("docs/effect-ui-framework-comparison.md:83:snippet-3.ts", "React Router comparison formData await", /await request\.formData\(\)/),
-      seam("docs/effect-ui-framework-comparison.md:83:snippet-3.ts", "React Router comparison mutation await", /await renameProject\(name\)/),
-      seam("scripts/verify-effect-command-runner.mjs", "Effect command runner policy script runner", /await Effect\.runPromise\(/),
-      seam("scripts/verify-package-payload-policy.mjs", "Package payload policy script runner", /await Effect\.runPromise\(/),
-      seam("scripts/package-project-console-starter.mjs", "Project console starter packaging script runner", /await Effect\.runPromise\(/),
-      seam("scripts/verify-package-dry-runs.mjs", "Package dry-run verification script runner", /await Effect\.runPromise\(/),
-      seam("examples/basic-starter/scripts/leak-scan.mjs", "Basic starter leak-scan script runner", /await Effect\.runPromise\(/),
-      seam("examples/react-starter/scripts/leak-scan.mjs", "React starter leak-scan script runner", /await Effect\.runPromise\(/),
-      seam("examples/project-console/scripts/leak-scan.mjs", "Project console leak-scan script runner", /await Effect\.runPromise\(/)
+      seam("docs/effect-ui-framework-comparison.md:83:snippet-3.ts", "React Router comparison mutation await", /await renameProject\(name\)/)
     ]
   },
   {

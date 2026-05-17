@@ -41,15 +41,16 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest focused Review238 Tooling Runner, Resource UI Observer, And Hover
-  Cleanup slice is green: interrupted verification commands now clean up nested
-  process trees, `verify.mjs` uses the Effect v4 CLI command tree, Resource UI
-  cleanup swallows host setter defects, and important hovers reflect current
-  ownership seams.
-- The latest implementation and full verification gate is green after
-  Review238:
-  `pnpm verify` completed with 53 root test files / 1154 tests, public API
-  inventory audit, Effect-first audit over 411 physical/virtual files,
+- The latest focused Review239 Main Runner, UI Lifetime, And Public Hover
+  Cleanup slice is green: script and CLI entrypoints now use signal-aware
+  Effect main fibers, copyable starter leak scans carry standalone local
+  runners, UI cleanup/preload defects are swallowed at Adapter seams, React
+  route render finalizers are commit-replaced, Solid non-browser router cleanup
+  disposes active preload work, and DB/Start hovers/type tests pin the newly
+  found public surfaces.
+- The latest full verification gate is green after Review239:
+  `pnpm verify` completed with 53 root test files / 1161 tests, public API
+  inventory audit, Effect-first audit over 415 physical/virtual files,
   package-level verifies, parallel example package verifies and leak scans,
   generated starter packaging, and the 16-target package dry-run gate.
 - Historical Review166, Review165, and Review163 slices remain green evidence
@@ -123,8 +124,9 @@ or command result that proves it.
   Review236 failed-render cleanup work, and the fresh post-Review236 framework
   follow-up found Review237 initial failed-render cleanup work, and the fresh
   post-Review237 sweep found Review238 tooling, Resource UI cleanup, and LSP
-  hover work, so the active counter stays at 0/30 until a fresh post-Review238
-  sweep is clean.
+  hover work, and the fresh post-Review238 sweep found Review239 main-runner,
+  UI lifetime, framework cleanup, and public hover work, so the active counter
+  stays at 0/30 until a fresh post-Review239 sweep is clean.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
   example, script, and type-test sources while keeping negative runtime
   validation tests explicit.
@@ -734,6 +736,7 @@ or command result that proves it.
 | 477 | Review 236 Solid Failed Render Cleanup Sequencing | `CONTEXT.md`; `docs/architecture-deepening-review.md`; `docs/docs-drift-audit.md`; `docs/effect-first-audit.md`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md`; `docs/public-api-inventory.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/type-test-coverage-audit.md`; `docs/ultimate-goal-checklist.md`; `packages/solid/src/route-render-scope.ts`; `packages/solid/test/router.test.ts` | Fixed the fresh post-Review235 framework finding. Failed Solid route renders now throw an internal structured failure carrying the original error plus route-frame cleanup Effect, and the controller chains that cleanup through its disposal Fiber before later renderer work can proceed. | Focused verification passed: Solid typecheck, Solid router tests 1 file / 35 tests, and `git diff --check`. Full `pnpm verify` passed after Review236: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 411 files, 53 root test files / 1152 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. This sweep found work, so the active clean counter remained 0/30; the later fresh post-Review236 framework follow-up found Review237 initial failed-render cleanup work. |
 | 478 | Review 237 Solid Initial Failed Render Cleanup Sequencing | `CONTEXT.md`; `docs/architecture-deepening-review.md`; `docs/docs-drift-audit.md`; `docs/effect-first-audit.md`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md`; `docs/public-api-inventory.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/type-test-coverage-audit.md`; `docs/ultimate-goal-checklist.md`; `packages/solid/src/route-render-scope.ts`; `packages/solid/test/router.test.ts` | Fixed the fresh post-Review236 framework follow-up. The Solid route render controller now initializes its disposal chain before the first render attempt, so initial failed partial frames start cleanup through the same disposal Fiber and replacement renderers wait for that cleanup. | Focused verification passed: Solid typecheck, Solid router tests 1 file / 36 tests, and `git diff --check`. Full `pnpm verify` passed after Review237: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 411 files, 53 root test files / 1153 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. This sweep found work, so the active clean counter remained 0/30; the later fresh post-Review237 sweep found Review238 tooling, Resource UI cleanup, and LSP hover work. |
 | 479 | Review 238 Tooling Runner, Resource UI Observer, And Hover Cleanup | `CONTEXT.md`; `docs/architecture-deepening-review.md`; `docs/docs-drift-audit.md`; `docs/effect-first-audit.md`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md`; `docs/public-api-inventory.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/type-test-coverage-audit.md`; `docs/ultimate-goal-checklist.md`; `packages/core/src/resource-ui-binding.ts`; `packages/core/src/resource.ts`; `packages/core/src/route.ts`; `packages/core/test/resource-ui-binding.test.ts`; `packages/db/src/collection-contract.ts`; `packages/db/src/index.ts`; `packages/react/src/hooks.ts`; `packages/react/src/router.ts`; `packages/solid/src/hooks.ts`; `packages/start/src/file-route.ts`; `packages/start/src/hydration.ts`; `scripts/effect-command-runner.mjs`; `scripts/verify-effect-command-runner.mjs`; `scripts/verify.mjs`; `scripts/workspace-verification-plan.mjs` | Fixed the fresh post-Review237 findings. The Effect command runner now owns process-tree interruption, signal exit reporting, and focused self-tests for direct signals and grandchild cleanup. `verify.mjs` uses the Effect v4 CLI `Command`/`Flag` tree, and workspace verification plan self-tests now fail through Effect instead of exiting during module import. Resource UI Binding host setter defects are swallowed during cleanup, React/Solid cleanup hooks catch defects, and Resource/Route/DB/React/Start hovers now describe the current ownership model. | Focused verification passed: Effect command-runner self-test, verify CLI help and invalid-concurrency probes, Core Resource UI Binding tests 1 file / 13 tests, Core/React/Solid typechecks, public type tests, public API audit, Effect-first audit over 411 files, and `git diff --check`. Full `pnpm verify` passed after Review238: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 411 files, 53 root test files / 1154 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. This sweep found work, so the active clean counter remains 0/30 until a fresh post-Review238 sweep is clean. |
+| 480 | Review 239 Main Runner, UI Lifetime, And Public Hover Cleanup | `CONTEXT.md`; `docs/architecture-deepening-review.md`; `docs/docs-drift-audit.md`; `docs/effect-first-audit.md`; `docs/example-copyability-and-leak-audit.md`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md`; `docs/public-api-inventory.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/type-test-coverage-audit.md`; `docs/ultimate-goal-checklist.md`; `examples/basic-starter/scripts/leak-scan.mjs`; `examples/basic-starter/scripts/effect-main-runner.mjs`; `examples/react-starter/scripts/leak-scan.mjs`; `examples/react-starter/scripts/effect-main-runner.mjs`; `examples/project-console/scripts/leak-scan.mjs`; `examples/project-console/scripts/effect-main-runner.mjs`; `packages/core/src/scope.ts`; `packages/core/src/browser-router-link.ts`; `packages/core/src/browser-router-kernel.ts`; `packages/core/test/scope.test.ts`; `packages/core/test/browser-router.test.ts`; `packages/db/src/collection-reactive-binding.ts`; `packages/db/test/collection.test.ts`; `packages/react/src/runtime.ts`; `packages/react/src/route-render-scope.ts`; `packages/react/test/router.test.ts`; `packages/solid/src/router.ts`; `packages/solid/test/router.test.ts`; `packages/start/src/cli.ts`; `packages/start/src/hydration.ts`; `packages/start/src/render-hydration-plan.ts`; `scripts/audit-effect-first.mjs`; `scripts/effect-main-runner.mjs`; `scripts/public-api-symbol-policy.mjs`; `scripts/verify-effect-command-runner.mjs`; `scripts/verify.mjs`; `scripts/verify-package-dry-runs.mjs`; `scripts/verify-package-payload-policy.mjs`; `scripts/package-project-console-starter.mjs`; `type-tests/db.test-d.ts`; `type-tests/start.test-d.ts`; `type-tests/public-api.manifest.json` | Fixed fresh post-Review238 findings. Script and CLI entrypoints now use signal-aware Effect v4 main runners so terminal cancellation interrupts the main fiber and runs command finalizers while preserving script-reported non-zero exit codes. Copyable starter leak scans now package standalone local main runners. UI lifetime cleanup catches full Causes across `UiScope`, Browser Router Link, Browser Router Kernel, and Collection Reactive Preload seams. React route render finalizers are staged per render pass and replaced at layout commit, Solid non-browser router cleanup disposes programmatic preload work, and DB/Start public hover/type-test ownership covers Collection facade operations, `CollectionLiveQueryOptions`, and streamed hydration options. | Focused verification passed: `pnpm verify:command-runner`, `pnpm typecheck`, `pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first` over 415 files, Start typecheck/build, focused Core/DB/React/Solid tests 5 files / 240 tests, verify CLI help, Start CLI help, `pnpm starter:package`, and `git diff --check`. Full `pnpm verify` passed after Review239: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 415 files, 53 root test files / 1161 tests, package-level verifies, generated starter packaging at 20/25/31 app files with 5/4/6 local packages, 16-target package dry-run gate, project-console checks, and leak scans. This sweep found work, so the active clean counter remains 0/30 until a fresh post-Review239 sweep is clean. |
 
 ## Thirty-Sweep Gate
 
@@ -801,9 +804,11 @@ Effect and public-surface work, and the fresh post-Review234 Solid route-render
 follow-up found Review235 cleanup sequencing work, and the fresh post-Review235
 framework sweep found Review236 failed-render cleanup work, and the fresh
 post-Review236 framework follow-up found Review237 initial failed-render
-cleanup work, and the fresh post-Review237 sweep found Review238 tooling,
-Resource UI cleanup, and LSP hover work. The active counter is therefore 0/30
-until a fresh post-Review238 sweep reports no actionable findings.
+cleanup work, the fresh post-Review237 sweep found Review238 tooling,
+Resource UI cleanup, and LSP hover work, and the fresh post-Review238 sweep
+found Review239 main-runner, UI lifetime, framework cleanup, and public hover
+work. The active counter is therefore 0/30 until a fresh post-Review239 sweep
+reports no actionable findings.
 
 - Re-run the Promise and docs drift audits after each single-command full
   verification.

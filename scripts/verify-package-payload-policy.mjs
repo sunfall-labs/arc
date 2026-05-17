@@ -4,6 +4,7 @@ import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { Data, Effect } from "effect";
+import { runScriptMainEffect } from "./effect-main-runner.mjs";
 import { validateDistPackagePayloadEffect } from "./package-payload-policy.mjs";
 
 class PackagePayloadPolicySelfTestError extends Data.TaggedError("PackagePayloadPolicySelfTestError") {}
@@ -211,7 +212,7 @@ const selfTest = Effect.gen(function* () {
   });
 });
 
-await Effect.runPromise(
+runScriptMainEffect(
   selfTest.pipe(
     Effect.catch((cause) =>
       Effect.sync(() => {

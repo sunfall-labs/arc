@@ -32,6 +32,24 @@ describe("UiScope", () => {
     );
   });
 
+  it("continues finalizer disposal after defects", () => {
+    const scope = new UiScope();
+    const events: Array<string> = [];
+
+    runWithScope(scope, () => {
+      onScopeDispose(() => Effect.sync(() => events.push("first")));
+      onScopeDispose(() => Effect.die("finalizer defect"));
+      onScopeDispose(() => Effect.sync(() => events.push("third")));
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* scope.disposeEffect();
+        expect(events).toEqual(["third", "first"]);
+      })
+    );
+  });
+
   it("defers pure finalizer callbacks until disposal", () => {
     const scope = new UiScope();
     const events: Array<string> = [];
@@ -161,6 +179,27 @@ describe("UiScope", () => {
     await lateFinalizer;
     expect(events).toEqual(["runner", "late"]);
   });
+
+  it("swallows late finalizer defects in the configured runner", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        let lateFinalizer: Effect.Effect<void> | undefined;
+        const scope = new UiScope({
+          runLateFinalizer: (effect) => {
+            lateFinalizer = effect;
+          }
+        });
+
+        yield* scope.disposeEffect();
+        scope.addFinalizer(() => Effect.die("late finalizer defect"));
+
+        if (lateFinalizer === undefined) {
+          expect.fail("Expected late finalizer to be handed to the runner.");
+        }
+        const exit = yield* Effect.exit(lateFinalizer);
+        expect(exit._tag).toBe("Success");
+      })
+    ));
 
   it("creates Runtime Spine-bound scopes for adapter-owned UI lifetimes", () =>
     Effect.runPromise(

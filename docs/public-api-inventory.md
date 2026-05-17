@@ -390,11 +390,15 @@ The root export includes:
   finalizer event from the failed/interrupted `Exit`, allowing adapters to
   report request aborts as `cancelled` instead of generic host transform
   failures.
-- streamed render helpers include `StartRenderHydrationPlan` and
+- streamed render helpers include `StartRenderHydrationPlan`,
+  `CreateStartRenderHydrationPlanOptions`, and
   `createStartRenderHydrationPlanEffect(...)`, the supported Interface for
   root hydration payload/script plus streamed resource chunks.
   `createStartStreamedHtmlResponseEffect(...)` is the starter/doc helper that
   appends those streamed hydration chunks before the response tail.
+- Start hydration option hovers pin the sync host-seam streamed hydration
+  options, including `HydrateStartHydrationChunksFromDocumentOptions`, so LSP
+  docs distinguish Effect-first helpers from browser boot facades.
 - `StartRenderContext.hydrationRootScript` is the streamed renderer's root-only
   script from `StartRenderHydrationPlan.root.script`; `legacyHydrationScript`
   is the explicit full non-streaming payload for renderers that are not
@@ -951,11 +955,12 @@ Release decisions:
   adapter hooks. They are pinned in the focused DB type test and required by
   the public hover-doc audit so adapter-facing LSP vocabulary cannot drift.
 - DB public hover docs are now curated for Collection contract types,
-  `Collection.*` namespace aliases, Query plan diagnostics, `Query.*`
-  namespace aliases, flush/background-sync result types, collection reactive
-  binding helpers, server collection adapters, and SQLite persistence helpers.
-  These are the expert-public seams most likely to show up in adapter, tooling,
-  and recipe code, so missing JSDoc on those declarations fails
+  `Collection.*` namespace aliases and runtime facade operations, the root
+  `CollectionLiveQueryOptions` type plus its namespace alias, Query plan
+  diagnostics, `Query.*` namespace aliases, flush/background-sync result types,
+  collection reactive binding helpers, server collection adapters, and SQLite
+  persistence helpers. These are the expert-public seams most likely to show up
+  in adapter, tooling, and recipe code, so missing JSDoc on those declarations fails
   `pnpm audit:public-api`.
 
 ### `@effect-ui/devtools`

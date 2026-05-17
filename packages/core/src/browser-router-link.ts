@@ -220,7 +220,7 @@ export const makeBrowserRouterLinkPreloader = <ER>(
         return Effect.void;
       }
       preloadFiber = undefined;
-      return Fiber.interrupt(fiber).pipe(Effect.catch(() => Effect.void));
+      return Fiber.interrupt(fiber).pipe(Effect.catchCause(() => Effect.void));
     });
 
   const interrupt = (): void => {
@@ -246,7 +246,7 @@ export const makeBrowserRouterLinkPreloader = <ER>(
     const currentRevision = ++revision;
     preloadFiber = options.runtime.runFork(
       options.preloadEffect().pipe(
-        Effect.catch(() => Effect.void),
+        Effect.catchCause(() => Effect.void),
         Effect.ensuring(Effect.sync(() => {
           if (revision === currentRevision) {
             preloadFiber = undefined;

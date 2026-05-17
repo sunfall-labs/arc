@@ -5,11 +5,13 @@ import {
   Console,
   Data,
   Effect,
+  Fiber,
   FileSystem,
   Layer,
   Option,
   Path,
   Ref,
+  Runtime,
   Stdio,
   Terminal
 } from "effect";
@@ -679,5 +681,27 @@ const isMain = process.argv[1] !== undefined &&
   startDiagnosticsCliMainPathEquals(import.meta.url, process.argv[1]);
 
 if (isMain) {
-  void Effect.runPromise(runStartDiagnosticsCliMainEffect());
+  const runMain = Runtime.makeRunMain(({ fiber, teardown }) => {
+    let interruptSignal: "SIGINT" | "SIGTERM" | undefined;
+    const interrupt = (signal: "SIGINT" | "SIGTERM") => {
+      interruptSignal ??= signal;
+      Effect.runFork(Fiber.interrupt(fiber));
+    };
+    const onSigint = () => interrupt("SIGINT");
+    const onSigterm = () => interrupt("SIGTERM");
+    process.once("SIGINT", onSigint);
+    process.once("SIGTERM", onSigterm);
+    fiber.addObserver((exit) => {
+      process.removeListener("SIGINT", onSigint);
+      process.removeListener("SIGTERM", onSigterm);
+      teardown(exit, (code) => {
+        process.exitCode = interruptSignal === "SIGINT"
+          ? 130
+          : interruptSignal === "SIGTERM"
+            ? 143
+            : code;
+      });
+    });
+  });
+  runMain(runStartDiagnosticsCliMainEffect());
 }

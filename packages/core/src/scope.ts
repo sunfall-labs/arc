@@ -53,7 +53,7 @@ export class UiScope {
     if (this.disposed) {
       this.runLateFinalizer(
         invokeEffectInput("UiScope.finalizer", finalizer).pipe(
-          Effect.catch(() => Effect.void)
+          Effect.catchCause(() => Effect.void)
         )
       );
       return;
@@ -96,7 +96,7 @@ export class UiScope {
       const closeExit = yield* Effect.exit(Scope.close(scope.effectScope, Exit.void));
       for (const finalizer of finalizers) {
         yield* invokeEffectInput("UiScope.finalizer", finalizer).pipe(
-          Effect.catch(() => Effect.void)
+          Effect.catchCause(() => Effect.void)
         );
       }
       if (Exit.isFailure(closeExit)) {

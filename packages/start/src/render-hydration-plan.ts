@@ -27,8 +27,11 @@ export interface StartRenderHydrationPlan {
   readonly streamedResourceChunks: readonly StartHydrationPayload[];
 }
 
+/** Inputs for building the root-plus-streamed SSR hydration plan. */
 export interface CreateStartRenderHydrationPlanOptions {
+  /** Resource hydration payload collected during request preload/render. */
   readonly resources: ResourceHydrationPayload;
+  /** Collection hydration payload captured for the request runtime. */
   readonly collections: CollectionHydrationPayload;
 }
 

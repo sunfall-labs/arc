@@ -127,6 +127,8 @@ import {
   type FileRoutePreloadRouteOptions,
   type GeneratedFileRouteDefinitionsModuleOptions,
   type StartAppGraphWireSchemaPolicy,
+  type CreateStartRenderHydrationPlanOptions,
+  type HydrateStartHydrationChunksFromDocumentOptions,
   type HydrateStartPayloadOptions,
   type ServerFunctionClientReference,
   type ServerFunctionManifest,
@@ -298,6 +300,8 @@ type StartTypes =
   | FileRoutePreloadRouteOptions
   | GeneratedFileRouteDefinitionsModuleOptions
   | StartAppGraphWireSchemaPolicy
+  | CreateStartRenderHydrationPlanOptions
+  | HydrateStartHydrationChunksFromDocumentOptions
   | HydrateStartPayloadOptions
   | ServerFunctionClientReference
   | ServerFunctionManifest

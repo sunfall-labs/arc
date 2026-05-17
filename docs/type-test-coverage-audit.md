@@ -164,6 +164,12 @@ are easiest to regress while refactoring internals toward Effect primitives.
   pins for Resource UI Binding cleanup Effects, Route preload metadata, Start
   file-route helpers, and DB collection helpers remain sufficient. It moved
   the current full verification evidence to the Review238 gate.
+- Review239 Main Runner, UI Lifetime, And Public Hover Cleanup added type-test
+  pins for the root `CollectionLiveQueryOptions` export and Start streamed
+  hydration option Interfaces while expanding the public hover-doc policy over
+  Collection runtime facade operations. Runtime/UI lifecycle changes remain
+  package-local and are covered by focused tests. It moved the current full
+  verification evidence to the Review239 gate.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them
@@ -283,8 +289,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Verification Evidence
 
-- `pnpm typecheck:types` and full `pnpm verify` passed after Review238 with
-  53 root test files / 1154 tests, including Resource UI observer-defect
+- `pnpm typecheck:types` passed after Review239, and full `pnpm verify` passed
+  after Review239 with
+  53 root test files / 1161 tests, including Resource UI observer-defect
   cleanup coverage, Solid initial failed-render cleanup sequencing coverage,
   Solid failed-render cleanup sequencing coverage,
   Solid Route Render Scope

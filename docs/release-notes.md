@@ -65,18 +65,18 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 17, 2026 after Review 238:
+Latest full gate on May 17, 2026 after Review 239:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
-- Effect-first audit over 411 package/example/config/script/type-test/generated
+- Effect-first audit over 415 package/example/config/script/type-test/generated
   template/docs-snippet physical and virtual files;
-- 53 root test files / 1154 tests;
+- 53 root test files / 1161 tests;
 - package-level verifies for the devtools panel, devtools extension, basic
   starter, React starter, and project console packages;
-- starter-suite packaging for basic (19 app files / 5 local packages), React
-  (24 app files / 4 local packages), and project console (30 app files / 6
+- starter-suite packaging for basic (20 app files / 5 local packages), React
+  (25 app files / 4 local packages), and project console (31 app files / 6
   local packages);
 - 16-target package dry-run gate for all framework packages plus the basic
   starter, React starter, project console, devtools panel, and devtools
@@ -86,13 +86,15 @@ Latest full gate on May 17, 2026 after Review 238:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
-- Review 238 Tooling Runner, Resource UI Observer, And Hover Cleanup closed
-  the post-Review237 sweep: the workspace command runner now owns process-tree
-  interruption and signal reporting, `verify.mjs` uses the Effect v4 CLI
-  command tree, Resource UI preload-failure host setter defects no longer
-  break cleanup, and Resource/Route/DB/React/Start hovers now match the
-  ownership model. The active Thirty-Sweep clean counter remains 0/30 until a
-  fresh post-Review238 sweep is clean.
+- Review 239 Main Runner, UI Lifetime, And Public Hover Cleanup closed the
+  post-Review238 sweep: script and CLI entrypoints use signal-aware Effect v4
+  main runners instead of top-level `Effect.runPromise(...)`, copyable starter
+  leak scans carry standalone local runners, UI cleanup/preload paths catch
+  full Causes, React route render finalizers are replaced at layout commit,
+  Solid non-browser router cleanup disposes programmatic preload work, and
+  DB/Start hovers pin the newly found public surfaces. The active
+  Thirty-Sweep clean counter remains 0/30 until a fresh post-Review239 sweep is
+  clean.
 - Review 237 Solid Initial Failed Render Cleanup Sequencing closed the
   post-Review236 framework follow-up: initial failed Solid route renders now
   enter the controller disposal chain before replacement renderers can run. The
@@ -470,8 +472,10 @@ Latest full gate on May 17, 2026 after Review 238:
   fresh post-Review235 framework sweep found Review236 failed-render cleanup
   work, and the fresh post-Review236 framework follow-up found Review237
   initial failed-render cleanup work, and the fresh post-Review237 sweep found
-  Review238 tooling, Resource UI cleanup, and LSP hover work.
-  The active Thirty-Sweep clean counter is 0/30 until a fresh post-Review238
+  Review238 tooling, Resource UI cleanup, and LSP hover work, and the fresh
+  post-Review238 sweep found Review239 main-runner, UI lifetime, framework
+  cleanup, and public hover work.
+  The active Thirty-Sweep clean counter is 0/30 until a fresh post-Review239
   sweep reports no
   actionable findings.
 - Review 192 refreshed stale current-gate docs wording that still named
@@ -1412,10 +1416,10 @@ Latest full gate on May 17, 2026 after Review 238:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 238 Tooling Runner,
-  Resource UI Observer, And Hover Cleanup: command-runner process ownership,
-  verify CLI parsing, Resource UI observer cleanup, and LSP hovers now match
-  the Effect-first ownership model.
+- The latest full `pnpm verify` passed after Review 239 Main Runner, UI
+  Lifetime, And Public Hover Cleanup: script/CLI main runners, command-runner
+  process ownership, UI lifetime cleanup, framework cleanup, and LSP hovers now
+  match the Effect-first ownership model.
   Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
   sweeps found Review191, Review192, Review193, Review194, Review195, and
   Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, Review208, Review209, Review210, Review211, Review212, and Review213 work.
@@ -1446,12 +1450,15 @@ Latest full gate on May 17, 2026 after Review 238:
   Review236 failed-render cleanup work, and the fresh post-Review236 framework
   follow-up found Review237 initial failed-render cleanup work, and the fresh
   post-Review237 sweep found Review238 tooling, Resource UI cleanup, and LSP
-  hover work, so the active counter is 0/30.
+  hover work, and the fresh post-Review238 sweep found Review239 main-runner,
+  UI lifetime, framework cleanup, and public hover work, so the active counter
+  is 0/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 411 physical/virtual files, 53 root test files / 1154
+  Effect-first audit over 415 physical/virtual files, 53 root test files / 1161
   tests, package-level verifies for the devtools/starter/example packages,
-  generated starter-suite packaging/verifies for basic/react/project-console,
+  generated starter-suite packaging/verifies for basic/react/project-console at
+  20/25/31 app files,
   16-target package dry-run gate, project-console typecheck, 4 project-console
   test files / 27 tests, build, and leak scans.
 - The previous full `pnpm verify` passed after Review 64 store-owned Resource

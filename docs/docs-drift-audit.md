@@ -3,10 +3,10 @@
 Last updated: 2026-05-17.
 
 Current release-tracking truth lives in `docs/architecture-deepening-review.md`
-and `docs/perfection-progress.md`. As of Review238, the latest full
-`pnpm verify` gate passed with 53 root test files / 1154 tests, and the active
-Thirty-Sweep clean counter is 0/30 until a fresh post-Review238 sweep reports
-no actionable findings.
+and `docs/perfection-progress.md`. As of Review239, the latest full
+`pnpm verify` gate passed with 53 root test files / 1161 tests, the
+Effect-first audit covers 415 files, and the active Thirty-Sweep clean counter
+is 0/30 until a fresh post-Review239 sweep reports no actionable findings.
 
 This historical audit checks release-tracking docs for claims that no longer match the
 implementation after the request trace, Effect-first, typed-error, package
@@ -205,6 +205,10 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Review238 Tooling Runner, Resource UI Observer, And Hover Cleanup refreshed
   current ledgers after the post-Review237 sweep found command-runner,
   Resource UI cleanup, and LSP hover work.
+- Review239 Main Runner, UI Lifetime, And Public Hover Cleanup refreshed
+  current ledgers after the post-Review238 sweep found script main-runner,
+  UI lifetime cleanup, React/Solid framework cleanup, and DB/Start public
+  hover work, then recorded the full Review239 verification gate.
 - Review201 refreshed the current release ledgers after script command,
   Resource public-surface, React/Solid router LSP, DB erased-channel, and
   generated-starter README guardrail fixes; the historical enumeration above

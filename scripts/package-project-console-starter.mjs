@@ -5,6 +5,7 @@ import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Data, Effect } from "effect";
 import { runScriptCommandEffect } from "./effect-command-runner.mjs";
+import { runScriptMainEffect } from "./effect-main-runner.mjs";
 import { manifestTargetValidationFailures } from "./package-manifest-targets.mjs";
 import {
   validateDistPackagePayloadEffect,
@@ -169,7 +170,13 @@ const verifyRunsLeakScan = (script) =>
 const assertStarterLeakScanParity = (starters) =>
   Effect.gen(function* () {
     const leakScanRelativePath = "scripts/leak-scan.mjs";
-    const leakScans = [];
+    const sharedScriptRelativePaths = [
+      leakScanRelativePath,
+      "scripts/effect-main-runner.mjs",
+    ];
+    const sharedScripts = new Map(
+      sharedScriptRelativePaths.map((relativePath) => [relativePath, []]),
+    );
     for (const starter of starters) {
       const packageJson = yield* readPackageJson(resolve(starter.sourceDir, "package.json"));
       const scripts = packageJson.scripts;
@@ -223,39 +230,43 @@ const assertStarterLeakScanParity = (starters) =>
         });
       }
 
-      const filePath = resolve(starter.sourceDir, leakScanRelativePath);
-      if (!(yield* pathExists(filePath))) {
+      for (const relativePath of sharedScriptRelativePaths) {
+        const filePath = resolve(starter.sourceDir, relativePath);
+        if (!(yield* pathExists(filePath))) {
+          return yield* Effect.fail(
+            fail(
+              `${starter.displayName} is missing ${relativePath}.`,
+              "Every copyable starter must include the shared script runner and leak-scan entrypoint.",
+            ),
+          );
+        }
+        const text = yield* fsEffect(
+          `read ${starter.displayName} ${relativePath}`,
+          () => readFile(filePath, "utf8"),
+        );
+        sharedScripts.get(relativePath).push({ starter, text });
+      }
+    }
+
+    for (const relativePath of sharedScriptRelativePaths) {
+      const [baseline, ...candidates] = sharedScripts.get(relativePath);
+      if (baseline === undefined) {
+        continue;
+      }
+
+      const divergent = candidates.filter((candidate) => candidate.text !== baseline.text);
+      if (divergent.length > 0) {
         return yield* Effect.fail(
           fail(
-            `${starter.displayName} is missing ${leakScanRelativePath}.`,
-            "Every copyable starter must include the shared leak-scan script.",
+            `Starter ${relativePath} files are not byte-for-byte identical.`,
+            [
+              `Baseline: ${relative(workspaceRoot, resolve(baseline.starter.sourceDir, relativePath))}`,
+              `Diverged: ${divergent.map((candidate) => relative(workspaceRoot, resolve(candidate.starter.sourceDir, relativePath))).join(", ")}`,
+              "Keep copyable starter script behavior consolidated by updating all copies together.",
+            ].join(" "),
           ),
         );
       }
-      const text = yield* fsEffect(
-        `read ${starter.displayName} leak-scan script`,
-        () => readFile(filePath, "utf8"),
-      );
-      leakScans.push({ starter, text });
-    }
-
-    const [baseline, ...candidates] = leakScans;
-    if (baseline === undefined) {
-      return;
-    }
-
-    const divergent = candidates.filter((candidate) => candidate.text !== baseline.text);
-    if (divergent.length > 0) {
-      return yield* Effect.fail(
-        fail(
-          "Starter leak-scan scripts are not byte-for-byte identical.",
-          [
-            `Baseline: ${relative(workspaceRoot, resolve(baseline.starter.sourceDir, leakScanRelativePath))}`,
-            `Diverged: ${divergent.map((candidate) => relative(workspaceRoot, resolve(candidate.starter.sourceDir, leakScanRelativePath))).join(", ")}`,
-            "Keep copyable starter leak-scan behavior consolidated by updating all copies together.",
-          ].join(" "),
-        ),
-      );
     }
   });
 
@@ -1203,7 +1214,7 @@ const reportPackageFailureEffect = (cause) =>
     process.exitCode = 1;
   });
 
-await Effect.runPromise(
+runScriptMainEffect(
   packageStarters.pipe(
     Effect.flatMap(reportPackagedStartersEffect),
     Effect.catch(reportPackageFailureEffect),

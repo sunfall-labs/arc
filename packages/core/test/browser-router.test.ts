@@ -1,4 +1,4 @@
-import { Cause, Context, Deferred, Effect, Layer } from "effect";
+import { Cause, Context, Deferred, Effect, Fiber, Layer } from "effect";
 import { describe, expect, it, vi } from "vitest";
 import {
   browserRouterLinkClickDecision,
@@ -275,6 +275,38 @@ describe("browser router kernel", () => {
 
           yield* preloader.interruptEffect();
           expect(finalizers).toEqual([1, 2]);
+        })
+      )
+    ));
+
+  it("swallows router link hover preload defects", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const baseRuntime = makeRuntime();
+          yield* Effect.addFinalizer(() => baseRuntime.disposeEffect);
+          let preloadFiber: Fiber.Fiber<void, unknown> | undefined;
+          const runtime: typeof baseRuntime = {
+            ...baseRuntime,
+            runFork: (effect, options) => {
+              const fiber = baseRuntime.runFork(effect, options);
+              preloadFiber = fiber as Fiber.Fiber<void, unknown>;
+              return fiber;
+            }
+          };
+          const preloader = makeBrowserRouterLinkPreloader({
+            runtime,
+            enabled: () => true,
+            preloadEffect: () => Effect.die("link preload defect")
+          });
+
+          preloader.preload();
+
+          if (preloadFiber === undefined) {
+            expect.fail("Expected hover preload to fork.");
+          }
+          const exit = yield* Effect.exit(Fiber.join(preloadFiber));
+          expect(exit._tag).toBe("Success");
         })
       )
     ));

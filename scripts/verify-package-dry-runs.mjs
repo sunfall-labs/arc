@@ -6,6 +6,7 @@ import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Data, Effect } from "effect";
 import { runScriptCommandEffect } from "./effect-command-runner.mjs";
+import { runScriptMainEffect } from "./effect-main-runner.mjs";
 import {
   isNonEmptyString,
   knownPayloadPolicies,
@@ -652,7 +653,7 @@ const reportFailureEffect = (cause) =>
     process.exitCode = 1;
   });
 
-await Effect.runPromise(
+runScriptMainEffect(
   verifyPackageDryRuns.pipe(
     Effect.flatMap(reportResultsEffect),
     Effect.catch(reportFailureEffect),

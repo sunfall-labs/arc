@@ -246,7 +246,7 @@ export const createBrowserRouterKernel = <
       const current = takePreloadScope();
       return current === undefined
         ? Effect.void
-        : current.disposeEffect().pipe(Effect.catch(() => Effect.void));
+        : current.disposeEffect().pipe(Effect.catchCause(() => Effect.void));
     });
 
   const disposePreloadScope = (): void => {
@@ -307,7 +307,7 @@ export const createBrowserRouterKernel = <
         if (preloadScope === scope) {
           preloadScope = undefined;
         }
-        yield* scope.disposeEffect().pipe(Effect.catch(() => Effect.void));
+        yield* scope.disposeEffect().pipe(Effect.catchCause(() => Effect.void));
 
         if (Exit.isSuccess(exit)) {
           setState({ _tag: "Ready", href, match: nextMatch });

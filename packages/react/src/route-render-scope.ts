@@ -64,9 +64,12 @@ const RouteRenderFrame = <ER,>(props: RouteRenderFrameProps<ER>): ReactNode => {
   const frameLifecycleVersionRef = useRef(0);
 
   useLayoutEffect(() => {
+    frame.commit();
+  });
+
+  useLayoutEffect(() => {
     activeFrameRef.current = frame;
     frameLifecycleVersionRef.current++;
-    frame.commit();
     return () => {
       const cleanupFrame = frame;
       const cleanupVersion = ++frameLifecycleVersionRef.current;
@@ -84,7 +87,6 @@ const RouteRenderFrame = <ER,>(props: RouteRenderFrameProps<ER>): ReactNode => {
   }, [props.runtime, frame]);
 
   try {
-    frame.beginRenderPass();
     return frame.run(props.render);
   } catch (error) {
     scopeRef.current = undefined;

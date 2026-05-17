@@ -79,7 +79,7 @@ copied as starters and whether browser/server boundaries remain explicit.
 - `pnpm starter:verify` passed for `@effect-ui/starter-basic`: typecheck, 1
   starter test, production build, and leak scan.
 - `pnpm starter:package` passed and verified generated basic, React, and
-  project-console starter manifests: 19, 24, and 30 app files respectively,
+  project-console starter manifests: 20, 25, and 31 app files respectively,
   with 5, 4, and 6 local `@effect-ui/*` file packages; each generated starter
   completed typecheck, tests, production build, and leak scan after an isolated
   non-workspace install.
@@ -96,7 +96,7 @@ copied as starters and whether browser/server boundaries remain explicit.
 - `pnpm starter:package` passed and generated starter checks confirmed no
   copied `@effect-ui/start` package contains `dist/virtual.d.ts.map`.
 - `pnpm example:pack-dry-run` passed for all five source packages:
-  19 basic starter files, 24 React starter files, 30 project-console files,
+  20 basic starter files, 25 React starter files, 31 project-console files,
   10 devtools panel files, and 15 devtools extension files.
 - `pnpm build && pnpm example:pack-dry-run` passed after Review 150 for all
   16 package targets: 11 framework packages with dist-only payloads plus the

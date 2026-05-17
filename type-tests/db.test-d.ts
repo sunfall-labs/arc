@@ -61,6 +61,7 @@ import {
   type AnyCollection,
   type CollectionBackgroundSyncResult,
   type CollectionError,
+  type CollectionLiveQueryOptions,
   type CollectionRequirements,
   type CollectionReactiveLiveQueryInput,
   type CollectionReactiveLiveQuerySelection,
@@ -104,6 +105,12 @@ interface DbAdapterService {
 declare const sqliteStatementDatabase: SQLiteStatementDatabase<SQLitePersistenceInvalidRow>;
 declare const sqlitePreparedStatementDatabase: SQLitePreparedStatementDatabase;
 declare const dbProjectsCollection: Collection.Definition<Project, string, "load", DbRuntimeService>;
+declare const dbLiveQueryCollectionOptions: CollectionLiveQueryOptions<Project, string, never, never>;
+const dbNamespaceLiveQueryOptions: Collection.LiveQueryOptions<Project, string, never, never> =
+  dbLiveQueryCollectionOptions;
+const dbRootLiveQueryOptions: CollectionLiveQueryOptions<Project, string, never, never> =
+  dbNamespaceLiveQueryOptions;
+void dbRootLiveQueryOptions;
 const dbStaticProjectsCollection = Collection.define<Project>({
   name: "type-tests/static-projects",
   getKey: (project) => project.id,

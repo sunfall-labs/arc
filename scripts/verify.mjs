@@ -16,6 +16,7 @@ import {
 import { CliError, Command, Flag } from "effect/unstable/cli";
 import { ChildProcessSpawner } from "effect/unstable/process";
 import { runScriptCommandEffect } from "./effect-command-runner.mjs";
+import { runScriptMainEffect } from "./effect-main-runner.mjs";
 import { workspaceVerifyPackageTargetsEffect } from "./workspace-verification-plan.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -285,4 +286,4 @@ const runVerifyCliMainEffect = (
     process.exitCode = 1;
   });
 
-void Effect.runPromise(runVerifyCliMainEffect());
+runScriptMainEffect(runVerifyCliMainEffect());

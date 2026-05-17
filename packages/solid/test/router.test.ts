@@ -72,6 +72,56 @@ describe("createBrowserRouter", () => {
       )
     ));
 
+  it("disposes non-browser programmatic route preloads with the Solid owner", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const windowDescriptor = Object.getOwnPropertyDescriptor(globalThis, "window");
+          Reflect.deleteProperty(globalThis, "window");
+          yield* Effect.addFinalizer(() =>
+            Effect.sync(() => {
+              if (windowDescriptor === undefined) {
+                Reflect.deleteProperty(globalThis, "window");
+              } else {
+                Object.defineProperty(globalThis, "window", windowDescriptor);
+              }
+            })
+          );
+
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+          const started = yield* Deferred.make<void>();
+          let releases = 0;
+          const SlowRoute = route("/owner-cleanup-slow", {
+            preload: () =>
+              Effect.acquireRelease(
+                Deferred.succeed(started, undefined),
+                () =>
+                  Effect.sync(() => {
+                    releases++;
+                  })
+              ).pipe(Effect.andThen(Effect.never))
+          });
+          let dispose: () => void = () => undefined;
+          const router = createRoot((rootDispose): BrowserRouter<readonly [typeof SlowRoute]> => {
+            dispose = rootDispose;
+            return createBrowserRouter([SlowRoute] as const, {
+              history: makeMemoryBrowserHistoryAdapter({ initialHref: "/missing" }),
+              initialHref: "/missing",
+              runtime
+            });
+          });
+
+          router.navigateHref("/owner-cleanup-slow");
+          yield* Deferred.await(started);
+          yield* Effect.sync(dispose);
+          yield* Effect.sleep("20 millis");
+
+          expect(releases).toBe(1);
+        })
+      )
+    ));
+
   it("keeps route preload failures typed in browser router state", () =>
     Effect.runPromise(
       Effect.scoped(

@@ -174,6 +174,12 @@ export interface HydrateStartHydrationChunksFromDocumentEffectOptions
   readonly markConsumed?: boolean;
 }
 
+/**
+ * Synchronous host-seam options for applying streamed hydration chunks.
+ *
+ * Use the Effect variant in libraries; this shape exists for browser boot code
+ * that must call a sync facade with an explicit runtime.
+ */
 export interface HydrateStartHydrationChunksFromDocumentOptions<RuntimeServices = never, RuntimeError = never>
   extends HydrateStartHydrationChunksFromDocumentEffectOptions {
   /** Runtime used by the synchronous host-seam hydration facade. */

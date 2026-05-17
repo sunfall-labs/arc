@@ -241,7 +241,7 @@ export const createBrowserRouter = <
   });
   const stopController = canUseBrowser()
     ? controller.start()
-    : () => undefined;
+    : controller.dispose;
 
   onCleanup(() => {
     stopController();
