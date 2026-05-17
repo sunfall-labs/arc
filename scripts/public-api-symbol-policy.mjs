@@ -1419,7 +1419,7 @@ export const currentDocsEvidencePolicy = {
   rootTestFiles: 58,
   rootTestCount: 1223,
   effectFirstFiles: 449,
-  activeCleanCounter: "4/30",
+  activeCleanCounter: "5/30",
 };
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -1481,7 +1481,7 @@ export const currentDocsTextPolicies = [
       {
         name: "Architecture tip must record the current clean sweep",
         pattern: new RegExp(
-          `active\\s+Thirty-Sweep\\s+clean\\s+counter\\s+is ${activeCleanCounterPattern} after\\s+Clean\\s+Sweep\\s+4\\s+after\\s+Review${currentDocsEvidencePolicy.latestFocusedReview}`,
+          `active\\s+Thirty-Sweep\\s+clean\\s+counter\\s+is ${activeCleanCounterPattern} after\\s+Clean\\s+Sweep\\s+5\\s+after\\s+Review${currentDocsEvidencePolicy.latestFocusedReview}`,
         ),
       },
     ],
@@ -1512,7 +1512,7 @@ export const currentDocsTextPolicies = [
       {
         name: "Perfection progress must record the current clean sweep",
         pattern: new RegExp(
-          `active\\s+Thirty-Sweep\\s+clean\\s+counter\\s+is ${activeCleanCounterPattern} after\\s+Clean\\s+Sweep\\s+4\\s+after\\s+Review${currentDocsEvidencePolicy.latestFocusedReview}`,
+          `active\\s+Thirty-Sweep\\s+clean\\s+counter\\s+is ${activeCleanCounterPattern} after\\s+Clean\\s+Sweep\\s+5\\s+after\\s+Review${currentDocsEvidencePolicy.latestFocusedReview}`,
         ),
       },
     ],
@@ -1563,7 +1563,7 @@ export const currentDocsTextPolicies = [
       {
         name: "Release notes must record the current clean sweep",
         pattern: new RegExp(
-          `Clean Sweep 4 after Review${currentDocsEvidencePolicy.latestFocusedReview}\\s+found no actionable`,
+          `Clean Sweep 5 after Review${currentDocsEvidencePolicy.latestFocusedReview}\\s+found no actionable`,
         ),
       },
     ],
@@ -1608,7 +1608,7 @@ export const currentDocsTextPolicies = [
       {
         name: "Docs drift audit must record the current clean sweep",
         pattern: new RegExp(
-          `counter is ${activeCleanCounterPattern} after Clean Sweep 4 after Review${currentDocsEvidencePolicy.latestFocusedReview}`,
+          `counter is ${activeCleanCounterPattern} after Clean Sweep 5 after Review${currentDocsEvidencePolicy.latestFocusedReview}`,
         ),
       },
     ],
