@@ -3,10 +3,10 @@
 Last updated: 2026-05-16.
 
 Current release-tracking truth lives in `docs/architecture-deepening-review.md`
-and `docs/perfection-progress.md`. As of Review208, the latest full
+and `docs/perfection-progress.md`. As of Review209, the latest full
 `pnpm verify` gate passed with 53 root test files / 1062 tests, and the active
-Thirty-Sweep clean counter is 1/30 after the fresh post-Review208 subagent
-sweep reported no actionable findings.
+Thirty-Sweep clean counter is 0/30 until a fresh post-Review209 sweep reports
+no actionable findings.
 
 This historical audit checks release-tracking docs for claims that no longer match the
 implementation after the request trace, Effect-first, typed-error, package
@@ -116,6 +116,9 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Clean Sweep 1 after Review208 found no actionable docs or evidence drift
   after targeted current-gate, clean-counter, Review208 file-list, package
   hygiene, and Solid adapter example checks.
+- Review209 refreshed current ledgers after Clean Sweep 2 found the
+  broad-`unknown` Promise callback rejection hole and reset the active
+  Thirty-Sweep counter to 0/30.
 - Review201 refreshed the current release ledgers after script command,
   Resource public-surface, React/Solid router LSP, DB erased-channel, and
   generated-starter README guardrail fixes; the historical enumeration above

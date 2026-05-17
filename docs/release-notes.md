@@ -65,7 +65,7 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 208:
+Latest full gate on May 16, 2026 after Review 209:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
@@ -86,6 +86,11 @@ Latest full gate on May 16, 2026 after Review 208:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 209 closed the Clean Sweep 2 finding after Review208: explicit
+  broad `unknown` annotations can no longer hide Promise-shaped callback
+  returns at direct EffectInput, Resource, Action, or Program seams, and the
+  active Thirty-Sweep clean counter reset to 0/30 until a fresh post-Review209
+  sweep is clean.
 - Review 208 closed the first post-Review207 sweep findings: React and Solid
   RuntimeProvider disposal observers now expose `EffectInput<void, unknown>`
   while rejecting Promise-shaped observers, the package dry-run gate executes
@@ -93,8 +98,9 @@ Latest full gate on May 16, 2026 after Review 208:
   `dist/cli.js` executable, Solid match docs use plain callback values, and
   stale current-gate ledgers now name Review208.
 - Clean Sweep 1 after Review208 found no actionable Core/React/Solid,
-  DB/public API, Start/devtools/scripts/package, or docs/evidence findings, so
-  the active Thirty-Sweep clean counter is 1/30.
+  DB/public API, Start/devtools/scripts/package, or docs/evidence findings,
+  temporarily moving the counter to 1/30 before Clean Sweep 2 found Review209
+  work.
 - Review 207 closed the first post-Review206 sweep findings: Action hover docs
   now describe `exhaust` as joining the in-flight submission, direct Action
   root symbols are public-hover and type-test pinned, and starter/DB hydration
@@ -220,7 +226,9 @@ Latest full gate on May 16, 2026 after Review 208:
   first post-Review205 sweep found Review206 work, the first
   post-Review206 sweep found Review207 work, and the first post-Review207
   sweep found Review208 work. The fresh post-Review208 sweep found no
-  actionable findings, so the active Thirty-Sweep clean counter is 1/30.
+  actionable findings, creating Clean Sweep 1 after Review208, but Clean Sweep
+  2 found Review209 work. The active Thirty-Sweep clean counter is 0/30 until
+  a fresh post-Review209 sweep reports no actionable findings.
 - Review 192 refreshed stale current-gate docs wording that still named
   Review190 or active 1/30 progress after Review191.
 - Review 190 tightened `Server.fn(...)` so union-shaped Promise handler returns
@@ -1155,13 +1163,13 @@ Latest full gate on May 16, 2026 after Review 208:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 208 RuntimeProvider
-  observer typing and CLI direct-bin fixes.
+- The latest full `pnpm verify` passed after Review 209 broad-`unknown`
+  Promise callback rejection fixes.
   Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
   sweeps found Review191, Review192, Review193, Review194, Review195, and
-  Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, and Review208 work. The
-  fresh post-Review208 sweep found no actionable findings, so the active
-  counter is 1/30.
+  Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, Review208, and Review209 work.
+  Clean Sweep 1 after Review208 remains historical 1/30 evidence, but Clean
+  Sweep 2 found Review209 work, so the active counter is 0/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
   Effect-first audit over 408 physical/virtual files, 53 root test files / 1062

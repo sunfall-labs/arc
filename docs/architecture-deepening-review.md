@@ -11,16 +11,16 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review208, the post-Review207 sweep
-fixing RuntimeProvider observer typing, direct CLI bin rehearsal, stale
-evidence wording, and Solid match callback docs.
-The newest full verification checkpoint is Review208. The fresh post-Review208
-subagent sweep reported no actionable findings, creating active Clean Sweep 1
-after Review208 and moving the Thirty-Sweep clean counter to 1/30. Clean Sweep
-1 after Review190 remains historical evidence, but later sweeps found
-Review191, Review192, Review193, Review194, Review195, Review196, Review197,
-Review198, Review199, Review200, Review201, Review202, Review203, Review204,
-Review205, Review206, Review207, and Review208 work. Some older review entries
+The newest completed focused review is Review209, the Clean Sweep 2 candidate
+after Review208 fixing broad-`unknown` Promise callback rejection.
+The newest full verification checkpoint is Review209. Clean Sweep 1 after
+Review208 remains historical 1/30 evidence, but Clean Sweep 2 found Review209
+work, so the active Thirty-Sweep clean counter is 0/30 until a fresh
+post-Review209 sweep reports no actionable findings. Clean Sweep 1 after
+Review190 also remains historical evidence, but later sweeps found Review191,
+Review192, Review193, Review194, Review195, Review196, Review197, Review198,
+Review199, Review200, Review201, Review202, Review203, Review204, Review205,
+Review206, Review207, Review208, and Review209 work. Some older review entries
 remain below this tip from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
 
@@ -62,7 +62,54 @@ docs work. The fresh post-Review208 Core/React/Solid, DB/public API,
 Start/devtools/scripts/package, and docs/evidence sweeps found no actionable
 Module, Interface, Seam, Adapter, Locality, Depth, Leverage, typed-error,
 Effect-first, package, or docs drift work, creating active Clean Sweep 1 after
-Review208.
+Review208. Clean Sweep 2 after Review208 found Review209 broad-`unknown`
+Promise callback rejection work, so the counter reset to 0/30.
+
+## Review 209: Broad Unknown Promise Callback Rejection
+
+Review209 fixed actionable findings from the Clean Sweep 2 candidate after
+Review208. The DB and docs/evidence lanes reported no actionable findings. The
+Start/package lane found the same transient dirty-worktree typecheck failures
+while this fix was in progress. The Core/React/Solid lane found that explicit
+broad `unknown` output annotations could still let Promise-returning callbacks
+typecheck through `EffectInput` seams.
+
+1. Broad Unknown EffectInput Rejection
+   - Status: fixed.
+   - Files: `packages/core/src/effect-like.ts`,
+     `packages/core/src/resource.ts`, `packages/core/src/action.ts`,
+     `packages/core/src/program.ts`, `scripts/audit-effect-first.mjs`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: `EffectInput<unknown>` treated `unknown` as non-Promise at the
+     type level, and Resource/Action explicit-output overloads contextually
+     typed callbacks as returning the declared output. Calls such as
+     `toEffect<unknown>(promise)`, `invokeEffectInput<[], unknown>(...)`,
+     `Resource.family<string, unknown>({ load: () => promise })`,
+     `Action.define<..., unknown>({ run: () => promise })`, and
+     `Program.define<unknown, ...>({ update: () => promise })` could
+     typecheck even though the runtime would reject the Promise-shaped value.
+   - Fix: broad `unknown` EffectInput values now mean "unknown but not
+     thenable" through a non-thenable structural guard, `EnsureEffectInput`
+     applies the same guard, Resource and Action callback overloads apply
+     `EnsureEffectInput<Out>` directly to `load` / `run`, Program start
+     implementation overloads remain broad while the public overloads stay
+     precise, and public type tests pin direct, callback, Resource, Action,
+     Program update, and Program subscription Promise rejection through
+     explicit `unknown`.
+   - Benefits: explicit broad output annotations can no longer punch a Promise
+     hole through public library APIs; host Promise work still has to be adapted
+     deliberately with `Effect.tryPromise(...)`.
+
+Focused verification for Review209 passed: workspace typecheck, public type
+tests, Core/React/Solid/DB/Start package typechecks, public API audit,
+Effect-first audit over 408 files with 5 anchored structural thenable
+allowances, focused Core EffectInput/Resource/Action/Program and React/Solid
+hook tests, and `git diff --check`. Full `pnpm verify` and
+`pnpm verify:serial` passed after Review209 with 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 408 files, 53 root test files / 1062 tests, package-level verifies,
+generated starter packaging, the 16-target package dry-run gate,
+project-console checks, and leak scans.
 
 ## Clean Sweep 1 After Review208
 

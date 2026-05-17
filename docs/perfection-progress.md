@@ -41,11 +41,11 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest focused Review208 slice is green for RuntimeProvider observer
-  typing, Start CLI direct-bin rehearsal, stale package-hygiene ledger wording,
-  and Solid match callback docs found during the first post-Review207 sweep.
+- The latest focused Review209 slice is green for closing the broad-`unknown`
+  Promise callback rejection hole found by the Clean Sweep 2 candidate after
+  Review208.
 - The latest implementation and full verification gate is green after
-  Review208:
+  Review209:
   `pnpm verify` completed with 53 root test files / 1062 tests, public API
   inventory audit, Effect-first audit over 408 physical/virtual files,
   package-level verifies, parallel example package verifies and leak scans,
@@ -81,7 +81,9 @@ or command result that proves it.
   package-hygiene ledger, and Solid match docs work. The fresh post-Review208
   Core/React/Solid, DB/public API, Start/devtools/scripts/package, and
   docs/evidence sweeps found no actionable findings, creating active Clean
-  Sweep 1 after Review208. The active counter is 1/30.
+  Sweep 1 after Review208. Clean Sweep 2 after Review208 found Review209
+  broad-`unknown` Promise callback rejection work, so the active counter reset
+  to 0/30 until a fresh post-Review209 sweep is clean.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
   example, script, and type-test sources while keeping negative runtime
   validation tests explicit.
@@ -661,6 +663,7 @@ or command result that proves it.
 | 447 | Review 207 Action LSP pins and starter hydration wording | `docs/architecture-deepening-review.md`; `docs/db.md`; `docs/docs-drift-audit.md`; `docs/effect-first-audit.md`; `docs/perfection-progress.md`; `docs/public-api-inventory.md`; `docs/release-notes.md`; `docs/starter.md`; `docs/type-test-coverage-audit.md`; `docs/ultimate-goal-checklist.md`; `examples/basic-starter/README.md`; `packages/core/src/action.ts`; `scripts/public-api-symbol-policy.mjs`; `scripts/starter-template-content.mjs`; `type-tests/core.test-d.ts`; `type-tests/public-api.manifest.json` | Fixed post-Review206 findings. Action `exhaust` hover docs now describe joining the in-flight submission, direct Action root symbols are public-hover and manifest/type-test pinned, and starter/DB hydration docs now either show `hydrateFromDocumentEffect(...)` through the browser runtime first or explicitly label `hydrateFromDocument(...)` as the synchronous pre-mount host facade. | Focused verification passed: Core typecheck, public type tests, public API audit, Effect-first audit over 408 files, focused Core action tests, starter README hydration wording greps, generated starter package dry-run, workspace typecheck, and `git diff --check`. Full `pnpm verify` and `pnpm verify:serial` passed after Review207: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 408 files, 53 root test files / 1062 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. This sweep found work, so the active clean counter remains 0/30. |
 | 448 | Review 208 RuntimeProvider observers and CLI direct bin | `docs/adapter-differences.md`; `docs/architecture-deepening-review.md`; `docs/docs-drift-audit.md`; `docs/effect-first-audit.md`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/type-test-coverage-audit.md`; `docs/ultimate-goal-checklist.md`; `packages/react/src/runtime.ts`; `packages/solid/src/runtime.ts`; `packages/start/package.json`; `scripts/audit-effect-first.mjs`; `scripts/verify-package-dry-runs.mjs`; `type-tests/react.test-d.ts`; `type-tests/solid.test-d.ts` | Fixed post-Review207 findings. React and Solid `RuntimeProvider` disposal observers now expose `EffectInput<void, unknown>` so typed observer failures are accepted while Promise-shaped observers and host-owned runtime observers stay rejected, with the Promise negative fixtures anchored in the Effect-first audit. The package dry-run verifier executes the linked `effect-ui-start` bin directly on POSIX and the Start build marks `dist/cli.js` executable. Solid `ResourceMatch` docs now use plain callback values, and stale current-gate ledgers name Review208. | Focused verification passed: React typecheck, Solid typecheck, Start build, public type tests, package dry-run verification with the direct linked CLI bin, public API audit, Effect-first audit, focused React/Solid hook tests, workspace typecheck, stale docs greps, and `git diff --check`. Full `pnpm verify` and `pnpm verify:serial` passed after Review208: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 408 files, 53 root test files / 1062 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. This sweep found work, so the active clean counter remains 0/30. |
 | 449 | Clean Sweep 1 after Review208 | `docs/architecture-deepening-review.md`; `docs/docs-drift-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md` | Recorded the first active no-actionable sweep after Review208. Core/React/Solid, DB/public API, Start/devtools/scripts/package, and docs/evidence subagents reported no actionable implementation, public API, Effect-first, typed-error, LSP/JSDoc, package, or docs-honesty findings. | Active clean counter reached 1/30. Evidence included package/core/react/solid/db/react-db/solid-db typechecks, public type tests, workspace typecheck, public API audit, Effect-first audit over 408 files, focused Core/React/Solid runtime tests, DB-family tests, targeted Start tests, package dry-runs, direct executable CLI version checks, docs drift greps, Review208 file-list checks, and clean `git diff --check`. |
+| 450 | Review 209 broad unknown Promise callback rejection | `docs/architecture-deepening-review.md`; `docs/docs-drift-audit.md`; `docs/effect-first-audit.md`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/type-test-coverage-audit.md`; `docs/ultimate-goal-checklist.md`; `packages/core/src/action.ts`; `packages/core/src/effect-like.ts`; `packages/core/src/program.ts`; `packages/core/src/resource.ts`; `scripts/audit-effect-first.mjs`; `type-tests/framework.test-d.ts` | Fixed Clean Sweep 2 findings after Review208. `EffectInput<unknown>` now means unknown-but-not-thenable, `EnsureEffectInput` carries that guard, Resource and Action explicit-output overloads apply the guard directly to callback returns, Program start implementation overloads are broad while public overloads remain precise, and type tests pin explicit-`unknown` Promise rejection for direct EffectInput values, EffectInput callbacks, Resource loaders, Action runs, Program updates, and Program subscriptions. | Focused verification passed: workspace typecheck, public type tests, Core/React/Solid/DB/Start package typechecks, public API audit, Effect-first audit over 408 files with 5 anchored structural thenable allowances, focused Core EffectInput/Resource/Action/Program plus React/Solid hook tests, and `git diff --check`. Full `pnpm verify` and `pnpm verify:serial` passed after Review209: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 408 files, 53 root test files / 1062 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. This sweep found work, so the active clean counter resets to 0/30. |
 
 ## Thirty-Sweep Gate
 
@@ -691,7 +694,10 @@ post-Review207 sweep found Review208 RuntimeProvider observer typing, Start
 CLI direct-bin rehearsal, stale package-hygiene ledger wording, and Solid match
 docs work. The fresh post-Review208 sweep found no actionable findings across
 Core/React/Solid, DB/public API, Start/devtools/scripts/package, and
-docs/evidence lanes. The active counter is therefore 1/30.
+docs/evidence lanes, creating Clean Sweep 1 after Review208. Clean Sweep 2
+after Review208 found Review209 broad-`unknown` Promise callback rejection
+work. The active counter is therefore 0/30 until a fresh post-Review209 sweep
+reports no actionable findings.
 
 - Re-run the Promise and docs drift audits after each single-command full
   verification.

@@ -4,8 +4,20 @@ type HasPromiseLike<Out> = [unknown] extends [Out]
   ? false
   : [Extract<Out, PromiseLike<unknown>>] extends [never] ? false : true;
 
+type NonPromiseLikeUnknown =
+  | null
+  | undefined
+  | string
+  | number
+  | boolean
+  | bigint
+  | symbol
+  | (object & { readonly then?: never });
+
 export type RejectPromiseLikeValue<A> =
-  HasPromiseLike<A> extends true ? never : unknown;
+  [unknown] extends [A]
+    ? NonPromiseLikeUnknown
+    : HasPromiseLike<A> extends true ? never : unknown;
 
 /**
  * Input accepted by convenience APIs that can run either a plain value or an Effect.
@@ -14,7 +26,7 @@ export type RejectPromiseLikeValue<A> =
  * can stay ergonomic while still being normalized before execution.
  */
 export type EffectInput<A, E = never, R = never> =
-  | (RejectPromiseLikeValue<A> extends never ? never : A)
+  | (A & RejectPromiseLikeValue<A>)
   | Effect.Effect<A, E, R>;
 
 export type EffectInputValue<Out> = Out extends PromiseLike<unknown>
@@ -31,7 +43,7 @@ export type EnsureEffectInputValue<Out, A> =
   HasPromiseLike<Out> extends true ? never : EffectInputValue<Out> extends A ? Out : never;
 
 export type EnsureEffectInput<Out> =
-  HasPromiseLike<Out> extends true ? never : Out;
+  HasPromiseLike<Out> extends true ? never : Out & RejectPromiseLikeValue<Out>;
 
 export function isEffectLike<A, E, R>(value: EffectInput<A, E, R>): value is Effect.Effect<A, E, R>;
 export function isEffectLike(value: unknown): value is Effect.Effect<unknown, never, never>;

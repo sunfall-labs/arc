@@ -324,6 +324,7 @@ const allowed = [
     name: "structural thenable type surface",
     seams: [
       seam("packages/core/src/effect-like.ts", "EffectInput runtime thenable guard property", /value as \{ readonly then\?: unknown \}/),
+      seam("packages/core/src/effect-like.ts", "EffectInput broad unknown non-thenable guard", /object\s*&\s*\{\s*readonly then\?: never\s*\}/),
       seam("packages/core/src/capability.ts", "Capability useSync runtime thenable guard property", /value as \{ readonly then\?: unknown \}/),
       seam("packages/start/src/file-route.ts", "File route preload runtime thenable guard property", /value as \{ readonly then\?: unknown \}/),
       seam("packages/start/src/start-fetch.ts", "Start transport headers runtime thenable guard property", /value as \{ readonly then\?: unknown \}/)

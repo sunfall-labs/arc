@@ -491,6 +491,10 @@ declare const promisedVoid: Promise<void>;
 declare const promisedStartDevModule: Promise<Record<string, unknown>>;
 // @ts-expect-error direct EffectInput values cannot be Promise-shaped
 toEffect(promisedProject);
+// @ts-expect-error direct EffectInput values cannot hide Promise-shaped values behind explicit unknown
+toEffect<unknown>(promisedProject);
+// @ts-expect-error EffectInput callbacks cannot hide Promise-shaped values behind explicit unknown
+invokeEffectInput<[], unknown>("Project.promiseUnknown", () => promisedProject);
 // @ts-expect-error ActionResult.fromEffect rejects Promise-shaped direct values
 ActionResult.fromEffect(promisedProject);
 // @ts-expect-error ActionResult.fromValidationEffect rejects Promise-shaped direct values
@@ -1327,13 +1331,13 @@ Server.implement(LooseServerContract, () => promisedString);
 // @ts-expect-error broad server mocks must still reject Promise-shaped values
 Server.mock(LooseServerContract, () => promisedString);
 
-// @ts-expect-error unannotated server functions must return Effect or a pure value, not Promise
 Server.fn("Project.promiseServer", {
+  // @ts-expect-error unannotated server functions must return Effect or a pure value, not Promise
   handler: () => promisedProject
 });
 
-// @ts-expect-error unannotated server functions must not return unions containing Promise
 Server.fn("Project.unionPromiseServer", {
+  // @ts-expect-error unannotated server functions must not return unions containing Promise
   handler: () => maybePromisedProject
 });
 
@@ -1471,6 +1475,12 @@ void deleteProjectEffect;
 Resource.family<string, Project>({
   name: "Project.asyncResource",
   // @ts-expect-error resource loaders must return Effect or a pure value, not Promise
+  load: () => promisedProject
+});
+
+Resource.family<string, unknown>({
+  name: "Project.asyncResourceUnknown",
+  // @ts-expect-error resource loaders cannot hide Promise-shaped values behind explicit unknown
   load: () => promisedProject
 });
 
@@ -3408,6 +3418,19 @@ Program.define<number, "bad">({
   update: () => promisedNumber
 });
 
+Program.define<unknown, "bad">({
+  initial: {},
+  // @ts-expect-error Program updates cannot hide Promise-shaped values behind explicit unknown
+  update: () => promisedProject
+});
+
+Program.define<number, "bad">({
+  initial: 0,
+  update: (model) => model + 1,
+  // @ts-expect-error Program subscriptions cannot hide Promise-shaped values behind explicit unknown
+  subscriptions: () => promisedProject
+});
+
 // @ts-expect-error service method input remains typed
 ProjectApi.use((api) => api.rename({ id: "atlas" }));
 
@@ -4329,6 +4352,12 @@ Action.define<{ readonly id: string }, Project>({
 Action.define<{ readonly id: string }, Project>({
   name: "Project.asyncAction",
   // @ts-expect-error actions must return Effect or a pure value, not Promise
+  run: () => promisedProject
+});
+
+Action.define<{ readonly id: string }, unknown>({
+  name: "Project.asyncActionUnknown",
+  // @ts-expect-error actions cannot hide Promise-shaped values behind explicit unknown
   run: () => promisedProject
 });
 

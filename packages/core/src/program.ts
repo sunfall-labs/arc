@@ -110,6 +110,22 @@ export interface ProgramStartOptions<RRuntime = never, ER = never> {
 type ProgramRuntimeBoundStartOptions<R, RRuntime, ER> = {
   readonly runtime: EffectUiRuntime<RRuntime, ER> & ProgramRuntimeSatisfied<R, RRuntime>;
 };
+type ProgramStartImplementationOptions<ER> = {
+  readonly runtime?: AnyEffectUiRuntime<ER>;
+};
+
+const startProgramImplementation = <Model, Message, E = never, ER = never>(
+  definition: ProgramDefinition<Model, Message, E, never>,
+  options?: ProgramStartImplementationOptions<ER>
+): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>> => {
+  const runtime = (options?.runtime ?? currentOrDefaultRuntime()) as AnyEffectUiRuntime<ER>;
+  const scope = getCurrentScope();
+  return makeProgramRuntimeInstance<Model, Message, E, never, ER>({
+    definition,
+    runtime,
+    scope
+  });
+};
 
 /**
  * Starts a service-free Program against the current Effect UI runtime and optional UI scope.
@@ -143,20 +159,15 @@ export function startProgram<
   Model,
   Message,
   E = never,
-  R = never,
-  ER = never,
-  RRuntime = R
+  ER = never
 >(
-  definition: ProgramDefinition<Model, Message, E, R>,
-  options?: ProgramRuntimeBoundStartOptions<R, RRuntime, ER>
+  definition: unknown,
+  options?: ProgramStartImplementationOptions<ER>
 ): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>> {
-  const runtime = (options?.runtime ?? currentOrDefaultRuntime()) as AnyEffectUiRuntime<ER>;
-  const scope = getCurrentScope();
-  return makeProgramRuntimeInstance<Model, Message, E, R, ER>({
-    definition,
-    runtime,
-    scope
-  });
+  return startProgramImplementation(
+    definition as ProgramDefinition<Model, Message, E, never>,
+    options
+  );
 }
 
 /**
@@ -181,14 +192,15 @@ export function startProgramWithRuntimeError<
   Model,
   Message,
   E = never,
-  R = never,
-  ER = never,
-  RRuntime = R
+  ER = never
 >(
-  definition: ProgramDefinition<Model, Message, E, R>,
-  options?: ProgramRuntimeBoundStartOptions<R, RRuntime, ER>
+  definition: unknown,
+  options?: ProgramStartImplementationOptions<ER>
 ): ProgramInstance<Model, Message, ProgramRuntimeError<E, ER>, ProgramDispatchError<E, ER>> {
-  return startProgram(definition, options as ProgramRuntimeBoundStartOptions<R, RRuntime, ER>);
+  return startProgramImplementation(
+    definition as ProgramDefinition<Model, Message, E, never>,
+    options
+  );
 }
 
 /** Public namespace facade for defining, starting, testing, and typing Programs. */

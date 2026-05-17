@@ -57,6 +57,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
   provider-owned disposal observers may return typed failing Effects,
   Promise-shaped observers are rejected, and host-owned runtime props cannot
   install disposal observers.
+- Review209 added explicit broad-`unknown` Promise rejection pins for direct
+  `toEffect(...)`, `invokeEffectInput(...)`, Resource loaders, Action runs,
+  Program updates, and Program subscriptions, so callers cannot hide
+  Promise-shaped callback returns behind `unknown` success annotations.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them

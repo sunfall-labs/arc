@@ -299,7 +299,7 @@ export namespace Action {
     > & {
       readonly input: Input;
       readonly output: Output;
-      readonly run: (input: Schema.Schema.Type<Input>) => Out;
+      readonly run: (input: Schema.Schema.Type<Input>) => EnsureEffectInput<Out>;
     } & RejectPromiseEffectInput<Out>
   ): ActionDefinition<
     Schema.Schema.Type<Input>,
@@ -323,7 +323,7 @@ export namespace Action {
     > & {
       readonly input: Input;
       readonly output?: never;
-      readonly run: (input: Schema.Schema.Type<Input>) => Out;
+      readonly run: (input: Schema.Schema.Type<Input>) => EnsureEffectInput<Out>;
       readonly invalidates?: (
         value: EffectInputValue<Out>,
         input: Schema.Schema.Type<Input>
@@ -352,7 +352,7 @@ export namespace Action {
     > & {
       readonly input?: never;
       readonly output: Output;
-      readonly run: (input: I) => Out;
+      readonly run: (input: I) => EnsureEffectInput<Out>;
       readonly invalidates?: (
         value: EffectInputValue<Out>,
         input: I
@@ -379,7 +379,7 @@ export namespace Action {
       "output" | "run" | "invalidates"
     > & {
       readonly output?: never;
-      readonly run: (input: I) => Out;
+      readonly run: (input: I) => EnsureEffectInput<Out>;
       readonly invalidates?: (
         value: EffectInputValue<Out>,
         input: I

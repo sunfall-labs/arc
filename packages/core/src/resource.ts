@@ -456,7 +456,7 @@ export namespace Resource {
     > & {
       readonly input: Input;
       readonly output: Output;
-      readonly load: (input: Schema.Schema.Type<Input>) => Out;
+      readonly load: (input: Schema.Schema.Type<Input>) => EnsureEffectInput<Out>;
     } & RejectPromiseEffectInput<Out>
   ): ResourceRefFactory<
     Schema.Schema.Type<Input>,
@@ -479,7 +479,7 @@ export namespace Resource {
     > & {
       readonly input: Input;
       readonly output?: never;
-      readonly load: (input: Schema.Schema.Type<Input>) => Out;
+      readonly load: (input: Schema.Schema.Type<Input>) => EnsureEffectInput<Out>;
     } & RejectPromiseEffectInput<Out>
   ): ResourceRefFactory<
     Schema.Schema.Type<Input>,
@@ -503,7 +503,7 @@ export namespace Resource {
     > & {
       readonly input?: never;
       readonly output: Output;
-      readonly load: (input: I) => Out;
+      readonly load: (input: I) => EnsureEffectInput<Out>;
     } & RejectPromiseEffectInput<Out>
   ): ResourceRefFactory<
     I,
@@ -525,7 +525,7 @@ export namespace Resource {
       "output" | "load"
     > & {
       readonly output?: never;
-      readonly load: (input: I) => Out;
+      readonly load: (input: I) => EnsureEffectInput<Out>;
     } & RejectPromiseEffectInput<Out>
   ): ResourceRefFactory<
     I,
