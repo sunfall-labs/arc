@@ -1304,6 +1304,7 @@ describe("Collection", () => {
 
   it("rejects invalid secondary index selector values before bucketing rows", () => {
     const thrown = new Error("index failed");
+    const invalidDate = new Date(Number.NaN);
     const invalidIndexes = [
       {
         name: "promise",
@@ -1316,6 +1317,10 @@ describe("Collection", () => {
       {
         name: "object",
         index: (() => ({ status: "active" })) as never
+      },
+      {
+        name: "invalid-date",
+        index: (() => invalidDate) as never
       },
       {
         name: "throwing",
@@ -1339,6 +1344,36 @@ describe("Collection", () => {
 
       expect(() => Projects.index("invalid", "active")).toThrow(EffectInputCallbackError);
       expect(() => Projects.firstByIndex("invalid", "active")).toThrow(EffectInputCallbackError);
+    }
+  });
+
+  it("rejects invalid secondary index lookup Date values", () => {
+    const invalidDate = new Date(Number.NaN);
+    const Projects = Collection.define<Project>({
+      name: "Projects.index-invalid-date-lookup",
+      getKey: (project) => project.id,
+      indexes: {
+        status: (project) => project.status
+      },
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+      ]
+    });
+
+    for (const lookup of [
+      () => Projects.index("status", invalidDate),
+      () => Projects.firstByIndex("status", invalidDate)
+    ]) {
+      expect(lookup).toThrow(EffectInputCallbackError);
+      try {
+        lookup();
+        expect.fail("Expected invalid Date index lookup to fail.");
+      } catch (error) {
+        expect(error).toMatchObject({
+          _tag: "EffectInputCallbackError",
+          operation: "Collection.index.value"
+        });
+      }
     }
   });
 
@@ -7000,6 +7035,57 @@ describe("Query", () => {
         operation: "aggregate"
       }
     });
+  });
+
+  it("normalizes invalid order values as order evaluation errors", async () => {
+    const invalidDate = new Date(Number.NaN);
+    const Projects = Collection.define<Project>({
+      name: "Projects.invalid-order-value",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 },
+        { id: "lumen", name: "Lumen", status: "blocked", progress: 34 }
+      ]
+    });
+    const cases = [
+      { label: "invalid-date", value: invalidDate },
+      { label: "nan", value: Number.NaN }
+    ] as const;
+
+    for (const testCase of cases) {
+      const factory = (query: Query.Root) =>
+        query
+          .from({ project: Projects })
+          .orderBy(() => testCase.value)
+          .select(({ project }) => project.name);
+
+      expect(() => Query.diagnostics(factory), testCase.label).toThrow(QueryEvaluationError);
+      try {
+        Query.diagnostics(factory);
+        expect.fail(`Expected query diagnostics to reject ${testCase.label} order values.`);
+      } catch (error) {
+        expect(error).toBeInstanceOf(QueryEvaluationError);
+        expect(error).toMatchObject({ operation: "order" });
+      }
+
+      const onceExit = await Effect.runPromiseExit(Query.onceEffect(factory));
+      expect(Exit.isFailure(onceExit), testCase.label).toBe(true);
+      if (Exit.isFailure(onceExit)) {
+        const error = onceExit.cause.reasons.find(Cause.isFailReason)?.error;
+        expect(error).toBeInstanceOf(QueryEvaluationError);
+        expect(error).toMatchObject({ operation: "order" });
+      }
+
+      const live = Query.live(factory);
+      expect(live.data.get()).toEqual([]);
+      expect(live.state.get()).toMatchObject({
+        _tag: "Failure",
+        error: {
+          _tag: "QueryEvaluationError",
+          operation: "order"
+        }
+      });
+    }
   });
 
   it("rejects Promise-shaped query callbacks as typed evaluation errors", async () => {

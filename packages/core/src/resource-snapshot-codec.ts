@@ -1,7 +1,6 @@
 import { Data, Effect, Schema } from "effect";
 import type {
   AnyResourceFamily,
-  ResourceHydrationInput,
   ResourceHydrationPayload,
   ResourceHydrationSnapshot,
   ResourceRef,
@@ -237,18 +236,12 @@ export const validateResourceHydrationPayload = (
   };
 };
 
-/**
- * Accepts either the modern payload object or legacy snapshot-array input.
- *
- * Returns normalized snapshots so hydration code can work with one shape.
- */
+/** Validates a Resource hydration payload and returns normalized snapshots. */
 export const validateResourceHydrationInput = (
   value: unknown,
   operation: ResourceSnapshotCodecOperation = "hydrate"
 ): ReadonlyArray<ResourceHydrationSnapshot> =>
-  Array.isArray(value)
-    ? validateResourceHydrationSnapshots(value, operation)
-    : validateResourceHydrationPayload(value, operation).resources;
+  validateResourceHydrationPayload(value, operation).resources;
 
 const catchSnapshotCodecError = (
   operation: ResourceSnapshotCodecOperation,
@@ -303,9 +296,9 @@ const encodeResourceHydrationValueEffect = (
   );
 };
 
-/** Effect wrapper for validating Resource hydration input. */
+/** Effect wrapper for validating Resource hydration payload input. */
 export const validateResourceHydrationInputEffect = (
-  value: ResourceHydrationInput,
+  value: ResourceHydrationPayload,
   operation: ResourceSnapshotCodecOperation = "hydrate"
 ): Effect.Effect<ReadonlyArray<ResourceHydrationSnapshot>, ResourceSnapshotCodecError> =>
   Effect.try({

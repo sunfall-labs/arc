@@ -65,14 +65,14 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 17, 2026 after Review 220:
+Latest full gate on May 17, 2026 after Review 221:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
 - Effect-first audit over 411 package/example/config/script/type-test/generated
   template/docs-snippet physical and virtual files;
-- 53 root test files / 1126 tests;
+- 53 root test files / 1129 tests;
 - package-level verifies for the devtools panel, devtools extension, basic
   starter, React starter, and project console packages;
 - starter-suite packaging for basic (19 app files / 5 local packages), React
@@ -86,6 +86,15 @@ Latest full gate on May 17, 2026 after Review 220:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 221 closed the post-Review220 sweep findings: Resource hydration now
+  accepts only payload objects, with raw snapshot arrays rejected at type and
+  runtime; DB secondary indexes reject invalid Dates at selector and lookup
+  seams as `EffectInputCallbackError`; Query ordering rejects invalid Dates and
+  NaN as `QueryEvaluationError` operation `"order"` across diagnostics, once,
+  and live state; and the Effect command runner force-kill fallback now uses
+  Effect v4 generator sequencing with a SIGTERM-ignoring child regression. The
+  active Thirty-Sweep clean counter remains 0/30 until a fresh post-Review221
+  sweep is clean.
 - Review 220 closed the post-Review219 sweep findings: Core Router Link
   preloading now exposes only the full preload identity Interface; read-only
   Live Query Collections reject empty `applyChangesEffect(...)` batches with
@@ -95,8 +104,8 @@ Latest full gate on May 17, 2026 after Review 220:
   generated starter local packages share a policy-owned dist payload self-test;
   and current docs/LSP evidence names the Runtime Provider options, React/
   React DB hover coverage, Start Vite peer dependency, and generated/package
-  policy facts. The active Thirty-Sweep clean counter remains 0/30 until a
-  fresh post-Review220 sweep is clean.
+  policy facts. A later post-Review220 sweep found Review221 work, so the
+  active Thirty-Sweep clean counter stayed at 0/30.
 - Review 219 closed the post-Review218 sweep findings: Core Runtime Provider
   lifecycle now exposes typed provider-owned disposal while framework adapters
   keep observer cleanup; direct SQLite persistence rejects malformed
@@ -302,9 +311,9 @@ Latest full gate on May 17, 2026 after Review 220:
   post-Review215 sweep found Review216 work, the first post-Review216 sweep
   found Review217 work, the first post-Review217 sweep found Review218 work,
   the first post-Review218 sweep found Review219 work, and the fresh
-  post-Review219 sweep found Review220 work. The active Thirty-Sweep clean
-  counter is 0/30 until a fresh post-Review220 sweep reports no actionable
-  findings.
+  post-Review219 sweep found Review220 work, and the fresh post-Review220
+  sweep found Review221 work. The active Thirty-Sweep clean counter is 0/30
+  until a fresh post-Review221 sweep reports no actionable findings.
 - Review 192 refreshed stale current-gate docs wording that still named
   Review190 or active 1/30 progress after Review191.
 - Review 190 tightened `Server.fn(...)` so union-shaped Promise handler returns
@@ -1242,10 +1251,10 @@ Latest full gate on May 17, 2026 after Review 220:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 220 Core Router Link
-  preload identity cleanup, read-only live-query empty-batch policy, Start host
-  runner deletion, Effect v4 command runner policy coverage, shared dist
-  package payload policy self-tests, and docs/LSP evidence drift.
+- The latest full `pnpm verify` passed after Review 221 Resource hydration
+  payload-only input cleanup, DB invalid-Date secondary index validation, DB
+  comparable order-value validation, and Effect v4 command-runner force-kill
+  coverage.
   Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
   sweeps found Review191, Review192, Review193, Review194, Review195, and
   Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, Review208, Review209, Review210, Review211, Review212, and Review213 work.
@@ -1259,10 +1268,11 @@ Latest full gate on May 17, 2026 after Review 220:
   post-Review215 sweep found Review216 work, the first post-Review216 sweep
   found Review217 work, the first post-Review217 sweep found Review218 work,
   the first post-Review218 sweep found Review219 work, and the fresh
-  post-Review219 sweep found Review220 work, so the active counter is 0/30.
+  post-Review219 sweep found Review220 work, and the fresh post-Review220
+  sweep found Review221 work, so the active counter is 0/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 411 physical/virtual files, 53 root test files / 1126
+  Effect-first audit over 411 physical/virtual files, 53 root test files / 1129
   tests, package-level verifies for the devtools/starter/example packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console

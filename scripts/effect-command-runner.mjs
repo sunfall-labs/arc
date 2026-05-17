@@ -61,17 +61,17 @@ const nodeChildProcessHandle = (child, command) =>
           yield* Deferred.await(exitCode).pipe(
             Effect.timeout(options.forceKillAfter ?? "1 second"),
             Effect.catchCause(() =>
-              Effect.try({
-                try: () => {
-                  if (child.exitCode === null && child.signalCode === null) {
-                    child.kill("SIGKILL");
-                  }
-                },
-                catch: (cause) => platformError("Child process force-kill failed.", cause),
-              }).pipe(
-                Effect.zipRight(Deferred.await(exitCode)),
-                Effect.catchCause(() => Effect.void)
-              )
+              Effect.gen(function* () {
+                yield* Effect.try({
+                  try: () => {
+                    if (child.exitCode === null && child.signalCode === null) {
+                      child.kill("SIGKILL");
+                    }
+                  },
+                  catch: (cause) => platformError("Child process force-kill failed.", cause),
+                });
+                yield* Deferred.await(exitCode);
+              }).pipe(Effect.catchCause(() => Effect.void))
             ),
             Effect.asVoid
           );

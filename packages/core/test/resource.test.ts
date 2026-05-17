@@ -1588,6 +1588,31 @@ describe("Resource", () => {
     });
   });
 
+  it("rejects legacy snapshot-array hydration input through typed snapshot codec errors", async () => {
+    await expect(
+      Effect.runPromise(
+        Resource.hydrateEffect([
+          {
+            name: "User.legacy-array-hydrate",
+            key: "User.legacy-array-hydrate:1",
+            input: "1",
+            state: {
+              _tag: "Success",
+              waiting: false,
+              value: { id: "1" },
+              updatedAt: Date.now()
+            }
+          }
+        ] as never)
+      )
+    ).rejects.toMatchObject({
+      _tag: "ResourceSnapshotCodecError",
+      operation: "hydrate",
+      path: "$",
+      reason: "Expected a resource hydration payload."
+    });
+  });
+
   it("rejects duplicate hydration snapshots for the same resource identity", async () => {
     const snapshot = {
       name: "User.duplicate-hydration",

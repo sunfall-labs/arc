@@ -73,6 +73,12 @@ const normalizeCollectionIndexValue = (
       new TypeError(`Collection secondary index value at ${path} must be a scalar index value.`)
     );
   }
+  if (value instanceof Date && !Number.isFinite(value.getTime())) {
+    throw collectionIndexError(
+      operation,
+      new TypeError(`Collection secondary index Date value at ${path} must be valid.`)
+    );
+  }
   return value;
 };
 

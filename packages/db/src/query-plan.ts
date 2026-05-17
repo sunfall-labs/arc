@@ -61,6 +61,7 @@ class QueryCallbackEffectRejected extends Data.TaggedError(
 export type QuerySortDirection = "asc" | "desc";
 /** Comparable scalar value accepted by Query ordering. */
 export type QuerySortValue = string | number | boolean | Date | null | undefined;
+type NormalizedQuerySortValue = string | number | boolean | null | undefined;
 /** Scalar join key before stable string normalization. */
 export type QueryJoinKey = string | number | boolean | Date | null | undefined;
 /** Execution strategy selected for one Query join. */
@@ -504,6 +505,53 @@ export const evaluateQueryGroupKey = (value: Record<string, unknown>): string =>
     return stableStringify(value);
   });
 
+const isQuerySortScalar = (value: unknown): value is QuerySortValue =>
+  value === null ||
+  value === undefined ||
+  typeof value === "string" ||
+  typeof value === "number" ||
+  typeof value === "boolean" ||
+  value instanceof Date;
+
+const querySortValueError = (path: string, reason: string): QueryEvaluationError =>
+  new QueryEvaluationError({
+    operation: "order",
+    cause: new TypeError(reason),
+    message: `Query order value at ${path} must be a comparable scalar value.`
+  });
+
+const normalizeQuerySortValue = (
+  value: unknown,
+  path: string
+): NormalizedQuerySortValue => {
+  if (!isQuerySortScalar(value)) {
+    throw querySortValueError(path, "Query order values must be string, number, boolean, Date, null, or undefined.");
+  }
+  if (value instanceof Date) {
+    const millis = value.getTime();
+    if (!Number.isFinite(millis)) {
+      throw querySortValueError(path, "Query order Date values must be valid.");
+    }
+    return millis;
+  }
+  if (typeof value === "number" && Number.isNaN(value)) {
+    throw querySortValueError(path, "Query order number values cannot be NaN.");
+  }
+  return value;
+};
+
+const validateQueryOrderValues = (
+  contexts: ReadonlyArray<AnyQueryContext>,
+  orders: ReadonlyArray<QueryOrder<any>>
+): void => {
+  for (const context of contexts) {
+    for (const order of orders) {
+      const value = evaluateQueryOperation("order", () => order.selector(context));
+      normalizeQuerySortValue(value, "$.order");
+    }
+  }
+};
+
 const reservedQuerySourceAliases = new Set(["__proto__", "constructor", "prototype"]);
 
 /** Builds the diagnostic message for a source alias that cannot safely key a row context. */
@@ -675,6 +723,16 @@ export const buildQueryExecution = <TContext extends AnyQueryContext>(
   } else {
     resultContexts = contexts;
   }
+  if (builder.orders.length > 0) {
+    validateQueryOrderValues(
+      resultContexts.filter((context) =>
+        builder.filters.every((filter) =>
+          evaluateQueryOperation("filter", () => filter(context as TContext))
+        )
+      ),
+      builder.orders
+    );
+  }
 
   return {
     contexts: resultContexts as Array<TContext>,
@@ -733,8 +791,8 @@ export const groupContexts = (
 };
 
 export const compareValue = (left: QuerySortValue, right: QuerySortValue): number => {
-  const leftValue = left instanceof Date ? left.getTime() : left;
-  const rightValue = right instanceof Date ? right.getTime() : right;
+  const leftValue = normalizeQuerySortValue(left, "$.left");
+  const rightValue = normalizeQuerySortValue(right, "$.right");
 
   if (leftValue === rightValue) return 0;
   if (leftValue === null || leftValue === undefined) return 1;

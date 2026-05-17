@@ -63,11 +63,33 @@ const interruptionSelfTest = Effect.gen(function* () {
   yield* assert(exit._tag === "Failure", "interrupted command fiber should fail instead of succeeding.", exit);
 });
 
+const forceKillSelfTest = Effect.gen(function* () {
+  let stderr = "";
+  const fiber = Effect.runFork(runScriptCommandEffect(process.execPath, [
+    "-e",
+    "process.on('SIGTERM', () => {}); process.stderr.write('ready\\n'); setInterval(() => {}, 1000)",
+  ], {
+    onStderrChunk: (chunk) => {
+      stderr += chunk;
+    },
+  }));
+
+  yield* Effect.gen(function* () {
+    while (!stderr.includes("ready")) {
+      yield* Effect.sleep("10 millis");
+    }
+  }).pipe(Effect.timeout("2 seconds"));
+  yield* Fiber.interrupt(fiber).pipe(Effect.timeout("3 seconds"));
+  const exit = yield* Fiber.await(fiber);
+  yield* assert(exit._tag === "Failure", "force-killed command fiber should fail instead of succeeding.", exit);
+});
+
 const selfTest = Effect.gen(function* () {
   yield* successCaptureSelfTest;
   yield* nonzeroExitSelfTest;
   yield* spawnFailureSelfTest;
   yield* interruptionSelfTest;
+  yield* forceKillSelfTest;
   yield* Effect.sync(() => {
     console.log("Verified Effect command runner policy.");
   });

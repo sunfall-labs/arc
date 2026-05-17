@@ -85,6 +85,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
 - Review220 added the Router Link Preloader negative export pin for the removed
   target-only compatibility method and moved the current full verification
   evidence to the Review220 gate.
+- Review221 added Resource hydration payload-only negative pins for raw snapshot
+  arrays and moved the current full verification evidence to the Review221
+  gate.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them
@@ -204,9 +207,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Verification Evidence
 
-- `pnpm typecheck:types` and full `pnpm verify` passed after Review220 with
-  53 root test files / 1126 tests, including the latest Router Link Preloader
-  identity pin, Runtime Provider Lifecycle typed disposal/export pins,
+- `pnpm typecheck:types` and full `pnpm verify` passed after Review221 with
+  53 root test files / 1129 tests, including the latest Resource hydration
+  payload-only pins, Router Link Preloader identity pin, Runtime Provider
+  Lifecycle typed disposal/export pins,
   project-console runtime service probe, SQLite
   persistence metadata error typing, plain-data pins for Program models/
   messages, ActionResult payloads/errors, Form validation errors, collection

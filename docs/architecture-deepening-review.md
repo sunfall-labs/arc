@@ -11,11 +11,10 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review220, the post-Review219 sweep
-fixing the Core Router Link preload identity Interface, read-only live-query
-empty-batch policy, a dead Start host response runner seam, Effect v4 script
-runner regression coverage, shared dist-package payload policy self-tests, and
-docs/LSP evidence drift. The newest full verification checkpoint is Review220.
+The newest completed focused review is Review221, the post-Review220 sweep
+fixing Resource hydration payload-only inputs, DB invalid Date/comparable order
+guardrails, and the Effect v4 command-runner force-kill path. The newest full
+verification checkpoint is Review221.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -25,15 +24,16 @@ the first post-Review213 sweep found Review214 work, and the first
 post-Review214 sweep found Review215 work, and the first post-Review215 sweep
 found Review216 work, the first post-Review216 sweep found Review217 work, and
 the first post-Review217 sweep found Review218 work, and the first
-post-Review218 sweep found Review219 work, and the fresh post-Review219 sweep
-found Review220 work, so the active Thirty-Sweep clean counter is 0/30 until a
-fresh post-Review220 sweep reports no actionable findings. Clean Sweep 1 after
+post-Review218 sweep found Review219 work, the fresh post-Review219 sweep
+found Review220 work, and the fresh post-Review220 sweep found Review221 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review221
+sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
 Review206, Review207, Review208, Review209, Review210, Review211, Review212,
 Review213, Review214, Review215, Review216, Review217, Review218, and
-Review219 and Review220 work.
+Review219, Review220, and Review221 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -92,8 +92,75 @@ and the first post-Review217 sweep found Review218 runtime lifecycle, Start,
 DB, project-console, package, and docs work, and the first post-Review218
 sweep found Review219 Core, DB, Start, script, package-policy, and docs work,
 and the fresh post-Review219 sweep found Review220 Core, DB, Start, script,
-package-policy, and docs work,
+package-policy, and docs work, and the fresh post-Review220 sweep found
+Review221 Core, DB, and script work,
 so the counter remains 0/30.
+
+## Review 221: Payload Hydration, Comparable Ordering, And Force Kill Depth
+
+Review221 fixed actionable findings from the fresh post-Review220 sweep.
+
+1. Resource Hydration Payload-Only Interface
+   - Status: fixed.
+   - Files: `packages/core/src/resource.ts`,
+     `packages/core/src/resource-runtime.ts`,
+     `packages/core/src/resource-snapshot-codec.ts`,
+     `packages/core/test/resource.test.ts`, and
+     `type-tests/framework.test-d.ts`.
+   - Problem: Core still accepted the legacy raw snapshot-array shape in
+     `Resource.hydrateEffect(...)`, `Resource.hydrate(...)`, and the lower
+     hydration runtime helpers even though current Start/Core docs teach the
+     payload object seam.
+   - Fix: made `ResourceHydrationPayload` the only hydration input, kept
+     `Resource.HydrationInput` as a payload alias, removed the array branch
+     from validation, and added runtime/type-test regressions rejecting raw
+     snapshot arrays.
+   - Benefits: Resource hydration now has one public Interface shared by
+     Start, Core, docs, and LSP hovers.
+
+2. DB Secondary Index Date Validation
+   - Status: fixed.
+   - Files: `packages/db/src/collection-index-materialization.ts`,
+     `packages/db/test/collection.test.ts`, and
+     `packages/db/test/live-query-collection.test.ts`.
+   - Problem: secondary indexes accepted invalid `Date` values as scalar index
+     data, then leaked raw `RangeError` from `toISOString()` for selector and
+     lookup paths.
+   - Fix: moved valid-Date checking into the index value normalization seam and
+     added normal Collection plus Live Query Collection regressions for invalid
+     selector and lookup Dates.
+   - Benefits: malformed index data fails as typed `EffectInputCallbackError`
+     at `Collection.index.selector` or `Collection.index.value`.
+
+3. DB Query Order Comparable Validation
+   - Status: fixed.
+   - Files: `packages/db/src/query-plan.ts` and
+     `packages/db/test/collection.test.ts`.
+   - Problem: query ordering compared invalid Dates and `Number.NaN` directly,
+     producing unstable ordering instead of a typed `QueryEvaluationError`.
+   - Fix: added order-value normalization for string/number/boolean/Date/null/
+     undefined values, rejects invalid Dates and NaN as operation `"order"`,
+     and validates order values in diagnostics as well as once/live execution.
+   - Benefits: diagnostics, one-shot queries, and live queries share the same
+     deterministic comparable-value policy.
+
+4. Effect Command Runner Force-Kill Path
+   - Status: fixed.
+   - Files: `scripts/effect-command-runner.mjs` and
+     `scripts/verify-effect-command-runner.mjs`.
+   - Problem: the fallback force-kill branch still used unavailable
+     `Effect.zipRight(...)`, and the Review220 policy self-test did not cover a
+     child process that ignores `SIGTERM`.
+   - Fix: rewrote the fallback with generator sequencing and added a self-test
+     that waits for a child SIGTERM handler before interrupting the command
+     fiber, forcing the SIGKILL path.
+   - Benefits: the command runner's worst-case cleanup path is valid under the
+     pinned Effect v4 beta and covered by its policy-owned gate.
+
+Focused verification for Review221 passed: Core/DB/Start typechecks, public
+type tests, Effect-first audit over 411 files, `pnpm verify:command-runner`,
+focused Resource hydration tests, focused DB invalid-index/order tests, and
+full DB collection/live-query tests at 2 files / 192 tests.
 
 ## Review 220: Preload Identity, Readonly Batches, And Policy-Owned Gates
 
@@ -1126,8 +1193,9 @@ found Review214 work, the first post-Review214 sweep found Review215 work, the
 first post-Review215 sweep found Review216 work, and the first post-Review216
 sweep found Review217 work, the first post-Review217 sweep found Review218
 work, the first post-Review218 sweep found Review219 work, and the fresh
-post-Review219 sweep found Review220 work. The active counter is 0/30 until a
-fresh post-Review220 sweep reports no actionable findings.
+post-Review219 sweep found Review220 work, and the fresh post-Review220 sweep
+found Review221 work. The active counter is 0/30 until a fresh post-Review221
+sweep reports no actionable findings.
 
 ## Review 208: Runtime Provider Observers, CLI Bin Execution, And Docs Drift
 

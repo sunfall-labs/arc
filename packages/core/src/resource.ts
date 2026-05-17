@@ -227,7 +227,8 @@ export interface ResourceHydrationPayload {
   readonly resources: ReadonlyArray<ResourceHydrationSnapshot>;
 }
 
-export type ResourceHydrationInput = ReadonlyArray<ResourceHydrationSnapshot> | ResourceHydrationPayload;
+/** Hydration payload accepted by Resource hydration APIs. */
+export type ResourceHydrationInput = ResourceHydrationPayload;
 
 /** Resource load failures plus synchronous Resource callback failures. */
 export type ResourceLoadError<E> = E | EffectInputCallbackError;
@@ -461,8 +462,8 @@ export namespace Resource {
   export type Snapshot<I = unknown, A = unknown, E = never> = ResourceHydrationSnapshot<I, A, E>;
   /** Serializable collection of Resource snapshots for hydration. */
   export type HydrationPayload = ResourceHydrationPayload;
-  /** Hydration input accepted by `Resource.hydrate(...)`. */
-  export type HydrationInput = ResourceHydrationInput;
+  /** Alias for the payload object accepted by `Resource.hydrate(...)`. */
+  export type HydrationInput = ResourceHydrationPayload;
   /** Options that control Resource hydration replacement and failure behavior. */
   export type HydrationOptions = ResourceHydrationOptions;
   /** Typed error raised when Resource hydration payloads cannot be decoded. */
@@ -912,14 +913,14 @@ export namespace Resource {
    * intentionally hydrates a partial payload.
    */
   export const hydrateEffect = (
-    input: ResourceHydrationInput,
+    input: ResourceHydrationPayload,
     options?: ResourceHydrationOptions
   ): Effect.Effect<void, ResourceSnapshotCodecError | ResourceHydrationApplyError | EffectInputCallbackError> =>
     hydrateResourcesEffect(input, options);
 
   /** Synchronous runtime boundary for hydrateEffect. */
   export const hydrate = (
-    input: ResourceHydrationInput,
+    input: ResourceHydrationPayload,
     options?: ResourceHydrationOptions
   ): void => {
     hydrateResources(input, options);

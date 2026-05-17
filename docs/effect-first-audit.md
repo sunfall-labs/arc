@@ -20,6 +20,11 @@ interruption.
 
 ## Current Sweep Results
 
+- Review221 kept the post-Review220 fixes Effect-first: Resource hydration now
+  exposes one payload-only input Interface, DB secondary index and query order
+  validation normalize malformed values into typed Effect errors, and the
+  command-runner force-kill fallback uses Effect v4 generator sequencing with
+  policy-owned SIGTERM-ignoring child coverage.
 - Review220 kept the post-Review219 fixes Effect-first: Core Router Link
   preloading now exposes only full preload identity facts, DB read-only
   live-query mutation policy rejects empty batches before no-op handling, Start
@@ -603,10 +608,10 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 220 `pnpm verify` run recorded in
+- The current full gate is the Review 221 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
-  over 411 files, 53 root test files / 1126 tests, package-level verifies,
+  over 411 files, 53 root test files / 1129 tests, package-level verifies,
   generated starter packaging, 16-target package dry-run gate, project-console
   checks, and leak scans. Review 185 remains historical focused evidence for
   the starter catalog typed-error seam, and Review 165 remains historical
@@ -1428,14 +1433,14 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The current full `pnpm verify` passed after Review 220 preload identity,
-  read-only batch policy, Start host runner, command-runner, package-policy,
-  and docs/LSP fixes:
+- The current full `pnpm verify` passed after Review 221 Resource hydration
+  payload-only input cleanup, DB invalid-Date secondary index validation, DB
+  comparable order-value validation, and command-runner force-kill coverage:
   11 package builds, workspace
   typecheck, type tests, public API
   inventory audit, Effect-first audit over 411
   package/example/config/script/type-test/generated/docs files, 53 root test
-  files / 1126 tests, package-level verifies for copyable/source packages,
+  files / 1129 tests, package-level verifies for copyable/source packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console
   test files / 27 tests, build, and leak scans. The Effect-first audit now

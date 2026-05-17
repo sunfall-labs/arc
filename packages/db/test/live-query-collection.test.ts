@@ -1561,6 +1561,7 @@ describe("Collection.liveQuery", () => {
   });
 
   it("rejects invalid live query collection secondary index values", () => {
+    const invalidDate = new Date(Number.NaN);
     const Projects = Collection.define<Project>({
       name: "Projects.live-query-collection.invalid-index",
       getKey: (project) => project.id,
@@ -1572,7 +1573,9 @@ describe("Collection.liveQuery", () => {
       name: "ProjectCards.live-query-collection.invalid-index",
       getKey: (project) => project.id,
       indexes: {
-        invalid: (() => Effect.succeed("active")) as never
+        invalidEffect: (() => Effect.succeed("active")) as never,
+        invalidDate: (() => invalidDate) as never,
+        progressBand: (project) => project.progress >= 50 ? "high" : "low"
       },
       query: (query) =>
         query
@@ -1584,8 +1587,12 @@ describe("Collection.liveQuery", () => {
           }))
     });
 
-    expect(() => ProjectCards.index("invalid", "active")).toThrow(EffectInputCallbackError);
-    expect(() => ProjectCards.firstByIndex("invalid", "active")).toThrow(EffectInputCallbackError);
+    expect(() => ProjectCards.index("invalidEffect", "active")).toThrow(EffectInputCallbackError);
+    expect(() => ProjectCards.firstByIndex("invalidEffect", "active")).toThrow(EffectInputCallbackError);
+    expect(() => ProjectCards.index("invalidDate", "active")).toThrow(EffectInputCallbackError);
+    expect(() => ProjectCards.firstByIndex("invalidDate", "active")).toThrow(EffectInputCallbackError);
+    expect(() => ProjectCards.index("progressBand", invalidDate)).toThrow(EffectInputCallbackError);
+    expect(() => ProjectCards.firstByIndex("progressBand", invalidDate)).toThrow(EffectInputCallbackError);
   });
 
   it("can be used as a source for another live query", () => {

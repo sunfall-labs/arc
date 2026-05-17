@@ -1649,6 +1649,10 @@ const resourceHydrateEffect: Effect.Effect<
   ResourceSnapshotCodecError | ResourceHydrationApplyError | EffectInputCallbackError
 > =
   Resource.hydrateEffect({ resources: [] });
+// @ts-expect-error Resource hydration accepts payload objects, not raw snapshot arrays
+Resource.hydrateEffect([resourceSnapshot]);
+// @ts-expect-error Resource hydration validation accepts payload objects, not raw snapshot arrays
+validateResourceHydrationInputEffect([resourceSnapshot], resourceSnapshotOperation);
 const resourceDecodeEffect: Effect.Effect<Resource.HydrationPayload, ResourceSnapshotCodecError> =
   Resource.decodeHydrationPayloadEffect("{\"resources\":[]}");
 const resourceDehydrateEffect: Effect.Effect<ReadonlyArray<Resource.Snapshot>, ResourceSnapshotCodecError> =
@@ -1662,6 +1666,8 @@ declare const frameworkResourceInvalidationCauseAlias: Resource.InvalidationCaus
 declare const frameworkResourceInvalidationPlanEntryAlias: Resource.InvalidationPlanEntry;
 declare const frameworkResourceInvalidationPlanAlias: Resource.InvalidationPlan;
 declare const frameworkResourceHydrationInputAlias: Resource.HydrationInput;
+const frameworkResourceHydrationPayloadAlias: Resource.HydrationPayload =
+  frameworkResourceHydrationInputAlias;
 declare const frameworkResourceHydrationOptionsAlias: Resource.HydrationOptions;
 declare const frameworkResourceStatusAlias: Resource.Status<string, Project>;
 void resourceDehydrateEffect;
@@ -1673,6 +1679,7 @@ void frameworkResourceInvalidationCauseAlias;
 void frameworkResourceInvalidationPlanEntryAlias;
 void frameworkResourceInvalidationPlanAlias;
 void frameworkResourceHydrationInputAlias;
+void frameworkResourceHydrationPayloadAlias;
 void frameworkResourceHydrationOptionsAlias;
 void frameworkResourceStatusAlias;
 

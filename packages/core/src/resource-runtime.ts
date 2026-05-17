@@ -52,7 +52,6 @@ import type { ReadableSignal } from "./signal.js";
 import type {
   AnyResourceFamily,
   AnyResourceRef,
-  ResourceHydrationInput,
   ResourceHydrationOptions,
   ResourceHydrationPayload,
   ResourceHydrationSnapshot,
@@ -803,7 +802,7 @@ export const deleteResource = (
 };
 
 export const hydrateResourcesEffect = (
-  input: ResourceHydrationInput,
+  input: ResourceHydrationPayload,
   options: ResourceHydrationOptions = {}
 ): Effect.Effect<void, ResourceSnapshotCodecError | ResourceHydrationApplyError | EffectInputCallbackError> =>
   Effect.gen(function* () {
@@ -858,7 +857,7 @@ export const hydrateResourcesEffect = (
   });
 
 export const hydrateResources = (
-  input: ResourceHydrationInput,
+  input: ResourceHydrationPayload,
   options?: ResourceHydrationOptions
 ): void => {
   currentOrDefaultRuntime().runSync(hydrateResourcesEffect(input, options));
