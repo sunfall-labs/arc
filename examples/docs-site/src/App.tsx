@@ -1,6 +1,6 @@
 import { Route, RouterOutlet, RouterProvider, useResource } from "@sunfall/arc-solid";
 import type { SunfallArcRuntime } from "@sunfall/arc-core";
-import { CookbookRoute, HomeRoute, RecipeRoute, app } from "./app-definition.js";
+import { BlogPostRoute, CookbookRoute, HomeRoute, RecipeRoute, app } from "./app-definition.js";
 import {
   RecipeBySlug,
   RecipeIndexRef,
@@ -13,9 +13,10 @@ import type { RecipeCategory, RecipeSlug } from "./content.contract.js";
 import "./styles.css";
 
 const HomeUiRoute = Route.withComponent(HomeRoute, HomeView);
+const BlogPostUiRoute = Route.withComponent(BlogPostRoute, BlogPostView);
 const CookbookUiRoute = Route.withComponent(CookbookRoute, CookbookIndexView);
 const RecipeUiRoute = Route.withComponent(RecipeRoute, RecipeRouteView);
-const routes = [HomeUiRoute, CookbookUiRoute, RecipeUiRoute] as const;
+const routes = [HomeUiRoute, BlogPostUiRoute, CookbookUiRoute, RecipeUiRoute] as const;
 type DocsSiteRuntime<RuntimeServices = DocsContentApi> = [DocsContentApi] extends [RuntimeServices]
   ? SunfallArcRuntime<RuntimeServices, never>
   : never;
@@ -71,6 +72,9 @@ function DocsShell() {
           </span>
         </a>
         <RecipeNav />
+        <a href={Route.href(BlogPostUiRoute)} class="navSectionLink">
+          Why Sunfall Arc
+        </a>
       </aside>
 
       <section class="docsMain">
@@ -138,6 +142,19 @@ function HomeView() {
         </a>
       </header>
 
+      <section class="featureCallout" aria-label="Introduction">
+        <p class="eyebrow">From the blog</p>
+        <h2>Why Sunfall Arc exists</h2>
+        <p>
+          The first public alpha is about making full-stack TypeScript feel inspectable: data
+          loading, mutations, routing, server boundaries, and local state all become typed framework
+          facts instead of scattered conventions.
+        </p>
+        <a href={Route.href(BlogPostUiRoute)} class="primaryLink">
+          Read the introduction
+        </a>
+      </section>
+
       {recipes.match({
         initial: () => <RecipeGridSkeleton />,
         pending: (previous) =>
@@ -170,6 +187,88 @@ function CookbookIndexView() {
         success: (value) => <RecipeGrid recipes={value} />,
         failure: (error) => <FailureView error={error} />,
       })}
+    </article>
+  );
+}
+
+function BlogPostView() {
+  return (
+    <article class="blogPost">
+      <header class="pageHeader">
+        <p class="eyebrow">Introducing Sunfall Arc</p>
+        <h1>Full-stack TypeScript should be easier to reason about.</h1>
+        <p>
+          Sunfall Arc is an experimental framework for teams who want the ergonomics of a modern app
+          stack without losing the ability to see what the app is doing.
+        </p>
+      </header>
+
+      <section class="recipeBody">
+        <p>
+          Most full-stack apps begin cleanly. A route loads data, a form mutates it, a component
+          renders it, and a server endpoint keeps the sensitive work on the server. Then the app
+          grows. Cache keys spread through components. Promise boundaries multiply. Server contracts
+          drift from clients. Tests know one version of the app graph, production knows another, and
+          diagnostics arrive only after something has already gone sideways.
+        </p>
+        <p>
+          Sunfall Arc is built around a different bet: the framework should preserve the shape of
+          the application as typed, inspectable facts. Routes, Resources, Actions, server functions,
+          Collections, and Capabilities are not just runtime helpers. They are the vocabulary the
+          app uses to explain itself.
+        </p>
+
+        <h2>The value is composure</h2>
+        <p>
+          Arc makes async work explicit without making product code feel ceremonial. Public async
+          APIs return Effect values, so failures, dependencies, cancellation, request-local runtime
+          state, and cleanup stay part of the program instead of becoming side effects hidden behind
+          a Promise chain.
+        </p>
+        <p>
+          That matters when an app crosses boundaries. The same Resource can be preloaded by a
+          route, read by a UI adapter, serialized into streamed hydration, invalidated by an Action,
+          and inspected by devtools without each layer inventing a private story about it.
+        </p>
+
+        <h2>The app graph becomes useful</h2>
+        <p>
+          Start can emit a deterministic graph of routes, resources, actions, collections, modules,
+          and diagnostics. That graph is useful to humans reading a codebase, CI jobs enforcing
+          architecture rules, and agents trying to make focused edits without guessing how files fit
+          together.
+        </p>
+        <p>
+          Instead of treating diagnostics as an afterthought, Arc tries to make them a native output
+          of the framework. The goal is not only to render HTML; it is to explain why the rendered
+          app has the shape it has.
+        </p>
+
+        <h2>Local-first data gets a framework seam</h2>
+        <p>
+          Arc Collections give local data the same level of structure as route data. Live queries,
+          persistence, optimistic mutation queues, flush policy, and sync adapter boundaries are
+          modeled as framework concepts rather than ad hoc stores that every feature has to
+          rediscover.
+        </p>
+        <p>
+          That gives product code a quieter job. Components read rows, Actions describe intent, and
+          the runtime owns the mechanics of materialization, invalidation, and durable state.
+        </p>
+
+        <h2>This alpha is intentionally honest</h2>
+        <p>
+          Sunfall Arc is not pretending to be a finished ecosystem. Platform-specific packages for
+          every host can wait until real deployments demand them. The first public alpha is about
+          the core spine: typed resources and actions, Start SSR and hydration, Solid and React
+          adapters, local-first collections, devtools contracts, starters, package gates, and docs
+          that are themselves built with the framework.
+        </p>
+        <p>
+          The promise is simple: fewer invisible seams, more typed boundaries, and a framework that
+          can tell you what it knows.
+        </p>
+      </section>
     </article>
   );
 }

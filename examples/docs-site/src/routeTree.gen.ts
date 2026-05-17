@@ -3,34 +3,39 @@
 import { Route } from "@sunfall/arc-core";
 
 import { Route as route_root } from "./routes/index.js";
+import { Route as route_blog_introducing_sunfall_arc } from "./routes/blog/introducing-sunfall-arc.js";
 import { Route as route_cookbook } from "./routes/cookbook/index.js";
 import { Route as route_cookbook_$slug } from "./routes/cookbook/$slug.js";
 
 const route_root_path: "/" = route_root.path;
+const route_blog_introducing_sunfall_arc_path: "/blog/introducing-sunfall-arc" = route_blog_introducing_sunfall_arc.path;
 const route_cookbook_path: "/cookbook" = route_cookbook.path;
 const route_cookbook_$slug_path: "/cookbook/:slug" = route_cookbook_$slug.path;
 
-export { route_root, route_cookbook, route_cookbook_$slug };
+export { route_root, route_blog_introducing_sunfall_arc, route_cookbook, route_cookbook_$slug };
 
 /** Ordered app-specific route definitions discovered from Start file routes. */
-export const routes = [route_root, route_cookbook, route_cookbook_$slug] as const;
+export const routes = [route_root, route_blog_introducing_sunfall_arc, route_cookbook, route_cookbook_$slug] as const;
 /** Alias for `routes`, kept for router-style naming and generated-file ergonomics. */
 export const routeTree = routes;
 /** Map from generated route id to the exact route definition for that file route. */
 export const routeById = {
   route_root: route_root,
+  route_blog_introducing_sunfall_arc: route_blog_introducing_sunfall_arc,
   route_cookbook: route_cookbook,
   route_cookbook_$slug: route_cookbook_$slug,
 } as const;
 /** Map from route path pattern to the exact route definition for that file route. */
 export const routeByPath = {
   "/": route_root,
+  "/blog/introducing-sunfall-arc": route_blog_introducing_sunfall_arc,
   "/cookbook": route_cookbook,
   "/cookbook/:slug": route_cookbook_$slug,
 } as const;
 /** Map from route path pattern to generated route id. */
 export const routeIdByPath = {
   "/": "route_root",
+  "/blog/introducing-sunfall-arc": "route_blog_introducing_sunfall_arc",
   "/cookbook": "route_cookbook",
   "/cookbook/:slug": "route_cookbook_$slug",
 } as const;
@@ -48,6 +53,7 @@ export const hrefByPath = <Path extends RoutePath>(
 /** Layout modules that wrap each generated route, ordered from source-scope root to leaf. */
 export const fileRouteLayoutsById = {
   route_root: [],
+  route_blog_introducing_sunfall_arc: [],
   route_cookbook: [],
   route_cookbook_$slug: [],
 } as const;
@@ -56,6 +62,7 @@ export const fileRouteErrorBoundaryById = {} as const;
 /** Metadata modules scoped to each generated route by source id, ordered from root to leaf. */
 export const fileRouteMetadataById = {
   route_root: [],
+  route_blog_introducing_sunfall_arc: [],
   route_cookbook: [],
   route_cookbook_$slug: [],
 } as const;
@@ -93,6 +100,26 @@ export const fileRouteModules = [
     filePath: "src/routes/index.ts",
     routePath: "/",
     segments: [],
+    params: [],
+    exportName: "Route",
+  },
+  {
+    id: "blog/introducing-sunfall-arc",
+    kind: "Route",
+    routeId: "route_blog_introducing_sunfall_arc",
+    moduleId: "src/routes/blog/introducing-sunfall-arc.ts",
+    filePath: "src/routes/blog/introducing-sunfall-arc.ts",
+    routePath: "/blog/introducing-sunfall-arc",
+    segments: [
+      {
+        _tag: "Static",
+        value: "blog",
+      },
+      {
+        _tag: "Static",
+        value: "introducing-sunfall-arc",
+      },
+    ],
     params: [],
     exportName: "Route",
   },
@@ -155,6 +182,34 @@ export const fileRouteMetadata = [
       params: [],
       exportName: "Route",
     },
+    layouts: [],
+    metadataModules: [],
+  },
+  {
+    routeId: "route_blog_introducing_sunfall_arc",
+    routePath: "/blog/introducing-sunfall-arc",
+    routeModule: {
+      id: "blog/introducing-sunfall-arc",
+      kind: "Route",
+      routeId: "route_blog_introducing_sunfall_arc",
+      moduleId: "src/routes/blog/introducing-sunfall-arc.ts",
+      filePath: "src/routes/blog/introducing-sunfall-arc.ts",
+      routePath: "/blog/introducing-sunfall-arc",
+      segments: [
+        {
+          _tag: "Static",
+          value: "blog",
+        },
+        {
+          _tag: "Static",
+          value: "introducing-sunfall-arc",
+        },
+      ],
+      params: [],
+      exportName: "Route",
+    },
+    parentRouteId: "route_root",
+    parentRoutePath: "/",
     layouts: [],
     metadataModules: [],
   },
