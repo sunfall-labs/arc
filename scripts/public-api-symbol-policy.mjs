@@ -1413,8 +1413,8 @@ export const namespaceBackedSurfaceModules = new Map([
 ]);
 
 export const currentDocsEvidencePolicy = {
-  latestFocusedReview: 495,
-  latestFocusedTitle: "Resolved Callback And Payload Token Policy",
+  latestFocusedReview: 496,
+  latestFocusedTitle: "Starter Artifact And Prerender Type Pin Policy",
   latestFullGateReview: 492,
   rootTestFiles: 58,
   rootTestCount: 1223,
@@ -1423,13 +1423,13 @@ export const currentDocsEvidencePolicy = {
 };
 
 const staleFocusedReviewPattern =
-  /(?:The latest focused Review|Latest focused evidence: Review|newest focused review is Review) ?(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0-4])\b/;
+  /(?:The latest focused Review|Latest focused evidence: Review|newest focused review is Review) ?(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0-5])\b/;
 const staleAsOfReviewPattern =
-  /As of Review(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0-4]), the latest full/;
+  /As of Review(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0-5]), the latest full/;
 const staleFullGateReviewPattern =
   /(?:The latest full verification gate is green after Review|Latest full gate[^.\n]*after Review|latest full `pnpm verify` passed after Review|current full gate is the Review) ?(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0-1])\b/;
 const stalePostReviewWaitPattern =
-  /until\s+a fresh\s+post-Review(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0-4])\s+sweep reports no actionable\s+findings/;
+  /until\s+a fresh\s+post-Review(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0-5])\s+sweep reports no actionable\s+findings/;
 
 export const currentDocsTextPolicies = [
   {
@@ -1463,18 +1463,18 @@ export const currentDocsTextPolicies = [
     file: "docs/architecture-deepening-review.md",
     required: [
       {
-        name: "Architecture tip must name the current focused Review495",
+        name: "Architecture tip must name the current focused Review496",
         pattern:
-          /The newest focused review is Review495\s+Resolved Callback\s+And\s+Payload\s+Token\s+Policy/,
+          /The newest focused review is Review496\s+Starter Artifact\s+And\s+Prerender\s+Type\s+Pin\s+Policy/,
       },
       {
         name: "Architecture tip must keep Review492 as the newest full checkpoint",
         pattern: /newest full verification checkpoint is Review492/,
       },
       {
-        name: "Architecture tip must wait on the post-Review495 clean sweep",
+        name: "Architecture tip must wait on the post-Review496 clean sweep",
         pattern:
-          /active Thirty-Sweep clean counter is 0\/30 until\s+a fresh post-Review495\s+sweep reports no actionable\s+findings/,
+          /active Thirty-Sweep clean counter is 0\/30 until\s+a fresh post-Review496\s+sweep reports no actionable\s+findings/,
       },
     ],
     banned: [
@@ -1493,16 +1493,17 @@ export const currentDocsTextPolicies = [
     required: [
       {
         name: "Perfection progress must name the current focused review from currentDocsEvidencePolicy",
-        pattern: /The latest focused Review495\s+Resolved Callback\s+And\s+Payload Token Policy/,
+        pattern:
+          /The latest focused Review496\s+Starter Artifact\s+And\s+Prerender Type Pin Policy/,
       },
       {
         name: "Perfection progress must keep the Review492 full gate as current full evidence",
         pattern: /latest full verification gate is green after Review492/,
       },
       {
-        name: "Perfection progress must keep the active Thirty-Sweep counter at 0/30 after Review495 work",
+        name: "Perfection progress must keep the active Thirty-Sweep counter at 0/30 after Review496 work",
         pattern:
-          /active Thirty-Sweep clean counter remains 0\/30 until\s+a fresh post-Review495 sweep reports no\s+actionable findings/,
+          /active Thirty-Sweep clean counter remains 0\/30 until\s+a fresh post-Review496 sweep reports no\s+actionable findings/,
       },
     ],
     banned: [
@@ -1536,16 +1537,16 @@ export const currentDocsTextPolicies = [
     file: "docs/release-notes.md",
     required: [
       {
-        name: "Release notes must include the current focused Review495 entry",
-        pattern: /Review 495 Resolved Callback And Payload Token Policy/,
+        name: "Release notes must include the current focused Review496 entry",
+        pattern: /Review 496 Starter Artifact And Prerender Type Pin Policy/,
       },
       {
         name: "Release notes must keep the Review492 full gate snapshot",
         pattern: /Latest full gate on May 17, 2026 after Review 492/,
       },
       {
-        name: "Release notes must wait on the post-Review495 clean sweep",
-        pattern: /until\s+a fresh\s+post-Review495\s+sweep\s+reports no actionable\s+findings/,
+        name: "Release notes must wait on the post-Review496 clean sweep",
+        pattern: /until\s+a fresh\s+post-Review496\s+sweep\s+reports no actionable\s+findings/,
       },
     ],
     banned: [
@@ -1575,16 +1576,16 @@ export const currentDocsTextPolicies = [
     file: "docs/docs-drift-audit.md",
     required: [
       {
-        name: "Docs drift audit must name the current focused Review495 evidence",
-        pattern: /As of Review495, the latest full/,
+        name: "Docs drift audit must name the current focused Review496 evidence",
+        pattern: /As of Review496, the latest full/,
       },
       {
         name: "Docs drift audit must keep Review492 full gate counts",
         pattern: /Review492 run with 58 root test files \/ 1223 tests/,
       },
       {
-        name: "Docs drift audit must wait on the post-Review495 clean sweep",
-        pattern: /counter is 0\/30 until a fresh post-Review495 sweep reports no actionable/,
+        name: "Docs drift audit must wait on the post-Review496 clean sweep",
+        pattern: /counter is 0\/30 until a fresh post-Review496 sweep reports no actionable/,
       },
     ],
     banned: [
@@ -1614,8 +1615,8 @@ export const currentDocsTextPolicies = [
         pattern: /Review492 Route Suspense Runtime And Prerender Callback Pins/,
       },
       {
-        name: "Type-test audit must record Review495 current evidence policy",
-        pattern: /Review495 Resolved Callback And Payload Token Policy/,
+        name: "Type-test audit must record Review496 current evidence policy",
+        pattern: /Review496 Starter Artifact And Prerender Type Pin Policy/,
       },
       {
         name: "Type-test audit must keep Review492 full gate counts",
@@ -1634,8 +1635,8 @@ export const currentDocsTextPolicies = [
     file: "docs/effect-first-audit.md",
     required: [
       {
-        name: "Effect-first audit must name Review495 as current sweep work",
-        pattern: /Review495 Resolved Callback And Payload Token Policy/,
+        name: "Effect-first audit must name Review496 as current sweep work",
+        pattern: /Review496 Starter Artifact And Prerender Type Pin Policy/,
       },
       {
         name: "Effect-first audit must keep the 449-file audit count",
@@ -1697,8 +1698,8 @@ export const currentDocsTextPolicies = [
     file: "docs/ultimate-goal-checklist.md",
     required: [
       {
-        name: "Ultimate goal checklist must name Review495 as latest focused evidence",
-        pattern: /Latest focused evidence: Review 495/,
+        name: "Ultimate goal checklist must name Review496 as latest focused evidence",
+        pattern: /Latest focused evidence: Review 496/,
       },
       {
         name: "Ultimate goal checklist must keep Review492 as latest full evidence",

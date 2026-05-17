@@ -107,7 +107,7 @@ const forbiddenGeneratedPackageFileNames = new Set([
   "yarn.lock",
 ]);
 const forbiddenGeneratedReadmeFragments = [
-  "pnpm --filter @sunfall-arc",
+  "pnpm --filter @sunfall/arc-",
   "pnpm example:",
   "pnpm starter:package",
   ".test-dist/starters",
@@ -708,6 +708,20 @@ const assertGeneratedStarterArtifactsMatchSource = (starter) =>
     }
   });
 
+const formatGeneratedStarterArtifacts = (starter) =>
+  Effect.gen(function* () {
+    const artifacts = generatedStarterArtifactsFor(starter.id);
+    if (artifacts.length === 0) {
+      return;
+    }
+    yield* commandEffect(`${starter.displayName} generated artifact format`, "pnpm", [
+      "exec",
+      "oxfmt",
+      ...artifacts.map((artifact) => resolve(starter.outputDir, artifact.file)),
+      "--write",
+    ]);
+  });
+
 const assertStandaloneReadme = (starter) =>
   Effect.gen(function* () {
     const readmePath = resolve(starter.outputDir, "README.md");
@@ -1174,6 +1188,7 @@ const packageStarter = (workspacePackages, builtPackageNames, starter) =>
     yield* assertStandaloneReadme(starter);
     yield* assertNoWorkspaceProtocol(starter);
     yield* verifyInstallableStarter(starter);
+    yield* formatGeneratedStarterArtifacts(starter);
     const verifiedGeneratedAppFiles = yield* collectGeneratedAppFiles();
     yield* assertSameFileManifest(starter, expectedFiles, verifiedGeneratedAppFiles);
     yield* assertNoForbiddenGeneratedAppSegments(starter, verifiedGeneratedAppFiles);

@@ -11,11 +11,10 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review495 Resolved Callback And Payload Token
-Policy, the post-Review494 follow-up that aligns resolved Start prerender
-callback options with Effect-returning public options, extends package payload
-rename-token scanning to source-package dry-runs, and fixes current evidence
-policy wrapping.
+The newest focused review is Review496 Starter Artifact And Prerender Type Pin
+Policy, the post-Review495 follow-up that formats generated starter artifacts
+before standalone drift comparison and pins resolved Start prerender callback
+types in public type tests and inventory.
 The newest full verification checkpoint is Review492.
 Clean Sweep 1 after
 Review208 remains historical 1/30
@@ -57,8 +56,9 @@ and the fresh post-Review246 sweep found Review247 work, the dirty-lane
 follow-up found Review490 work, the fresh post-Review490 sweep found
 Review491 work, the fresh post-Review491 sweep found Review492 work, the fresh
 post-Review492 sweep found Review493 work, the fresh post-Review493 sweep
-found Review494 work, and the fresh post-Review494 sweep found Review495 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review495
+found Review494 work, the fresh post-Review494 sweep found Review495 work, and
+the fresh post-Review495 sweep found Review496 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review496
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -71,8 +71,8 @@ Review232 Shared DB Query Stage Plan work, Review233 work, Review234 work,
 Review235 work, Review236 work, Review237 work, Review238 work, Review239
 work, Review240 work, Review241 work, Review242 work, Review243 work,
 Review244 work, Review245 work, Review246 work, Review247 work, Review490
-work, Review491 work, Review492 work, Review493 work, Review494 work, and
-Review495 work.
+work, Review491 work, Review492 work, Review493 work, Review494 work,
+Review495 work, and Review496 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -188,7 +188,45 @@ and the fresh post-Review493 sweep found Review494 Effect callback and package
 interface policy work,
 and the fresh post-Review494 sweep found Review495 resolved callback and
 payload token policy work,
+and the fresh post-Review495 sweep found Review496 starter artifact and
+prerender type pin policy work,
 so the counter remains 0/30.
+
+## Review 496: Starter Artifact And Prerender Type Pin Policy
+
+Review496 fixes the actionable findings from the fresh post-Review495 sweep.
+
+1. Generated Starter Artifact Formatting Seam
+   - Status: fixed.
+   - Files: `scripts/package-project-console-starter.mjs`.
+   - Problem: standalone starter verification could regenerate route artifacts
+     with the generator's raw formatting, then compare those bytes directly
+     against source artifacts that are committed after the workspace formatter.
+     That made `pnpm starter:package` fail on formatting-only drift.
+   - Solution: the starter packager now runs `oxfmt --write` over declared
+     generated route/virtual artifacts after standalone verify and before the
+     source-vs-generated drift comparison.
+   - Benefits: the starter packaging Module compares the same formatted
+     artifact Interface users commit, while still detecting semantic route or
+     virtual module drift.
+
+2. Resolved Start Prerender Type Pins
+   - Status: fixed.
+   - Files: `type-tests/start-vite.test-d.ts`,
+     `docs/public-api-inventory.md`, and `scripts/audit-effect-first.mjs`.
+   - Problem: Review495 fixed `ResolvedStartPrerenderOptions` callback return
+     types, but the public type-test seam only imported the type and did not
+     prove resolved callbacks accept Effects or reject Promise-shaped work.
+     Public inventory also named public prerender options without the resolved
+     options Interface.
+   - Solution: Start Vite type tests now pin Effect-returning public and
+     resolved prerender callbacks, reject Promise-returning callbacks, and keep
+     the new Promise negative fixture anchored in the Effect-first audit.
+     Inventory now documents `ResolvedStartPrerenderOptions` and its
+     `EffectInput<void, unknown, never>` callback contract.
+   - Benefits: the normalized prerender Interface has type-test and LSP
+     ownership, so the callback seam cannot quietly regress to `void` or
+     Promise-shaped work.
 
 ## Review 495: Resolved Callback And Payload Token Policy
 

@@ -87,13 +87,22 @@ Latest full gate on May 17, 2026 after Review 492:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 496 Starter Artifact And Prerender Type Pin Policy makes standalone
+  starter packaging format generated route/virtual artifacts before comparing
+  them with committed source artifacts, keeping `pnpm starter:package` focused
+  on semantic drift instead of raw generator formatting. Start Vite type tests
+  now pin Effect-returning public and resolved prerender callbacks, reject
+  Promise-returning callback work, and the public API inventory documents
+  `ResolvedStartPrerenderOptions`. The active Thirty-Sweep clean counter remains
+  0/30 until a fresh post-Review496 sweep reports no actionable findings.
 - Review 495 Resolved Callback And Payload Token Policy aligns resolved Start
   prerender callback option types with the public Effect-returning callback
   Interface, broadens package payload scanning for legacy Effect UI rename
   tokens across dist and source-package dry-runs, updates workspace verification
   labels for `@sunfall/arc-*`, and keeps current evidence policy conservative
-  for wrapped post-review waits. The active Thirty-Sweep clean counter remains
-  0/30 until a fresh post-Review495 sweep reports no actionable findings.
+  for wrapped post-review waits. The active Thirty-Sweep clean counter remained
+  0/30; the later fresh post-Review495 sweep found Review496 starter artifact
+  and prerender type pin policy work.
 - Review 494 Effect Callback And Package Interface Policy makes Start prerender
   callbacks Effect-first by executing returned Effects, preserving
   Promise-shaped rejection, and surfacing failed callback Effects as typed

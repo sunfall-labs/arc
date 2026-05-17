@@ -370,6 +370,11 @@ const allowed = [
         /declare const promisedVoid:\s*Promise<void>;/,
       ),
       seam(
+        "type-tests/start-vite.test-d.ts",
+        "Start Vite prerender callback Promise negative fixture",
+        /declare const promisedVoid:\s*Promise<void>;/,
+      ),
+      seam(
         "type-tests/framework.test-d.ts",
         "Promise negative fixture promisedStartDevModule",
         /declare const promisedStartDevModule:\s*Promise<Record<string,\s*unknown>>;/,

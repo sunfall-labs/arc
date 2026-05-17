@@ -20,6 +20,13 @@ interruption.
 
 ## Current Sweep Results
 
+- Review496 Starter Artifact And Prerender Type Pin Policy keeps the
+  post-Review495 fixes Effect-first: Start Vite type tests now pin
+  Effect-returning public and resolved prerender callbacks and reject
+  Promise-shaped callback work, with the added Promise negative fixture anchored
+  in the audit. Starter packaging formats generated route/virtual artifacts
+  through the workspace formatter before drift comparison instead of accepting
+  raw generator output as a separate Interface.
 - Review495 Resolved Callback And Payload Token Policy keeps the post-Review494
   fixes Effect-first: resolved Start prerender callbacks now expose returned
   `EffectInput<void, unknown, never>` work for LSP parity, and package dry-runs
@@ -1631,7 +1638,7 @@ typecheck`, `pnpm --filter @sunfall/arc-db typecheck`, `pnpm typecheck:types`,
   5/4/6 local packages, 17-target package dry-run gate, project-console
   typecheck, 4 project-console test files / 27 tests, build, and leak scans.
   The Effect-first audit now
-  anchors 25 Promise return-type allowances: 7 host/facade seams, 17 Promise
+  anchors 27 Promise return-type allowances: 8 host/facade seams, 18 Promise
   negative fixtures, and 1 Start fetch Promise facade assertion. It also
   anchors 2 `PromiseLike` occurrences and 4 structural thenable
   guard/type-surface occurrences.

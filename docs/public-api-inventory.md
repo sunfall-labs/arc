@@ -19,27 +19,27 @@ unless this document explicitly promotes them.
 
 ## Package Export Map
 
-| Package                  | Export                 | Source                                     | Classification | Release decision                                                                  |
-| ------------------------ | ---------------------- | ------------------------------------------ | -------------- | --------------------------------------------------------------------------------- |
-| `@sunfall/arc-core`        | `.`                    | `packages/core/src/index.ts`               | Public         | Keep as the core application/runtime surface.                                     |
-| `@sunfall/arc-start`       | `.`                    | `packages/start/src/index.ts`              | Public         | Keep as the full-stack runtime surface.                                           |
-| `@sunfall/arc-start`       | `./vite`               | `packages/start/src/vite.ts`               | Public         | Keep as the build-plugin and diagnostics runner surface.                          |
-| `@sunfall/arc-start`       | `./diagnostics-report` | `packages/start/src/diagnostics-report.ts` | Public         | Keep as CI/agent repair report surface.                                           |
-| `@sunfall/arc-start`       | `./cli`                | `packages/start/src/cli.ts`                | Expert public  | Keep as the Effect-native diagnostics CLI runner surface for tests and embedding. |
-| `@sunfall/arc-start`       | `./adapters`           | `packages/start/src/adapters.ts`           | Public         | Keep as the compatibility facade for Node/fetch host integration.                 |
-| `@sunfall/arc-start`       | `./fetch-adapter`      | `packages/start/src/fetch-adapter.ts`      | Expert public  | Keep as the fetch-only host adapter surface for bundle-sensitive hosts.           |
-| `@sunfall/arc-start`       | `./node-adapter`       | `packages/start/src/node-adapter.ts`       | Expert public  | Keep as the Node HTTP host adapter surface for server integrations.               |
-| `@sunfall/arc-start`       | `./virtual`            | `packages/start/src/virtual-modules.d.ts`  | Expert public  | Keep as type-only virtual module declarations.                                    |
-| `@sunfall/arc-start`       | `sunfall-arc-start` bin  | `packages/start/src/cli.ts`                | Expert public  | Keep for app graph diagnostics automation.                                        |
-| `@sunfall/arc-start-node`  | `.`                    | `packages/start-node/src/index.ts`         | Public         | Keep as the Node HTTP adapter facade.                                             |
-| `@sunfall/arc-start-fetch` | `.`                    | `packages/start-fetch/src/index.ts`        | Public         | Keep as the generic Fetch-host adapter facade.                                    |
-| `@sunfall/arc-db`          | `.`                    | `packages/db/src/index.ts`                 | Public         | Keep as the collection/live-query surface.                                        |
-| `@sunfall/arc-devtools`    | `.`                    | `packages/devtools/src/index.ts`           | Public         | Keep as the JSON-safe inspection contract.                                        |
-| `@sunfall/arc-react`       | `.`                    | `packages/react/src/index.ts`              | Public         | Keep as the React adapter surface.                                                |
-| `@sunfall/arc-react-db`    | `.`                    | `packages/react-db/src/index.ts`           | Public         | Keep as the React collection adapter surface.                                     |
-| `@sunfall/arc-solid`       | `.`                    | `packages/solid/src/index.ts`              | Public         | Keep as the Solid adapter surface.                                                |
-| `@sunfall/arc-solid-db`    | `.`                    | `packages/solid-db/src/index.ts`           | Public         | Keep as the Solid collection adapter surface.                                     |
-| `@sunfall/arc-tsrx`        | `.`                    | `packages/tsrx/src/index.ts`               | Public         | Keep as the Vite/TSRX preset.                                                     |
+| Package                    | Export                  | Source                                     | Classification | Release decision                                                                  |
+| -------------------------- | ----------------------- | ------------------------------------------ | -------------- | --------------------------------------------------------------------------------- |
+| `@sunfall/arc-core`        | `.`                     | `packages/core/src/index.ts`               | Public         | Keep as the core application/runtime surface.                                     |
+| `@sunfall/arc-start`       | `.`                     | `packages/start/src/index.ts`              | Public         | Keep as the full-stack runtime surface.                                           |
+| `@sunfall/arc-start`       | `./vite`                | `packages/start/src/vite.ts`               | Public         | Keep as the build-plugin and diagnostics runner surface.                          |
+| `@sunfall/arc-start`       | `./diagnostics-report`  | `packages/start/src/diagnostics-report.ts` | Public         | Keep as CI/agent repair report surface.                                           |
+| `@sunfall/arc-start`       | `./cli`                 | `packages/start/src/cli.ts`                | Expert public  | Keep as the Effect-native diagnostics CLI runner surface for tests and embedding. |
+| `@sunfall/arc-start`       | `./adapters`            | `packages/start/src/adapters.ts`           | Public         | Keep as the compatibility facade for Node/fetch host integration.                 |
+| `@sunfall/arc-start`       | `./fetch-adapter`       | `packages/start/src/fetch-adapter.ts`      | Expert public  | Keep as the fetch-only host adapter surface for bundle-sensitive hosts.           |
+| `@sunfall/arc-start`       | `./node-adapter`        | `packages/start/src/node-adapter.ts`       | Expert public  | Keep as the Node HTTP host adapter surface for server integrations.               |
+| `@sunfall/arc-start`       | `./virtual`             | `packages/start/src/virtual-modules.d.ts`  | Expert public  | Keep as type-only virtual module declarations.                                    |
+| `@sunfall/arc-start`       | `sunfall-arc-start` bin | `packages/start/src/cli.ts`                | Expert public  | Keep for app graph diagnostics automation.                                        |
+| `@sunfall/arc-start-node`  | `.`                     | `packages/start-node/src/index.ts`         | Public         | Keep as the Node HTTP adapter facade.                                             |
+| `@sunfall/arc-start-fetch` | `.`                     | `packages/start-fetch/src/index.ts`        | Public         | Keep as the generic Fetch-host adapter facade.                                    |
+| `@sunfall/arc-db`          | `.`                     | `packages/db/src/index.ts`                 | Public         | Keep as the collection/live-query surface.                                        |
+| `@sunfall/arc-devtools`    | `.`                     | `packages/devtools/src/index.ts`           | Public         | Keep as the JSON-safe inspection contract.                                        |
+| `@sunfall/arc-react`       | `.`                     | `packages/react/src/index.ts`              | Public         | Keep as the React adapter surface.                                                |
+| `@sunfall/arc-react-db`    | `.`                     | `packages/react-db/src/index.ts`           | Public         | Keep as the React collection adapter surface.                                     |
+| `@sunfall/arc-solid`       | `.`                     | `packages/solid/src/index.ts`              | Public         | Keep as the Solid adapter surface.                                                |
+| `@sunfall/arc-solid-db`    | `.`                     | `packages/solid-db/src/index.ts`           | Public         | Keep as the Solid collection adapter surface.                                     |
+| `@sunfall/arc-tsrx`        | `.`                     | `packages/tsrx/src/index.ts`               | Public         | Keep as the Vite/TSRX preset.                                                     |
 
 ## Type-Test Coverage
 
@@ -589,12 +589,15 @@ Subpath exports:
   machine payloads behind `--json`.
 - `SunfallArcStartOptions.prerender` enables production static prerendering from
   the Vite plugin. The Vite subpath exports `StartPrerenderOptions`,
-  `planStartPrerenderPages(...)`, `resolveStartPrerenderOptions(...)`,
-  `runStartPrerenderEffect(...)`, and `StartPrerenderError` for adapter tests
-  and custom build hosts. The planner discovers static file routes by default,
-  keeps dynamic route params explicit through `pages`, crawls internal links
-  after render, and writes portable HTML paths with the root static-export
-  helpers.
+  `ResolvedStartPrerenderOptions`, `planStartPrerenderPages(...)`,
+  `resolveStartPrerenderOptions(...)`, `runStartPrerenderEffect(...)`, and
+  `StartPrerenderError` for adapter tests and custom build hosts. Both public
+  and resolved prerender callback options return
+  `EffectInput<void, unknown, never>`, so post-render callback work stays in the
+  Effect Interface instead of becoming Promise-shaped host work. The planner
+  discovers static file routes by default, keeps dynamic route params explicit
+  through `pages`, crawls internal links after render, and writes portable HTML
+  paths with the root static-export helpers.
 - `./adapters` is a compatibility facade that re-exports the host-specific
   fetch and Node adapter Modules, including `StartRequestHandlerError` and
   `StartNodeAdapterError` for host-facing failure handling. Manifest-pinned

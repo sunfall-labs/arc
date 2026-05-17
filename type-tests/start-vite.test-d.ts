@@ -1,5 +1,5 @@
 import { Effect } from "effect";
-import type { SunfallArcRuntime } from "@sunfall/arc-core";
+import type { EffectInput, SunfallArcRuntime } from "@sunfall/arc-core";
 import {
   actionManifestVirtualModuleId,
   appGraphRuntimeDiagnosticsVirtualModuleId,
@@ -247,6 +247,7 @@ void devSsrMiddlewareOptions;
 void startDevServerError;
 void startHandlerNotFound;
 declare const viteRoot: string;
+declare const promisedVoid: Promise<void>;
 const discoveryOptions: FileRouteDiscoveryOptions = {
   root: viteRoot,
   routeDirectory: "src/routes",
@@ -257,6 +258,42 @@ void discoveryOptions;
 declare const viteManifest: Parameters<typeof writeFileRouteDefinitionsFile>[1];
 const resolvedPrerenderOptions: ResolvedStartPrerenderOptions | undefined =
   resolveStartPrerenderOptions(prerenderStartOptions.prerender);
+const effectReturningPrerenderOptions: StartPrerenderOptions = {
+  pages: [],
+  onSuccess: () => Effect.void,
+  onError: () => Effect.void,
+};
+void effectReturningPrerenderOptions;
+const promiseReturningSuccessPrerenderOptions: StartPrerenderOptions = {
+  pages: [],
+  // @ts-expect-error Start prerender callbacks must return EffectInput, not Promise work.
+  onSuccess: () => promisedVoid,
+};
+void promiseReturningSuccessPrerenderOptions;
+const promiseReturningErrorPrerenderOptions: StartPrerenderOptions = {
+  pages: [],
+  // @ts-expect-error Start prerender callbacks must return EffectInput, not Promise work.
+  onError: () => promisedVoid,
+};
+void promiseReturningErrorPrerenderOptions;
+type ResolvedPrerenderOnSuccess = NonNullable<ResolvedStartPrerenderOptions["onSuccess"]>;
+type ResolvedPrerenderOnError = NonNullable<ResolvedStartPrerenderOptions["onError"]>;
+const resolvedPrerenderOnSuccess: ResolvedPrerenderOnSuccess = () => Effect.void;
+const resolvedPrerenderOnError: ResolvedPrerenderOnError = () => Effect.void;
+const resolvedPrerenderOnSuccessReturn: EffectInput<void, unknown, never> =
+  null as unknown as ReturnType<ResolvedPrerenderOnSuccess>;
+const resolvedPrerenderOnErrorReturn: EffectInput<void, unknown, never> =
+  null as unknown as ReturnType<ResolvedPrerenderOnError>;
+// @ts-expect-error Resolved prerender callbacks must return EffectInput, not Promise work.
+const promiseReturningResolvedPrerenderSuccess: ResolvedPrerenderOnSuccess = () => promisedVoid;
+// @ts-expect-error Resolved prerender callbacks must return EffectInput, not Promise work.
+const promiseReturningResolvedPrerenderError: ResolvedPrerenderOnError = () => promisedVoid;
+void resolvedPrerenderOnSuccess;
+void resolvedPrerenderOnError;
+void resolvedPrerenderOnSuccessReturn;
+void resolvedPrerenderOnErrorReturn;
+void promiseReturningResolvedPrerenderSuccess;
+void promiseReturningResolvedPrerenderError;
 const plannedPrerenderPages: readonly StartPrerenderPlannedPage[] = planStartPrerenderPages(
   viteManifest,
   prerenderStartOptions.prerender,
