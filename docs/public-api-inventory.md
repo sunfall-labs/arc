@@ -215,6 +215,10 @@ Release decisions:
   into host Suspense Promise tokens. Lazy component load state is cached on the
   descriptor because UI chunks are app-code assets rather than route
   render-scope resources.
+- `Route.ComponentInput<R, E>` and `Route.withComponent(...)` are the public
+  component attachment Interface. They accept eager components or typed-error
+  lazy descriptors while preserving route params, search, and preload
+  requirements.
 - Route grammar parsing rejects invalid and duplicate path parameter names at
   the grammar seam, so match results cannot silently collapse repeated params.
 - `browser-router` is an expert-public Browser Router Kernel and Browser

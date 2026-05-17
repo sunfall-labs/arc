@@ -1413,13 +1413,13 @@ export const namespaceBackedSurfaceModules = new Map([
 ]);
 
 export const currentDocsEvidencePolicy = {
-  latestFocusedReview: 508,
-  latestFocusedTitle: "Lazy Component WithComponent Error Generic",
+  latestFocusedReview: 509,
+  latestFocusedTitle: "Route Component Attachment Hover Docs",
   latestFullGateReview: 492,
   rootTestFiles: 58,
   rootTestCount: 1223,
   effectFirstFiles: 449,
-  activeCleanCounter: "1/30",
+  activeCleanCounter: "0/30",
 };
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -1479,9 +1479,9 @@ export const currentDocsTextPolicies = [
         ),
       },
       {
-        name: "Architecture tip must record the current clean sweep",
+        name: "Architecture tip must wait on the current post-review clean sweep",
         pattern: new RegExp(
-          `active Thirty-Sweep clean counter is ${activeCleanCounterPattern} after\\s+Clean Sweep 1 after Review${currentDocsEvidencePolicy.latestFocusedReview}`,
+          `active Thirty-Sweep clean counter is ${activeCleanCounterPattern} until\\s+a fresh post-Review${currentDocsEvidencePolicy.latestFocusedReview}\\s+sweep reports no actionable\\s+findings`,
         ),
       },
     ],
@@ -1510,9 +1510,9 @@ export const currentDocsTextPolicies = [
         ),
       },
       {
-        name: "Perfection progress must record the current clean sweep",
+        name: "Perfection progress must keep the active Thirty-Sweep counter at current evidence value",
         pattern: new RegExp(
-          `active\\s+Thirty-Sweep\\s+clean counter is ${activeCleanCounterPattern} after\\s+Clean Sweep 1 after Review${currentDocsEvidencePolicy.latestFocusedReview}`,
+          `active\\s+Thirty-Sweep\\s+clean counter remains ${activeCleanCounterPattern} until\\s+a fresh\\s+post-Review${currentDocsEvidencePolicy.latestFocusedReview}\\s+sweep reports no\\s+actionable findings`,
         ),
       },
     ],
@@ -1561,9 +1561,9 @@ export const currentDocsTextPolicies = [
         ),
       },
       {
-        name: "Release notes must record the current clean sweep",
+        name: "Release notes must wait on the current post-review clean sweep",
         pattern: new RegExp(
-          `Clean Sweep 1 after Review${currentDocsEvidencePolicy.latestFocusedReview}\\s+found no actionable`,
+          `until\\s+a\\s+fresh\\s+post-Review${currentDocsEvidencePolicy.latestFocusedReview}\\s+sweep\\s+reports no\\s+actionable\\s+findings`,
         ),
       },
     ],
@@ -1606,9 +1606,9 @@ export const currentDocsTextPolicies = [
         ),
       },
       {
-        name: "Docs drift audit must record the current clean sweep",
+        name: "Docs drift audit must wait on the current post-review clean sweep",
         pattern: new RegExp(
-          `counter is ${activeCleanCounterPattern} after Clean Sweep 1 after Review${currentDocsEvidencePolicy.latestFocusedReview}`,
+          `counter is ${activeCleanCounterPattern} until\\s+a fresh\\s+post-Review${currentDocsEvidencePolicy.latestFocusedReview}\\s+sweep\\s+reports no actionable`,
         ),
       },
     ],
@@ -1737,7 +1737,7 @@ export const currentDocsTextPolicies = [
       {
         name: "Ultimate goal checklist must pin latest focused verification subsection",
         pattern: new RegExp(
-          `Latest focused verification recorded\\.[\\s\\S]*?Evidence: Review ${currentDocsEvidencePolicy.latestFocusedReview} records[\\s\\S]*?lazy component withComponent error generic`,
+          `Latest focused verification recorded\\.[\\s\\S]*?Evidence: Review ${currentDocsEvidencePolicy.latestFocusedReview} records[\\s\\S]*?route component attachment hover docs`,
         ),
       },
       {

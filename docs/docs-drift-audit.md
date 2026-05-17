@@ -3,10 +3,11 @@
 Last updated: 2026-05-17.
 
 Current release-tracking truth lives in `docs/architecture-deepening-review.md`
-and `docs/perfection-progress.md`. As of Review508, the latest full
+and `docs/perfection-progress.md`. As of Review509, the latest full
 `pnpm verify` gate is the Review492 run with 58 root test files / 1223 tests,
 the focused Effect-first audit covers 449 physical and virtual files, and the
-active Thirty-Sweep clean counter is 1/30 after Clean Sweep 1 after Review508.
+active Thirty-Sweep clean counter is 0/30 until a fresh post-Review509 sweep
+reports no actionable findings.
 
 This historical audit checks release-tracking docs for claims that no longer match the
 implementation after the request trace, Effect-first, typed-error, package
@@ -137,6 +138,10 @@ seams.
   after public API inventory policy, Effect-first audit, public type tests,
   Start package typecheck, focused Start tests, stale current-evidence greps,
   and `git diff --check` checks passed.
+- Review509 refreshed current ledgers after the next fresh sweep found
+  `Route.ComponentInput<R, E>` and `Route.withComponent(...)` LSP hover docs
+  work, resetting the active Thirty-Sweep counter to 0/30 until a fresh
+  post-Review509 sweep reports no actionable findings.
 - Review209 refreshed current ledgers after Clean Sweep 2 found the
   broad-`unknown` Promise callback rejection hole and reset the active
   Thirty-Sweep counter to 0/30.

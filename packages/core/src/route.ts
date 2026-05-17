@@ -736,6 +736,13 @@ export namespace Route {
     ExportName extends string = "default",
   > = RouteLazyComponentModule<ComponentValue, ExportName>;
 
+  /**
+   * Eager or lazy component descriptor accepted by a route.
+   *
+   * `E` is the lazy importer error channel. It defaults to `unknown` because
+   * attaching a component is render-only; callers that need the lazy preload
+   * error channel should work with `Route.LazyComponent<Component, E>` directly.
+   */
   export type ComponentInput<R extends Definition<string, unknown, unknown, any>, E = unknown> =
     | Component<R>
     | LazyComponent<Component<R>, E>;
@@ -764,6 +771,12 @@ export namespace Route {
     return definition.build((options.params ?? {}) as Params<R>, options.search);
   };
 
+  /**
+   * Returns a route with a replacement eager or lazy component descriptor.
+   *
+   * Params, search, preload requirements, and other route options are preserved;
+   * only the component descriptor changes.
+   */
   export const withComponent = <
     R extends Definition<string, unknown, unknown, any>,
     E = unknown,

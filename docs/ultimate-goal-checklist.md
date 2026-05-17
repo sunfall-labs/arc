@@ -681,9 +681,10 @@ diagnostics`, devtools summary tests, and generated virtual modules.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 508 passed public type tests, Core
-    typecheck, and targeted format checks while closing the lazy component
-    withComponent error generic.
+  - Latest focused evidence: Review 509 records route component attachment
+    hover docs. Public type tests, Core typecheck, public API inventory audit,
+    Effect-first audit, focused Core/React/Solid route tests, targeted format
+    checks, and `git diff --check` passed.
     Latest full verification evidence is Review 492.
     Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
     sweeps found Review191, Review192, Review193, Review194, Review195, and
@@ -774,9 +775,10 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     fresh sweep found Review505 lazy route and DB type-test work, the fresh
     post-Review505 sweep found Review506 lazy route Suspense typed-error work,
     the fresh post-Review506 sweep found Review507 namespace generic work, the
-    fresh post-Review507 sweep found Review508 withComponent generic work, and
-    Clean Sweep 1 after Review508 found no actionable follow-up, leaving the
-    active counter at 1/30.
+    fresh post-Review507 sweep found Review508 withComponent generic work,
+    Clean Sweep 1 after Review508 found no actionable follow-up, and the next
+    fresh sweep found Review509 route component attachment hover docs work,
+    leaving the active counter at 0/30.
     Latest full evidence:
     `pnpm verify` ran after Review 492 with 58 root
     test files / 1223
@@ -938,13 +940,16 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     17-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 508 records lazy component withComponent error generic.
-    Public type tests, Core typecheck, and targeted format checks passed. Clean
+  - Evidence: Review 509 records route component attachment hover docs.
+    Public type tests, Core typecheck, public API inventory audit, Effect-first
+    audit, focused Core/React/Solid route tests, targeted format checks, and
+    `git diff --check` passed. Clean
     Sweep 1 after Review504 found no actionable Module, Interface, Seam,
     Adapter, Locality, Depth, Leverage, Effect-first, LSP/JSDoc, package, or
     docs-honesty work, but later sweeps found Review505, Review506, Review507,
     and Review508 work. Clean Sweep 1 after Review508 found no actionable
-    follow-up.
+    follow-up, and the next fresh sweep found Review509 work, leaving the
+    active counter at 0/30.
     Review492 records the latest
     full gate. Clean
     Sweep 1 after
@@ -1033,9 +1038,10 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     fresh sweep found Review505 lazy route and DB type-test work, the fresh
     post-Review505 sweep found Review506 lazy route Suspense typed-error work,
     the fresh post-Review506 sweep found Review507 namespace generic work, the
-    fresh post-Review507 sweep found Review508 withComponent generic work, and
-    Clean Sweep 1 after Review508 found no actionable follow-up, leaving the
-    active counter at 1/30.
+    fresh post-Review507 sweep found Review508 withComponent generic work,
+    Clean Sweep 1 after Review508 found no actionable follow-up, and the next
+    fresh sweep found Review509 route component attachment hover docs work,
+    leaving the active counter at 0/30.
     Full verification is recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items

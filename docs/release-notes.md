@@ -87,10 +87,17 @@ Latest full gate on May 17, 2026 after Review 492:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 509 Route Component Attachment Hover Docs documents
+  `Route.ComponentInput<R, E>` and `Route.withComponent(...)` as the public
+  component attachment Interface, explaining eager vs lazy descriptors, the
+  lazy importer error channel, and preserved route metadata. The active
+  Thirty-Sweep clean counter remains 0/30 until a fresh post-Review509 sweep
+  reports no actionable findings.
 - Clean Sweep 1 after Review508 found no actionable Module, Interface, Seam,
   Adapter, Locality, Depth, Leverage, Effect-first, LSP/JSDoc, package, or
   docs-honesty work across Core/React/Solid, DB-family, Start/docs/package, and
-  evidence lanes, moving the active Thirty-Sweep clean counter to 1/30.
+  evidence lanes, moving the active Thirty-Sweep clean counter to 1/30 before
+  the next fresh sweep found Review509 work.
 - Review 508 Lazy Component WithComponent Error Generic lets
   `Route.withComponent(...)` accept typed-error lazy route components through
   `Route.ComponentInput<R, E>` and pins that attachment path in public type

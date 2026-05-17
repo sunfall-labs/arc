@@ -11,9 +11,10 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review508 Lazy Component WithComponent Error Generic,
-the post-Review507 follow-up that lets `Route.withComponent(...)` accept typed
-lazy route component importer errors through `Route.ComponentInput<..., E>`.
+The newest focused review is Review509 Route Component Attachment Hover Docs,
+the post-Clean-Sweep-1-after-Review508 follow-up that documents the public
+`Route.ComponentInput<R, E>` and `Route.withComponent(...)` component
+attachment Interface.
 The newest full verification checkpoint is Review492.
 Clean Sweep 1 after
 Review208 remains historical 1/30
@@ -67,11 +68,12 @@ found no actionable work across Core/React/Solid, DB/public API,
 Start/docs/package, and evidence lanes, creating Clean Sweep 1 after Review504,
 the next fresh sweep found Review505 work, the fresh post-Review505 sweep
 found Review506 work, the fresh post-Review506 sweep found Review507 work, and
-the fresh post-Review507 sweep found Review508 work, and the fresh
-post-Review508 sweep found no actionable work across Core/React/Solid,
-DB/public API, Start/docs/package, and evidence lanes,
-so the active Thirty-Sweep clean counter is 1/30 after
-Clean Sweep 1 after Review508. Clean Sweep 1 after
+the fresh post-Review507 sweep found Review508 work, the fresh post-Review508
+sweep found no actionable work across Core/React/Solid, DB/public API,
+Start/docs/package, and evidence lanes, creating Clean Sweep 1 after Review508,
+and the next fresh sweep found Review509 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review509
+sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
@@ -87,8 +89,8 @@ work, Review491 work, Review492 work, Review493 work, Review494 work,
 Review495 work, Review496 work, Review497 work, Review498 work, Review499
 work, Review500 work, Review501 work, Review502 work, Review503 work,
 Review504 work, Review505 work after Clean Sweep 1 after Review504,
-Review506 work, Review507 work, and Review508 work before Clean Sweep 1 after
-Review508 found no actionable follow-up.
+Review506 work, Review507 work, Review508 work before Clean Sweep 1 after
+Review508 found no actionable follow-up, and Review509 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -266,6 +268,25 @@ audit:effect-first`, DB-family tests, DB-family package typechecks, and
 At the Clean Sweep 1 after Review508 checkpoint, the Thirty-Sweep clean counter
 reached 1/30. The next sweep must still run; if it finds work, the counter
 resets to 0/30.
+
+## Review 509: Route Component Attachment Hover Docs
+
+Review509 fixes the actionable finding from the fresh post-Review508
+Core/React/Solid sweep. The DB lane reported no actionable findings.
+
+1. Route Component Attachment Hover Docs
+   - Status: fixed.
+   - Files: `packages/core/src/route.ts` and `docs/public-api-inventory.md`.
+   - Problem: `Route.ComponentInput<R, E>` and `Route.withComponent(...)` are
+     now the public Seam for attaching eager or typed-error lazy route
+     components, but their LSP hovers did not explain the eager/lazy split,
+     render-only default error channel, or preserved route metadata.
+   - Solution: the namespace alias and helper now have JSDoc describing the
+     Interface, and the public API inventory records the component attachment
+     Interface.
+   - Benefits: the Route Module's typed lazy component Interface now has editor
+     Depth matching its type-test coverage, improving caller Leverage and docs
+     Locality without changing runtime behavior.
 
 ## Review 508: Lazy Component WithComponent Error Generic
 
