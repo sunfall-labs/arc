@@ -78,7 +78,15 @@ export interface ActionSubmissionController<I, A, E, P = ResourceInvalidationPla
     error: E
   ) => Effect.Effect<void>;
   readonly clearCurrentEffect: (token: object) => Effect.Effect<void>;
-  readonly reset: () => Effect.Effect<void>;
+  /**
+   * Synchronously clears visible state and captures currently active fibers.
+   *
+   * The returned Effect interrupts only the fibers that were active at capture
+   * time. UI adapters use this host cleanup seam so later submissions cannot be
+   * interrupted by a queued reset.
+   */
+  readonly captureResetEffect: () => Effect.Effect<void>;
+  /** Lazy Effect-first reset for callers already composing inside Effect. */
   readonly resetEffect: () => Effect.Effect<void>;
 }
 
@@ -126,7 +134,7 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
         yield* Fiber.interrupt(fiber).pipe(Effect.catchCause(() => Effect.void));
       }
     });
-  const reset = (): Effect.Effect<void> => {
+  const captureResetEffect = (): Effect.Effect<void> => {
     const fibers = Array.from(activeSubmissions.values());
     version++;
     currentSubmission = undefined;
@@ -136,7 +144,7 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
     return interruptFibersEffect(fibers);
   };
   const resetEffect = (): Effect.Effect<void> =>
-    Effect.suspend(() => reset());
+    Effect.suspend(() => captureResetEffect());
 
   return {
     state,
@@ -227,7 +235,7 @@ export const makeActionSubmissionController = <I, A, E, P = ResourceInvalidation
           currentSubmission = undefined;
         }
       }),
-    reset,
+    captureResetEffect,
     resetEffect
   };
 };

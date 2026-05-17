@@ -3,10 +3,10 @@
 Last updated: 2026-05-17.
 
 Current release-tracking truth lives in `docs/architecture-deepening-review.md`
-and `docs/perfection-progress.md`. As of Review246, the latest full
+and `docs/perfection-progress.md`. As of Review247, the latest full
 `pnpm verify` gate is the Review240 run with 53 root test files / 1170 tests,
 the Effect-first audit covers 415 files, and the active Thirty-Sweep clean
-counter is 0/30 until a fresh post-Review246 sweep reports no actionable
+counter is 0/30 until a fresh post-Review247 sweep reports no actionable
 findings.
 
 This historical audit checks release-tracking docs for claims that no longer match the
@@ -237,6 +237,10 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   current ledgers after the post-Review245 sweep found Action reset cleanup
   capture, Resource UI disposal capture, Query predicate namespace ownership,
   and Vite dev SSR middleware lifecycle gaps.
+- Review247 Scope Cleanup Capture And Namespace Public Pins refreshed current
+  ledgers after the post-Review246 sweep found UI scope capture timing, Action
+  reset naming, DB namespace error ownership, and Start dev SSR public pin
+  gaps.
 - Review201 refreshed the current release ledgers after script command,
   Resource public-surface, React/Solid router LSP, DB erased-channel, and
   generated-starter README guardrail fixes; the historical enumeration above

@@ -303,7 +303,7 @@ const createResourceBinding = <I, A, E, R = unknown, ER = never>(
     latestOnPreloadFailure = options.onPreloadFailure;
     bindRef(nextRef);
     if (preload === false) {
-      void runtime.runFork(controller.interruptPreloadEffect().pipe(Effect.catchCause(() => Effect.void)));
+      controller.interruptPreload();
       return nextRef;
     }
 
@@ -438,7 +438,9 @@ export const useResourceSuspense = <I, A, E, R = unknown>(ref: ResourceInput<I, 
   const state = useResourceResult(getRef);
   return createComponentScope((scope) => {
     const preloadController = makeResourceUiSuspensePreloadController<I, A, E, R, unknown, unknown>(runtime);
-    scope.addFinalizer(() => preloadController.disposeEffect());
+    scope.addFinalizer(() => {
+      preloadController.dispose();
+    });
 
     return () => {
       const currentRef = getRef();

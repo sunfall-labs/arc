@@ -353,7 +353,7 @@ export namespace StartAction {
       });
 
     const reset = (): Effect.Effect<void> => {
-      const interruptActiveSubmissions = submissions.reset();
+      const interruptActiveSubmissions = submissions.captureResetEffect();
       hydration.set(undefined);
       return interruptActiveSubmissions;
     };

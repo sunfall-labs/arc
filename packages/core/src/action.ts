@@ -554,7 +554,7 @@ export namespace Action {
       submitEffect,
       resetEffect: workflow.resetEffect,
       reset: () => {
-        void runtime.runFork(workflow.reset().pipe(Effect.catchCause(() => Effect.void)));
+        void runtime.runFork(workflow.captureResetEffect().pipe(Effect.catchCause(() => Effect.void)));
       }
     };
   }

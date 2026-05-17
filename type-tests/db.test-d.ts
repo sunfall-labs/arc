@@ -245,6 +245,17 @@ const publicQueryLiveState: Query.LiveState<Project, any> = publicLiveQuery.stat
 const directLiveQueryState: LiveQueryState<Project, any> = publicQueryLiveState;
 declare const publicQueryEvaluationError: Query.EvaluationError;
 const directQueryEvaluationError: QueryEvaluationError = publicQueryEvaluationError;
+const publicQueryEvaluationErrorInstance = new Query.EvaluationError({
+  operation: "evaluate",
+  message: "invalid query",
+  cause: "invalid query"
+});
+const directQueryEvaluationErrorInstance: QueryEvaluationError =
+  publicQueryEvaluationErrorInstance;
+const publicUnsupportedLiveQuery = new Query.UnsupportedLiveQuery({
+  reason: "Live queries with joins require at least one non-join source collection."
+});
+const directUnsupportedLiveQuery: UnsupportedLiveQuery = publicUnsupportedLiveQuery;
 const publicQueryPlanDiagnostics: Query.PlanDiagnostics = Query.diagnostics(publicQueryFactory);
 const directQueryPlanDiagnostics: QueryPlanDiagnostics = publicQueryPlanDiagnostics;
 const publicQueryPlanSource: Query.PlanSourceDiagnostics =
@@ -285,6 +296,8 @@ void directQueryFactory;
 void directLiveQuery;
 void directLiveQueryState;
 void directQueryEvaluationError;
+void directQueryEvaluationErrorInstance;
+void directUnsupportedLiveQuery;
 void directQueryPlanDiagnostics;
 void directQueryPlanSource;
 void directQueryPlanJoin;
@@ -369,6 +382,42 @@ const collectionSnapshotCodecError = new CollectionSnapshotCodecError({
   path: "$.collections",
   reason: "invalid"
 });
+const collectionUnknownIndexFromNamespace = new Collection.UnknownIndex({
+  collection: "projects",
+  index: "byStatus"
+});
+const directUnknownCollectionIndex: UnknownCollectionIndex =
+  collectionUnknownIndexFromNamespace;
+const collectionRowKeyChangedFromNamespace = new Collection.RowKeyChanged({
+  collection: "projects",
+  key: "atlas",
+  nextKey: "zephyr",
+  guidance: "keep keys stable"
+});
+const directCollectionRowKeyChanged: CollectionRowKeyChanged =
+  collectionRowKeyChangedFromNamespace;
+const collectionRowNotFoundFromNamespace = new Collection.RowNotFound({
+  collection: "projects",
+  key: "missing"
+});
+const directCollectionRowNotFound: CollectionRowNotFound =
+  collectionRowNotFoundFromNamespace;
+const readonlyCollectionMutationFromNamespace = new Collection.ReadonlyMutation({
+  collection: "derived-projects",
+  operation: "insert"
+});
+const directReadonlyCollectionMutation: ReadonlyCollectionMutation =
+  readonlyCollectionMutationFromNamespace;
+const collectionSnapshotCodecErrorFromNamespace = new Collection.SnapshotCodecError({
+  operation: "decode",
+  path: "$.collections",
+  reason: "invalid"
+});
+const directCollectionSnapshotCodecError: CollectionSnapshotCodecError =
+  collectionSnapshotCodecErrorFromNamespace;
+declare const publicCollectionStorageError: Collection.StorageError;
+const directCollectionStorageError: CollectionStorageError =
+  publicCollectionStorageError;
 const serverOptions = serverCollectionOptions<Project>({
   name: "projects",
   getKey: (project) => project.id
@@ -466,12 +515,26 @@ const dbExports: Array<unknown> = [
   directCollectionCheck,
   queryPredicatePins,
   publicQueryPredicatePins,
+  publicQueryEvaluationErrorInstance,
+  publicUnsupportedLiveQuery,
   unknownCollectionIndex,
   unsupportedLiveQuery,
   collectionRowKeyChanged,
   collectionRowNotFound,
   readonlyCollectionMutation,
   collectionSnapshotCodecError,
+  collectionUnknownIndexFromNamespace,
+  directUnknownCollectionIndex,
+  collectionRowKeyChangedFromNamespace,
+  directCollectionRowKeyChanged,
+  collectionRowNotFoundFromNamespace,
+  directCollectionRowNotFound,
+  readonlyCollectionMutationFromNamespace,
+  directReadonlyCollectionMutation,
+  collectionSnapshotCodecErrorFromNamespace,
+  directCollectionSnapshotCodecError,
+  publicCollectionStorageError,
+  directCollectionStorageError,
   serverOptions,
   serverSync,
   collectionCurrentStore,

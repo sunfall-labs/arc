@@ -681,12 +681,10 @@ Last evidence pass: May 17, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 246 passed Core Action and Resource UI
-    Binding tests 2 files / 60 tests, React/Solid hook tests 2 files / 46
-    tests, full Start tests 1 file / 180 tests, `pnpm typecheck`,
-    `pnpm typecheck:types`, `pnpm audit:public-api`,
-    `pnpm audit:effect-first`, and the Review246 gates below. Latest full
-    verification evidence remains Review 240.
+  - Latest focused evidence: Review 247 passed Core Scope and Action tests 2
+    files / 58 tests plus `pnpm typecheck:types` while closing UI scope
+    capture, Action reset naming, DB namespace error ownership, and Start Vite
+    dev SSR public-pin work. Latest full verification evidence remains Review 240.
     Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
     sweeps found Review191, Review192, Review193, Review194, Review195, and
     Review196, Review197, Review198, Review199, Review200, Review201,
@@ -707,7 +705,8 @@ Last evidence pass: May 17, 2026.
     Outcome work, Review243 Browser Router And DB Public Interface Pins work,
     Review244 Effect Cleanup Ownership, DB Pins, And Evidence Policy work,
     Review245 Public API Symbol Reachability And Router Adapter Parity work,
-    and Review246 Effect Cleanup Capture And Vite Middleware Lifecycle work.
+    Review246 Effect Cleanup Capture And Vite Middleware Lifecycle work, and
+    Review247 Scope Cleanup Capture And Namespace Public Pins work.
     Clean Sweep 1 after Review208 remains historical 1/30 evidence, but Clean
     Sweep 2 found Review209 work and the local post-Review209 pass found
     Review210 work; the first post-Review210 sweep found Review211 work, and
@@ -747,7 +746,8 @@ Last evidence pass: May 17, 2026.
     current-evidence policy work, the fresh post-Review244 sweep found
     Review245 public API symbol reachability and router Adapter parity work,
     and the fresh post-Review245 sweep found Review246 Effect cleanup capture
-    and Vite middleware lifecycle work,
+    and Vite middleware lifecycle work, and the fresh post-Review246 sweep
+    found Review247 Scope cleanup capture and namespace public pin work,
     leaving the active counter at 0/30.
     Latest full evidence:
     `pnpm verify` ran after Review 240 with 53 root
@@ -910,13 +910,10 @@ Last evidence pass: May 17, 2026.
     16-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 246 records Core Action and Resource UI Binding tests 2
-    files / 60 tests, React/Solid hook tests 2 files / 46 tests, full Start
-    tests 1 file / 180 tests, workspace typecheck, public type tests, public
-    API audit, Effect-first audit, command-runner verification, package
-    payload policy, package dry-runs, and `git diff --check` after closing
-    Effect cleanup capture, Query predicate namespace ownership, and Vite dev
-    SSR middleware lifecycle findings. Review240 records the latest full gate. Clean
+  - Evidence: Review 247 records Core Scope and Action tests 2 files / 58
+    tests plus public type tests after closing UI scope capture, Action reset
+    naming, DB namespace error ownership, and Start Vite dev SSR public-pin
+    findings. Review240 records the latest full gate. Clean
     Sweep 1 after
     Review190 remains historical 1/30 evidence, but later sweeps found
     Review191, Review192, Review193, Review194, Review195, Review196,
@@ -977,7 +974,8 @@ Last evidence pass: May 17, 2026.
     current-evidence policy work, the fresh post-Review244 sweep found
     Review245 public API symbol reachability and router Adapter parity work,
     and the fresh post-Review245 sweep found Review246 Effect cleanup capture
-    and Vite middleware lifecycle work,
+    and Vite middleware lifecycle work, and the fresh post-Review246 sweep
+    found Review247 Scope cleanup capture and namespace public pin work,
     leaving the active counter at 0/30.
     Full verification is recorded in the latest full gate above.
 

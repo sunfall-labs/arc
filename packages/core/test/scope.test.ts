@@ -1,4 +1,4 @@
-import { Effect } from "effect";
+import { Effect, Fiber } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   forkScoped,
@@ -11,6 +11,7 @@ import {
   runWithScope,
   Signal,
   UiScope,
+  UiScopeDisposed,
   watch
 } from "../src/index.js";
 
@@ -180,6 +181,36 @@ describe("UiScope", () => {
     expect(events).toEqual(["runner", "late"]);
   });
 
+  it("captureDisposeEffect closes the scope before the returned cleanup runs", async () => {
+    const events: Array<string> = [];
+    let lateFinalizer: Effect.Effect<void> | undefined;
+    const scope = new UiScope({
+      runLateFinalizer: (effect) => {
+        lateFinalizer = effect;
+      }
+    });
+
+    scope.addFinalizer(() => Effect.sync(() => {
+      events.push("captured");
+    }));
+
+    const cleanup = scope.captureDisposeEffect();
+    expect(() => scope.fork(Effect.never)).toThrow(UiScopeDisposed);
+    scope.addFinalizer(() => Effect.sync(() => {
+      events.push("late");
+    }));
+
+    expect(events).toEqual([]);
+    await Effect.runPromise(cleanup);
+    expect(events).toEqual(["captured"]);
+
+    if (lateFinalizer === undefined) {
+      expect.fail("Expected late finalizer to be handed to the runner.");
+    }
+    await Effect.runPromise(lateFinalizer);
+    expect(events).toEqual(["captured", "late"]);
+  });
+
   it("swallows late finalizer defects in the configured runner", () =>
     Effect.runPromise(
       Effect.gen(function* () {
@@ -250,6 +281,43 @@ describe("UiScope", () => {
           yield* Effect.sleep("10 millis");
 
           expect(events).toEqual(["dispose", "late"]);
+        })
+      )
+    ));
+
+  it("frame dispose closes the scope synchronously before queued cleanup runs", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const baseRuntime = makeRuntime();
+          yield* Effect.addFinalizer(() => baseRuntime.disposeEffect);
+          const queuedDisposals: Array<Effect.Effect<void>> = [];
+          const runtime: typeof baseRuntime = {
+            ...baseRuntime,
+            runFork: <A, E, R>(
+              effect: Effect.Effect<A, E, R>,
+              options?: Effect.RunOptions
+            ): Fiber.Fiber<A, E> => {
+              queuedDisposals.push(effect as Effect.Effect<void>);
+              return baseRuntime.runFork(Effect.never as Effect.Effect<A, E, never>, options);
+            }
+          };
+          const frame = makeRuntimeUiScopeFrame(runtime);
+          const events: Array<string> = [];
+
+          frame.run(() => {
+            onScopeDispose(() => Effect.sync(() => {
+              events.push("dispose");
+            }));
+          });
+
+          frame.dispose();
+          expect(() => frame.scope.fork(Effect.never)).toThrow(UiScopeDisposed);
+          expect(events).toEqual([]);
+          expect(queuedDisposals).toHaveLength(1);
+
+          yield* queuedDisposals[0]!;
+          expect(events).toEqual(["dispose"]);
         })
       )
     ));

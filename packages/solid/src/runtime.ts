@@ -149,7 +149,7 @@ export const createComponentScope = <A>(f: (scope: UiScope) => A): A => {
   const runtime = useRuntime();
   const frame = makeRuntimeUiScopeFrame(runtime);
   onCleanup(() => {
-    void runtime.runFork(frame.disposeEffect());
+    frame.dispose();
   });
   return frame.run(() => f(frame.scope));
 };

@@ -20,6 +20,13 @@ interruption.
 
 ## Current Sweep Results
 
+- Review247 Scope Cleanup Capture And Namespace Public Pins keeps the
+  post-Review246 fixes Effect-first: UI scope and Action reset host-cleanup
+  seams capture current owners synchronously and return Effects for awaitable
+  cleanup, React/Solid adapters call sync dispose/interrupt conveniences,
+  DB namespace error aliases are pure public Interface ownership, and Start
+  dev SSR pins add no Promise-shaped library API. The Effect-first audit over
+  415 files remains green.
 - Review246 Effect Cleanup Capture And Vite Middleware Lifecycle keeps the
   post-Review245 fixes Effect-first: Action reset and Resource UI disposal
   capture owner slots synchronously and return Effects for interruption and

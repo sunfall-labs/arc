@@ -17,6 +17,8 @@ import {
   type QueryJoinedContext,
   type QueryJoinStrategy,
   type QueryOrder,
+  QueryEvaluationError as QueryEvaluationErrorConstructor,
+  UnsupportedLiveQuery as UnsupportedLiveQueryConstructor,
   type QueryEvaluationError,
   type QueryPlanDiagnostics,
   type QueryPlanJoinDiagnostics,
@@ -27,6 +29,7 @@ import {
   type QuerySortDirection,
   type QuerySortValue,
   type SourceRecord,
+  type UnsupportedLiveQuery as UnsupportedLiveQueryType,
   evaluateQueryOperation,
   toQueryEvaluationError
 } from "./query-plan.js";
@@ -636,6 +639,8 @@ export namespace Query {
   export type LiveState<T, E = never> = LiveQueryState<T, E>;
   /** Error raised when query factory, callback, plan, or order comparable evaluation fails. */
   export type EvaluationError = QueryEvaluationError;
+  /** Error raised when a query builder cannot be represented as a live query. */
+  export type UnsupportedLiveQuery = UnsupportedLiveQueryType;
   /** Execution strategy selected for one query join. */
   export type JoinStrategy = QueryJoinStrategy;
   /** Scalar join key before stable string normalization. */
@@ -665,6 +670,10 @@ export namespace Query {
     Aggregates extends AnyQueryAggregateRecord
   > = QueryAggregateResult<TKey, Aggregates>;
 
+  /** Error raised when query factory, callback, plan, or order comparable evaluation fails. */
+  export const EvaluationError = QueryEvaluationErrorConstructor;
+  /** Error raised when a query builder cannot be represented as a live query. */
+  export const UnsupportedLiveQuery = UnsupportedLiveQueryConstructor;
   /** Start a query from one or more named collection sources. */
   export const from = queryRoot.from;
   /** Equality predicate using `Object.is`, matching signal and collection change checks. */

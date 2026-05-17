@@ -93,7 +93,11 @@ import {
   type CollectionLiveQueryOptions
 } from "./live-query-collection.js";
 import { CollectionTypeId } from "./collection-ids.js";
-import { ReadonlyCollectionMutation } from "./collection-errors.js";
+import {
+  CollectionRowKeyChanged,
+  CollectionRowNotFound,
+  ReadonlyCollectionMutation
+} from "./collection-errors.js";
 import {
   CollectionPreloadCollector,
   type CollectionPreloadCollected,
@@ -118,7 +122,7 @@ import {
   defaultCollectionDefinitionRegistry,
   makeCollectionDefinitionRegistry
 } from "./collection-registry.js";
-import type { CollectionSnapshotCodecError } from "./collection-snapshot-codec.js";
+import { CollectionSnapshotCodecError } from "./collection-snapshot-codec.js";
 import type {
   CollectionChangeFeedDispatchPolicy,
   CollectionChangeFeedLateEmitPolicy
@@ -438,8 +442,30 @@ export namespace Collection {
   export type HydrationPayload = CollectionHydrationPayload;
   /** Options for applying collection hydration payloads. */
   export type HydrateOptions = CollectionHydrateOptions;
+  /** Error raised when an update or delete targets a missing collection row. */
+  export type RowNotFound = CollectionRowNotFound;
+  /** Error raised when an update would change the collection key for a row. */
+  export type RowKeyChanged = CollectionRowKeyChanged;
+  /** Error raised when mutating a read-only live-query collection. */
+  export type ReadonlyMutation = ReadonlyCollectionMutation;
+  /** Error raised when a requested secondary index does not exist. */
+  export type UnknownIndex = UnknownCollectionIndex;
+  /** Error raised by built-in collection persistence storage operations. */
+  export type StorageError = CollectionStorageError;
   /** Error raised when collection snapshots fail validation or serialization. */
   export type SnapshotCodecError = CollectionSnapshotCodecError;
+  /** Error raised when an update or delete targets a missing collection row. */
+  export const RowNotFound = CollectionRowNotFound;
+  /** Error raised when an update would change the collection key for a row. */
+  export const RowKeyChanged = CollectionRowKeyChanged;
+  /** Error raised when mutating a read-only live-query collection. */
+  export const ReadonlyMutation = ReadonlyCollectionMutation;
+  /** Error raised when a requested secondary index does not exist. */
+  export const UnknownIndex = UnknownCollectionIndex;
+  /** Error raised by built-in collection persistence storage operations. */
+  export const StorageError = CollectionStorageError;
+  /** Error raised when collection snapshots fail validation or serialization. */
+  export const SnapshotCodecError = CollectionSnapshotCodecError;
   /** Effect-aware key/value storage contract for collection persistence. */
   export type PersistenceStorage<E = never, R = never> = CollectionPersistenceStorage<E, R>;
   /** Options for writing a collection snapshot to persistence. */

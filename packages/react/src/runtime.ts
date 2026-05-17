@@ -250,9 +250,21 @@ export const makeReactRuntimeUiScopeFrame = <ER>(
       scope.runRenderPass(() =>
         runWithRuntime(runtime, () => runWithScope(scope, f))
       ),
-    disposeEffect: () => {
+    captureDisposeEffect: () => {
       scope.discardPreCommitFinalizers();
-      return runtime.provide(scope.disposeEffect()).pipe(Effect.catchCause(() => Effect.void));
+      return runtime.provide(scope.captureDisposeEffect()).pipe(Effect.catchCause(() => Effect.void));
+    },
+    disposeEffect: () => {
+      return Effect.suspend(() => {
+        scope.discardPreCommitFinalizers();
+        return runtime.provide(scope.captureDisposeEffect());
+      }).pipe(Effect.catchCause(() => Effect.void));
+    },
+    dispose: () => {
+      scope.discardPreCommitFinalizers();
+      void runtime.runFork(
+        runtime.provide(scope.captureDisposeEffect()).pipe(Effect.catchCause(() => Effect.void))
+      );
     }
   };
 };
@@ -363,7 +375,7 @@ export const useComponentScope = (): UiScope => {
           return;
         }
 
-        void runtime.runFork(cleanupFrame.disposeEffect());
+        cleanupFrame.dispose();
       });
     };
   }, [runtime, frame]);

@@ -1,6 +1,6 @@
 import { Context, Deferred, Effect, Exit, Fiber, Layer, Schedule } from "effect";
 import { describe, expect, it, vi } from "vitest";
-import { Action, EffectInputCallbackError, EffectInputPromiseRejected, makeRuntime, read, Resource, runWithRuntime, Signal } from "../src/index.js";
+import { Action, EffectInputCallbackError, EffectInputPromiseRejected, makeActionSubmissionController, makeRuntime, read, Resource, runWithRuntime, Signal } from "../src/index.js";
 import { makeActionOptimisticTransactionRuntime } from "../src/action-optimistic.js";
 
 describe("Action", () => {
@@ -747,6 +747,59 @@ describe("Action", () => {
     } finally {
       await Effect.runPromise(baseRuntime.disposeEffect);
     }
+  });
+
+  it("captureResetEffect resets eagerly and interrupts only captured submissions", async () => {
+    const controller = makeActionSubmissionController<string, string, never>({
+      actionName: "capture-reset-low-level"
+    });
+    const firstInterrupted = Effect.runSync(Deferred.make<void>());
+    const secondInterrupted = Effect.runSync(Deferred.make<void>());
+    const firstFiber = Effect.runFork(
+      Effect.never.pipe(
+        Effect.onInterrupt(() => Deferred.succeed(firstInterrupted, undefined))
+      )
+    );
+    const firstSubmission = await Effect.runPromise(controller.beginEffect(firstFiber));
+
+    if (firstSubmission._tag === "Join") {
+      expect.fail("Expected first submission to run.");
+    }
+
+    await Effect.runPromise(controller.pendingEffect(firstSubmission, "first"));
+    expect(read(controller.state)).toMatchObject({
+      _tag: "Pending",
+      input: "first"
+    });
+
+    const cleanup = controller.captureResetEffect();
+    expect(read(controller.state)).toEqual({ _tag: "Idle" });
+
+    const secondFiber = Effect.runFork(
+      Effect.never.pipe(
+        Effect.onInterrupt(() => Deferred.succeed(secondInterrupted, undefined))
+      )
+    );
+    const secondSubmission = await Effect.runPromise(controller.beginEffect(secondFiber));
+
+    if (secondSubmission._tag === "Join") {
+      expect.fail("Expected second submission to run after reset capture.");
+    }
+
+    await Effect.runPromise(controller.pendingEffect(secondSubmission, "second"));
+    await Effect.runPromise(cleanup);
+    await Effect.runPromise(Deferred.await(firstInterrupted));
+
+    const secondStatus = await Effect.runPromise(
+      Effect.race(
+        Deferred.await(secondInterrupted).pipe(Effect.as("interrupted" as const)),
+        Effect.sleep("10 millis").pipe(Effect.as("alive" as const))
+      )
+    );
+    expect(secondStatus).toBe("alive");
+
+    await Effect.runPromise(Fiber.interrupt(secondFiber));
+    await Effect.runPromise(Deferred.await(secondInterrupted));
   });
 
   it("exposes the latest invalidation plan for submitted actions", async () => {

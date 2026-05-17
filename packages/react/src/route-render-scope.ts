@@ -83,7 +83,7 @@ const RouteRenderFrame = <ER,>(props: RouteRenderFrameProps<ER>): ReactNode => {
           return;
         }
 
-        void props.runtime.runFork(cleanupFrame.disposeEffect());
+        cleanupFrame.dispose();
       });
     };
   }, [props.runtime, frame]);
@@ -95,7 +95,7 @@ const RouteRenderFrame = <ER,>(props: RouteRenderFrameProps<ER>): ReactNode => {
       throw error;
     }
     scopeRef.current = undefined;
-    void props.runtime.runFork(frame.disposeEffect());
+    frame.dispose();
     throw error;
   }
 };

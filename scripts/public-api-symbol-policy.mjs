@@ -555,7 +555,10 @@ export const publicHoverDocGroups = [
     file: "packages/db/src/collection-index-materialization.ts",
     declarations: [
       "UnknownCollectionIndex"
-    ]
+    ],
+    namespaceAliases: {
+      UnknownCollectionIndex: "Collection.UnknownIndex"
+    }
   },
   {
     file: "packages/db/src/collection-errors.ts",
@@ -563,13 +566,21 @@ export const publicHoverDocGroups = [
       "CollectionRowKeyChanged",
       "CollectionRowNotFound",
       "ReadonlyCollectionMutation"
-    ]
+    ],
+    namespaceAliases: {
+      CollectionRowKeyChanged: "Collection.RowKeyChanged",
+      CollectionRowNotFound: "Collection.RowNotFound",
+      ReadonlyCollectionMutation: "Collection.ReadonlyMutation"
+    }
   },
   {
     file: "packages/db/src/collection-snapshot-codec.ts",
     declarations: [
       "CollectionSnapshotCodecError"
-    ]
+    ],
+    namespaceAliases: {
+      CollectionSnapshotCodecError: "Collection.SnapshotCodecError"
+    }
   },
   {
     file: "packages/db/src/collection-preload.ts",
@@ -631,6 +642,11 @@ export const publicHoverDocGroups = [
         "Snapshot",
         "HydrationPayload",
         "HydrateOptions",
+        "RowNotFound",
+        "RowKeyChanged",
+        "ReadonlyMutation",
+        "UnknownIndex",
+        "StorageError",
         "SnapshotCodecError",
         "PersistenceStorage",
         "PersistOptions",
@@ -767,7 +783,11 @@ export const publicHoverDocGroups = [
       "QueryPlanDiagnostics",
       "QueryAggregate",
       "QueryGroupKey"
-    ]
+    ],
+    namespaceAliases: {
+      QueryEvaluationError: "Query.EvaluationError",
+      UnsupportedLiveQuery: "Query.UnsupportedLiveQuery"
+    }
   },
   {
     file: "packages/db/src/query-builder.ts",
@@ -778,6 +798,7 @@ export const publicHoverDocGroups = [
         "Live",
         "LiveState",
         "EvaluationError",
+        "UnsupportedLiveQuery",
         "JoinStrategy",
         "JoinKey",
         "SortDirection",
@@ -820,7 +841,10 @@ export const publicHoverDocGroups = [
       "collectionStorageFromSync",
       "makeCollectionMemoryStorage",
       "persistedCollectionOptions"
-    ]
+    ],
+    namespaceAliases: {
+      CollectionStorageError: "Collection.StorageError"
+    }
   },
   {
     file: "packages/db/src/flush-policy.ts",
@@ -1351,6 +1375,28 @@ export const publicHoverDocGroups = [
     ]
   },
   {
+    file: "packages/start/src/start-vite-dev-ssr.ts",
+    declarations: [
+      "StartSsrRequestHandler",
+      "StartSsrHandlerModule",
+      "StartDevServer",
+      "StartViteDevServer",
+      "HandleSsrDevRequestOptions",
+      "StartHandlerNotFound",
+      "StartDevServerError",
+      "StartDevMiddlewareNext",
+      "HandleSsrDevMiddlewareOptions",
+      "startDevServerFromVite",
+      "handleSsrDevMiddlewareEffect",
+      "isHtmlResponse",
+      "shouldHandleSsrRequest",
+      "resolveStartHandler",
+      "resolveStartHandlerEffect",
+      "handleSsrDevRequestEffect",
+      "handleSsrDevRequest"
+    ]
+  },
+  {
     file: "packages/start/src/start-vite-diagnostics-loader.ts",
     declarations: [
       "StartAppGraphDiagnosticsLoadError"
@@ -1438,8 +1484,8 @@ export const namespaceBackedSurfaceModules = new Map([
 ]);
 
 export const currentDocsEvidencePolicy = {
-  latestFocusedReview: 246,
-  latestFocusedTitle: "Effect Cleanup Capture And Vite Middleware Lifecycle",
+  latestFocusedReview: 247,
+  latestFocusedTitle: "Scope Cleanup Capture And Namespace Public Pins",
   latestFullGateReview: 240,
   rootTestFiles: 53,
   rootTestCount: 1170,
@@ -1448,15 +1494,15 @@ export const currentDocsEvidencePolicy = {
 };
 
 const staleFocusedReviewPattern =
-  /(?:The latest focused Review|Latest focused evidence: Review|newest focused review is Review) ?(?:1\d\d|2[0-3]\d|24[0-5])\b/;
+  /(?:The latest focused Review|Latest focused evidence: Review|newest focused review is Review) ?(?:1\d\d|2[0-3]\d|24[0-6])\b/;
 const staleAsOfReviewPattern =
-  /As of Review(?:1\d\d|2[0-3]\d|24[0-5]), the latest full/;
+  /As of Review(?:1\d\d|2[0-3]\d|24[0-6]), the latest full/;
 const staleFullGateReviewPattern =
   /(?:The latest full verification gate is green after Review|Latest full gate[^.\n]*after Review|latest full `pnpm verify` passed after Review|current full gate is the Review) ?(?:1\d\d|2[0-3]\d)\b/;
 const staleRootTestCountPattern =
   /53 root test files \/ 1161 tests/;
 const stalePostReviewWaitPattern =
-  /until a fresh post-Review(?:1\d\d|2[0-3]\d|24[0-5])\s+sweep reports no actionable findings/;
+  /until a fresh post-Review(?:1\d\d|2[0-3]\d|24[0-6])\s+sweep reports no actionable findings/;
 
 export const currentDocsTextPolicies = [
   {
@@ -1490,16 +1536,16 @@ export const currentDocsTextPolicies = [
     file: "docs/architecture-deepening-review.md",
     required: [
       {
-        name: "Architecture tip must name the current focused Review246",
-        pattern: /newest focused review is Review246 Effect Cleanup Capture\s+And Vite Middleware Lifecycle/
+        name: "Architecture tip must name the current focused Review247",
+        pattern: /newest focused review is Review247 Scope Cleanup Capture\s+And Namespace Public Pins/
       },
       {
         name: "Architecture tip must keep Review240 as the newest full checkpoint",
         pattern: /newest full verification checkpoint remains Review240/
       },
       {
-        name: "Architecture tip must wait on the post-Review246 clean sweep",
-        pattern: /active Thirty-Sweep clean counter is 0\/30 until a fresh post-Review246\s+sweep reports no actionable findings/
+        name: "Architecture tip must wait on the post-Review247 clean sweep",
+        pattern: /active Thirty-Sweep clean counter is 0\/30 until a fresh post-Review247\s+sweep reports no actionable findings/
       }
     ],
     banned: [
@@ -1518,15 +1564,15 @@ export const currentDocsTextPolicies = [
     required: [
       {
         name: "Perfection progress must name the current focused review from currentDocsEvidencePolicy",
-        pattern: /latest focused Review246 Effect Cleanup Capture\s+And Vite\s+Middleware Lifecycle/
+        pattern: /latest focused Review247 Scope Cleanup Capture\s+And Namespace\s+Public Pins/
       },
       {
         name: "Perfection progress must keep the Review240 full gate as current full evidence",
         pattern: /latest full verification gate is green after Review240/
       },
       {
-        name: "Perfection progress must keep the active Thirty-Sweep counter at 0\/30 after Review246 work",
-        pattern: /active Thirty-Sweep clean counter remains 0\/30 until a fresh post-Review246 sweep reports no actionable findings/
+        name: "Perfection progress must keep the active Thirty-Sweep counter at 0\/30 after Review247 work",
+        pattern: /active Thirty-Sweep clean counter remains 0\/30 until a fresh post-Review247 sweep reports no actionable findings/
       }
     ],
     banned: [
@@ -1560,16 +1606,16 @@ export const currentDocsTextPolicies = [
     file: "docs/release-notes.md",
     required: [
       {
-        name: "Release notes must include the current focused Review246 entry",
-        pattern: /Review 246 Effect Cleanup Capture And Vite Middleware Lifecycle/
+        name: "Release notes must include the current focused Review247 entry",
+        pattern: /Review 247 Scope Cleanup Capture And Namespace Public Pins/
       },
       {
         name: "Release notes must keep the Review240 full gate snapshot",
         pattern: /Latest full gate on May 17, 2026 after Review 240/
       },
       {
-        name: "Release notes must wait on the post-Review246 clean sweep",
-        pattern: /until a fresh post-Review246\s+sweep reports no actionable findings/
+        name: "Release notes must wait on the post-Review247 clean sweep",
+        pattern: /until a fresh post-Review247\s+sweep reports no actionable findings/
       }
     ],
     banned: [
@@ -1599,16 +1645,16 @@ export const currentDocsTextPolicies = [
     file: "docs/docs-drift-audit.md",
     required: [
       {
-        name: "Docs drift audit must name the current focused Review246 evidence",
-        pattern: /As of Review246, the latest full/
+        name: "Docs drift audit must name the current focused Review247 evidence",
+        pattern: /As of Review247, the latest full/
       },
       {
         name: "Docs drift audit must keep Review240 full gate counts",
         pattern: /Review240 run with 53 root test files \/ 1170 tests/
       },
       {
-        name: "Docs drift audit must wait on the post-Review246 clean sweep",
-        pattern: /counter is 0\/30 until a fresh post-Review246 sweep reports no actionable/
+        name: "Docs drift audit must wait on the post-Review247 clean sweep",
+        pattern: /counter is 0\/30 until a fresh post-Review247 sweep reports no actionable/
       }
     ],
     banned: [
@@ -1634,8 +1680,8 @@ export const currentDocsTextPolicies = [
     file: "docs/type-test-coverage-audit.md",
     required: [
       {
-        name: "Type-test audit must name Review246 public type-test pins",
-        pattern: /Review246 Effect Cleanup Capture And Vite Middleware Lifecycle/
+        name: "Type-test audit must name Review247 public type-test pins",
+        pattern: /Review247 Scope Cleanup Capture And Namespace Public Pins/
       },
       {
         name: "Type-test audit must keep Review240 full gate counts",
@@ -1653,8 +1699,8 @@ export const currentDocsTextPolicies = [
     file: "docs/effect-first-audit.md",
     required: [
       {
-        name: "Effect-first audit must name Review246 as current sweep work",
-        pattern: /Review246 Effect Cleanup Capture And Vite Middleware Lifecycle/
+        name: "Effect-first audit must name Review247 as current sweep work",
+        pattern: /Review247 Scope Cleanup Capture And Namespace Public Pins/
       },
       {
         name: "Effect-first audit must keep the 415-file audit count",
@@ -1706,15 +1752,15 @@ export const currentDocsTextPolicies = [
     file: "docs/ultimate-goal-checklist.md",
     required: [
       {
-        name: "Ultimate goal checklist must name Review246 as latest focused evidence",
-        pattern: /Latest focused evidence: Review 246/
+        name: "Ultimate goal checklist must name Review247 as latest focused evidence",
+        pattern: /Latest focused evidence: Review 247/
       },
       {
         name: "Ultimate goal checklist must keep Review240 as latest full evidence",
         pattern: /Review240 records the latest full gate/
       },
       {
-        name: "Ultimate goal checklist must keep active clean counter at 0\/30 after Review246",
+        name: "Ultimate goal checklist must keep active clean counter at 0\/30 after Review247",
         pattern: /leaving the active counter at 0\/30/
       }
     ],

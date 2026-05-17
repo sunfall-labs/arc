@@ -641,7 +641,11 @@ Release decisions:
   handler is `StartSsrRequestHandler`.
 - `./vite` keeps dev SSR helpers public from the same import path, but their
   implementation lives behind the Start Vite Dev SSR Adapter Module rather than
-  the plugin assembly code.
+  the plugin assembly code. `handleSsrDevMiddlewareEffect(...)`,
+  `handleSsrDevRequest(...)`, `startDevServerFromVite(...)`,
+  `StartDevServerError`, and `StartHandlerNotFound` have direct type-test and
+  hover-policy pins because custom Vite hosts can consume that Adapter without
+  going through `effectUiStart(...)`.
 - Vite dev SSR request conversion accepts the same Node origin and forwarded
   header policy as the Node adapter through `HandleSsrDevRequestOptions`,
   `HandleSsrDevMiddlewareOptions`, and `EffectUiStartOptions.nodeRequest`, so
@@ -866,7 +870,11 @@ Release decisions:
   `makeLiveQueryCollection`, and `isCollection(...)` are expert-public
   contract vocabulary for adapters, diagnostics, and focused tests. Public
   hover policy and type tests own these names so root import compatibility and
-  LSP intent cannot drift from the Collection namespace aliases.
+  LSP intent cannot drift from the Collection namespace aliases. Prefer
+  `Collection.UnknownIndex`, `Collection.RowKeyChanged`,
+  `Collection.RowNotFound`, `Collection.ReadonlyMutation`,
+  `Collection.SnapshotCodecError`, and `Collection.StorageError` in new
+  namespace-first adapter code.
 - Multi-collection flush and background sync error channels use
   `CollectionRuntimeError<E>` for each collection, so handler failures, snapshot
   codec failures, and synchronous callback failures stay visible through the
@@ -934,9 +942,12 @@ Release decisions:
   `QueryBuilder` constructor is not a package-root export; public callers use
   `Query.from(...)`, factory callbacks, and the branded `Query.Builder` fluent
   Interface so the Query Module owns builder construction and execution-plan
-  storage. Structural fake builders are rejected at the type seam and runtime
-  factory seam. Public `LiveQuery` handles expose data/state/source metadata
-  and lifecycle Effects, not the internal builder.
+  storage. Prefer `Query.EvaluationError` and
+  `Query.UnsupportedLiveQuery` in namespace-first adapter code while the root
+  error exports remain compatibility pins. Structural fake builders are
+  rejected at the type seam and runtime factory seam. Public `LiveQuery`
+  handles expose data/state/source metadata and lifecycle Effects, not the
+  internal builder.
 - Top-level Query type mirrors such as `QueryRoot`, `QueryFactory`,
   `LiveQuery`, `LiveQueryState`, query plan diagnostics, sort/join scalar
   types, aggregate types, and predicate helpers remain expert-public

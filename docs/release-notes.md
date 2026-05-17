@@ -86,6 +86,15 @@ Latest full gate on May 17, 2026 after Review 240:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 247 Scope Cleanup Capture And Namespace Public Pins closed the
+  post-Review246 sweep: `UiScope` and runtime UI frames now expose synchronous
+  capture seams while retaining lazy `disposeEffect()` composition, React and
+  Solid cleanup paths call sync dispose/interrupt conveniences, Action reset
+  capture is explicitly named `captureResetEffect()`, DB Collection and Query
+  errors are namespace-owned, and Start Vite dev SSR middleware helpers are
+  directly pinned for public type tests and LSP hovers. The active Thirty-Sweep
+  clean counter remains 0/30 until a fresh post-Review247 sweep reports no
+  actionable findings.
 - Review 246 Effect Cleanup Capture And Vite Middleware Lifecycle closed the
   post-Review245 sweep: Action reset and StartAction reset synchronously
   capture active submission fibers before forking cleanup, Resource UI Binding
@@ -94,7 +103,8 @@ Latest full gate on May 17, 2026 after Review 240:
   middleware owns Node lifecycle setup, abort signal injection, host-fiber
   interruption, response writing, and `next(error)` containment for plugin and
   direct callers. The active Thirty-Sweep clean counter remains 0/30 until a
-  fresh post-Review246 sweep reports no actionable findings.
+  later post-Review246 sweep found Review247 scope cleanup capture and
+  namespace public pin work.
 - Review 245 Public API Symbol Reachability And Router Adapter Parity closed
   the post-Review244 sweep: public hover policy now checks symbol reachability
   through package entrypoints, namespace-only aliases are explicit, memory

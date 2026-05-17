@@ -84,15 +84,17 @@ export class UiScope {
   }
 
   /** Effect-first disposal for integrations that already run inside Effect. */
-  disposeEffect(): Effect.Effect<void> {
+  captureDisposeEffect(): Effect.Effect<void> {
     const scope = this;
-    return Effect.gen(function* () {
-      if (scope.disposed) {
-        return;
-      }
 
-      scope.disposed = true;
-      const finalizers = scope.finalizers.splice(0).reverse();
+    if (scope.disposed) {
+      return Effect.void;
+    }
+
+    scope.disposed = true;
+    const finalizers = scope.finalizers.splice(0).reverse();
+
+    return Effect.gen(function* () {
       const closeExit = yield* Effect.exit(Scope.close(scope.effectScope, Exit.void));
       for (const finalizer of finalizers) {
         yield* invokeEffectInput("UiScope.finalizer", finalizer).pipe(
@@ -103,6 +105,17 @@ export class UiScope {
         return yield* Effect.failCause(closeExit.cause);
       }
     });
+  }
+
+  /**
+   * Effect-first disposal for integrations that already run inside Effect.
+   *
+   * Disposal capture is suspended until this Effect runs. Host cleanup hooks
+   * that need immediate invalidation should use the owning
+   * `RuntimeUiScopeFrame.dispose()` convenience instead.
+   */
+  disposeEffect(): Effect.Effect<void> {
+    return Effect.suspend(() => this.captureDisposeEffect());
   }
 }
 
@@ -128,8 +141,15 @@ export interface RuntimeUiScopeFrame<ER = unknown> {
   readonly scope: UiScope;
   /** Runs synchronous construction with both runtime and UI scope installed. */
   run<A>(f: () => A): A;
+  /**
+   * Synchronously marks the frame disposed and returns the captured cleanup
+   * Effect. Use this when the caller wants to join cleanup explicitly.
+   */
+  captureDisposeEffect(): Effect.Effect<void>;
   /** Runtime-bound, failure-swallowing disposal for host cleanup hooks. */
   disposeEffect(): Effect.Effect<void>;
+  /** Synchronously closes the frame to new work and forks captured cleanup. */
+  dispose(): void;
 }
 
 /** Creates a runtime-owned UI frame for adapter component or route lifetimes. */
@@ -139,8 +159,17 @@ export const makeRuntimeUiScopeFrame = <ER>(runtime: AnyEffectUiRuntime<ER>): Ru
     runtime,
     scope,
     run: (f) => runWithRuntime(runtime, () => runWithScope(scope, f)),
+    captureDisposeEffect: () =>
+      runtime.provide(scope.captureDisposeEffect()).pipe(Effect.catchCause(() => Effect.void)),
     disposeEffect: () =>
-      runtime.provide(scope.disposeEffect()).pipe(Effect.catchCause(() => Effect.void))
+      Effect.suspend(() => runtime.provide(scope.captureDisposeEffect())).pipe(
+        Effect.catchCause(() => Effect.void)
+      ),
+    dispose: () => {
+      void runtime.runFork(
+        runtime.provide(scope.captureDisposeEffect()).pipe(Effect.catchCause(() => Effect.void))
+      );
+    }
   };
 };
 

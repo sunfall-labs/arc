@@ -1,9 +1,5 @@
 import { Effect } from "effect";
 import {
-  CollectionRowKeyChanged,
-  CollectionRowNotFound
-} from "@effect-ui/db";
-import {
   Collection,
   Query,
   useCollection,
@@ -39,7 +35,11 @@ declare const solidDbPreloadObserverPromise: Promise<void>;
 const solidDbExports: Array<unknown> = [Collection, Query, useCollection, useLiveQuery];
 type Handles = CollectionHandle<any, any> | LiveQueryHandle<any, any>;
 type Options = UseCollectionOptions<"load", SolidDbRuntimeError> | UseLiveQueryOptions<"query", SolidDbRuntimeError>;
-type Namespaces = Collection.Key | Query.Builder<any, any>;
+type Namespaces =
+  | Collection.Key
+  | Collection.RowNotFound
+  | Collection.RowKeyChanged
+  | Query.Builder<any, any>;
 const solidDbCollectionOptions: UseCollectionOptions<"load", SolidDbRuntimeError> = {
   onPreloadFailure: () => Effect.void
 };
@@ -71,11 +71,11 @@ const solidDbInsert: Effect.Effect<
 > = solidDbProjects.insertEffect({ id: "atlas", name: "Atlas" });
 const solidDbUpdate: Effect.Effect<
   Collection.Transaction<SolidDbProject, string>,
-  Collection.RuntimeError<"load"> | CollectionRowNotFound | CollectionRowKeyChanged | SolidDbRuntimeError
+  Collection.RuntimeError<"load"> | Collection.RowNotFound | Collection.RowKeyChanged | SolidDbRuntimeError
 > = solidDbProjects.updateEffect("atlas", { name: "Atlas Prime" });
 const solidDbDelete: Effect.Effect<
   Collection.Transaction<SolidDbProject, string>,
-  Collection.RuntimeError<"load"> | CollectionRowNotFound | SolidDbRuntimeError
+  Collection.RuntimeError<"load"> | Collection.RowNotFound | SolidDbRuntimeError
 > = solidDbProjects.deleteEffect("atlas");
 const solidDbWriteInsert: Effect.Effect<
   void,
@@ -83,7 +83,7 @@ const solidDbWriteInsert: Effect.Effect<
 > = solidDbProjects.writeInsertEffect({ id: "atlas", name: "Atlas" });
 const solidDbWriteUpdate: Effect.Effect<
   void,
-  Collection.RuntimeError<"load"> | CollectionRowNotFound | CollectionRowKeyChanged | SolidDbRuntimeError
+  Collection.RuntimeError<"load"> | Collection.RowNotFound | Collection.RowKeyChanged | SolidDbRuntimeError
 > = solidDbProjects.writeUpdateEffect("atlas", { name: "Atlas Prime" });
 const solidDbWriteDelete: Effect.Effect<
   void,

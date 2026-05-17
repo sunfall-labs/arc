@@ -117,7 +117,7 @@ export const RouterLink = <R extends AnyRoute>(
     anchorElement?.setAttribute("href", href());
   });
   onCleanup(() => {
-    void router.runtime.runFork(preloader.interruptEffect());
+    preloader.interrupt();
   });
 
   const onMouseEnter: JSX.EventHandler<HTMLAnchorElement, MouseEvent> = (event) => {

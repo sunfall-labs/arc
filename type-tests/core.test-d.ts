@@ -531,6 +531,10 @@ const counterInstance: Program.Instance<
 const uiScope = new UiScope();
 const runtimeUiScope = makeRuntimeUiScope(browserRouterKernelRuntime);
 const runtimeUiScopeFrame: RuntimeUiScopeFrame = makeRuntimeUiScopeFrame(browserRouterKernelRuntime);
+const uiScopeCapturedDispose: Effect.Effect<void> = uiScope.captureDisposeEffect();
+const runtimeUiScopeFrameCapturedDispose: Effect.Effect<void> =
+  runtimeUiScopeFrame.captureDisposeEffect();
+runtimeUiScopeFrame.dispose();
 const scopedValue = scoped(() => "scoped");
 onScopeDispose(() => Effect.void);
 onDispose(() => undefined);
@@ -689,6 +693,8 @@ void counterInstance;
 void uiScope;
 void runtimeUiScope;
 void runtimeUiScopeFrame;
+void uiScopeCapturedDispose;
+void runtimeUiScopeFrameCapturedDispose;
 void scopedValue;
 void requestContext;
 void requestContextEffect;

@@ -501,7 +501,7 @@ export const useResourceSuspense = <I, A, E, R = unknown>(
 
   useEffect(() => {
     return () => {
-      void runtime.runFork(preloadController.disposeEffect());
+      preloadController.dispose();
     };
   }, [preloadController, runtime]);
 

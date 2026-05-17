@@ -11,11 +11,12 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review246 Effect Cleanup Capture
-And Vite Middleware Lifecycle, the fresh post-Review245 sweep that made Action
-reset and Resource UI disposal capture current owners synchronously, moved Vite
-dev SSR Node lifecycle ownership into the middleware Adapter, and added Query
-predicate helpers to the namespace-owned public Interface. The newest full verification checkpoint remains Review240.
+The newest focused review is Review247 Scope Cleanup Capture
+And Namespace Public Pins, the fresh post-Review246 sweep that made UI scope
+and Action reset capture seams explicit, moved React/Solid cleanup callers to
+sync host conveniences, added Collection and Query namespace-owned error
+constructors, and pinned the Vite dev SSR Adapter Interface for LSP/type-test
+ownership. The newest full verification checkpoint remains Review240.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -52,7 +53,8 @@ and the fresh post-Review242 sweep found Review243 work,
 and the fresh post-Review243 sweep found Review244 work,
 and the fresh post-Review244 sweep found Review245 work,
 and the fresh post-Review245 sweep found Review246 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review246
+and the fresh post-Review246 sweep found Review247 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review247
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -64,7 +66,7 @@ Review226, Review227, Review228, Review229, Review230, Review231, and
 Review232 Shared DB Query Stage Plan work, Review233 work, Review234 work,
 Review235 work, Review236 work, Review237 work, Review238 work, Review239
 work, Review240 work, Review241 work, Review242 work, Review243 work,
-Review244 work, Review245 work, and Review246 work.
+Review244 work, Review245 work, Review246 work, and Review247 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -166,7 +168,82 @@ and the fresh post-Review244 sweep found Review245 public API symbol
 reachability and router Adapter parity work,
 and the fresh post-Review245 sweep found Review246 Effect cleanup capture and
 Vite middleware lifecycle work,
+and the fresh post-Review246 sweep found Review247 Scope cleanup capture and
+namespace public pin work,
 so the counter remains 0/30.
+
+## Review 247: Scope Cleanup Capture And Namespace Public Pins
+
+Review247 fixes the actionable findings from the fresh post-Review246 sweep.
+
+1. UI Scope Cleanup Capture
+   - Status: fixed.
+   - Files: `packages/core/src/scope.ts`, `packages/react/src/runtime.ts`,
+     `packages/react/src/route-render-scope.ts`, `packages/solid/src/runtime.ts`,
+     `packages/react/src/link.ts`, `packages/solid/src/link.ts`,
+     `packages/react/src/hooks.ts`, and `packages/solid/src/hooks.ts`.
+   - Problem: `disposeEffect()` captured scope finalizers and scoped fibers only
+     when a queued runtime later executed the Effect, so host cleanup could
+     leave a disposed component or route frame accepting new scoped work.
+   - Solution: add `UiScope.captureDisposeEffect()` and
+     `RuntimeUiScopeFrame.captureDisposeEffect()` as explicit synchronous
+     capture Interfaces, keep `disposeEffect()` lazy for Effect composition,
+     and route React/Solid cleanup through frame/controller sync conveniences.
+   - Benefits: Locality improves because lifetime ownership stays in the Core
+     scope Module; Adapter safety improves because framework cleanup closes the
+     UI lifetime before queued runtime cleanup can be delayed.
+
+2. Action Reset Capture Naming
+   - Status: fixed.
+   - Files: `packages/core/src/action-submission.ts`,
+     `packages/core/src/action-execution-workflow.ts`,
+     `packages/core/src/action.ts`, and `packages/start/src/start-action-client.ts`.
+   - Problem: the synchronous reset capture primitive was public but named
+     like an ordinary reset Effect, obscuring the important host-cleanup
+     behavior in LSP hovers.
+   - Solution: rename the primitive to `captureResetEffect()`, document that it
+     clears state synchronously and interrupts only captured fibers, and keep
+     `resetEffect()` as the lazy Effect-first Interface.
+   - Benefits: Interface intent is sharper while Action and StartAction share
+     the same reset ownership Seam.
+
+3. DB Namespace Error Ownership
+   - Status: fixed.
+   - Files: `packages/db/src/index.ts`, `packages/db/src/query-builder.ts`,
+     `type-tests/db.test-d.ts`, `type-tests/react-db.test-d.ts`,
+     `type-tests/solid-db.test-d.ts`, `type-tests/public-api.manifest.json`,
+     `scripts/public-api-symbol-policy.mjs`, and `docs/public-api-inventory.md`.
+   - Problem: important Collection and Query error constructors remained
+     root-only, forcing adapter type tests and LSP hovers away from the
+     namespace-first public Interface.
+   - Solution: add `Collection.RowNotFound`, `Collection.RowKeyChanged`,
+     `Collection.ReadonlyMutation`, `Collection.UnknownIndex`,
+     `Collection.StorageError`, `Collection.SnapshotCodecError`,
+     `Query.EvaluationError`, and `Query.UnsupportedLiveQuery` aliases with
+     type-test, manifest, hover-policy, and inventory pins.
+   - Benefits: Locality improves because DB concepts are discoverable beside
+     the operations that emit them; Leverage improves because React DB and
+     Solid DB can type their error channels through adapter-local namespaces.
+
+4. Start Vite Dev SSR Public Pins
+   - Status: fixed.
+   - Files: `packages/start/src/start-vite-dev-ssr.ts`,
+     `type-tests/start-vite.test-d.ts`,
+     `type-tests/public-api.manifest.json`,
+     `scripts/public-api-symbol-policy.mjs`, and
+     `docs/public-api-inventory.md`.
+   - Problem: Review246 moved dev SSR middleware lifecycle into the
+     `handleSsrDevMiddlewareEffect(...)` Adapter, but type tests and hover
+     policy did not directly pin the callable middleware and dev-server helper
+     symbols.
+   - Solution: add direct public type-test imports and serviceful Effect
+     assertions for `handleSsrDevMiddlewareEffect(...)`,
+     `handleSsrDevRequest(...)`, `startDevServerFromVite(...)`,
+     `StartDevServerError`, and `StartHandlerNotFound`, and include the dev
+     SSR Module in the LSP hover policy.
+   - Benefits: the expert-public Start Vite seam is now visible to both Type
+     Interfaces and hover docs, so future middleware refactors cannot silently
+     weaken the Adapter contract.
 
 ## Review 246: Effect Cleanup Capture And Vite Middleware Lifecycle
 

@@ -13,10 +13,14 @@ import {
   fileRouteDefinitionsVirtualModuleId,
   fileRouteManifestVirtualModuleId,
   handleSsrDevRequestEffect,
+  handleSsrDevMiddlewareEffect,
+  handleSsrDevRequest,
   loadStartAppGraphDiagnostics,
   loadStartAppGraphDiagnosticsEffect,
   runStartViteDiagnosticsGateEffect,
   serverFunctionManifestVirtualModuleId,
+  StartDevServerError,
+  StartHandlerNotFound,
   StartAppGraphDiagnosticsRunnerError,
   FileRouteDefinitionsFileWriteError,
   FileRouteDefinitionsOutputPathError,
@@ -30,6 +34,7 @@ import {
   validateStartBuildPolicyEffect,
   writeFileRouteDefinitionsFile,
   writeFileRouteDefinitionsFileEffect,
+  startDevServerFromVite,
   type EffectUiStartOptions,
   type EffectUiStartPlugin,
   type FileRouteDiscoveryOptions,
@@ -62,10 +67,14 @@ const viteExports: Array<unknown> = [
   fileRouteDefinitionsVirtualModuleId,
   fileRouteManifestVirtualModuleId,
   handleSsrDevRequestEffect,
+  handleSsrDevMiddlewareEffect,
+  handleSsrDevRequest,
   loadStartAppGraphDiagnostics,
   loadStartAppGraphDiagnosticsEffect,
   runStartViteDiagnosticsGateEffect,
   serverFunctionManifestVirtualModuleId,
+  StartDevServerError,
+  StartHandlerNotFound,
   StartAppGraphDiagnosticsRunnerError,
   FileRouteDefinitionsFileWriteError,
   FileRouteDefinitionsOutputPathError,
@@ -78,7 +87,8 @@ const viteExports: Array<unknown> = [
   validateStartAppGraphRoutePreloadResourcesDiagnosticsEffect,
   validateStartBuildPolicyEffect,
   writeFileRouteDefinitionsFile,
-  writeFileRouteDefinitionsFileEffect
+  writeFileRouteDefinitionsFileEffect,
+  startDevServerFromVite
 ];
 const diagnosticsBuildPolicyOptions = {
   buildPolicy: {
@@ -129,6 +139,8 @@ declare const viteDevSsrRuntime: EffectUiRuntime<ViteDevSsrService, "dev-ssr-run
 declare const servicefulDevSsrServer: StartDevServer<ViteDevSsrService>;
 declare const servicefulDevSsrModule: StartSsrHandlerModule<"handler-error", ViteDevSsrService>;
 declare const hostViteDevServer: StartViteDevServer;
+declare const devSsrNodeRequest: Parameters<typeof handleSsrDevMiddlewareEffect>[1];
+declare const devSsrNodeResponse: Parameters<typeof handleSsrDevMiddlewareEffect>[2];
 const devMiddlewareNext: StartDevMiddlewareNext = (error?: unknown) => {
   void error;
 };
@@ -142,6 +154,8 @@ const devSsrOptions: StartViteDevSsrOptions<"dev-ssr-runtime"> = {
 };
 const servicefulDevSsrEffect: Effect.Effect<Response, unknown, ViteDevSsrService> =
   handleSsrDevRequestEffect(servicefulDevSsrServer, new Request("https://example.com"));
+const servicefulDevSsrRequestAlias: typeof handleSsrDevRequestEffect =
+  handleSsrDevRequest;
 const devSsrRequestOptions: HandleSsrDevRequestOptions = {
   serverEntry: defaultServerEntry,
   handlerExport: "handleRequest",
@@ -152,14 +166,34 @@ const devSsrMiddlewareOptions: HandleSsrDevMiddlewareOptions = {
   ...devSsrRequestOptions,
   runOptions: { signal: new AbortController().signal }
 };
+const servicefulDevSsrMiddlewareEffect: Effect.Effect<void, never, ViteDevSsrService> =
+  handleSsrDevMiddlewareEffect(
+    servicefulDevSsrServer,
+    devSsrNodeRequest,
+    devSsrNodeResponse,
+    devMiddlewareNext,
+    devSsrMiddlewareOptions
+  );
+const hostDevSsrServer: StartDevServer = startDevServerFromVite(hostViteDevServer);
+const startDevServerError = new StartDevServerError({
+  operation: "load-module",
+  error: "missing"
+});
+const startHandlerNotFound = new StartHandlerNotFound({
+  exportName: "default"
+});
 void devSsrStartOptions;
 void devSsrOptions;
 void servicefulDevSsrEffect;
+void servicefulDevSsrRequestAlias;
+void servicefulDevSsrMiddlewareEffect;
 void servicefulDevSsrModule;
-void hostViteDevServer;
+void hostDevSsrServer;
 void devMiddlewareNext;
 void devSsrRequestOptions;
 void devSsrMiddlewareOptions;
+void startDevServerError;
+void startHandlerNotFound;
 declare const viteRoot: string;
 const discoveryOptions: FileRouteDiscoveryOptions = {
   root: viteRoot,
