@@ -133,6 +133,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
   added focused `Collection.*` namespace value pins for storage, persistence,
   flush/background-sync, and SQLite helpers. It moved the current full
   verification evidence to the Review231 gate.
+- Review232 Shared DB Query Stage Plan kept public type tests green while
+  moving DB query stage facts behind an internal compiled stage plan; no public
+  Query type surface changed.
+  It moved the current full verification evidence to the Review232 gate.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them
@@ -252,8 +256,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Verification Evidence
 
-- `pnpm typecheck:types` and full `pnpm verify` passed after Review231 with
-  53 root test files / 1146 tests, including the latest Browser Router
+- `pnpm typecheck:types` and full `pnpm verify` passed after Review232 with
+  53 root test files / 1146 tests, including the latest internal Query Stage
+  Plan coverage through DB collection/live-query tests, Browser Router
   `disposeEffect()` pin, DB adapter source-surface manifest pins, Collection
   namespace value pins, branded `Query.Builder` negative pin, Resource UI
   Binding `disposeEffect()` pin, DB persistence/background-sync root pins,

@@ -1,9 +1,10 @@
 import { Effect } from "effect";
 import {
-  buildQueryContexts,
   buildQueryExecution,
+  buildQueryExecutionFromStagePlan,
   compareRows,
   compareValue,
+  compileQueryStagePlan,
   evaluateQueryOperation,
   evaluateQueryStructuredOperation,
   projectCurrentContext,
@@ -14,7 +15,8 @@ import {
   type QueryEvaluationError,
   type QueryPlanBuilder,
   type QueryPlanDiagnostics,
-  type QueryProjectOptions
+  type QueryProjectOptions,
+  type QueryStagePlan
 } from "./query-plan.js";
 import {
   queryContextOrderIdentity,
@@ -74,22 +76,27 @@ export const compareQueryOrderedContexts = <TContext extends AnyQueryContext>(
   return left.index - right.index;
 };
 
+interface ProjectQueryContextsOptions<TContext extends AnyQueryContext> extends QueryProjectOptions {
+  readonly stagePlan?: QueryStagePlan<TContext>;
+}
+
 /** Projects already-built query contexts through the plan's remaining stages. */
 export const projectQueryContexts = <TContext extends AnyQueryContext, TResult>(
   builder: QueryExecutionPlanBuilder<TContext, TResult>,
   contexts: ReadonlyArray<TContext>,
-  options: QueryProjectOptions = {}
+  options: ProjectQueryContextsOptions<TContext> = {}
 ): ReadonlyArray<TResult> => {
+  const stagePlan = options.stagePlan ?? compileQueryStagePlan(builder);
   const shouldFilter = options.filter ?? true;
   const shouldOrder = options.order ?? true;
   const shouldWindow = options.window ?? true;
   let filtered = shouldFilter
-    ? contexts.filter((row) => builder.filters.every((filter) =>
+    ? contexts.filter((row) => stagePlan.filters.every((filter) =>
       evaluateQueryOperation("filter", () => filter(row))
     ))
     : [...contexts];
 
-  if (shouldOrder && builder.orders.length > 0) {
+  if (shouldOrder && stagePlan.orders.length > 0) {
     filtered = filtered
       .map((row, index) => {
         const identity = queryContextOrderIdentity(builder, row);
@@ -97,16 +104,16 @@ export const projectQueryContexts = <TContext extends AnyQueryContext, TResult>(
           ? { row, index }
           : { row, index, identity };
       })
-      .sort((left, right) => compareQueryOrderedContexts(left, right, builder.orders))
+      .sort((left, right) => compareQueryOrderedContexts(left, right, stagePlan.orders))
       .map(({ row }) => row);
   }
 
-  if (shouldWindow && builder.offsetCount > 0) {
-    filtered = filtered.slice(builder.offsetCount);
+  if (shouldWindow && stagePlan.window.offset > 0) {
+    filtered = filtered.slice(stagePlan.window.offset);
   }
 
-  if (shouldWindow && builder.limitCount !== undefined) {
-    filtered = filtered.slice(0, builder.limitCount);
+  if (shouldWindow && stagePlan.window.limit !== undefined) {
+    filtered = filtered.slice(0, stagePlan.window.limit);
   }
 
   const projector = builder.projector ?? projectCurrentContext<TContext, TResult>;
@@ -119,8 +126,12 @@ export const projectQueryContexts = <TContext extends AnyQueryContext, TResult>(
 export const executeQueryPlan = <TContext extends AnyQueryContext, TResult>(
   builder: QueryExecutionPlanBuilder<TContext, TResult>
 ): ReadonlyArray<TResult> => {
-  validateQueryExecutionPlan(builder);
-  return projectQueryContexts(builder, buildQueryContexts(builder));
+  const stagePlan = compileQueryStagePlan(builder);
+  return projectQueryContexts(
+    builder,
+    buildQueryExecutionFromStagePlan(stagePlan).contexts,
+    { stagePlan }
+  );
 };
 
 /** Builds diagnostics for the query execution plan. */

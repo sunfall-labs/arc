@@ -65,7 +65,7 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 17, 2026 after Review 231:
+Latest full gate on May 17, 2026 after Review 232:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
@@ -86,6 +86,13 @@ Latest full gate on May 17, 2026 after Review 231:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 232 Shared DB Query Stage Plan closed the Review231 DB Query Stage
+  Planning candidate: Query Builder now compiles one internal Query Stage Plan
+  for source roles,
+  base-source ordering, join sources, grouping, filters, ordering, and window
+  facts. Snapshot execution, projection, diagnostics, preload/refetch, and Live
+  Query Runtime now consume those same stage facts. The active Thirty-Sweep
+  clean counter remains 0/30 until a fresh post-Review232 sweep is clean.
 - Review 231 closed the post-Review230 sweep findings: Browser Router Kernel
   and Host Controller now expose Effect-first `disposeEffect()` teardown for
   active route preload lifetimes; Resource UI Binding cleanup resets retained
@@ -95,9 +102,8 @@ Latest full gate on May 17, 2026 after Review 231:
   public API inventory audit now requires `sourceSurface` for local root
   re-exports and pins React DB/Solid DB `collection` and `live-query`; and
   `Collection.*` namespace values have hover-policy and type-test ownership.
-  The active Thirty-Sweep clean counter remains 0/30 until a fresh
-  post-Review231 sweep is clean; DB Query Stage Planning remains the next
-  recorded deepening candidate.
+  The active Thirty-Sweep clean counter remained 0/30; the later post-Review231
+  DB pass found Review232 Shared DB Query Stage Plan work.
 - Review 230 closed the post-Review229 sweep findings: public `Query.Builder`
   is now branded so the Type Interface matches runtime fake-builder rejection;
   `ResourceUiBindingController` exposes Effect-first `disposeEffect()` for
@@ -411,8 +417,9 @@ Latest full gate on May 17, 2026 after Review 231:
   the post-Review225 sweep found Review226 work, the post-Review226 sweep
   found Review227 work, the post-Review227 sweep found Review228 work, and the
   post-Review228 sweep found Review229 work, the post-Review229 sweep
-  found Review230 work, and the post-Review230 sweep found Review231 work.
-  The active Thirty-Sweep clean counter is 0/30 until a fresh post-Review231
+  found Review230 work, the post-Review230 sweep found Review231 work, and the
+  post-Review231 DB pass found Review232 Shared DB Query Stage Plan work.
+  The active Thirty-Sweep clean counter is 0/30 until a fresh post-Review232
   sweep reports no
   actionable findings.
 - Review 192 refreshed stale current-gate docs wording that still named
@@ -1353,10 +1360,9 @@ Latest full gate on May 17, 2026 after Review 231:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 231 Browser Router
-  disposal Effects, Resource UI Binding replay cleanup, React StrictMode
-  runtime/route scope Locality, manifest-owned source surfaces, and Collection
-  namespace pins.
+- The latest full `pnpm verify` passed after Review 232 Shared DB Query Stage Plan:
+  snapshot execution and Live Query Runtime now consume one compiled Query
+  Stage Plan for source roles, joins, grouping, filters, ordering, and windows.
   Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
   sweeps found Review191, Review192, Review193, Review194, Review195, and
   Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, Review208, Review209, Review210, Review211, Review212, and Review213 work.
@@ -1377,8 +1383,9 @@ Latest full gate on May 17, 2026 after Review 231:
   Review225 work, the post-Review225 sweep found Review226 work, the
   post-Review226 sweep found Review227 work, the post-Review227 sweep found
   Review228 work, the post-Review228 sweep found Review229 work, and the
-  post-Review229 sweep found Review230 work, and the post-Review230 sweep found
-  Review231 work, so the active counter is 0/30.
+  post-Review229 sweep found Review230 work, the post-Review230 sweep found
+  Review231 work, and the post-Review231 DB pass found Review232 Shared DB
+  Query Stage Plan work, so the active counter is 0/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
   Effect-first audit over 411 physical/virtual files, 53 root test files / 1146

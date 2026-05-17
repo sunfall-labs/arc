@@ -14,10 +14,10 @@ import {
   type PipedOperator,
   type RootStreamBuilder
 } from "@tanstack/db-ivm";
-import type { AnyCollection } from "./collection-contract.js";
 import {
   UnsupportedLiveQuery,
   compareValue,
+  compileQueryStagePlan,
   evaluateQueryGroupKey,
   evaluateQueryJoinKey,
   evaluateQueryOperation,
@@ -26,14 +26,12 @@ import {
   type AnyQueryAggregateRecord,
   type AnyQueryContext,
   type AnyQueryGrouping,
-  type QueryJoin,
   type QueryOrder,
-  type QueryProjectOptions
+  type QueryStagePlan
 } from "./query-plan.js";
 import {
   compareQueryOrderedContexts,
   projectQueryContexts,
-  validateQueryExecutionPlan,
   type QueryExecutionPlanBuilder
 } from "./query-execution-plan.js";
 import {
@@ -43,10 +41,7 @@ import {
   querySourceContext,
   type QueryContextIdentityRecord
 } from "./query-context-identity.js";
-import {
-  makeQuerySourceAdapter,
-  type QueryCollectionSourceAdapter
-} from "./query-source-adapter.js";
+import type { QueryCollectionSourceAdapter } from "./query-source-adapter.js";
 
 export type LiveQueryRuntimeBuilder<TContext extends AnyQueryContext, TResult> =
   QueryExecutionPlanBuilder<TContext, TResult>;
@@ -153,13 +148,15 @@ interface IvmOutputRow<TContext> {
 
 class IvmLiveQueryRuntime<TContext extends AnyQueryContext, TResult> implements LiveQueryRuntime<TResult> {
   readonly #graph = new D2();
+  readonly #stagePlan: QueryStagePlan<TContext>;
   readonly #sources: ReadonlyArray<IvmSource>;
   readonly #rows = new Map<string, { context: TContext; count: number; order: string | undefined }>();
 
   constructor(readonly builder: LiveQueryRuntimeBuilder<TContext, TResult>) {
-    this.#sources = builder.sources.map(([alias, collection]) => ({
-      alias,
-      source: makeQuerySourceAdapter(collection),
+    this.#stagePlan = compileQueryStagePlan(builder);
+    this.#sources = this.#stagePlan.sources.map((source) => ({
+      alias: source.alias,
+      source: source.adapter,
       input: this.#graph.newInput<KeyValue<string, IvmContext>>(),
       previous: new Map()
     }));
@@ -179,7 +176,7 @@ class IvmLiveQueryRuntime<TContext extends AnyQueryContext, TResult> implements 
 
     this.#graph.run();
     const rows = Array.from(this.#rows.values());
-    if (this.builder.orders.length > 0) {
+    if (this.#stagePlan.orders.length > 0) {
       rows.sort((left, right) => compareValue(left.order, right.order));
     }
 
@@ -188,18 +185,16 @@ class IvmLiveQueryRuntime<TContext extends AnyQueryContext, TResult> implements 
       rows.map((row) => row.context),
       {
         filter: false,
-        order: this.builder.orders.length === 0,
-        window: this.builder.orders.length === 0
+        order: this.#stagePlan.orders.length === 0,
+        window: this.#stagePlan.orders.length === 0,
+        stagePlan: this.#stagePlan
       }
     );
   }
 
   #compile(): void {
-    const joinAliases = new Set(this.builder.joins.map((join) => join.alias));
     const sourceByAlias = new Map(this.#sources.map((source) => [source.alias, source]));
-    const baseSources = this.builder.joins.length === 0
-      ? this.#sources
-      : this.#sources.filter((source) => !joinAliases.has(source.alias));
+    const baseSources = this.#stagePlan.baseSources.map((source) => sourceByAlias.get(source.alias));
     const first = baseSources[0];
     if (!first) {
       return;
@@ -207,6 +202,9 @@ class IvmLiveQueryRuntime<TContext extends AnyQueryContext, TResult> implements 
 
     let stream: IStreamBuilder<KeyValue<string, IvmContext>> = first.input;
     for (const source of baseSources.slice(1)) {
+      if (!source) {
+        continue;
+      }
       stream = stream.pipe(
         ivmInnerJoin(source.input),
         ivmMap(([_, pair]) => {
@@ -216,7 +214,7 @@ class IvmLiveQueryRuntime<TContext extends AnyQueryContext, TResult> implements 
       ) as IStreamBuilder<KeyValue<string, IvmContext>>;
     }
 
-    for (const join of this.builder.joins) {
+    for (const join of this.#stagePlan.joins) {
       const source = sourceByAlias.get(join.alias);
       if (!source) {
         throw new UnsupportedLiveQuery({ reason: `Join source "${join.alias}" is not registered.` });
@@ -249,8 +247,8 @@ class IvmLiveQueryRuntime<TContext extends AnyQueryContext, TResult> implements 
     }
 
     let resultStream: IStreamBuilder<KeyValue<string, TContext>>;
-    if (this.builder.grouping) {
-      const grouping = wrapIvmGrouping(this.builder.grouping as AnyQueryGrouping);
+    if (this.#stagePlan.grouping) {
+      const grouping = wrapIvmGrouping(this.#stagePlan.grouping as AnyQueryGrouping);
       resultStream = stream.pipe(
         ivmFilter(([_, context]) =>
           grouping.sourceFilters.every((filter) => filter(context))
@@ -258,7 +256,7 @@ class IvmLiveQueryRuntime<TContext extends AnyQueryContext, TResult> implements 
         ivmMap(([_, context]) => context as AnyQueryContext),
         ivmGroupBy(grouping.key, grouping.aggregates),
         ivmFilter(([_, group]) =>
-          this.builder.filters.every((filter) =>
+          this.#stagePlan.filters.every((filter) =>
             evaluateQueryOperation("filter", () => filter(group as TContext))
           )
         ),
@@ -269,7 +267,7 @@ class IvmLiveQueryRuntime<TContext extends AnyQueryContext, TResult> implements 
     } else {
       resultStream = stream.pipe(
         ivmFilter(([_, context]) =>
-          this.builder.filters.every((filter) =>
+          this.#stagePlan.filters.every((filter) =>
             evaluateQueryOperation("filter", () => filter(context as TContext))
           )
         ),
@@ -280,11 +278,11 @@ class IvmLiveQueryRuntime<TContext extends AnyQueryContext, TResult> implements 
     }
 
     let outputStream: IStreamBuilder<KeyValue<string, IvmOutputRow<TContext>>>;
-    if (this.builder.orders.length > 0) {
+    if (this.#stagePlan.orders.length > 0) {
       const orderOptions = {
-        comparator: compareIvmContexts(this.builder.orders) as (left: unknown, right: unknown) => number,
-        offset: this.builder.offsetCount,
-        ...(this.builder.limitCount === undefined ? {} : { limit: this.builder.limitCount })
+        comparator: compareIvmContexts(this.#stagePlan.orders) as (left: unknown, right: unknown) => number,
+        offset: this.#stagePlan.window.offset,
+        ...(this.#stagePlan.window.limit === undefined ? {} : { limit: this.#stagePlan.window.limit })
       };
       outputStream = resultStream.pipe(
         ivmOrderByWithFractionalIndex(
@@ -390,6 +388,5 @@ const mergeContexts = (left: IvmContext | null, right: IvmContext | null): IvmCo
 export const makeLiveQueryRuntime = <TContext extends AnyQueryContext, TResult>(
   builder: LiveQueryRuntimeBuilder<TContext, TResult>
 ): LiveQueryRuntime<TResult> => {
-  validateQueryExecutionPlan(builder);
   return new IvmLiveQueryRuntime(builder);
 };

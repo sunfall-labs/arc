@@ -3,9 +3,9 @@
 Last updated: 2026-05-17.
 
 Current release-tracking truth lives in `docs/architecture-deepening-review.md`
-and `docs/perfection-progress.md`. As of Review231, the latest full
+and `docs/perfection-progress.md`. As of Review232, the latest full
 `pnpm verify` gate passed with 53 root test files / 1146 tests, and the active
-Thirty-Sweep clean counter is 0/30 until a fresh post-Review231 sweep reports
+Thirty-Sweep clean counter is 0/30 until a fresh post-Review232 sweep reports
 no actionable findings.
 
 This historical audit checks release-tracking docs for claims that no longer match the
@@ -181,8 +181,10 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   Browser Router Effect-first disposal, Resource UI Binding cleanup replay,
   React StrictMode runtime/route scope Locality, React DB/Solid DB
   source-surface manifest ownership, and Collection namespace LSP pins. The
-  larger DB Query Stage Planning candidate remains explicitly queued for the
-  next deepening pass.
+  larger DB Query Stage Planning candidate was later fixed by Review232.
+- Review232 Shared DB Query Stage Plan refreshed current ledgers after the DB
+  pass introduced one compiled stage plan consumed by snapshot execution and
+  Live Query Runtime.
 - Review201 refreshed the current release ledgers after script command,
   Resource public-surface, React/Solid router LSP, DB erased-channel, and
   generated-starter README guardrail fixes; the historical enumeration above

@@ -815,10 +815,15 @@ Release decisions:
   query access remains `Query.*`, `Collection.liveQuery(...)`, and regular
   Collection read interfaces.
 - The internal Query Execution Plan Module owns query validation entrypoints,
-  source adapter selection, source preload/refetch, snapshot execution,
-  diagnostics, and projection stages shared by `Query.build(...).execute()`,
-  `Query.onceEffect(...)`, `Query.diagnostics(...)`, and live-query state.
-  It is not exported; public Query APIs stay unchanged.
+  compiled Query Stage Plan consumption, source adapter selection, source
+  preload/refetch, snapshot execution, diagnostics, and projection stages shared
+  by `Query.build(...).execute()`, `Query.onceEffect(...)`,
+  `Query.diagnostics(...)`, and live-query state. The internal Query Stage Plan
+  compiles source roles, base-source ordering, join sources, grouping, filters,
+  ordering, and window facts once so snapshot execution and Live Query Runtime
+  share stage policy. The internal Query Stage Plan is exported only for
+  sibling DB modules and is not re-exported from `@effect-ui/db`; public Query
+  APIs stay unchanged.
 - The internal Query Context Identity Module owns source alias/key identity,
   collection row delta identity, merged context identity, ordered tie-break
   identity, and IVM context metadata shared by Query Execution Plan and Live

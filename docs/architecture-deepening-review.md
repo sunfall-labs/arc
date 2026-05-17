@@ -11,11 +11,10 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review231, the post-Review230 sweep
-fixing Browser Router Effect-first disposal, replay-safe Resource UI Binding
-cleanup, React StrictMode-safe runtime/route scopes, required React DB and
-Solid DB source-surface manifest ownership, and Collection namespace public
-pins. The newest full verification checkpoint is Review231.
+The newest completed focused review is Review232 Shared DB Query Stage Plan,
+the post-Review231 DB pass that deepened the DB Query Stage Plan Module so
+snapshot execution and Live Query Runtime consume the same compiled stage
+facts. The newest full verification checkpoint is Review232.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -37,7 +36,8 @@ and the post-Review227 sweep found Review228 work,
 and the post-Review228 sweep found Review229 work,
 and the post-Review229 sweep found Review230 work,
 and the post-Review230 sweep found Review231 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review231
+and the post-Review231 DB pass found Review232 Shared DB Query Stage Plan work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review232
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -45,7 +45,8 @@ Review199, Review200, Review201, Review202, Review203, Review204, Review205,
 Review206, Review207, Review208, Review209, Review210, Review211, Review212,
 Review213, Review214, Review215, Review216, Review217, Review218, Review219,
 Review220, Review221, Review222, Review223, Review224, Review225,
-Review226, Review227, Review228, Review229, Review230, and Review231 work.
+Review226, Review227, Review228, Review229, Review230, Review231, and
+Review232 Shared DB Query Stage Plan work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -123,14 +124,42 @@ public seam work, and the post-Review229 sweep found Review230 Core/React/Solid
 Resource UI Binding, DB query/public-surface, and docs/LSP ownership work, and
 the post-Review230 sweep found Review231 Core/React/Solid browser-router,
 Resource UI Binding replay, React route-scope, and DB public source ownership
-work,
+work, and the post-Review231 DB pass found Review232 Shared DB Query Stage
+Plan work,
 so the counter remains 0/30.
+
+## Review 232: Shared DB Query Stage Plan
+
+Review232 fixed the DB Query Stage Planning candidate recorded by Review231.
+
+1. Query Stage Plan Locality
+   - Status: fixed.
+   - Files: `CONTEXT.md`, `docs/public-api-inventory.md`,
+     `packages/db/src/query-plan.ts`, `packages/db/src/query-execution-plan.ts`,
+     and `packages/db/src/live-query-runtime.ts`.
+   - Problem: snapshot query execution and Live Query Runtime independently
+     decided source roles, base-source ordering, join sources, grouping,
+     filters, ordering, and window facts.
+   - Fix: DB now compiles a `QueryStagePlan` from the fluent Query Builder.
+     Snapshot execution, projection, diagnostics, source preload/refetch, and
+     Live Query Runtime consume those stage facts instead of duplicating stage
+     decisions.
+   - Benefits: Query behavior has stronger Locality: adding a query stage or
+     changing a source/join/window policy now has one internal Interface before
+     it reaches either snapshot or live execution.
+
+Focused workspace evidence for this pass: DB typecheck, public type tests,
+public API audit, focused DB collection tests, focused live-query collection
+tests, and `git diff --check` passed before the full Review232 gate. Full
+`pnpm verify` passed after Review232 with 53 root test files / 1146 tests and
+the 411-file Effect-first audit. This sweep found work, so the active clean
+counter remains 0/30 until a fresh post-Review232 sweep is clean.
 
 ## Review 231: Replay-Safe UI Lifetimes And Source Ownership
 
 Review231 fixed the narrow actionable findings from the fresh post-Review230
-sweep and records one larger DB Query Stage Planning candidate for the next
-deepening pass.
+sweep and recorded one larger DB Query Stage Planning candidate, which
+Review232 later fixed.
 
 1. Browser Router Disposal Effect
    - Status: fixed.
@@ -205,7 +234,7 @@ deepening pass.
      actually compose with instead of only the top-level aliases.
 
 6. DB Query Stage Planning
-   - Status: queued for the next deepening pass.
+   - Status: fixed in Review232.
    - Files: `packages/db/src/query-plan.ts`,
      `packages/db/src/query-execution-plan.ts`, and
      `packages/db/src/live-query-runtime.ts`.
@@ -223,8 +252,9 @@ public type tests, public API audit, focused Core Browser Router and Resource
 UI Binding tests, focused React hook/router tests, and focused Solid
 hook/router tests passed before the full Review231 gate. Full `pnpm verify`
 passed after Review231 with 53 root test files / 1146 tests and the 411-file
-Effect-first audit. This sweep found work, so the active clean counter remains
-0/30 until a fresh post-Review231 sweep is clean.
+Effect-first audit. At the Review231 checkpoint the active clean counter
+remained 0/30, and the later post-Review231 DB pass found the Review232 Shared
+DB Query Stage Plan work.
 
 ## Review 230: Branded Builders And Effect-First UI Disposal
 
@@ -1931,9 +1961,10 @@ sweep found Review224 work, the post-Review224 sweep found Review225 work, the
 post-Review225 sweep found Review226 work, the post-Review226 sweep found
 Review227 work, the post-Review227 sweep found Review228 work, and the
 post-Review228 sweep found Review229 work, the post-Review229 sweep found
-Review230 work, and the post-Review230 sweep found Review231 work. The active
-counter is 0/30 until a fresh post-Review231 sweep
-reports no actionable findings.
+Review230 work, the post-Review230 sweep found Review231 work, and the
+post-Review231 DB pass found Review232 Shared DB Query Stage Plan work. The
+active counter is 0/30 until a fresh post-Review232 sweep reports no
+actionable findings.
 
 ## Review 208: Runtime Provider Observers, CLI Bin Execution, And Docs Drift
 

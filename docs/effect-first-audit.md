@@ -20,6 +20,9 @@ interruption.
 
 ## Current Sweep Results
 
+- Review232 Shared DB Query Stage Plan kept the DB fix Effect-first: the new
+  compiled Query Stage Plan centralizes synchronous query stage facts for
+  snapshot and live execution without adding Promise surfaces.
 - Review231 kept the post-Review230 fixes Effect-first: Browser Router Kernel
   and Host Controller now expose `disposeEffect()` for active preload teardown,
   Resource UI Binding replay cleanup stays inside controller disposal Effects,
@@ -664,7 +667,7 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 231 `pnpm verify` run recorded in
+- The current full gate is the Review 232 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
   over 411 files, 53 root test files / 1146 tests, package-level verifies,
@@ -1488,10 +1491,9 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The current full `pnpm verify` passed after Review 231 Browser Router
-  disposal Effects, Resource UI Binding replay cleanup, React StrictMode
-  runtime/route scope Locality, manifest-owned source surfaces, and Collection
-  namespace pins:
+- The current full `pnpm verify` passed after Review 232 Shared DB Query Stage Plan:
+  snapshot execution and Live Query Runtime now consume one compiled Query
+  Stage Plan for source roles, joins, grouping, filters, ordering, and windows:
   11 package builds, workspace
   typecheck, type tests, public API
   inventory audit, Effect-first audit over 411

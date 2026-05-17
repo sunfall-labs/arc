@@ -156,6 +156,42 @@ export interface QueryExecution<TContext> {
   readonly diagnostics: QueryPlanDiagnostics;
 }
 
+/** Source role selected by the compiled Query Stage Plan. */
+export type QueryStageSourceRole = "base" | "join";
+
+/** Source collection and adapter facts used by snapshot and live query stages. */
+export interface QueryStageSource {
+  readonly alias: string;
+  readonly collection: AnyCollection;
+  readonly adapter: QueryCollectionSourceAdapter;
+  readonly role: QueryStageSourceRole;
+}
+
+/** Window stage selected by the compiled Query Stage Plan. */
+export interface QueryStageWindow {
+  readonly offset: number;
+  readonly limit?: number;
+}
+
+/**
+ * Compiled Query stage facts shared by snapshot execution and Live Query Runtime.
+ *
+ * The builder remains the fluent public Interface. This internal plan owns the
+ * stage ordering facts so one-shot and live execution do not independently
+ * decide which sources are base sources, which sources are joins, and where
+ * filtering, ordering, grouping, and windowing belong.
+ */
+export interface QueryStagePlan<TContext extends AnyQueryContext> {
+  readonly sources: ReadonlyArray<QueryStageSource>;
+  readonly baseSources: ReadonlyArray<QueryStageSource>;
+  readonly sourceByAlias: ReadonlyMap<string, QueryStageSource>;
+  readonly joins: ReadonlyArray<QueryJoin>;
+  readonly grouping: AnyQueryGrouping | undefined;
+  readonly filters: ReadonlyArray<(row: TContext) => boolean>;
+  readonly orders: ReadonlyArray<QueryOrder<TContext>>;
+  readonly window: QueryStageWindow;
+}
+
 /**
  * Aggregate definition used by `Query.groupBy`.
  */
@@ -616,6 +652,34 @@ export const validateQueryPlan = <TContext extends AnyQueryContext>(
   }
 };
 
+/** Compiles validated Query builder facts into the shared snapshot/live stage plan. */
+export const compileQueryStagePlan = <TContext extends AnyQueryContext>(
+  builder: QueryPlanBuilder<TContext>
+): QueryStagePlan<TContext> => {
+  validateQueryPlan(builder);
+  const joinAliases = new Set(builder.joins.map((join) => join.alias));
+  const sources = builder.sources.map(([alias, collection]): QueryStageSource => ({
+    alias,
+    collection,
+    adapter: makeQuerySourceAdapter(collection),
+    role: joinAliases.has(alias) ? "join" : "base"
+  }));
+  const sourceByAlias = new Map(sources.map((source) => [source.alias, source]));
+  return {
+    sources,
+    baseSources: sources.filter((source) => source.role === "base"),
+    sourceByAlias,
+    joins: builder.joins,
+    grouping: builder.grouping,
+    filters: builder.filters,
+    orders: builder.orders,
+    window: {
+      offset: builder.offsetCount,
+      ...(builder.limitCount === undefined ? {} : { limit: builder.limitCount })
+    }
+  };
+};
+
 export const buildContexts = <TContext extends AnyQueryContext>(
   sources: ReadonlyArray<readonly [string, AnyCollection]>
 ): Array<TContext> => {
@@ -648,32 +712,61 @@ export const buildContexts = <TContext extends AnyQueryContext>(
   return contexts;
 };
 
+const buildStageSourceContexts = <TContext extends AnyQueryContext>(
+  sources: ReadonlyArray<QueryStageSource>
+): Array<TContext> => {
+  if (sources.length === 0) {
+    throw new UnsupportedLiveQuery({ reason: "Live queries require at least one source collection." });
+  }
+
+  const contexts: Array<TContext> = [];
+  const visit = (index: number, current: Record<string, unknown>): void => {
+    if (index >= sources.length) {
+      contexts.push({ ...current } as TContext);
+      return;
+    }
+
+    const source = sources[index];
+    if (!source) {
+      return;
+    }
+
+    for (const row of source.adapter.rows()) {
+      current[source.alias] = row;
+      visit(index + 1, current);
+    }
+    delete current[source.alias];
+  };
+
+  visit(0, {});
+  return contexts;
+};
+
 export const buildQueryContexts = <TContext extends AnyQueryContext>(
   builder: QueryPlanBuilder<TContext>
 ): Array<TContext> =>
   buildQueryExecution(builder).contexts;
 
-export const buildQueryExecution = <TContext extends AnyQueryContext>(
-  builder: QueryPlanBuilder<TContext>
+export const buildQueryExecutionFromStagePlan = <TContext extends AnyQueryContext>(
+  stagePlan: QueryStagePlan<TContext>
 ): QueryExecution<TContext> => {
-  validateQueryPlan(builder);
-  const joinAliases = new Set(builder.joins.map((join) => join.alias));
-  const baseSources = builder.sources.filter(([alias]) => !joinAliases.has(alias));
-  const sourceDiagnostics = builder.sources.map(([alias, collection]): QueryPlanSourceDiagnostics => {
-    const source = makeQuerySourceAdapter(collection);
+  const sourceDiagnostics = stagePlan.sources.map((source): QueryPlanSourceDiagnostics => {
     return {
-      alias,
-      collection: source.name,
-      rows: source.rowCount()
+      alias: source.alias,
+      collection: source.adapter.name,
+      rows: source.adapter.rowCount()
     };
   });
   const joins: Array<QueryPlanJoinDiagnostics> = [];
-  let contexts = buildContexts<AnyQueryContext>(baseSources);
+  let contexts = buildStageSourceContexts<AnyQueryContext>(stagePlan.baseSources);
 
-  for (const join of builder.joins) {
+  for (const join of stagePlan.joins) {
     const joined: Array<AnyQueryContext> = [];
     const leftRows = contexts.length;
-    const source = makeQuerySourceAdapter(join.collection);
+    const source = stagePlan.sourceByAlias.get(join.alias)?.adapter;
+    if (!source) {
+      throw new UnsupportedLiveQuery({ reason: `Join source "${join.alias}" is not registered.` });
+    }
     const rightRows = source.rowCount();
     for (const context of contexts) {
       const leftValue = evaluateQueryOperation("join", () => join.leftKey(context));
@@ -705,19 +798,19 @@ export const buildQueryExecution = <TContext extends AnyQueryContext>(
   }
 
   let resultContexts: Array<AnyQueryContext>;
-  if (builder.grouping) {
-    resultContexts = groupContexts(contexts, builder.grouping);
+  if (stagePlan.grouping !== undefined) {
+    resultContexts = groupContexts(contexts, stagePlan.grouping);
   } else {
     resultContexts = contexts;
   }
-  if (builder.orders.length > 0) {
+  if (stagePlan.orders.length > 0) {
     validateQueryOrderValues(
       resultContexts.filter((context) =>
-        builder.filters.every((filter) =>
+        stagePlan.filters.every((filter) =>
           evaluateQueryOperation("filter", () => filter(context as TContext))
         )
       ),
-      builder.orders
+      stagePlan.orders
     );
   }
 
@@ -726,15 +819,20 @@ export const buildQueryExecution = <TContext extends AnyQueryContext>(
     diagnostics: {
       sources: sourceDiagnostics,
       joins,
-      filters: builder.filters.length,
-      orders: builder.orders.length,
-      grouped: builder.grouping !== undefined,
-      offset: builder.offsetCount,
-      ...(builder.limitCount === undefined ? {} : { limit: builder.limitCount }),
+      filters: stagePlan.filters.length,
+      orders: stagePlan.orders.length,
+      grouped: stagePlan.grouping !== undefined,
+      offset: stagePlan.window.offset,
+      ...(stagePlan.window.limit === undefined ? {} : { limit: stagePlan.window.limit }),
       contextRows: resultContexts.length
     }
   };
 };
+
+export const buildQueryExecution = <TContext extends AnyQueryContext>(
+  builder: QueryPlanBuilder<TContext>
+): QueryExecution<TContext> =>
+  buildQueryExecutionFromStagePlan(compileQueryStagePlan(builder));
 
 export const groupContexts = (
   contexts: ReadonlyArray<AnyQueryContext>,
