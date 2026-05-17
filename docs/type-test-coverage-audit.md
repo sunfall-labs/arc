@@ -203,6 +203,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
   prerender hover-policy pins for exported prerender option, event, result,
   error, planning, and Effect runner declarations, while keeping lazy route
   Suspense runtime ownership behind Core's public `Route` namespace.
+- Review495 Resolved Callback And Payload Token Policy aligns
+  `ResolvedStartPrerenderOptions` callback returns with the public
+  `StartPrerenderOptions` Effect-returning callback Interface, keeping LSP
+  hover docs and normalized option types from implying dropped `void` work.
 - Review494 Effect Callback And Package Interface Policy widened Start prerender
   callback types to `EffectInput<void, unknown, never>` so public option types
   now describe returned Effect work as part of the Interface.

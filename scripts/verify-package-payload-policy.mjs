@@ -5,7 +5,10 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { Data, Effect } from "effect";
 import { runScriptMainEffect } from "./effect-main-runner.mjs";
-import { validateDistPackagePayloadEffect } from "./package-payload-policy.mjs";
+import {
+  legacyPackagePayloadTokenFailuresEffect,
+  validateDistPackagePayloadEffect,
+} from "./package-payload-policy.mjs";
 
 class PackagePayloadPolicySelfTestError extends Data.TaggedError(
   "PackagePayloadPolicySelfTestError",
@@ -195,11 +198,39 @@ const selfTest = Effect.gen(function* () {
   );
   yield* withTempPackageEffect(
     "legacy dist payload token",
-    { indexText: 'export { old } from "@effect-ui/core";\n' },
+    {
+      indexText: [
+        'export { old } from "@effect-ui/core";',
+        'export const virtualId = "virtual:effect-ui/start";',
+        'export const header = "x-effect-ui-action";',
+        'export const cacheDir = ".effect-ui-packages";',
+        'export const packageName = "effect-ui-starter-basic";',
+        'export const oldScope = "@sunfall-arc/core";',
+        "",
+      ].join("\n"),
+    },
     (directory) =>
       expectFailuresEffect("legacy dist payload token", validateEffect(directory), [
-        "legacy Effect UI payload tokens",
+        "legacy Effect UI rename tokens",
       ]),
+  );
+  yield* withTempPackageEffect("legacy source payload token", {}, (directory) =>
+    Effect.gen(function* () {
+      yield* writeTextEffect(
+        directory,
+        "src/source-package-entry.ts",
+        'export const oldVirtual = "virtual:effect-ui/source";\n',
+      );
+      yield* expectFailuresEffect(
+        "legacy source payload token",
+        legacyPackagePayloadTokenFailuresEffect({
+          target: makeTarget(directory),
+          files: ["src/source-package-entry.ts"],
+          workspaceRoot: directory,
+        }),
+        ["legacy Effect UI rename tokens"],
+      );
+    }),
   );
   yield* Effect.scoped(
     Effect.gen(function* () {

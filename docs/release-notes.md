@@ -87,14 +87,21 @@ Latest full gate on May 17, 2026 after Review 492:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 495 Resolved Callback And Payload Token Policy aligns resolved Start
+  prerender callback option types with the public Effect-returning callback
+  Interface, broadens package payload scanning for legacy Effect UI rename
+  tokens across dist and source-package dry-runs, updates workspace verification
+  labels for `@sunfall/arc-*`, and keeps current evidence policy conservative
+  for wrapped post-review waits. The active Thirty-Sweep clean counter remains
+  0/30 until a fresh post-Review495 sweep reports no actionable findings.
 - Review 494 Effect Callback And Package Interface Policy makes Start prerender
   callbacks Effect-first by executing returned Effects, preserving
   Promise-shaped rejection, and surfacing failed callback Effects as typed
   `callback` errors. Docs-site now imports Start Vite through
   `@sunfall/arc-start/vite`, and current evidence policy catches wrapped stale
-  post-review waits. The active Thirty-Sweep clean counter
-  remains 0/30 until a fresh post-Review494 sweep reports no actionable
-  findings.
+  post-review waits. The active Thirty-Sweep clean counter remained 0/30; the
+  later fresh post-Review494 sweep found Review495 resolved callback and
+  payload token policy work.
 - Review 493 Prerender Server Release And Current Evidence Policy makes Start
   prerender server release failures observable as typed `close-server` errors:
   websocket, hot-channel, and server close handles are all attempted, successful

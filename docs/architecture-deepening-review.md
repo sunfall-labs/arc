@@ -11,10 +11,11 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review494 Effect Callback And Package Interface
-Policy, the post-Review493 follow-up that lets Start prerender callbacks return
-Effects, pins docs-site to the package Start Vite Interface, and tightens stale
-post-review evidence policy.
+The newest focused review is Review495 Resolved Callback And Payload Token
+Policy, the post-Review494 follow-up that aligns resolved Start prerender
+callback options with Effect-returning public options, extends package payload
+rename-token scanning to source-package dry-runs, and fixes current evidence
+policy wrapping.
 The newest full verification checkpoint is Review492.
 Clean Sweep 1 after
 Review208 remains historical 1/30
@@ -55,9 +56,9 @@ and the fresh post-Review245 sweep found Review246 work,
 and the fresh post-Review246 sweep found Review247 work, the dirty-lane
 follow-up found Review490 work, the fresh post-Review490 sweep found
 Review491 work, the fresh post-Review491 sweep found Review492 work, the fresh
-post-Review492 sweep found Review493 work, and the fresh post-Review493 sweep
-found Review494 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review494
+post-Review492 sweep found Review493 work, the fresh post-Review493 sweep
+found Review494 work, and the fresh post-Review494 sweep found Review495 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review495
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -70,7 +71,8 @@ Review232 Shared DB Query Stage Plan work, Review233 work, Review234 work,
 Review235 work, Review236 work, Review237 work, Review238 work, Review239
 work, Review240 work, Review241 work, Review242 work, Review243 work,
 Review244 work, Review245 work, Review246 work, Review247 work, Review490
-work, Review491 work, Review492 work, Review493 work, and Review494 work.
+work, Review491 work, Review492 work, Review493 work, Review494 work, and
+Review495 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -182,7 +184,61 @@ and the fresh post-Review491 sweep found Review492 route Suspense runtime and
 prerender callback pin work,
 and the fresh post-Review492 sweep found Review493 prerender release and
 current evidence policy work,
+and the fresh post-Review493 sweep found Review494 Effect callback and package
+interface policy work,
+and the fresh post-Review494 sweep found Review495 resolved callback and
+payload token policy work,
 so the counter remains 0/30.
+
+## Review 495: Resolved Callback And Payload Token Policy
+
+Review495 fixes the actionable findings from the fresh post-Review494 subagent
+sweep.
+
+1. Resolved Start Prerender Callback Interface
+   - Status: fixed.
+   - Files: `packages/start/src/start-prerender.ts`.
+   - Problem: public Start prerender options accepted Effect-returning
+     callbacks, but the resolved options type still documented `void` callback
+     returns for LSP consumers reading the normalized Interface.
+   - Solution: `ResolvedStartPrerenderOptions.onSuccess` and
+     `ResolvedStartPrerenderOptions.onError` now return
+     `EffectInput<void, unknown, never>`.
+   - Benefits: public and resolved callback contracts describe the same
+     Effect-first work model.
+
+2. Package Payload Rename-Token Policy
+   - Status: fixed.
+   - Files: `scripts/package-payload-policy.mjs`,
+     `scripts/verify-package-dry-runs.mjs`, and
+     `scripts/verify-package-payload-policy.mjs`.
+   - Problem: the legacy rename-token guard covered dist payloads but not
+     source-package dry-runs, and its forbidden token set missed lower-case
+     package ids, virtual ids, headers, cache directories, and the stale
+     `@sunfall-arc` scope.
+   - Solution: the shared package payload policy now scans broader legacy rename
+     tokens, keeps dist artifact scanning on dist packages, and applies packed
+     text-file scanning to source packages during the dry-run gate.
+   - Benefits: generated and copyable payloads cannot quietly publish old Effect
+     UI naming or stale package scopes.
+
+3. Current Evidence And Workspace Verification Policy
+   - Status: fixed.
+   - Files: `docs/perfection-progress.md`, `docs/release-notes.md`,
+     `docs/docs-drift-audit.md`, `docs/effect-first-audit.md`,
+     `docs/type-test-coverage-audit.md`, `docs/ultimate-goal-checklist.md`,
+     `scripts/public-api-symbol-policy.mjs`,
+     `scripts/audit-public-api-inventory.mjs`, and
+     `scripts/workspace-verification-plan.mjs`.
+   - Problem: current docs still waited on the post-Review494 sweep after that
+     sweep found work; the stale wait self-test did not prove wrapped Markdown
+     waits were caught; workspace verification labels still stripped an obsolete
+     package scope.
+   - Solution: current ledgers now wait on a fresh post-Review495 sweep,
+     self-tests cover wrapped stale/current waits, and workspace verify labels
+     strip `@sunfall/arc-`.
+   - Benefits: evidence stays conservative, and package-level verification
+     names match the current Sunfall Arc package Interface.
 
 ## Review 494: Effect Callback And Package Interface Policy
 

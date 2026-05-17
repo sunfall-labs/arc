@@ -20,6 +20,11 @@ interruption.
 
 ## Current Sweep Results
 
+- Review495 Resolved Callback And Payload Token Policy keeps the post-Review494
+  fixes Effect-first: resolved Start prerender callbacks now expose returned
+  `EffectInput<void, unknown, never>` work for LSP parity, and package dry-runs
+  scan source-package text payloads for stale Promise-era Effect UI rename
+  tokens before copyable examples or starters can drift.
 - Review494 Effect Callback And Package Interface Policy keeps the post-Review493
   fixes Effect-first: Start prerender callbacks now execute returned Effects
   instead of dropping them, failed callback Effects surface as typed callback

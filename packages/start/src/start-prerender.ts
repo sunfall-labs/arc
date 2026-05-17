@@ -145,8 +145,8 @@ export interface ResolvedStartPrerenderOptions {
   readonly retryCount: number;
   readonly retryDelay: number;
   readonly failOnError: boolean;
-  readonly onSuccess?: (event: StartPrerenderSuccessEvent) => void;
-  readonly onError?: (event: StartPrerenderFailureEvent) => void;
+  readonly onSuccess?: (event: StartPrerenderSuccessEvent) => EffectInput<void, unknown, never>;
+  readonly onError?: (event: StartPrerenderFailureEvent) => EffectInput<void, unknown, never>;
 }
 
 /** Concrete page selected for a prerender run. */

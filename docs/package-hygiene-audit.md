@@ -155,6 +155,10 @@ exports. It supports the release-engineering charter workstream.
 - Review492 promotes that Review491 license-drift self-test to current docs
   policy, so future evidence updates must keep the package-local `LICENSE`
   mismatch rehearsal visible.
+- Review495 broadens package payload rename-token protection: dist packages
+  still scan built JS/declaration/source-map payloads, and source-package
+  dry-runs now scan packed text files for legacy Effect UI names, virtual ids,
+  headers, cache directories, and the obsolete `@sunfall-arc` scope.
 - The current full `pnpm verify` passed after Review492 with 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
   Effect-first audit over 449 files, 58 root test files / 1223 tests, derived

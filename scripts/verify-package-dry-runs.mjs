@@ -14,6 +14,7 @@ import { runScriptMainEffect } from "./effect-main-runner.mjs";
 import {
   isNonEmptyString,
   knownPayloadPolicies,
+  legacyPackagePayloadTokenFailuresEffect,
   validateDistPackagePayloadEffect,
   workspaceDistPackagePayloadPolicies,
 } from "./package-payload-policy.mjs";
@@ -705,6 +706,14 @@ const verifyPackageTarget = (target) =>
             workspaceRoot,
           })
         : [];
+    const legacyPackagePayloadTokenDrift =
+      target.payload === "source-package"
+        ? yield* legacyPackagePayloadTokenFailuresEffect({
+            target,
+            files,
+            workspaceRoot,
+          })
+        : [];
 
     if (target.requiresGitignore && !files.includes(".gitignore")) {
       return yield* Effect.fail(
@@ -743,6 +752,17 @@ const verifyPackageTarget = (target) =>
           [
             "Run a clean build or fix package.json exports/bin/main/types targets before packing framework packages.",
             ...distPackagePayloadDrift,
+          ].join(" "),
+        ),
+      );
+    }
+    if (legacyPackagePayloadTokenDrift.length > 0) {
+      return yield* Effect.fail(
+        fail(
+          `${target.label} package dry-run contains legacy rename tokens.`,
+          [
+            "Remove stale Effect UI rename tokens from packed package files.",
+            ...legacyPackagePayloadTokenDrift,
           ].join(" "),
         ),
       );

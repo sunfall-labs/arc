@@ -19,7 +19,7 @@ const packageVerifyLabelOverrides = new Map([
 
 const defaultVerifyLabel = (packageName) =>
   packageName
-    .replace(/^@sunfall-arc\//, "")
+    .replace(/^@sunfall\/arc-/, "")
     .replace(/^example-/, "")
     .replace(/^starter-/, "")
     .replace(/-/g, " ");
@@ -62,6 +62,12 @@ export const workspaceVerificationPlanSelfTestEffect = Effect.gen(function* () {
     },
     {
       packageJson: {
+        name: "@sunfall/arc-core",
+        scripts: { verify: "pnpm test" },
+      },
+    },
+    {
+      packageJson: {
         name: "@sunfall/arc-no-verify",
         scripts: { test: "vitest" },
       },
@@ -74,18 +80,19 @@ export const workspaceVerificationPlanSelfTestEffect = Effect.gen(function* () {
     },
   ]);
 
-  if (
-    selfTestTargets.length !== 1 ||
-    selfTestTargets[0]?.packageName !== "@sunfall/arc-example-devtools-panel"
-  ) {
+  if (selfTestTargets.length !== 2) {
     return yield* Effect.fail(
       fail(
-        "Workspace verification plan self-test did not select exactly the package with a verify script.",
+        "Workspace verification plan self-test did not select exactly the packages with verify scripts.",
         "Fix verifyPackageTargetsFromManifests before running workspace verification.",
       ),
     );
   }
-  if (selfTestTargets[0]?.label !== "devtools panel") {
+  const labels = new Map(selfTestTargets.map((target) => [target.packageName, target.label]));
+  if (
+    labels.get("@sunfall/arc-example-devtools-panel") !== "devtools panel" ||
+    labels.get("@sunfall/arc-core") !== "core"
+  ) {
     return yield* Effect.fail(
       fail(
         "Workspace verification plan self-test did not apply package labels.",

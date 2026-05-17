@@ -35,11 +35,18 @@ export const workspaceDistPackagePayloadPolicies = new Map([
 
 export const knownPayloadPolicies = new Set(["dist-package", "source-package"]);
 
-const forbiddenDistPayloadTokens = [
+const forbiddenLegacyPayloadTokens = [
   "@effect-ui",
   "Effect UI",
   "EffectUiRuntime",
   "AnyEffectUiRuntime",
+  "effect-ui",
+  "effect-ui-",
+  "virtual:effect-ui",
+  "x-effect-ui",
+  "x-effect-ui-",
+  ".effect-ui-packages",
+  "@sunfall-arc",
 ];
 
 const fail = (message, repair, cause) => new PackagePayloadPolicyError({ message, repair, cause });
@@ -317,18 +324,9 @@ export const declarationArtifactContentFailuresEffect = ({ target, workspaceRoot
     return failures;
   });
 
-export const legacyDistPayloadTokenFailuresEffect = ({ target, files, workspaceRoot }) =>
+const legacyPayloadTokenFailuresEffect = ({ target, files, workspaceRoot, textFiles }) =>
   Effect.gen(function* () {
     const failures = [];
-    const textFiles = files.filter(
-      (file) =>
-        file.startsWith("dist/") &&
-        (file.endsWith(".js") ||
-          file.endsWith(".d.ts") ||
-          file.endsWith(".js.map") ||
-          file.endsWith(".d.ts.map")),
-    );
-
     for (const file of textFiles) {
       const absolutePath = join(target.directory, file);
       if (!(yield* pathExistsEffect(workspaceRoot, absolutePath))) {
@@ -339,15 +337,50 @@ export const legacyDistPayloadTokenFailuresEffect = ({ target, files, workspaceR
         `read ${relative(workspaceRoot, absolutePath)}`,
         () => readFile(absolutePath, "utf8"),
       );
-      const found = forbiddenDistPayloadTokens.filter((token) => text.includes(token));
+      const found = forbiddenLegacyPayloadTokens.filter((token) => text.includes(token));
       if (found.length > 0) {
         failures.push(
-          `${target.label} package dry-run ${file} contains legacy Effect UI payload tokens: ${found.join(", ")}.`,
+          `${target.label} package dry-run ${file} contains legacy Effect UI rename tokens: ${found.join(", ")}.`,
         );
       }
     }
 
     return failures;
+  });
+
+export const legacyDistPayloadTokenFailuresEffect = ({ target, files, workspaceRoot }) =>
+  legacyPayloadTokenFailuresEffect({
+    target,
+    files,
+    workspaceRoot,
+    textFiles: files.filter(
+      (file) =>
+        file.startsWith("dist/") &&
+        (file.endsWith(".js") ||
+          file.endsWith(".d.ts") ||
+          file.endsWith(".js.map") ||
+          file.endsWith(".d.ts.map")),
+    ),
+  });
+
+export const legacyPackagePayloadTokenFailuresEffect = ({ target, files, workspaceRoot }) =>
+  legacyPayloadTokenFailuresEffect({
+    target,
+    files,
+    workspaceRoot,
+    textFiles: files.filter(
+      (file) =>
+        !file.endsWith(".map") &&
+        (file.endsWith(".js") ||
+          file.endsWith(".mjs") ||
+          file.endsWith(".cjs") ||
+          file.endsWith(".ts") ||
+          file.endsWith(".tsx") ||
+          file.endsWith(".d.ts") ||
+          file.endsWith(".json") ||
+          file.endsWith(".html") ||
+          file.endsWith(".md")),
+    ),
   });
 
 /**
