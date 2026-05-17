@@ -429,7 +429,9 @@ export const makeStartServerFunctionManifestEffect = (
 };
 
 /** Synchronously serializes the Start server-function manifest. */
-export const serializeStartServerFunctionManifest = (options: SunfallArcStartOptions = {}): string =>
+export const serializeStartServerFunctionManifest = (
+  options: SunfallArcStartOptions = {},
+): string =>
   Effect.runSync(
     Effect.map(makeStartServerFunctionManifestEffect(options), serializeServerFunctionManifest),
   );

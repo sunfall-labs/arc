@@ -6,7 +6,10 @@ import { projectConsoleStartOptions } from "./src/start-options.js";
 const fromRoot = (path: string): string => new URL(`../../${path}`, import.meta.url).pathname;
 
 export default defineConfig({
-  plugins: [...sunfallArcTsrx({ solid: { ssr: true } }), sunfallArcStart(projectConsoleStartOptions)],
+  plugins: [
+    ...sunfallArcTsrx({ solid: { ssr: true } }),
+    sunfallArcStart(projectConsoleStartOptions),
+  ],
   resolve: {
     alias: [
       { find: "@sunfall/arc-core", replacement: fromRoot("packages/core/src/index.ts") },

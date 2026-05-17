@@ -16,12 +16,15 @@ const sharedAlias = {
     "./packages/start/src/fetch-adapter.ts",
     import.meta.url,
   ).pathname,
-  "@sunfall/arc-start/node-adapter": new URL("./packages/start/src/node-adapter.ts", import.meta.url)
-    .pathname,
+  "@sunfall/arc-start/node-adapter": new URL(
+    "./packages/start/src/node-adapter.ts",
+    import.meta.url,
+  ).pathname,
   "@sunfall/arc-start": new URL("./packages/start/src/index.ts", import.meta.url).pathname,
   "@sunfall/arc-start-fetch": new URL("./packages/start-fetch/src/index.ts", import.meta.url)
     .pathname,
-  "@sunfall/arc-start-node": new URL("./packages/start-node/src/index.ts", import.meta.url).pathname,
+  "@sunfall/arc-start-node": new URL("./packages/start-node/src/index.ts", import.meta.url)
+    .pathname,
   "@sunfall/arc-devtools": new URL("./packages/devtools/src/index.ts", import.meta.url).pathname,
 };
 

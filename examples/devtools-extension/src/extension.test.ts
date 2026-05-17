@@ -184,7 +184,9 @@ describe("devtools extension example", () => {
           : panel,
       ),
     };
-    expect(normalizeSunfallArcDevtoolsBridgePayload({ panels: duplicateItemPanels })).toBeUndefined();
+    expect(
+      normalizeSunfallArcDevtoolsBridgePayload({ panels: duplicateItemPanels }),
+    ).toBeUndefined();
     expect(
       normalizeSunfallArcDevtoolsBridgePayload({
         panels,

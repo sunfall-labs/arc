@@ -1421,7 +1421,9 @@ describe("devtools invalidation plans", () => {
       ),
     };
     expect(isDevtoolsPanels(duplicateItemPanels)).toBe(false);
-    expect(normalizeSunfallArcDevtoolsBridgePayload({ panels: duplicateItemPanels })).toBeUndefined();
+    expect(
+      normalizeSunfallArcDevtoolsBridgePayload({ panels: duplicateItemPanels }),
+    ).toBeUndefined();
     let sourcePanelReads = 0;
     const lateThrowingPayload = {
       get panels(): unknown {

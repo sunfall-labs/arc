@@ -16,7 +16,9 @@ declare const chrome: ChromeDevtoolsPanelApi | undefined;
 export const sunfallArcDevtoolsPanelTitle = "Sunfall Arc";
 export const sunfallArcDevtoolsPanelPage = "panel.html";
 
-export const registerSunfallArcDevtoolsPanel = (api: ChromeDevtoolsPanelApi | undefined): boolean => {
+export const registerSunfallArcDevtoolsPanel = (
+  api: ChromeDevtoolsPanelApi | undefined,
+): boolean => {
   const createPanel = api?.devtools?.panels?.create;
   if (!createPanel) {
     return false;

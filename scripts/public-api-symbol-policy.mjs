@@ -1413,8 +1413,8 @@ export const namespaceBackedSurfaceModules = new Map([
 ]);
 
 export const currentDocsEvidencePolicy = {
-  latestFocusedReview: 510,
-  latestFocusedTitle: "Package Dry-Run Count Evidence",
+  latestFocusedReview: 511,
+  latestFocusedTitle: "Format Policy Drift",
   latestFullGateReview: 492,
   rootTestFiles: 58,
   rootTestCount: 1223,
@@ -1481,7 +1481,7 @@ export const currentDocsTextPolicies = [
       {
         name: "Architecture tip must record the current clean sweep",
         pattern: new RegExp(
-          `active\\s+Thirty-Sweep\\s+clean\\s+counter\\s+is ${activeCleanCounterPattern} after\\s+Clean\\s+Sweep\\s+7\\s+after\\s+Review${currentDocsEvidencePolicy.latestFocusedReview}`,
+          `active\\s+Thirty-Sweep\\s+clean\\s+counter\\s+holds\\s+at ${activeCleanCounterPattern} until\\s+the\\s+next\\s+no-actionable\\s+sweep`,
         ),
       },
     ],
@@ -1512,7 +1512,7 @@ export const currentDocsTextPolicies = [
       {
         name: "Perfection progress must record the current clean sweep",
         pattern: new RegExp(
-          `active\\s+Thirty-Sweep\\s+clean\\s+counter\\s+is ${activeCleanCounterPattern} after\\s+Clean\\s+Sweep\\s+7\\s+after\\s+Review${currentDocsEvidencePolicy.latestFocusedReview}`,
+          `active\\s+Thirty-Sweep\\s+clean\\s+counter\\s+holds\\s+at ${activeCleanCounterPattern} until\\s+the\\s+next\\s+no-actionable\\s+sweep`,
         ),
       },
     ],
@@ -1563,7 +1563,9 @@ export const currentDocsTextPolicies = [
       {
         name: "Release notes must record the current clean sweep",
         pattern: new RegExp(
-          `Clean Sweep 7 after Review${currentDocsEvidencePolicy.latestFocusedReview}\\s+found no actionable`,
+          `Review ${currentDocsEvidencePolicy.latestFocusedReview} ${spacedTextPattern(
+            currentDocsEvidencePolicy.latestFocusedTitle,
+          )}[\\s\\S]*?active\\s+Thirty-Sweep\\s+clean\\s+counter\\s+holds\\s+at ${activeCleanCounterPattern}`,
         ),
       },
     ],
@@ -1608,7 +1610,7 @@ export const currentDocsTextPolicies = [
       {
         name: "Docs drift audit must record the current clean sweep",
         pattern: new RegExp(
-          `counter is ${activeCleanCounterPattern} after Clean Sweep 7 after Review${currentDocsEvidencePolicy.latestFocusedReview}`,
+          `counter is ${activeCleanCounterPattern} after Review${currentDocsEvidencePolicy.latestFocusedReview}`,
         ),
       },
     ],
@@ -1737,7 +1739,7 @@ export const currentDocsTextPolicies = [
       {
         name: "Ultimate goal checklist must pin latest focused verification subsection",
         pattern: new RegExp(
-          `Latest focused verification recorded\\.[\\s\\S]*?Evidence: Review ${currentDocsEvidencePolicy.latestFocusedReview} records[\\s\\S]*?package dry-run count evidence`,
+          `Latest focused verification recorded\\.[\\s\\S]*?Evidence: Review ${currentDocsEvidencePolicy.latestFocusedReview} records[\\s\\S]*?format policy drift`,
         ),
       },
       {

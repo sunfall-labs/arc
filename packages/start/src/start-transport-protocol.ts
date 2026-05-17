@@ -110,7 +110,9 @@ export interface StartActionClientOptions<
    * Use this with `transportRuntime` when fetch transport services live in a
    * different Runtime Spine than application Resource/Collection state.
    */
-  readonly responseRuntime?: SunfallArcRuntime<any, RuntimeError> | AnySunfallArcRuntime<RuntimeError>;
+  readonly responseRuntime?:
+    | SunfallArcRuntime<any, RuntimeError>
+    | AnySunfallArcRuntime<RuntimeError>;
 }
 
 /** Extracts the input value type from a core `ActionDefinition`. */

@@ -11,10 +11,10 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review510 Package Dry-Run Count Evidence, the
-Clean-Sweep-2-after-Review509 follow-up that corrects the current
-`@sunfall/arc-db` package dry-run file count in release evidence. Clean Sweep 7
-after Review510 is the newest no-actionable sweep.
+The newest focused review is Review511 Format Policy Drift, the
+Clean-Sweep-8-after-Review510 follow-up that restores the workspace formatting
+policy Interface. Clean Sweep 7 after Review510 remains the newest
+no-actionable sweep.
 The newest full verification checkpoint is Review492.
 Clean Sweep 1 after
 Review208 remains historical 1/30
@@ -99,7 +99,10 @@ counter is 6/30 after Clean Sweep 6 after Review510, and the next fresh sweep
 found no actionable work across Core/React/Solid, DB/public API,
 Start/docs/package, and evidence lanes, creating Clean Sweep 7 after Review510,
 so the active Thirty-Sweep clean counter is 7/30 after Clean Sweep 7 after
-Review510. Clean Sweep 1 after
+Review510. The next Clean Sweep 8 candidate found Review511 format policy
+drift work. Because this was small mechanical gate hygiene, the active
+Thirty-Sweep clean counter holds at 7/30 until the next no-actionable sweep
+advances it. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
@@ -122,7 +125,8 @@ Clean Sweep 1 after Review510 and Clean Sweep 2 after Review510 found no
 actionable follow-up, and Clean Sweep 3 after Review510 found no actionable
 follow-up, Clean Sweep 4 after Review510 found no actionable follow-up, and
 Clean Sweep 5 after Review510, Clean Sweep 6 after Review510, and Clean Sweep
-7 after Review510 found no actionable follow-up.
+7 after Review510 found no actionable follow-up, and the next Clean Sweep 8
+candidate found Review511 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -465,6 +469,37 @@ focused Core/React/Solid tests, DB-family tests, DB-family typechecks, and
 At the Clean Sweep 7 after Review510 checkpoint, the Thirty-Sweep clean counter
 reached 7/30. The next sweep must still run; if it finds work, the counter
 resets to 0/30.
+
+## Review 511: Format Policy Drift
+
+Review511 fixes the actionable finding from the Clean Sweep 8 candidate after
+Review510. The DB-family and Start/docs/package lanes reported no actionable
+findings.
+
+1. Format Policy Drift
+   - Status: fixed.
+   - Files: `docs/competitiveness.md`,
+     `examples/devtools-extension/src/devtools.ts`,
+     `examples/devtools-extension/src/extension.test.ts`,
+     `examples/project-console/vite.config.ts`,
+     `examples/react-starter/package.json`,
+     `packages/core/src/request-context.ts`,
+     `packages/db/test/sync-adapter.test.ts`,
+     `packages/devtools/test/devtools.test.ts`,
+     `packages/start/src/app-graph.ts`, `packages/start/src/node-adapter.ts`,
+     `packages/start/src/start-host-runtime-runner.ts`,
+     `packages/start/src/start-manifest-wall.ts`,
+     `packages/start/src/start-transport-protocol.ts`,
+     `packages/start/test/route-code-splitting.test.ts`,
+     `type-tests/tsrx.test-d.ts`, and `vitest.config.ts`.
+   - Problem: the full workspace formatting gate failed across Core, Start,
+     DB tests, Devtools tests, examples, docs, public type tests, and Vitest
+     config. That weakened the shared formatting Interface and made unrelated
+     Modules inherit low-signal verification noise.
+   - Solution: apply the repository formatter across the drifted files and
+     rerun the full formatting policy.
+   - Benefits: the formatting Seam regains Locality and future architecture
+     sweeps can treat format failures as local to the changed Implementation.
 
 ## Review 509: Route Component Attachment Hover Docs
 

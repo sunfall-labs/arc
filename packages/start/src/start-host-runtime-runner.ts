@@ -1,4 +1,8 @@
-import { type AnySunfallArcRuntime, defaultRuntime, type SunfallArcRuntime } from "@sunfall/arc-core";
+import {
+  type AnySunfallArcRuntime,
+  defaultRuntime,
+  type SunfallArcRuntime,
+} from "@sunfall/arc-core";
 import { Effect, Fiber } from "effect";
 export { interruptStartHostFiberOnSignal } from "./start-abort-lifecycle.js";
 

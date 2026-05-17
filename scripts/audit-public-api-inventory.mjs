@@ -198,7 +198,7 @@ const assertCurrentDocsTextPolicySelfTest = () => {
       {
         name: "self-test current clean counter",
         pattern: new RegExp(
-          `${currentDocsEvidencePolicy.activeCleanCounter} after\\s+Clean Sweep 7 after Review${latestFocusedReview}`,
+          `${currentDocsEvidencePolicy.activeCleanCounter} after\\s+Review${latestFocusedReview}`,
         ),
       },
       {
@@ -223,9 +223,7 @@ const assertCurrentDocsTextPolicySelfTest = () => {
       },
       {
         name: "self-test stale clean counter",
-        pattern: new RegExp(
-          `${staleCleanCounter} after\\s+Clean Sweep 7 after Review${staleFocusedReview}`,
-        ),
+        pattern: new RegExp(`${staleCleanCounter} after\\s+Review${staleFocusedReview}`),
       },
       {
         name: "self-test stale effect-first file count",
@@ -235,7 +233,7 @@ const assertCurrentDocsTextPolicySelfTest = () => {
   };
   const staleFailures = currentDocsTextPolicyFailures(
     currentDocsSelfTestPolicy,
-    `Latest focused evidence: Review ${staleFocusedReview}; latest full gate is Review${staleFullGateReview}; ${staleRootTestFiles} root test files / ${staleRootTestCount} tests; Effect-first audit over ${staleEffectFirstFiles}; active counter ${staleCleanCounter} after\n  Clean Sweep 7 after Review${staleFocusedReview}.`,
+    `Latest focused evidence: Review ${staleFocusedReview}; latest full gate is Review${staleFullGateReview}; ${staleRootTestFiles} root test files / ${staleRootTestCount} tests; Effect-first audit over ${staleEffectFirstFiles}; active counter ${staleCleanCounter} after Review${staleFocusedReview}.`,
   );
   for (const expected of [
     "self-test stale focused review",
@@ -253,7 +251,7 @@ const assertCurrentDocsTextPolicySelfTest = () => {
 
   const currentFailures = currentDocsTextPolicyFailures(
     currentDocsSelfTestPolicy,
-    `Latest focused evidence: Review ${latestFocusedReview}; latest full gate is Review${latestFullGateReview}; ${currentDocsEvidencePolicy.rootTestFiles} root test files / ${currentDocsEvidencePolicy.rootTestCount} tests; Effect-first audit over ${currentDocsEvidencePolicy.effectFirstFiles}; active counter ${currentDocsEvidencePolicy.activeCleanCounter} after\n  Clean Sweep 7 after Review${latestFocusedReview}.`,
+    `Latest focused evidence: Review ${latestFocusedReview}; latest full gate is Review${latestFullGateReview}; ${currentDocsEvidencePolicy.rootTestFiles} root test files / ${currentDocsEvidencePolicy.rootTestCount} tests; Effect-first audit over ${currentDocsEvidencePolicy.effectFirstFiles}; active counter ${currentDocsEvidencePolicy.activeCleanCounter} after Review${latestFocusedReview}.`,
   );
   if (currentFailures.length > 0) {
     failSelfTest(
@@ -269,7 +267,7 @@ const assertCurrentDocsTextPolicySelfTest = () => {
   }
   const currentUltimateFailures = currentDocsTextPolicyFailures(
     ultimatePolicy,
-    `Latest focused evidence: Review ${latestFocusedReview}; Latest focused verification recorded.\n  - Evidence: Review ${latestFocusedReview} records package dry-run count evidence. Review${latestFullGateReview} records the\n    latest full gate, leaving the active counter at ${currentDocsEvidencePolicy.activeCleanCounter}.`,
+    `Latest focused evidence: Review ${latestFocusedReview}; Latest focused verification recorded.\n  - Evidence: Review ${latestFocusedReview} records format policy drift. Review${latestFullGateReview} records the\n    latest full gate, leaving the active counter at ${currentDocsEvidencePolicy.activeCleanCounter}.`,
   );
   if (currentUltimateFailures.length > 0) {
     failSelfTest(
@@ -278,7 +276,7 @@ const assertCurrentDocsTextPolicySelfTest = () => {
   }
   const staleUltimateFailures = currentDocsTextPolicyFailures(
     ultimatePolicy,
-    `Latest focused evidence: Review ${staleFocusedReview}; Latest focused verification recorded.\n  - Evidence: Review ${staleFocusedReview} records package dry-run count evidence. Review${staleFullGateReview} records the\n    latest full gate, leaving the active counter at ${staleCleanCounter}.`,
+    `Latest focused evidence: Review ${staleFocusedReview}; Latest focused verification recorded.\n  - Evidence: Review ${staleFocusedReview} records format policy drift. Review${staleFullGateReview} records the\n    latest full gate, leaving the active counter at ${staleCleanCounter}.`,
   );
   for (const expected of [
     "Ultimate goal checklist must name current latest focused evidence",

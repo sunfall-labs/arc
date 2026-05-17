@@ -1,5 +1,10 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
-import { defaultRuntime, toEffect, type EffectInput, type SunfallArcRuntime } from "@sunfall/arc-core";
+import {
+  defaultRuntime,
+  toEffect,
+  type EffectInput,
+  type SunfallArcRuntime,
+} from "@sunfall/arc-core";
 import { Cause, Effect, Scope } from "effect";
 import { StartRequestHandlerError } from "./start-request-handler-error.js";
 import {

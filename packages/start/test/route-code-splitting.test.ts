@@ -103,7 +103,9 @@ describe("Start route code splitting", () => {
       { root: "/workspace" },
     );
 
-    expect(transformed).toContain('import { Route as __SunfallArcRoute } from "@sunfall/arc-core";');
+    expect(transformed).toContain(
+      'import { Route as __SunfallArcRoute } from "@sunfall/arc-core";',
+    );
     expect(transformed).toContain('import { Effect as __SunfallArcEffect } from "effect";');
     expect(transformed).not.toContain('import { HomePage } from "../HomePage.js";');
     expect(transformed).toContain(

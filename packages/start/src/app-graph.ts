@@ -172,7 +172,8 @@ export type StartAppGraphResourceFamilyDiagnostics =
   import("@sunfall/arc-core").Resource.FamilyDiagnostics;
 
 /** Resource tag diagnostics included in the Start app graph. */
-export type StartAppGraphResourceTagDiagnostics = import("@sunfall/arc-core").Resource.TagDiagnostics;
+export type StartAppGraphResourceTagDiagnostics =
+  import("@sunfall/arc-core").Resource.TagDiagnostics;
 
 /**
  * Collection diagnostics included in the Start app graph.

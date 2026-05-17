@@ -1,4 +1,10 @@
-import { EffectInputCallbackError, Resource, Server, makeRuntime, toEffect } from "@sunfall/arc-core";
+import {
+  EffectInputCallbackError,
+  Resource,
+  Server,
+  makeRuntime,
+  toEffect,
+} from "@sunfall/arc-core";
 import { Collection } from "@sunfall/arc-db";
 import { Deferred, Effect, Exit, Fiber, Option, PubSub, Scope } from "effect";
 import { describe, expect, it, vi } from "vitest";

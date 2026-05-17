@@ -20,6 +20,9 @@ interruption.
 
 ## Current Sweep Results
 
+- Review511 Format Policy Drift is mechanical formatting work. It adds no
+  Promise surface, leaves Effect-first Interfaces unchanged, and keeps the
+  active clean counter at 7/30 until the next no-actionable sweep advances it.
 - Clean Sweep 7 after Review510 found no actionable Effect-first follow-up:
   Core/React/Solid, DB/React-DB/Solid-DB, Start/docs/package, generated
   artifacts, and evidence lanes preserved Effect-returning public Interfaces

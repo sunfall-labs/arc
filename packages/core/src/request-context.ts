@@ -85,7 +85,9 @@ export interface ResponseContext {
   ): Effect.Effect<void, ResponseCookieSerializationError>;
 }
 
-export const ResponseContext = Context.Service<ResponseContext>("@sunfall/arc-core/ResponseContext");
+export const ResponseContext = Context.Service<ResponseContext>(
+  "@sunfall/arc-core/ResponseContext",
+);
 
 const parseCookies = (header: string | null): ReadonlyMap<string, string> => {
   const cookies = new Map<string, string>();

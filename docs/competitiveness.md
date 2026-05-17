@@ -40,7 +40,7 @@ points show we are no longer merely experimental.
 
 ## How We Beat The Current Stack
 
-| Current tool category | Why teams use it                               | Sunfall Arc winning replacement                                                                                                                |
+| Current tool category | Why teams use it                               | Sunfall Arc winning replacement                                                                                                              |
 | --------------------- | ---------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
 | React state libraries | Local reactive values and derived state        | `Signal`, `Signal.derive`, scoped `watch`, and Effect `Stream` adapters with component-owned scopes                                          |
 | TanStack Query        | Async reads, stale data, retries, invalidation | `Resource.family`, Effect `Cache`, `Schedule`, semantic `Resource.tag`, invalidation plans, hydration, and resource event streams            |

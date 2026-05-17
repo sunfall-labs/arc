@@ -122,6 +122,13 @@ Latest full gate on May 17, 2026 after Review 492:
   generated-artifact, or docs-honesty work across Core/React/Solid, DB-family,
   Start/docs/package, and evidence lanes, moving the active Thirty-Sweep clean
   counter to 7/30.
+- Review 511 Format Policy Drift restores the full workspace formatting
+  Interface after the Clean Sweep 8 candidate found `pnpm format:check` drift
+  across docs, examples, Core, Start, DB/Devtools tests, public type tests, and
+  Vitest config. `pnpm format:check`, public type tests, public API inventory
+  audit, Effect-first audit, lint, and `git diff --check` passed, so the active
+  Thirty-Sweep clean counter holds at 7/30 until the next no-actionable sweep
+  advances it.
 - Review 510 Package Dry-Run Count Evidence updates the current release
   snapshot to match the 150-file `@sunfall/arc-db` package dry-run rehearsal.
   Clean Sweep 2 after Review509 found this docs-honesty drift, so the active
