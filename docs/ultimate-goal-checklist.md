@@ -649,10 +649,12 @@ Last evidence pass: May 17, 2026.
     adapter starter, and documents the generated project-console starter
     payload.
 - [x] New architectural decisions are recorded in docs or ADRs.
-  - Evidence: Review239 updated UI Lifecycle Callback Seam, Browser Router
-    Link Preloader, React Commit Scope Adapter, Solid Runtime Adapter, and
-    Collection Reactive Preload Controller vocabulary for main-runner,
-    defect-swallowing, and framework cleanup ownership; Review238 updated
+  - Evidence: Review241 recorded the current-evidence docs drift finding and
+    gate; Review240 updated cleanup, framework Suspense, Start tooling, DB,
+    and public API ownership evidence; Review239 updated UI Lifecycle Callback
+    Seam, Browser Router Link Preloader, React Commit Scope Adapter, Solid
+    Runtime Adapter, and Collection Reactive Preload Controller vocabulary for
+    main-runner, defect-swallowing, and framework cleanup ownership; Review238 updated
     Resource UI Binding Controller vocabulary for host setter defect swallowing
     and refreshed command-runner/CLI/LSP ledgers;
     Review237 updated Solid Route Render Scope Controller vocabulary
@@ -674,11 +676,13 @@ Last evidence pass: May 17, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 239 passed `pnpm verify:command-runner`,
-    `pnpm typecheck`, `pnpm typecheck:types`, `pnpm audit:public-api`,
-    `pnpm audit:effect-first` over 415 files, Start typecheck/build, focused
-    Core/DB/React/Solid tests 5 files / 240 tests, verify CLI help, Start CLI
-    help, `pnpm starter:package`, and `git diff --check`.
+  - Latest focused evidence: Review 241 passed the current-evidence stale-docs
+    grep, `pnpm audit:public-api`, `pnpm audit:effect-first` over 415 files,
+    `pnpm typecheck:types`, and `git diff --check`. Latest implementation
+    evidence remains Review 240, which passed focused framework/Core/Start/DB
+    tests, package typechecks, public API audit, Effect-first audit, command
+    runner policy, package payload policy, starter packaging, package dry-run
+    rehearsal, and full `pnpm verify`.
     Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
     sweeps found Review191, Review192, Review193, Review194, Review195, and
     Review196, Review197, Review198, Review199, Review200, Review201,
@@ -692,8 +696,10 @@ Last evidence pass: May 17, 2026.
     Pins work, Review235 Solid Route Render Scope Cleanup Sequencing work, and
     Review236 Solid Failed Render Cleanup Sequencing work, and Review237 Solid
     Initial Failed Render Cleanup Sequencing work, Review238 Tooling
-    Runner, Resource UI Observer, And Hover Cleanup work, and Review239 Main
-    Runner, UI Lifetime, And Public Hover Cleanup work.
+    Runner, Resource UI Observer, And Hover Cleanup work, Review239 Main
+    Runner, UI Lifetime, And Public Hover Cleanup work, Review240 Effect-First
+    Cleanup, Suspense, And Public API Pins work, and Review241 Current
+    Evidence Docs Drift work.
     Clean Sweep 1 after Review208 remains historical 1/30 evidence, but Clean
     Sweep 2 found Review209 work and the local post-Review209 pass found
     Review210 work; the first post-Review210 sweep found Review211 work, and
@@ -722,11 +728,14 @@ Last evidence pass: May 17, 2026.
     Review237 initial failed-render cleanup work, and the fresh post-Review237
     sweep found Review238 tooling, Resource UI cleanup, and LSP hover work,
     and the fresh post-Review238 sweep found Review239 main-runner, UI
-    lifetime, framework cleanup, and public hover work, leaving the active
-    counter at 0/30.
+    lifetime, framework cleanup, and public hover work, and the fresh
+    post-Review239 sweep found Review240 cleanup, framework, Start tooling,
+    DB, and public API ownership work, and the fresh post-Review240 sweep found
+    Review241 current-evidence docs drift work, leaving the active counter at
+    0/30.
     Latest full evidence:
-    `pnpm verify` ran after Review 239 with 53 root
-    test files / 1161
+    `pnpm verify` ran after Review 240 with 53 root
+    test files / 1170
     tests, plus 4 project-console test files / 27 tests in the package-level
     gate.
 - [x] Type tests pass after compile-time API changes.
@@ -867,30 +876,28 @@ Last evidence pass: May 17, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 239 main-runner, UI lifetime,
-    framework cleanup, and LSP hover work.
+  - Evidence: no new ADR required for the Review 241 current-evidence docs
+    drift gate or the Review 240 cleanup, framework Suspense, Start tooling,
+    DB, and public API ownership work.
     Future architecture sweeps remain tracked in
     `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
   - Evidence: root `pnpm verify` passed on May 17,
-    2026 after Review 239 Main Runner, UI Lifetime, And Public Hover
-    Cleanup:
+    2026 after Review 240 Effect-First Cleanup, Suspense, And Public API Pins:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
-    415 physical/virtual files, 53 root test files / 1161 tests,
+    415 physical/virtual files, 53 root test files / 1170 tests,
     package-level verifies for the devtools/starter/example packages,
     generated starter-suite packaging/verifies for basic/react/project-console
     at 20/25/31 app files,
     16-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 239 records `pnpm verify:command-runner`, `pnpm typecheck`,
-    `pnpm typecheck:types`, `pnpm audit:public-api`,
-    `pnpm audit:effect-first` over 415 files, Start typecheck/build, focused
-    Core/DB/React/Solid tests 5 files / 240 tests, verify CLI help, Start CLI
-    help, `pnpm starter:package`, `git diff --check`, and full `pnpm verify`
-    after closing the Review239 Main Runner, UI Lifetime, And Public Hover
-    Cleanup finding. Clean
+  - Evidence: Review 241 records the current-evidence stale-docs grep,
+    `pnpm audit:public-api`, `pnpm audit:effect-first` over 415 files,
+    `pnpm typecheck:types`, and `git diff --check` after closing the
+    current-evidence docs drift finding. Review240 records the latest full
+    implementation gate. Clean
     Sweep 1 after
     Review190 remains historical 1/30 evidence, but later sweeps found
     Review191, Review192, Review193, Review194, Review195, Review196,
@@ -905,8 +912,10 @@ Last evidence pass: May 17, 2026.
     Review235 Solid Route Render Scope Cleanup Sequencing work, and Review236
     Solid Failed Render Cleanup Sequencing work, and Review237 Solid Initial
     Failed Render Cleanup Sequencing work, Review238 Tooling Runner,
-    Resource UI Observer, And Hover Cleanup work, and Review239 Main Runner,
-    UI Lifetime, And Public Hover Cleanup work.
+    Resource UI Observer, And Hover Cleanup work, Review239 Main Runner,
+    UI Lifetime, And Public Hover Cleanup work, Review240 Effect-First
+    Cleanup, Suspense, And Public API Pins work, and Review241 Current
+    Evidence Docs Drift work.
     Clean
     Sweep 1 after Review208 remains historical 1/30 evidence, but Clean Sweep
     2 found Review209 work and the local post-Review209 pass found Review210
@@ -935,7 +944,10 @@ Last evidence pass: May 17, 2026.
     Review237 initial failed-render cleanup work, the fresh post-Review237
     sweep found Review238 tooling, Resource UI cleanup, and LSP hover work,
     and the fresh post-Review238 sweep found Review239 main-runner, UI
-    lifetime, framework cleanup, and public hover work,
+    lifetime, framework cleanup, and public hover work, and the fresh
+    post-Review239 sweep found Review240 cleanup, framework, Start tooling,
+    DB, and public API ownership work, and the fresh post-Review240 sweep found
+    Review241 current-evidence docs drift work,
     leaving the active counter at 0/30.
     Full verification is recorded in the latest full gate above.
 

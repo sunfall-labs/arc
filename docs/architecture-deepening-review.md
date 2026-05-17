@@ -11,12 +11,10 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review240 Effect-First Cleanup, Suspense, And
-Public API Pins, the fresh post-Review239 sweep that tightened best-effort
-cleanup defects, Start CLI/response lifetime tooling, framework Suspense and
-Solid Resource preload seams, DB sync/materialization locality, and dotted
-namespace public API type-test ownership. The newest full verification
-checkpoint is also Review240.
+The newest focused review is Review241 Current Evidence Docs Drift, the fresh
+post-Review240 sweep that refreshed current-facing release evidence docs and
+added a docs-text policy so stale "latest/current Review239" claims fail the
+public API audit. The newest full verification checkpoint remains Review240.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -47,7 +45,8 @@ and the fresh post-Review236 framework follow-up found Review237 work,
 and the fresh post-Review237 sweep found Review238 work,
 and the fresh post-Review238 sweep found Review239 work,
 and the fresh post-Review239 sweep found Review240 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review240
+and the fresh post-Review240 sweep found Review241 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review241
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -58,7 +57,7 @@ Review220, Review221, Review222, Review223, Review224, Review225,
 Review226, Review227, Review228, Review229, Review230, Review231, and
 Review232 Shared DB Query Stage Plan work, Review233 work, Review234 work,
 Review235 work, Review236 work, Review237 work, Review238 work, Review239
-work, and Review240 work.
+work, Review240 work, and Review241 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -148,7 +147,39 @@ Resource UI cleanup, and LSP hover work, and the fresh post-Review238 sweep
 found Review239 main-runner, UI lifetime, framework cleanup, and public hover
 work, and the fresh post-Review239 sweep found Review240 cleanup, framework,
 Start tooling, DB, and public API ownership work,
+and the fresh post-Review240 sweep found Review241 current-evidence docs drift
+work,
 so the counter remains 0/30.
+
+## Review 241: Current Evidence Docs Drift
+
+Review241 fixes the actionable docs evidence finding from the fresh
+post-Review240 sweep.
+
+1. Current Evidence Docs Drift
+   - Status: fixed.
+   - Files: `docs/architecture-deepening-review.md`,
+     `docs/docs-drift-audit.md`, `docs/effect-first-audit.md`,
+     `docs/package-hygiene-audit.md`, `docs/perfection-progress.md`,
+     `docs/release-notes.md`, `docs/sharp-cast-audit.md`,
+     `docs/type-test-coverage-audit.md`, `docs/ultimate-goal-checklist.md`,
+     and `scripts/public-api-symbol-policy.mjs`.
+   - Problem: the docs evidence Module had weak Locality. The architecture tip
+     correctly named Review240 as the latest focused and full verification
+     checkpoint, but several current-facing release docs still exposed
+     Review239, 1161 tests, and a pending post-Review239 clean sweep as the
+     active state.
+   - Fix: refreshed current release evidence to name the Review240 full gate,
+     made Review239 references explicitly historical, recorded the
+     post-Review240 Review241 finding, and added current-docs text policies
+     that fail on stale "latest/current Review239" claims.
+   - Benefits: release evidence now has better Depth and Locality. Maintainers
+     and agents can trust one current evidence Interface instead of reconciling
+     multiple ledgers by hand.
+
+Focused verification for this pass: the stale current-evidence grep,
+`pnpm audit:public-api`, `pnpm audit:effect-first`, `pnpm typecheck:types`,
+and `git diff --check` passed.
 
 ## Review 240: Effect-First Cleanup, Suspense, And Public API Pins
 

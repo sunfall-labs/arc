@@ -137,16 +137,19 @@ exports. It supports the release-engineering charter workstream.
   all 16 package payloads: 11 framework dist packages, 19 basic starter files,
   24 React starter files, 30 project-console files, 10 devtools panel files,
   and 15 devtools extension files.
-- The current full `pnpm verify` passed after Review239 with 11 package builds,
+- The current full `pnpm verify` passed after Review240 with 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 415 files, 53 root test files / 1161 tests, derived
+  Effect-first audit over 415 files, 53 root test files / 1170 tests, derived
   package-level verifies for the five copyable source packages, generated
   starter packaging at 20/25/31 app files, and the 16-target dry-run gate.
   Review220 also records
   that generated starter packaging and package dry-runs share the same tested
-  dist package payload policy Interface. Review239 moved package/starter
-  scripts to the signal-aware Effect main-runner seam, packaged local runners
-  with copyable starters, and refreshed the Effect-first audit to 415 files.
+  dist package payload policy Interface. Review240 preserved that package
+  hygiene gate while adding symlinked Start CLI invalid-subcommand rehearsal,
+  command-runner signal formatting coverage, and starter shared-script
+  ownership checks. Review239 moved package/starter scripts to the
+  signal-aware Effect main-runner seam, packaged local runners with copyable
+  starters, and refreshed the Effect-first audit to 415 files.
   Review179
   remains the focused package-hygiene evidence for concrete source-map artifact
   validation and source-package verify-script enforcement.

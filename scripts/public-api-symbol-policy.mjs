@@ -1458,5 +1458,117 @@ export const currentDocsTextPolicies = [
         pattern: /wiring CLI subcommands or impact relations/
       }
     ]
+  },
+  {
+    file: "docs/perfection-progress.md",
+    banned: [
+      {
+        name: "Perfection progress must not call Review239 the latest focused review",
+        pattern: /latest focused Review239/
+      },
+      {
+        name: "Perfection progress must not call Review239 the latest full verification gate",
+        pattern: /latest full verification gate is green after Review239/
+      },
+      {
+        name: "Perfection progress must not wait on a post-Review239 clean sweep",
+        pattern: /fresh post-Review239 sweep is clean/
+      }
+    ]
+  },
+  {
+    file: "docs/release-notes.md",
+    banned: [
+      {
+        name: "Release notes must not call Review239 the latest full gate",
+        pattern: /Latest full gate on May 17, 2026 after Review 239/
+      },
+      {
+        name: "Release notes must not call Review239 the latest full verify",
+        pattern: /latest full `pnpm verify` passed after Review 239/
+      },
+      {
+        name: "Release notes must not wait on a post-Review239 clean sweep",
+        pattern: /fresh post-Review239 sweep (?:is clean|reports no actionable findings)/
+      }
+    ]
+  },
+  {
+    file: "docs/docs-drift-audit.md",
+    banned: [
+      {
+        name: "Docs drift audit must not call Review239 the current release-tracking truth",
+        pattern: /As of Review239, the latest full/
+      },
+      {
+        name: "Docs drift audit must not wait on a post-Review239 clean sweep",
+        pattern: /fresh post-Review239 sweep reports no actionable findings/
+      }
+    ]
+  },
+  {
+    file: "docs/type-test-coverage-audit.md",
+    banned: [
+      {
+        name: "Type-test audit must not use Review239 as current verification evidence",
+        pattern: /full `pnpm verify` passed\s+after Review239 with/
+      }
+    ]
+  },
+  {
+    file: "docs/effect-first-audit.md",
+    banned: [
+      {
+        name: "Effect-first audit must not call Review239 the current full gate",
+        pattern: /current full (?:gate is the|`pnpm verify` passed after) Review ?239/
+      },
+      {
+        name: "Effect-first audit must not keep Review239 root-test count as current evidence",
+        pattern: /53 root test files \/ 1161 tests/
+      }
+    ]
+  },
+  {
+    file: "docs/package-hygiene-audit.md",
+    banned: [
+      {
+        name: "Package hygiene audit must not call Review239 the current full gate",
+        pattern: /current full `pnpm verify` passed after Review239/
+      },
+      {
+        name: "Package hygiene audit must not keep Review239 root-test count as current evidence",
+        pattern: /53 root test files \/ 1161 tests/
+      }
+    ]
+  },
+  {
+    file: "docs/sharp-cast-audit.md",
+    banned: [
+      {
+        name: "Sharp cast audit must not call Review239 the current verification gate",
+        pattern: /current full verification gate is recorded in the Review 239/
+      },
+      {
+        name: "Sharp cast audit must not keep Review239 root-test count as current evidence",
+        pattern: /53 root test files \/ 1161 tests/
+      }
+    ]
+  },
+  {
+    file: "docs/ultimate-goal-checklist.md",
+    banned: [
+      {
+        name: "Ultimate goal checklist must not call Review239 latest focused evidence",
+        pattern: /Latest focused evidence: Review 239/
+      },
+      {
+        name: "Ultimate goal checklist must not call Review239 latest full evidence",
+        pattern: /`pnpm verify` ran after Review 239/
+      },
+      {
+        name: "Ultimate goal checklist must not keep Review239 root-test count as current evidence",
+        pattern: /53 root\s+test files \/ 1161/
+      }
+    ]
   }
 ];

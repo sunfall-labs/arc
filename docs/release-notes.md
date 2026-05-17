@@ -65,14 +65,14 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 17, 2026 after Review 239:
+Latest full gate on May 17, 2026 after Review 240:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
 - Effect-first audit over 415 package/example/config/script/type-test/generated
   template/docs-snippet physical and virtual files;
-- 53 root test files / 1161 tests;
+- 53 root test files / 1170 tests;
 - package-level verifies for the devtools panel, devtools extension, basic
   starter, React starter, and project console packages;
 - starter-suite packaging for basic (20 app files / 5 local packages), React
@@ -86,6 +86,19 @@ Latest full gate on May 17, 2026 after Review 239:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 241 Current Evidence Docs Drift closed the post-Review240 docs
+  evidence finding: current-facing release docs now name the Review240 full
+  verification gate, and the public API audit rejects stale "latest/current
+  Review239" wording. The active Thirty-Sweep clean counter remains 0/30 until
+  a fresh post-Review241 sweep is clean.
+- Review 240 Effect-First Cleanup, Suspense, And Public API Pins closed the
+  post-Review239 sweep: best-effort cleanup catches full Causes, Start
+  CLI/streaming response/command-runner/starter script ownership is
+  signal-aware and Effect-first, React/Solid route Suspense and Solid Resource
+  preload behavior are pinned, Core preload defects and DB sync/materialization
+  edges have regressions, and dotted namespace public API type-test references
+  are audited. The active Thirty-Sweep clean counter remained 0/30; the later
+  post-Review240 sweep found Review241 current-evidence docs drift.
 - Review 239 Main Runner, UI Lifetime, And Public Hover Cleanup closed the
   post-Review238 sweep: script and CLI entrypoints use signal-aware Effect v4
   main runners instead of top-level `Effect.runPromise(...)`, copyable starter
@@ -93,8 +106,9 @@ Latest full gate on May 17, 2026 after Review 239:
   full Causes, React route render finalizers are replaced at layout commit,
   Solid non-browser router cleanup disposes programmatic preload work, and
   DB/Start hovers pin the newly found public surfaces. The active
-  Thirty-Sweep clean counter remains 0/30 until a fresh post-Review239 sweep is
-  clean.
+  Thirty-Sweep clean counter remained 0/30; the later post-Review239 sweep
+  found Review240 cleanup, framework, Start tooling, DB, and public API
+  ownership work.
 - Review 237 Solid Initial Failed Render Cleanup Sequencing closed the
   post-Review236 framework follow-up: initial failed Solid route renders now
   enter the controller disposal chain before replacement renderers can run. The
@@ -474,10 +488,12 @@ Latest full gate on May 17, 2026 after Review 239:
   initial failed-render cleanup work, and the fresh post-Review237 sweep found
   Review238 tooling, Resource UI cleanup, and LSP hover work, and the fresh
   post-Review238 sweep found Review239 main-runner, UI lifetime, framework
-  cleanup, and public hover work.
-  The active Thirty-Sweep clean counter is 0/30 until a fresh post-Review239
-  sweep reports no
-  actionable findings.
+  cleanup, and public hover work, the fresh post-Review239 sweep found
+  Review240 cleanup, framework, Start tooling, DB, and public API ownership
+  work, and the fresh post-Review240 sweep found Review241 current-evidence
+  docs drift work.
+  The active Thirty-Sweep clean counter is 0/30 until a fresh post-Review241
+  sweep reports no actionable findings.
 - Review 192 refreshed stale current-gate docs wording that still named
   Review190 or active 1/30 progress after Review191.
 - Review 190 tightened `Server.fn(...)` so union-shaped Promise handler returns
@@ -1416,10 +1432,11 @@ Latest full gate on May 17, 2026 after Review 239:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 239 Main Runner, UI
-  Lifetime, And Public Hover Cleanup: script/CLI main runners, command-runner
-  process ownership, UI lifetime cleanup, framework cleanup, and LSP hovers now
-  match the Effect-first ownership model.
+- The latest full `pnpm verify` passed after Review 240 Effect-First Cleanup,
+  Suspense, And Public API Pins: best-effort cleanup, Start CLI/response
+  lifetime tooling, command-runner/starter scripts, framework Suspense and
+  Solid Resource preload seams, DB sync/materialization locality, and dotted
+  namespace public API ownership now match the Effect-first ownership model.
   Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
   sweeps found Review191, Review192, Review193, Review194, Review195, and
   Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, Review208, Review209, Review210, Review211, Review212, and Review213 work.
@@ -1451,11 +1468,13 @@ Latest full gate on May 17, 2026 after Review 239:
   follow-up found Review237 initial failed-render cleanup work, and the fresh
   post-Review237 sweep found Review238 tooling, Resource UI cleanup, and LSP
   hover work, and the fresh post-Review238 sweep found Review239 main-runner,
-  UI lifetime, framework cleanup, and public hover work, so the active counter
-  is 0/30.
+  UI lifetime, framework cleanup, and public hover work, and the fresh
+  post-Review239 sweep found Review240 cleanup, framework, Start tooling, DB,
+  and public API ownership work, and the fresh post-Review240 sweep found
+  Review241 current-evidence docs drift work, so the active counter is 0/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 415 physical/virtual files, 53 root test files / 1161
+  Effect-first audit over 415 physical/virtual files, 53 root test files / 1170
   tests, package-level verifies for the devtools/starter/example packages,
   generated starter-suite packaging/verifies for basic/react/project-console at
   20/25/31 app files,

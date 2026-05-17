@@ -20,6 +20,15 @@ interruption.
 
 ## Current Sweep Results
 
+- Review241 Current Evidence Docs Drift changed release evidence docs and the
+  current-docs text policy only; it added no Promise-shaped library API and
+  kept the Effect-first audit green over 415 files.
+- Review240 Effect-First Cleanup, Suspense, And Public API Pins kept the
+  post-Review239 fixes Effect-first: best-effort cleanup catches full Causes,
+  Start CLI/streaming response/command-runner/starter script lifetime is
+  modeled with Effect v4 fibers, React/Solid route Suspense remains isolated at
+  host Adapter seams, Solid Resource preload reactivity uses runtime-bound
+  Effects, and DB sync/materialization regressions add no Promise APIs.
 - Review239 Main Runner, UI Lifetime, And Public Hover Cleanup kept the
   post-Review238 fixes Effect-first: script and CLI entrypoints now use
   `Runtime.makeRunMain(...)` signal-aware main fibers instead of top-level
@@ -708,10 +717,10 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 239 `pnpm verify` run recorded in
+- The current full gate is the Review 240 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
-  over 415 files, 53 root test files / 1161 tests, package-level verifies,
+  over 415 files, 53 root test files / 1170 tests, package-level verifies,
   generated starter packaging, 16-target package dry-run gate, project-console
   checks, and leak scans. Review 185 remains historical focused evidence for
   the starter catalog typed-error seam, and Review 165 remains historical
@@ -1532,15 +1541,16 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The current full `pnpm verify` passed after Review 239 Main Runner, UI
-  Lifetime, And Public Hover Cleanup: script/CLI main runners,
-  command-runner process ownership, UI lifetime cleanup, framework cleanup, and
-  hover docs stay Effect-first without adding Promise APIs:
+- The current full `pnpm verify` passed after Review 240 Effect-First Cleanup,
+  Suspense, And Public API Pins: best-effort cleanup, Start CLI/response
+  lifetime tooling, command-runner/starter scripts, framework Suspense and
+  Solid Resource preload seams, DB sync/materialization locality, and dotted
+  namespace public API ownership stay Effect-first without adding Promise APIs:
   11 package builds, workspace
   typecheck, type tests, public API
   inventory audit, Effect-first audit over 415
   package/example/config/script/type-test/generated/docs files, 53 root test
-  files / 1161 tests, package-level verifies for copyable/source packages,
+  files / 1170 tests, package-level verifies for copyable/source packages,
   generated starter-suite packaging/verifies for basic/react/project-console at
   20/25/31 app files with 5/4/6 local packages,
   16-target package dry-run gate, project-console typecheck, 4 project-console

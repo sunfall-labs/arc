@@ -3,10 +3,11 @@
 Last updated: 2026-05-17.
 
 Current release-tracking truth lives in `docs/architecture-deepening-review.md`
-and `docs/perfection-progress.md`. As of Review239, the latest full
-`pnpm verify` gate passed with 53 root test files / 1161 tests, the
-Effect-first audit covers 415 files, and the active Thirty-Sweep clean counter
-is 0/30 until a fresh post-Review239 sweep reports no actionable findings.
+and `docs/perfection-progress.md`. As of Review241, the latest full
+`pnpm verify` gate is the Review240 run with 53 root test files / 1170 tests,
+the Effect-first audit covers 415 files, and the active Thirty-Sweep clean
+counter is 0/30 until a fresh post-Review241 sweep reports no actionable
+findings.
 
 This historical audit checks release-tracking docs for claims that no longer match the
 implementation after the request trace, Effect-first, typed-error, package
@@ -209,6 +210,15 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   current ledgers after the post-Review238 sweep found script main-runner,
   UI lifetime cleanup, React/Solid framework cleanup, and DB/Start public
   hover work, then recorded the full Review239 verification gate.
+- Review240 Effect-First Cleanup, Suspense, And Public API Pins refreshed
+  current ledgers after the post-Review239 sweep found best-effort cleanup,
+  Start CLI/response lifetime tooling, framework Suspense and Solid Resource
+  preload work, DB sync/materialization locality, and dotted namespace public
+  API type-test ownership.
+- Review241 Current Evidence Docs Drift refreshed current-facing release docs
+  after the post-Review240 sweep found stale Review239 latest/full-gate
+  wording, and added public API audit policies that reject stale
+  "latest/current Review239" claims.
 - Review201 refreshed the current release ledgers after script command,
   Resource public-surface, React/Solid router LSP, DB erased-channel, and
   generated-starter README guardrail fixes; the historical enumeration above

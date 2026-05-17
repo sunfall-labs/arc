@@ -170,6 +170,12 @@ are easiest to regress while refactoring internals toward Effect primitives.
   Collection runtime facade operations. Runtime/UI lifecycle changes remain
   package-local and are covered by focused tests. It moved the current full
   verification evidence to the Review239 gate.
+- Review240 Effect-First Cleanup, Suspense, And Public API Pins taught the
+  public API inventory audit to require dotted namespace references in
+  type-test bindings, then pinned `Collection.validateHydrationPayloadEffect`,
+  `Query.diagnostics`, and `SQLitePersistence.storage` so namespace-backed
+  public surfaces cannot be satisfied by shallow top-level imports alone. It
+  moved the current full verification evidence to the Review240 gate.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them
@@ -289,9 +295,14 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Verification Evidence
 
-- `pnpm typecheck:types` passed after Review239, and full `pnpm verify` passed
-  after Review239 with
-  53 root test files / 1161 tests, including Resource UI observer-defect
+- `pnpm typecheck:types` passed after Review240, and full `pnpm verify` passed
+  after Review240 with
+  53 root test files / 1170 tests, including dotted namespace public API
+  type-test ownership for `Collection.validateHydrationPayloadEffect`,
+  `Query.diagnostics`, and `SQLitePersistence.storage`, DB query-sync and live
+  query materialization regressions, Solid Resource preload option reactivity,
+  React/Solid route Suspense ownership, Start streaming response lifetime
+  cleanup, command-runner policy coverage, Resource UI observer-defect
   cleanup coverage, Solid initial failed-render cleanup sequencing coverage,
   Solid failed-render cleanup sequencing coverage,
   Solid Route Render Scope
