@@ -6,16 +6,20 @@ import { Route as route_root } from "./routes/index.js";
 import { Route as route_blog_introducing_sunfall_arc } from "./routes/blog/introducing-sunfall-arc.js";
 import { Route as route_cookbook } from "./routes/cookbook/index.js";
 import { Route as route_cookbook_$slug } from "./routes/cookbook/$slug.js";
+import { Route as route_docs } from "./routes/docs/index.js";
+import { Route as route_docs_$slug } from "./routes/docs/$slug.js";
 
 const route_root_path: "/" = route_root.path;
 const route_blog_introducing_sunfall_arc_path: "/blog/introducing-sunfall-arc" = route_blog_introducing_sunfall_arc.path;
 const route_cookbook_path: "/cookbook" = route_cookbook.path;
 const route_cookbook_$slug_path: "/cookbook/:slug" = route_cookbook_$slug.path;
+const route_docs_path: "/docs" = route_docs.path;
+const route_docs_$slug_path: "/docs/:slug" = route_docs_$slug.path;
 
-export { route_root, route_blog_introducing_sunfall_arc, route_cookbook, route_cookbook_$slug };
+export { route_root, route_blog_introducing_sunfall_arc, route_cookbook, route_cookbook_$slug, route_docs, route_docs_$slug };
 
 /** Ordered app-specific route definitions discovered from Start file routes. */
-export const routes = [route_root, route_blog_introducing_sunfall_arc, route_cookbook, route_cookbook_$slug] as const;
+export const routes = [route_root, route_blog_introducing_sunfall_arc, route_cookbook, route_cookbook_$slug, route_docs, route_docs_$slug] as const;
 /** Alias for `routes`, kept for router-style naming and generated-file ergonomics. */
 export const routeTree = routes;
 /** Map from generated route id to the exact route definition for that file route. */
@@ -24,6 +28,8 @@ export const routeById = {
   route_blog_introducing_sunfall_arc: route_blog_introducing_sunfall_arc,
   route_cookbook: route_cookbook,
   route_cookbook_$slug: route_cookbook_$slug,
+  route_docs: route_docs,
+  route_docs_$slug: route_docs_$slug,
 } as const;
 /** Map from route path pattern to the exact route definition for that file route. */
 export const routeByPath = {
@@ -31,6 +37,8 @@ export const routeByPath = {
   "/blog/introducing-sunfall-arc": route_blog_introducing_sunfall_arc,
   "/cookbook": route_cookbook,
   "/cookbook/:slug": route_cookbook_$slug,
+  "/docs": route_docs,
+  "/docs/:slug": route_docs_$slug,
 } as const;
 /** Map from route path pattern to generated route id. */
 export const routeIdByPath = {
@@ -38,6 +46,8 @@ export const routeIdByPath = {
   "/blog/introducing-sunfall-arc": "route_blog_introducing_sunfall_arc",
   "/cookbook": "route_cookbook",
   "/cookbook/:slug": "route_cookbook_$slug",
+  "/docs": "route_docs",
+  "/docs/:slug": "route_docs_$slug",
 } as const;
 /** Builds a typed href for a generated route id. */
 export const hrefById = <Id extends RouteId>(
@@ -56,6 +66,8 @@ export const fileRouteLayoutsById = {
   route_blog_introducing_sunfall_arc: [],
   route_cookbook: [],
   route_cookbook_$slug: [],
+  route_docs: [],
+  route_docs_$slug: [],
 } as const;
 /** Nearest source-scoped error boundary module for each generated route, when one exists. */
 export const fileRouteErrorBoundaryById = {} as const;
@@ -65,6 +77,8 @@ export const fileRouteMetadataById = {
   route_blog_introducing_sunfall_arc: [],
   route_cookbook: [],
   route_cookbook_$slug: [],
+  route_docs: [],
+  route_docs_$slug: [],
 } as const;
 /** Returns layout modules for a generated route id. */
 export const layoutsById = <Id extends RouteId>(id: Id): FileRouteLayouts<Id> =>
@@ -150,6 +164,48 @@ export const fileRouteModules = [
       {
         _tag: "Static",
         value: "cookbook",
+      },
+      {
+        _tag: "Dynamic",
+        name: "slug",
+        optional: false,
+      },
+    ],
+    params: [
+      {
+        name: "slug",
+        optional: false,
+      },
+    ],
+    exportName: "Route",
+  },
+  {
+    id: "docs/index",
+    kind: "Route",
+    routeId: "route_docs",
+    moduleId: "src/routes/docs/index.ts",
+    filePath: "src/routes/docs/index.ts",
+    routePath: "/docs",
+    segments: [
+      {
+        _tag: "Static",
+        value: "docs",
+      },
+    ],
+    params: [],
+    exportName: "Route",
+  },
+  {
+    id: "docs/$slug",
+    kind: "Route",
+    routeId: "route_docs_$slug",
+    moduleId: "src/routes/docs/$slug.ts",
+    filePath: "src/routes/docs/$slug.ts",
+    routePath: "/docs/:slug",
+    segments: [
+      {
+        _tag: "Static",
+        value: "docs",
       },
       {
         _tag: "Dynamic",
@@ -268,6 +324,64 @@ export const fileRouteMetadata = [
     },
     parentRouteId: "route_cookbook",
     parentRoutePath: "/cookbook",
+    layouts: [],
+    metadataModules: [],
+  },
+  {
+    routeId: "route_docs",
+    routePath: "/docs",
+    routeModule: {
+      id: "docs/index",
+      kind: "Route",
+      routeId: "route_docs",
+      moduleId: "src/routes/docs/index.ts",
+      filePath: "src/routes/docs/index.ts",
+      routePath: "/docs",
+      segments: [
+        {
+          _tag: "Static",
+          value: "docs",
+        },
+      ],
+      params: [],
+      exportName: "Route",
+    },
+    parentRouteId: "route_root",
+    parentRoutePath: "/",
+    layouts: [],
+    metadataModules: [],
+  },
+  {
+    routeId: "route_docs_$slug",
+    routePath: "/docs/:slug",
+    routeModule: {
+      id: "docs/$slug",
+      kind: "Route",
+      routeId: "route_docs_$slug",
+      moduleId: "src/routes/docs/$slug.ts",
+      filePath: "src/routes/docs/$slug.ts",
+      routePath: "/docs/:slug",
+      segments: [
+        {
+          _tag: "Static",
+          value: "docs",
+        },
+        {
+          _tag: "Dynamic",
+          name: "slug",
+          optional: false,
+        },
+      ],
+      params: [
+        {
+          name: "slug",
+          optional: false,
+        },
+      ],
+      exportName: "Route",
+    },
+    parentRouteId: "route_docs",
+    parentRoutePath: "/docs",
     layouts: [],
     metadataModules: [],
   },

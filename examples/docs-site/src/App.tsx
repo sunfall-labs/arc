@@ -1,6 +1,14 @@
 import { Route, RouterOutlet, RouterProvider, useResource } from "@sunfall/arc-solid";
 import type { SunfallArcRuntime } from "@sunfall/arc-core";
-import { BlogPostRoute, CookbookRoute, HomeRoute, RecipeRoute, app } from "./app-definition.js";
+import {
+  BlogPostRoute,
+  CookbookRoute,
+  DocsOverviewRoute,
+  DocsPageRoute,
+  HomeRoute,
+  RecipeRoute,
+  app,
+} from "./app-definition.js";
 import {
   RecipeBySlug,
   RecipeIndexRef,
@@ -9,14 +17,32 @@ import {
   type RecipeBlock,
   type RecipeSummary,
 } from "./content.js";
+import {
+  docsPages,
+  docsPagesBySection,
+  docsSections,
+  getDocsPage,
+  type DocsBlock,
+  type DocsPage,
+  type DocsSection,
+} from "./docs-content.js";
 import type { RecipeCategory, RecipeSlug } from "./content.contract.js";
 import "./styles.css";
 
 const HomeUiRoute = Route.withComponent(HomeRoute, HomeView);
+const DocsOverviewUiRoute = Route.withComponent(DocsOverviewRoute, DocsOverviewView);
+const DocsPageUiRoute = Route.withComponent(DocsPageRoute, DocsPageView);
 const BlogPostUiRoute = Route.withComponent(BlogPostRoute, BlogPostView);
 const CookbookUiRoute = Route.withComponent(CookbookRoute, CookbookIndexView);
 const RecipeUiRoute = Route.withComponent(RecipeRoute, RecipeRouteView);
-const routes = [HomeUiRoute, BlogPostUiRoute, CookbookUiRoute, RecipeUiRoute] as const;
+const routes = [
+  HomeUiRoute,
+  DocsOverviewUiRoute,
+  DocsPageUiRoute,
+  BlogPostUiRoute,
+  CookbookUiRoute,
+  RecipeUiRoute,
+] as const;
 type DocsSiteRuntime<RuntimeServices = DocsContentApi> = [DocsContentApi] extends [RuntimeServices]
   ? SunfallArcRuntime<RuntimeServices, never>
   : never;
@@ -71,6 +97,7 @@ function DocsShell() {
             <small>Cookbook</small>
           </span>
         </a>
+        <DocsNav />
         <RecipeNav />
         <a href={Route.href(BlogPostUiRoute)} class="navSectionLink">
           Why Sunfall Arc
@@ -88,11 +115,34 @@ function DocsShell() {
   );
 }
 
+function DocsNav() {
+  return (
+    <nav class="sidebarSection" aria-label="Documentation">
+      <p class="navHeading">Docs</p>
+      <a href={Route.href(DocsOverviewUiRoute)} class="navSectionLink">
+        Overview
+      </a>
+      <div class="navList">
+        {docsPages.map((page) => (
+          <a
+            href={Route.href(DocsPageUiRoute, { params: { slug: page.slug } })}
+            class="navRecipeLink"
+          >
+            <span>{page.title}</span>
+            <small>{page.section}</small>
+          </a>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
 function RecipeNav() {
   const recipes = useResource(RecipeIndexRef);
 
   return (
-    <nav class="recipeNav" aria-label="Cookbook recipes">
+    <nav class="sidebarSection" aria-label="Cookbook recipes">
+      <p class="navHeading">Cookbook</p>
       {recipes.match({
         initial: () => <p class="muted">Loading recipes</p>,
         pending: (previous) =>
@@ -140,6 +190,9 @@ function HomeView() {
         <a href={Route.href(CookbookUiRoute)} class="primaryLink">
           Browse cookbook
         </a>
+        <a href={Route.href(DocsOverviewUiRoute)} class="secondaryLink">
+          Read the docs
+        </a>
       </header>
 
       <section class="featureCallout" aria-label="Introduction">
@@ -164,6 +217,102 @@ function HomeView() {
       })}
     </article>
   );
+}
+
+const docsPageHref = (page: DocsPage): string =>
+  Route.href(DocsPageUiRoute, { params: { slug: page.slug } });
+
+const docsSectionLabel = (section: DocsSection): string => section;
+
+function DocsOverviewView() {
+  return (
+    <article class="pageStack">
+      <header class="pageHeader">
+        <p class="eyebrow">Documentation</p>
+        <h1>Public alpha docs for the typed app graph.</h1>
+        <p>
+          Start here when you want to understand what Arc is, how to try it, and where each core
+          concept fits before reaching for the cookbook.
+        </p>
+      </header>
+
+      <section class="docsSectionGrid" aria-label="Documentation sections">
+        {docsSections.map((section) => (
+          <div class="docsSection">
+            <h2>{docsSectionLabel(section)}</h2>
+            <div class="docsCardList">
+              {docsPagesBySection(section).map((page) => (
+                <a href={docsPageHref(page)} class="docsCard">
+                  <span>{page.title}</span>
+                  <p>{page.summary}</p>
+                </a>
+              ))}
+            </div>
+          </div>
+        ))}
+      </section>
+
+      <section class="featureCallout" aria-label="Cookbook next step">
+        <p class="eyebrow">Next step</p>
+        <h2>Use the cookbook once the concepts click</h2>
+        <p>
+          The cookbook recipes are intentionally small, but each one follows the same public
+          contracts: Effect-first callbacks, typed schemas, route-owned preload, and explicit
+          invalidation.
+        </p>
+        <a href={Route.href(CookbookUiRoute)} class="primaryLink">
+          Browse cookbook
+        </a>
+      </section>
+    </article>
+  );
+}
+
+function DocsPageView(props: Route.Props<typeof DocsPageRoute>) {
+  const page = getDocsPage(props.params.slug);
+
+  if (!page) {
+    return <NotFoundView />;
+  }
+
+  return (
+    <article class="recipeDetail">
+      <header class="pageHeader">
+        <p class="eyebrow">{page.section}</p>
+        <h1>{page.title}</h1>
+        <p>{page.summary}</p>
+      </header>
+
+      <section class="recipeBody">
+        {page.blocks.map((block) => (
+          <DocsBlockView block={block} />
+        ))}
+      </section>
+    </article>
+  );
+}
+
+function DocsBlockView(props: { readonly block: DocsBlock }) {
+  switch (props.block._tag) {
+    case "Heading":
+      return <h2>{props.block.text}</h2>;
+    case "Paragraph":
+      return <p>{props.block.text}</p>;
+    case "List":
+      return (
+        <ul>
+          {(props.block.items ?? []).map((item) => (
+            <li>{item}</li>
+          ))}
+        </ul>
+      );
+    case "Code":
+      return (
+        <pre class="codeBlock">
+          <code>{props.block.code}</code>
+        </pre>
+      );
+  }
 }
 
 function CookbookIndexView() {

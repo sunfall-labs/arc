@@ -102,9 +102,40 @@ describe("docs site", () => {
       }),
     ));
 
+  it("renders public docs overview and concept pages", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const overviewResponse = yield* Effect.scoped(
+          serverApp.runtime.provide(handleRequest(new Request("https://docs.test/docs"))),
+        );
+        const overviewHtml = yield* Effect.tryPromise(() => overviewResponse.text());
+        const gettingStartedResponse = yield* Effect.scoped(
+          serverApp.runtime.provide(
+            handleRequest(new Request("https://docs.test/docs/getting-started")),
+          ),
+        );
+        const gettingStartedHtml = yield* Effect.tryPromise(() => gettingStartedResponse.text());
+
+        expect(overviewResponse.status).toBe(200);
+        expect(overviewHtml).toContain("Public alpha docs for the typed app graph.");
+        expect(overviewHtml).toContain("Getting started");
+        expect(overviewHtml).toContain("Troubleshooting");
+        expect(gettingStartedResponse.status).toBe(200);
+        expect(gettingStartedHtml).toContain("Install the alpha packages");
+        expect(gettingStartedHtml).toContain(
+          "pnpm add @sunfall/arc-core @sunfall/arc-start @sunfall/arc-solid effect solid-js",
+        );
+        expect(gettingStartedHtml).toContain("Use the project console example");
+      }),
+    ));
+
   it("pins the generated docs route artifact", () => {
     const blogHrefOptions: FileRouteHrefOptionsById["route_blog_introducing_sunfall_arc"] = {};
     const cookbookHrefOptions: FileRouteHrefOptionsById["route_cookbook"] = {};
+    const docsHrefOptions: FileRouteHrefOptionsById["route_docs"] = {};
+    const docsPageHrefOptions: FileRouteHrefOptionsById["route_docs_$slug"] = {
+      params: { slug: "getting-started" },
+    };
     const recipeHrefOptions: FileRouteHrefOptionsById["route_cookbook_$slug"] = {
       params: { slug: makeRecipeSlug("resource-from-server-function") },
     };
@@ -116,19 +147,28 @@ describe("docs site", () => {
       routeById.route_blog_introducing_sunfall_arc,
       routeById.route_cookbook,
       routeById.route_cookbook_$slug,
+      routeById.route_docs,
+      routeById.route_docs_$slug,
     ]);
     expect(routeByPath["/blog/introducing-sunfall-arc"]).toBe(
       routeById.route_blog_introducing_sunfall_arc,
     );
     expect(routeByPath["/cookbook/:slug"]).toBe(routeById.route_cookbook_$slug);
+    expect(routeByPath["/docs"]).toBe(routeById.route_docs);
+    expect(routeByPath["/docs/:slug"]).toBe(routeById.route_docs_$slug);
     expect(blogHrefOptions).toEqual({});
     expect(cookbookHrefOptions).toEqual({});
+    expect(docsHrefOptions).toEqual({});
+    expect(docsPageHrefOptions.params.slug).toBe("getting-started");
     expect(recipeHrefOptions.params.slug).toBe("resource-from-server-function");
     expect(hrefById("route_blog_introducing_sunfall_arc")).toBe("/blog/introducing-sunfall-arc");
     expect(hrefById("route_cookbook")).toBe("/cookbook");
+    expect(hrefById("route_docs")).toBe("/docs");
+    expect(hrefById("route_docs_$slug", docsPageHrefOptions)).toBe("/docs/getting-started");
     expect(hrefByPath("/blog/introducing-sunfall-arc", blogHrefOptions)).toBe(
       "/blog/introducing-sunfall-arc",
     );
+    expect(hrefByPath("/docs/:slug", docsPageHrefOptions)).toBe("/docs/getting-started");
     expect(hrefByPath("/cookbook/:slug", recipeHrefOptions)).toBe(
       "/cookbook/resource-from-server-function",
     );
@@ -163,6 +203,9 @@ describe("docs site", () => {
             "/",
             "/blog/introducing-sunfall-arc",
             "/cookbook",
+            "/docs",
+            "/docs/getting-started",
+            "/docs/troubleshooting",
             "/cookbook/route-preload-hydration",
             "/cookbook/capability-mocks",
           ]),

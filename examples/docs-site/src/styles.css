@@ -75,9 +75,17 @@ a {
   color: #63706a;
 }
 
-.recipeNav {
+.sidebarSection {
   display: grid;
   gap: 14px;
+}
+
+.navHeading {
+  color: #7b3f2f;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0;
+  text-transform: uppercase;
 }
 
 .navSectionLink {
@@ -181,10 +189,15 @@ h3 {
 }
 
 .primaryLink,
+.secondaryLink,
 .recipeCta {
   width: fit-content;
   color: #1f4f46;
   font-weight: 800;
+}
+
+.secondaryLink {
+  color: #7b3f2f;
 }
 
 .featureCallout {
@@ -204,6 +217,49 @@ h3 {
   display: grid;
   gap: 30px;
   max-width: 900px;
+}
+
+.docsSectionGrid {
+  display: grid;
+  gap: 24px;
+}
+
+.docsSection {
+  display: grid;
+  gap: 12px;
+}
+
+.docsCardList {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.docsCard {
+  display: grid;
+  min-height: 150px;
+  align-content: start;
+  gap: 10px;
+  border: 1px solid #d6ddcf;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 18px;
+}
+
+.docsCard:hover,
+.docsCard:focus-visible {
+  border-color: #729487;
+  outline: none;
+}
+
+.docsCard span {
+  color: #1d2b26;
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+.docsCard p {
+  color: #56635e;
 }
 
 .recipeGrid {
