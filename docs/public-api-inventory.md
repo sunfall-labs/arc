@@ -1266,8 +1266,9 @@ Release decisions:
   helper so adapter LSP coverage does not rely only on React/router-object
   examples.
 - `RouterOutlet` delegates branch rendering, route-owned `UiScope` lifetime,
-  Solid root cleanup, runtime-bound route finalizers, transition disposal
-  ordering, and stale queued-render suppression to the internal Solid Route
+  Solid root cleanup, runtime-bound route finalizers, transition and same-state
+  renderer-swap disposal ordering, stale queued-render suppression, and
+  awaitable internal `disposeEffect()` cleanup to the internal Solid Route
   Render Scope Controller. This keeps the public Solid router surface stable
   while making route render lifetime policy local.
 - `useAction(...)` returns a Solid `ActionHandle`: `state()` and

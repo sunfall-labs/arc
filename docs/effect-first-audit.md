@@ -20,6 +20,11 @@ interruption.
 
 ## Current Sweep Results
 
+- Review235 Solid Route Render Scope Cleanup Sequencing kept the follow-up fix
+  Effect-first: same-state Solid outlet renderer swaps now join the existing
+  disposal Fiber through the shared transition Effect before rendering the
+  replacement, and the internal controller exposes `disposeEffect()` while
+  preserving sync `dispose()` for Solid cleanup invalidation.
 - Review234 Cleanup Effects And Public Surface Pins kept the follow-up fixes
   Effect-first: `CollectionReactivePreloadController` exposes
   `interruptEffect()`, `ResourceUiBindingController` exposes
@@ -679,10 +684,10 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 234 `pnpm verify` run recorded in
+- The current full gate is the Review 235 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
-  over 411 files, 53 root test files / 1149 tests, package-level verifies,
+  over 411 files, 53 root test files / 1151 tests, package-level verifies,
   generated starter packaging, 16-target package dry-run gate, project-console
   checks, and leak scans. Review 185 remains historical focused evidence for
   the starter catalog typed-error seam, and Review 165 remains historical
@@ -1503,15 +1508,15 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The current full `pnpm verify` passed after Review 234 Cleanup Effects And
-  Public Surface Pins: DB and Core preload controllers expose awaitable cleanup
-  Effects, Query Stage Plan helper seams were tightened, and Devtools/Core
-  public-surface pins add no Promise APIs:
+- The current full `pnpm verify` passed after Review 235 Solid Route Render
+  Scope Cleanup Sequencing: Solid same-state renderer swaps now use the same
+  Effect/Fiber disposal sequencing as route transitions, and the internal
+  controller exposes `disposeEffect()` without adding Promise APIs:
   11 package builds, workspace
   typecheck, type tests, public API
   inventory audit, Effect-first audit over 411
   package/example/config/script/type-test/generated/docs files, 53 root test
-  files / 1149 tests, package-level verifies for copyable/source packages,
+  files / 1151 tests, package-level verifies for copyable/source packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console
   test files / 27 tests, build, and leak scans. The Effect-first audit now

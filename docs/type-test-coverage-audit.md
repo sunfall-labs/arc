@@ -147,6 +147,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
   `DevtoolsPanelBoot.interruptEffect`, and the full Core browser route-render
   identity surface. It moved the current full verification evidence to the
   Review234 gate.
+- Review235 Solid Route Render Scope Cleanup Sequencing added a package-local
+  controller pin for `SolidRouteRenderScopeController.disposeEffect()` while
+  leaving the public Solid root surface unchanged. It moved the current full
+  verification evidence to the Review235 gate.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them
@@ -266,8 +270,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Verification Evidence
 
-- `pnpm typecheck:types` and full `pnpm verify` passed after Review234 with
-  53 root test files / 1149 tests, including Collection Reactive Preload
+- `pnpm typecheck:types` and full `pnpm verify` passed after Review235 with
+  53 root test files / 1151 tests, including Solid Route Render Scope
+  Controller `disposeEffect()` package-local coverage, Collection Reactive Preload
   Controller `interruptEffect()` pins, Resource UI Binding automatic preload
   `interruptPreloadEffect()` pins, Devtools panel boot interrupt pins, Core
   route-render identity pins, Query Stage Plan source/identity coverage through

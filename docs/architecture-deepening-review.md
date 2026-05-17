@@ -11,10 +11,11 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review234 Cleanup Effects And Public
-Surface Pins, the fresh post-Review233 sweep that added awaitable preload
-cleanup Effects, tightened Query Stage Plan helper Locality, and pinned public
-route/devtools surfaces. The newest full verification checkpoint is Review234.
+The newest completed focused review is Review235 Solid Route Render Scope
+Cleanup Sequencing, the fresh post-Review234 follow-up that made same-state
+Solid outlet renderer swaps use the same Effect/Fiber cleanup sequencing as
+route transitions and exposed an awaitable internal `disposeEffect()`. The
+newest full verification checkpoint is Review235.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -39,7 +40,8 @@ and the post-Review230 sweep found Review231 work,
 and the post-Review231 DB pass found Review232 Shared DB Query Stage Plan work,
 and the fresh post-Review232 sweep found Review233 work,
 and the fresh post-Review233 sweep found Review234 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review234
+and the fresh post-Review234 Solid route-render follow-up found Review235 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review235
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -48,7 +50,8 @@ Review206, Review207, Review208, Review209, Review210, Review211, Review212,
 Review213, Review214, Review215, Review216, Review217, Review218, Review219,
 Review220, Review221, Review222, Review223, Review224, Review225,
 Review226, Review227, Review228, Review229, Review230, Review231, and
-Review232 Shared DB Query Stage Plan work, Review233 work, and Review234 work.
+Review232 Shared DB Query Stage Plan work, Review233 work, Review234 work, and
+Review235 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -129,8 +132,40 @@ Resource UI Binding replay, React route-scope, and DB public source ownership
 work, and the post-Review231 DB pass found Review232 Shared DB Query Stage
 Plan work, and the fresh post-Review232 sweep found Review233 Stage Plan and
 UI cleanup work, and the fresh post-Review233 sweep found Review234 cleanup
-Effect and public-surface work,
+Effect and public-surface work, and the fresh post-Review234 Solid route-render
+follow-up found Review235 cleanup sequencing work,
 so the counter remains 0/30.
+
+## Review 235: Solid Route Render Scope Cleanup Sequencing
+
+Review235 fixed the remaining bounded Solid route-render finding from the
+fresh post-Review234 follow-up.
+
+1. Solid Same-State Renderer Cleanup Sequencing
+   - Status: fixed.
+   - Files: `CONTEXT.md`, `packages/solid/src/route-render-scope.ts`,
+     `packages/solid/test/router.test.ts`, and `docs/public-api-inventory.md`.
+   - Problem: `SolidRouteRenderScopeController` already sequenced route
+     transitions through an Effect/Fiber disposal path, but same-state renderer
+     swaps for pending/failure/not-found outlets cleared the node, started
+     disposal, and rendered the replacement immediately. That left renderer
+     changes shallower than navigation transitions and made async route-scope
+     finalizers race the replacement setup.
+   - Fix: same-state renderer swaps now use the same transition Effect as route
+     changes: the controller starts current-route disposal, joins the disposal
+     fiber, checks the transition version, and only then renders the next
+     branch. The internal controller also exposes `disposeEffect()` for
+     Effect-running tests/integrations while preserving sync `dispose()` for
+     Solid cleanup hooks that must invalidate stale queued renders immediately.
+   - Benefits: Solid route rendering now has one cleanup-ordering policy across
+     navigation, renderer changes, stale transition suppression, and unmount.
+     The public Solid router surface stays stable while the internal lifetime
+     Module becomes Effect-first.
+
+Focused verification passed: Solid typecheck, Solid router tests 1 file / 34
+tests, and `git diff --check`. Full `pnpm verify` passed after Review235 with
+53 root test files / 1151 tests. The active Thirty-Sweep clean counter remains
+0/30 until a fresh post-Review235 sweep is clean.
 
 ## Review 234: Cleanup Effects And Public Surface Pins
 
@@ -214,7 +249,8 @@ UI Binding tests, focused DB collection tests, focused React DB tests, focused
 Solid DB tests, and `git diff --check` passed before the full Review234 gate.
 Full `pnpm verify` passed after Review234 with 53 root test files / 1149 tests
 and the 411-file Effect-first audit. This sweep found work, so the active clean
-counter remains 0/30 until a fresh post-Review234 sweep is clean.
+counter remained 0/30; the later fresh post-Review234 Solid route-render
+follow-up found Review235 cleanup sequencing work.
 
 ## Review 233: Stage Plan And UI Cleanup Effects
 

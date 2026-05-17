@@ -1035,7 +1035,162 @@ describe("createBrowserRouter", () => {
 
           expect(node?.()).toBe("pending-one");
           update?.(() => "pending-two");
-          expect(node?.()).toBe("pending-two");
+          yield* Effect.promise(() =>
+            vi.waitFor(() => expect(node?.()).toBe("pending-two"))
+          );
+        })
+      )
+    ));
+
+  it("waits for same-state renderer cleanup before rendering the replacement", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+
+          const ProjectRoute = route("/renderer-cleanup/:id", {
+            component: () => "project"
+          });
+          const routes = [ProjectRoute] as const;
+          const match = Route.match(routes, "/renderer-cleanup/atlas");
+          expect(match).toBeDefined();
+          const state: Extract<BrowserRouterState<typeof routes>, { readonly _tag: "Pending" }> = {
+            _tag: "Pending",
+            href: "/renderer-cleanup/atlas",
+            match: match!
+          };
+          const events: Array<string> = [];
+          const cleanupStarted = yield* Deferred.make<void>();
+          const releaseCleanup = yield* Deferred.make<void>();
+
+          let node: (() => JSX.Element) | undefined;
+          let update: ((renderer: () => JSX.Element) => void) | undefined;
+          let dispose: () => void = () => undefined;
+          let disposeController: () => Effect.Effect<void> = () => Effect.void;
+          createRoot((rootDispose) => {
+            dispose = rootDispose;
+            const [currentNode, setNode] = createSignal<JSX.Element>();
+            const [, setRenderError] = createSignal<unknown>();
+            const controller = makeSolidRouteRenderScopeController({
+              initialInput: {
+                state,
+                renderers: {
+                  pending: () => {
+                    events.push("pending-one:setup");
+                    onDispose(() =>
+                      Effect.gen(function* () {
+                        events.push("pending-one:cleanup-start");
+                        yield* Deferred.succeed(cleanupStarted, undefined);
+                        yield* Deferred.await(releaseCleanup);
+                        events.push("pending-one:cleanup-done");
+                      })
+                    );
+                    return "pending-one";
+                  }
+                }
+              },
+              runtime,
+              setNode,
+              setRenderError
+            });
+            disposeController = controller.disposeEffect;
+            node = currentNode;
+            update = (pending) => controller.update({
+              state,
+              renderers: { pending }
+            });
+          });
+          yield* Effect.addFinalizer(() => disposeController());
+          yield* Effect.addFinalizer(() => Effect.sync(dispose));
+
+          expect(node?.()).toBe("pending-one");
+          update?.(() => {
+            events.push(`pending-two:setup:${events.includes("pending-one:cleanup-start")}`);
+            return "pending-two";
+          });
+
+          yield* Deferred.await(cleanupStarted);
+          yield* Effect.sync(() => {
+            expect(node?.()).toBeUndefined();
+            expect(events).toEqual([
+              "pending-one:setup",
+              "pending-one:cleanup-start"
+            ]);
+          });
+
+          yield* Deferred.succeed(releaseCleanup, undefined);
+          yield* Effect.promise(() =>
+            vi.waitFor(() => expect(node?.()).toBe("pending-two"))
+          );
+          yield* Effect.sync(() => {
+            expect(events).toEqual([
+              "pending-one:setup",
+              "pending-one:cleanup-start",
+              "pending-one:cleanup-done",
+              "pending-two:setup:true"
+            ]);
+          });
+        })
+      )
+    ));
+
+  it("exposes an awaitable route render dispose Effect", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+
+          const ProjectRoute = route("/renderer-dispose-effect/:id", {
+            component: () => "project"
+          });
+          const routes = [ProjectRoute] as const;
+          const match = Route.match(routes, "/renderer-dispose-effect/atlas");
+          expect(match).toBeDefined();
+          const state: Extract<BrowserRouterState<typeof routes>, { readonly _tag: "Pending" }> = {
+            _tag: "Pending",
+            href: "/renderer-dispose-effect/atlas",
+            match: match!
+          };
+          const events: Array<string> = [];
+
+          let dispose: () => void = () => undefined;
+          let disposeController: () => Effect.Effect<void> = () => Effect.void;
+          createRoot((rootDispose) => {
+            dispose = rootDispose;
+            const [, setNode] = createSignal<JSX.Element>();
+            const [, setRenderError] = createSignal<unknown>();
+            const controller = makeSolidRouteRenderScopeController({
+              initialInput: {
+                state,
+                renderers: {
+                  pending: () => {
+                    events.push("pending:setup");
+                    onDispose(() => Effect.sync(() => {
+                      events.push("pending:cleanup");
+                    }));
+                    return "pending";
+                  }
+                }
+              },
+              runtime,
+              setNode,
+              setRenderError
+            });
+            const controllerDisposeEffect: Effect.Effect<void> = controller.disposeEffect();
+            void controllerDisposeEffect;
+            disposeController = controller.disposeEffect;
+          });
+          yield* Effect.addFinalizer(() => Effect.sync(dispose));
+
+          yield* disposeController();
+          yield* Effect.sync(() => {
+            expect(events).toEqual([
+              "pending:setup",
+              "pending:cleanup"
+            ]);
+          });
         })
       )
     ));
@@ -1464,7 +1619,9 @@ describe("createBrowserRouter", () => {
 
           expect(node?.()).toBe("failure-one");
           update?.(() => "failure-two");
-          expect(node?.()).toBe("failure-two");
+          yield* Effect.promise(() =>
+            vi.waitFor(() => expect(node?.()).toBe("failure-two"))
+          );
         })
       )
     ));

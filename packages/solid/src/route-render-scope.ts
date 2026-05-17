@@ -28,6 +28,7 @@ export interface SolidRouteRenderInput<Routes extends readonly AnyRoute[], ER> {
 
 export interface SolidRouteRenderScopeController<Routes extends readonly AnyRoute[], ER> {
   update(input: SolidRouteRenderInput<Routes, ER>): void;
+  disposeEffect(): Effect.Effect<void>;
   dispose(): void;
 }
 
@@ -170,18 +171,72 @@ export const makeSolidRouteRenderScopeController = <Routes extends readonly AnyR
     );
   };
 
-  const disposeCurrentRoute = (): void => {
+  const joinRouteDisposal = (
+    fiber: Fiber.Fiber<void, unknown> | undefined
+  ): Effect.Effect<void> =>
+    fiber === undefined
+      ? Effect.void
+      : Fiber.join(fiber).pipe(Effect.catchCause(() => Effect.void));
+
+  const startCurrentRouteDisposal = (): Fiber.Fiber<void, unknown> => {
     const previousDisposalFiber = disposalFiber;
     const currentDisposal = disposeRenderedRoute(disposeRoute);
     disposeRoute = undefined;
-    disposalFiber = options.runtime.runFork(
+    const fiber = options.runtime.runFork(
       Effect.gen(function* () {
-        if (previousDisposalFiber !== undefined) {
-          yield* Fiber.join(previousDisposalFiber);
-        }
+        yield* joinRouteDisposal(previousDisposalFiber);
         yield* currentDisposal;
       }).pipe(Effect.catchCause(() => Effect.void))
     );
+    disposalFiber = fiber;
+    return fiber;
+  };
+
+  const renderTransition = (
+    input: SolidRouteRenderInput<Routes, ER>,
+    transition: number,
+    transitionDisposalFiber: Fiber.Fiber<void, unknown>
+  ): Effect.Effect<void> =>
+    Effect.gen(function* () {
+      yield* joinRouteDisposal(transitionDisposalFiber);
+      if (transition !== transitionVersion) {
+        return;
+      }
+
+      let next: RenderedRouteScope;
+      try {
+        next = renderRouteState(input.state, input.renderers, options.runtime);
+      } catch (error) {
+        if (transition === transitionVersion) {
+          options.setNode(() => undefined);
+          scheduleRouteRenderError(
+            () => transition === transitionVersion,
+            options.setRenderError,
+            error
+          );
+        }
+        return;
+      }
+
+      if (transition !== transitionVersion) {
+        disposeStaleRenderedRoute(next);
+        return;
+      }
+
+      disposeRoute = next.dispose;
+      options.setRenderError(() => undefined);
+      options.setNode(() => next.node);
+    });
+
+  const disposeEffect = (): Effect.Effect<void> =>
+    Effect.suspend(() => {
+      transitionVersion++;
+      return joinRouteDisposal(startCurrentRouteDisposal());
+    });
+
+  const dispose = (): void => {
+    transitionVersion++;
+    void startCurrentRouteDisposal();
   };
 
   return {
@@ -201,63 +256,13 @@ export const makeSolidRouteRenderScopeController = <Routes extends readonly AnyR
       const transition = ++transitionVersion;
       options.setNode(() => undefined);
       options.setRenderError(() => undefined);
-      disposeCurrentRoute();
-      if (sameState) {
-        try {
-          const next = renderRouteState(input.state, input.renderers, options.runtime);
-          disposeRoute = next.dispose;
-          options.setRenderError(() => undefined);
-          options.setNode(() => next.node);
-        } catch (error) {
-          options.setNode(() => undefined);
-          scheduleRouteRenderError(
-            () => transition === transitionVersion,
-            options.setRenderError,
-            error
-          );
-        }
-        return;
-      }
-
-      const transitionDisposalFiber = disposalFiber;
-      void options.runtime.runFork(
-        Effect.gen(function* () {
-          if (transitionDisposalFiber !== undefined) {
-            yield* Fiber.join(transitionDisposalFiber);
-          }
-          if (transition !== transitionVersion) {
-            return;
-          }
-
-          let next: RenderedRouteScope;
-          try {
-            next = renderRouteState(input.state, input.renderers, options.runtime);
-          } catch (error) {
-            if (transition === transitionVersion) {
-              options.setNode(() => undefined);
-              scheduleRouteRenderError(
-                () => transition === transitionVersion,
-                options.setRenderError,
-                error
-              );
-            }
-            return;
-          }
-
-          if (transition !== transitionVersion) {
-            disposeStaleRenderedRoute(next);
-            return;
-          }
-
-          disposeRoute = next.dispose;
-          options.setRenderError(() => undefined);
-          options.setNode(() => next.node);
-        })
-      );
+      void options.runtime.runFork(renderTransition(
+        input,
+        transition,
+        startCurrentRouteDisposal()
+      ));
     },
-    dispose: () => {
-      transitionVersion++;
-      disposeCurrentRoute();
-    }
+    disposeEffect,
+    dispose
   };
 };
