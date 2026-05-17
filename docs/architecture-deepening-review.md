@@ -13,7 +13,7 @@ explicitly scoped future work.
 
 The newest focused review is Review510 Package Dry-Run Count Evidence, the
 Clean-Sweep-2-after-Review509 follow-up that corrects the current
-`@sunfall/arc-db` package dry-run file count in release evidence. Clean Sweep 5
+`@sunfall/arc-db` package dry-run file count in release evidence. Clean Sweep 6
 after Review510 is the newest no-actionable sweep.
 The newest full verification checkpoint is Review492.
 Clean Sweep 1 after
@@ -92,7 +92,10 @@ counter is 4/30 after Clean Sweep 4 after Review510, and the next fresh sweep
 found no actionable work across Core/React/Solid, DB/public API,
 Start/docs/package, and evidence lanes, creating Clean Sweep 5 after Review510,
 so the active Thirty-Sweep clean counter is 5/30 after Clean Sweep 5 after
-Review510. Clean Sweep 1 after
+Review510, and the next fresh sweep found no actionable work across
+Core/React/Solid, DB/public API, Start/docs/package, and evidence lanes,
+creating Clean Sweep 6 after Review510, so the active Thirty-Sweep clean
+counter is 6/30 after Clean Sweep 6 after Review510. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
@@ -114,7 +117,8 @@ Review508 found no actionable follow-up, and Review509 work before Clean Sweep
 Clean Sweep 1 after Review510 and Clean Sweep 2 after Review510 found no
 actionable follow-up, and Clean Sweep 3 after Review510 found no actionable
 follow-up, Clean Sweep 4 after Review510 found no actionable follow-up, and
-Clean Sweep 5 after Review510 found no actionable follow-up.
+Clean Sweep 5 after Review510 and Clean Sweep 6 after Review510 found no
+actionable follow-up.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -430,6 +434,19 @@ focused Core/React/Solid tests, DB-family tests, DB-family typechecks, and
 
 At the Clean Sweep 5 after Review510 checkpoint, the Thirty-Sweep clean counter
 reached 5/30. The next sweep must still run; if it finds work, the counter
+resets to 0/30.
+
+## Clean Sweep 6 After Review510
+
+The next fresh post-Review510 sweep found no actionable findings across the
+current review lanes. Core/React/Solid, DB-family, and Start/docs/package lanes
+all reported clean, with public type tests, public API audit, Effect-first
+audit, package dry-run verification, package payload policy, starter packaging,
+focused Core/React/Solid tests, DB-family tests, DB-family typechecks, and
+`git diff --check` passing across the reported evidence.
+
+At the Clean Sweep 6 after Review510 checkpoint, the Thirty-Sweep clean counter
+reached 6/30. The next sweep must still run; if it finds work, the counter
 resets to 0/30.
 
 ## Review 509: Route Component Attachment Hover Docs

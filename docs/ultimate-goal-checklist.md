@@ -786,7 +786,8 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     the active counter at 3/30. Clean Sweep 4 after Review510 found no
     actionable follow-up, leaving the active counter at 4/30. Clean Sweep 5
     after Review510 found no actionable follow-up, leaving the active counter
-    at 5/30.
+    at 5/30. Clean Sweep 6 after Review510 found no actionable follow-up,
+    leaving the active counter at 6/30.
     Latest full evidence:
     `pnpm verify` ran after Review 492 with 58 root
     test files / 1223
@@ -962,7 +963,8 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     Review510 found no actionable follow-up. Clean Sweep 3 after Review510
     found no actionable follow-up. Clean Sweep 4 after Review510 found no
     actionable follow-up. Clean Sweep 5 after Review510 found no actionable
-    follow-up, leaving the active counter at 5/30.
+    follow-up. Clean Sweep 6 after Review510 found no actionable follow-up,
+    leaving the active counter at 6/30.
     Review492 records the latest
     full gate. Clean
     Sweep 1 after
@@ -1059,7 +1061,8 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     after Review510, Clean Sweep 2 after Review510, and Clean Sweep 3 after
     Review510 found no actionable follow-up. Clean Sweep 4 after Review510
     found no actionable follow-up. Clean Sweep 5 after Review510 found no
-    actionable follow-up, leaving the active counter at 5/30.
+    actionable follow-up. Clean Sweep 6 after Review510 found no actionable
+    follow-up, leaving the active counter at 6/30.
     Full verification is recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items
