@@ -16,7 +16,8 @@ Clean-Sweep-8-after-Review510 follow-up that restores the workspace formatting
 policy Interface. Clean Sweep 7 after Review510 remains the newest
 historical no-actionable sweep, and Clean Sweep 8 after Review511 is the
 previous no-actionable sweep, Clean Sweep 9 after Review511 is the previous
-no-actionable sweep, and Clean Sweep 10 after Review511 is the newest
+no-actionable sweep, Clean Sweep 10 after Review511 is the previous
+no-actionable sweep, and Clean Sweep 11 after Review511 is the newest
 no-actionable sweep.
 The newest full verification checkpoint is Review492.
 Clean Sweep 1 after
@@ -115,7 +116,11 @@ so the active Thirty-Sweep clean counter is 9/30 after Clean Sweep 9 after
 Review511. The next fresh sweep found no actionable work across
 Core/React/Solid, DB/public API, Start/docs/package, and evidence lanes,
 creating Clean Sweep 10 after Review511, so the active Thirty-Sweep clean
-counter is 10/30 after Clean Sweep 10 after Review511. Clean Sweep 1 after
+counter is 10/30 after Clean Sweep 10 after Review511. The next fresh sweep
+found no actionable work across Core/React/Solid, DB/public API,
+Start/docs/package, and evidence lanes, creating Clean Sweep 11 after Review511,
+so the active Thirty-Sweep clean counter is 11/30 after Clean Sweep 11 after
+Review511. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
@@ -141,7 +146,8 @@ Clean Sweep 5 after Review510, Clean Sweep 6 after Review510, and Clean Sweep
 7 after Review510 found no actionable follow-up, and the next Clean Sweep 8
 candidate found Review511 work. The fresh post-Review511 sweep found no
 actionable follow-up, the next fresh sweep found no actionable follow-up, and
-Clean Sweep 10 after Review511 found no actionable follow-up.
+Clean Sweep 10 after Review511 and Clean Sweep 11 after Review511 found no
+actionable follow-up.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -558,6 +564,21 @@ evidence.
 
 At the Clean Sweep 10 after Review511 checkpoint, the Thirty-Sweep clean
 counter reached 10/30. The next sweep must still run; if it finds substantial
+architecture work, the counter may reset. Tiny mechanical gate-hygiene fixes do
+not reset the counter.
+
+## Clean Sweep 11 After Review511
+
+The next fresh post-Review511 sweep found no actionable findings across the
+current review lanes. Core/React/Solid, DB-family, and Start/docs/package lanes
+reported clean, with public type tests, public API audit, Effect-first audit,
+package payload policy, package dry-run verification, starter packaging,
+formatting, lint, focused Core/React/Solid tests, DB-family tests, Start tests,
+DB-family typechecks, repeated project-console starter packaging reproduction,
+and `git diff --check` passing across the reported evidence.
+
+At the Clean Sweep 11 after Review511 checkpoint, the Thirty-Sweep clean
+counter reached 11/30. The next sweep must still run; if it finds substantial
 architecture work, the counter may reset. Tiny mechanical gate-hygiene fixes do
 not reset the counter.
 

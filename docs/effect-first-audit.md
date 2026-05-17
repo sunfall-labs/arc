@@ -35,6 +35,10 @@ interruption.
   Core/React/Solid, DB/React-DB/Solid-DB, Start/docs/package, generated
   artifacts, and evidence lanes preserved Effect-returning public Interfaces
   and explicit host-boundary Promise allowances.
+- Clean Sweep 11 after Review511 found no actionable Effect-first follow-up:
+  Core/React/Solid, DB/React-DB/Solid-DB, Start/docs/package, generated
+  artifacts, and evidence lanes preserved Effect-returning public Interfaces
+  and explicit host-boundary Promise allowances.
 - Clean Sweep 7 after Review510 found no actionable Effect-first follow-up:
   Core/React/Solid, DB/React-DB/Solid-DB, Start/docs/package, generated
   artifacts, and evidence lanes preserved Effect-returning public Interfaces
