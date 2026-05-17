@@ -13,7 +13,8 @@ explicitly scoped future work.
 
 The newest focused review is Review510 Package Dry-Run Count Evidence, the
 Clean-Sweep-2-after-Review509 follow-up that corrects the current
-`@sunfall/arc-db` package dry-run file count in release evidence.
+`@sunfall/arc-db` package dry-run file count in release evidence. Clean Sweep 1
+after Review510 is the newest no-actionable sweep.
 The newest full verification checkpoint is Review492.
 Clean Sweep 1 after
 Review208 remains historical 1/30
@@ -73,9 +74,11 @@ Start/docs/package, and evidence lanes, creating Clean Sweep 1 after Review508,
 the next fresh sweep found Review509 work, and the fresh post-Review509 sweep
 found no actionable work across Core/React/Solid, DB/public API,
 Start/docs/package, and evidence lanes, creating Clean Sweep 1 after Review509,
-and the next Clean Sweep 2 candidate found Review510 work, so the active
-Thirty-Sweep clean counter is 0/30 until a fresh post-Review510 sweep reports
-no actionable findings. Clean Sweep 1 after
+the next Clean Sweep 2 candidate found Review510 work, and the fresh
+post-Review510 sweep found no actionable work across Core/React/Solid,
+DB/public API, Start/docs/package, and evidence lanes, creating Clean Sweep 1
+after Review510, so the active Thirty-Sweep clean counter is 1/30 after Clean
+Sweep 1 after Review510. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
@@ -93,7 +96,8 @@ work, Review500 work, Review501 work, Review502 work, Review503 work,
 Review504 work, Review505 work after Clean Sweep 1 after Review504,
 Review506 work, Review507 work, Review508 work before Clean Sweep 1 after
 Review508 found no actionable follow-up, and Review509 work before Clean Sweep
-1 after Review509 found no actionable follow-up, and Review510 work.
+1 after Review509 found no actionable follow-up, and Review510 work before
+Clean Sweep 1 after Review510 found no actionable follow-up.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -324,6 +328,40 @@ findings.
    - Benefits: release evidence regains Locality with the package dry-run
      Adapter, preserving package payload Leverage without changing runtime or
      public type behavior.
+
+## Clean Sweep 1 After Review510
+
+The fresh post-Review510 sweep found no actionable findings across the current
+review lanes.
+
+1. Core/React/Solid Runtime And Adapter Lane
+   - Status: clean.
+   - Evidence: Ptolemy inspected Core/React/Solid route, Resource, Action,
+     runtime, public API, and LSP lanes. Public type tests, public API audit,
+     Effect-first audit, focused route tests, focused Resource/hook tests,
+     focused Core ActionResult/Runtime/Scope tests, package dry-run help, and
+     clean `git diff --stat --exit-code` passed.
+
+2. DB, React DB, And Solid DB Lane
+   - Status: clean.
+   - Evidence: Fermat inspected DB query, persistence, live-query, preload,
+     public type-test, package evidence, and LSP/JSDoc lanes. Public type
+     tests, public API audit, Effect-first audit, DB-family typechecks,
+     DB-family tests, `@sunfall/arc-db` 150-file dry-run evidence, and `git
+diff --check` passed.
+
+3. Start, Scripts, Package, And Docs Lane
+   - Status: clean.
+   - Evidence: Sagan inspected Start CLI/Vite, host-boundary Promise Seams,
+     package payload policy, starter/generated artifacts, release/evidence docs,
+     package dry-run counts, request metrics/traces, and public LSP/JSDoc
+     policy. Public API inventory audit, Effect-first audit, package payload
+     policy, package dry-run verification, starter packaging, public type tests,
+     and `git diff --check` passed.
+
+At the Clean Sweep 1 after Review510 checkpoint, the Thirty-Sweep clean counter
+reached 1/30. The next sweep must still run; if it finds work, the counter
+resets to 0/30.
 
 ## Review 509: Route Component Attachment Hover Docs
 

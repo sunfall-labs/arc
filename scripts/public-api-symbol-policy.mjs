@@ -1419,7 +1419,7 @@ export const currentDocsEvidencePolicy = {
   rootTestFiles: 58,
   rootTestCount: 1223,
   effectFirstFiles: 449,
-  activeCleanCounter: "0/30",
+  activeCleanCounter: "1/30",
 };
 
 const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -1479,9 +1479,9 @@ export const currentDocsTextPolicies = [
         ),
       },
       {
-        name: "Architecture tip must wait on the current post-review clean sweep",
+        name: "Architecture tip must record the current clean sweep",
         pattern: new RegExp(
-          `active\\s+Thirty-Sweep\\s+clean\\s+counter\\s+is ${activeCleanCounterPattern} until\\s+a fresh\\s+post-Review${currentDocsEvidencePolicy.latestFocusedReview}\\s+sweep\\s+reports\\s+no actionable\\s+findings`,
+          `active\\s+Thirty-Sweep\\s+clean\\s+counter\\s+is ${activeCleanCounterPattern} after\\s+Clean\\s+Sweep\\s+1\\s+after\\s+Review${currentDocsEvidencePolicy.latestFocusedReview}`,
         ),
       },
     ],
@@ -1510,9 +1510,9 @@ export const currentDocsTextPolicies = [
         ),
       },
       {
-        name: "Perfection progress must keep the active Thirty-Sweep counter at current evidence value",
+        name: "Perfection progress must record the current clean sweep",
         pattern: new RegExp(
-          `active\\s+Thirty-Sweep\\s+clean counter remains ${activeCleanCounterPattern} until\\s+a fresh\\s+post-Review${currentDocsEvidencePolicy.latestFocusedReview}\\s+sweep reports no\\s+actionable findings`,
+          `active\\s+Thirty-Sweep\\s+clean\\s+counter\\s+is ${activeCleanCounterPattern} after\\s+Clean\\s+Sweep\\s+1\\s+after\\s+Review${currentDocsEvidencePolicy.latestFocusedReview}`,
         ),
       },
     ],
@@ -1561,9 +1561,9 @@ export const currentDocsTextPolicies = [
         ),
       },
       {
-        name: "Release notes must wait on the current post-review clean sweep",
+        name: "Release notes must record the current clean sweep",
         pattern: new RegExp(
-          `until\\s+a\\s+fresh\\s+post-Review${currentDocsEvidencePolicy.latestFocusedReview}\\s+sweep\\s+reports no\\s+actionable\\s+findings`,
+          `Clean Sweep 1 after Review${currentDocsEvidencePolicy.latestFocusedReview}\\s+found no actionable`,
         ),
       },
     ],
@@ -1606,9 +1606,9 @@ export const currentDocsTextPolicies = [
         ),
       },
       {
-        name: "Docs drift audit must wait on the current post-review clean sweep",
+        name: "Docs drift audit must record the current clean sweep",
         pattern: new RegExp(
-          `counter is ${activeCleanCounterPattern} until\\s+a fresh\\s+post-Review${currentDocsEvidencePolicy.latestFocusedReview}\\s+sweep\\s+reports no actionable`,
+          `counter is ${activeCleanCounterPattern} after Clean Sweep 1 after Review${currentDocsEvidencePolicy.latestFocusedReview}`,
         ),
       },
     ],
