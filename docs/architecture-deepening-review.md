@@ -11,15 +11,15 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review206, the post-Review205 sweep
-fixing the Start CLI symlink bin entrypoint and Effect-first hydration docs.
-The newest full verification checkpoint is Review206. Clean
+The newest completed focused review is Review207, the post-Review206 sweep
+fixing Action LSP/public API pins and remaining starter/DB hydration wording.
+The newest full verification checkpoint is Review207. Clean
 Sweep 1 after Review190 remains
 historical evidence, but later sweeps found Review191, Review192, Review193,
 Review194, Review195, Review196, Review197, Review198, Review199, and
 Review200, Review201, Review202, Review203, Review204, Review205, and
-Review206 work, so the active Thirty-Sweep clean counter is 0/30 until a fresh
-post-Review206 sweep reports no actionable
+Review206 and Review207 work, so the active Thirty-Sweep clean counter is 0/30
+until a fresh post-Review207 sweep reports no actionable
 findings. Some older review entries
 remain below this tip from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
@@ -54,8 +54,60 @@ metadata work. The first post-Review203 sweep found Review204 React/Solid hook
 LSP policy and adapter-root resource alias pin work. The first post-Review204
 sweep found Review205 local evidence-date and historical serial-ledger drift,
 and the first post-Review205 sweep found Review206 Start CLI symlink bin and
-hydration-doc drift. The counter remains inactive until a fresh post-Review206
-sweep is clean.
+hydration-doc drift. The first post-Review206 sweep found Review207 Action
+JSDoc/public API pins and starter/DB hydration wording drift. The counter
+remains inactive until a fresh post-Review207 sweep is clean.
+
+## Review 207: Action LSP Pins And Starter Hydration Wording
+
+Review207 fixed actionable findings from the fresh post-Review206 sweep. The DB
+and Start/verification lanes reported no actionable implementation findings.
+The Core/React/Solid lane found stale Action hover text and weak direct-root
+Action pins, while the docs lane found starter/DB docs that still led with the
+synchronous document hydration facade without naming the Effect-first helper it
+runs.
+
+1. Action LSP And Public API Pins
+   - Status: fixed.
+   - Files: `packages/core/src/action.ts`,
+     `scripts/public-api-symbol-policy.mjs`, `type-tests/core.test-d.ts`,
+     `type-tests/public-api.manifest.json`.
+   - Problem: `ActionPolicy` still described `exhaust` as ignoring new
+     submissions even though the submission controller joins the current
+     in-flight fiber. Direct root exports such as `ActionPolicy`,
+     `ActionDefinition`, `ActionOptions`, `ActionInstance`,
+     `ActionUseOptions`, `ActionTypeId`, and `isActionDefinition` were used
+     through the namespace or broad imports but were not required direct imports
+     in the public API manifest.
+   - Fix: Action JSDoc now describes `exhaust` as joining/reusing the in-flight
+     submission. The public hover-doc policy now covers Action root symbols and
+     namespace aliases, and the public type tests directly import and exercise
+     the Action root types/guard.
+   - Benefits: LSP hover text matches runtime behavior, and the public API gate
+     prevents direct Action root symbols from drifting untested.
+
+2. Starter/DB Hydration Wording
+   - Status: fixed.
+   - Files: `docs/db.md`, `docs/starter.md`,
+     `examples/basic-starter/README.md`,
+     `scripts/starter-template-content.mjs`.
+   - Problem: the docs and generated starter README described browser
+     hydration through `hydrateFromDocument(...)` without explaining that it is
+     the synchronous browser host facade over `hydrateFromDocumentEffect(...)`.
+   - Fix: DB docs now show `runtime.runSync(hydrateFromDocumentEffect(...))`
+     first, and starter docs/templates label `hydrateFromDocument(...)` as the
+     synchronous pre-mount host facade that runs the Effect helper.
+   - Benefits: examples stay copyable while the conceptual docs remain
+     Effect-first.
+
+Focused verification for Review207 passed: Core typecheck, public type tests,
+public API audit, Effect-first audit, focused Core action tests, starter README
+hydration wording greps, generated starter package dry-run, workspace
+typecheck, and `git diff --check`. Full `pnpm verify` and `pnpm verify:serial`
+passed after Review207 with 11 package builds, workspace typecheck, public type
+tests, public API inventory audit, Effect-first audit over 408 files, 53 root
+test files / 1062 tests, package-level verifies, generated starter packaging,
+the 16-target package dry-run gate, project-console checks, and leak scans.
 
 ## Review 206: Start CLI Symlink Bin And Hydration Docs
 

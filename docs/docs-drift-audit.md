@@ -3,9 +3,9 @@
 Last updated: 2026-05-16.
 
 Current release-tracking truth lives in `docs/architecture-deepening-review.md`
-and `docs/perfection-progress.md`. As of Review206, the latest full
+and `docs/perfection-progress.md`. As of Review207, the latest full
 `pnpm verify` gate passed with 53 root test files / 1062 tests, and the active
-Thirty-Sweep clean counter remains 0/30 until a fresh post-Review206 sweep
+Thirty-Sweep clean counter remains 0/30 until a fresh post-Review207 sweep
 reports no actionable findings.
 
 This historical audit checks release-tracking docs for claims that no longer match the
@@ -107,6 +107,9 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   `hydrateFromDocumentEffect(...)`, `hydrateStartPayloadEffect(...)`, and
   `Resource.hydrateEffect(payload)`, and recorded the symlinked
   `effect-ui-start` bin package dry-run guard.
+- Review207 refreshed starter and DB hydration wording so copyable docs either
+  show `hydrateFromDocumentEffect(...)` first or label `hydrateFromDocument(...)`
+  as the synchronous browser host facade over that Effect helper.
 - Review201 refreshed the current release ledgers after script command,
   Resource public-surface, React/Solid router LSP, DB erased-channel, and
   generated-starter README guardrail fixes; the historical enumeration above

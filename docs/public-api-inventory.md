@@ -111,6 +111,11 @@ Golden-path public groups:
 - `Action.planInvalidationEffect(...)` for adapters/tests that need action
   invalidation planning with synchronous `invalidates` callback throws reported
   as `EffectInputCallbackError`.
+- Action direct root symbols such as `ActionPolicy`, `ActionDefinition`,
+  `ActionOptions`, `ActionInstance`, `ActionUseOptions`, `ActionTypeId`, and
+  `isActionDefinition(...)` are expert-public LSP vocabulary for adapters,
+  generated clients, and tests that need to name the Action contract without
+  going through namespace aliases.
 
 Release decisions:
 

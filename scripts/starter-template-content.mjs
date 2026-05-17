@@ -92,7 +92,8 @@ pnpm verify
 The starter includes:
 
 - Start SSR with an Effect-returning request handler;
-- browser hydration through \`hydrateFromDocument\`;
+- browser hydration through the synchronous \`hydrateFromDocument\` host facade,
+  which runs \`hydrateFromDocumentEffect(...)\` before the UI mounts;
 - a route-owned Resource preload declared in file route metadata;
 - a production leak scan for server-only module sentinels.
 `;

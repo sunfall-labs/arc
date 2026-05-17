@@ -1,6 +1,7 @@
 import { Context, Effect, Schema, Stream } from "effect";
 import {
   Action,
+  ActionTypeId,
   ActionResult,
   Capability,
   Form,
@@ -32,6 +33,7 @@ import {
   disposeResourceStoreEffect,
   forkScoped,
   hrefForRouteInput,
+  isActionDefinition,
   isPlainLeftClick,
   isRouteParamName,
   isRoutePathSegmentPrefix,
@@ -65,11 +67,17 @@ import {
   serializeResponseCookie,
   serializeResponseCookieEffect,
   withResourceStore,
+  type ActionConcurrency,
+  type ActionDefinition,
+  type ActionInstance,
+  type ActionOptions,
+  type ActionPolicy,
   type ActionResultBoundary,
   type ActionResultFailure,
   type ActionResultRedirect,
   type ActionResultSuccess,
   type ActionResultValidationFailure,
+  type ActionState,
   type BrowserHistoryAdapter,
   type BrowserHistoryWindow,
   type BrowserRouterInitialMatchedHost,
@@ -87,6 +95,7 @@ import {
   type BrowserRouterLinkPreloaderRuntime,
   type BrowserRouterLinkPreloadDecision,
   type ActionSubmissionState,
+  type ActionUseOptions,
   type AnyEffectUiRuntime,
   type EffectUiRuntime,
   type FormInstance,
@@ -153,8 +162,28 @@ const historyWindow: BrowserHistoryWindow = {
   addEventListener: () => undefined,
   removeEventListener: () => undefined
 };
+const coreActionConcurrency: ActionConcurrency = "exhaust";
+const coreActionPolicy: ActionPolicy<never> = {
+  concurrency: coreActionConcurrency
+};
+const coreActionOptions: ActionOptions<string, string> = {
+  name: "type-tests/core-action",
+  policy: coreActionPolicy,
+  run: (input) => Effect.succeed(input)
+};
+const coreActionDefinition: ActionDefinition<string, string> = Action.define(coreActionOptions);
+const coreActionUseOptions: ActionUseOptions<never, never> = { runtime };
+const coreActionInstance: ActionInstance<string, string> =
+  Action.use(coreActionDefinition, { runtime });
+const coreActionState: ActionState<string, string> = {
+  _tag: "Success",
+  input: "publish",
+  value: "ok"
+};
+const coreActionDefinitionCheck: boolean = isActionDefinition(coreActionDefinition);
 const coreExports: Array<unknown> = [
   Action,
+  ActionTypeId,
   ActionResult,
   Capability,
   Form,
@@ -184,6 +213,7 @@ const coreExports: Array<unknown> = [
   disposeResourceStoreEffect,
   forkScoped,
   hrefForRouteInput,
+  isActionDefinition,
   isPlainLeftClick,
   isRouteParamName,
   isRoutePathSegmentPrefix,
@@ -213,6 +243,14 @@ const coreExports: Array<unknown> = [
   browserHistory,
   navigateOptions,
   historyWindow,
+  coreActionConcurrency,
+  coreActionPolicy,
+  coreActionOptions,
+  coreActionDefinition,
+  coreActionUseOptions,
+  coreActionInstance,
+  coreActionState,
+  coreActionDefinitionCheck,
   runtime,
   requestRuntime,
   runtimeDisposeEffect,

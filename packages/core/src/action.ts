@@ -34,6 +34,7 @@ import type { ResourceStore as ResourceStoreState } from "./resource-store.js";
 import { currentOrDefaultRuntime, getCurrentRuntime, type AnyEffectUiRuntime, type EffectUiRuntime } from "./runtime.js";
 import type { ReadableSignal } from "./signal.js";
 
+/** Expert-public structural marker used to recognize Action Definitions. */
 export const ActionTypeId: unique symbol = Symbol.for("@effect-ui/core/Action") as typeof ActionTypeId;
 
 /** State machine for one action instance. */
@@ -44,6 +45,13 @@ export type ActionState<
   P = ResourceInvalidationPlan
 > = ActionSubmissionState<I, A, E, P>;
 
+/**
+ * Submission concurrency mode for one stateful Action Instance.
+ *
+ * `latest` interrupts the previous submission, `parallel` allows every
+ * submission to run, and `exhaust` reuses the current in-flight submission
+ * until it completes.
+ */
 export type ActionConcurrency = "latest" | "parallel" | "exhaust";
 
 /** Runtime policy for submissions, including concurrency and retry behavior. */
@@ -52,7 +60,7 @@ export interface ActionPolicy<E = never> {
    * Submission policy for one action instance.
    *
    * `latest` interrupts older submissions, `parallel` allows all submissions,
-   * and `exhaust` ignores new submissions while one is pending.
+   * and `exhaust` joins the in-flight submission while one is pending.
    */
   readonly concurrency?: ActionConcurrency;
   /** Effect retry schedule applied around the action `run` Effect. */
@@ -149,7 +157,9 @@ export interface ActionInstance<
   reset(): void;
 }
 
+/** Runtime options for constructing an Action Instance from a definition. */
 export interface ActionUseOptions<R = never, ER = never> {
+  /** Runtime that provides action services, the Resource Store, and runtime errors. */
   readonly runtime?: EffectUiRuntime<R, ER>;
 }
 
@@ -207,6 +217,7 @@ type ActionDefinitionCommonOptions<I, A, E, R, InvalidationRequirements = never>
     ) => ReadonlyArray<ResourceInvalidation<InvalidationRequirements>>;
   };
 
+/** Returns true when a value is an Effect UI Action Definition. */
 export const isActionDefinition = (value: unknown): value is ActionDefinition<unknown, unknown> =>
   typeof value === "object" &&
   value !== null &&
@@ -214,7 +225,9 @@ export const isActionDefinition = (value: unknown): value is ActionDefinition<un
 
 /** Helpers for defining and running Effect-first actions. */
 export namespace Action {
+  /** Public namespace alias for an Action Definition. */
   export type Definition<I, A, E = never, R = never> = ActionDefinition<I, A, E, R>;
+  /** Public namespace alias for a live Action Instance. */
   export type Instance<
     I,
     A,
@@ -223,10 +236,15 @@ export namespace Action {
     DefinitionError = E,
     DefinitionRequirements = R
   > = ActionInstance<I, A, E, R, DefinitionError, DefinitionRequirements>;
+  /** Public namespace alias for Action submission state. */
   export type State<I, A, E = never> = ActionState<I, A, E>;
+  /** Public namespace alias for Action concurrency modes. */
   export type Concurrency = ActionConcurrency;
+  /** Public namespace alias for Action retry and concurrency policy. */
   export type Policy<E = never> = ActionPolicy<E>;
+  /** Public namespace alias for an optimistic Action rollback Effect. */
   export type Rollback<R = never> = ActionRollback<R>;
+  /** Public namespace alias for the optimistic Action transaction object. */
   export type OptimisticTransaction = ActionOptimisticTransaction;
 
   export const planInvalidation = <I, A, E, R>(

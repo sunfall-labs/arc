@@ -1,5 +1,31 @@
 export const publicHoverDocGroups = [
   {
+    file: "packages/core/src/action.ts",
+    declarations: [
+      "ActionTypeId",
+      "ActionState",
+      "ActionConcurrency",
+      "ActionPolicy",
+      "ActionDefinition",
+      "ActionOptions",
+      "ActionInstance",
+      "ActionUseOptions",
+      "isActionDefinition",
+      "Action"
+    ],
+    namespaceDeclarations: {
+      Action: [
+        "Definition",
+        "Instance",
+        "State",
+        "Concurrency",
+        "Policy",
+        "Rollback",
+        "OptimisticTransaction"
+      ]
+    }
+  },
+  {
     file: "packages/core/src/program.ts",
     declarations: [
       "Program",

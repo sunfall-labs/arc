@@ -6,7 +6,18 @@
       "import": "@effect-ui/core",
       "source": "packages/core/src/index.ts",
       "docs": "docs/public-api-inventory.md",
-      "typeTest": "type-tests/core.test-d.ts"
+      "typeTest": "type-tests/core.test-d.ts",
+      "requiredTypeTestImports": [
+        "ActionConcurrency",
+        "ActionDefinition",
+        "ActionInstance",
+        "ActionOptions",
+        "ActionPolicy",
+        "ActionState",
+        "ActionTypeId",
+        "ActionUseOptions",
+        "isActionDefinition"
+      ]
     },
     {
       "package": "@effect-ui/db",

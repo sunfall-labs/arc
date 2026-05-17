@@ -48,6 +48,11 @@ are easiest to regress while refactoring internals toward Effect primitives.
   expert-public request-runtime seam, `ActionSubmissionState.hasPrevious` for
   successful `undefined` previous values, and `ResourceUiMatch` pending/failure
   metadata for renderer adapters.
+- Review207 added direct Core Action root pins for `ActionPolicy`,
+  `ActionDefinition`, `ActionOptions`, `ActionInstance`, `ActionUseOptions`,
+  `ActionTypeId`, `ActionState`, `ActionConcurrency`, and
+  `isActionDefinition(...)`, so adapters cannot accidentally rely only on the
+  `Action` namespace import.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them

@@ -759,18 +759,20 @@ export const handleRequest = createRequestHandler(app, {
 ```
 
 The browser entrypoint hydrates both resources and collections from the same
-script. Pass the collection definitions that can appear in the payload, plus the
-browser runtime when one is created explicitly, so hydration lands in the same
-Runtime Spine that the UI will use:
+script. Prefer the Effect form and run it through the browser Runtime Spine so
+hydration lands in the same runtime that the UI will use:
 
 ```ts
 const runtime = createEffectRuntime(AppLive)
 
-hydrateFromDocument(document, "__EFFECT_UI_HYDRATION__", {
-  runtime,
+runtime.runSync(hydrateFromDocumentEffect(document, "__EFFECT_UI_HYDRATION__", {
   collections: [Projects, Tasks]
-})
+}))
 ```
+
+Minimal browser entrypoints can use the synchronous host facade
+`hydrateFromDocument(document, id, { runtime, collections })`; it runs
+`hydrateFromDocumentEffect(...)` before the UI mounts.
 
 For streamed SSR responses, Start emits incremental JSON scripts with
 `data-effect-ui-hydration-chunk`. Browser code can ingest only those chunks with

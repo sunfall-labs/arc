@@ -21,7 +21,8 @@ The basic starter includes:
 - one file route generated into `src/routeTree.gen.ts`;
 - one route-owned Resource preload declared in route metadata;
 - Start SSR through `createRequestHandler`;
-- browser hydration through `hydrateFromDocument`;
+- browser hydration through the synchronous `hydrateFromDocument` host facade,
+  which runs `hydrateFromDocumentEffect(...)` before the UI mounts;
 - a production leak scan for `starter.server` sentinels.
 
 The React starter lives at
