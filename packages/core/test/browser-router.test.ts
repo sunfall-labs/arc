@@ -279,6 +279,64 @@ describe("browser router kernel", () => {
       )
     ));
 
+  it("captures router link hover preload owners before queued sync interruptions execute", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const baseRuntime = makeRuntime();
+          yield* Effect.addFinalizer(() => baseRuntime.disposeEffect);
+          const queuedInterrupts: Array<Effect.Effect<void>> = [];
+          let queueNextInterrupt = false;
+          const runtime: typeof baseRuntime = {
+            ...baseRuntime,
+            runFork: <A, E, R>(
+              effect: Effect.Effect<A, E, R>,
+              options?: Effect.RunOptions
+            ): Fiber.Fiber<A, E> => {
+              if (queueNextInterrupt) {
+                queueNextInterrupt = false;
+                queuedInterrupts.push(effect as Effect.Effect<void>);
+                return baseRuntime.runFork(Effect.never as Effect.Effect<A, E, never>, options);
+              }
+              return baseRuntime.runFork(effect as Effect.Effect<A, E, never>, options);
+            }
+          };
+          const starts: Array<number> = [];
+          const finalizers: Array<number> = [];
+          let revision = 0;
+          const preloader = makeBrowserRouterLinkPreloader({
+            runtime,
+            enabled: () => true,
+            preloadEffect: () => {
+              const current = ++revision;
+              return Effect.sync(() => {
+                starts.push(current);
+              }).pipe(
+                Effect.andThen(Effect.never),
+                Effect.ensuring(Effect.sync(() => {
+                  finalizers.push(current);
+                }))
+              );
+            }
+          });
+
+          preloader.preload();
+          yield* Effect.promise(() => vi.waitFor(() => expect(starts).toEqual([1])));
+
+          queueNextInterrupt = true;
+          preloader.preload();
+          yield* Effect.promise(() => vi.waitFor(() => expect(starts).toEqual([1, 2])));
+          expect(queuedInterrupts).toHaveLength(1);
+
+          yield* queuedInterrupts[0]!;
+          expect(finalizers).toEqual([1]);
+
+          yield* preloader.interruptEffect();
+          expect(finalizers).toEqual([1, 2]);
+        })
+      )
+    ));
+
   it("swallows router link hover preload defects", () =>
     Effect.runPromise(
       Effect.scoped(
@@ -677,6 +735,75 @@ describe("browser router kernel", () => {
               });
             })
           );
+        })
+      )
+    ));
+
+  it("captures navigation preload owners before queued sync disposal executes", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const baseRuntime = makeRuntime();
+          yield* Effect.addFinalizer(() => baseRuntime.disposeEffect);
+          const queuedDisposals: Array<Effect.Effect<void>> = [];
+          let queueNextDisposal = false;
+          const runtime: typeof baseRuntime = {
+            ...baseRuntime,
+            runFork: <A, E, R>(
+              effect: Effect.Effect<A, E, R>,
+              options?: Effect.RunOptions
+            ): Fiber.Fiber<A, E> => {
+              if (queueNextDisposal) {
+                queueNextDisposal = false;
+                queuedDisposals.push(effect as Effect.Effect<void>);
+                return baseRuntime.runFork(Effect.never as Effect.Effect<A, E, never>, options);
+              }
+              return baseRuntime.runFork(effect as Effect.Effect<A, E, never>, options);
+            }
+          };
+          const starts: Array<string> = [];
+          const finalizers: Array<string> = [];
+          const Slow = route("/queued-owner-slow", {
+            preload: () =>
+              Effect.sync(() => {
+                starts.push("slow");
+              }).pipe(
+                Effect.andThen(Effect.never),
+                Effect.ensuring(Effect.sync(() => {
+                  finalizers.push("slow");
+                }))
+              )
+          });
+          const Next = route("/queued-owner-next", {
+            preload: () =>
+              Effect.sync(() => {
+                starts.push("next");
+              }).pipe(
+                Effect.andThen(Effect.never),
+                Effect.ensuring(Effect.sync(() => {
+                  finalizers.push("next");
+                }))
+              )
+          });
+          const router = createBrowserRouterKernel([Slow, Next] as const, {
+            initialHref: "/missing",
+            runtime
+          });
+          yield* Effect.addFinalizer(() => router.disposeEffect());
+
+          router.navigateHref("/queued-owner-slow");
+          yield* Effect.promise(() => vi.waitFor(() => expect(starts).toEqual(["slow"])));
+
+          queueNextDisposal = true;
+          router.navigateHref("/queued-owner-next");
+          yield* Effect.promise(() => vi.waitFor(() => expect(starts).toEqual(["slow", "next"])));
+          expect(queuedDisposals).toHaveLength(1);
+
+          yield* queuedDisposals[0]!;
+          expect(finalizers).toEqual(["slow"]);
+
+          yield* router.disposeEffect();
+          expect(finalizers).toEqual(["slow", "next"]);
         })
       )
     ));

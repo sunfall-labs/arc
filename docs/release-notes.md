@@ -86,6 +86,14 @@ Latest full gate on May 17, 2026 after Review 240:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 244 Effect Cleanup Ownership, DB Pins, And Evidence Policy closed the
+  post-Review243 sweep: DB Query namespace scalar aliases now match the
+  documented namespace-first Interface, React/Solid DB Effect handles are
+  pinned, Devtools action invalidation conflicts fail through the typed Effect
+  channel, sync cleanup conveniences take owner slots before forking cleanup,
+  and current-evidence policy now checks the focused review, full gate, test
+  count, and clean counter. The active Thirty-Sweep clean counter remains 0/30
+  until a fresh post-Review244 sweep reports no actionable findings.
 - Review 243 Browser Router And DB Public Interface Pins closed the
   post-Review242 sweep: outside-route Browser Router navigation now increments
   the navigation generation and disposes active preload `UiScope` work before
@@ -93,7 +101,8 @@ Latest full gate on May 17, 2026 after Review 240:
   navigation failures. DB Query direct type mirrors and SQLite default
   constants are now documented expert-public compatibility surfaces with
   direct type-test and manifest pins. The active Thirty-Sweep clean counter
-  remains 0/30 until a fresh post-Review243 sweep is clean.
+  remained 0/30; the later post-Review243 sweep found Review244 Effect cleanup
+  ownership, DB pins, Devtools typed failure, and current-evidence policy work.
 - Review 242 Solid Route Update Suspense Outcome closed the post-Review241
   framework follow-up: navigation-time Solid route render thenables now become
   owned suspended outcomes, retry through the controller when the host thenable
@@ -511,8 +520,10 @@ Latest full gate on May 17, 2026 after Review 240:
   docs drift work, and the fresh post-Review241 framework follow-up found
   Review242 Solid route update Suspense outcome work, and the fresh
   post-Review242 sweep found Review243 Browser Router Kernel and DB public
-  Interface work.
-  The active Thirty-Sweep clean counter is 0/30 until a fresh post-Review243
+  Interface work, and the fresh post-Review243 sweep found Review244 Effect
+  cleanup ownership, DB pins, Devtools typed failure, and current-evidence
+  policy work.
+  The active Thirty-Sweep clean counter is 0/30 until a fresh post-Review244
   sweep reports no actionable findings.
 - Review 192 refreshed stale current-gate docs wording that still named
   Review190 or active 1/30 progress after Review191.
@@ -1494,7 +1505,9 @@ Latest full gate on May 17, 2026 after Review 240:
   Review241 current-evidence docs drift work, and the fresh post-Review241
   framework follow-up found Review242 Solid route update Suspense outcome work,
   and the fresh post-Review242 sweep found Review243 Browser Router Kernel and
-  DB public Interface work, so the active counter is 0/30.
+  DB public Interface work, and the fresh post-Review243 sweep found Review244
+  Effect cleanup ownership, DB pins, Devtools typed failure, and
+  current-evidence policy work, so the active counter is 0/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
   Effect-first audit over 415 physical/virtual files, 53 root test files / 1170

@@ -786,6 +786,9 @@ export const publicHoverDocGroups = [
         "LiveState",
         "EvaluationError",
         "JoinStrategy",
+        "JoinKey",
+        "SortDirection",
+        "SortValue",
         "PlanSourceDiagnostics",
         "PlanJoinDiagnostics",
         "PlanDiagnostics",
@@ -1431,6 +1434,27 @@ export const namespaceBackedSurfaceModules = new Map([
   ["@effect-ui/db", new Set(["sync-adapter"])]
 ]);
 
+export const currentDocsEvidencePolicy = {
+  latestFocusedReview: 244,
+  latestFocusedTitle: "Effect Cleanup Ownership, DB Pins, And Evidence Policy",
+  latestFullGateReview: 240,
+  rootTestFiles: 53,
+  rootTestCount: 1170,
+  effectFirstFiles: 415,
+  activeCleanCounter: "0/30"
+};
+
+const staleFocusedReviewPattern =
+  /(?:The latest focused Review|Latest focused evidence: Review|newest focused review is Review) ?(?:1\d\d|2[0-3]\d|24[0-3])\b/;
+const staleAsOfReviewPattern =
+  /As of Review(?:1\d\d|2[0-3]\d|24[0-3]), the latest full/;
+const staleFullGateReviewPattern =
+  /(?:The latest full verification gate is green after Review|Latest full gate[^.\n]*after Review|latest full `pnpm verify` passed after Review|current full gate is the Review) ?(?:1\d\d|2[0-3]\d)\b/;
+const staleRootTestCountPattern =
+  /53 root test files \/ 1161 tests/;
+const stalePostReviewWaitPattern =
+  /until a fresh post-Review(?:1\d\d|2[0-3]\d|24[0-3])\s+sweep reports no actionable findings/;
+
 export const currentDocsTextPolicies = [
   {
     file: "CONTEXT.md",
@@ -1460,8 +1484,61 @@ export const currentDocsTextPolicies = [
     ]
   },
   {
-    file: "docs/perfection-progress.md",
+    file: "docs/architecture-deepening-review.md",
+    required: [
+      {
+        name: "Architecture tip must name the current focused Review244",
+        pattern: /newest focused review is Review244 Effect Cleanup Ownership,\s+DB Pins,\s+And\s+Evidence Policy/
+      },
+      {
+        name: "Architecture tip must keep Review240 as the newest full checkpoint",
+        pattern: /newest full verification checkpoint remains Review240/
+      },
+      {
+        name: "Architecture tip must wait on the post-Review244 clean sweep",
+        pattern: /active Thirty-Sweep clean counter is 0\/30 until a fresh post-Review244\s+sweep reports no actionable findings/
+      }
+    ],
     banned: [
+      {
+        name: "Architecture tip must not name an older newest focused review",
+        pattern: staleFocusedReviewPattern
+      },
+      {
+        name: "Architecture tip must not wait on an older post-review sweep",
+        pattern: stalePostReviewWaitPattern
+      }
+    ]
+  },
+  {
+    file: "docs/perfection-progress.md",
+    required: [
+      {
+        name: "Perfection progress must name the current focused review from currentDocsEvidencePolicy",
+        pattern: /latest focused Review244 Effect Cleanup Ownership,\s+DB Pins,\s+And Evidence\s+Policy/
+      },
+      {
+        name: "Perfection progress must keep the Review240 full gate as current full evidence",
+        pattern: /latest full verification gate is green after Review240/
+      },
+      {
+        name: "Perfection progress must keep the active Thirty-Sweep counter at 0\/30 after Review244 work",
+        pattern: /active Thirty-Sweep clean counter remains 0\/30 until a fresh post-Review244 sweep reports no actionable findings/
+      }
+    ],
+    banned: [
+      {
+        name: "Perfection progress must not name an older latest focused review",
+        pattern: staleFocusedReviewPattern
+      },
+      {
+        name: "Perfection progress must not name an older latest full gate review",
+        pattern: staleFullGateReviewPattern
+      },
+      {
+        name: "Perfection progress must not wait on an older post-review sweep",
+        pattern: stalePostReviewWaitPattern
+      },
       {
         name: "Perfection progress must not call Review239 the latest focused review",
         pattern: /latest focused Review239/
@@ -1478,7 +1555,29 @@ export const currentDocsTextPolicies = [
   },
   {
     file: "docs/release-notes.md",
+    required: [
+      {
+        name: "Release notes must include the current focused Review244 entry",
+        pattern: /Review 244 Effect Cleanup Ownership, DB Pins, And Evidence Policy/
+      },
+      {
+        name: "Release notes must keep the Review240 full gate snapshot",
+        pattern: /Latest full gate on May 17, 2026 after Review 240/
+      },
+      {
+        name: "Release notes must wait on the post-Review244 clean sweep",
+        pattern: /until a fresh post-Review244 sweep reports no actionable findings/
+      }
+    ],
     banned: [
+      {
+        name: "Release notes must not name an older latest full gate review",
+        pattern: staleFullGateReviewPattern
+      },
+      {
+        name: "Release notes must not wait on an older post-review sweep",
+        pattern: stalePostReviewWaitPattern
+      },
       {
         name: "Release notes must not call Review239 the latest full gate",
         pattern: /Latest full gate on May 17, 2026 after Review 239/
@@ -1495,7 +1594,29 @@ export const currentDocsTextPolicies = [
   },
   {
     file: "docs/docs-drift-audit.md",
+    required: [
+      {
+        name: "Docs drift audit must name the current focused Review244 evidence",
+        pattern: /As of Review244, the latest full/
+      },
+      {
+        name: "Docs drift audit must keep Review240 full gate counts",
+        pattern: /Review240 run with 53 root test files \/ 1170 tests/
+      },
+      {
+        name: "Docs drift audit must wait on the post-Review244 clean sweep",
+        pattern: /counter is 0\/30 until a fresh post-Review244 sweep reports no actionable/
+      }
+    ],
     banned: [
+      {
+        name: "Docs drift audit must not name an older current release-tracking review",
+        pattern: staleAsOfReviewPattern
+      },
+      {
+        name: "Docs drift audit must not wait on an older post-review sweep",
+        pattern: stalePostReviewWaitPattern
+      },
       {
         name: "Docs drift audit must not call Review239 the current release-tracking truth",
         pattern: /As of Review239, the latest full/
@@ -1508,6 +1629,16 @@ export const currentDocsTextPolicies = [
   },
   {
     file: "docs/type-test-coverage-audit.md",
+    required: [
+      {
+        name: "Type-test audit must name Review244 public type-test pins",
+        pattern: /Review244 Effect Cleanup Ownership, DB Pins, And Evidence Policy/
+      },
+      {
+        name: "Type-test audit must keep Review240 full gate counts",
+        pattern: /Full `pnpm verify` passed after Review240 with\s+53 root test files \/ 1170 tests/
+      }
+    ],
     banned: [
       {
         name: "Type-test audit must not use Review239 as current verification evidence",
@@ -1517,6 +1648,20 @@ export const currentDocsTextPolicies = [
   },
   {
     file: "docs/effect-first-audit.md",
+    required: [
+      {
+        name: "Effect-first audit must name Review244 as current sweep work",
+        pattern: /Review244 Effect Cleanup Ownership, DB Pins, And Evidence Policy/
+      },
+      {
+        name: "Effect-first audit must keep the 415-file audit count",
+        pattern: /Effect-first audit over 415 files/
+      },
+      {
+        name: "Effect-first audit must keep the Review240 full gate as current full evidence",
+        pattern: /current full gate is the Review 240/
+      }
+    ],
     banned: [
       {
         name: "Effect-first audit must not call Review239 the current full gate",
@@ -1556,7 +1701,29 @@ export const currentDocsTextPolicies = [
   },
   {
     file: "docs/ultimate-goal-checklist.md",
+    required: [
+      {
+        name: "Ultimate goal checklist must name Review244 as latest focused evidence",
+        pattern: /Latest focused evidence: Review 244/
+      },
+      {
+        name: "Ultimate goal checklist must keep Review240 as latest full evidence",
+        pattern: /Review240 records the latest full gate/
+      },
+      {
+        name: "Ultimate goal checklist must keep active clean counter at 0\/30 after Review244",
+        pattern: /leaving the active counter at 0\/30/
+      }
+    ],
     banned: [
+      {
+        name: "Ultimate goal checklist must not name an older latest focused review",
+        pattern: staleFocusedReviewPattern
+      },
+      {
+        name: "Ultimate goal checklist must not wait on an older post-review sweep",
+        pattern: stalePostReviewWaitPattern
+      },
       {
         name: "Ultimate goal checklist must not call Review239 latest focused evidence",
         pattern: /Latest focused evidence: Review 239/

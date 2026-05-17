@@ -20,6 +20,13 @@ interruption.
 
 ## Current Sweep Results
 
+- Review244 Effect Cleanup Ownership, DB Pins, And Evidence Policy keeps the
+  post-Review243 fixes Effect-first: Devtools action invalidation conflicts
+  now fail through the typed Effect channel, sync cleanup Interfaces take owner
+  slots before forking cleanup Effects, script audit failures flow through the
+  Effect main-runner seam, and the DB/public docs/type-test additions introduce
+  no Promise-shaped library API. The Effect-first audit over 415 files remains
+  green.
 - Review243 Browser Router And DB Public Interface Pins keeps the post-Review242
   fixes Effect-first: invalid route/path navigation now cancels active preload
   `UiScope` work through the Browser Router Kernel, and the DB Query/SQLite

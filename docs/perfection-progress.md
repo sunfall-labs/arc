@@ -41,10 +41,12 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest focused Review243 Browser Router And DB Public Interface Pins
-  slice is green: outside-route Browser Router navigation cancels active
-  preload work before writing failure state, and DB Query/SQLite expert-public
-  mirrors have direct docs/type-test/manifest ownership.
+- The latest focused Review244 Effect Cleanup Ownership, DB Pins, And Evidence
+  Policy slice is green: DB Query namespace scalar aliases and React/Solid DB
+  Effect handles have docs/type-test ownership, Devtools action invalidation
+  conflicts fail through the typed Effect channel, sync cleanup Interfaces take
+  owners before forking cleanup, and current-evidence policies guard focused
+  review, full gate, test count, and clean-counter drift.
 - The latest full verification gate is green after Review240:
   `pnpm verify` completed with 53 root test files / 1170 tests, public API
   inventory audit, Effect command-runner policy, package payload policy,
@@ -744,6 +746,7 @@ or command result that proves it.
 | 482 | Review 241 Current Evidence Docs Drift | `docs/architecture-deepening-review.md`; `docs/docs-drift-audit.md`; `docs/effect-first-audit.md`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/type-test-coverage-audit.md`; `docs/ultimate-goal-checklist.md`; `scripts/public-api-symbol-policy.mjs` | Fixed fresh post-Review240 docs evidence drift. Current-facing release docs now name Review240 as the latest full verification gate, Review239 wording is historical instead of active, and public API current-docs text policies reject stale "latest/current Review239" claims. | Focused verification passed: stale current-evidence grep, `pnpm audit:public-api`, `pnpm audit:effect-first`, `pnpm typecheck:types`, and `git diff --check`. This docs drift sweep found work; the later fresh post-Review241 framework follow-up found Review242 Solid route update Suspense outcome work. |
 | 483 | Review 242 Solid Route Update Suspense Outcome | `CONTEXT.md`; `docs/architecture-deepening-review.md`; `docs/docs-drift-audit.md`; `docs/effect-first-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md`; `packages/solid/src/route-render-scope.ts`; `packages/solid/src/router.ts`; `packages/solid/test/router.test.ts` | Fixed fresh post-Review241 framework follow-up. The Solid Route Render Scope Controller now publishes suspended update renders as owned outcomes, stores tentative route cleanup, retries the same transition when the host thenable settles, and disposes superseded suspended frames. `RouterOutlet` converts that outcome through Solid `createResource(...)` so Solid owns the Suspense host Adapter while render failures still flow to ErrorBoundary. | Focused verification passed: Solid typecheck, Solid router tests 1 file / 42 tests, broader Core/React/Solid focused tests, framework package typechecks, public API audit, Effect-first audit, public type tests, and `git diff --check`. This sweep found work; the later fresh post-Review242 sweep found Review243 Browser Router Kernel and DB public Interface work. |
 | 484 | Review 243 Browser Router And DB Public Interface Pins | `CONTEXT.md`; `docs/architecture-deepening-review.md`; `docs/db.md`; `docs/docs-drift-audit.md`; `docs/effect-first-audit.md`; `docs/perfection-progress.md`; `docs/public-api-inventory.md`; `docs/release-notes.md`; `docs/type-test-coverage-audit.md`; `docs/ultimate-goal-checklist.md`; `packages/core/src/browser-router-kernel.ts`; `packages/core/test/browser-router.test.ts`; `type-tests/db.test-d.ts`; `type-tests/public-api.manifest.json` | Fixed fresh post-Review242 findings. Browser Router Kernel membership failures now increment the navigation generation, dispose active preload `UiScope` work, and then write typed failure state so stale preloads cannot overwrite outside-route navigation failures. DB Query direct type mirrors and SQLite default constants are documented as expert-public compatibility surfaces and pinned in type tests and the public API manifest. | Focused verification passed: Core/React/Solid router tests 3 files / 82 tests, Core/DB/React DB/Solid DB typechecks, `pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first`, and `git diff --check`. This sweep found work, so the active clean counter remains 0/30 until a fresh post-Review243 sweep is clean. |
+| 485 | Review 244 Effect Cleanup Ownership, DB Pins, And Evidence Policy | `CONTEXT.md`; `docs/architecture-deepening-review.md`; `docs/db.md`; `docs/docs-drift-audit.md`; `docs/effect-first-audit.md`; `docs/perfection-progress.md`; `docs/public-api-inventory.md`; `docs/release-notes.md`; `docs/type-test-coverage-audit.md`; `docs/ultimate-goal-checklist.md`; `packages/core/src/browser-router-kernel.ts`; `packages/core/src/browser-router-link.ts`; `packages/core/src/resource-ui-binding.ts`; `packages/core/test/browser-router.test.ts`; `packages/core/test/resource-ui-binding.test.ts`; `packages/db/src/query-builder.ts`; `packages/devtools/src/devtools-contract.ts`; `packages/devtools/src/store.ts`; `packages/devtools/test/devtools.test.ts`; `scripts/audit-effect-first.mjs`; `scripts/audit-public-api-inventory.mjs`; `scripts/public-api-symbol-policy.mjs`; `scripts/verify-package-dry-runs.mjs`; `type-tests/db.test-d.ts`; `type-tests/devtools.test-d.ts`; `type-tests/public-api.manifest.json`; `type-tests/react-db.test-d.ts`; `type-tests/solid-db.test-d.ts` | Fixed fresh post-Review243 findings. DB Query namespace scalar aliases now mirror direct expert-public scalar types, React/Solid DB handles pin returned Effect error/context channels, Devtools action invalidation conflicts fail through the typed Effect channel, sync cleanup conveniences synchronously take the current owner before forking cleanup work, and current docs evidence policy is structured around the current focused review, full gate, test count, and clean counter. | Focused verification passed: Devtools tests 1 file / 78 tests, Core Browser Router and Resource UI Binding tests 2 files / 37 tests, plus the Review244 gates below. This sweep found work, so the active Thirty-Sweep clean counter remains 0/30 until a fresh post-Review244 sweep reports no actionable findings. |
 
 ## Thirty-Sweep Gate
 
@@ -818,9 +821,11 @@ work, and the fresh post-Review239 sweep found Review240 cleanup, framework,
 Start tooling, DB, and public API ownership work, and the fresh post-Review240
 sweep found Review241 current-evidence docs drift work, and the fresh
 post-Review241 framework follow-up found Review242 Solid route update Suspense
-outcome work, and the fresh post-Review242 sweep found Review243 Browser
-Router Kernel and DB public Interface work. The active counter is therefore
-0/30 until a fresh post-Review243 sweep reports no actionable
+outcome work, the fresh post-Review242 sweep found Review243 Browser Router
+Kernel and DB public Interface work, and the fresh post-Review243 sweep found
+Review244 Effect cleanup ownership, DB pins, Devtools typed failure, and
+current-evidence policy work. The active counter is therefore 0/30 until a
+fresh post-Review244 sweep reports no actionable
 findings.
 
 - Re-run the Promise and docs drift audits after each single-command full

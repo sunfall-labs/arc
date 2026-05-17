@@ -325,6 +325,16 @@ export const makeDevtoolsStore = (
     return undefined;
   };
 
+  const validateActionInvalidationOptionsEffect = (
+    actionOptions: DevtoolsRecordActionStateOptions
+  ): Effect.Effect<void, DevtoolsActionInvalidationPlanConflict> =>
+    actionOptions.invalidationPlan !== undefined &&
+    actionOptions.serializedInvalidationPlan !== undefined
+      ? Effect.fail(new DevtoolsActionInvalidationPlanConflict({
+        guidance: "Pass invalidationPlan for local refs or serializedInvalidationPlan for transport-provided snapshots."
+      }))
+      : Effect.void;
+
   const recordRequestTrace = (trace: DevtoolsRequestTrace): void => {
     const copiedInput = copyRequestTrace(trace, serializationPolicy);
     const existingSequence = requestTraceSequence(copiedInput.request.id);
@@ -462,8 +472,11 @@ export const makeDevtoolsStore = (
     state: string,
     actionOptions: DevtoolsRecordActionStateOptions = {}
   ) =>
-    Effect.sync(() => {
-      recordActionState(action, state, actionOptions);
+    Effect.gen(function* () {
+      yield* validateActionInvalidationOptionsEffect(actionOptions);
+      yield* Effect.sync(() => {
+        recordActionState(action, state, actionOptions);
+      });
     });
   const recordActionEffect = <I, A, E, R>(action: ActionInstance<I, A, E, R>) =>
     Effect.sync(() => {

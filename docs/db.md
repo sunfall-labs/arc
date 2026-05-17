@@ -735,10 +735,10 @@ const subscription = yield* store.subscribeEventsEffect()
 ```
 
 The public store surface is intentionally narrow: callers can subscribe to
-events and participate in lifecycle disposal, but collection state maps remain
-owned by `@effect-ui/db`. Devtools can record those events through its
-collection event runtime pipeline without importing private DB implementation
-details.
+scoped events, while Runtime Collection Store lifecycle disposal remains
+internal to `@effect-ui/db`. Collection state maps remain owned by the DB
+Module. Devtools can record those events through its collection event runtime
+pipeline without importing private DB implementation details.
 
 ## Start SSR
 

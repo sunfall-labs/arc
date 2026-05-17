@@ -396,6 +396,86 @@ describe("Resource UI Binding Controller", () => {
     return Effect.runPromise(runtime.disposeEffect);
   });
 
+  it("captures Suspense preload owners before queued sync interruption executes", () => {
+    const baseRuntime = makeRuntime();
+    const queuedInterrupts: Array<Effect.Effect<void>> = [];
+    let queueNextInterrupt = false;
+    const runtime: typeof baseRuntime = {
+      ...baseRuntime,
+      runFork: <A, E, R>(
+        effect: Effect.Effect<A, E, R>,
+        options?: Effect.RunOptions
+      ): Fiber.Fiber<A, E> => {
+        if (queueNextInterrupt) {
+          queueNextInterrupt = false;
+          queuedInterrupts.push(effect as Effect.Effect<void>);
+          return baseRuntime.runFork(Effect.never as Effect.Effect<A, E, never>, options);
+        }
+        return baseRuntime.runFork(effect as Effect.Effect<A, E, never>, options);
+      }
+    };
+    const starts: Array<string> = [];
+    const finalizers: Array<string> = [];
+    const ProjectById = Resource.family<string, Project>({
+      name: "ResourceUiBinding.suspense-queued-owner",
+      load: (id) => Effect.succeed({ id, name: id })
+    });
+    let nextForkLabel = "first";
+    const fork = (): Fiber.Fiber<Project, Resource.LoadError<never>> => {
+      const label = nextForkLabel;
+      const preloadEffect = Effect.sync(() => {
+        starts.push(label);
+      }).pipe(
+        Effect.andThen(Effect.never),
+        Effect.ensuring(Effect.sync(() => {
+          finalizers.push(label);
+        }))
+      ) as Effect.Effect<Project, Resource.LoadError<never>, never>;
+      return baseRuntime.runFork(preloadEffect);
+    };
+    const firstRef = ProjectById("first");
+    const secondRef = ProjectById("second");
+    const controller = makeResourceUiSuspensePreloadController<
+      string,
+      Project,
+      never,
+      never,
+      never,
+      Fiber.Fiber<Project, Resource.LoadError<never>>
+    >(runtime);
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        controller.hostToken(firstRef, {
+          fork,
+          toHostToken: (preloadFiber) => preloadFiber
+        });
+        yield* Effect.sleep("20 millis");
+        expect(starts).toEqual(["first"]);
+
+        queueNextInterrupt = true;
+        nextForkLabel = "second";
+        controller.hostToken(secondRef, {
+          fork,
+          toHostToken: (preloadFiber) => preloadFiber
+        });
+        yield* Effect.sleep("20 millis");
+        expect(starts).toEqual(["first", "second"]);
+        expect(queuedInterrupts).toHaveLength(1);
+
+        yield* queuedInterrupts[0]!;
+        yield* Effect.sleep("20 millis");
+        expect(finalizers).toEqual(["first"]);
+
+        yield* controller.disposeEffect();
+        expect(finalizers).toEqual(["first", "second"]);
+      }).pipe(
+        Effect.ensuring(controller.disposeEffect()),
+        Effect.ensuring(baseRuntime.disposeEffect)
+      )
+    );
+  });
+
   it("disposes Suspense preload joins through an awaitable Effect", () =>
     Effect.runPromise(
       Effect.gen(function* () {

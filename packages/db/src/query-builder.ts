@@ -627,6 +627,12 @@ export namespace Query {
   export type EvaluationError = QueryEvaluationError;
   /** Execution strategy selected for one query join. */
   export type JoinStrategy = QueryJoinStrategy;
+  /** Scalar join key before stable string normalization. */
+  export type JoinKey = QueryJoinKey;
+  /** Sort direction accepted by `orderBy(...)`. */
+  export type SortDirection = QuerySortDirection;
+  /** Comparable scalar value accepted by Query ordering. */
+  export type SortValue = QuerySortValue;
   /** Source row-count diagnostics for a query plan. */
   export type PlanSourceDiagnostics = QueryPlanSourceDiagnostics;
   /** Join cost and strategy diagnostics for a query plan. */

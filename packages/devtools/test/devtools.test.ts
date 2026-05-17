@@ -67,7 +67,7 @@ const expectNoDevtoolsLifecycleListeners = (
 };
 
 describe("devtools invalidation plans", () => {
-  it("rejects invalidation inputs with typed errors", () => {
+  it("rejects invalidation inputs with typed errors", async () => {
     expect(() =>
       describeInvalidationPlan({
         // @ts-expect-error invalid target shape is rejected at runtime
@@ -89,17 +89,19 @@ describe("devtools invalidation plans", () => {
       entries: []
     };
 
+    const conflictOptions = {
+      invalidationPlan: Resource.planInvalidation(Tag),
+      serializedInvalidationPlan: serialized
+    } as unknown as Parameters<typeof store.recordActionState>[2];
+
     expect(() =>
-      store.recordActionState(
-        "Devtools.conflict",
-        "Pending",
-        // @ts-expect-error conflicting invalidation inputs are rejected at runtime
-        {
-          invalidationPlan: Resource.planInvalidation(Tag),
-          serializedInvalidationPlan: serialized
-        }
-      )
+      store.recordActionState("Devtools.conflict", "Pending", conflictOptions)
     ).toThrow(DevtoolsActionInvalidationPlanConflict);
+
+    const effectFailure = await Effect.runPromise(
+      store.recordActionStateEffect("Devtools.conflict", "Pending", conflictOptions).pipe(Effect.flip)
+    );
+    expect(effectFailure).toBeInstanceOf(DevtoolsActionInvalidationPlanConflict);
   });
 
   it("serializes resource invalidation plans without live refs", async () => {

@@ -934,7 +934,8 @@ Release decisions:
 - Top-level Query type mirrors such as `QueryRoot`, `QueryFactory`,
   `LiveQuery`, `LiveQueryState`, query plan diagnostics, sort/join scalar
   types, and aggregate types remain expert-public compatibility exports. New
-  application code should prefer the `Query.*` namespace, but the direct
+  application code should prefer the `Query.*` namespace, including
+  `Query.JoinKey`, `Query.SortDirection`, and `Query.SortValue`, but the direct
   mirrors are intentionally documented and pinned so Query public Interface
   drift is visible to the type-test manifest and public API audit.
 - `QueryGroupKey` and `Query.GroupKey` are the public grouped-query key

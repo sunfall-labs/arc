@@ -387,20 +387,39 @@ export const makeResourceUiSuspensePreloadController = <I, A, E, R = unknown, ER
       }
     | undefined;
 
-  const interruptEffect = (): Effect.Effect<void> =>
-    Effect.suspend(() => {
-      const current = preload;
-      preload = undefined;
-      if (current === undefined) {
-        return Effect.void;
+  const takePreload = ():
+    | {
+        readonly ref: ResourceRef<I, A, E, R>;
+        readonly fiber: ResourceUiSuspensePreloadFiber<A, E, ER>;
+        readonly token: Token;
+        readonly removeObserver: () => void;
       }
+    | undefined => {
+    const current = preload;
+    preload = undefined;
+    current?.removeObserver();
+    return current;
+  };
 
-      current.removeObserver();
-      return Fiber.interrupt(current.fiber).pipe(Effect.catchCause(() => Effect.void));
-    });
+  const interruptTakenPreloadEffect = (
+    current:
+      | {
+          readonly ref: ResourceRef<I, A, E, R>;
+          readonly fiber: ResourceUiSuspensePreloadFiber<A, E, ER>;
+          readonly token: Token;
+          readonly removeObserver: () => void;
+        }
+      | undefined
+  ): Effect.Effect<void> =>
+    current === undefined
+      ? Effect.void
+      : Fiber.interrupt(current.fiber).pipe(Effect.catchCause(() => Effect.void));
+
+  const interruptEffect = (): Effect.Effect<void> =>
+    Effect.suspend(() => interruptTakenPreloadEffect(takePreload()));
 
   const interrupt = (): void => {
-    void runtime.runFork(interruptEffect());
+    void runtime.runFork(interruptTakenPreloadEffect(takePreload()));
   };
 
   const clearCompleted = (fiber: ResourceUiSuspensePreloadFiber<A, E, ER>): void => {

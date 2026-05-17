@@ -11,10 +11,11 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review243 Browser Router And DB Public Interface
-Pins, the fresh post-Review242 sweep that fixed Browser Router Kernel invalid
-navigation cancellation and pinned DB Query/SQLite expert-public mirrors. The
-newest full verification checkpoint remains Review240.
+The newest focused review is Review244 Effect Cleanup Ownership, DB Pins, And
+Evidence Policy, the fresh post-Review243 sweep that fixed DB Query namespace
+scalar aliases, React/Solid DB Effect type pins, Devtools typed invalidation
+conflict failures, sync cleanup ownership transfer, and current-evidence script
+policies. The newest full verification checkpoint remains Review240.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -48,7 +49,8 @@ and the fresh post-Review239 sweep found Review240 work,
 and the fresh post-Review240 sweep found Review241 work,
 and the fresh post-Review241 framework follow-up found Review242 work,
 and the fresh post-Review242 sweep found Review243 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review243
+and the fresh post-Review243 sweep found Review244 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review244
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -59,7 +61,8 @@ Review220, Review221, Review222, Review223, Review224, Review225,
 Review226, Review227, Review228, Review229, Review230, Review231, and
 Review232 Shared DB Query Stage Plan work, Review233 work, Review234 work,
 Review235 work, Review236 work, Review237 work, Review238 work, Review239
-work, Review240 work, Review241 work, Review242 work, and Review243 work.
+work, Review240 work, Review241 work, Review242 work, Review243 work, and
+Review244 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -155,7 +158,65 @@ and the fresh post-Review241 framework follow-up found Review242 Solid route
 update Suspense outcome work,
 and the fresh post-Review242 sweep found Review243 Browser Router Kernel and
 DB public Interface work,
+and the fresh post-Review243 sweep found Review244 Effect cleanup ownership,
+DB public Interface, Devtools, and current-evidence policy work,
 so the counter remains 0/30.
+
+## Review 244: Effect Cleanup Ownership, DB Pins, And Evidence Policy
+
+Review244 fixes the actionable findings from the fresh post-Review243 sweep.
+
+1. DB Query Namespace Scalar Aliases
+   - Status: fixed.
+   - Files: `packages/db/src/query-builder.ts`,
+     `type-tests/db.test-d.ts`, `type-tests/public-api.manifest.json`,
+     `docs/db.md`, and `docs/public-api-inventory.md`.
+   - Problem: the public docs told callers to prefer namespace-backed Query
+     aliases, but `Query.JoinKey`, `Query.SortDirection`, and
+     `Query.SortValue` were missing while their direct expert-public mirrors
+     remained exported.
+   - Solution: add the namespace aliases with hover docs and pin the direct and
+     namespace forms in public type tests and the manifest.
+   - Benefits: Locality improves because the Query Interface now says one thing
+     in docs, hovers, and type tests; Leverage improves because callers can use
+     the stable namespace without learning direct mirror compatibility history.
+
+2. Effect Failure And Cleanup Ownership
+   - Status: fixed.
+   - Files: `packages/devtools/src/store.ts`,
+     `packages/devtools/src/devtools-contract.ts`,
+     `packages/devtools/test/devtools.test.ts`,
+     `packages/core/src/browser-router-kernel.ts`,
+     `packages/core/src/browser-router-link.ts`,
+     `packages/core/src/resource-ui-binding.ts`,
+     `packages/core/test/browser-router.test.ts`, and
+     `packages/core/test/resource-ui-binding.test.ts`.
+   - Problem: Devtools action invalidation conflicts were defects inside the
+     Effect Interface, and sync cleanup conveniences deferred owner-slot reads
+     until forked Effects executed.
+   - Solution: fail Devtools conflicts through the typed Effect channel and make
+     sync cleanup Interfaces synchronously take their current owner before
+     forking cleanup work.
+   - Benefits: Locality improves because each Module owns its Effect error and
+     owner-transfer policy; Leverage improves because delayed/custom runtimes
+     cannot accidentally interrupt fresh work.
+
+3. Current Evidence Policy
+   - Status: fixed.
+   - Files: `scripts/public-api-symbol-policy.mjs`,
+     `scripts/audit-public-api-inventory.mjs`,
+     `scripts/audit-effect-first.mjs`, and
+     `scripts/verify-package-dry-runs.mjs`.
+   - Problem: current docs drift checks were one-off stale Review239 regexes,
+     and some script self-tests still exited at module import instead of
+     flowing through the Effect main-runner seam.
+   - Solution: add a structured current-evidence policy with required current
+     review/full-gate/test-count/counter text, add self-tests for stale focused
+     review, full gate, test count, and clean counter drift, and route script
+     failures through Effect main runners.
+   - Benefits: Locality improves because current release truth is encoded in one
+     policy Module; Leverage improves because future focused reviews get drift
+     protection beyond the exact stale phrase that triggered Review241.
 
 ## Review 243: Browser Router And DB Public Interface Pins
 

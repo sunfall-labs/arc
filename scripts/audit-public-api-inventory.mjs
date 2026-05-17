@@ -1,11 +1,14 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
+import { Effect } from "effect";
 import ts from "typescript";
 import {
+  currentDocsEvidencePolicy,
   currentDocsTextPolicies,
   namespaceBackedSurfaceModules,
   publicHoverDocGroups
 } from "./public-api-symbol-policy.mjs";
+import { runScriptMainEffect } from "./effect-main-runner.mjs";
 
 const root = process.cwd();
 const packagesDirectory = join(root, "packages");
@@ -20,8 +23,7 @@ const publicApiManifest = readJson(publicApiManifestFile);
 const failures = [];
 
 const failSelfTest = (message) => {
-  console.error(message);
-  process.exit(1);
+  failures.push(`Public API inventory self-test failed: ${message}`);
 };
 
 const hasJsDoc = (node) =>
@@ -146,6 +148,89 @@ const auditPublicHoverDocs = () => {
   }
 };
 
+const currentDocsTextPolicyFailures = (policy, source) => {
+  const policyFailures = [];
+  for (const required of policy.required ?? []) {
+    required.pattern.lastIndex = 0;
+    if (!required.pattern.test(source)) {
+      policyFailures.push(`${policy.file} is missing current docs text: ${required.name}`);
+    }
+  }
+  for (const banned of policy.banned ?? []) {
+    banned.pattern.lastIndex = 0;
+    if (banned.pattern.test(source)) {
+      policyFailures.push(`${policy.file} still contains stale docs text: ${banned.name}`);
+    }
+  }
+  return policyFailures;
+};
+
+const assertCurrentDocsTextPolicySelfTest = () => {
+  const latestFocusedReview = currentDocsEvidencePolicy.latestFocusedReview;
+  const latestFullGateReview = currentDocsEvidencePolicy.latestFullGateReview;
+  const currentDocsSelfTestPolicy = {
+    file: "self-test.md",
+    required: [
+      {
+        name: "self-test current focused review",
+        pattern: new RegExp(`Review ?${latestFocusedReview}`)
+      },
+      {
+        name: "self-test current full gate review",
+        pattern: new RegExp(`Review ?${latestFullGateReview}`)
+      },
+      {
+        name: "self-test current root test count",
+        pattern: new RegExp(`${currentDocsEvidencePolicy.rootTestFiles} root test files / ${currentDocsEvidencePolicy.rootTestCount} tests`)
+      },
+      {
+        name: "self-test current clean counter",
+        pattern: new RegExp(`post-Review${latestFocusedReview} sweep reports no actionable findings`)
+      }
+    ],
+    banned: [
+      {
+        name: "self-test stale focused review",
+        pattern: /Latest focused evidence: Review 243/
+      },
+      {
+        name: "self-test stale full gate review",
+        pattern: /latest full gate is Review239/
+      },
+      {
+        name: "self-test stale root test count",
+        pattern: /53 root test files \/ 1161 tests/
+      },
+      {
+        name: "self-test stale clean counter",
+        pattern: /post-Review243 sweep reports no actionable findings/
+      }
+    ]
+  };
+  const staleFailures = currentDocsTextPolicyFailures(
+    currentDocsSelfTestPolicy,
+    "Latest focused evidence: Review 243; latest full gate is Review239; 53 root test files / 1161 tests; post-Review243 sweep reports no actionable findings."
+  );
+  for (const expected of [
+    "self-test stale focused review",
+    "self-test stale full gate review",
+    "self-test stale root test count",
+    "self-test stale clean counter"
+  ]) {
+    if (!staleFailures.some((failure) => failure.includes(expected))) {
+      failSelfTest(`current docs text policy self-test did not catch ${expected}: ${staleFailures.join(" ")}`);
+    }
+  }
+
+  const currentFailures = currentDocsTextPolicyFailures(
+    currentDocsSelfTestPolicy,
+    `Latest focused evidence: Review ${latestFocusedReview}; latest full gate is Review${latestFullGateReview}; ${currentDocsEvidencePolicy.rootTestFiles} root test files / ${currentDocsEvidencePolicy.rootTestCount} tests; post-Review${latestFocusedReview} sweep reports no actionable findings.`
+  );
+  if (currentFailures.length > 0) {
+    failSelfTest(`current docs text policy self-test rejected current evidence: ${currentFailures.join(" ")}`);
+  }
+};
+
 const auditCurrentDocsTextPolicies = () => {
   for (const policy of currentDocsTextPolicies) {
     const file = join(root, policy.file);
@@ -154,12 +239,7 @@ const auditCurrentDocsTextPolicies = () => {
       continue;
     }
 
-    const source = readText(file);
-    for (const banned of policy.banned) {
-      if (banned.pattern.test(source)) {
-        failures.push(`${policy.file} still contains stale docs text: ${banned.name}`);
-      }
-    }
+    failures.push(...currentDocsTextPolicyFailures(policy, readText(file)));
   }
 };
 
@@ -828,15 +908,29 @@ for (const [key, entry] of expectedEntrypoints) {
 }
 
 assertPublicSymbolPolicyReachability();
+assertCurrentDocsTextPolicySelfTest();
 auditPublicHoverDocs();
 auditCurrentDocsTextPolicies();
 
 if (failures.length > 0) {
-  console.error("Public API inventory audit failed:");
-  for (const failure of failures) {
-    console.error(`- ${failure}`);
-  }
-  process.exit(1);
+  runScriptMainEffect(
+    Effect.gen(function* () {
+      yield* Effect.sync(() => {
+        console.error("Public API inventory audit failed:");
+        for (const failure of failures) {
+          console.error(`- ${failure}`);
+        }
+      });
+      return yield* Effect.fail({
+        _tag: "PublicApiInventoryAuditFailure",
+        failures
+      });
+    })
+  );
+} else {
+  runScriptMainEffect(
+    Effect.sync(() => {
+      console.log("Public API inventory audit passed.");
+    })
+  );
 }
-
-console.log("Public API inventory audit passed.");

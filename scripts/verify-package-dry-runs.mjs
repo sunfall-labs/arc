@@ -30,6 +30,7 @@ class PackageDryRunError extends Data.TaggedError("PackageDryRunError") {}
 
 const fail = (message, repair, cause) =>
   new PackageDryRunError({ message, repair, cause });
+const selfTestFailures = [];
 
 const packagePayloadPolicies = new Map([
   ...workspaceDistPackagePayloadPolicies,
@@ -169,8 +170,7 @@ const sourcePackageManifestValidationFailures = (target, expectedFiles, actualFi
 };
 
 const failSelfTest = (message) => {
-  console.error(message);
-  process.exit(1);
+  selfTestFailures.push(message);
 };
 
 const assertManifestMetadataPolicy = (name, target, expectedFragments) => {
@@ -689,13 +689,24 @@ const reportResultsEffect = (results) =>
   });
 
 const reportFailureEffect = (cause) =>
-  Effect.sync(() => {
-    console.error(cause);
-    process.exitCode = 1;
+  Effect.gen(function* () {
+    yield* Effect.sync(() => {
+      console.error(cause);
+    });
+    return yield* Effect.fail(cause);
   });
 
+const verifyPackageDryRunSelfTestsEffect = selfTestFailures.length === 0
+  ? Effect.void
+  : Effect.fail(fail(
+    "Package dry-run self-tests failed.",
+    "Fix the package dry-run policy self-tests before running package verification.",
+    selfTestFailures
+  ));
+
 runScriptMainEffect(
-  verifyPackageDryRuns.pipe(
+  verifyPackageDryRunSelfTestsEffect.pipe(
+    Effect.andThen(verifyPackageDryRuns),
     Effect.flatMap(reportResultsEffect),
     Effect.catch(reportFailureEffect),
   ),

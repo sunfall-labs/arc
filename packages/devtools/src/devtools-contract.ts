@@ -467,7 +467,7 @@ export interface DevtoolsStore {
     action: string,
     state: string,
     actionOptions?: DevtoolsRecordActionStateOptions
-  ) => Effect.Effect<void>;
+  ) => Effect.Effect<void, DevtoolsActionInvalidationPlanConflict>;
   readonly recordAction: <I, A, E, R>(action: ActionInstance<I, A, E, R>) => void;
   readonly recordActionEffect: <I, A, E, R>(action: ActionInstance<I, A, E, R>) => Effect.Effect<void>;
   readonly trackActionEffect: <I, A, E, R>(

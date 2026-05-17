@@ -213,18 +213,22 @@ export const makeBrowserRouterLinkPreloader = <ER>(
   let preloadIdentity: BrowserRouterLinkPreloadIdentity | undefined;
   let preloadFiber: Fiber.Fiber<void, unknown> | undefined;
 
+  const takePreloadFiber = (): Fiber.Fiber<void, unknown> | undefined => {
+    const fiber = preloadFiber;
+    preloadFiber = undefined;
+    return fiber;
+  };
+
+  const interruptFiberEffect = (fiber: Fiber.Fiber<void, unknown> | undefined): Effect.Effect<void> =>
+    fiber === undefined
+      ? Effect.void
+      : Fiber.interrupt(fiber).pipe(Effect.catchCause(() => Effect.void));
+
   const interruptEffect = (): Effect.Effect<void> =>
-    Effect.suspend(() => {
-      const fiber = preloadFiber;
-      if (!fiber) {
-        return Effect.void;
-      }
-      preloadFiber = undefined;
-      return Fiber.interrupt(fiber).pipe(Effect.catchCause(() => Effect.void));
-    });
+    Effect.suspend(() => interruptFiberEffect(takePreloadFiber()));
 
   const interrupt = (): void => {
-    void options.runtime.runFork(interruptEffect());
+    void options.runtime.runFork(interruptFiberEffect(takePreloadFiber()));
   };
 
   const bindPreloadIdentity = (nextIdentity: BrowserRouterLinkPreloadIdentity): void => {

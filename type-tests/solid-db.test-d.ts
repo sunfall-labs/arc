@@ -29,6 +29,11 @@ declare const solidDbProjects: CollectionHandle<
   "load",
   SolidDbRuntimeError
 >;
+declare const solidDbLiveProjects: LiveQueryHandle<
+  SolidDbProject,
+  "query",
+  SolidDbRuntimeError
+>;
 declare const solidDbPreloadObserverPromise: Promise<void>;
 
 const solidDbExports: Array<unknown> = [Collection, Query, useCollection, useLiveQuery];
@@ -52,6 +57,26 @@ const solidDbBadLiveQueryOptions: UseLiveQueryOptions<"query", SolidDbRuntimeErr
 };
 const solidDbPendingMutations: ReadonlyArray<Collection.PendingMutation<SolidDbProject, string>> =
   solidDbProjects.pendingMutations();
+const solidDbPreload: Effect.Effect<
+  void,
+  Collection.RuntimeError<"load"> | SolidDbRuntimeError
+> = solidDbProjects.preloadEffect();
+const solidDbRefetch: Effect.Effect<
+  void,
+  Collection.RuntimeError<"load"> | SolidDbRuntimeError
+> = solidDbProjects.refetchEffect();
+const solidDbInsert: Effect.Effect<
+  Collection.Transaction<SolidDbProject, string>,
+  Collection.RuntimeError<"load"> | SolidDbRuntimeError
+> = solidDbProjects.insertEffect({ id: "atlas", name: "Atlas" });
+const solidDbUpdate: Effect.Effect<
+  Collection.Transaction<SolidDbProject, string>,
+  Collection.RuntimeError<"load"> | CollectionRowNotFound | CollectionRowKeyChanged | SolidDbRuntimeError
+> = solidDbProjects.updateEffect("atlas", { name: "Atlas Prime" });
+const solidDbDelete: Effect.Effect<
+  Collection.Transaction<SolidDbProject, string>,
+  Collection.RuntimeError<"load"> | CollectionRowNotFound | SolidDbRuntimeError
+> = solidDbProjects.deleteEffect("atlas");
 const solidDbWriteInsert: Effect.Effect<
   void,
   Collection.RuntimeError<"load"> | SolidDbRuntimeError
@@ -68,12 +93,27 @@ const solidDbFlushPending: Effect.Effect<
   ReadonlyArray<Collection.Transaction<SolidDbProject, string>>,
   Collection.RuntimeError<"load"> | SolidDbRuntimeError
 > = solidDbProjects.flushPendingMutationsEffect();
+const solidDbLivePreload: Effect.Effect<
+  void,
+  "query" | Query.EvaluationError | SolidDbRuntimeError
+> = solidDbLiveProjects.preloadEffect();
+const solidDbLiveRefetch: Effect.Effect<
+  void,
+  "query" | Query.EvaluationError | SolidDbRuntimeError
+> = solidDbLiveProjects.refetchEffect();
 void solidDbExports;
 void solidDbPendingMutations;
+void solidDbPreload;
+void solidDbRefetch;
+void solidDbInsert;
+void solidDbUpdate;
+void solidDbDelete;
 void solidDbWriteInsert;
 void solidDbWriteUpdate;
 void solidDbWriteDelete;
 void solidDbFlushPending;
+void solidDbLivePreload;
+void solidDbLiveRefetch;
 void solidDbCollectionOptions;
 void solidDbLiveQueryOptions;
 void solidDbBadCollectionOptions;

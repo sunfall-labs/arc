@@ -182,6 +182,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
   join/sort scalar types, and aggregate types) plus SQLite default constants.
   The latest full verification evidence still remains the Review240 gate until
   the next full `pnpm verify` run.
+- Review244 Effect Cleanup Ownership, DB Pins, And Evidence Policy added
+  namespace Query scalar alias pins for `Query.JoinKey`, `Query.SortDirection`,
+  and `Query.SortValue`, React/Solid DB handle Effect channel pins, and the
+  Devtools typed invalidation conflict Effect pin.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them
@@ -301,8 +305,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Verification Evidence
 
-- `pnpm typecheck:types` passed after Review243 with direct Query mirror and
-  SQLite default constant pins. Full `pnpm verify` passed after Review240 with
+- `pnpm typecheck:types` passed after Review244 with Query scalar namespace
+  aliases, DB handle Effect channel pins, and Devtools typed failure pins.
+  Full `pnpm verify` passed after Review240 with
   53 root test files / 1170 tests, including dotted namespace public API
   type-test ownership for `Collection.validateHydrationPayloadEffect`,
   `Query.diagnostics`, and `SQLitePersistence.storage`, DB query-sync and live

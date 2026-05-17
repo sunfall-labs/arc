@@ -1,21 +1,22 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
+import { Effect } from "effect";
 import ts from "typescript";
 import {
   generatedStarterEffectFirstTemplates,
   generatedStarterReadmeTemplates,
   starterCatalogConsistencyFailures
 } from "./starter-catalog.mjs";
+import { runScriptMainEffect } from "./effect-main-runner.mjs";
 
 const root = process.cwd();
+const selfTestFailures = [];
 const starterCatalogFailures = starterCatalogConsistencyFailures();
 
 if (starterCatalogFailures.length > 0) {
-  console.error("Effect-first audit failed:");
   for (const failure of starterCatalogFailures) {
-    console.error(`- Starter catalog manifest is invalid: ${failure}`);
+    selfTestFailures.push(`Starter catalog manifest is invalid: ${failure}`);
   }
-  process.exit(1);
 }
 
 const typeScriptSourceExtensions = new Set([".ts", ".tsx"]);
@@ -999,8 +1000,7 @@ const lineNumberAt = (source, offset) =>
   source.slice(0, offset).split(/\r?\n/).length;
 
 const failSelfTest = (message) => {
-  console.error(message);
-  process.exit(1);
+  selfTestFailures.push(`Effect-first audit self-test failed: ${message}`);
 };
 
 const assertMarkdownSnippetExtraction = () => {
@@ -1205,7 +1205,7 @@ assertBannedPattern("async function syntax", "async function run() {}", 1);
 assertBannedPattern("await keyword", "await run();", 1);
 assertBannedPattern("await keyword", "Deferred.await(done);", 0);
 
-const failures = [];
+const failures = [...selfTestFailures];
 
 printScopeSummary();
 
@@ -1323,11 +1323,24 @@ for (const check of banned) {
 }
 
 if (failures.length > 0) {
-  console.error("Effect-first audit failed:");
-  for (const failure of failures) {
-    console.error(`- ${failure}`);
-  }
-  process.exit(1);
+  runScriptMainEffect(
+    Effect.gen(function* () {
+      yield* Effect.sync(() => {
+        console.error("Effect-first audit failed:");
+        for (const failure of failures) {
+          console.error(`- ${failure}`);
+        }
+      });
+      return yield* Effect.fail({
+        _tag: "EffectFirstAuditFailure",
+        failures
+      });
+    })
+  );
+} else {
+  runScriptMainEffect(
+    Effect.sync(() => {
+      console.log("Effect-first audit passed.");
+    })
+  );
 }
-
-console.log("Effect-first audit passed.");

@@ -471,7 +471,7 @@ const devtoolsSerializedRoutePlanIndexEffect: Effect.Effect<number> =
 devtoolsStore.recordActionState("Project.touch", "Success", {
   serializedInvalidationPlan
 });
-const devtoolsRecordActionStateEffect: Effect.Effect<void> =
+const devtoolsRecordActionStateEffect: Effect.Effect<void, DevtoolsActionInvalidationPlanConflict> =
   devtoolsStore.recordActionStateEffect("Project.touch", "Success", {
     serializedInvalidationPlan
   });
@@ -485,6 +485,11 @@ devtoolsStore.recordActionState("Project.touch", "Success", {
   // @ts-expect-error devtools action state accepts either live or serialized invalidation plans, not both
   serializedInvalidationPlan
 });
+const devtoolsRecordActionStateConflictEffect: Effect.Effect<void, DevtoolsActionInvalidationPlanConflict> =
+  devtoolsStore.recordActionStateEffect("Project.touch", "Success", {
+    invalidationPlan: devtoolsLiveInvalidationPlan,
+    serializedInvalidationPlan
+  } as unknown as DevtoolsRecordActionStateOptions);
 const devtoolsRecordRuntimeEventEffect: Effect.Effect<void> =
   devtoolsStore.recordRuntimeEventEffect(devtoolsRuntimeEvents[7]!);
 devtoolsStore.recordRuntimeEvent(devtoolsRuntimeEvents[0]!);
@@ -583,6 +588,7 @@ void devtoolsSerializedRoutePlanIndexEffect;
 void devtoolsRecordProgramEventEffect;
 void devtoolsRecordCollectionEventEffect;
 void devtoolsRecordActionStateEffect;
+void devtoolsRecordActionStateConflictEffect;
 void devtoolsRecordRuntimeEventEffect;
 void devtoolsRecordRequestTraceEffect;
 void normalizedBridgePayload;

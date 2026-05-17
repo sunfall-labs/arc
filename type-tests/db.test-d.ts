@@ -254,11 +254,14 @@ declare const publicQueryPlanJoin: Query.PlanJoinDiagnostics;
 const directQueryPlanJoin: QueryPlanJoinDiagnostics = publicQueryPlanJoin;
 const publicQueryJoinStrategy: Query.JoinStrategy = publicQueryPlanJoin.strategy;
 const directQueryJoinStrategy: QueryJoinStrategy = publicQueryJoinStrategy;
+const publicQueryJoinKey: Query.JoinKey = "project-id";
+const publicQuerySortDirection: Query.SortDirection = "asc";
+const publicQuerySortValue: Query.SortValue = new Date(0);
 const publicQueryGroupKey: Query.GroupKey<{ readonly status: string }> = { status: "active" };
 const directQueryGroupKey: QueryGroupKey<{ readonly status: string }> = publicQueryGroupKey;
-const directQueryJoinKey: QueryJoinKey = "project-id";
-const directQuerySortDirection: QuerySortDirection = "asc";
-const directQuerySortValue: QuerySortValue = new Date(0);
+const directQueryJoinKey: QueryJoinKey = publicQueryJoinKey;
+const directQuerySortDirection: QuerySortDirection = publicQuerySortDirection;
+const directQuerySortValue: QuerySortValue = publicQuerySortValue;
 const publicQueryAggregate: Query.Aggregate<{ readonly project: Project }, number, number> =
   Query.sum(({ project }) => project.id.length);
 const directQueryAggregate: QueryAggregate<{ readonly project: Project }, number, number> =
@@ -286,6 +289,9 @@ void directQueryPlanDiagnostics;
 void directQueryPlanSource;
 void directQueryPlanJoin;
 void directQueryJoinStrategy;
+void publicQueryJoinKey;
+void publicQuerySortDirection;
+void publicQuerySortValue;
 void directQueryGroupKey;
 void directQueryJoinKey;
 void directQuerySortDirection;

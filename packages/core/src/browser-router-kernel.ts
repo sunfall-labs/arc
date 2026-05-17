@@ -241,16 +241,16 @@ export const createBrowserRouterKernel = <
     return current;
   };
 
+  const disposeTakenPreloadScopeEffect = (current: UiScope | undefined): Effect.Effect<void> =>
+    current === undefined
+      ? Effect.void
+      : current.disposeEffect().pipe(Effect.catchCause(() => Effect.void));
+
   const disposePreloadScopeEffect = (): Effect.Effect<void> =>
-    Effect.suspend(() => {
-      const current = takePreloadScope();
-      return current === undefined
-        ? Effect.void
-        : current.disposeEffect().pipe(Effect.catchCause(() => Effect.void));
-    });
+    Effect.suspend(() => disposeTakenPreloadScopeEffect(takePreloadScope()));
 
   const disposePreloadScope = (): void => {
-    void runtime.runFork(disposePreloadScopeEffect());
+    void runtime.runFork(disposeTakenPreloadScopeEffect(takePreloadScope()));
   };
 
   const disposeEffect = (): Effect.Effect<void> =>
