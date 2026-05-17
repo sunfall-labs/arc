@@ -1680,6 +1680,57 @@ describe("createBrowserRouter", () => {
       )
     ));
 
+  it("rethrows route render thenables without scheduling a render failure", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+
+          const thenable = { then: () => undefined };
+          const SuspendedRoute = route("/route-thenable", {
+            component: () => {
+              throw thenable;
+            }
+          });
+          const match = SuspendedRoute.match("/route-thenable");
+          if (!match) {
+            expect.fail("Expected route to match.");
+          }
+          let nodeWrites = 0;
+          let renderErrorWrites = 0;
+
+          try {
+            makeSolidRouteRenderScopeController({
+              initialInput: {
+                state: {
+                  _tag: "Ready",
+                  href: "/route-thenable",
+                  match
+                },
+                renderers: {}
+              },
+              runtime,
+              setNode: () => {
+                nodeWrites++;
+                return undefined;
+              },
+              setRenderError: () => {
+                renderErrorWrites++;
+                return undefined;
+              }
+            });
+            expect.fail("Expected route thenable to be rethrown.");
+          } catch (error) {
+            expect(error).toBe(thenable);
+          }
+
+          expect(nodeWrites).toBe(0);
+          expect(renderErrorWrites).toBe(0);
+        })
+      )
+    ));
+
   it("surfaces route render errors after navigation to the host ErrorBoundary", () =>
     Effect.runPromise(
       Effect.scoped(

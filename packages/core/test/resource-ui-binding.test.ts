@@ -1,4 +1,4 @@
-import { Context, Deferred, Effect, Fiber, Layer, Scope } from "effect";
+import { Context, Deferred, Effect, Exit, Fiber, Layer, Scope } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   makeResourceUiBindingController,
@@ -180,6 +180,47 @@ describe("Resource UI Binding Controller", () => {
       }).pipe(
         Effect.ensuring(controller.disposeEffect()),
         Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
+  it("swallows automatic preload defects after retaining typed preload failures", () => {
+    const baseRuntime = makeRuntime();
+    let preloadFiber: Fiber.Fiber<unknown, unknown> | undefined;
+    const runtime = {
+      ...baseRuntime,
+      runFork: <A, E, R>(
+        effect: Effect.Effect<A, E, R>,
+        options?: Effect.RunOptions
+      ): Fiber.Fiber<A, E> => {
+        const fiber = baseRuntime.runFork(effect, options);
+        preloadFiber = fiber;
+        return fiber;
+      }
+    };
+    const ProjectById = Resource.family<string, Project>({
+      name: "ResourceUiBinding.preload-defect",
+      load: () => Effect.die("preload defect")
+    });
+    const ref = ProjectById("atlas");
+    const controller = makeResourceUiBindingController<string, Project, never, never, never>({
+      runtime
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        controller.startInitialPreload(ref);
+        if (preloadFiber === undefined) {
+          expect.fail("Expected automatic preload fiber to be captured.");
+        }
+
+        const exit = yield* Fiber.await(preloadFiber);
+
+        expect(Exit.isSuccess(exit)).toBe(true);
+        expect(controller.preloadFailureFor(ref)).toBeUndefined();
+      }).pipe(
+        Effect.ensuring(controller.disposeEffect()),
+        Effect.ensuring(baseRuntime.disposeEffect)
       )
     );
   });

@@ -167,7 +167,7 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
       transaction.api
     ).pipe(
       Effect.map((extraRollback) =>
-        Effect.ensuring(extraRollback, transaction.rollback.pipe(Effect.catch(() => Effect.void)))
+        Effect.ensuring(extraRollback, transaction.rollback.pipe(Effect.catchCause(() => Effect.void)))
       )
     );
   };
@@ -212,7 +212,7 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
 
           return value;
         }),
-        Effect.suspend(() => rollback.pipe(Effect.catch(() => Effect.void)))
+        Effect.suspend(() => rollback.pipe(Effect.catchCause(() => Effect.void)))
       );
     }).pipe(
       Effect.catch((

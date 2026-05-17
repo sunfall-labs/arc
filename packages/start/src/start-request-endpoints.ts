@@ -199,7 +199,7 @@ export const createServerRpcResponseEffect = <
       createServerRpcResponseEffectWithRuntime(app, request, runtime, responseContext),
       (response) => applyResponseContextEffect(responseContext, response)
     ),
-    runtime.disposeEffect.pipe(Effect.catch(() => Effect.void))
+    runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void))
   ) as Effect.Effect<
     Response,
     EffectInputCallbackError,
@@ -381,7 +381,7 @@ export const createServerActionResponseEffect = <
       createServerActionResponseEffectWithRuntime(app, request, runtime, actions, responseContext),
       (response) => applyResponseContextEffect(responseContext, response)
     ),
-    runtime.disposeEffect.pipe(Effect.catch(() => Effect.void))
+    runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void))
   ) as Effect.Effect<
     Response,
     EffectInputCallbackError,

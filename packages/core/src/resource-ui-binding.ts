@@ -257,7 +257,7 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
           yield* Fiber.join(previous).pipe(Effect.catchCause(() => Effect.void));
         }
         yield* resourceUiBindRuntimeEffect(options.runtime, effect);
-      }).pipe(Effect.catch(() => Effect.void))
+      }).pipe(Effect.catchCause(() => Effect.void))
     );
   };
 
@@ -351,7 +351,8 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
               preload = undefined;
             }
           })
-        )
+        ),
+        Effect.catchCause(() => Effect.void)
       )
     );
     preload = { ref, fiber };

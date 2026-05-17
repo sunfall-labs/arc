@@ -21,7 +21,7 @@ const suppressHostThenableFailure = (value: unknown): void => {
     Effect.tryPromise({
       try: () => value as PromiseLike<unknown>,
       catch: () => undefined
-    }).pipe(Effect.catch(() => Effect.void))
+    }).pipe(Effect.catchCause(() => Effect.void))
   );
 };
 
@@ -226,6 +226,136 @@ describe("solid hooks", () => {
 
         expect(project.value()).toEqual({ id: "atlas", name: "Atlas" });
         expect(project.preloadFailure()).toBeUndefined();
+      }).pipe(
+        Effect.ensuring(Effect.sync(() => dispose?.())),
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
+  it("starts automatic resource preload when reactive options enable it", () => {
+    let dispose: (() => void) | undefined;
+    let setPreload: ((value: boolean) => boolean) | undefined;
+    const runtime = makeRuntime();
+    const started = Effect.runSync(Deferred.make<void>());
+    const ProjectById = Resource.family<string, Project>({
+      name: "SolidHooks.resource-preload-reactive-enable",
+      load: (id) =>
+        Deferred.succeed(started, undefined).pipe(
+          Effect.as({ id, name: "Atlas" })
+        )
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const project = runWithRuntime(runtime, () =>
+          createRoot((rootDispose) => {
+            dispose = rootDispose;
+            const [preload, set] = createSignal(false);
+            setPreload = set;
+            return useResource(ProjectById("atlas"), {
+              get preload() {
+                return preload();
+              }
+            });
+          })
+        );
+
+        yield* Effect.sleep("20 millis");
+        expect(project.value()).toBeUndefined();
+
+        setPreload?.(true);
+        project.state();
+        yield* Deferred.await(started);
+        yield* Effect.promise(() => vi.waitFor(() => expect(project.value()).toEqual({ id: "atlas", name: "Atlas" })));
+      }).pipe(
+        Effect.ensuring(Effect.sync(() => dispose?.())),
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
+  it("interrupts automatic resource preload when reactive options disable it", () => {
+    let dispose: (() => void) | undefined;
+    let setPreload: ((value: boolean) => boolean) | undefined;
+    const runtime = makeRuntime();
+    const started = Effect.runSync(Deferred.make<void>());
+    let releases = 0;
+    const ProjectById = Resource.family<string, Project>({
+      name: "SolidHooks.resource-preload-reactive-disable",
+      load: (id) =>
+        Effect.acquireRelease(
+          Deferred.succeed(started, undefined).pipe(Effect.as({ id, name: "Atlas" })),
+          () =>
+            Effect.sync(() => {
+              releases++;
+            })
+        ).pipe(Effect.andThen(Effect.never))
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const project = runWithRuntime(runtime, () =>
+          createRoot((rootDispose) => {
+            dispose = rootDispose;
+            const [preload, set] = createSignal(true);
+            setPreload = set;
+            return useResource(ProjectById("atlas"), {
+              get preload() {
+                return preload();
+              }
+            });
+          })
+        );
+
+        yield* Deferred.await(started);
+        setPreload?.(false);
+        project.state();
+        yield* Effect.promise(() => vi.waitFor(() => expect(releases).toBe(1)));
+      }).pipe(
+        Effect.ensuring(Effect.sync(() => dispose?.())),
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
+  it("uses the latest reactive automatic preload failure observer", () => {
+    let dispose: (() => void) | undefined;
+    const runtime = makeRuntime();
+    const release = Effect.runSync(Deferred.make<void>());
+    const failure = { _tag: "SolidHooksReactivePreloadFailed" } as const;
+    let setObserverName: ((value: "first" | "second") => "first" | "second") | undefined;
+    const observed: string[] = [];
+    const ProjectById = Resource.family<string, Project, typeof failure>({
+      name: "SolidHooks.resource-preload-reactive-observer",
+      load: () => Deferred.await(release).pipe(Effect.andThen(Effect.fail(failure)))
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const project = runWithRuntime(runtime, () =>
+          createRoot((rootDispose) => {
+            dispose = rootDispose;
+            const [observerName, set] = createSignal<"first" | "second">("first");
+            setObserverName = set;
+            return useResource(ProjectById("atlas"), {
+              get onPreloadFailure() {
+                const name = observerName();
+                return () => {
+                  observed.push(name);
+                };
+              }
+            });
+          })
+        );
+
+        yield* Effect.sleep("20 millis");
+        setObserverName?.("second");
+        project.state();
+        yield* Deferred.succeed(release, undefined);
+        yield* Effect.promise(() => vi.waitFor(() => expect(project.preloadFailure()).toBe(failure)));
+
+        expect(observed).toEqual(["second"]);
       }).pipe(
         Effect.ensuring(Effect.sync(() => dispose?.())),
         Effect.ensuring(runtime.disposeEffect)

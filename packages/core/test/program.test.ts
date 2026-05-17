@@ -715,6 +715,32 @@ describe("Program", () => {
       })
     ));
 
+  it("swallows subscription finalizer defects during disposal", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const started = yield* Deferred.make<void>();
+        type Message = { readonly _tag: "Never" };
+        const program = Program.start(Program.define<number, Message>({
+          initial: 0,
+          update: (model) => model,
+          subscriptions: () =>
+            Program.subscription(
+              Stream.fromEffect(
+                Deferred.succeed(started, undefined).pipe(
+                  Effect.flatMap(() => Effect.never),
+                Effect.onInterrupt(() => Effect.die("subscription finalizer defect"))
+                )
+              )
+            )
+        }));
+
+        yield* Deferred.await(started);
+        yield* program.disposeEffect;
+
+        expect(read(program.timeline).some((event) => event._tag === "Disposed")).toBe(true);
+      })
+    ));
+
   it("fails dispatchEffect when disposal races an in-flight update before commit", () =>
     Effect.runPromise(
       Effect.gen(function* () {
@@ -767,7 +793,7 @@ describe("Program", () => {
 
         const unsubscribe = program.model.subscribe(() => {
           if (read(program.model) === 1) {
-            Effect.runSync(program.disposeEffect.pipe(Effect.catch(() => Effect.void)));
+            Effect.runSync(program.disposeEffect.pipe(Effect.catchCause(() => Effect.void)));
           }
         });
 

@@ -5,6 +5,7 @@ import {
   StartHydrationPayloadSerializeError,
   type StartHydrationPayload
 } from "../src/hydration.js";
+import { responseWithScopeLifetimeEffect } from "../src/response-lifetime.js";
 import {
   createHtmlResponseEffect,
   createHtmlStreamEffect,
@@ -344,6 +345,37 @@ describe("Start streaming", () => {
       })
     );
   });
+
+  it("closes response scopes when stream finalizer attachment fails", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const events: string[] = [];
+        const response = new Response(new ReadableStream<Uint8Array>());
+        const reader = response.body!.getReader();
+
+        const exit = yield* Effect.exit(
+          responseWithScopeLifetimeEffect(
+            Effect.gen(function* () {
+              yield* Effect.addFinalizer(() =>
+                Effect.sync(() => {
+                  events.push("scope");
+                })
+              );
+              return response;
+            }),
+            {
+              onCleanup: () => {
+                events.push("cleanup");
+              }
+            }
+          )
+        );
+        reader.releaseLock();
+
+        expect(Exit.isFailure(exit)).toBe(true);
+        expect(events).toEqual(["scope", "cleanup"]);
+      })
+    ));
 
   it("finalizes wrapped Web response streams on close, cancel, and error", () => {
     return Effect.runPromise(

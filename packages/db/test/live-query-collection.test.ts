@@ -1237,6 +1237,9 @@ describe("Collection.liveQuery", () => {
         for (const failure of [snapshotFailure, persistFailure]) {
           expect(failure).toBeInstanceOf(EffectInputCallbackError);
           expect((failure as EffectInputCallbackError).cause).toBe(thrown);
+          expect((failure as EffectInputCallbackError).operation).toBe(
+            "Collection.getKey(ProjectCards.live-query-collection.snapshot-key)"
+          );
         }
       })
     ));

@@ -222,7 +222,7 @@ export const useStream = <A, R = never, ER = never>(
     );
 
     return () => {
-      void runtime.runFork(Fiber.interrupt(fiber).pipe(Effect.catch(() => Effect.void)));
+      void runtime.runFork(Fiber.interrupt(fiber).pipe(Effect.catchCause(() => Effect.void)));
     };
   }, [runtime, scope, signal, stream]);
 
@@ -344,7 +344,7 @@ export const useProgram = <Model, Message, E = never, R = never, ER = never>(
       if (binding.current === started) {
         binding.current = undefined;
       }
-      void runtime.runFork(started.disposeEffect.pipe(Effect.catch(() => Effect.void)));
+      void runtime.runFork(started.disposeEffect.pipe(Effect.catchCause(() => Effect.void)));
     };
   }, [binding, definition, runtime, scope]);
 
@@ -565,7 +565,7 @@ export const useAction = <I, A, E, R, ER = never>(
 
   useEffect(() => {
     return () => {
-      void runtime.runFork(instance.resetEffect().pipe(Effect.catch(() => Effect.void)));
+      void runtime.runFork(instance.resetEffect().pipe(Effect.catchCause(() => Effect.void)));
     };
   }, [runtime, instance]);
 

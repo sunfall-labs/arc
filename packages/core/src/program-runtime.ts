@@ -312,7 +312,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
     if (subscriptionFiber) {
       const fiber = subscriptionFiber;
       subscriptionFiber = undefined;
-      void scheduler.forkRuntime(Fiber.interrupt(fiber).pipe(Effect.catch(() => Effect.void)));
+      void scheduler.forkRuntime(Fiber.interrupt(fiber).pipe(Effect.catchCause(() => Effect.void)));
     }
 
     const subscriptionsForModel = definition.subscriptions;
@@ -418,12 +418,12 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
     processorFiber = undefined;
 
     if (currentSubscriptionFiber) {
-      yield* Fiber.interrupt(currentSubscriptionFiber).pipe(Effect.catch(() => Effect.void));
+      yield* Fiber.interrupt(currentSubscriptionFiber).pipe(Effect.catchCause(() => Effect.void));
     }
     if (currentProcessorFiber) {
-      yield* Fiber.interrupt(currentProcessorFiber).pipe(Effect.catch(() => Effect.void));
+      yield* Fiber.interrupt(currentProcessorFiber).pipe(Effect.catchCause(() => Effect.void));
     }
-    yield* Queue.shutdown(queue).pipe(Effect.catch(() => Effect.void));
+    yield* Queue.shutdown(queue).pipe(Effect.catchCause(() => Effect.void));
     yield* Effect.sync(() => recordTimeline({ _tag: "Disposed" }));
   });
 
@@ -435,7 +435,7 @@ export const makeProgramRuntimeInstance = <Model, Message, E = never, R = never,
     failures,
     timeline,
     dispatch: (message) => {
-      void scheduler.forkRuntime(instanceDispatchEffect(message).pipe(Effect.catch(() => Effect.void)));
+      void scheduler.forkRuntime(instanceDispatchEffect(message).pipe(Effect.catchCause(() => Effect.void)));
     },
     dispatchEffect: instanceDispatchEffect,
     clearFailures: () => failures.set([]),

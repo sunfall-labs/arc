@@ -559,7 +559,7 @@ export const readResource = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): A => {
       if (decision.refresh) {
         void runFork(
           refreshResourceEffect(ref).pipe(
-            Effect.catch(() => Effect.void)
+            Effect.catchCause(() => Effect.void)
           )
         );
       }
@@ -592,7 +592,7 @@ export const readResourceEffect = <I, A, E, R>(
         if (decision.refresh) {
           yield* forkTrackedDetachedResourceEffect(
             store,
-            refreshResourceEffect(ref).pipe(Effect.catch(() => Effect.void))
+            refreshResourceEffect(ref).pipe(Effect.catchCause(() => Effect.void))
           );
         }
         return decision.value;
@@ -634,7 +634,7 @@ export const runResourceInvalidationPlanEffect = <R = never>(
         key: entry.ref.key,
         causes: entry.causes.map(describeResourceStoreInvalidationCause)
       });
-      yield* refreshResourceEffect(entry.ref).pipe(Effect.catch(() => Effect.void));
+      yield* refreshResourceEffect(entry.ref).pipe(Effect.catchCause(() => Effect.void));
     }
   });
 
@@ -650,7 +650,7 @@ export const runResourceInvalidationPlan = (
   const store = currentResourceStore();
   void runFork(
     Effect.provideService(runResourceInvalidationPlanEffect(plan), ResourceStore, store).pipe(
-      Effect.catch(() => Effect.void)
+      Effect.catchCause(() => Effect.void)
     )
   );
 };

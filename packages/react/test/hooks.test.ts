@@ -98,7 +98,7 @@ const suppressHostThenableFailure = (value: unknown): void => {
     Effect.tryPromise({
       try: () => value as PromiseLike<unknown>,
       catch: () => undefined
-    }).pipe(Effect.catch(() => Effect.void))
+    }).pipe(Effect.catchCause(() => Effect.void))
   );
 };
 

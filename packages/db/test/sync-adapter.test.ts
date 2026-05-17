@@ -692,6 +692,43 @@ describe("Collection.syncOptions", () => {
     );
   });
 
+  it("swallows query-sync mutation invalidation defects by default", () => {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const queryKey = ["projects", "invalidate-dies"] as const;
+        const updates: Array<Collection.SyncUpdatePayload<Project, string>> = [];
+        const Projects = Collection.define(Collection.syncOptions<Project, string, string>({
+          name: "Projects.sync.query-invalidate-dies",
+          getKey: (project) => project.id,
+          initialData: [
+            { id: "atlas", name: "Atlas", archived: false }
+          ],
+          sync: Collection.querySyncAdapter({
+            queryKey,
+            queryFn: () => [{ id: "atlas", name: "Atlas", archived: false }],
+            queryClient: {
+              fetchQuery: ({ queryFn }) => queryFn(),
+              invalidateQueries: () => Effect.die("invalidate defect")
+            },
+            update: (payload) =>
+              Effect.sync(() => {
+                updates.push(payload);
+              })
+          })
+        }));
+
+        yield* Projects.updateEffect("atlas", { archived: true });
+
+        expect(updates).toHaveLength(1);
+        expect(Projects.pendingMutations()).toEqual([]);
+        expect(Projects.get("atlas")).toMatchObject({
+          archived: true,
+          $synced: true
+        });
+      })
+    );
+  });
+
   it("rolls back query-sync mutations when rollback-on-failure invalidation fails", () => {
     return Effect.runPromise(
       Effect.gen(function* () {

@@ -79,6 +79,14 @@ repeating stale package/test totals.
   - Review220 adds policy-owned self-tests for success, stale dist artifacts,
     missing maps, declaration content drift, forbidden declaration maps, and
     generated-local-package manifest target labels.
+- Shared starter script artifacts
+  - Review240 moves copyable starter script ownership into
+    `starterSharedScriptArtifacts`, so the catalog requires
+    `scripts/effect-main-runner.mjs` anywhere starters depend on the shared
+    Effect main-runner policy.
+  - `pnpm starter:package` now byte-checks starter copies against the
+    repository root source for shared runner scripts instead of comparing only
+    starter copies to each other.
 
 ## Verification Evidence
 
@@ -102,8 +110,9 @@ repeating stale package/test totals.
   handling, plus diagnostics/graph coherence validation in
   `packages/start/test/start.test.ts`.
 - Review166 full `pnpm verify` passed with 53 root test files / 1021 tests,
-  generated starter-suite packaging/verifies at 19/24/30 app files, and the
-  16-target package dry-run gate.
+  the then-current generated starter-suite packaging/verifies, and the
+  16-target package dry-run gate. Current starter file counts are recorded in
+  the latest Review240 evidence above.
 - Review173 focused Start artifact verification passed: `pnpm --filter
   @effect-ui/start build` and `pnpm example:pack-dry-run` with the copied
   virtual declaration Adapter byte check and stale declaration-map rejection
@@ -113,6 +122,11 @@ repeating stale package/test totals.
   `validateDistPackagePayloadEffect(...)`.
 - Review220 focused generated/package policy verification passed
   `pnpm verify:package-payload-policy`.
+- Review240 focused generated/package policy verification passed
+  `pnpm verify:package-payload-policy`, `pnpm starter:package`, and
+  `pnpm example:pack-dry-run`. Starter packaging verified the current app file
+  counts at 20 basic starter files, 25 React starter files, and 31
+  project-console starter files.
 
 ## Follow-Up
 

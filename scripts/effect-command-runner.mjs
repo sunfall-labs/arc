@@ -17,6 +17,26 @@ export const makeScriptCommand = (command, args, options = {}) =>
     killSignal: options.killSignal ?? "SIGTERM"
   });
 
+export const scriptCommandErrorExitFacts = (error) =>
+  [
+    `Command: ${error.commandText}`,
+    error.signal === null
+      ? `Exit code: ${error.code}`
+      : `Signal: ${error.signal}`,
+    error.stdout.trim() === "" ? undefined : `stdout: ${error.stdout.trim()}`,
+    error.stderr.trim() === "" ? undefined : `stderr: ${error.stderr.trim()}`,
+  ].filter(Boolean).join(" ");
+
+export const scriptCommandErrorMessage = (description, error) =>
+  error.code === undefined && error.signal === undefined
+    ? `Failed to run ${description}.`
+    : `Command failed while running ${description}.`;
+
+export const scriptCommandErrorRepair = (error, spawnRepair) =>
+  error.code === undefined && error.signal === undefined
+    ? spawnRepair
+    : scriptCommandErrorExitFacts(error);
+
 const platformError = (message, cause) =>
   new ScriptCommandError({ message, cause });
 

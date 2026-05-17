@@ -213,7 +213,7 @@ describe("project console contract mocks", () => {
             });
           })
         ),
-        Effect.ensuring(runtime.disposeEffect.pipe(Effect.catch(() => Effect.void)))
+        Effect.ensuring(runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void)))
       )
     );
   });
@@ -291,7 +291,7 @@ describe("project console contract mocks", () => {
             if (submission !== undefined) {
               yield* Fiber.await(submission);
             }
-            yield* runtime.disposeEffect.pipe(Effect.catch(() => Effect.void));
+            yield* runtime.disposeEffect.pipe(Effect.catchCause(() => Effect.void));
           })
         )
       )

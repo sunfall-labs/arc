@@ -302,8 +302,17 @@ const serverSync = serverCollectionSyncAdapter<Project>({
 });
 const collectionCurrentStore: Collection.Store = Collection.currentStore();
 const collectionStoreEffect: Effect.Effect<Collection.Store> = Collection.storeEffect();
+const collectionStoreDiagnosticsSnapshot: Collection.StoreDiagnosticsSnapshot =
+  collectionCurrentStore.diagnostics.snapshot();
 const collectionEventsEffect: Effect.Effect<PubSub.Subscription<Collection.StoreEvent>, never, Scope.Scope> =
   Collection.subscribeEventsEffect();
+const collectionHydrationValidationEffect: Effect.Effect<
+  void,
+  Collection.SnapshotCodecError | EffectInputCallbackError
+> = Collection.validateHydrationPayloadEffect(
+  [dbStaticProjectsCollection],
+  Collection.dehydrate([dbStaticProjectsCollection])
+);
 // @ts-expect-error public Collection.Store is diagnostics/events-only; runtime disposal is internal.
 collectionCurrentStore.disposeEffect;
 
@@ -362,6 +371,8 @@ const dbExports: Array<unknown> = [
   collectionFlushEffect,
   collectionBackgroundSyncEffect,
   collectionSqliteMemoryDatabase,
+  collectionStoreDiagnosticsSnapshot,
+  collectionHydrationValidationEffect,
   collectionSqliteStorage,
   sqliteRow,
   collectionAlias,

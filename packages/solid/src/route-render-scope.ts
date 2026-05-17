@@ -1,6 +1,7 @@
 import {
   browserRouteRenderIdentity,
   browserRouteRenderDecision,
+  isPromiseLikeValue,
   makeRuntimeUiScopeFrame,
   type AnyEffectUiRuntime,
   type AnyBrowserRoute,
@@ -69,6 +70,7 @@ const renderInRouteScope = <ER>(
   const frame = makeRuntimeUiScopeFrame(runtime);
   let disposeSolid: (() => void) | undefined;
   let renderFailure: { readonly error: unknown } | undefined;
+  let renderThenable: unknown;
   const dispose = Effect.andThen(
     Effect.sync(() => {
       try {
@@ -89,13 +91,23 @@ const renderInRouteScope = <ER>(
         try {
           return render();
         } catch (error) {
+          if (isPromiseLikeValue(error)) {
+            renderThenable = error;
+            return undefined;
+          }
           renderFailure = { error };
           return undefined;
         }
       });
     });
   } catch (error) {
+    if (isPromiseLikeValue(error)) {
+      throw error;
+    }
     throw new SolidRouteRenderFailure(error, dispose);
+  }
+  if (renderThenable !== undefined) {
+    throw renderThenable;
   }
   if (renderFailure !== undefined) {
     throw new SolidRouteRenderFailure(renderFailure.error, dispose);
@@ -216,6 +228,9 @@ export const makeSolidRouteRenderScopeController = <Routes extends readonly AnyR
       try {
         next = renderRouteState(input.state, input.renderers, options.runtime);
       } catch (error) {
+        if (isPromiseLikeValue(error)) {
+          return;
+        }
         const failure = solidRouteRenderFailure(error);
         if (failure !== undefined) {
           startRouteDisposal(failure.dispose);

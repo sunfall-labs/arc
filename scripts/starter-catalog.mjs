@@ -27,6 +27,17 @@ const sourcePackagePolicy = (requiredFiles, requiredDirectories) => ({
   requiredDirectories,
 });
 
+export const starterSharedScriptArtifacts = [
+  {
+    relativePath: "scripts/effect-main-runner.mjs",
+    sourcePath: resolve(workspaceRoot, "scripts/effect-main-runner.mjs"),
+  },
+];
+
+const starterSharedScriptFiles = starterSharedScriptArtifacts.map(
+  (artifact) => artifact.relativePath,
+);
+
 export const starterCatalog = [
   {
     id: "basic",
@@ -47,6 +58,7 @@ export const starterCatalog = [
         "README.md",
         "index.html",
         "scripts/leak-scan.mjs",
+        ...starterSharedScriptFiles,
         "src/App.tsx",
         "src/app-definition.ts",
         "src/effect-ui-start-virtual.d.ts",
@@ -81,6 +93,7 @@ export const starterCatalog = [
         "components.json",
         "index.html",
         "scripts/leak-scan.mjs",
+        ...starterSharedScriptFiles,
         "src/App.tsx",
         "src/HomePage.tsx",
         "src/app-definition.ts",
@@ -116,6 +129,7 @@ export const starterCatalog = [
         "README.md",
         "index.html",
         "scripts/leak-scan.mjs",
+        ...starterSharedScriptFiles,
         "src/App.tsx",
         "src/app-definition.ts",
         "src/domain.contract.ts",

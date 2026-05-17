@@ -4,7 +4,11 @@ import { cp, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promi
 import { dirname, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Data, Effect } from "effect";
-import { runScriptCommandEffect } from "./effect-command-runner.mjs";
+import {
+  runScriptCommandEffect,
+  scriptCommandErrorMessage,
+  scriptCommandErrorRepair
+} from "./effect-command-runner.mjs";
 import { runScriptMainEffect } from "./effect-main-runner.mjs";
 import { manifestTargetValidationFailures } from "./package-manifest-targets.mjs";
 import {
@@ -14,6 +18,7 @@ import {
 import {
   copyableStarterEntries,
   generatedStarterArtifactsFor,
+  starterSharedScriptArtifacts,
   starterCatalogConsistencyEffect,
 } from "./starter-catalog.mjs";
 import {
@@ -57,17 +62,11 @@ const commandEffect = (description, command, args, options = {}) =>
     }).pipe(
       Effect.mapError((error) =>
         fail(
-          error.code === undefined
-            ? `Failed to run ${description}.`
-            : `Command failed while running ${description}.`,
-          error.code === undefined
-            ? "Ensure pnpm is available on PATH and the generated starter has valid package metadata."
-            : [
-                `Command: ${error.commandText}`,
-                `Exit code: ${error.code}`,
-                error.stdout.trim() === "" ? undefined : `stdout: ${error.stdout.trim()}`,
-                error.stderr.trim() === "" ? undefined : `stderr: ${error.stderr.trim()}`,
-              ].filter(Boolean).join(" "),
+          scriptCommandErrorMessage(description, error),
+          scriptCommandErrorRepair(
+            error,
+            "Ensure pnpm is available on PATH and the generated starter has valid package metadata."
+          ),
           error,
         )
       )
@@ -172,8 +171,19 @@ const assertStarterLeakScanParity = (starters) =>
     const leakScanRelativePath = "scripts/leak-scan.mjs";
     const sharedScriptRelativePaths = [
       leakScanRelativePath,
-      "scripts/effect-main-runner.mjs",
+      ...starterSharedScriptArtifacts.map((artifact) => artifact.relativePath),
     ];
+    const rootSharedScripts = new Map();
+    for (const artifact of starterSharedScriptArtifacts) {
+      const text = yield* fsEffect(
+        `read ${relative(workspaceRoot, artifact.sourcePath)}`,
+        () => readFile(artifact.sourcePath, "utf8"),
+      );
+      rootSharedScripts.set(artifact.relativePath, {
+        sourcePath: artifact.sourcePath,
+        text,
+      });
+    }
     const sharedScripts = new Map(
       sharedScriptRelativePaths.map((relativePath) => [relativePath, []]),
     );
@@ -254,13 +264,17 @@ const assertStarterLeakScanParity = (starters) =>
         continue;
       }
 
-      const divergent = candidates.filter((candidate) => candidate.text !== baseline.text);
+      const rootSharedScript = rootSharedScripts.get(relativePath);
+      const expectedText = rootSharedScript?.text ?? baseline.text;
+      const divergent = [baseline, ...candidates].filter((candidate) => candidate.text !== expectedText);
       if (divergent.length > 0) {
         return yield* Effect.fail(
           fail(
             `Starter ${relativePath} files are not byte-for-byte identical.`,
             [
-              `Baseline: ${relative(workspaceRoot, resolve(baseline.starter.sourceDir, relativePath))}`,
+              rootSharedScript === undefined
+                ? `Baseline: ${relative(workspaceRoot, resolve(baseline.starter.sourceDir, relativePath))}`
+                : `Baseline: ${relative(workspaceRoot, rootSharedScript.sourcePath)}`,
               `Diverged: ${divergent.map((candidate) => relative(workspaceRoot, resolve(candidate.starter.sourceDir, relativePath))).join(", ")}`,
               "Keep copyable starter script behavior consolidated by updating all copies together.",
             ].join(" "),

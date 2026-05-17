@@ -117,7 +117,7 @@ const withTempPackageEffect = (name, options, use) =>
       yield* Effect.addFinalizer(() =>
         fsEffect(`remove temp package for ${name}`, () =>
           rm(directory, { recursive: true, force: true })
-        ).pipe(Effect.catch(() => Effect.void))
+        ).pipe(Effect.catchCause(() => Effect.void))
       );
       yield* populatePackageEffect(directory, options);
       return yield* use(directory);

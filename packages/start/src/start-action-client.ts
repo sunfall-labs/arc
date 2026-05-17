@@ -368,7 +368,7 @@ export namespace StartAction {
       submitEffect,
       resetEffect,
       reset: () => {
-        void resetRuntime.runFork(resetEffect().pipe(Effect.catch(() => Effect.void)));
+        void resetRuntime.runFork(resetEffect().pipe(Effect.catchCause(() => Effect.void)));
       }
     };
   }

@@ -1,6 +1,7 @@
 import {
   browserRouteRenderDecision,
   browserRouteRenderIdentity,
+  isPromiseLikeValue,
   type AnyEffectUiRuntime,
   type AnyBrowserRoute,
   type BrowserRouterState,
@@ -8,6 +9,7 @@ import {
 } from "@effect-ui/core";
 import {
   createElement,
+  useEffect,
   useLayoutEffect,
   useRef,
   type ReactNode
@@ -67,7 +69,7 @@ const RouteRenderFrame = <ER,>(props: RouteRenderFrameProps<ER>): ReactNode => {
     frame.commit();
   });
 
-  useLayoutEffect(() => {
+  useEffect(() => {
     activeFrameRef.current = frame;
     frameLifecycleVersionRef.current++;
     return () => {
@@ -89,6 +91,9 @@ const RouteRenderFrame = <ER,>(props: RouteRenderFrameProps<ER>): ReactNode => {
   try {
     return frame.run(props.render);
   } catch (error) {
+    if (isPromiseLikeValue(error)) {
+      throw error;
+    }
     scopeRef.current = undefined;
     void props.runtime.runFork(frame.disposeEffect());
     throw error;

@@ -1,7 +1,7 @@
 import { forkScoped, makeMemoryBrowserHistoryAdapter, makeRuntime, onDispose, Resource, route, runWithRuntime, UiScopeDisposed, type BrowserRouterState } from "@effect-ui/core";
 import { Cause, Deferred, Effect } from "effect";
 import { Window } from "happy-dom";
-import { act, Component, createElement, Fragment, StrictMode, useState, type ReactNode } from "react";
+import { act, Component, createElement, Fragment, StrictMode, Suspense, useState, type ReactNode } from "react";
 import { createRoot, hydrateRoot, type Root } from "react-dom/client";
 import { renderToString } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -730,6 +730,73 @@ describe("react router", () => {
         expect(caught).toBe(renderError);
         expect(disposed).toEqual(["good"]);
       });
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("lets route Suspense thenables keep the committed route scope alive", async () => {
+    const runtime = makeRuntime();
+    const disposed: string[] = [];
+    let suspend: (() => void) | undefined;
+    let resolveSuspense: (() => void) | undefined;
+    let resolved = false;
+    const suspensePromise = new Promise<void>((resolve) => {
+      resolveSuspense = () => {
+        resolved = true;
+        resolve();
+      };
+    });
+    const Home = route("/", {
+      component: () => {
+        const [label, setLabel] = useState("ready");
+        suspend = () => setLabel("suspended");
+        onDispose(() => Effect.sync(() => {
+          disposed.push(label);
+        }));
+        if (label === "suspended" && !resolved) {
+          throw suspensePromise;
+        }
+        return createElement("h1", {}, label);
+      }
+    });
+    const routes = [Home] as const;
+
+    try {
+      await withReactRoot(async (root, container) => {
+        await act(async () => {
+          root.render(
+            createElement(
+              Suspense,
+              { fallback: createElement("span", {}, "pending") },
+              createElement(RouterProvider, { routes, initialHref: "/", runtime })
+            )
+          );
+        });
+        await flushReact();
+        expect(container.textContent).toBe("ready");
+
+        await act(async () => {
+          suspend?.();
+        });
+        await flushReact();
+        await Effect.runPromise(Effect.sleep("20 millis"));
+
+        expect(container.textContent).toContain("pending");
+        expect(disposed).toEqual([]);
+
+        await act(async () => {
+          resolveSuspense?.();
+          await suspensePromise;
+        });
+        await flushReact();
+
+        expect(container.textContent).toBe("suspended");
+        expect(disposed).toEqual([]);
+      });
+
+      await Effect.runPromise(Effect.sleep("20 millis"));
+      expect(disposed).toEqual(["suspended"]);
     } finally {
       await Effect.runPromise(runtime.disposeEffect);
     }

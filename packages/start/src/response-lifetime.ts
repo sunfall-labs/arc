@@ -69,5 +69,12 @@ export const responseWithScopeLifetimeEffect = <E, R>(
         : { abortTeardownReason: options.abortTeardownReason }),
       onFinalize
     };
-    return responseWithStreamFinalizer(response, finalizerOptions);
+    const attachExit = yield* Effect.exit(
+      Effect.sync(() => responseWithStreamFinalizer(response, finalizerOptions))
+    );
+    if (Exit.isFailure(attachExit)) {
+      yield* closeScope(attachExit);
+      return yield* Effect.failCause(attachExit.cause);
+    }
+    return attachExit.value;
   }) as Effect.Effect<Response, E, Exclude<R, Scope.Scope>>;

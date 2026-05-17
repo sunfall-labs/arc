@@ -11,11 +11,12 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review239 Main Runner, UI Lifetime, And Public
-Hover Cleanup, the fresh post-Review238 sweep that moved script/CLI entrypoints
-to signal-aware Effect main fibers, closed remaining UI lifetime defect and
-framework cleanup gaps, and tightened DB/Start LSP hover/type-test ownership.
-The newest full verification checkpoint is also Review239.
+The newest focused review is Review240 Effect-First Cleanup, Suspense, And
+Public API Pins, the fresh post-Review239 sweep that tightened best-effort
+cleanup defects, Start CLI/response lifetime tooling, framework Suspense and
+Solid Resource preload seams, DB sync/materialization locality, and dotted
+namespace public API type-test ownership. The newest full verification
+checkpoint is also Review240.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -45,7 +46,8 @@ and the fresh post-Review235 framework sweep found Review236 work,
 and the fresh post-Review236 framework follow-up found Review237 work,
 and the fresh post-Review237 sweep found Review238 work,
 and the fresh post-Review238 sweep found Review239 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review239
+and the fresh post-Review239 sweep found Review240 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review240
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -55,8 +57,8 @@ Review213, Review214, Review215, Review216, Review217, Review218, Review219,
 Review220, Review221, Review222, Review223, Review224, Review225,
 Review226, Review227, Review228, Review229, Review230, Review231, and
 Review232 Shared DB Query Stage Plan work, Review233 work, Review234 work,
-Review235 work, Review236 work, Review237 work, Review238 work, and
-Review239 work.
+Review235 work, Review236 work, Review237 work, Review238 work, Review239
+work, and Review240 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -144,8 +146,118 @@ post-Review236 framework follow-up found Review237 initial failed-render
 cleanup work, and the fresh post-Review237 sweep found Review238 tooling,
 Resource UI cleanup, and LSP hover work, and the fresh post-Review238 sweep
 found Review239 main-runner, UI lifetime, framework cleanup, and public hover
-work,
+work, and the fresh post-Review239 sweep found Review240 cleanup, framework,
+Start tooling, DB, and public API ownership work,
 so the counter remains 0/30.
+
+## Review 240: Effect-First Cleanup, Suspense, And Public API Pins
+
+Review240 fixes the actionable findings from the fresh post-Review239 sweep.
+
+1. Best-Effort Cleanup Defect Ownership
+   - Status: fixed.
+   - Files: Core, React, Solid, Start, DB, Devtools, project-console, and
+     script cleanup paths that intentionally swallow best-effort release
+     failures; `packages/core/test/program.test.ts`.
+   - Problem: remaining no-op cleanup sites used typed-only
+     `Effect.catch(...)`. Defects in release/finalizer work could still escape
+     fire-and-forget cleanup fibers.
+   - Fix: converted no-op best-effort cleanup to `Effect.catchCause(...)` and
+     added a Program disposal regression proving subscription finalizer defects
+     do not block disposal.
+   - Benefits: the cleanup Interface now matches the documented
+     Effect-first lifecycle policy: intentional cleanup swallowing owns typed
+     failures and defects at the same seam.
+
+2. Start CLI, Command Runner, And Response Lifetime
+   - Status: fixed.
+   - Files: `packages/start/src/cli.ts`,
+     `packages/start/src/response-lifetime.ts`,
+     `packages/start/test/streaming.test.ts`,
+     `scripts/effect-command-runner.mjs`,
+     `scripts/verify-effect-command-runner.mjs`,
+     `scripts/verify-package-dry-runs.mjs`,
+     `scripts/package-project-console-starter.mjs`,
+     `scripts/starter-catalog.mjs`.
+   - Problem: the Start diagnostics bin could overwrite a reported non-zero
+     usage exit during main-runner teardown, signal-killed script commands
+     were formatted like spawn failures by callers, response scope lifetime
+     leaked if Web stream finalizer attachment threw, and starter packaging
+     did not make the root Effect main-runner copyability policy explicit.
+   - Fix: Start CLI teardown now preserves existing non-zero `exitCode`, the
+     package dry-run checks an invalid symlinked CLI command exits 1, command
+     runner helpers distinguish spawn/exit/signal failures, response lifetime
+     closes scopes when finalizer attachment fails, and starter catalog policy
+     names shared starter script artifacts with root-source parity.
+   - Benefits: script and Start host seams now use Effect v4 runner/command
+     semantics end to end, with package gates owning the generated-starter
+     copies.
+
+3. Framework Suspense And Resource Preload Locality
+   - Status: fixed.
+   - Files: `packages/react/src/route-render-scope.ts`,
+     `packages/react/test/router.test.ts`,
+     `packages/solid/src/route-render-scope.ts`,
+     `packages/solid/src/hooks.ts`,
+     `packages/solid/test/hooks.test.ts`,
+     `packages/solid/test/router.test.ts`,
+     `packages/core/src/resource-ui-binding.ts`,
+     `packages/core/test/resource-ui-binding.test.ts`.
+   - Problem: route render thenables could be treated like render failures,
+     disposing route scopes or scheduling error-boundary failure work. Solid
+     Resource preload options were effectively static for same-ref updates,
+     and automatic preload defects could fail detached preload fibers.
+   - Fix: React and Solid route-scope Adapters now classify host thenables at
+     the framework seam; React route-scope disposal moved to passive cleanup
+     so Suspense hiding does not dispose committed scopes. Solid Resource
+     binding re-applies reactive preload policy and latest failure observers,
+     and Core automatic preload fibers swallow defects after preserving typed
+     preload failures.
+   - Benefits: framework Adapters preserve host Suspense semantics while Core
+     keeps Resource preload lifetime and failure state local to the Resource UI
+     Binding Module.
+
+4. DB Sync, Materialization, And Namespace Type-Test Pins
+   - Status: fixed.
+   - Files: `packages/db/src/sync-adapter.ts`,
+     `packages/db/test/sync-adapter.test.ts`,
+     `packages/db/src/live-query-collection.ts`,
+     `packages/db/src/live-query-collection-materialization.ts`,
+     `packages/db/test/live-query-collection.test.ts`,
+     `scripts/audit-public-api-inventory.mjs`,
+     `type-tests/public-api.manifest.json`,
+     `type-tests/db.test-d.ts`.
+   - Problem: query-sync best-effort invalidation needed a defect regression,
+     Live Query Collection materialization carried an unused
+     `snapshotKeyCallbackError` option, and public API type-test policy could
+     require top-level identifiers but not documented namespace members.
+   - Fix: added a defect regression for default best-effort query invalidation,
+     removed the unused materialization option and pinned the existing
+     `Collection.getKey(...)` error owner, and taught the public API audit to
+     require dotted namespace references such as
+     `Collection.validateHydrationPayloadEffect`, `Query.diagnostics`, and
+     `SQLitePersistence.storage`.
+   - Benefits: DB mutation Locality, Live Query materialization Interface
+     depth, and LSP-visible public namespace ownership now move together under
+     focused tests and manifest policy.
+
+Focused verification for this pass: `pnpm exec vitest run
+packages/react/test/router.test.ts packages/solid/test/hooks.test.ts
+packages/solid/test/router.test.ts packages/core/test/resource-ui-binding.test.ts
+packages/core/test/program.test.ts packages/start/test/streaming.test.ts
+packages/db/test/sync-adapter.test.ts
+packages/db/test/live-query-collection.test.ts` passed with 8 files / 205
+tests. `pnpm audit:effect-first`, `pnpm audit:public-api`,
+`pnpm typecheck:types`, framework/Core/Start/DB package typechecks, and
+`node scripts/verify-effect-command-runner.mjs` passed. Full `pnpm verify`
+passed after Review240: 9 package builds, workspace typecheck, public API
+audit, Effect command-runner policy, package payload policy, Effect-first
+audit over 415 files, 53 root test files / 1170 tests, devtools-panel verify
+with 1 panel test file / 2 tests, devtools-extension verify with 1 extension
+test file / 20 tests, basic starter verify with 1 starter test file / 2 tests,
+React starter verify with 1 starter test file / 3 tests, project-console
+verify with 4 test files / 27 tests, generated starter packaging at 20/25/31
+app files with 5/4/6 local packages, and the 16-target package dry-run gate.
 
 ## Review 239: Main Runner, UI Lifetime, And Public Hover Cleanup
 
@@ -259,7 +371,8 @@ Start CLI help, `pnpm starter:package`, and `git diff --check`. Full
 Effect-first audit over 415 files, generated starter-suite packaging/verifies
 for basic/react/project-console at 20/25/31 app files with 5/4/6 local
 packages, and the 16-target package dry-run gate. The active Thirty-Sweep clean
-counter remains 0/30 until a fresh post-Review239 sweep is clean.
+counter remained 0/30; the later fresh post-Review239 sweep found Review240
+work.
 
 ## Review 238: Tooling Runner, Resource UI Observer, And Hover Cleanup
 

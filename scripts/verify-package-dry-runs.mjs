@@ -5,7 +5,11 @@ import { tmpdir } from "node:os";
 import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Data, Effect } from "effect";
-import { runScriptCommandEffect } from "./effect-command-runner.mjs";
+import {
+  runScriptCommandEffect,
+  scriptCommandErrorMessage,
+  scriptCommandErrorRepair
+} from "./effect-command-runner.mjs";
 import { runScriptMainEffect } from "./effect-main-runner.mjs";
 import {
   isNonEmptyString,
@@ -365,17 +369,11 @@ const commandEffect = (description, command, args, options = {}) =>
   }).pipe(
     Effect.mapError((error) =>
       fail(
-        error.code === undefined
-          ? `Failed to run ${description}.`
-          : `Command failed while running ${description}.`,
-        error.code === undefined
-          ? "Ensure pnpm is available on PATH and package metadata is valid."
-          : [
-              `Command: ${error.commandText}`,
-              `Exit code: ${error.code}`,
-              error.stdout.trim() === "" ? undefined : `stdout: ${error.stdout.trim()}`,
-              error.stderr.trim() === "" ? undefined : `stderr: ${error.stderr.trim()}`,
-            ].filter(Boolean).join(" "),
+        scriptCommandErrorMessage(description, error),
+        scriptCommandErrorRepair(
+          error,
+          "Ensure pnpm is available on PATH and package metadata is valid."
+        ),
         error,
       )
     )
@@ -516,12 +514,55 @@ const verifyStartCliSymlinkBinEffect = (target) => {
           ),
         );
       }
+
+      const invalidCommandError = yield* Effect.flip(
+        runScriptCommandEffect(
+          process.platform === "win32" ? process.execPath : linkedBin,
+          process.platform === "win32" ? [linkedBin, "unknown"] : ["unknown"],
+          {
+            cwd: workspaceRoot,
+            env: {
+              ...process.env
+            }
+          }
+        )
+      ).pipe(
+        Effect.mapError((result) =>
+          fail(
+            "@effect-ui/start symlinked CLI invalid subcommand unexpectedly succeeded.",
+            [
+              "Usage errors must keep a non-zero process exit code through the Effect main-runner teardown.",
+              result.stdout.trim() === "" ? "stdout was empty." : `stdout: ${result.stdout.trim()}`,
+              result.stderr.trim() === "" ? "stderr was empty." : `stderr: ${result.stderr.trim()}`,
+            ].join(" "),
+            result,
+          )
+        )
+      );
+      if (
+        invalidCommandError.code !== 1 ||
+        !invalidCommandError.stderr.includes("Unknown subcommand") ||
+        !invalidCommandError.stdout.includes("USAGE")
+      ) {
+        return yield* Effect.fail(
+          fail(
+            "@effect-ui/start symlinked CLI invalid subcommand did not fail with usage semantics.",
+            [
+              "Keep Effect CLI parse failures mapped to process exit code 1.",
+              `Exit code: ${invalidCommandError.code}`,
+              invalidCommandError.stdout.trim() === "" ? "stdout was empty." : `stdout: ${invalidCommandError.stdout.trim()}`,
+              invalidCommandError.stderr.trim() === "" ? "stderr was empty." : `stderr: ${invalidCommandError.stderr.trim()}`,
+            ].join(" "),
+            invalidCommandError,
+          )
+        );
+      }
     }).pipe(
       Effect.ensuring(
         fsEffect(
           "remove effect-ui-start symlink bin check directory",
           () => rm(tempDirectory, { recursive: true, force: true }),
-        ).pipe(Effect.catch(() => Effect.void)),
+        ).pipe(Effect.catchCause(() => Effect.void)),
       ),
     );
   });

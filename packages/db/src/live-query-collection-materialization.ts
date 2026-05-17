@@ -118,7 +118,6 @@ export interface LiveQueryCollectionMaterializationOptions<
   readonly name: string;
   readonly live: LiveQuery<A, E, R>;
   readonly definition: () => LiveQueryCollectionDefinitionForMaterialization<A, K, E, R>;
-  readonly snapshotKeyCallbackError: (cause: unknown) => EffectInputCallbackError;
 }
 
 const materializationCallbackError = (

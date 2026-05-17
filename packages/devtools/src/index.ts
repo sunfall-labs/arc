@@ -108,7 +108,7 @@ export const mountDevtoolsPanelsEffect = (
 export const interruptDevtoolsPanelBoot = (
   fiber: Fiber.Fiber<void, never>
 ): Effect.Effect<void> =>
-  Fiber.interrupt(fiber).pipe(Effect.catch(() => Effect.void));
+  Fiber.interrupt(fiber).pipe(Effect.catchCause(() => Effect.void));
 
 const wireDevtoolsPanelLifecycleCleanup = (
   interrupt: () => void,

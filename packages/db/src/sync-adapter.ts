@@ -478,7 +478,7 @@ export const collectionQuerySyncAdapter = <
   const invalidateAfterMutation = (): Effect.Effect<void, E | EffectInputCallbackError, R> =>
     options.mutationInvalidation === "rollback-on-failure"
       ? invalidate()
-      : invalidate().pipe(Effect.catch(() => Effect.void));
+      : invalidate().pipe(Effect.catchCause(() => Effect.void));
 
   return {
     name: options.name ?? queryKey.name,

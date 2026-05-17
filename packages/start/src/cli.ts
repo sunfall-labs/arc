@@ -680,6 +680,13 @@ const startDiagnosticsCliMainPathEquals = (
 const isMain = process.argv[1] !== undefined &&
   startDiagnosticsCliMainPathEquals(import.meta.url, process.argv[1]);
 
+const setStartDiagnosticsCliProcessExitCode = (code: number): void => {
+  if (code === 0 && process.exitCode !== undefined && process.exitCode !== 0) {
+    return;
+  }
+  process.exitCode = code;
+};
+
 if (isMain) {
   const runMain = Runtime.makeRunMain(({ fiber, teardown }) => {
     let interruptSignal: "SIGINT" | "SIGTERM" | undefined;
@@ -695,11 +702,11 @@ if (isMain) {
       process.removeListener("SIGINT", onSigint);
       process.removeListener("SIGTERM", onSigterm);
       teardown(exit, (code) => {
-        process.exitCode = interruptSignal === "SIGINT"
+        setStartDiagnosticsCliProcessExitCode(interruptSignal === "SIGINT"
           ? 130
           : interruptSignal === "SIGTERM"
             ? 143
-            : code;
+            : code);
       });
     });
   });

@@ -1,7 +1,4 @@
-import {
-  runFork,
-  EffectInputCallbackError
-} from "@effect-ui/core";
+import { runFork } from "@effect-ui/core";
 import { Clock, Effect } from "effect";
 import { CollectionTypeId } from "./collection-ids.js";
 import { ReadonlyCollectionMutation } from "./collection-errors.js";
@@ -83,12 +80,6 @@ export const makeLiveQueryCollectionDefinition = <
       path: "$",
       reason: `Live query collection "${options.name}" is derived and read-only; ${operation} source collections instead.`
     });
-  const snapshotKeyCallbackError = (cause: unknown): EffectInputCallbackError =>
-    new EffectInputCallbackError({
-      operation: `Collection.snapshot(${options.name}).getKey`,
-      cause,
-      guidance: "Collection snapshot key callbacks must be synchronous, pure, and total. Move Effectful work into collection loaders or mutation handlers."
-    });
 
   type LiveQueryCollectionDefinition =
     CollectionDefinition<A, K, E | QueryEvaluationError | ReadonlyCollectionMutation, R> &
@@ -97,8 +88,7 @@ export const makeLiveQueryCollectionDefinition = <
   const materialization = makeLiveQueryCollectionMaterialization<A, K, E, R>({
     name: options.name,
     live,
-    definition: () => definition,
-    snapshotKeyCallbackError
+    definition: () => definition
   });
   definition = {
     [CollectionTypeId]: CollectionTypeId,

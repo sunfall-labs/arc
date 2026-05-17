@@ -3,6 +3,8 @@
 import { Data, Effect, Fiber } from "effect";
 import {
   runScriptCommandEffect,
+  scriptCommandErrorMessage,
+  scriptCommandErrorRepair,
   scriptCommandKillProcessBestEffortEffect,
   scriptCommandProcessExistsEffect
 } from "./effect-command-runner.mjs";
@@ -94,6 +96,46 @@ const signalExitStatusSelfTest = Effect.gen(function* () {
   const error = yield* Effect.flip(Fiber.join(fiber).pipe(Effect.timeout("3 seconds")));
 
   yield* assert(error.signal === "SIGTERM", "signal-killed command should expose its signal.", error);
+});
+
+const signalErrorFormattingSelfTest = Effect.gen(function* () {
+  const signaledError = {
+    commandText: "node hanging-script.mjs",
+    code: undefined,
+    signal: "SIGTERM",
+    stdout: "",
+    stderr: "terminated"
+  };
+  const spawnError = {
+    commandText: "missing-command ",
+    code: undefined,
+    signal: undefined,
+    stdout: "",
+    stderr: ""
+  };
+
+  yield* assert(
+    scriptCommandErrorMessage("signal formatting self-test", signaledError) ===
+      "Command failed while running signal formatting self-test.",
+    "signal-killed commands should format as process failures, not spawn failures.",
+    signaledError
+  );
+  yield* assert(
+    scriptCommandErrorRepair(signaledError, "spawn repair").includes("Signal: SIGTERM"),
+    "signal-killed command repairs should preserve signal semantics.",
+    signaledError
+  );
+  yield* assert(
+    scriptCommandErrorMessage("spawn formatting self-test", spawnError) ===
+      "Failed to run spawn formatting self-test.",
+    "spawn failures should keep spawn-specific formatting.",
+    spawnError
+  );
+  yield* assert(
+    scriptCommandErrorRepair(spawnError, "spawn repair") === "spawn repair",
+    "spawn failure repairs should keep caller-provided spawn guidance.",
+    spawnError
+  );
 });
 
 const processTreeInterruptionSelfTest = Effect.gen(function* () {
@@ -277,6 +319,7 @@ const selfTest = Effect.gen(function* () {
   yield* nonzeroExitSelfTest;
   yield* spawnFailureSelfTest;
   yield* signalExitStatusSelfTest;
+  yield* signalErrorFormattingSelfTest;
   yield* interruptionSelfTest;
   yield* interruptionWithActiveCollectorsSelfTest;
   yield* forceKillSelfTest;

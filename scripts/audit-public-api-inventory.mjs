@@ -331,7 +331,7 @@ const importedBindingNames = (declaration) => {
 
 const typeTestReferenceCoverageFailures = (entry, sourceFile) => {
   const moduleSpecifiers = importModuleSpecifiers(sourceFile);
-  const usedIdentifiers = nonImportIdentifierNames(sourceFile);
+  const usedReferences = nonImportReferenceNames(sourceFile);
   const referenceFailures = [];
 
   for (const reference of entry.typeTestReferences ?? []) {
@@ -341,9 +341,9 @@ const typeTestReferenceCoverageFailures = (entry, sourceFile) => {
       if (!moduleSpecifiers.has(reference)) {
         referenceFailures.push(`${entry.package} export ${entry.export} type test ${entry.typeTest} must import virtual module ${reference}`);
       }
-    } else if (!ts.isIdentifierText(reference, ts.ScriptTarget.Latest)) {
-      referenceFailures.push(`${entry.package} export ${entry.export} typeTestReferences entry ${reference} must be either a virtual:* module specifier or a TypeScript identifier`);
-    } else if (!usedIdentifiers.has(reference)) {
+    } else if (!reference.split(".").every((part) => ts.isIdentifierText(part, ts.ScriptTarget.Latest))) {
+      referenceFailures.push(`${entry.package} export ${entry.export} typeTestReferences entry ${reference} must be either a virtual:* module specifier, TypeScript identifier, or dotted namespace member`);
+    } else if (!usedReferences.has(reference)) {
       referenceFailures.push(`${entry.package} export ${entry.export} type test ${entry.typeTest} is missing required symbol reference ${reference}`);
     }
   }
@@ -351,11 +351,32 @@ const typeTestReferenceCoverageFailures = (entry, sourceFile) => {
   return referenceFailures;
 };
 
-const nonImportIdentifierNames = (sourceFile) => {
+const referenceParts = (node) => {
+  if (ts.isIdentifier(node)) {
+    return [node.text];
+  }
+  if (ts.isPropertyAccessExpression(node)) {
+    const left = referenceParts(node.expression);
+    return left === undefined ? undefined : [...left, node.name.text];
+  }
+  if (ts.isQualifiedName(node)) {
+    const left = referenceParts(node.left);
+    return left === undefined ? undefined : [...left, node.right.text];
+  }
+  return undefined;
+};
+
+const nonImportReferenceNames = (sourceFile) => {
   const names = new Set();
   const visit = (node) => {
     if (ts.isIdentifier(node)) {
       names.add(node.text);
+    }
+    if (ts.isPropertyAccessExpression(node) || ts.isQualifiedName(node)) {
+      const parts = referenceParts(node);
+      if (parts !== undefined) {
+        names.add(parts.join("."));
+      }
     }
     ts.forEachChild(node, visit);
   };
@@ -387,7 +408,7 @@ const assertTypeTestCoverage = (entry, typeTestPath, typeTest) => {
     failures.push(`${entry.package} export ${entry.export} type test ${entry.typeTest} is side-effect-only and must declare typeTestReferences in the manifest`);
   }
 
-  const usedIdentifiers = nonImportIdentifierNames(sourceFile);
+  const usedIdentifiers = nonImportReferenceNames(sourceFile);
   for (const name of importedNames) {
     if (!usedIdentifiers.has(name)) {
       failures.push(`${entry.package} export ${entry.export} type test ${entry.typeTest} imports ${name} but does not exercise it outside the import declaration`);

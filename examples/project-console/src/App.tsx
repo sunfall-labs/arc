@@ -209,7 +209,7 @@ function AppShell() {
         Effect.gen(function* () {
           yield* Resource.invalidateEffect(id ? [ProjectsRef, ProjectById(id)] : ProjectsRef);
           yield* ProjectSummaries.refetchEffect();
-        }).pipe(Effect.catch(() => Effect.void))
+        }).pipe(Effect.catchCause(() => Effect.void))
       );
     };
 

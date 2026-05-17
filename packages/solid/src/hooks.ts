@@ -37,8 +37,8 @@ import {
 } from "@effect-ui/core";
 import { Effect, Fiber, Stream } from "effect";
 import {
-  createEffect,
   createMemo,
+  createRenderEffect,
   createSignal,
   onCleanup,
   type Accessor
@@ -276,6 +276,7 @@ const createResourceBinding = <I, A, E, R = unknown, ER = never>(
   const [stateSignal, setState] = createSignal<ResourceState<A, Resource.LoadError<E>>>(resourceResult(getRef()).get());
   const [preloadFailure, setPreloadFailure] = createSignal<ResourceUiPreloadFailure<I, A, E, R, ER> | undefined>(undefined);
   let currentRef: ResourceRef<I, A, E, R> | undefined;
+  let latestOnPreloadFailure = options.onPreloadFailure;
   let unsubscribe: (() => void) | undefined;
 
   function resourceResult(currentRef: ResourceRef<I, A, E, R>) {
@@ -294,13 +295,29 @@ const createResourceBinding = <I, A, E, R = unknown, ER = never>(
     const result = resourceResult(nextRef);
     setState(() => result.get());
     unsubscribe = result.subscribe(() => setState(() => result.get()));
-    controller.startInitialPreload(nextRef, options);
   };
 
-  bindRef(getRef());
+  const syncBinding = (): ResourceRef<I, A, E, R> => {
+    const nextRef = getRef();
+    const preload = options.preload;
+    latestOnPreloadFailure = options.onPreloadFailure;
+    bindRef(nextRef);
+    if (preload === false) {
+      void runtime.runFork(controller.interruptPreloadEffect().pipe(Effect.catchCause(() => Effect.void)));
+      return nextRef;
+    }
 
-  createEffect(() => {
-    bindRef(getRef());
+    controller.startInitialPreload(nextRef, {
+      ...(preload === undefined ? {} : { preload }),
+      onPreloadFailure: (error) => latestOnPreloadFailure?.(error)
+    });
+    return nextRef;
+  };
+
+  syncBinding();
+
+  createRenderEffect(() => {
+    syncBinding();
   });
 
   onCleanup(() => {
@@ -310,14 +327,13 @@ const createResourceBinding = <I, A, E, R = unknown, ER = never>(
 
   return {
     state: () => {
-      bindRef(getRef());
+      syncBinding();
       return stateSignal();
     },
     preloadFailure: () => {
+      const ref = syncBinding();
       const failure = preloadFailure();
-      return currentRef === undefined
-        ? undefined
-        : resourceUiPreloadFailureFor(failure, currentRef);
+      return resourceUiPreloadFailureFor(failure, ref);
     },
     controller
   };
@@ -465,7 +481,7 @@ export const useAction = <I, A, E, R, ER = never>(
   const invalidationPlan = useSignal(instance.invalidationPlan);
 
   onCleanup(() => {
-    void runtime.runFork(instance.resetEffect().pipe(Effect.catch(() => Effect.void)));
+    void runtime.runFork(instance.resetEffect().pipe(Effect.catchCause(() => Effect.void)));
   });
 
   return {
