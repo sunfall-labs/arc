@@ -8,6 +8,9 @@ import {
   Collection,
   Query,
   SQLitePersistence,
+  SQLITE_PERSISTENCE_DEFAULT_NAMESPACE,
+  SQLITE_PERSISTENCE_DEFAULT_SCHEMA_VERSION,
+  SQLITE_PERSISTENCE_DEFAULT_TABLE,
   SQLitePersistenceInvalidRow,
   SQLitePersistenceInvalidStatementParams,
   SQLitePersistenceInvalidTableName,
@@ -68,7 +71,21 @@ import {
   type CollectionReactivePreloadController,
   type CollectionReactivePreloadControllerOptions,
   type FlushCollectionPendingMutationsResult,
+  type LiveQuery,
+  type LiveQueryState,
+  type QueryAggregate,
+  type QueryAggregateRecord,
+  type QueryAggregateResult,
   type QueryGroupKey,
+  type QueryFactory,
+  type QueryJoinKey,
+  type QueryJoinStrategy,
+  type QueryPlanDiagnostics,
+  type QueryPlanJoinDiagnostics,
+  type QueryPlanSourceDiagnostics,
+  type QueryRoot,
+  type QuerySortDirection,
+  type QuerySortValue,
   type ServerCollectionDeletePayload,
   type ServerCollectionInsertPayload,
   type ServerCollectionOperation,
@@ -178,6 +195,9 @@ const collectionSqliteMemoryDatabase = Collection.sqliteMemoryStatementDatabase(
 const collectionSqliteStorage = Collection.sqliteStorage(
   Collection.sqliteStatementDriver(collectionSqliteMemoryDatabase)
 );
+const sqliteDefaultTable: "effect_ui_collection_persistence" = SQLITE_PERSISTENCE_DEFAULT_TABLE;
+const sqliteDefaultNamespace: "effect-ui:collections" = SQLITE_PERSISTENCE_DEFAULT_NAMESPACE;
+const sqliteDefaultSchemaVersion: 1 = SQLITE_PERSISTENCE_DEFAULT_SCHEMA_VERSION;
 const sqliteRow: SQLitePersistenceRow = {
   namespace: "workspace",
   key: "projects",
@@ -185,12 +205,17 @@ const sqliteRow: SQLitePersistenceRow = {
   value: "{}",
   updatedAt: 1
 };
+void sqliteDefaultTable;
+void sqliteDefaultNamespace;
+void sqliteDefaultSchemaVersion;
 const collectionAlias: typeof Collection.define = createCollection;
 const liveQueryAlias: typeof Query.live = createLiveQuery;
 const liveQueryCollectionAlias: typeof Collection.liveQuery = createLiveQueryCollection;
 const publicQueryRoot: Query.Root = Query;
+const directQueryRoot: QueryRoot = publicQueryRoot;
 const publicQueryFactory: Query.Factory<Project, any, any> = (query) =>
   query.from({ project: dbStaticProjectsCollection }).select(({ project }) => project);
+const directQueryFactory: QueryFactory<Project, any, any> = publicQueryFactory;
 const publicQueryBuilder: Query.Builder<any, Project, any, any> =
   Query.from({ project: dbStaticProjectsCollection }).select(({ project }) => project);
 const publicQueryRows: ReadonlyArray<Project> = publicQueryBuilder.execute();
@@ -215,25 +240,59 @@ const publicLiveQuery = Query.live((query) =>
   query.from({ project: dbStaticProjectsCollection }).select(({ project }) => project)
 );
 const publicQueryLive: Query.Live<Project, any, any> = publicLiveQuery;
+const directLiveQuery: LiveQuery<Project, any, any> = publicQueryLive;
 const publicQueryLiveState: Query.LiveState<Project, any> = publicLiveQuery.state.get();
+const directLiveQueryState: LiveQueryState<Project, any> = publicQueryLiveState;
 declare const publicQueryEvaluationError: Query.EvaluationError;
 const directQueryEvaluationError: QueryEvaluationError = publicQueryEvaluationError;
 const publicQueryPlanDiagnostics: Query.PlanDiagnostics = Query.diagnostics(publicQueryFactory);
+const directQueryPlanDiagnostics: QueryPlanDiagnostics = publicQueryPlanDiagnostics;
 const publicQueryPlanSource: Query.PlanSourceDiagnostics =
   publicQueryPlanDiagnostics.sources[0]!;
+const directQueryPlanSource: QueryPlanSourceDiagnostics = publicQueryPlanSource;
 declare const publicQueryPlanJoin: Query.PlanJoinDiagnostics;
+const directQueryPlanJoin: QueryPlanJoinDiagnostics = publicQueryPlanJoin;
 const publicQueryJoinStrategy: Query.JoinStrategy = publicQueryPlanJoin.strategy;
+const directQueryJoinStrategy: QueryJoinStrategy = publicQueryJoinStrategy;
 const publicQueryGroupKey: Query.GroupKey<{ readonly status: string }> = { status: "active" };
+const directQueryGroupKey: QueryGroupKey<{ readonly status: string }> = publicQueryGroupKey;
+const directQueryJoinKey: QueryJoinKey = "project-id";
+const directQuerySortDirection: QuerySortDirection = "asc";
+const directQuerySortValue: QuerySortValue = new Date(0);
 const publicQueryAggregate: Query.Aggregate<{ readonly project: Project }, number, number> =
   Query.sum(({ project }) => project.id.length);
+const directQueryAggregate: QueryAggregate<{ readonly project: Project }, number, number> =
+  publicQueryAggregate;
 const publicQueryAggregates = {
   count: Query.count(({ project }: { readonly project: Project }) => project.id)
 } satisfies Query.Aggregates<{ readonly project: Project }>;
+const directQueryAggregateRecord: QueryAggregateRecord<{ readonly project: Project }> =
+  publicQueryAggregates;
 declare const publicQueryAggregateResult: Query.AggregateResult<
   typeof publicQueryGroupKey,
   typeof publicQueryAggregates
 >;
+const directQueryAggregateResult: QueryAggregateResult<
+  typeof directQueryGroupKey,
+  typeof directQueryAggregateRecord
+> = publicQueryAggregateResult;
 const publicQueryAggregateCount: number = publicQueryAggregateResult.count;
+void directQueryRoot;
+void directQueryFactory;
+void directLiveQuery;
+void directLiveQueryState;
+void directQueryEvaluationError;
+void directQueryPlanDiagnostics;
+void directQueryPlanSource;
+void directQueryPlanJoin;
+void directQueryJoinStrategy;
+void directQueryGroupKey;
+void directQueryJoinKey;
+void directQuerySortDirection;
+void directQuerySortValue;
+void directQueryAggregate;
+void directQueryAggregateRecord;
+void directQueryAggregateResult;
 publicQueryRoot.from({ project: dbStaticProjectsCollection });
 const collectionReactivePreloadController = makeCollectionReactivePreloadController({
   runtime: null as unknown as AnyEffectUiRuntime<never>,

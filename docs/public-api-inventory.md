@@ -750,10 +750,11 @@ Release decisions:
 - SQLite helper names are expert public storage-adapter APIs. Keep them because
   local-first recipes need a SQLite-shaped seam without a runtime dependency on
   a specific SQLite package. `sqlite-persistence.ts` owns the statement value,
-  params, row, database, prepared-statement, and memory contracts; the DB root
-  exports them directly and aliases them under `Collection.*` for namespace
-  ergonomics. Statement rows fail as `SQLitePersistenceInvalidRow` when SQLite
-  clients return malformed field types instead of being coerced at the Adapter
+  params, row, database, prepared-statement, memory contracts, and default
+  table/namespace/schema-version constants; the DB root exports them directly
+  and aliases the helper family under `Collection.*` for namespace ergonomics.
+  Statement rows fail as `SQLitePersistenceInvalidRow` when SQLite clients
+  return malformed field types instead of being coerced at the Adapter
   boundary.
 - Mutation, transaction, event, and store diagnostic types are expert public for
   tests, devtools, persistence, and sync adapters. App code should use
@@ -930,6 +931,12 @@ Release decisions:
   storage. Structural fake builders are rejected at the type seam and runtime
   factory seam. Public `LiveQuery` handles expose data/state/source metadata
   and lifecycle Effects, not the internal builder.
+- Top-level Query type mirrors such as `QueryRoot`, `QueryFactory`,
+  `LiveQuery`, `LiveQueryState`, query plan diagnostics, sort/join scalar
+  types, and aggregate types remain expert-public compatibility exports. New
+  application code should prefer the `Query.*` namespace, but the direct
+  mirrors are intentionally documented and pinned so Query public Interface
+  drift is visible to the type-test manifest and public API audit.
 - `QueryGroupKey` and `Query.GroupKey` are the public grouped-query key
   contracts for `Query.groupBy(...)`. They reject Promise-shaped values inside
   nested records, arrays, Maps, and Sets at the type seam, and runtime evaluation reports

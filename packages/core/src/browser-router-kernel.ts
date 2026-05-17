@@ -322,6 +322,14 @@ export const createBrowserRouterKernel = <
     );
   };
 
+  const cancelNavigationAndSetFailure = (
+    next: Extract<BrowserRouterState<Routes, ER>, { readonly _tag: "Failure" }>
+  ): void => {
+    navigation++;
+    disposePreloadScope();
+    setState(next);
+  };
+
   const preloadRouteEffect = <R extends Routes[number]>(
     definition: R,
     args: Route.HrefArgs<R>
@@ -360,7 +368,7 @@ export const createBrowserRouterKernel = <
     },
     navigate: (definition, commit, ...args) => {
       if (!routeIsConfigured(definition)) {
-        setState(routeMembershipFailureState<Routes, ER>(state.get().href, definition));
+        cancelNavigationAndSetFailure(routeMembershipFailureState<Routes, ER>(state.get().href, definition));
         return;
       }
 
@@ -370,7 +378,7 @@ export const createBrowserRouterKernel = <
     navigateByPath: (path, commit, ...args) => {
       const definition = routeForPath(path);
       if (!definition) {
-        setState(routePathMembershipFailureState<Routes, ER>(state.get().href, path));
+        cancelNavigationAndSetFailure(routePathMembershipFailureState<Routes, ER>(state.get().href, path));
         return;
       }
 

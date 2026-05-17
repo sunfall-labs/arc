@@ -99,7 +99,9 @@ without choosing between correctness, inspectability, and ergonomics.
   adapter packages that should not route through the `Collection` namespace:
   `makeSQLitePersistenceStorage`, `makeSQLiteStatementPersistenceDriver`,
   `makeSQLitePreparedStatementDatabase`, `makeSQLiteMemoryStatementDatabase`,
-  `SQLitePersistence`, and typed errors such as
+  `SQLitePersistence`, `SQLITE_PERSISTENCE_DEFAULT_TABLE`,
+  `SQLITE_PERSISTENCE_DEFAULT_NAMESPACE`,
+  `SQLITE_PERSISTENCE_DEFAULT_SCHEMA_VERSION`, and typed errors such as
   `SQLitePersistenceInvalidRow`.
 - `Collection.persistedOptions(...)` restores persisted snapshots on preload
   and writes snapshots back after loads, writes, and optimistic mutation queue
@@ -111,6 +113,10 @@ without choosing between correctness, inspectability, and ergonomics.
   events, or persisting a snapshot.
 - `Query.live(...)` creates live materialized queries over one or more
   collections.
+- Query type mirrors such as `QueryRoot`, `QueryFactory`, `LiveQuery`,
+  `LiveQueryState`, and plan diagnostics/aggregate types remain available at
+  the DB package root for expert-public compatibility. Prefer `Query.*` in new
+  app code so the Query Module stays grouped in hovers and docs.
 - Live query filters and joins run through `@tanstack/db-ivm`, TanStack DB's
   differential-dataflow / incremental-view-maintenance engine.
 - Grouped aggregate ordering plus ordered `limit` / `offset` windows are

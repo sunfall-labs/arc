@@ -681,6 +681,109 @@ describe("browser router kernel", () => {
       )
     ));
 
+  it("outside-route navigate interrupts active navigation preload", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+
+          const release = yield* Deferred.make<void>();
+          let starts = 0;
+          let finalizers = 0;
+          const Slow = route("/outside-route-slow", {
+            preload: () =>
+              Effect.sync(() => {
+                starts++;
+              }).pipe(
+                Effect.andThen(Deferred.await(release)),
+                Effect.ensuring(Effect.sync(() => {
+                  finalizers++;
+                }))
+              )
+          });
+          const Outside = route("/outside-route-target");
+          const router = createBrowserRouterKernel([Slow] as const, {
+            initialHref: "/missing",
+            runtime
+          });
+          yield* Effect.addFinalizer(() => router.disposeEffect());
+
+          router.navigateHref("/outside-route-slow");
+          yield* Effect.promise(() => vi.waitFor(() => expect(starts).toBe(1)));
+
+          // @ts-expect-error outside route intentionally violates the configured router tuple
+          router.navigate(Outside, router.navigateHref);
+          yield* Effect.promise(() =>
+            vi.waitFor(() => {
+              expect(finalizers).toBe(1);
+              const state = router.state.get();
+              expect(state._tag).toBe("Failure");
+              if (state._tag === "Failure") {
+                expect(state.error).toBeInstanceOf(RouteNavigationError);
+                expect((state.error as RouteNavigationError).cause).toBeInstanceOf(RouterRouteNotRegistered);
+              }
+            })
+          );
+
+          yield* Deferred.succeed(release, undefined);
+          yield* Effect.sleep("20 millis");
+          expect(router.state.get()._tag).toBe("Failure");
+        })
+      )
+    ));
+
+  it("outside-path navigate interrupts active navigation preload", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+
+          const release = yield* Deferred.make<void>();
+          let starts = 0;
+          let finalizers = 0;
+          const Slow = route("/outside-path-slow", {
+            preload: () =>
+              Effect.sync(() => {
+                starts++;
+              }).pipe(
+                Effect.andThen(Deferred.await(release)),
+                Effect.ensuring(Effect.sync(() => {
+                  finalizers++;
+                }))
+              )
+          });
+          const router = createBrowserRouterKernel([Slow] as const, {
+            initialHref: "/missing",
+            runtime
+          });
+          yield* Effect.addFinalizer(() => router.disposeEffect());
+
+          router.navigateHref("/outside-path-slow");
+          yield* Effect.promise(() => vi.waitFor(() => expect(starts).toBe(1)));
+
+          // @ts-expect-error outside path intentionally violates the configured router tuple
+          router.navigateByPath("/outside-path-target", router.navigateHref);
+          yield* Effect.promise(() =>
+            vi.waitFor(() => {
+              expect(finalizers).toBe(1);
+              const state = router.state.get();
+              expect(state._tag).toBe("Failure");
+              if (state._tag === "Failure") {
+                expect(state.error).toBeInstanceOf(RouteNavigationError);
+                expect((state.error as RouteNavigationError).cause).toBeInstanceOf(RouterRouteNotRegistered);
+              }
+            })
+          );
+
+          yield* Deferred.succeed(release, undefined);
+          yield* Effect.sleep("20 millis");
+          expect(router.state.get()._tag).toBe("Failure");
+        })
+      )
+    ));
+
   it("disposeEffect interrupts current navigation preload before completing", () =>
     Effect.runPromise(
       Effect.scoped(

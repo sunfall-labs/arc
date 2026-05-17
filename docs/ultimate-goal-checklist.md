@@ -649,7 +649,9 @@ Last evidence pass: May 17, 2026.
     adapter starter, and documents the generated project-console starter
     payload.
 - [x] New architectural decisions are recorded in docs or ADRs.
-  - Evidence: Review242 updated Solid Route Render Scope Controller vocabulary
+  - Evidence: Review243 added Browser Router Kernel vocabulary for invalid
+    navigation cancellation and refreshed Query/SQLite public Interface
+    ownership; Review242 updated Solid Route Render Scope Controller vocabulary
     for update suspended-render ownership, Suspense retry publication, and
     Solid `createResource(...)` host Adapter ownership; Review241 recorded the
     current-evidence docs drift finding and gate; Review240 updated cleanup,
@@ -679,11 +681,11 @@ Last evidence pass: May 17, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 242 passed Solid typecheck, Solid router
-    tests 1 file / 42 tests, broader Core/React/Solid focused tests,
-    framework package typechecks, public API audit, Effect-first audit over 415
-    files, public type tests, and `git diff --check`. Latest full verification
-    evidence remains Review 240.
+  - Latest focused evidence: Review 243 passed Core/React/Solid router tests 3
+    files / 82 tests, Core/DB/React DB/Solid DB typechecks,
+    `pnpm typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first`
+    over 415 files, and `git diff --check`. Latest full verification evidence
+    remains Review 240.
     Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
     sweeps found Review191, Review192, Review193, Review194, Review195, and
     Review196, Review197, Review198, Review199, Review200, Review201,
@@ -701,7 +703,8 @@ Last evidence pass: May 17, 2026.
     Runner, UI Lifetime, And Public Hover Cleanup work, Review240 Effect-First
     Cleanup, Suspense, And Public API Pins work, and Review241 Current
     Evidence Docs Drift work, and Review242 Solid Route Update Suspense
-    Outcome work.
+    Outcome work, and Review243 Browser Router And DB Public Interface Pins
+    work.
     Clean Sweep 1 after Review208 remains historical 1/30 evidence, but Clean
     Sweep 2 found Review209 work and the local post-Review209 pass found
     Review210 work; the first post-Review210 sweep found Review211 work, and
@@ -735,7 +738,8 @@ Last evidence pass: May 17, 2026.
     DB, and public API ownership work, and the fresh post-Review240 sweep found
     Review241 current-evidence docs drift work, and the fresh post-Review241
     framework follow-up found Review242 Solid route update Suspense outcome
-    work, leaving the active counter at 0/30.
+    work, and the fresh post-Review242 sweep found Review243 Browser Router
+    Kernel and DB public Interface work, leaving the active counter at 0/30.
     Latest full evidence:
     `pnpm verify` ran after Review 240 with 53 root
     test files / 1170
@@ -879,10 +883,10 @@ Last evidence pass: May 17, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 242 Solid route update
-    Suspense outcome, Review 241 current-evidence docs drift gate, or the
-    Review 240 cleanup, framework Suspense, Start tooling, DB, and public API
-    ownership work.
+  - Evidence: no new ADR required for the Review 243 Browser Router and DB
+    public Interface pins, Review 242 Solid route update Suspense outcome,
+    Review 241 current-evidence docs drift gate, or the Review 240 cleanup,
+    framework Suspense, Start tooling, DB, and public API ownership work.
     Future architecture sweeps remain tracked in
     `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
@@ -897,11 +901,11 @@ Last evidence pass: May 17, 2026.
     16-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 242 records Solid typecheck, Solid router tests 1 file /
-    42 tests, broader Core/React/Solid focused tests, framework package
-    typechecks, public API audit, Effect-first audit over 415 files, public
-    type tests, and `git diff --check` after closing the Solid route update
-    Suspense outcome finding. Review240 records the latest full gate. Clean
+  - Evidence: Review 243 records Core/React/Solid router tests 3 files / 82
+    tests, Core/DB/React DB/Solid DB typechecks, public type tests, public API
+    audit, Effect-first audit over 415 files, and `git diff --check` after
+    closing the Browser Router and DB public Interface findings. Review240
+    records the latest full gate. Clean
     Sweep 1 after
     Review190 remains historical 1/30 evidence, but later sweeps found
     Review191, Review192, Review193, Review194, Review195, Review196,
@@ -920,7 +924,8 @@ Last evidence pass: May 17, 2026.
     UI Lifetime, And Public Hover Cleanup work, Review240 Effect-First
     Cleanup, Suspense, And Public API Pins work, and Review241 Current
     Evidence Docs Drift work, and Review242 Solid Route Update Suspense
-    Outcome work.
+    Outcome work, and Review243 Browser Router And DB Public Interface Pins
+    work.
     Clean
     Sweep 1 after Review208 remains historical 1/30 evidence, but Clean Sweep
     2 found Review209 work and the local post-Review209 pass found Review210
@@ -954,7 +959,8 @@ Last evidence pass: May 17, 2026.
     DB, and public API ownership work, and the fresh post-Review240 sweep found
     Review241 current-evidence docs drift work, and the fresh post-Review241
     framework follow-up found Review242 Solid route update Suspense outcome
-    work,
+    work, and the fresh post-Review242 sweep found Review243 Browser Router
+    Kernel and DB public Interface work,
     leaving the active counter at 0/30.
     Full verification is recorded in the latest full gate above.
 

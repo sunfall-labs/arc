@@ -176,6 +176,12 @@ are easiest to regress while refactoring internals toward Effect primitives.
   `Query.diagnostics`, and `SQLitePersistence.storage` so namespace-backed
   public surfaces cannot be satisfied by shallow top-level imports alone. It
   moved the current full verification evidence to the Review240 gate.
+- Review243 Browser Router And DB Public Interface Pins added direct public
+  type-test and manifest ownership for top-level Query type mirrors
+  (`QueryRoot`, `QueryFactory`, `LiveQuery`, `LiveQueryState`, plan diagnostics,
+  join/sort scalar types, and aggregate types) plus SQLite default constants.
+  The latest full verification evidence still remains the Review240 gate until
+  the next full `pnpm verify` run.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them
@@ -295,8 +301,8 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Verification Evidence
 
-- `pnpm typecheck:types` passed after Review240, and full `pnpm verify` passed
-  after Review240 with
+- `pnpm typecheck:types` passed after Review243 with direct Query mirror and
+  SQLite default constant pins. Full `pnpm verify` passed after Review240 with
   53 root test files / 1170 tests, including dotted namespace public API
   type-test ownership for `Collection.validateHydrationPayloadEffect`,
   `Query.diagnostics`, and `SQLitePersistence.storage`, DB query-sync and live

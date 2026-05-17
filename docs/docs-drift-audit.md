@@ -3,10 +3,10 @@
 Last updated: 2026-05-17.
 
 Current release-tracking truth lives in `docs/architecture-deepening-review.md`
-and `docs/perfection-progress.md`. As of Review242, the latest full
+and `docs/perfection-progress.md`. As of Review243, the latest full
 `pnpm verify` gate is the Review240 run with 53 root test files / 1170 tests,
 the Effect-first audit covers 415 files, and the active Thirty-Sweep clean
-counter is 0/30 until a fresh post-Review242 sweep reports no actionable
+counter is 0/30 until a fresh post-Review243 sweep reports no actionable
 findings.
 
 This historical audit checks release-tracking docs for claims that no longer match the
@@ -222,6 +222,9 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Review242 Solid Route Update Suspense Outcome refreshed current ledgers after
   the post-Review241 framework follow-up found navigation-time Solid route
   render thenables were not represented as owned Suspense outcomes.
+- Review243 Browser Router And DB Public Interface Pins refreshed current
+  ledgers after the post-Review242 sweep found Browser Router Kernel invalid
+  navigation lifetime work and DB Query/SQLite public Interface pin gaps.
 - Review201 refreshed the current release ledgers after script command,
   Resource public-surface, React/Solid router LSP, DB erased-channel, and
   generated-starter README guardrail fixes; the historical enumeration above

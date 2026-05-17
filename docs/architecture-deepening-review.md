@@ -11,12 +11,10 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review242 Solid Route Update Suspense Outcome, the
-fresh post-Review241 framework follow-up that deepened the Solid Route Render
-Scope Controller so navigation-time suspended route renders publish a Suspense
-outcome, retry after the host thenable settles, and dispose tentative route
-frames when a newer transition wins. The newest full verification checkpoint
-remains Review240.
+The newest focused review is Review243 Browser Router And DB Public Interface
+Pins, the fresh post-Review242 sweep that fixed Browser Router Kernel invalid
+navigation cancellation and pinned DB Query/SQLite expert-public mirrors. The
+newest full verification checkpoint remains Review240.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -49,7 +47,8 @@ and the fresh post-Review238 sweep found Review239 work,
 and the fresh post-Review239 sweep found Review240 work,
 and the fresh post-Review240 sweep found Review241 work,
 and the fresh post-Review241 framework follow-up found Review242 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review242
+and the fresh post-Review242 sweep found Review243 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review243
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -60,7 +59,7 @@ Review220, Review221, Review222, Review223, Review224, Review225,
 Review226, Review227, Review228, Review229, Review230, Review231, and
 Review232 Shared DB Query Stage Plan work, Review233 work, Review234 work,
 Review235 work, Review236 work, Review237 work, Review238 work, Review239
-work, Review240 work, Review241 work, and Review242 work.
+work, Review240 work, Review241 work, Review242 work, and Review243 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -154,7 +153,62 @@ and the fresh post-Review240 sweep found Review241 current-evidence docs drift
 work,
 and the fresh post-Review241 framework follow-up found Review242 Solid route
 update Suspense outcome work,
+and the fresh post-Review242 sweep found Review243 Browser Router Kernel and
+DB public Interface work,
 so the counter remains 0/30.
+
+## Review 243: Browser Router And DB Public Interface Pins
+
+Review243 fixes the actionable findings from the fresh post-Review242 sweep.
+
+1. Browser Router Outside-Route Navigation Cancellation
+   - Status: fixed.
+   - Files: `CONTEXT.md`, `packages/core/src/browser-router-kernel.ts`, and
+     `packages/core/test/browser-router.test.ts`.
+   - Problem: the Browser Router Kernel's valid navigation path advanced the
+     navigation generation and disposed the active preload `UiScope`, but
+     outside-route `navigate(...)` and `navigateByPath(...)` membership
+     failures only wrote a `Failure` state. A slow previous preload could
+     later complete with the same generation and overwrite the invalid
+     navigation failure.
+   - Fix: added one local cancellation/failure helper for membership failures
+     that increments the navigation generation, disposes the active preload
+     scope, and then writes the typed failure state.
+   - Benefits: active navigation lifetime now has Locality in the Browser
+     Router Kernel Module. React and Solid Adapters inherit stale-preload
+     suppression for invalid navigation without adapter-specific patches.
+
+2. DB Query Public Interface Mirrors
+   - Status: fixed.
+   - Files: `CONTEXT.md`, `docs/db.md`, `docs/public-api-inventory.md`,
+     `docs/type-test-coverage-audit.md`, `type-tests/db.test-d.ts`, and
+     `type-tests/public-api.manifest.json`.
+   - Problem: the DB root exported direct Query type mirrors such as
+     `QueryRoot`, `QueryFactory`, `LiveQuery`, `LiveQueryState`, and query-plan
+     diagnostics/aggregate types, while the documented Interface mostly
+     emphasized the `Query.*` namespace.
+   - Fix: documented the direct mirrors as expert-public compatibility exports
+     while preserving `Query.*` as the preferred namespace, and added direct
+     import/type-test/manifest pins for the public mirrors.
+   - Benefits: Query public-surface Locality improves because namespace and
+     direct mirror drift now fails the public API audit instead of being
+     discovered by hand.
+
+3. SQLite Default Constant Pins
+   - Status: fixed.
+   - Files: `CONTEXT.md`, `docs/db.md`, `docs/public-api-inventory.md`,
+     `type-tests/db.test-d.ts`, and `type-tests/public-api.manifest.json`.
+   - Problem: SQLite default table, namespace, and schema-version constants
+     were exported through the DB root but not documented or pinned.
+   - Fix: documented them as expert-public Adapter vocabulary and added direct
+     type-test/manifest ownership for all three constants.
+   - Benefits: the SQLite Persistence Adapter Interface is intentional, and
+     default-value changes now have a focused public API signal.
+
+Focused verification for this pass: Core/React/Solid router tests passed with
+82 tests, Core/DB/React DB/Solid DB typechecks passed, `pnpm typecheck:types`
+passed, and `pnpm audit:public-api` passed. The wider Effect-first and
+whitespace gates are recorded in the Review243 commit.
 
 ## Review 242: Solid Route Update Suspense Outcome
 

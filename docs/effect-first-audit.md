@@ -20,6 +20,10 @@ interruption.
 
 ## Current Sweep Results
 
+- Review243 Browser Router And DB Public Interface Pins keeps the post-Review242
+  fixes Effect-first: invalid route/path navigation now cancels active preload
+  `UiScope` work through the Browser Router Kernel, and the DB Query/SQLite
+  changes are public type-test/docs ownership only.
 - Review242 Solid Route Update Suspense Outcome keeps the framework follow-up
   Effect-first: the Solid Route Render Scope Controller represents suspended
   route updates as an owned outcome, retries the transition from an Effect
