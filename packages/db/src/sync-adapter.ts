@@ -1,4 +1,4 @@
-import { Resource, invokeEffectInput, type EffectInput, type EffectInputCallbackError } from "@effect-ui/core";
+import { EffectInputCallbackError, Resource, invokeEffectInput, type EffectInput } from "@effect-ui/core";
 import { Effect } from "effect";
 import type {
   CollectionIndexRecord,
@@ -12,7 +12,7 @@ import type {
   CollectionWriteOptions
 } from "./collection-contract.js";
 import type { CollectionChangeFeedDispatchPolicy } from "./change-feed-dispatcher.js";
-import { cloneCollectionValue } from "./collection-value-detachment.js";
+import { cloneCollectionValue, collectionExecutableValuePath } from "./collection-value-detachment.js";
 
 /**
  * Insert payload delivered to a collection sync adapter.
@@ -96,9 +96,24 @@ export interface CollectionResourceSyncAdapterOptions<
 }
 
 /**
+ * Plain recursive value accepted inside a query-client cache key.
+ */
+export type CollectionQuerySyncKeyPart =
+  | null
+  | undefined
+  | string
+  | number
+  | boolean
+  | bigint
+  | symbol
+  | Date
+  | ReadonlyArray<CollectionQuerySyncKeyPart>
+  | { readonly [key: string]: CollectionQuerySyncKeyPart };
+
+/**
  * Stable query cache key used by query-client-backed sync adapters.
  */
-export type CollectionQuerySyncKey = ReadonlyArray<unknown>;
+export type CollectionQuerySyncKey = ReadonlyArray<CollectionQuerySyncKeyPart>;
 
 /**
  * Fetch request issued to a query-client-backed sync adapter.
@@ -246,8 +261,43 @@ const queryKeyName = (queryKey: CollectionQuerySyncKey): string => {
   return `query:${typeof first === "string" || typeof first === "number" ? String(first) : "collection"}`;
 };
 
-const detachQuerySyncKey = (queryKey: CollectionQuerySyncKey): CollectionQuerySyncKey =>
-  cloneCollectionValue(Array.from(queryKey)) as CollectionQuerySyncKey;
+const querySyncKeyGuidance =
+  "Collection query sync keys must be plain cache identity data. Move host Promise work into queryFn or sync adapter Effects, and do not store direct Effect values in query keys.";
+
+const querySyncKeyError = (
+  cause: unknown
+): EffectInputCallbackError =>
+  new EffectInputCallbackError({
+    operation: "Collection.querySync.queryKey",
+    cause,
+    guidance: querySyncKeyGuidance
+  });
+
+const detachQuerySyncKey = (queryKey: CollectionQuerySyncKey): CollectionQuerySyncKey => {
+  try {
+    const input = Array.from(queryKey);
+    const executable = collectionExecutableValuePath(input, "$.queryKey");
+    if (executable !== undefined) {
+      throw querySyncKeyError(
+        new TypeError(`Collection query sync key contains ${executable.reason} at ${executable.path}.`)
+      );
+    }
+    return cloneCollectionValue(input) as CollectionQuerySyncKey;
+  } catch (cause) {
+    if (cause instanceof EffectInputCallbackError) {
+      throw cause;
+    }
+    throw querySyncKeyError(cause);
+  }
+};
+
+const initialQuerySyncKey = (queryKey: CollectionQuerySyncKey): CollectionQuerySyncKey => {
+  try {
+    return detachQuerySyncKey(queryKey);
+  } catch {
+    return Array.from(queryKey);
+  }
+};
 
 /**
  * Convert a sync adapter into `Collection.define` options.
@@ -365,19 +415,30 @@ export const collectionQuerySyncAdapter = <
 >(
   options: CollectionQuerySyncAdapterOptions<A, K, E, R>
 ): CollectionSyncAdapter<A, K, E | EffectInputCallbackError, R> => {
-  const queryKey = detachQuerySyncKey(options.queryKey);
+  const queryKey = initialQuerySyncKey(options.queryKey);
   const queryKeyInput = (): CollectionQuerySyncKey => detachQuerySyncKey(queryKey);
+  const queryKeyInputEffect = (): Effect.Effect<CollectionQuerySyncKey, EffectInputCallbackError> =>
+    Effect.try({
+      try: queryKeyInput,
+      catch: (cause) =>
+        cause instanceof EffectInputCallbackError
+          ? cause
+          : querySyncKeyError(cause)
+    });
   const fetch = (): Effect.Effect<ReadonlyArray<A>, E | EffectInputCallbackError, R> =>
-    runSyncCallback(() => options.queryClient.fetchQuery({
-      queryKey: queryKeyInput(),
-      queryFn: () => options.queryFn()
-    }));
+    Effect.gen(function* () {
+      const input = yield* queryKeyInputEffect();
+      return yield* runSyncCallback(() => options.queryClient.fetchQuery({
+        queryKey: input,
+        queryFn: () => options.queryFn()
+      }));
+    });
   const invalidate = (): Effect.Effect<void, E | EffectInputCallbackError, R> =>
     options.queryClient.invalidateQueries
-      ? Effect.flatMap(
-          runSyncCallback(() => options.queryClient.invalidateQueries!({ queryKey: queryKeyInput() })),
-          () => Effect.void
-        )
+      ? Effect.gen(function* () {
+          const input = yield* queryKeyInputEffect();
+          yield* runSyncCallback(() => options.queryClient.invalidateQueries!({ queryKey: input }));
+        })
       : Effect.succeed(undefined);
   const invalidateAfterMutation = (): Effect.Effect<void, E | EffectInputCallbackError, R> =>
     options.mutationInvalidation === "rollback-on-failure"
@@ -443,6 +504,7 @@ export namespace CollectionSync {
     CollectionSyncOptions<A, K, E, R>;
   export type ResourceAdapterOptions<I, A extends object, K extends CollectionKey = string, E = never, R = never> =
     CollectionResourceSyncAdapterOptions<I, A, K, E, R>;
+  export type QueryKeyPart = CollectionQuerySyncKeyPart;
   export type QueryKey = CollectionQuerySyncKey;
   export type QueryFetchOptions<A extends object, E = never, R = never> =
     CollectionQuerySyncFetchOptions<A, E, R>;

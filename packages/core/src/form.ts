@@ -4,6 +4,7 @@ import type { EffectInput, EffectInputCallbackError, PlainValue } from "./effect
 import { invokeEffectInput } from "./effect-like.js";
 import { Signal, type ReadableSignal } from "./signal.js";
 
+/** Runtime marker used by `isForm(...)` to identify Form controllers. */
 export const FormTypeId: unique symbol = Symbol.for("@effect-ui/core/Form") as typeof FormTypeId;
 
 /** String field key type used by form state, errors, dirty flags, and touched flags. */
@@ -51,6 +52,7 @@ export interface FormState<Values extends object, E = never> {
   readonly touched: FormFieldFlags<Values>;
 }
 
+/** Options used to create a schema-backed Form controller. */
 export interface FormOptions<
   S extends Schema.Top,
   Values extends FormSchemaValues<S>,
@@ -68,8 +70,10 @@ export interface FormOptions<
   ) => EffectInput<void, FormValidationError<Values, E>, R>;
 }
 
+/** How file entries from FormData should be represented before schema decoding. */
 export type FormDataFileMode = "value" | "name";
 
+/** Options for converting browser FormData into a schema-decodable object. */
 export interface FormDataDecodeOptions {
   /** How file entries should appear in the intermediate object. Defaults to the File value. */
   readonly file?: FormDataFileMode;
@@ -97,6 +101,7 @@ export interface FormInstance<Values extends object, E = never, R = never> {
   >;
 }
 
+/** Typed validation failure produced by schema decoding or custom Form validators. */
 export class FormValidationError<
   Values extends object = Record<string, unknown>,
   E = never
@@ -355,9 +360,9 @@ const appendFieldError = <Values extends object, E>(
 
 const singleFieldError = <Values extends object, E>(
   field: FormFieldKey<Values>,
-  error: E
-): FormFieldErrors<Values, E> => {
-  const fieldErrors: Partial<Record<FormFieldKey<Values>, Array<E>>> = {};
+  error: PlainValue<E>
+): FormFieldErrors<Values, PlainValue<E>> => {
+  const fieldErrors: Partial<Record<FormFieldKey<Values>, Array<PlainValue<E>>>> = {};
   appendFieldError(fieldErrors, field, error);
   return fieldErrors;
 };
@@ -403,11 +408,22 @@ const makeError = <Values extends object, E>(
     cause
   });
 
+const makePlainError = <Values extends object, E>(
+  fieldErrors: FormFieldErrors<Values, PlainValue<E>>,
+  formErrors: ReadonlyArray<PlainValue<E>> = [],
+  cause?: unknown
+): FormValidationError<Values, E> =>
+  makeError(
+    fieldErrors as FormFieldErrors<Values, E>,
+    formErrors as ReadonlyArray<E>,
+    cause
+  );
+
 const validationTools = <Values extends object, E>(): FormValidationTools<Values, E> => ({
   field: (field, error) =>
-    makeError<Values, E>(singleFieldError(field, error as E)),
-  fields: (fieldErrors) => makeError(fieldErrors as FormFieldErrors<Values, E>),
-  form: (error) => makeError<Values, E>({}, [error as E])
+    makePlainError<Values, E>(singleFieldError(field, error)),
+  fields: (fieldErrors) => makePlainError(fieldErrors),
+  form: (error) => makePlainError<Values, E>({}, [error])
 });
 
 const issuePaths = (
@@ -542,6 +558,7 @@ const decodeFormDataEffectImpl = <
     Effect.mapError((schemaError) => fieldErrorsFromSchemaError<Values>(schemaError))
   );
 
+/** Decodes FormData through an Effect Schema and maps failures to form errors. */
 export const decodeFormDataEffect = decodeFormDataEffectImpl;
 
 /** Runtime guard for values created by `Form.make(...)`. */
@@ -552,22 +569,32 @@ export const isForm = (value: unknown): value is FormInstance<object, unknown, u
 
 /** Helpers for creating and validating Effect UI form controllers. */
 export namespace Form {
+  /** Namespace alias for string keys addressable by a Form controller. */
   export type FieldKey<Values extends object> = FormFieldKey<Values>;
+  /** Namespace alias for per-field boolean state such as dirty and touched. */
   export type FieldFlags<Values extends object> = FormFieldFlags<Values>;
+  /** Namespace alias for per-field validation errors. */
   export type FieldErrors<Values extends object, E = never> = FormFieldErrors<Values, E>;
+  /** Namespace alias for the Form validation lifecycle status. */
   export type Status = FormStatus;
+  /** Namespace alias for the readable Form state snapshot. */
   export type State<Values extends object, E = never> = FormState<Values, E>;
+  /** Namespace alias for a Form controller instance. */
   export type Instance<Values extends object, E = never, R = never> = FormInstance<
     Values,
     E,
     R
   >;
+  /** Namespace alias for validator helper functions. */
   export type ValidationTools<Values extends object, E> = FormValidationTools<Values, E>;
+  /** Namespace alias for typed Form validation failures. */
   export type ValidationError<Values extends object, E = never> = FormValidationError<
     Values,
     E
   >;
+  /** Namespace alias for FormData file conversion mode. */
   export type DataFileMode = FormDataFileMode;
+  /** Namespace alias for FormData decoding options. */
   export type DataOptions = FormDataDecodeOptions;
 
   /**
@@ -575,14 +602,14 @@ export namespace Form {
    *
    * Use inside custom validators when multiple fields need to fail at once.
    */
-  export const error = makeError;
+  export const error = makePlainError;
 
   /** Creates a validation error for one field. */
   export const fieldError = <Values extends object, K extends FormFieldKey<Values>, E>(
     field: K,
-    error: E
+    error: PlainValue<E>
   ): FormValidationError<Values, E> =>
-    makeError(singleFieldError(field, error));
+    makePlainError(singleFieldError(field, error));
 
   /**
    * Creates a form controller from an Effect Schema and initial values.

@@ -7,6 +7,7 @@ import {
   invokeEffectInput
 } from "./effect-like.js";
 
+/** Runtime marker used by `isCapability(...)` to identify Capability definitions. */
 export const CapabilityTypeId: unique symbol = Symbol.for("@effect-ui/core/Capability") as typeof CapabilityTypeId;
 
 /**
@@ -54,6 +55,7 @@ export interface Capability<Identifier, Shape> {
   ) => Effect.Effect<A, E, Exclude<R, Identifier>>;
 }
 
+/** Runtime guard for values created by `Capability.define(...)`. */
 export const isCapability = (value: unknown): value is Capability<unknown, unknown> =>
   typeof value === "object" &&
   value !== null &&
@@ -66,8 +68,11 @@ const isPromiseLike = (value: unknown): value is PromiseLike<unknown> =>
 
 /** Helpers for defining, providing, and using typed UI capabilities. */
 export namespace Capability {
+  /** Any Capability definition, useful for registries and diagnostics. */
   export type Any = Capability<unknown, unknown>;
+  /** Extracts the service shape from a Capability definition. */
   export type Shape<C> = C extends Capability<infer _Identifier, infer Shape> ? Shape : never;
+  /** Extracts the Effect service identifier from a Capability definition. */
   export type Identifier<C> = C extends Capability<infer Identifier, infer _Shape> ? Identifier : never;
 
   /**

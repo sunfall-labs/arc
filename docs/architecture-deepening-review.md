@@ -11,25 +11,25 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review216, the post-Review215 sweep
-fixing Core synchronous plain-data seams, Resource key and Form validation data
-contracts, DB Effect-shaped query/row ingress leaks, Devtools preserved preload
-facts, and current docs/LSP wording. The newest full verification checkpoint is
-Review216. Clean Sweep 1 after
+The newest completed focused review is Review217, the post-Review216 sweep
+fixing Core validation plain-data seams and hover policy coverage, DB query
+sync keys, secondary index values, hostile row detachment, Devtools/runtime LSP
+coverage, project-console runtime erasure, and stale current docs. The newest
+full verification checkpoint is Review217. Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
 post-Review210 sweep found Review211 work, the first post-Review211 sweep
 found Review212 work, the first post-Review212 sweep found Review213 work, and
 the first post-Review213 sweep found Review214 work, and the first
 post-Review214 sweep found Review215 work, and the first post-Review215 sweep
-found Review216 work, so the active Thirty-Sweep clean counter is 0/30 until a
-fresh post-Review216
+found Review216 work, and the first post-Review216 sweep found Review217 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review217
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
 Review206, Review207, Review208, Review209, Review210, Review211, Review212,
-Review213, Review214, Review215, and Review216 work.
+Review213, Review214, Review215, Review216, and Review217 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -82,7 +82,91 @@ Core, DB, Start CLI, adapter, docs, and evidence work. The first
 post-Review213 sweep found Review214 Core, Devtools, LSP/adapter cleanup, and
 root verification gate work. The first post-Review214 sweep found Review215
 Core, DB, Devtools, and docs/LSP work. The first post-Review215 sweep found
-Review216 Core, DB, Devtools, and docs/API work, so the counter remains 0/30.
+Review216 Core, DB, Devtools, and docs/API work, and the first post-Review216
+sweep found Review217 Core, DB, Devtools, runtime LSP, example, and docs work,
+so the counter remains 0/30.
+
+## Review 217: Plain Validation, DB Guardrails, And Runtime LSP Seams
+
+Review217 fixed actionable findings from the fresh post-Review216 sweep.
+
+1. Core Validation Plain Data And Hover Gates
+   - Status: fixed.
+   - Files: `packages/core/src/action-result.ts`,
+     `packages/core/src/capability.ts`, `packages/core/src/form.ts`,
+     `packages/core/src/runtime.ts`, `scripts/public-api-symbol-policy.mjs`,
+     `scripts/audit-public-api-inventory.mjs`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: validation Interfaces still allowed executable-shaped values to
+     cross as field/error data, and the LSP hover policy did not pin the Core
+     ActionResult, Capability, Form, and Runtime Spine concepts that callers
+     need at adapter seams.
+   - Fix: `Form.error(...)`, `Form.fieldError(...)`, validation tools, and
+     `ActionResult.fromValidationEffect(...)` now require `PlainValue` data;
+     Promise/Effect-shaped validation payloads are rejected in type tests; and
+     Core ActionResult, Capability, Form, and Runtime Spine exports now have
+     hover JSDoc plus public hover-policy coverage.
+   - Benefits: validation state remains plain UI data, executable work stays
+     behind Effect-returning Interfaces, and LSPs explain the high-leverage
+     Runtime and validation seams directly at their public declarations.
+
+2. DB Query Sync, Secondary Index, And Hostile Row Guardrails
+   - Status: fixed.
+   - Files: `packages/db/src/sync-adapter.ts`,
+     `packages/db/src/index.ts`,
+     `packages/db/src/collection-index-materialization.ts`,
+     `packages/db/src/collection-row-ingress.ts`,
+     `packages/db/src/collection-snapshot-codec.ts`,
+     `packages/db/src/collection-value-detachment.ts`,
+     `packages/db/test/sync-adapter.test.ts`,
+     `packages/db/test/collection.test.ts`,
+     `packages/db/test/live-query-collection.test.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: query sync keys could carry executable data into query clients,
+     secondary index selectors could bucket non-scalar or executable-shaped
+     values, and hostile row getters could defect while detachment was reading
+     values outside a typed Effect error channel.
+   - Fix: query sync keys now use a recursive plain key Interface, reject
+     Promise/Effect-shaped values before query clients observe them, and report
+     `EffectInputCallbackError` at the `Collection.querySync.queryKey` seam.
+     Secondary index values are validated before bucketing, and row/snapshot
+     validation plus cloning map hostile host reads into typed collection
+     ingress errors without committing hostile rows.
+   - Benefits: query client identity, index buckets, row ingress, hydration,
+     writes, and change-feed commits all share one plain-data policy with typed
+     failure locality.
+
+3. Devtools, Runtime, Example, And Current-Docs LSP Drift
+   - Status: fixed.
+   - Files: `packages/devtools/src/app-graph-normalizer.ts`,
+     `packages/core/src/runtime.ts`, `examples/project-console/src/App.tsx`,
+     `scripts/public-api-symbol-policy.mjs`,
+     `docs/public-api-inventory.md`, `docs/release-notes.md`.
+   - Problem: the Devtools app-graph normalizer option/function seam was not
+     hover-policy pinned, Runtime Spine helpers had shallower LSP docs than the
+     inventory promised, project-console taught `EffectUiRuntime<any, never>` at
+     its app runtime seam, and current release notes duplicated stale Review216
+     gate text.
+   - Fix: the normalizer options and normalizer function are documented and
+     pinned by the public hover audit; Runtime Spine helpers now explain the
+     brand, source, current/default runtime accessors, and erased Adapter seam;
+     project-console exposes a generic runtime prop that accepts typed runtimes
+     or `AnyEffectUiRuntime<never>` without teaching broad `any`; and current
+     docs now name Review217.
+   - Benefits: public diagnostics and runtime hovers match the Interface
+     callers actually see, examples show the intended erased Adapter vocabulary,
+     and release evidence no longer points readers at a stale sweep.
+
+Focused verification for Review217 passed: Core/DB/Devtools package
+typechecks, project-console typecheck, public type tests, public API audit,
+Effect-first audit over 408 files, focused Core Form/ActionResult tests 2 files
+/ 34 tests, focused DB tests 3 files / 211 tests, focused Devtools tests 1 file
+/ 78 tests, and root `pnpm test` with 53 files / 1112 tests. Full
+`pnpm verify` passed after Review217 with 11 package builds, workspace
+typecheck, public type tests, public API audit, Effect-first audit over 408
+files, 53 root test files / 1112 tests, package-level verifies, generated
+starter packaging, 16-target package dry-run gate, project-console checks, and
+leak scans. This sweep found work, so the active clean counter remains 0/30.
 
 ## Review 216: Plain Sync Seams, Query Data, And Preserved Devtools Facts
 
@@ -746,9 +830,10 @@ Clean Sweep 2 later found Review209 work and the post-Review209 sweep found
 Review210 work, and the first post-Review210 sweep found Review211 work, so
 the first post-Review211 sweep found Review212 work, and the first
 post-Review212 sweep found Review213 work, and the first post-Review213 sweep
-found Review214 work, the first post-Review214 sweep found Review215 work, and
-the first post-Review215 sweep found Review216 work. The active counter is
-0/30 until a fresh post-Review216 sweep reports no actionable findings.
+found Review214 work, the first post-Review214 sweep found Review215 work, the
+first post-Review215 sweep found Review216 work, and the first post-Review216
+sweep found Review217 work. The active counter is 0/30 until a fresh
+post-Review217 sweep reports no actionable findings.
 
 ## Review 208: Runtime Provider Observers, CLI Bin Execution, And Docs Drift
 

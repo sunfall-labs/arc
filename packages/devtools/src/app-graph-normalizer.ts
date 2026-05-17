@@ -264,6 +264,13 @@ const missingSchemasForModules = (
   )
 ];
 
+/**
+ * Options for normalizing Start app-graph diagnostics into the Devtools DTO.
+ *
+ * The normalizer is the Adapter seam between Start's emitted facts and stored
+ * Devtools snapshots. Fresh DTOs should derive route preload facts from source
+ * fields; stored snapshots may opt into preserving already-derived fields.
+ */
 export interface NormalizeDevtoolsAppGraphDiagnosticsOptions {
   /**
    * Preserves already-normalized derived preload facts when copying a stored

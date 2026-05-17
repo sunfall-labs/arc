@@ -1,4 +1,5 @@
 import { isEffectLike } from "@effect-ui/core";
+import { Data } from "effect";
 import type {
   CollectionKey,
   CollectionMutation,
@@ -13,15 +14,37 @@ export interface CollectionExecutableValuePath {
   readonly reason: "PromiseLikeValue" | "EffectLikeValue";
 }
 
+export class CollectionValueReadError extends Data.TaggedError("CollectionValueReadError")<{
+  readonly path: string;
+  readonly cause: unknown;
+}> {}
+
 const collectionValuePathSegment = (key: string): string =>
   /^[A-Za-z_$][\w$]*$/.test(key)
     ? `.${key}`
     : `[${JSON.stringify(key)}]`;
 
-const isPromiseLikeCollectionValue = (value: unknown): boolean =>
-  value !== null &&
-  (typeof value === "object" || typeof value === "function") &&
-  typeof Reflect.get(value as object, "then") === "function";
+const readCollectionValue = <A>(
+  path: string,
+  evaluate: () => A
+): A => {
+  try {
+    return evaluate();
+  } catch (cause) {
+    throw new CollectionValueReadError({ path, cause });
+  }
+};
+
+const isPromiseLikeCollectionValue = (value: unknown, path: string): boolean => {
+  if (
+    value === null ||
+    (typeof value !== "object" && typeof value !== "function")
+  ) {
+    return false;
+  }
+
+  return typeof readCollectionValue(path, () => Reflect.get(value as object, "then")) === "function";
+};
 
 const isEffectLikeCollectionValue = (value: unknown): boolean =>
   value instanceof Error ? false : isEffectLike(value);
@@ -31,7 +54,7 @@ export const collectionExecutableValuePath = (
   path = "$",
   active = new WeakSet<object>()
 ): CollectionExecutableValuePath | undefined => {
-  if (isPromiseLikeCollectionValue(value)) {
+  if (isPromiseLikeCollectionValue(value, path)) {
     return { path, reason: "PromiseLikeValue" };
   }
   if (isEffectLikeCollectionValue(value)) {
@@ -57,7 +80,12 @@ export const collectionExecutableValuePath = (
   try {
     if (Array.isArray(value)) {
       for (let index = 0; index < value.length; index++) {
-        const found = collectionExecutableValuePath(value[index], `${path}[${index}]`, active);
+        const entryPath = `${path}[${index}]`;
+        const found = collectionExecutableValuePath(
+          readCollectionValue(entryPath, () => value[index]),
+          entryPath,
+          active
+        );
         if (found !== undefined) {
           return found;
         }
@@ -66,7 +94,7 @@ export const collectionExecutableValuePath = (
     }
     if (value instanceof Map) {
       let index = 0;
-      for (const [key, entry] of value.entries()) {
+      for (const [key, entry] of readCollectionValue(path, () => Array.from(value.entries()))) {
         const keyPath = collectionExecutableValuePath(key, `${path}.<key:${index}>`, active);
         if (keyPath !== undefined) {
           return keyPath;
@@ -81,7 +109,7 @@ export const collectionExecutableValuePath = (
     }
     if (value instanceof Set) {
       let index = 0;
-      for (const entry of value.values()) {
+      for (const entry of readCollectionValue(path, () => Array.from(value.values()))) {
         const found = collectionExecutableValuePath(entry, `${path}.<value:${index}>`, active);
         if (found !== undefined) {
           return found;
@@ -90,7 +118,7 @@ export const collectionExecutableValuePath = (
       }
       return undefined;
     }
-    for (const [key, entry] of Object.entries(value)) {
+    for (const [key, entry] of readCollectionValue(path, () => Object.entries(value))) {
       const found = collectionExecutableValuePath(entry, `${path}${collectionValuePathSegment(key)}`, active);
       if (found !== undefined) {
         return found;
@@ -102,7 +130,11 @@ export const collectionExecutableValuePath = (
   }
 };
 
-export const cloneCollectionValue = <A>(value: A, seen = new WeakMap<object, unknown>()): A => {
+export const cloneCollectionValue = <A>(
+  value: A,
+  seen = new WeakMap<object, unknown>(),
+  path = "$"
+): A => {
   if (typeof value !== "object" || value === null) {
     return value;
   }
@@ -123,8 +155,13 @@ export const cloneCollectionValue = <A>(value: A, seen = new WeakMap<object, unk
   if (Array.isArray(value)) {
     const output: Array<unknown> = [];
     seen.set(value, output);
-    for (const entry of value) {
-      output.push(cloneCollectionValue(entry, seen));
+    for (let index = 0; index < value.length; index++) {
+      const entryPath = `${path}[${index}]`;
+      output.push(cloneCollectionValue(
+        readCollectionValue(entryPath, () => value[index]),
+        seen,
+        entryPath
+      ));
     }
     return output as A;
   }
@@ -132,8 +169,13 @@ export const cloneCollectionValue = <A>(value: A, seen = new WeakMap<object, unk
   if (value instanceof Map) {
     const output = new Map();
     seen.set(value, output);
-    for (const [key, entry] of value) {
-      output.set(cloneCollectionValue(key, seen), cloneCollectionValue(entry, seen));
+    let index = 0;
+    for (const [key, entry] of readCollectionValue(path, () => Array.from(value))) {
+      output.set(
+        cloneCollectionValue(key, seen, `${path}.<key:${index}>`),
+        cloneCollectionValue(entry, seen, `${path}.<value:${index}>`)
+      );
+      index++;
     }
     return output as A;
   }
@@ -141,8 +183,10 @@ export const cloneCollectionValue = <A>(value: A, seen = new WeakMap<object, unk
   if (value instanceof Set) {
     const output = new Set();
     seen.set(value, output);
-    for (const entry of value) {
-      output.add(cloneCollectionValue(entry, seen));
+    let index = 0;
+    for (const entry of readCollectionValue(path, () => Array.from(value))) {
+      output.add(cloneCollectionValue(entry, seen, `${path}.<value:${index}>`));
+      index++;
     }
     return output as A;
   }
@@ -164,11 +208,11 @@ export const cloneCollectionValue = <A>(value: A, seen = new WeakMap<object, unk
     return new constructor(buffer);
   }
 
-  const prototype = Object.getPrototypeOf(value);
+  const prototype = readCollectionValue(path, () => Object.getPrototypeOf(value));
   const output: Record<string, unknown> = {};
   seen.set(value, output);
-  for (const [key, entry] of Object.entries(value)) {
-    output[key] = cloneCollectionValue(entry, seen);
+  for (const [key, entry] of readCollectionValue(path, () => Object.entries(value))) {
+    output[key] = cloneCollectionValue(entry, seen, `${path}${collectionValuePathSegment(key)}`);
   }
   if (prototype !== Object.prototype && prototype !== null) {
     return Object.assign(Object.create(prototype), output) as A;

@@ -1,4 +1,4 @@
-import { stableStringify } from "@effect-ui/core";
+import { EffectInputCallbackError, stableStringify } from "@effect-ui/core";
 import { Data } from "effect";
 import type {
   AnyCollection,
@@ -16,6 +16,7 @@ import {
   type CollectionState,
   type StoredRow
 } from "./collection-state.js";
+import { collectionExecutableValuePath } from "./collection-value-detachment.js";
 
 /**
  * Error raised when reading an index that was not declared on the collection.
@@ -30,8 +31,52 @@ export interface CollectionIndexCacheEntry<A extends object, K extends Collectio
   readonly buckets: ReadonlyMap<string, ReadonlyArray<StoredRow<A, K>>>;
 }
 
-export const collectionIndexKey = (value: CollectionIndexValue): string =>
-  value instanceof Date ? `Date:${value.toISOString()}` : stableStringify(value);
+const collectionIndexGuidance =
+  "Collection secondary index selectors must return scalar plain values: string, number, boolean, Date, null, undefined, or arrays of those values.";
+
+const collectionIndexError = (
+  operation: string,
+  cause: unknown
+): EffectInputCallbackError =>
+  new EffectInputCallbackError({
+    operation,
+    cause,
+    guidance: collectionIndexGuidance
+  });
+
+const isCollectionIndexValue = (value: unknown): value is CollectionIndexValue =>
+  value === null ||
+  value === undefined ||
+  typeof value === "string" ||
+  typeof value === "number" ||
+  typeof value === "boolean" ||
+  value instanceof Date;
+
+const normalizeCollectionIndexValue = (
+  value: unknown,
+  operation: string,
+  path: string
+): CollectionIndexValue => {
+  const executable = collectionExecutableValuePath(value, path);
+  if (executable !== undefined) {
+    throw collectionIndexError(
+      operation,
+      new TypeError(`Collection secondary index value contains ${executable.reason} at ${executable.path}.`)
+    );
+  }
+  if (!isCollectionIndexValue(value)) {
+    throw collectionIndexError(
+      operation,
+      new TypeError(`Collection secondary index value at ${path} must be a scalar index value.`)
+    );
+  }
+  return value;
+};
+
+export const collectionIndexKey = (value: CollectionIndexValue): string => {
+  const normalized = normalizeCollectionIndexValue(value, "Collection.index.value", "$.indexValue");
+  return normalized instanceof Date ? `Date:${normalized.toISOString()}` : stableStringify(normalized);
+};
 
 const normalizeCollectionIndex = <A extends object>(
   index: CollectionIndexInput<A>
@@ -68,8 +113,18 @@ export const collectionIndexValues = <A extends object>(
   index: CollectionIndexDefinition<A>,
   value: A
 ): ReadonlyArray<CollectionIndexValue> => {
-  const result = index.key(value);
-  return isCollectionIndexValueArray(result) ? result : [result];
+  try {
+    const result = index.key(value);
+    const candidates = isCollectionIndexValueArray(result) ? result : [result];
+    return candidates.map((candidate, index) =>
+      normalizeCollectionIndexValue(candidate, "Collection.index.selector", `$.index[${index}]`)
+    );
+  } catch (cause) {
+    if (cause instanceof EffectInputCallbackError) {
+      throw cause;
+    }
+    throw collectionIndexError("Collection.index.selector", cause);
+  }
 };
 
 export const uniqueCollectionIndexValues = <A extends object>(

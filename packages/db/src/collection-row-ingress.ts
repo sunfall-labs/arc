@@ -6,7 +6,11 @@ import type {
   CollectionOrigin
 } from "./collection-contract.js";
 import type { StoredRow } from "./collection-state.js";
-import { cloneCollectionValue, collectionExecutableValuePath } from "./collection-value-detachment.js";
+import {
+  CollectionValueReadError,
+  cloneCollectionValue,
+  collectionExecutableValuePath
+} from "./collection-value-detachment.js";
 import {
   CollectionSnapshotCodecError,
   decodeCollectionOutputValuesEffect,
@@ -69,30 +73,71 @@ const validateCollectionPlainRowValue = (
   operation: CollectionSnapshotCodecOperation,
   path: string
 ): void => {
-  const executable = collectionExecutableValuePath(value, path);
-  if (executable !== undefined) {
-    throw new CollectionSnapshotCodecError({
-      operation,
-      path: executable.path,
-      reason: executable.reason
-    });
+  try {
+    const executable = collectionExecutableValuePath(value, path);
+    if (executable !== undefined) {
+      throw new CollectionSnapshotCodecError({
+        operation,
+        path: executable.path,
+        reason: executable.reason
+      });
+    }
+  } catch (cause) {
+    if (cause instanceof CollectionSnapshotCodecError) {
+      throw cause;
+    }
+    throw collectionRowValueReadError(operation, cause);
   }
+};
+
+const collectionRowValueReadError = (
+  operation: CollectionSnapshotCodecOperation,
+  cause: unknown
+): EffectInputCallbackError => {
+  const path = cause instanceof CollectionValueReadError ? cause.path : "$";
+  return new EffectInputCallbackError({
+    operation: `Collection.rowValue.${operation}`,
+    cause,
+    guidance: `Collection row values must be plain readable data before ${operation}. Reading row data at ${path} failed; move host getters/proxies behind collection load or mutation Effects.`
+  });
 };
 
 const validateCollectionPlainRowValueEffect = (
   value: unknown,
   operation: CollectionSnapshotCodecOperation,
   path: string
-): Effect.Effect<void, CollectionSnapshotCodecError> =>
-  Effect.suspend(() => {
-    const executable = collectionExecutableValuePath(value, path);
-    return executable === undefined
-      ? Effect.void
-      : Effect.fail(new CollectionSnapshotCodecError({
-          operation,
-          path: executable.path,
-          reason: executable.reason
-        }));
+): Effect.Effect<void, CollectionSnapshotCodecError | EffectInputCallbackError> =>
+  Effect.try({
+    try: () => validateCollectionPlainRowValue(value, operation, path),
+    catch: (cause) =>
+      cause instanceof CollectionSnapshotCodecError || cause instanceof EffectInputCallbackError
+        ? cause
+        : collectionRowValueReadError(operation, cause)
+  });
+
+const cloneCollectionRowValue = <A>(
+  value: A,
+  operation: CollectionSnapshotCodecOperation,
+  path: string
+): A => {
+  try {
+    return cloneCollectionValue(value, undefined, path);
+  } catch (cause) {
+    throw collectionRowValueReadError(operation, cause);
+  }
+};
+
+const cloneCollectionRowValueEffect = <A>(
+  value: A,
+  operation: CollectionSnapshotCodecOperation,
+  path: string
+): Effect.Effect<A, EffectInputCallbackError> =>
+  Effect.try({
+    try: () => cloneCollectionRowValue(value, operation, path),
+    catch: (cause) =>
+      cause instanceof EffectInputCallbackError
+        ? cause
+        : collectionRowValueReadError(operation, cause)
   });
 
 const storedRowsFromDecodedValuesEffect = <A extends object, K extends CollectionKey, E, R>(
@@ -103,8 +148,9 @@ const storedRowsFromDecodedValuesEffect = <A extends object, K extends Collectio
   Effect.gen(function* () {
     const rows: Array<StoredRow<A, K>> = [];
     for (const [index, decoded] of values.entries()) {
-      yield* validateCollectionPlainRowValueEffect(decoded, options.operation, `${options.path}[${index}]`);
-      const value = cloneCollectionValue(decoded);
+      const valuePath = `${options.path}[${index}]`;
+      yield* validateCollectionPlainRowValueEffect(decoded, options.operation, valuePath);
+      const value = yield* cloneCollectionRowValueEffect(decoded, options.operation, valuePath);
       const key = yield* collectionIngressKeyEffect(
         definition,
         value,
@@ -128,8 +174,9 @@ const storedRowsFromDecodedValuesSync = <A extends object, K extends CollectionK
 ): ReadonlyArray<StoredRow<A, K>> => {
   const rows: Array<StoredRow<A, K>> = [];
   for (const [index, decoded] of values.entries()) {
-    validateCollectionPlainRowValue(decoded, options.operation, `${options.path}[${index}]`);
-    const value = cloneCollectionValue(decoded);
+    const valuePath = `${options.path}[${index}]`;
+    validateCollectionPlainRowValue(decoded, options.operation, valuePath);
+    const value = cloneCollectionRowValue(decoded, options.operation, valuePath);
     const key = collectionIngressKey(
       definition,
       value,

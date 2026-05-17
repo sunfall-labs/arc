@@ -26,6 +26,91 @@ export const publicHoverDocGroups = [
     }
   },
   {
+    file: "packages/core/src/action-result.ts",
+    declarations: [
+      "ActionResultTypeId",
+      "ActionRedirectStatus",
+      "ActionResultOptions",
+      "ActionResultRedirectOptions",
+      "ActionResultValidationInput",
+      "ActionResultBase",
+      "ActionResultSuccess",
+      "ActionResultValidationFailure",
+      "ActionResultRedirect",
+      "ActionResultFailure",
+      "ActionResultBoundary",
+      "AnyActionResult",
+      "ActionResultInvalidationRequirements",
+      "ActionResultMatch"
+    ],
+    allDeclarations: [
+      "ActionResult"
+    ]
+  },
+  {
+    file: "packages/core/src/capability.ts",
+    declarations: [
+      "CapabilityTypeId",
+      "isCapability"
+    ],
+    allDeclarations: [
+      "Capability"
+    ],
+    namespaceDeclarations: {
+      Capability: [
+        "Any",
+        "Shape",
+        "Identifier",
+        "define",
+        "layer",
+        "mock",
+        "provide"
+      ]
+    }
+  },
+  {
+    file: "packages/core/src/form.ts",
+    declarations: [
+      "FormTypeId",
+      "FormFieldKey",
+      "FormFieldFlags",
+      "FormFieldErrors",
+      "FormSchemaValues",
+      "FormSchemaServices",
+      "FormValidationTools",
+      "FormStatus",
+      "FormState",
+      "FormOptions",
+      "FormDataFileMode",
+      "FormDataDecodeOptions",
+      "FormInstance",
+      "FormValidationError",
+      "formDataToObject",
+      "decodeFormDataEffect",
+      "isForm"
+    ],
+    allDeclarations: [
+      "Form"
+    ],
+    namespaceDeclarations: {
+      Form: [
+        "FieldKey",
+        "FieldFlags",
+        "FieldErrors",
+        "Status",
+        "State",
+        "Instance",
+        "ValidationTools",
+        "ValidationError",
+        "DataFileMode",
+        "DataOptions",
+        "error",
+        "fieldError",
+        "make"
+      ]
+    }
+  },
+  {
     file: "packages/core/src/program.ts",
     declarations: [
       "Program",
@@ -65,6 +150,25 @@ export const publicHoverDocGroups = [
         "StoryOptions"
       ]
     }
+  },
+  {
+    file: "packages/core/src/runtime.ts",
+    declarations: [
+      "RuntimeTypeId",
+      "RuntimeDisposeError",
+      "AnyEffectUiRuntime",
+      "EffectUiRuntime",
+      "RuntimeProvideOptions",
+      "RuntimeSource",
+      "isEffectUiRuntime",
+      "makeRuntime",
+      "withResourceStore",
+      "defaultRuntime",
+      "getCurrentRuntime",
+      "currentOrDefaultRuntime",
+      "runWithRuntime",
+      "runFork"
+    ]
   },
   {
     file: "packages/core/src/program-contract.ts",
@@ -248,7 +352,9 @@ export const publicHoverDocGroups = [
     declarations: [
       "normalizeRouteModulePreloadCollections",
       "normalizeAppGraphCollectionDefinitions",
-      "normalizeAppGraphUnknownRoutePreloadCollections"
+      "normalizeAppGraphUnknownRoutePreloadCollections",
+      "NormalizeDevtoolsAppGraphDiagnosticsOptions",
+      "normalizeDevtoolsAppGraphDiagnostics"
     ]
   },
   {
@@ -882,6 +988,39 @@ export const publicHoverDocGroups = [
     ]
   },
   {
+    file: "packages/start/src/start-agent-graph-contract.ts",
+    declarations: [
+      "StartAgentGraphNodeKind",
+      "StartAgentGraphNodeStatus",
+      "StartAgentGraphNode",
+      "StartAgentGraphEdgeKind",
+      "StartAgentGraphEdge",
+      "StartAgentGraphSelfReview",
+      "StartAgentGraphSummary",
+      "StartAgentGraph",
+      "StartAgentGraphInput",
+      "StartAgentGraphQuery",
+      "StartAgentGraphFormatOptions",
+      "StartAgentGraphQueryResult",
+      "StartAgentGraphImpactRelationKind",
+      "StartAgentGraphImpactRelation",
+      "StartAgentGraphImpactItem",
+      "StartAgentGraphImpact",
+      "StartAgentGraphImpactOptions"
+    ]
+  },
+  {
+    file: "packages/start/src/start-agent-graph-vocabulary.ts",
+    declarations: [
+      "startAgentGraphQueryKinds",
+      "StartAgentGraphQueryKind",
+      "isStartAgentGraphQueryKind",
+      "startAgentGraphQueryKindsText",
+      "startAgentGraphNodeKindForQuery",
+      "startAgentGraphRelationKindForNode"
+    ]
+  },
+  {
     file: "packages/start/src/app-graph.ts",
     declarations: [
       "StartAppGraphDiagnosticsRuntimeCandidates",
@@ -1043,3 +1182,33 @@ export const publicHoverDocGroups = [
 export const namespaceBackedSurfaceModules = new Map([
   ["@effect-ui/db", new Set(["sync-adapter"])]
 ]);
+
+export const currentDocsTextPolicies = [
+  {
+    file: "CONTEXT.md",
+    banned: [
+      {
+        name: "Start Diagnostics CLI Contract must describe variadic graph/impact arguments",
+        pattern: /Start Diagnostics CLI Contract[\s\S]*?nested `Command` subcommands/
+      }
+    ]
+  },
+  {
+    file: "packages/start/src/start-agent-graph-contract.ts",
+    banned: [
+      {
+        name: "StartAgentGraphQuery hover docs must describe graph/impact arguments, not query-kind subcommands",
+        pattern: /CLI subcommands/
+      }
+    ]
+  },
+  {
+    file: "packages/start/src/start-agent-graph-vocabulary.ts",
+    banned: [
+      {
+        name: "Start agent graph vocabulary hover docs must describe query parsing, not query-kind subcommands",
+        pattern: /wiring CLI subcommands or impact relations/
+      }
+    ]
+  }
+];

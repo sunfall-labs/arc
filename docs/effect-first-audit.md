@@ -590,10 +590,10 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 216 `pnpm verify` run recorded in
+- The current full gate is the Review 217 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
-  over 408 files, 53 root test files / 1108 tests, package-level verifies,
+  over 408 files, 53 root test files / 1112 tests, package-level verifies,
   generated starter packaging, 16-target package dry-run gate, project-console
   checks, and leak scans. Review 185 remains historical focused evidence for
   the starter catalog typed-error seam, and Review 165 remains historical
@@ -1413,13 +1413,13 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The current full `pnpm verify` passed after the Review 216 plain sync,
-  Resource key/Form validation, DB query/row ingress, Devtools preserved
-  preload fact, and docs/API fixes: 11 package builds, workspace
+- The current full `pnpm verify` passed after the Review 217 Core validation
+  plain-data, DB query sync/index/hostile row guardrail, Devtools/runtime LSP,
+  project-console runtime seam, and docs fixes: 11 package builds, workspace
   typecheck, type tests, public API
   inventory audit, Effect-first audit over 408
   package/example/config/script/type-test/generated/docs files, 53 root test
-  files / 1108 tests, package-level verifies for copyable/source packages,
+  files / 1112 tests, package-level verifies for copyable/source packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console
   test files / 27 tests, build, and leak scans. The Effect-first audit now

@@ -829,6 +829,32 @@ describe("Collection", () => {
     });
   });
 
+  it("does not expose initialData rows whose properties throw while reading", () => {
+    const cause = new Error("name getter failed");
+    const hostile = {
+      id: "atlas",
+      get name(): string {
+        throw cause;
+      },
+      status: "active",
+      progress: 72
+    } as Project;
+    const Projects = Collection.define<Project>({
+      name: "Projects.initial-data-hostile-row-ingress",
+      getKey: (project) => project.id,
+      initialData: [hostile]
+    });
+
+    expect(Projects.rows()).toEqual([]);
+    expect(Projects.state().get()).toMatchObject({
+      _tag: "Failure",
+      error: {
+        _tag: "EffectInputCallbackError",
+        operation: "Collection.rowValue.load"
+      }
+    });
+  });
+
   it("canonicalizes transform-schema initialData for live reads", () => {
     const WireProjectSchema = Schema.Array(Schema.Struct({
       id: Schema.String,
@@ -1274,6 +1300,46 @@ describe("Collection", () => {
     expect(Projects.index("status", "active").map((project) => project.id)).toEqual(["atlas", "lumen"]);
     expect(Projects.index("facets", "high").map((project) => project.id)).toEqual(["atlas", "lumen"]);
     expect(() => Projects.index("missing", "active")).toThrow(UnknownCollectionIndex);
+  });
+
+  it("rejects invalid secondary index selector values before bucketing rows", () => {
+    const thrown = new Error("index failed");
+    const invalidIndexes = [
+      {
+        name: "promise",
+        index: (() => Promise.resolve("active")) as never
+      },
+      {
+        name: "effect",
+        index: (() => Effect.succeed("active")) as never
+      },
+      {
+        name: "object",
+        index: (() => ({ status: "active" })) as never
+      },
+      {
+        name: "throwing",
+        index: (() => {
+          throw thrown;
+        }) as never
+      }
+    ] as const;
+
+    for (const { name, index } of invalidIndexes) {
+      const Projects = Collection.define<Project>({
+        name: `Projects.index-invalid-${name}`,
+        getKey: (project) => project.id,
+        indexes: {
+          invalid: index
+        },
+        initialData: [
+          { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+        ]
+      });
+
+      expect(() => Projects.index("invalid", "active")).toThrow(EffectInputCallbackError);
+      expect(() => Projects.firstByIndex("invalid", "active")).toThrow(EffectInputCallbackError);
+    }
   });
 
   it("materializes secondary indexes inside the active Collection store", async () => {
@@ -2934,6 +3000,14 @@ describe("Collection", () => {
 
   it("rejects executable-shaped row values at load, write, change-feed, and hydrate ingress", () => {
     const runtime = makeRuntime();
+    const throwingRow = (): Project => ({
+      id: "atlas",
+      get name(): string {
+        throw new Error("name getter failed");
+      },
+      status: "active",
+      progress: 72
+    });
     const LoadingProjects = Collection.define<Project>({
       name: "Projects.executable-row-load-ingress",
       getKey: (project) => project.id,
@@ -2945,6 +3019,11 @@ describe("Collection", () => {
     const Projects = Collection.define<Project>({
       name: "Projects.executable-row-write-ingress",
       getKey: (project) => project.id
+    });
+    const HostileProjects = Collection.define<Project>({
+      name: "Projects.hostile-row-ingress",
+      getKey: (project) => project.id,
+      refetch: () => Effect.succeed([throwingRow()])
     });
 
     return Effect.runPromise(
@@ -2985,6 +3064,14 @@ describe("Collection", () => {
           pendingMutations: [],
           updatedAt: 1
         })));
+        const hostileLoadFailure = yield* Effect.flip(runtime.provide(HostileProjects.preloadEffect()));
+        const hostileWriteFailure = yield* Effect.flip(runtime.provide(HostileProjects.writeInsertEffect(throwingRow())));
+        const hostileChangeFailure = yield* Effect.flip(runtime.provide(Collection.applyChangesEffect(HostileProjects, [
+          {
+            _tag: "Upsert",
+            value: throwingRow()
+          }
+        ])));
 
         expect(loadFailure).toMatchObject({
           _tag: "CollectionSnapshotCodecError",
@@ -3002,7 +3089,14 @@ describe("Collection", () => {
           _tag: "CollectionSnapshotCodecError",
           reason: "EffectLikeValue"
         });
+        for (const failure of [hostileLoadFailure, hostileWriteFailure, hostileChangeFailure]) {
+          expect(failure).toBeInstanceOf(EffectInputCallbackError);
+          expect(failure).toMatchObject({
+            operation: expect.stringMatching(/^Collection\.rowValue\./)
+          });
+        }
         expect(runWithRuntime(runtime, () => Projects.rows())).toEqual([]);
+        expect(runWithRuntime(runtime, () => HostileProjects.rows())).toEqual([]);
       }).pipe(
         Effect.ensuring(runtime.disposeEffect)
       )
@@ -7264,8 +7358,12 @@ describe("Query", () => {
     if (Exit.isFailure(onceExit)) {
       const error = onceExit.cause.reasons.find(Cause.isFailReason)?.error;
       expect(error).toBeInstanceOf(QueryEvaluationError);
+      const indexError = error instanceof QueryEvaluationError ? error.cause : undefined;
+      expect(indexError).toBeInstanceOf(EffectInputCallbackError);
       expect(error).toMatchObject({
-        operation: "join",
+        operation: "join"
+      });
+      expect(indexError).toMatchObject({
         cause: "index failed"
       });
     }

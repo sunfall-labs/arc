@@ -3,9 +3,9 @@
 Last updated: 2026-05-17.
 
 Current release-tracking truth lives in `docs/architecture-deepening-review.md`
-and `docs/perfection-progress.md`. As of Review216, the latest full
-`pnpm verify` gate passed with 53 root test files / 1108 tests, and the active
-Thirty-Sweep clean counter is 0/30 until a fresh post-Review216 sweep reports
+and `docs/perfection-progress.md`. As of Review217, the latest full
+`pnpm verify` gate passed with 53 root test files / 1112 tests, and the active
+Thirty-Sweep clean counter is 0/30 until a fresh post-Review217 sweep reports
 no actionable findings.
 
 This historical audit checks release-tracking docs for claims that no longer match the

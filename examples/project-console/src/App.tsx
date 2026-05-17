@@ -17,7 +17,7 @@ import {
   useRuntimeEffect,
   watch
 } from "@effect-ui/solid";
-import { Form, type EffectUiRuntime } from "@effect-ui/core";
+import { Form, type AnyEffectUiRuntime, type EffectUiRuntime } from "@effect-ui/core";
 import type { CollectionRow } from "@effect-ui/db";
 import { useCollection } from "@effect-ui/solid-db";
 import { StartAction, startActionInputField, startActionNameField } from "@effect-ui/start";
@@ -37,6 +37,7 @@ import {
   projectSearch,
   type PresenceEvent,
   type Project,
+  type ProjectApi,
   type ProjectHealth,
   type ProjectId,
   type ProjectTab,
@@ -53,7 +54,6 @@ const ProjectsUiRoute = Route.withComponent(ProjectsRoute, ProjectIndexRouteView
 const ProjectUiRoute = Route.withComponent(ProjectRoute, ProjectRouteView);
 const routes = [HomeUiRoute, ProjectsUiRoute, ProjectUiRoute] as const;
 type AppRoutes = typeof routes;
-type AppRuntime = EffectUiRuntime<any, never>;
 type ProjectSummaryRow = CollectionRow<ProjectSummary, ProjectId>;
 type ProjectNameSubmissionClientResult = StartAction.Result<typeof SubmitProjectName>;
 
@@ -66,9 +66,9 @@ const projectHref = (id: ProjectId, tab?: ProjectTab): string =>
     ? hrefByPath("/projects/:id", { params: { id } })
     : hrefByPath("/projects/:id", { params: { id }, search: { tab } });
 
-export interface AppProps {
+export interface AppProps<RuntimeServices = never> {
   readonly initialHref?: string;
-  readonly runtime?: AppRuntime;
+  readonly runtime?: EffectUiRuntime<RuntimeServices, never> | AnyEffectUiRuntime<never>;
 }
 
 const initialPresence: PresenceEvent = {
@@ -132,8 +132,8 @@ const SaveIcon = () => (
   </svg>
 );
 
-export default function App(props: AppProps = {}) {
-  const runtime = props.runtime ?? app.runtime;
+export default function App<RuntimeServices = never>(props: AppProps<RuntimeServices> = {}) {
+  const runtime = (props.runtime ?? app.runtime) as EffectUiRuntime<ProjectApi, never>;
   const routerProps = props.initialHref === undefined
     ? { routes, runtime }
     : { routes, initialHref: props.initialHref, runtime };

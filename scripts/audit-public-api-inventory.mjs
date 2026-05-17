@@ -2,6 +2,7 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { basename, dirname, join, relative } from "node:path";
 import ts from "typescript";
 import {
+  currentDocsTextPolicies,
   namespaceBackedSurfaceModules,
   publicHoverDocGroups
 } from "./public-api-symbol-policy.mjs";
@@ -140,6 +141,23 @@ const auditPublicHoverDocs = () => {
         } else if (!hasJsDoc(declaration)) {
           failures.push(`${group.file} namespace ${namespaceName}.${name} is missing JSDoc`);
         }
+      }
+    }
+  }
+};
+
+const auditCurrentDocsTextPolicies = () => {
+  for (const policy of currentDocsTextPolicies) {
+    const file = join(root, policy.file);
+    if (!existsSync(file)) {
+      failures.push(`current docs text policy points at missing file ${policy.file}`);
+      continue;
+    }
+
+    const source = readText(file);
+    for (const banned of policy.banned) {
+      if (banned.pattern.test(source)) {
+        failures.push(`${policy.file} still contains stale docs text: ${banned.name}`);
       }
     }
   }
@@ -782,6 +800,7 @@ for (const [key, entry] of expectedEntrypoints) {
 
 assertPublicSymbolPolicyReachability();
 auditPublicHoverDocs();
+auditCurrentDocsTextPolicies();
 
 if (failures.length > 0) {
   console.error("Public API inventory audit failed:");

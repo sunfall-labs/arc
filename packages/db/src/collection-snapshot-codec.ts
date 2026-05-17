@@ -24,6 +24,7 @@ import {
   type StoredRow
 } from "./collection-state.js";
 import {
+  CollectionValueReadError,
   cloneCollectionValue,
   collectionExecutableValuePath,
   cloneFrozenCollectionTransaction,
@@ -554,15 +555,25 @@ const validateCollectionPlainSnapshotValueEffect = (
   operation: CollectionSnapshotCodecOperation,
   path: string
 ): Effect.Effect<void, CollectionSnapshotCodecError> =>
-  Effect.suspend(() => {
-    const executable = collectionExecutableValuePath(value, path);
-    return executable === undefined
-      ? Effect.void
-      : Effect.fail(new CollectionSnapshotCodecError({
+  Effect.try({
+    try: () => {
+      const executable = collectionExecutableValuePath(value, path);
+      if (executable !== undefined) {
+        throw new CollectionSnapshotCodecError({
           operation,
           path: executable.path,
           reason: executable.reason
-        }));
+        });
+      }
+    },
+    catch: (cause) =>
+      cause instanceof CollectionSnapshotCodecError
+        ? cause
+        : new CollectionSnapshotCodecError({
+            operation,
+            path: cause instanceof CollectionValueReadError ? cause.path : path,
+            reason: "Expected collection snapshot values to be readable plain data."
+          })
   });
 
 export const validateCollectionSnapshotDefinitionEffect = <A extends object, K extends CollectionKey>(

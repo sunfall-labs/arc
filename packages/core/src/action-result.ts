@@ -15,6 +15,7 @@ import {
 } from "./form.js";
 import type { ResourceInvalidation } from "./resource.js";
 
+/** Runtime marker shared by every `ActionResult` variant. */
 export const ActionResultTypeId: unique symbol = Symbol.for(
   "@effect-ui/core/ActionResult"
 ) as typeof ActionResultTypeId;
@@ -103,6 +104,7 @@ export type ActionResult<
   | ActionResultSuccess<A, R>
   | ActionResultBoundary<Values, ValidationError, E, R>;
 
+/** Any concrete action result value, useful for guards, transports, and diagnostics. */
 export type AnyActionResult =
   | ActionResultSuccess<unknown, any>
   | ActionResultValidationFailure<Record<string, unknown>, unknown, any>
@@ -111,6 +113,7 @@ export type AnyActionResult =
 
 type IsAny<T> = 0 extends (1 & T) ? true : false;
 
+/** Extracts Resource invalidation requirements carried by an action result. */
 export type ActionResultInvalidationRequirements<Value> =
   Value extends {
     readonly [ActionResultTypeId]: typeof ActionResultTypeId;
@@ -267,7 +270,7 @@ const isFormValidationError = <Values extends object, E>(
     "formErrors" in value
   );
 
-/** Builds a validation failure from plain validation errors; Promise-shaped errors are rejected. */
+/** Builds a validation failure from plain validation errors; Promise-shaped and Effect-shaped errors are rejected. */
 const validation = <Values extends object, E, R = never>(
   input: FormValidationError<Values, E> | ActionResultValidationInput<Values, E>,
   options: ActionResultOptions<R> = {}
@@ -392,14 +395,14 @@ const match = <A, Values extends object, ValidationError, E, B, R = never>(
   }
 };
 
-/** Effect constructor for a successful action result with plain, non-Promise data. */
+/** Effect constructor for a successful action result with plain, non-executable data. */
 const successEffect = <A, R = never>(
   value: PlainValue<A>,
   options: ActionResultOptions<R> = {}
 ): Effect.Effect<ActionResultSuccess<A, R>> =>
   Effect.succeed(success<A, R>(value, options));
 
-/** Effect constructor for a failure action result with plain, non-Promise error data. */
+/** Effect constructor for a failure action result with plain, non-executable error data. */
 const failureEffect = <E, R = never>(
   error: PlainValue<E>,
   options: ActionResultOptions<R> = {}
@@ -429,7 +432,9 @@ const fromEffect = <A, E = never, R = never>(
 
 /** Converts a form validation Effect into plain success or validation-failure results. */
 const fromValidationEffect = <Values extends object, E, R = never>(
-  effect: EffectInput<Values, FormValidationError<Values, E>, R>
+  effect:
+    | PlainValue<Values>
+    | Effect.Effect<PlainValue<Values>, FormValidationError<Values, E>, R>
 ): Effect.Effect<ActionResult<Values, Values, E, never>, never, R> =>
   toEffect(effect as never).pipe(
     Effect.map((value) => success<Values>(value as PlainValue<Values>)),

@@ -8,7 +8,7 @@ import type {
  * planner.
  *
  * This catalog is the semantic source of truth for graph kind vocabulary. Add
- * new node families here before wiring CLI subcommands or impact relations.
+ * new node families here before wiring CLI query parsing or impact relations.
  */
 export const startAgentGraphQueryKinds = [
   "action",

@@ -69,8 +69,8 @@ must have an explicit audit allowance and a root-barrel import, curated hover
 declaration groups must be reachable from a package export or re-exported
 source module, and those declarations must keep JSDoc for LSP hovers. Together
 these checks keep hover/LSP docs from drifting away from exported source files.
-The curated hover declarations currently cover the Core Action and Program
-Interfaces,
+The curated hover declarations currently cover the Core Action, ActionResult,
+Capability, Form, Program, and Resource Interfaces,
 browser-router/router Adapter, React/Solid runtime and hook Adapter seams,
 Start diagnostics, generated file-route module, fetch, and Node Adapter seams,
 Devtools DTO/normalizer/panel contract seams, and the DB Collection contract,

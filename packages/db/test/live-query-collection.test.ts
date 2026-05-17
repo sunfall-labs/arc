@@ -1560,6 +1560,34 @@ describe("Collection.liveQuery", () => {
     );
   });
 
+  it("rejects invalid live query collection secondary index values", () => {
+    const Projects = Collection.define<Project>({
+      name: "Projects.live-query-collection.invalid-index",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+      ]
+    });
+    const ProjectCards = Collection.liveQuery<ProjectCard, string>({
+      name: "ProjectCards.live-query-collection.invalid-index",
+      getKey: (project) => project.id,
+      indexes: {
+        invalid: (() => Effect.succeed("active")) as never
+      },
+      query: (query) =>
+        query
+          .from({ project: Projects })
+          .select(({ project }) => ({
+            id: project.id,
+            name: project.name,
+            progress: project.progress
+          }))
+    });
+
+    expect(() => ProjectCards.index("invalid", "active")).toThrow(EffectInputCallbackError);
+    expect(() => ProjectCards.firstByIndex("invalid", "active")).toThrow(EffectInputCallbackError);
+  });
+
   it("can be used as a source for another live query", () => {
     const Projects = Collection.define<Project>({
       name: "Projects.live-query-collection.nested-source",

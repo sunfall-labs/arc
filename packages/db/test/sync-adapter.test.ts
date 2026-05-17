@@ -403,7 +403,7 @@ describe("Collection.syncOptions", () => {
     return Effect.runPromise(
       Effect.gen(function* () {
         const filter = { archived: false };
-        const queryKey: Array<unknown> = ["projects", filter];
+        const queryKey: Array<Collection.QuerySyncKeyPart> = ["projects", filter];
         const fetches: Array<ReadonlyArray<unknown>> = [];
         const invalidations: Array<ReadonlyArray<unknown>> = [];
 
@@ -450,6 +450,66 @@ describe("Collection.syncOptions", () => {
         expect(invalidations).toEqual([
           ["projects", { archived: false }]
         ]);
+      })
+    );
+  });
+
+  it("rejects executable query sync keys before query clients observe them", () => {
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const fetches: Array<ReadonlyArray<unknown>> = [];
+        const invalidations: Array<ReadonlyArray<unknown>> = [];
+        const updates: Array<Collection.SyncUpdatePayload<Project, string>> = [];
+
+        const sync = Collection.querySyncAdapter<Project, string, EffectInputCallbackError>({
+          queryKey: ["projects", Effect.succeed("atlas") as never],
+          queryFn: () => [{ id: "atlas", name: "Atlas", archived: false }],
+          queryClient: {
+            fetchQuery: ({ queryKey, queryFn }) => {
+              fetches.push(queryKey);
+              return queryFn();
+            },
+            invalidateQueries: ({ queryKey }) => {
+              invalidations.push(queryKey);
+            }
+          },
+          mutationInvalidation: "rollback-on-failure",
+          update: (payload) =>
+            Effect.sync(() => {
+              updates.push(payload);
+            })
+        });
+        const LoadingProjects = Collection.define(Collection.syncOptions<Project, string, EffectInputCallbackError>({
+          name: "Projects.sync.query-key-executable-load",
+          getKey: (project) => project.id,
+          sync
+        }));
+        const MutatingProjects = Collection.define(Collection.syncOptions<Project, string, EffectInputCallbackError>({
+          name: "Projects.sync.query-key-executable-mutation",
+          getKey: (project) => project.id,
+          initialData: [
+            { id: "atlas", name: "Atlas", archived: false }
+          ],
+          sync
+        }));
+
+        const preloadError = yield* Effect.flip(LoadingProjects.preloadEffect());
+        const refetchError = yield* Effect.flip(LoadingProjects.refetchEffect());
+        const mutationError = yield* Effect.flip(MutatingProjects.updateEffect("atlas", { archived: true }));
+
+        for (const error of [preloadError, refetchError, mutationError]) {
+          expect(error).toBeInstanceOf(EffectInputCallbackError);
+          expect(error).toMatchObject({
+            operation: "Collection.querySync.queryKey"
+          });
+        }
+        expect(fetches).toEqual([]);
+        expect(invalidations).toEqual([]);
+        expect(updates).toHaveLength(1);
+        expect(MutatingProjects.get("atlas")).toMatchObject({
+          archived: false,
+          $synced: true
+        });
       })
     );
   });

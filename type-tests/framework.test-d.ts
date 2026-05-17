@@ -575,6 +575,8 @@ ActionResult.fromEffect<Project, typeof effectNumberValue>(Effect.fail(effectNum
 ActionResult.fromValidationEffect(promisedProject);
 // @ts-expect-error ActionResult.fromValidationEffect rejects Effect successes that are Promise-shaped
 ActionResult.fromValidationEffect(Effect.succeed(promisedProject));
+// @ts-expect-error ActionResult.fromValidationEffect successes must be plain data, not Effect-shaped
+ActionResult.fromValidationEffect<Effect.Effect<number>, string>(Effect.succeed(effectNumberValue));
 // @ts-expect-error ActionResult.success rejects Promise-shaped payloads
 ActionResult.success(promisedProject);
 // @ts-expect-error ActionResult.success rejects Effect-shaped payloads
@@ -1934,6 +1936,24 @@ Collection.define(Collection.syncOptions<Project, string, EffectInputCallbackErr
     }
   })
 }));
+Collection.querySyncAdapter<Project>({
+  // @ts-expect-error query sync keys must not contain Promise-shaped values
+  queryKey: ["projects", promisedString],
+  queryFn: () => [],
+  queryClient: querySyncClient
+});
+Collection.querySyncAdapter<Project>({
+  // @ts-expect-error query sync keys must not contain nested Promise-shaped values
+  queryKey: ["projects", { filter: promisedString }],
+  queryFn: () => [],
+  queryClient: querySyncClient
+});
+Collection.querySyncAdapter<Project>({
+  // @ts-expect-error query sync keys must not contain direct Effect values
+  queryKey: ["projects", effectNumberValue],
+  queryFn: () => [],
+  queryClient: querySyncClient
+});
 
 Collection.define(serverCollectionOptions<Project>({
   name: "Projects.badServerCollection",
@@ -4714,6 +4734,19 @@ Form.make<typeof ProjectFormSchema, ProjectFormValues, string>({
   validate: (_values, validation) =>
     // @ts-expect-error form validation errors must be plain data, not Effect-shaped
     Effect.fail(validation.form(effectNumberValue))
+});
+
+// @ts-expect-error Form.fieldError errors must be plain data, not Promise-shaped
+Form.fieldError<ProjectFormValues, "name", string>("name", promisedString);
+// @ts-expect-error Form.fieldError errors must be plain data, not Effect-shaped
+Form.fieldError<ProjectFormValues, "name", Effect.Effect<number>>("name", effectNumberValue);
+Form.error<ProjectFormValues, string>({
+  // @ts-expect-error Form.error field errors must be plain data, not Promise-shaped
+  name: [promisedString]
+});
+Form.error<ProjectFormValues, Effect.Effect<number>>({
+  // @ts-expect-error Form.error field errors must be plain data, not Effect-shaped
+  name: [effectNumberValue]
 });
 
 projectForm.setField("name", "Atlas Revenue");

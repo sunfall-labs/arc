@@ -120,7 +120,7 @@ export interface StartAgentGraphInput {
   readonly diagnosticsPolicyViolations?: readonly StartAppGraphDiagnosticsPolicyViolation[];
 }
 
-/** Query used by graph search, CLI subcommands, and impact planning. */
+/** Query used by graph search, CLI graph/impact arguments, and impact planning. */
 export interface StartAgentGraphQuery {
   /** Optional semantic node family to match. Omit or use `node` to search all nodes. */
   readonly kind?: StartAgentGraphQueryKind;

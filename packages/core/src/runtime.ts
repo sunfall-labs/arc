@@ -9,6 +9,7 @@ import {
   type ResourceStore as ResourceStoreState
 } from "./resource-store.js";
 
+/** Runtime Spine brand used to distinguish Effect UI runtimes at host seams. */
 export const RuntimeTypeId: unique symbol = Symbol.for("@effect-ui/core/Runtime") as typeof RuntimeTypeId;
 
 type RuntimeManagedBoundary<ER> = ManagedRuntime.ManagedRuntime<any, ER>;
@@ -95,12 +96,19 @@ export interface RuntimeProvideOptions {
   readonly resourceStore?: ResourceStoreState;
 }
 
-/** Accepted inputs for creating an Effect UI runtime. */
+/**
+ * Accepted inputs for creating an Effect UI runtime.
+ *
+ * Layers and ManagedRuntimes become owned Runtime Spine implementations. Existing
+ * Effect UI runtimes pass through unchanged so adapters can accept either a
+ * concrete runtime or a lower-level Effect runtime source.
+ */
 export type RuntimeSource<R = never, ER = never> =
   | EffectUiRuntime<R, ER>
   | ManagedRuntime.ManagedRuntime<R, ER>
   | Layer.Layer<R, ER, never>;
 
+/** Returns true when `value` is an Effect UI Runtime Spine implementation. */
 export const isEffectUiRuntime = (value: unknown): value is AnyEffectUiRuntime<never> =>
   typeof value === "object" &&
   value !== null &&
@@ -284,13 +292,21 @@ export const withResourceStore = <R, ER>(
     disposeManaged: false
   });
 
+/** Default runtime used by ambient helpers when an app has not supplied one. */
 export const defaultRuntime: EffectUiRuntime<never, never> = makeRuntime(Layer.empty);
 
 let currentRuntime: CurrentRuntimeBoundary | undefined;
 
+/**
+ * Returns the ambient Runtime Spine for the current synchronous or fiber scope.
+ *
+ * Adapter code should prefer explicit runtime parameters when possible; this
+ * helper exists for framework seams that need to recover the current runtime.
+ */
 export const getCurrentRuntime = (): CurrentRuntimeBoundary | undefined =>
   currentRuntime ?? currentFiberRuntime();
 
+/** Returns the current ambient Runtime Spine, falling back to `defaultRuntime`. */
 export const currentOrDefaultRuntime = (): CurrentRuntimeBoundary =>
   (getCurrentRuntime() ?? defaultRuntime) as CurrentRuntimeBoundary;
 
