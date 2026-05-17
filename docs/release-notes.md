@@ -65,14 +65,14 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 17, 2026 after Review 218:
+Latest full gate on May 17, 2026 after Review 219:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
 - Effect-first audit over 409 package/example/config/script/type-test/generated
   template/docs-snippet physical and virtual files;
-- 53 root test files / 1122 tests;
+- 53 root test files / 1125 tests;
 - package-level verifies for the devtools panel, devtools extension, basic
   starter, React starter, and project console packages;
 - starter-suite packaging for basic (19 app files / 5 local packages), React
@@ -86,6 +86,17 @@ Latest full gate on May 17, 2026 after Review 218:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 219 closed the post-Review218 sweep findings: Core Runtime Provider
+  lifecycle now exposes typed provider-owned disposal while framework adapters
+  keep observer cleanup; direct SQLite persistence rejects malformed
+  namespace/key/value fields before table callbacks; borrowed Start diagnostics
+  server loading no longer closes caller-owned servers; runtime wildcard docs
+  distinguish exact Core ambient `EffectUiRuntime<any, any>` hits from named
+  router/host `EffectUiRuntime<any, ER>` Adapter seams; script commands now run
+  through Effect v4 `ChildProcess` plus a local Node spawner; and package
+  dry-runs/generated starters share one dist payload policy Interface.
+  The active Thirty-Sweep clean counter remains 0/30 until a fresh
+  post-Review219 sweep is clean.
 - Review 218 closed the post-Review217 sweep findings: shared Runtime Provider
   lifecycle normalization now lives in Core and is consumed by React/Solid;
   project-console runtime props require `ProjectApi`; explicit Start
@@ -94,8 +105,8 @@ Latest full gate on May 17, 2026 after Review 218:
   SQLite metadata validation share stronger typed guardrails; and starter/
   package manifest checks treat example `type-tests` as verification-only
   source.
-  The active Thirty-Sweep clean counter remains 0/30 until a fresh
-  post-Review218 sweep is clean.
+  A later post-Review218 sweep found Review219 work, so the active
+  Thirty-Sweep clean counter stayed at 0/30.
 - Review 217 closed the post-Review216 sweep findings: Form validation helpers
   and `ActionResult.fromValidationEffect(...)` require plain validation data,
   DB query sync keys and secondary indexes reject executable-shaped values
@@ -278,9 +289,10 @@ Latest full gate on May 17, 2026 after Review 218:
   Review213 work, the first post-Review213 sweep found Review214 work, and the
   first post-Review214 sweep found Review215 work, and the first
   post-Review215 sweep found Review216 work, the first post-Review216 sweep
-  found Review217 work, and the first post-Review217 sweep found Review218
-  work. The active Thirty-Sweep clean counter is 0/30 until a fresh
-  post-Review218 sweep reports no actionable findings.
+  found Review217 work, the first post-Review217 sweep found Review218 work,
+  and the first post-Review218 sweep found Review219 work. The active
+  Thirty-Sweep clean counter is 0/30 until a fresh post-Review219 sweep reports
+  no actionable findings.
 - Review 192 refreshed stale current-gate docs wording that still named
   Review190 or active 1/30 progress after Review191.
 - Review 190 tightened `Server.fn(...)` so union-shaped Promise handler returns
@@ -1218,10 +1230,10 @@ Latest full gate on May 17, 2026 after Review 218:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 218 runtime lifecycle,
-  explicit Start diagnostics, DB indexed join/query-key/direct-write/SQLite
-  metadata guardrails, project-console runtime service pins, and
-  typecheck-only package manifest fixes.
+- The latest full `pnpm verify` passed after Review 219 typed Core Runtime
+  Provider disposal, direct SQLite string-field guardrails, borrowed Start
+  diagnostics server lifetime, runtime-wildcard docs drift, Effect v4 script
+  command execution, and shared dist-package payload policy.
   Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
   sweeps found Review191, Review192, Review193, Review194, Review195, and
   Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, Review208, Review209, Review210, Review211, Review212, and Review213 work.
@@ -1233,11 +1245,12 @@ Latest full gate on May 17, 2026 after Review 218:
   found Review213 work, the first post-Review213 sweep found Review214 work,
   the first post-Review214 sweep found Review215 work, the first
   post-Review215 sweep found Review216 work, the first post-Review216 sweep
-  found Review217 work, and the first post-Review217 sweep found Review218
-  work, so the active counter is 0/30.
+  found Review217 work, the first post-Review217 sweep found Review218 work,
+  and the first post-Review218 sweep found Review219 work, so the active
+  counter is 0/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 409 physical/virtual files, 53 root test files / 1122
+  Effect-first audit over 409 physical/virtual files, 53 root test files / 1125
   tests, package-level verifies for the devtools/starter/example packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console

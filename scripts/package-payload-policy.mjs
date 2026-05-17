@@ -1,3 +1,10 @@
+import { readFile, readdir, stat } from "node:fs/promises";
+import { join, relative, sep } from "node:path";
+import { Data, Effect } from "effect";
+import { manifestTargetValidationFailures } from "./package-manifest-targets.mjs";
+
+export class PackagePayloadPolicyError extends Data.TaggedError("PackagePayloadPolicyError") {}
+
 const distPackagePolicy = { payload: "dist-package" };
 
 export const workspaceDistPackagePayloadPolicies = new Map([
@@ -27,6 +34,47 @@ export const workspaceDistPackagePayloadPolicies = new Map([
 ]);
 
 export const knownPayloadPolicies = new Set(["dist-package", "source-package"]);
+
+const fail = (message, repair, cause) =>
+  new PackagePayloadPolicyError({ message, repair, cause });
+
+const toPosixPath = (filePath) => filePath.split(sep).join("/");
+
+const fsEffect = (workspaceRoot, description, evaluate) =>
+  Effect.tryPromise({
+    try: evaluate,
+    catch: (cause) =>
+      fail(
+        `Failed to ${description}.`,
+        "Run from the repository root and check filesystem permissions.",
+        cause,
+      ),
+  });
+
+const isNodeNotFoundError = (cause) =>
+  cause &&
+  typeof cause === "object" &&
+  "code" in cause &&
+  cause.code === "ENOENT";
+
+const pathExistsEffect = (workspaceRoot, filePath) =>
+  Effect.tryPromise({
+    try: () => stat(filePath),
+    catch: (cause) => cause,
+  }).pipe(
+    Effect.as(true),
+    Effect.catch((cause) =>
+      isNodeNotFoundError(cause)
+        ? Effect.succeed(false)
+        : Effect.fail(
+            fail(
+              `Failed to check whether ${relative(workspaceRoot, filePath)} exists.`,
+              "Run from the repository root and check filesystem permissions.",
+              cause,
+            ),
+          ),
+    ),
+  );
 
 export const isNonEmptyString = (value) =>
   typeof value === "string" && value.trim().length > 0;
@@ -156,3 +204,116 @@ export const declarationArtifactPackFailures = (target, files) => {
   }
   return failures;
 };
+
+export const collectDistPackageSourceStemsEffect = ({
+  sourceDir,
+  workspaceRoot,
+}) =>
+  Effect.gen(function* () {
+    const files = [];
+    const visit = (directory) => Effect.gen(function* () {
+      const entries = yield* fsEffect(
+        workspaceRoot,
+        `read ${relative(workspaceRoot, directory)}`,
+        () => readdir(directory, { withFileTypes: true }),
+      );
+      for (const entry of entries) {
+        const fullPath = join(directory, entry.name);
+        if (entry.isDirectory()) {
+          yield* visit(fullPath);
+          continue;
+        }
+        if (entry.isFile()) {
+          files.push(toPosixPath(relative(sourceDir, fullPath)));
+        }
+      }
+    });
+
+    yield* visit(sourceDir);
+    return distPackageSourceStemsFromFiles(files);
+  });
+
+export const declarationArtifactContentFailuresEffect = ({
+  target,
+  workspaceRoot,
+}) =>
+  Effect.gen(function* () {
+    const failures = [];
+    for (const artifact of target.declarationArtifacts ?? []) {
+      if (!isNonEmptyString(artifact.source) || !isNonEmptyString(artifact.output)) {
+        continue;
+      }
+
+      const sourcePath = join(target.directory, artifact.source);
+      const outputPath = join(target.directory, artifact.output);
+      const source = yield* fsEffect(
+        workspaceRoot,
+        `read ${relative(workspaceRoot, sourcePath)}`,
+        () => readFile(sourcePath),
+      );
+      const output = yield* fsEffect(
+        workspaceRoot,
+        `read ${relative(workspaceRoot, outputPath)}`,
+        () => readFile(outputPath),
+      );
+      if (!source.equals(output)) {
+        failures.push(`${target.label} copied declaration artifact ${artifact.output} does not match ${artifact.source}.`);
+      }
+
+      for (const forbidden of artifact.forbidden ?? []) {
+        if (!isNonEmptyString(forbidden)) {
+          continue;
+        }
+        const forbiddenPath = join(target.directory, forbidden);
+        if (yield* pathExistsEffect(workspaceRoot, forbiddenPath)) {
+          failures.push(`${target.label} copied declaration artifact left forbidden file ${forbidden}.`);
+        }
+      }
+    }
+    return failures;
+  });
+
+/**
+ * Validates a dist-package payload against the shared package policy.
+ *
+ * The Interface owns source-stem discovery, dist artifact drift checks,
+ * declaration artifact copy/content checks, and package manifest target checks
+ * so dry-run and generated-starter packaging scripts enforce the same rules.
+ */
+export const validateDistPackagePayloadEffect = ({
+  target,
+  files,
+  sourceDir = join(target.directory, "src"),
+  workspaceRoot,
+  packageJson = target.packageJson,
+  payloadLabel = `${target.label} package dry-run`,
+}) =>
+  Effect.gen(function* () {
+    if (target.payload !== "dist-package") {
+      return [];
+    }
+
+    const distArtifactDrift = distPackageArtifactDriftFailures(
+      target,
+      files,
+      yield* collectDistPackageSourceStemsEffect({ sourceDir, workspaceRoot }),
+    );
+    const declarationArtifactPackDrift = declarationArtifactPackFailures(target, files);
+    const declarationArtifactContentDrift =
+      declarationArtifactPackDrift.length === 0
+        ? yield* declarationArtifactContentFailuresEffect({ target, workspaceRoot })
+        : [];
+    const missingManifestTargets = manifestTargetValidationFailures({
+      packageName: target.label,
+      packageJson,
+      files,
+      payloadLabel,
+    });
+
+    return [
+      ...distArtifactDrift,
+      ...declarationArtifactPackDrift,
+      ...declarationArtifactContentDrift,
+      ...missingManifestTargets,
+    ];
+  });

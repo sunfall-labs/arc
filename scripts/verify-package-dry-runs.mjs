@@ -1,18 +1,17 @@
 #!/usr/bin/env node
 
-import { mkdtemp, readFile, readdir, rm, stat, symlink } from "node:fs/promises";
+import { mkdtemp, readdir, rm, stat, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Data, Effect } from "effect";
 import { runScriptCommandEffect } from "./effect-command-runner.mjs";
-import { manifestTargetValidationFailures } from "./package-manifest-targets.mjs";
 import {
   declarationArtifactPackFailures,
   distPackageArtifactDriftFailures,
-  distPackageSourceStemsFromFiles,
   isNonEmptyString,
   knownPayloadPolicies,
+  validateDistPackagePayloadEffect,
   workspaceDistPackagePayloadPolicies,
 } from "./package-payload-policy.mjs";
 import {
@@ -165,91 +164,6 @@ const sourcePackageManifestValidationFailures = (target, expectedFiles, actualFi
 
   return failures;
 };
-
-const collectDistPackageSourceStems = (target) =>
-  Effect.gen(function* () {
-    const files = [];
-    const sourceDirectory = join(target.directory, "src");
-    const visit = (directory) => Effect.gen(function* () {
-      const entries = yield* fsEffect(
-        `read ${relative(workspaceRoot, directory)}`,
-        () => readdir(directory, { withFileTypes: true }),
-      );
-      for (const entry of entries) {
-        const fullPath = join(directory, entry.name);
-        if (entry.isDirectory()) {
-          yield* visit(fullPath);
-          continue;
-        }
-        if (entry.isFile()) {
-          files.push(toPosixPath(relative(sourceDirectory, fullPath)));
-        }
-      }
-    });
-
-    yield* visit(sourceDirectory);
-    return distPackageSourceStemsFromFiles(files);
-  });
-
-const isNodeNotFoundError = (cause) =>
-  cause &&
-  typeof cause === "object" &&
-  "code" in cause &&
-  cause.code === "ENOENT";
-
-const pathExists = (filePath) =>
-  Effect.tryPromise({
-    try: () => stat(filePath),
-    catch: (cause) => cause,
-  }).pipe(
-    Effect.as(true),
-    Effect.catch((cause) =>
-      isNodeNotFoundError(cause)
-        ? Effect.succeed(false)
-        : Effect.fail(
-            fail(
-              `Failed to check whether ${relative(workspaceRoot, filePath)} exists.`,
-              "Run from the repository root and check filesystem permissions.",
-              cause,
-            ),
-          ),
-    ),
-  );
-
-const declarationArtifactContentFailures = (target) =>
-  Effect.gen(function* () {
-    const failures = [];
-    for (const artifact of target.declarationArtifacts ?? []) {
-      if (!isNonEmptyString(artifact.source) || !isNonEmptyString(artifact.output)) {
-        continue;
-      }
-
-      const sourcePath = join(target.directory, artifact.source);
-      const outputPath = join(target.directory, artifact.output);
-      const source = yield* fsEffect(
-        `read ${relative(workspaceRoot, sourcePath)}`,
-        () => readFile(sourcePath),
-      );
-      const output = yield* fsEffect(
-        `read ${relative(workspaceRoot, outputPath)}`,
-        () => readFile(outputPath),
-      );
-      if (!source.equals(output)) {
-        failures.push(`${target.label} copied declaration artifact ${artifact.output} does not match ${artifact.source}.`);
-      }
-
-      for (const forbidden of artifact.forbidden ?? []) {
-        if (!isNonEmptyString(forbidden)) {
-          continue;
-        }
-        const forbiddenPath = join(target.directory, forbidden);
-        if (yield* pathExists(forbiddenPath)) {
-          failures.push(`${target.label} copied declaration artifact left forbidden file ${forbidden}.`);
-        }
-      }
-    }
-    return failures;
-  });
 
 const failSelfTest = (message) => {
   console.error(message);
@@ -735,39 +649,19 @@ const verifyPackageTarget = (target) =>
     const sourceManifestDrift = target.payload === "source-package"
       ? sourcePackageManifestValidationFailures(target, yield* collectSourcePackageFiles(target), files)
       : [];
-    const distArtifactDrift = target.payload === "dist-package"
-      ? distPackageArtifactDriftFailures(target, files, yield* collectDistPackageSourceStems(target))
+    const distPackagePayloadDrift = target.payload === "dist-package"
+      ? yield* validateDistPackagePayloadEffect({
+          target,
+          files,
+          workspaceRoot,
+        })
       : [];
-    const declarationArtifactPackDrift = target.payload === "dist-package"
-      ? declarationArtifactPackFailures(target, files)
-      : [];
-    const declarationArtifactContentDrift =
-      target.payload === "dist-package" && declarationArtifactPackDrift.length === 0
-        ? yield* declarationArtifactContentFailures(target)
-        : [];
-    const missingManifestTargets = manifestTargetValidationFailures({
-      packageName: target.label,
-      packageJson: target.packageJson,
-      files,
-      payloadLabel: `${target.label} package dry-run`,
-    });
 
     if (target.requiresGitignore && !files.includes(".gitignore")) {
       return yield* Effect.fail(
         fail(
           `${target.label} package dry-run is missing .gitignore.`,
           "Add .gitignore to the package files allowlist so copied examples keep local artifact hygiene.",
-        ),
-      );
-    }
-    if (missingManifestTargets.length > 0) {
-      return yield* Effect.fail(
-        fail(
-          `${target.label} package dry-run contains manifest targets that are missing from the payload.`,
-          [
-            "Build the package or fix package.json exports/bin/main/types targets before publishing.",
-            ...missingManifestTargets,
-          ].join(" "),
         ),
       );
     }
@@ -793,25 +687,13 @@ const verifyPackageTarget = (target) =>
         ),
       );
     }
-    if (distArtifactDrift.length > 0) {
+    if (distPackagePayloadDrift.length > 0) {
       return yield* Effect.fail(
         fail(
-          `${target.label} package dry-run dist artifacts do not match source files.`,
+          `${target.label} package dry-run dist payload does not match the shared package policy.`,
           [
-            "Run a clean build or remove stale dist files before packing framework packages.",
-            ...distArtifactDrift,
-          ].join(" "),
-        ),
-      );
-    }
-    if (declarationArtifactPackDrift.length > 0 || declarationArtifactContentDrift.length > 0) {
-      return yield* Effect.fail(
-        fail(
-          `${target.label} package dry-run copied declaration artifacts are stale.`,
-          [
-            "Keep declaration-only public Adapter artifacts byte-identical to their source declarations and remove stale declaration maps.",
-            ...declarationArtifactPackDrift,
-            ...declarationArtifactContentDrift,
+            "Run a clean build or fix package.json exports/bin/main/types targets before packing framework packages.",
+            ...distPackagePayloadDrift,
           ].join(" "),
         ),
       );

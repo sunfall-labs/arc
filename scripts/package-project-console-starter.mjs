@@ -7,10 +7,7 @@ import { Data, Effect } from "effect";
 import { runScriptCommandEffect } from "./effect-command-runner.mjs";
 import { manifestTargetValidationFailures } from "./package-manifest-targets.mjs";
 import {
-  declarationArtifactPackFailures,
-  distPackageArtifactDriftFailures,
-  distPackageSourceStemsFromFiles,
-  isNonEmptyString,
+  validateDistPackagePayloadEffect,
   workspaceDistPackagePayloadPolicies,
 } from "./package-payload-policy.mjs";
 import {
@@ -412,67 +409,25 @@ const workspacePackagePayloadTarget = (workspacePackage) =>
     };
   });
 
-const declarationArtifactContentFailures = (target) =>
-  Effect.gen(function* () {
-    const failures = [];
-    for (const artifact of target.declarationArtifacts ?? []) {
-      if (!isNonEmptyString(artifact.source) || !isNonEmptyString(artifact.output)) {
-        continue;
-      }
-
-      const sourcePath = resolve(target.directory, artifact.source);
-      const outputPath = resolve(target.directory, artifact.output);
-      const source = yield* fsEffect(
-        `read ${relative(workspaceRoot, sourcePath)}`,
-        () => readFile(sourcePath),
-      );
-      const output = yield* fsEffect(
-        `read ${relative(workspaceRoot, outputPath)}`,
-        () => readFile(outputPath),
-      );
-      if (!source.equals(output)) {
-        failures.push(`${target.label} copied declaration artifact ${artifact.output} does not match ${artifact.source}.`);
-      }
-
-      for (const forbidden of artifact.forbidden ?? []) {
-        if (!isNonEmptyString(forbidden)) {
-          continue;
-        }
-        const forbiddenPath = resolve(target.directory, forbidden);
-        if (yield* pathExists(forbiddenPath)) {
-          failures.push(`${target.label} copied declaration artifact left forbidden file ${forbidden}.`);
-        }
-      }
-    }
-    return failures;
-  });
-
 const assertWorkspacePackageDistArtifacts = (workspacePackage, sourceDist) =>
   Effect.gen(function* () {
     const target = yield* workspacePackagePayloadTarget(workspacePackage);
-    const sourceFiles = yield* collectFiles(resolve(workspacePackage.directory, "src"));
-    const sourceStems = distPackageSourceStemsFromFiles(sourceFiles);
     const distFiles = (yield* collectFiles(sourceDist)).map((file) => `dist/${file}`);
-    const distArtifactDrift = distPackageArtifactDriftFailures(target, distFiles, sourceStems);
-    const declarationArtifactPackDrift = declarationArtifactPackFailures(target, distFiles);
-    const declarationArtifactContentDrift =
-      declarationArtifactPackDrift.length === 0
-        ? yield* declarationArtifactContentFailures(target)
-        : [];
+    const distPackagePayloadDrift = yield* validateDistPackagePayloadEffect({
+      target,
+      files: distFiles,
+      sourceDir: resolve(workspacePackage.directory, "src"),
+      workspaceRoot,
+      payloadLabel: `${workspacePackage.packageJson.name} generated local package adapter`,
+    });
 
-    if (
-      distArtifactDrift.length > 0 ||
-      declarationArtifactPackDrift.length > 0 ||
-      declarationArtifactContentDrift.length > 0
-    ) {
+    if (distPackagePayloadDrift.length > 0) {
       return yield* Effect.fail(
         fail(
           `${workspacePackage.packageJson.name} generated local package adapter dist artifacts are stale.`,
           [
             "Run a clean package build or remove stale dist files before packaging copyable starters.",
-            ...distArtifactDrift,
-            ...declarationArtifactPackDrift,
-            ...declarationArtifactContentDrift,
+            ...distPackagePayloadDrift,
           ].join(" "),
         ),
       );

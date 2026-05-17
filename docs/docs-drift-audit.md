@@ -3,9 +3,9 @@
 Last updated: 2026-05-17.
 
 Current release-tracking truth lives in `docs/architecture-deepening-review.md`
-and `docs/perfection-progress.md`. As of Review218, the latest full
-`pnpm verify` gate passed with 53 root test files / 1122 tests, and the active
-Thirty-Sweep clean counter is 0/30 until a fresh post-Review218 sweep reports
+and `docs/perfection-progress.md`. As of Review219, the latest full
+`pnpm verify` gate passed with 53 root test files / 1125 tests, and the active
+Thirty-Sweep clean counter is 0/30 until a fresh post-Review219 sweep reports
 no actionable findings.
 
 This historical audit checks release-tracking docs for claims that no longer match the
@@ -135,6 +135,10 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
   found Runtime Provider lifecycle locality, explicit Start diagnostics
   precedence, DB guardrails, project-console runtime typing, and package
   manifest policy work.
+- Review219 refreshed current ledgers after the first post-Review218 sweep
+  found typed lifecycle disposal, SQLite string-field ingress, borrowed
+  diagnostics server lifetime, runtime wildcard docs drift, script command
+  runner, and shared package-payload policy work.
 - Review201 refreshed the current release ledgers after script command,
   Resource public-surface, React/Solid router LSP, DB erased-channel, and
   generated-starter README guardrail fixes; the historical enumeration above

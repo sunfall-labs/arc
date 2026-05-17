@@ -11,12 +11,12 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review218, the post-Review217 sweep
-fixing shared Runtime Provider lifecycle locality, explicit Start diagnostics
-precedence, project-console runtime service erasure, DB indexed join/query-key/
-direct-write/SQLite persistence guardrails, and starter/package manifest
-verification policy for typecheck-only probes. The newest full verification
-checkpoint is Review218. Clean Sweep 1 after
+The newest completed focused review is Review219, the post-Review218 sweep
+fixing typed Core Runtime Provider lifecycle disposal, direct SQLite
+string-field ingress, borrowed Start diagnostics server ownership,
+runtime-wildcard docs drift, Effect v4 script command execution, and shared
+dist-package payload validation. The newest full verification checkpoint is
+Review219. Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
 post-Review210 sweep found Review211 work, the first post-Review211 sweep
@@ -24,14 +24,16 @@ found Review212 work, the first post-Review212 sweep found Review213 work, and
 the first post-Review213 sweep found Review214 work, and the first
 post-Review214 sweep found Review215 work, and the first post-Review215 sweep
 found Review216 work, the first post-Review216 sweep found Review217 work, and
-the first post-Review217 sweep found Review218 work, so the active
-Thirty-Sweep clean counter is 0/30 until a fresh post-Review218
+the first post-Review217 sweep found Review218 work, and the first
+post-Review218 sweep found Review219 work, so the active
+Thirty-Sweep clean counter is 0/30 until a fresh post-Review219
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
 Review206, Review207, Review208, Review209, Review210, Review211, Review212,
-Review213, Review214, Review215, Review216, Review217, and Review218 work.
+Review213, Review214, Review215, Review216, Review217, Review218, and
+Review219 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -87,7 +89,111 @@ Core, DB, Devtools, and docs/LSP work. The first post-Review215 sweep found
 Review216 Core, DB, Devtools, and docs/API work, the first post-Review216
 sweep found Review217 Core, DB, Devtools, runtime LSP, example, and docs work,
 and the first post-Review217 sweep found Review218 runtime lifecycle, Start,
-DB, project-console, package, and docs work, so the counter remains 0/30.
+DB, project-console, package, and docs work, and the first post-Review218
+sweep found Review219 Core, DB, Start, script, package-policy, and docs work,
+so the counter remains 0/30.
+
+## Review 219: Typed Lifecycle, Borrowed Diagnostics, And Script Policy Depth
+
+Review219 fixed actionable findings from the fresh post-Review218 sweep.
+
+1. Core Runtime Provider Typed Disposal And Public Hover Coverage
+   - Status: fixed.
+   - Files: `packages/core/src/runtime-provider-lifecycle.ts`,
+     `packages/core/test/runtime.test.ts`, `scripts/public-api-symbol-policy.mjs`,
+     `type-tests/core.test-d.ts`, `type-tests/public-api.manifest.json`, and
+     `docs/public-api-inventory.md`.
+   - Problem: Core exposed only the observer/swallow Runtime Provider cleanup
+     helper, so Effect callers could not compose the provider-owned
+     `RuntimeDisposeError` failure channel directly. The new lifecycle types
+     were also not all pinned in the public API manifest.
+   - Fix: added `disposeRuntimeProviderLifecycleEntryEffect(...)` as the typed
+     Core disposal Interface and kept
+     `disposeRuntimeProviderLifecycleEffect(...)` as the React/Solid Adapter
+     cleanup helper. Public manifest and docs now name the observer, options,
+     entry, typed dispose, and observer dispose helpers together.
+   - Benefits: Core owns the Effect-first lifecycle failure seam while
+     framework adapters keep host cleanup behavior local.
+
+2. Direct SQLite Persistence String-Field Guardrail
+   - Status: fixed.
+   - Files: `packages/db/src/sqlite-persistence.ts` and
+     `packages/db/test/sqlite-persistence.test.ts`.
+   - Problem: direct SQLite persistence validated schema metadata and returned
+     rows, but hostile `namespace`, storage `key`, and `value` inputs could
+     still reach table `get`/`upsert`/`delete` callbacks before the Module
+     localized them.
+   - Fix: all direct row keys now pass through `rowKeyEffect(...)`, and
+     `setItem(...)` validates the full `SQLitePersistenceRow` before calling
+     the table Adapter.
+   - Benefits: row contract validation lives in one SQLite Persistence Module
+     before Adapter callbacks observe malformed host values.
+
+3. Borrowed Start Diagnostics Vite Server Lifetime
+   - Status: fixed.
+   - Files: `packages/start/src/start-vite-diagnostics-loader.ts` and
+     `packages/start/test/start.test.ts`.
+   - Problem: the diagnostics loader closed caller-provided Vite servers,
+     making the borrowed server Interface silently own an Adapter it did not
+     acquire.
+   - Fix: exported `loadStartAppGraphDiagnosticsFromServerEffect(...)` as the
+     borrowed loader and routed owned temporary servers through
+     `loadStartAppGraphDiagnosticsWithOwnedServerEffect(...)`.
+   - Benefits: server lifetime Locality is explicit: borrowed servers stay
+     borrowed, temporary servers remain acquired/released by the loader.
+
+4. Runtime Wildcard Docs Drift
+   - Status: fixed.
+   - Files: `docs/effect-first-audit.md`, `docs/perfection-progress.md`, and
+     `docs/release-notes.md`.
+   - Problem: current-facing docs overstated the runtime wildcard cleanup by
+     saying only Core ambient `EffectUiRuntime<any, any>` hits remained, while
+     router and Start host seams still intentionally carry
+     `EffectUiRuntime<any, ER>` adapter bounds.
+   - Fix: current docs now distinguish exact `EffectUiRuntime<any, any>` Core
+     hits from named `EffectUiRuntime<any, ER>` framework Adapter seams.
+   - Benefits: future LSP/public-surface sweeps do not mistake an intentional
+     service-erasure boundary for completed source cleanup.
+
+5. Effect v4 Script Command Runner
+   - Status: fixed.
+   - Files: `scripts/effect-command-runner.mjs`.
+   - Problem: the shared script runner constructed Effect v4 ChildProcess
+     commands but discarded the Effect command runtime and manually owned Node
+     process lifetime with `Effect.callback(...)`.
+   - Fix: added a local `ChildProcessSpawner` service backed by Node
+     `spawn(...)`, run commands through the Effect v4 `ChildProcess` command
+     model, collect stdout/stderr through Effects, and wait for process
+     termination during interruption cleanup.
+   - Benefits: verify/package/starter command execution now has one
+     Effect-owned process Interface for output, failure, and cancellation.
+
+6. Shared Dist Package Payload Policy
+   - Status: fixed.
+   - Files: `scripts/package-payload-policy.mjs`,
+     `scripts/verify-package-dry-runs.mjs`, and
+     `scripts/package-project-console-starter.mjs`.
+   - Problem: package dry-runs and generated starter local-package validation
+     each reimplemented source-stem discovery, declaration artifact checks, and
+     manifest-target validation.
+   - Fix: `validateDistPackagePayloadEffect(...)` now owns source-stem
+     discovery, dist artifact drift checks, declaration artifact copy/content
+     checks, and package manifest target checks. Both dry-runs and starter
+     packaging consume that shared Effect Interface.
+   - Benefits: release payload policy has one Module and one failure vocabulary
+     across source packages and generated local package Adapters.
+
+Focused verification for Review219 passed: Core/DB/Start typechecks, public
+type tests, public API audit, Effect-first audit over 409 files, Core runtime
+tests 1 file / 12 tests, SQLite persistence tests 1 file / 17 tests, focused
+Start diagnostics tests 1 file / 24 tests, script syntax checks, command runner
+success/failure/interruption smoke checks, `pnpm example:pack-dry-run`, `pnpm
+starter:package`, and `git diff --check`. Full `pnpm verify` passed after
+Review219 with 11 package builds, workspace typecheck, public type tests,
+public API audit, Effect-first audit over 409 files, 53 root test files / 1125
+tests, package-level verifies, generated starter packaging for
+basic/react/project-console at 19/24/30 app files, 16-target package dry-run
+gate, project-console checks, and leak scans.
 
 ## Review 218: Runtime Provider Lifecycle, Explicit Diagnostics, And DB Guardrails
 
@@ -920,9 +1026,10 @@ the first post-Review211 sweep found Review212 work, and the first
 post-Review212 sweep found Review213 work, and the first post-Review213 sweep
 found Review214 work, the first post-Review214 sweep found Review215 work, the
 first post-Review215 sweep found Review216 work, and the first post-Review216
-sweep found Review217 work, and the first post-Review217 sweep found Review218
-work. The active counter is 0/30 until a fresh post-Review218 sweep reports no
-actionable findings.
+sweep found Review217 work, the first post-Review217 sweep found Review218
+work, and the first post-Review218 sweep found Review219 work. The active
+counter is 0/30 until a fresh post-Review219 sweep reports no actionable
+findings.
 
 ## Review 208: Runtime Provider Observers, CLI Bin Execution, And Docs Drift
 
