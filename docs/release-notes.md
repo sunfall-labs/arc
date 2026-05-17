@@ -65,7 +65,7 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 17, 2026 after Review 204:
+Latest full gate on May 16, 2026 after Review 205:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
@@ -86,6 +86,10 @@ Latest full gate on May 17, 2026 after Review 204:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 205 closed the first post-Review204 sweep findings: current evidence
+  dates now match the local May 16, 2026 repo clock and the historical
+  `verify:serial` row now points at the Workspace Verification Plan
+  `--concurrency=1` contract.
 - Review 204 closed the first post-Review203 sweep findings: React and Solid
   hook exports now participate in the public hover-doc policy, and
   `ResourceSuccessMeta` / `ResourceMatch` are manifest-required adapter-root
@@ -191,10 +195,10 @@ Latest full gate on May 17, 2026 after Review 204:
   found Review199 work, and the first post-Review199 sweep found Review200
   work, the first post-Review200 sweep found Review201 work, the first
   post-Review201 sweep found Review202 work, the first post-Review202
-  sweep found Review203 work, and the first post-Review203 sweep found
-  Review204 work. The
+  sweep found Review203 work, the first post-Review203 sweep found
+  Review204 work, and the first post-Review204 sweep found Review205 work. The
   active Thirty-Sweep clean counter is reset to
-  0/30 until a fresh post-Review204 sweep reports no
+  0/30 until a fresh post-Review205 sweep reports no
   actionable findings.
 - Review 192 refreshed stale current-gate docs wording that still named
   Review190 or active 1/30 progress after Review191.
@@ -1130,11 +1134,11 @@ Latest full gate on May 17, 2026 after Review 204:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 204 React/Solid hook hover
-  policy and adapter resource alias pins.
+- The latest full `pnpm verify` passed after Review 205 local evidence-date
+  and serial-ledger drift fixes.
   Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
   sweeps found Review191, Review192, Review193, Review194, Review195, and
-  Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, and Review204 work, leaving the
+  Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, and Review205 work, leaving the
   active counter at 0/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,

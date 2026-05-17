@@ -11,13 +11,13 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review204, the post-Review203 sweep
-fixing React/Solid hook hover-doc policy and adapter-root resource alias pins.
-The newest full verification checkpoint is Review204. Clean
+The newest completed focused review is Review205, the post-Review204 sweep
+fixing local evidence-date metadata and a stale historical `verify:serial`
+ledger sentence. The newest full verification checkpoint is Review205. Clean
 Sweep 1 after Review190 remains
 historical evidence, but later sweeps found Review191, Review192, Review193,
 Review194, Review195, Review196, Review197, Review198, Review199, and
-Review200, Review201, Review202, Review203, and Review204 work, so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review204 sweep reports no actionable
+Review200, Review201, Review202, Review203, Review204, and Review205 work, so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review205 sweep reports no actionable
 findings. Some older review entries
 remain below this tip from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
@@ -50,7 +50,56 @@ docs work. The first post-Review202 sweep found Review203 adapter router,
 Start fetch abort-lifetime, package typecheck, verify failure-path, and docs
 metadata work. The first post-Review203 sweep found Review204 React/Solid hook
 LSP policy and adapter-root resource alias pin work. The counter remains
-inactive until a fresh post-Review204 sweep is clean.
+inactive after the first post-Review204 sweep found Review205 local
+evidence-date and historical serial-ledger drift. The counter remains inactive
+until a fresh post-Review205 sweep is clean.
+
+## Review 205: Local Evidence Dates And Serial Ledger Drift
+
+Review205 fixed actionable findings from the fresh post-Review204 sweep. The
+Core/React/Solid, DB, and Start/devtools lanes reported no actionable
+implementation or public API findings. The docs/scripts lane found current
+evidence dates written as May 17 even though the local repo clock and Review204
+commit were May 16 MDT, plus one historical progress row that still described
+the old `verify:serial` command as the exact pre-orchestrator chain.
+
+1. Local Evidence-Date Metadata
+   - Status: fixed.
+   - Files: `docs/perfection-progress.md`, `docs/public-api-inventory.md`,
+     `docs/docs-drift-audit.md`, `docs/effect-first-audit.md`,
+     `docs/package-hygiene-audit.md`,
+     `docs/type-test-coverage-audit.md`, `docs/sharp-cast-audit.md`,
+     `docs/ultimate-goal-checklist.md`, `docs/release-notes.md`.
+   - Problem: current ledgers used `2026-05-17` / May 17 evidence dates, while
+     `date '+%Y-%m-%d %Z %z'` reported `2026-05-16 MDT -0600` and the
+     Review204 commit timestamp was `2026-05-16T21:38:24-06:00`.
+   - Fix: current evidence dates now use May 16, 2026 / `2026-05-16`, matching
+     the local verification and commit window.
+   - Benefits: release and LSP docs do not carry future-dated evidence for the
+     local workspace.
+
+2. Historical `verify:serial` Wording
+   - Status: fixed.
+   - Files: `docs/perfection-progress.md`.
+   - Problem: the Review410 progress row still said the old exact command
+     remained available as `pnpm verify:serial`, but Review202 moved
+     `verify:serial` onto `scripts/verify.mjs --concurrency=1` and the
+     Workspace Verification Plan.
+   - Fix: the historical row now says the serial alias was later moved onto the
+     same Workspace Verification Plan with `--concurrency=1`.
+   - Benefits: historical acceleration context stays honest without
+     contradicting the current serial verifier contract.
+
+Focused verification for Review205 passed: local date and HEAD timestamp
+checks, stale May 17 / old serial wording greps, `node --check
+scripts/verify.mjs`, `node --check scripts/workspace-verification-plan.mjs`,
+`pnpm audit:public-api`, `pnpm audit:effect-first` over 408 files, `pnpm
+typecheck`, and `git diff --check`. Full `pnpm verify` and `pnpm
+verify:serial` passed after Review205: 11 package builds, workspace typecheck,
+public type tests, public API audit, Effect-first audit over 408 files, 53 root
+test files / 1062 tests, package-level verifies, generated starter packaging,
+16-target package dry-run gate, project-console checks, and leak scans. This
+sweep found work, so the active clean counter remains 0/30.
 
 ## Review 204: React And Solid Hook Hover Policy
 

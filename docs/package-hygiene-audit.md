@@ -1,6 +1,6 @@
 # Package Hygiene Audit
 
-Last updated: 2026-05-17.
+Last updated: 2026-05-16.
 
 This audit checks package manifests against package-source imports and public
 exports. It supports the release-engineering charter workstream.
@@ -127,7 +127,7 @@ exports. It supports the release-engineering charter workstream.
   all 16 package payloads: 11 framework dist packages, 19 basic starter files,
   24 React starter files, 30 project-console files, 10 devtools panel files,
   and 15 devtools extension files.
-- The current full `pnpm verify` passed after Review204 with 11 package builds,
+- The current full `pnpm verify` passed after Review205 with 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
   Effect-first audit over 408 files, 53 root test files / 1062 tests, derived
   package-level verifies for the five copyable source packages, generated

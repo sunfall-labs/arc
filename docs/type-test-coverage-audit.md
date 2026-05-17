@@ -1,6 +1,6 @@
 # Type-Test Coverage Audit
 
-Last updated: 2026-05-17.
+Last updated: 2026-05-16.
 
 This audit checks compile-time coverage for the public framework contracts that
 are easiest to regress while refactoring internals toward Effect primitives.

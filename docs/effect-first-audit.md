@@ -1,6 +1,6 @@
 # Effect-First Audit
 
-Last updated: 2026-05-17.
+Last updated: 2026-05-16.
 
 This audit supports the charter rule: push async lifecycle, teardown, tracing,
 retry, streaming, and adapter work down into Effect primitives wherever
@@ -544,7 +544,7 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 204 `pnpm verify` run recorded in
+- The current full gate is the Review 205 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
   over 408 files, 53 root test files / 1062 tests, package-level verifies,
@@ -1366,8 +1366,8 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The current full `pnpm verify` passed after the Review 204 React/Solid hook
-  hover policy and adapter resource alias pins: 11 package
+- The current full `pnpm verify` passed after the Review 205 local
+  evidence-date and serial-ledger drift fix: 11 package
   builds, workspace typecheck, type tests,
   public API inventory audit, Effect-first audit over 408
   package/example/config/script/type-test/generated/docs files, 53 root test

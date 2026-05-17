@@ -10,7 +10,7 @@ Legend:
 - `[ ]` means the item is still a future win condition or needs stronger
   verification before it can be claimed.
 
-Last evidence pass: May 17, 2026.
+Last evidence pass: May 16, 2026.
 
 ## Prompt-To-Artifact Audit
 
@@ -659,17 +659,17 @@ Last evidence pass: May 17, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 204 ran workspace typecheck, public type
-    tests, public API audit, Effect-first audit over 408 files, React/Solid
-    package typechecks, and Core/React/Solid tests with 22 files / 357 tests
-    after tightening React/Solid hook hover policy and adapter-root resource
-    alias manifest pins.
+  - Latest focused evidence: Review 205 ran local date and HEAD timestamp
+    checks, stale May 17 / old serial wording greps, public API audit,
+    Effect-first audit over 408 files, workspace typecheck, and syntax checks
+    for the workspace verification scripts after correcting evidence-date and
+    serial-ledger drift.
     Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
     sweeps found Review191, Review192, Review193, Review194, Review195, and
-    Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, and Review204 work, leaving the
+    Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, and Review205 work, leaving the
     active counter at 0/30.
     Latest full evidence:
-    `pnpm verify` ran after Review 204 with 53 test files / 1062 tests.
+    `pnpm verify` ran after Review 205 with 53 test files / 1062 tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.
@@ -808,14 +808,13 @@ Last evidence pass: May 17, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 204 React/Solid hook hover
-    policy and adapter resource alias pins.
+  - Evidence: no new ADR required for the Review 205 evidence-date and
+    serial-ledger drift fix.
     Future architecture sweeps remain tracked in
     `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
-  - Evidence: root `pnpm verify` and `pnpm verify:serial` passed on May 17,
-    2026 after the Review 204 React/Solid hook hover policy and adapter
-    resource alias pins:
+  - Evidence: root `pnpm verify` and `pnpm verify:serial` passed on May 16,
+    2026 after the Review 205 evidence-date and serial-ledger drift fix:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
     408 physical/virtual files, 53 root test files / 1062 tests,
@@ -824,13 +823,14 @@ Last evidence pass: May 17, 2026.
     16-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 204 records workspace typecheck, public type tests, public
-    API audit, Effect-first audit, React/Solid typechecks, Core/React/Solid
-    tests, clean DB/Start/docs subagent lanes, stale-current-gate greps, and
-    `git diff --check`. Clean Sweep 1 after
+  - Evidence: Review 205 records local date and HEAD timestamp checks, stale
+    May 17 / old serial wording greps, public API audit, Effect-first audit,
+    workspace typecheck, verification-script syntax checks, clean
+    Core/React/Solid/DB/Start subagent lanes, and `git diff --check`. Clean
+    Sweep 1 after
     Review190 remains historical 1/30 evidence, but later sweeps found
     Review191, Review192, Review193, Review194, Review195, Review196,
-    Review197, Review198, Review199, Review200, Review201, Review202, Review203, and Review204 work, leaving the active
+    Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, and Review205 work, leaving the active
     counter at 0/30.
     Full verification is recorded in the latest full gate above.
 

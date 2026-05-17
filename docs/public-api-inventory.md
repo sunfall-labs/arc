@@ -1,6 +1,6 @@
 # Public API Inventory
 
-Last updated: 2026-05-17.
+Last updated: 2026-05-16.
 
 This is the first release-candidate inventory required by the framework
 perfection charter. It tracks only import paths exported by package manifests;
