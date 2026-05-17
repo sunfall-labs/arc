@@ -203,6 +203,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
   prerender hover-policy pins for exported prerender option, event, result,
   error, planning, and Effect runner declarations, while keeping lazy route
   Suspense runtime ownership behind Core's public `Route` namespace.
+- Review497 React Solid DB Hover Copy Policy changes only public hover copy for
+  React DB and Solid DB collection hooks; it adds no new type contract and keeps
+  the Review496 Start Vite callback pins current.
 - Review496 Starter Artifact And Prerender Type Pin Policy adds Start Vite type
   tests for public and resolved prerender callbacks: `Effect.void` returns are
   accepted, Promise-returning callbacks are rejected, and resolved callback

@@ -20,6 +20,10 @@ interruption.
 
 ## Current Sweep Results
 
+- Review497 React Solid DB Hover Copy Policy is an LSP-facing adapter copy fix:
+  React DB and Solid DB `useCollection(...)` hover docs now use polished grammar
+  for the collection subscription Interface. It adds no Promise surface and
+  leaves the Review496 Effect-returning callback pins current.
 - Review496 Starter Artifact And Prerender Type Pin Policy keeps the
   post-Review495 fixes Effect-first: Start Vite type tests now pin
   Effect-returning public and resolved prerender callbacks and reject

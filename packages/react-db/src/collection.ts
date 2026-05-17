@@ -110,7 +110,7 @@ export interface CollectionHandle<
 }
 
 /**
- * Subscribes a React component to an Sunfall Arc collection.
+ * Subscribes a React component to a Sunfall Arc collection.
  *
  * The hook exposes rows, indexed lookups, load state, and Effect-returning
  * preload/refetch methods. It preloads on mount unless `preload` is false.

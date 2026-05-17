@@ -11,10 +11,9 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review496 Starter Artifact And Prerender Type Pin
-Policy, the post-Review495 follow-up that formats generated starter artifacts
-before standalone drift comparison and pins resolved Start prerender callback
-types in public type tests and inventory.
+The newest focused review is Review497 React Solid DB Hover Copy Policy, the
+post-Review496 follow-up that fixes public React DB and Solid DB collection
+hook hover grammar so LSP docs read cleanly at the adapter Interface seam.
 The newest full verification checkpoint is Review492.
 Clean Sweep 1 after
 Review208 remains historical 1/30
@@ -57,8 +56,9 @@ follow-up found Review490 work, the fresh post-Review490 sweep found
 Review491 work, the fresh post-Review491 sweep found Review492 work, the fresh
 post-Review492 sweep found Review493 work, the fresh post-Review493 sweep
 found Review494 work, the fresh post-Review494 sweep found Review495 work, and
-the fresh post-Review495 sweep found Review496 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review496
+the fresh post-Review495 sweep found Review496 work, and the fresh
+post-Review496 sweep found Review497 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review497
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -72,7 +72,7 @@ Review235 work, Review236 work, Review237 work, Review238 work, Review239
 work, Review240 work, Review241 work, Review242 work, Review243 work,
 Review244 work, Review245 work, Review246 work, Review247 work, Review490
 work, Review491 work, Review492 work, Review493 work, Review494 work,
-Review495 work, and Review496 work.
+Review495 work, Review496 work, and Review497 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -190,7 +190,26 @@ and the fresh post-Review494 sweep found Review495 resolved callback and
 payload token policy work,
 and the fresh post-Review495 sweep found Review496 starter artifact and
 prerender type pin policy work,
+and the fresh post-Review496 sweep found Review497 React/Solid DB hover copy
+policy work,
 so the counter remains 0/30.
+
+## Review 497: React Solid DB Hover Copy Policy
+
+Review497 fixes the actionable finding from the fresh post-Review496 sweep.
+
+1. React/Solid DB Public Hover Grammar
+   - Status: fixed.
+   - Files: `packages/react-db/src/collection.ts` and
+     `packages/solid-db/src/collection.ts`.
+   - Problem: the public `useCollection(...)` hover docs said "to an Sunfall
+     Arc collection," which made the adapter Interface look less polished in
+     LSP output even though the runtime shape was correct.
+   - Solution: both React DB and Solid DB public hook docs now say "to a
+     Sunfall Arc collection."
+   - Benefits: the React DB and Solid DB adapter Modules keep their LSP-facing
+     Interface copy aligned and professional, improving locality for future
+     public hover reviews.
 
 ## Review 496: Starter Artifact And Prerender Type Pin Policy
 
