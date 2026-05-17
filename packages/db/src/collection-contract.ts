@@ -136,8 +136,8 @@ export type CollectionIndexRecord<A extends object> = Record<string, CollectionI
  * const todos = Collection.define({
  *   name: "todos",
  *   getKey: (todo) => todo.id,
- *   load: () => TodoApi.list,
- *   onUpdate: (updates) => TodoApi.patchMany(updates)
+ *   load: () => Effect.tryPromise(() => TodoApi.list()),
+ *   onUpdate: (updates) => Effect.tryPromise(() => TodoApi.patchMany(updates))
  * });
  * ```
  */

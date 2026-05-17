@@ -20,6 +20,100 @@ export const makeScriptCommand = (command, args, options = {}) =>
 const platformError = (message, cause) =>
   new ScriptCommandError({ message, cause });
 
+const scriptCommandExitStatus = Symbol("effect-ui.scriptCommandExitStatus");
+
+const signalExitCode = (signal) => {
+  if (signal === null) {
+    return 1;
+  }
+  const signalNumber = {
+    SIGHUP: 1,
+    SIGINT: 2,
+    SIGQUIT: 3,
+    SIGILL: 4,
+    SIGTRAP: 5,
+    SIGABRT: 6,
+    SIGBUS: 7,
+    SIGFPE: 8,
+    SIGKILL: 9,
+    SIGUSR1: 10,
+    SIGSEGV: 11,
+    SIGUSR2: 12,
+    SIGPIPE: 13,
+    SIGALRM: 14,
+    SIGTERM: 15
+  }[signal];
+  return signalNumber === undefined ? 1 : 128 + signalNumber;
+};
+
+const isWindows = process.platform === "win32";
+
+const isChildRunning = (child) =>
+  child.exitCode === null && child.signalCode === null;
+
+const spawnWindowsTaskkill = (pid, force) => {
+  const args = ["/pid", String(pid), "/T"];
+  if (force) {
+    args.push("/F");
+  }
+  try {
+    const killer = spawn("taskkill", args, {
+      stdio: "ignore",
+      windowsHide: true
+    });
+    killer.unref();
+  } catch {
+    // `taskkill` is a best-effort Windows process-tree fallback.
+  }
+};
+
+const interruptChildProcessTree = (child, signal, force = false) =>
+  Effect.try({
+    try: () => {
+      if (child.pid === undefined || !isChildRunning(child)) {
+        return;
+      }
+      if (isWindows) {
+        spawnWindowsTaskkill(child.pid, force);
+        child.kill(signal);
+        return;
+      }
+      try {
+        process.kill(-child.pid, signal);
+      } catch (cause) {
+        if (cause && typeof cause === "object" && "code" in cause && cause.code === "ESRCH") {
+          return;
+        }
+        throw cause;
+      }
+    },
+    catch: (cause) => platformError("Child process kill failed.", cause),
+  });
+
+const processExistsEffect = (pid) =>
+  Effect.try({
+    try: () => {
+      try {
+        process.kill(pid, 0);
+        return true;
+      } catch (cause) {
+        return cause && typeof cause === "object" && "code" in cause && cause.code === "ESRCH"
+          ? false
+          : true;
+      }
+    },
+    catch: (cause) => platformError("Process existence probe failed.", cause)
+  });
+
+const killProcessBestEffortEffect = (pid, signal = "SIGKILL") =>
+  Effect.sync(() => {
+    try {
+      process.kill(pid, signal);
+    } catch {
+      // Best-effort cleanup after a failed process-tree self-test.
+    }
+  });
+
 const readableProcessStream = (readable) =>
   readable === null || readable === undefined
     ? Stream.empty
@@ -29,48 +123,42 @@ const readableProcessStream = (readable) =>
 
 const nodeChildProcessHandle = (child, command) =>
   Effect.gen(function* () {
-    const exitCode = yield* Deferred.make();
+    const exitStatus = yield* Deferred.make();
     const completeExit = (effect) => {
       Effect.runSync(effect.pipe(Effect.catchCause(() => Effect.void)));
     };
 
     child.once("error", (cause) => {
-      completeExit(Deferred.fail(exitCode, platformError("Child process failed to start.", cause)));
+      completeExit(Deferred.fail(exitStatus, platformError("Child process failed to start.", cause)));
     });
-    child.once("close", (code) => {
-      completeExit(Deferred.succeed(exitCode, ChildProcessSpawner.ExitCode(code ?? 1)));
+    child.once("close", (code, signal) => {
+      completeExit(Deferred.succeed(exitStatus, { code, signal }));
     });
 
     const stdout = readableProcessStream(child.stdout);
     const stderr = readableProcessStream(child.stderr);
 
-    return ChildProcessSpawner.makeHandle({
+    return Object.assign(ChildProcessSpawner.makeHandle({
       pid: ChildProcessSpawner.ProcessId(child.pid ?? 0),
-      exitCode: Deferred.await(exitCode),
+      exitCode: Deferred.await(exitStatus).pipe(
+        Effect.map((status) => ChildProcessSpawner.ExitCode(
+          status.code ?? signalExitCode(status.signal)
+        ))
+      ),
       isRunning: Effect.sync(() => child.exitCode === null && child.signalCode === null),
       kill: (options = {}) =>
         Effect.gen(function* () {
-          yield* Effect.try({
-            try: () => {
-              if (child.exitCode === null && child.signalCode === null) {
-                child.kill(options.killSignal ?? command.options.killSignal ?? "SIGTERM");
-              }
-            },
-            catch: (cause) => platformError("Child process kill failed.", cause),
-          });
-          yield* Deferred.await(exitCode).pipe(
+          yield* interruptChildProcessTree(
+            child,
+            options.killSignal ?? command.options.killSignal ?? "SIGTERM",
+            false
+          );
+          yield* Deferred.await(exitStatus).pipe(
             Effect.timeout(options.forceKillAfter ?? "1 second"),
             Effect.catchCause(() =>
               Effect.gen(function* () {
-                yield* Effect.try({
-                  try: () => {
-                    if (child.exitCode === null && child.signalCode === null) {
-                      child.kill("SIGKILL");
-                    }
-                  },
-                  catch: (cause) => platformError("Child process force-kill failed.", cause),
-                });
-                yield* Deferred.await(exitCode);
+                yield* interruptChildProcessTree(child, "SIGKILL", true);
+                yield* Deferred.await(exitStatus);
               }).pipe(Effect.catchCause(() => Effect.void))
             ),
             Effect.asVoid
@@ -89,6 +177,8 @@ const nodeChildProcessHandle = (child, command) =>
         },
         catch: (cause) => platformError("Child process unref failed.", cause),
       }),
+    }), {
+      [scriptCommandExitStatus]: Deferred.await(exitStatus)
     });
   });
 
@@ -104,6 +194,7 @@ const nodeChildProcessSpawner = ChildProcessSpawner.make((command) =>
             cwd: command.options.cwd,
             env: command.options.env,
             stdio: ["ignore", "pipe", "pipe"],
+            detached: !isWindows,
           }),
         catch: (cause) => platformError("Child process spawn failed.", cause),
       });
@@ -159,13 +250,15 @@ export const runScriptCommandEffect = (command, args, options = {}) =>
       handle.stderr,
       options.onStderrChunk
     ).pipe(Effect.forkChild({ startImmediately: true }));
-    const code = yield* handle.exitCode;
+    const status = yield* (handle[scriptCommandExitStatus] ?? Effect.map(
+      handle.exitCode,
+      (code) => ({ code: Number(code), signal: null })
+    ));
     const stdout = yield* Fiber.join(stdoutFiber);
     const stderr = yield* Fiber.join(stderrFiber);
-    const numericCode = Number(code);
 
-    if (numericCode === 0) {
-      return { stdout, stderr, code: numericCode, signal: null };
+    if (status.code === 0 && status.signal === null) {
+      return { stdout, stderr, code: status.code, signal: null };
     }
 
     return yield* Effect.fail(
@@ -174,10 +267,12 @@ export const runScriptCommandEffect = (command, args, options = {}) =>
         args,
         commandText,
         cwd: options.cwd,
-        message: `Command failed with exit code ${numericCode}: ${commandText}`,
-        cause: { code: numericCode, signal: null },
-        code: numericCode,
-        signal: null,
+        message: status.signal === null
+          ? `Command failed with exit code ${status.code}: ${commandText}`
+          : `Command failed with signal ${status.signal}: ${commandText}`,
+        cause: { code: status.code, signal: status.signal },
+        code: status.code ?? undefined,
+        signal: status.signal,
         stdout,
         stderr,
       })
@@ -202,3 +297,7 @@ export const runScriptCommandEffect = (command, args, options = {}) =>
     }),
     Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, nodeChildProcessSpawner)
   );
+
+export const scriptCommandProcessExistsEffect = processExistsEffect;
+
+export const scriptCommandKillProcessBestEffortEffect = killProcessBestEffortEffect;

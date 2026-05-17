@@ -679,8 +679,8 @@ export namespace Collection {
    * const todos = Collection.define({
    *   name: "todos",
    *   getKey: (todo) => todo.id,
-   *   load: () => TodoApi.list,
-   *   onInsert: (values) => TodoApi.createMany(values)
+   *   load: () => Effect.tryPromise(() => TodoApi.list()),
+   *   onInsert: (values) => Effect.tryPromise(() => TodoApi.createMany(values))
    * })
    */
   export function define<

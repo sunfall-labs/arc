@@ -1,7 +1,11 @@
 #!/usr/bin/env node
 
 import { Data, Effect, Fiber } from "effect";
-import { runScriptCommandEffect } from "./effect-command-runner.mjs";
+import {
+  runScriptCommandEffect,
+  scriptCommandKillProcessBestEffortEffect,
+  scriptCommandProcessExistsEffect
+} from "./effect-command-runner.mjs";
 
 class EffectCommandRunnerSelfTestError extends Data.TaggedError("EffectCommandRunnerSelfTestError") {}
 
@@ -48,6 +52,77 @@ const spawnFailureSelfTest = Effect.gen(function* () {
     error.commandText === missingCommand + " ",
     "spawn failure should expose command text.",
     error,
+  );
+});
+
+const waitForChunkEffect = (read, predicate) =>
+  Effect.gen(function* () {
+    while (!predicate(read())) {
+      yield* Effect.sleep("10 millis");
+    }
+  }).pipe(Effect.timeout("2 seconds"));
+
+const parsePidFromFirstLine = (text) =>
+  Number(text.split(/\r?\n/, 1)[0]);
+
+const signalExitStatusSelfTest = Effect.gen(function* () {
+  let stdout = "";
+  const fiber = Effect.runFork(runScriptCommandEffect(process.execPath, [
+    "-e",
+    [
+      "process.stdout.write(String(process.pid) + '\\n');",
+      "setInterval(() => {}, 1000)"
+    ].join("")
+  ], {
+    onStdoutChunk: (chunk) => {
+      stdout += chunk;
+    }
+  }));
+
+  yield* waitForChunkEffect(() => stdout, (text) => text.includes("\n"));
+  const pid = parsePidFromFirstLine(stdout);
+  yield* assert(Number.isInteger(pid) && pid > 0, "signal self-test should capture a child pid.", stdout);
+  yield* Effect.sync(() => {
+    process.kill(pid, "SIGTERM");
+  });
+  const error = yield* Effect.flip(Fiber.join(fiber).pipe(Effect.timeout("3 seconds")));
+
+  yield* assert(error.signal === "SIGTERM", "signal-killed command should expose its signal.", error);
+});
+
+const processTreeInterruptionSelfTest = Effect.gen(function* () {
+  let stdout = "";
+  let grandchildPid;
+  const fiber = Effect.runFork(runScriptCommandEffect(process.execPath, [
+    "-e",
+    [
+      "const { spawn } = require('node:child_process');",
+      "const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: ['ignore', 'ignore', 'ignore'] });",
+      "process.stdout.write(String(child.pid) + '\\n');",
+      "setInterval(() => {}, 1000)"
+    ].join("")
+  ], {
+    onStdoutChunk: (chunk) => {
+      stdout += chunk;
+    }
+  }));
+
+  yield* waitForChunkEffect(() => stdout, (text) => text.includes("\n"));
+  grandchildPid = parsePidFromFirstLine(stdout);
+  yield* assert(
+    Number.isInteger(grandchildPid) && grandchildPid > 0,
+    "process-tree self-test should capture a grandchild pid.",
+    stdout
+  );
+
+  yield* Fiber.interrupt(fiber).pipe(Effect.timeout("3 seconds"));
+  yield* Effect.gen(function* () {
+    while (yield* scriptCommandProcessExistsEffect(grandchildPid)) {
+      yield* Effect.sleep("10 millis");
+    }
+  }).pipe(
+    Effect.timeout("3 seconds"),
+    Effect.ensuring(scriptCommandKillProcessBestEffortEffect(grandchildPid))
   );
 });
 
@@ -118,9 +193,11 @@ const selfTest = Effect.gen(function* () {
   yield* successCaptureSelfTest;
   yield* nonzeroExitSelfTest;
   yield* spawnFailureSelfTest;
+  yield* signalExitStatusSelfTest;
   yield* interruptionSelfTest;
   yield* interruptionWithActiveCollectorsSelfTest;
   yield* forceKillSelfTest;
+  yield* processTreeInterruptionSelfTest;
   yield* Effect.sync(() => {
     console.log("Verified Effect command runner policy.");
   });

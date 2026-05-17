@@ -398,7 +398,7 @@ const useResourceBinding = <I, A, E, R = unknown, ER = never>(
 
   useEffect(() => {
     return () => {
-      void runtime.runFork(controller.disposeEffect().pipe(Effect.catch(() => Effect.void)));
+      void runtime.runFork(controller.disposeEffect().pipe(Effect.catchCause(() => Effect.void)));
     };
   }, [runtime, controller]);
 

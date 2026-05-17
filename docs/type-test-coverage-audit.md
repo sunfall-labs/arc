@@ -159,6 +159,11 @@ are easiest to regress while refactoring internals toward Effect primitives.
   internal Solid route cleanup behavior only; the existing package-local
   controller pins remain sufficient. It moved the current full verification
   evidence to the Review237 gate.
+- Review238 Tooling Runner, Resource UI Observer, And Hover Cleanup changed
+  script/runtime cleanup behavior and hover text only. Existing public type
+  pins for Resource UI Binding cleanup Effects, Route preload metadata, Start
+  file-route helpers, and DB collection helpers remain sufficient. It moved
+  the current full verification evidence to the Review238 gate.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them
@@ -278,9 +283,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Verification Evidence
 
-- `pnpm typecheck:types` and full `pnpm verify` passed after Review237 with
-  53 root test files / 1153 tests, including Solid initial failed-render
-  cleanup sequencing coverage, Solid failed-render cleanup sequencing coverage,
+- `pnpm typecheck:types` and full `pnpm verify` passed after Review238 with
+  53 root test files / 1154 tests, including Resource UI observer-defect
+  cleanup coverage, Solid initial failed-render cleanup sequencing coverage,
+  Solid failed-render cleanup sequencing coverage,
   Solid Route Render Scope
   Controller `disposeEffect()` package-local coverage, Collection Reactive Preload
   Controller `interruptEffect()` pins, Resource UI Binding automatic preload

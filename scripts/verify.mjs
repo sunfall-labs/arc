@@ -2,7 +2,19 @@
 
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Data, Effect } from "effect";
+import {
+  Console,
+  Data,
+  Effect,
+  FileSystem,
+  Layer,
+  Option,
+  Path,
+  Stdio,
+  Terminal
+} from "effect";
+import { CliError, Command, Flag } from "effect/unstable/cli";
+import { ChildProcessSpawner } from "effect/unstable/process";
 import { runScriptCommandEffect } from "./effect-command-runner.mjs";
 import { workspaceVerifyPackageTargetsEffect } from "./workspace-verification-plan.mjs";
 
@@ -12,84 +24,84 @@ const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
 class VerifyCommandError extends Data.TaggedError("VerifyCommandError") {}
 
-const verifyUsage = `Usage: node scripts/verify.mjs [--concurrency=<positive-integer>]
+const verifyCliVersion = "0.0.0-alpha.0";
 
-Runs the full Effect UI verification plan.
+const noopConsole = {
+  assert: () => undefined,
+  clear: () => undefined,
+  count: () => undefined,
+  countReset: () => undefined,
+  debug: () => undefined,
+  dir: () => undefined,
+  dirxml: () => undefined,
+  error: () => undefined,
+  group: () => undefined,
+  groupCollapsed: () => undefined,
+  groupEnd: () => undefined,
+  info: () => undefined,
+  log: () => undefined,
+  table: () => undefined,
+  time: () => undefined,
+  timeEnd: () => undefined,
+  timeLog: () => undefined,
+  trace: () => undefined,
+  warn: () => undefined
+};
 
-Options:
-  --concurrency=<n>  Number of package/example lanes to run in parallel. Defaults to 4.
-  -h, --help         Print this help without running verification.`;
+const formatConsoleArgs = (args) =>
+  args.map((arg) => typeof arg === "string" ? arg : String(arg)).join(" ");
 
-const parsePositiveConcurrency = (raw, source) => {
+const verifyCliConsole = {
+  ...noopConsole,
+  error: (...args) => {
+    process.stderr.write(`${formatConsoleArgs(args)}\n`);
+  },
+  log: (...args) => {
+    process.stdout.write(`${formatConsoleArgs(args)}\n`);
+  }
+};
+
+const verifyCliEnvironmentLayer = Layer.mergeAll(
+  FileSystem.layerNoop({}),
+  Path.layer,
+  Stdio.layerTest({}),
+  Layer.succeed(Terminal.Terminal)(Terminal.make({
+    columns: Effect.succeed(80),
+    readInput: Effect.die("verify CLI does not read interactive input"),
+    readLine: Effect.fail(new Terminal.QuitError()),
+    display: () => Effect.void
+  })),
+  Layer.succeed(ChildProcessSpawner.ChildProcessSpawner)(ChildProcessSpawner.make(() =>
+    Effect.die("verify CLI parser does not spawn child processes")
+  ))
+);
+
+const parsePositiveConcurrencyEffect = (raw, source) => {
   if (raw === undefined || raw.trim() === "") {
-    return {
-      _tag: "Failure",
+    return Effect.fail(new VerifyCommandError({
       message: `${source} must be a positive integer.`
-    };
+    }));
   }
 
   const parsed = Number(raw);
   return Number.isInteger(parsed) && parsed > 0
-    ? { _tag: "Success", value: parsed }
-    : {
-        _tag: "Failure",
+    ? Effect.succeed(parsed)
+    : Effect.fail(new VerifyCommandError({
         message: `${source} must be a positive integer, got ${JSON.stringify(raw)}.`
-      };
+      }));
 };
 
-const parseVerifyArgs = (args, env = process.env) => {
-  let concurrencyFromArgs;
-
-  for (const arg of args) {
-    if (arg === "--help" || arg === "-h") {
-      return { _tag: "Help" };
-    }
-
-    if (arg.startsWith("--concurrency=")) {
-      if (concurrencyFromArgs !== undefined) {
-        return {
-          _tag: "Failure",
-          message: "Use --concurrency at most once."
-        };
-      }
-      const parsed = parsePositiveConcurrency(
-        arg.slice("--concurrency=".length),
-        "--concurrency"
-      );
-      if (parsed._tag === "Failure") {
-        return parsed;
-      }
-      concurrencyFromArgs = parsed.value;
-      continue;
-    }
-
-    return {
-      _tag: "Failure",
-      message: `Unknown argument ${JSON.stringify(arg)}.`
-    };
-  }
-
-  if (concurrencyFromArgs !== undefined) {
-    return { _tag: "Run", laneConcurrency: concurrencyFromArgs };
+const laneConcurrencyFromCliEffect = (concurrencyOption, env = process.env) => {
+  const concurrency = Option.getOrUndefined(concurrencyOption);
+  if (concurrency !== undefined) {
+    return Effect.succeed(concurrency);
   }
 
   const envConcurrency = env.EFFECT_UI_VERIFY_CONCURRENCY;
-  if (envConcurrency !== undefined && envConcurrency.trim() !== "") {
-    const parsed = parsePositiveConcurrency(
-      envConcurrency,
-      "EFFECT_UI_VERIFY_CONCURRENCY"
-    );
-    if (parsed._tag === "Failure") {
-      return parsed;
-    }
-    return { _tag: "Run", laneConcurrency: parsed.value };
-  }
-
-  return { _tag: "Run", laneConcurrency: 4 };
+  return envConcurrency === undefined || envConcurrency.trim() === ""
+    ? Effect.succeed(4)
+    : parsePositiveConcurrencyEffect(envConcurrency, "EFFECT_UI_VERIFY_CONCURRENCY");
 };
-
-const verifyArgs = parseVerifyArgs(process.argv.slice(2));
-const laneConcurrency = verifyArgs._tag === "Run" ? verifyArgs.laneConcurrency : 4;
 
 const formatDuration = (startedAt) => {
   const ms = Date.now() - startedAt;
@@ -148,9 +160,11 @@ const run = (label, args, options = {}) =>
           return yield* Effect.fail(new VerifyCommandError({
             label,
             command: commandText,
-            message: error.code === undefined
-              ? `Failed to start ${label}.`
-              : `${label} failed with ${error.signal === null ? "exit code " + error.code : "signal " + error.signal}.`,
+            message: error.signal !== null && error.signal !== undefined
+              ? `${label} failed with signal ${error.signal}.`
+              : error.code === undefined
+                ? `Failed to start ${label}.`
+                : `${label} failed with exit code ${error.code}.`,
             cause: error.cause
           }));
         })
@@ -160,7 +174,7 @@ const run = (label, args, options = {}) =>
     console.log(`✓ ${label} (${formatDuration(startedAt)})`);
   });
 
-const runAll = (label, effects) =>
+const runAll = (label, effects, laneConcurrency) =>
   Effect.gen(function* () {
     console.log(`\n== ${label} ==`);
     yield* Effect.all(effects, { concurrency: laneConcurrency });
@@ -179,7 +193,7 @@ const packageStarters = Effect.gen(function* () {
   yield* run("package dry runs", ["example:pack-dry-run"]);
 });
 
-const verify = Effect.gen(function* () {
+const verifyEffect = (laneConcurrency) => Effect.gen(function* () {
   console.log(`Effect UI verify running with lane concurrency ${laneConcurrency}.`);
 
   yield* run("package builds", ["build"]);
@@ -190,30 +204,85 @@ const verify = Effect.gen(function* () {
     run("Effect command runner policy", ["verify:command-runner"]),
     run("package payload policy", ["verify:package-payload-policy"]),
     run("Effect-first audit", ["audit:effect-first"])
-  ]);
+  ], laneConcurrency);
 
   yield* run("workspace tests", ["test"]);
 
   const verifyPackageTargets = yield* workspaceVerifyPackageTargetsEffect(workspaceRoot);
-  yield* runAll("package verifies", verifyPackageTargets.map(verifyWorkspacePackage));
+  yield* runAll("package verifies", verifyPackageTargets.map(verifyWorkspacePackage), laneConcurrency);
 
   yield* packageStarters;
 });
 
-if (verifyArgs._tag === "Help") {
-  console.log(verifyUsage);
-} else if (verifyArgs._tag === "Failure") {
-  console.error(`${verifyArgs.message}\n\n${verifyUsage}`);
-  process.exitCode = 1;
-} else {
-  Effect.runPromise(
-    verify.pipe(
-      Effect.catch((cause) =>
-        Effect.sync(() => {
-          console.error(cause);
-          process.exitCode = 1;
-        })
+const makeVerifyCommand = (env = process.env) =>
+  Command.make(
+    "effect-ui-verify",
+    {
+      concurrency: Flag.integer("concurrency").pipe(
+        Flag.filter(
+          (value) => value > 0,
+          (value) => `--concurrency must be a positive integer, got ${value}.`
+        ),
+        Flag.withDescription("Number of package/example lanes to run in parallel. Defaults to 4."),
+        Flag.optional
       )
-    )
+    },
+    (config) =>
+      Effect.gen(function* () {
+        const laneConcurrency = yield* laneConcurrencyFromCliEffect(config.concurrency, env);
+        yield* verifyEffect(laneConcurrency);
+      })
+  ).pipe(
+    Command.withDescription("Run the full Effect UI verification plan."),
+    Command.withExamples([
+      {
+        command: "node scripts/verify.mjs",
+        description: "Run the full verification plan with the default lane concurrency."
+      },
+      {
+        command: "node scripts/verify.mjs --concurrency 1",
+        description: "Run package and example lanes serially."
+      }
+    ])
   );
-}
+
+const runVerifyCliCommandEffect = (
+  args = process.argv.slice(2),
+  env = process.env
+) =>
+  Command.runWith(makeVerifyCommand(env), { version: verifyCliVersion })(args).pipe(
+    Effect.provideService(Console.Console, verifyCliConsole),
+    Effect.provide(verifyCliEnvironmentLayer)
+  );
+
+const verifyMainFailureMessage = (cause) =>
+  cause instanceof VerifyCommandError
+    ? cause.message
+    : cause instanceof Error
+      ? cause.message
+      : String(cause);
+
+const runVerifyCliMainEffect = (
+  args = process.argv.slice(2),
+  env = process.env
+) =>
+  Effect.gen(function* () {
+    const result = yield* runVerifyCliCommandEffect(args, env).pipe(
+      Effect.map(() => ({ _tag: "Success" })),
+      Effect.catch((cause) => Effect.succeed({ _tag: "Failure", cause }))
+    );
+
+    if (result._tag === "Success") {
+      return;
+    }
+
+    if (CliError.isCliError(result.cause) && result.cause._tag === "ShowHelp") {
+      process.exitCode = result.cause.errors.length === 0 ? 0 : 1;
+      return;
+    }
+
+    process.stderr.write(`${verifyMainFailureMessage(result.cause)}\n`);
+    process.exitCode = 1;
+  });
+
+void Effect.runPromise(runVerifyCliMainEffect());

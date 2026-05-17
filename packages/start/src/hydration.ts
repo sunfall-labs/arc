@@ -323,6 +323,13 @@ const runStartHydrationTransportSync = <A, E>(effect: Effect.Effect<A, E>): A =>
   throw Cause.squash(exit.cause);
 };
 
+/**
+ * Dehydrates Start collection snapshots into a payload Effect.
+ *
+ * When no collections are provided the payload is empty. Snapshot codec errors
+ * and collection callback failures stay in the Effect error channel so SSR and
+ * streaming adapters can report typed hydration failures.
+ */
 export const collectionHydrationPayloadEffect = (
   options: StartCollectionHydrationOptions = {}
 ): Effect.Effect<CollectionHydrationPayload, CollectionSnapshotCodecError | EffectInputCallbackError> =>

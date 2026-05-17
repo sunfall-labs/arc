@@ -223,12 +223,26 @@ export interface DefineFileRouteBuilder<Path extends string> {
       ? EffectInputRequirements<Out>
       : never
   >;
+  /**
+   * Declares one static resource preload hint from typed route params/search.
+   *
+   * The returned descriptor is consumed by `.preload(...)` so Start diagnostics,
+   * manifest generation, and devtools can name the resource family without
+   * executing the route preload.
+   */
   readonly resource: <const Family extends ResourceRefFactory>(
     family: Family,
     input: (
       context: FileRouteContext<Path, ParamsForPath<Path>, Record<string, never>>
     ) => ResourceInput<Family>
   ) => FileRoutePreloadResource<Path, ResourceRefFromFactory<Family>, ParamsForPath<Path>, Record<string, never>>;
+  /**
+   * Attaches declared resources/collections and optional custom Effect preload.
+   *
+   * Resource and collection declarations are static metadata for Start and
+   * tooling; the preload callback is the Effect-first runtime work that may use
+   * services, fail in its error channel, or be interrupted by the route owner.
+   */
   readonly preload: {
     <
       const Resources extends readonly FileRoutePreloadResource<Path, Resource.AnyRef<any>, ParamsForPath<Path>, Record<string, never>>[] | undefined = undefined,

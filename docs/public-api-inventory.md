@@ -346,9 +346,9 @@ Release decisions:
 - `resource-ui-binding` is an expert-public Resource UI Binding Controller
   Module for framework adapters. It owns Resource ref identity, runtime-bound
   refresh/prefetch Effects, automatic preload fibers, keyed preload failures,
-  observer failure swallowing, stale preload interruption, retained-ref cleanup
-  through `disposeEffect()`, and Suspense preload-token dedupe. React and Solid
-  still own host reactivity and host Suspense throwing.
+  observer and host setter failure swallowing, stale preload interruption,
+  retained-ref cleanup through `disposeEffect()`, and Suspense preload-token
+  dedupe. React and Solid still own host reactivity and host Suspense throwing.
 - `action-submission`, `definition-registry`, `resource-registry`,
   `resource-snapshot-codec`, `resource-ui-binding`, and `route-grammar` are
   expert-public Modules.

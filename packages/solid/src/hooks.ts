@@ -305,7 +305,7 @@ const createResourceBinding = <I, A, E, R = unknown, ER = never>(
 
   onCleanup(() => {
     unsubscribe?.();
-    void runtime.runFork(controller.disposeEffect().pipe(Effect.catch(() => Effect.void)));
+    void runtime.runFork(controller.disposeEffect().pipe(Effect.catchCause(() => Effect.void)));
   });
 
   return {

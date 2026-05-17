@@ -217,7 +217,11 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
 
   const setPreloadFailure = (failure: ResourceUiPreloadFailure<I, A, E, R, ER> | undefined): void => {
     preloadFailure = failure;
-    options.onPreloadFailureChange?.(failure);
+    try {
+      options.onPreloadFailureChange?.(failure);
+    } catch {
+      // Host setter/observer failures must not escape controller cleanup.
+    }
   };
 
   const clearPreloadFailureForRef = (ref: ResourceRef<I, A, E, R>): void => {
@@ -231,7 +235,7 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
       const current = preload;
       preload = undefined;
       if (current !== undefined) {
-        yield* Fiber.interrupt(current.fiber).pipe(Effect.catch(() => Effect.void));
+        yield* Fiber.interrupt(current.fiber).pipe(Effect.catchCause(() => Effect.void));
       }
     });
 
@@ -240,7 +244,7 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
     preload = undefined;
     if (current !== undefined) {
       void options.runtime.runFork(
-        Fiber.interrupt(current.fiber).pipe(Effect.catch(() => Effect.void))
+        Fiber.interrupt(current.fiber).pipe(Effect.catchCause(() => Effect.void))
       );
     }
   };
@@ -250,7 +254,7 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
     retentionFiber = options.runtime.runFork(
       Effect.gen(function* () {
         if (previous !== undefined) {
-          yield* Fiber.join(previous).pipe(Effect.catch(() => Effect.void));
+          yield* Fiber.join(previous).pipe(Effect.catchCause(() => Effect.void));
         }
         yield* resourceUiBindRuntimeEffect(options.runtime, effect);
       }).pipe(Effect.catch(() => Effect.void))
@@ -273,7 +277,7 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
       setPreloadFailure(undefined);
       const currentRetention = retentionFiber;
       if (currentRetention !== undefined) {
-        yield* Fiber.join(currentRetention).pipe(Effect.catch(() => Effect.void));
+        yield* Fiber.join(currentRetention).pipe(Effect.catchCause(() => Effect.void));
       }
     });
 
@@ -391,7 +395,7 @@ export const makeResourceUiSuspensePreloadController = <I, A, E, R = unknown, ER
       }
 
       current.removeObserver();
-      return Fiber.interrupt(current.fiber).pipe(Effect.catch(() => Effect.void));
+      return Fiber.interrupt(current.fiber).pipe(Effect.catchCause(() => Effect.void));
     });
 
   const interrupt = (): void => {

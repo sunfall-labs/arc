@@ -11,11 +11,11 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review237 Solid Initial Failed Render
-Cleanup Sequencing, the fresh post-Review236 framework follow-up that moved
-initial failed Solid route frames into the same controller-owned Effect/Fiber
-cleanup chain as update-time failed frames. The newest full verification
-checkpoint is Review237.
+The newest completed focused review is Review238 Tooling Runner, Resource UI
+Observer, And Hover Cleanup, the fresh post-Review237 sweep that tightened the
+Effect command runner, moved `verify.mjs` onto the Effect v4 CLI command tree,
+closed a Resource UI cleanup defect, and refreshed LSP hovers. The newest full
+verification checkpoint is Review238.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -43,7 +43,8 @@ and the fresh post-Review233 sweep found Review234 work,
 and the fresh post-Review234 Solid route-render follow-up found Review235 work,
 and the fresh post-Review235 framework sweep found Review236 work,
 and the fresh post-Review236 framework follow-up found Review237 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review237
+and the fresh post-Review237 sweep found Review238 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review238
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -53,7 +54,7 @@ Review213, Review214, Review215, Review216, Review217, Review218, Review219,
 Review220, Review221, Review222, Review223, Review224, Review225,
 Review226, Review227, Review228, Review229, Review230, Review231, and
 Review232 Shared DB Query Stage Plan work, Review233 work, Review234 work,
-Review235 work, Review236 work, and Review237 work.
+Review235 work, Review236 work, Review237 work, and Review238 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -138,8 +139,69 @@ Effect and public-surface work, and the fresh post-Review234 Solid route-render
 follow-up found Review235 cleanup sequencing work, and the fresh post-Review235
 framework sweep found Review236 failed-render cleanup work, and the fresh
 post-Review236 framework follow-up found Review237 initial failed-render
-cleanup work,
+cleanup work, and the fresh post-Review237 sweep found Review238 tooling,
+Resource UI cleanup, and LSP hover work,
 so the counter remains 0/30.
+
+## Review 238: Tooling Runner, Resource UI Observer, And Hover Cleanup
+
+Review238 fixed the actionable findings from the fresh post-Review237 sweep.
+
+1. Effect Command Runner Process Ownership
+   - Status: fixed.
+   - Files: `scripts/effect-command-runner.mjs`,
+     `scripts/verify-effect-command-runner.mjs`, and `scripts/verify.mjs`.
+   - Problem: the script command runner killed only the direct child process
+     and collapsed signal exits into numeric exit-code failures. The workspace
+     verification runner also still parsed argv by hand instead of using the
+     Effect v4 CLI command tree.
+   - Fix: the runner now launches POSIX commands in their own process group,
+     uses a Windows process-tree fallback, preserves signal exit status in
+     `ScriptCommandError`, and verifies direct signal and grandchild cleanup.
+     `verify.mjs` now defines `effect-ui-verify` through Effect v4
+     `Command`/`Flag` primitives, with generated help and positive-concurrency
+     validation.
+   - Benefits: interrupted workspace verifies do not leave nested package
+     commands behind, signal failures are visible to callers, and the verify
+     command follows the same Effect CLI policy as Start.
+
+2. Resource UI Binding Cleanup Defects
+   - Status: fixed.
+   - Files: `packages/core/src/resource-ui-binding.ts`,
+     `packages/core/test/resource-ui-binding.test.ts`,
+     `packages/react/src/hooks.ts`, and `packages/solid/src/hooks.ts`.
+   - Problem: `onPreloadFailureChange` host callbacks could throw during
+     `disposeEffect()`, defecting a public no-error cleanup Effect while React
+     and Solid cleanup hooks only caught typed failures.
+   - Fix: the controller now swallows host setter defects at the boundary,
+     cleanup joins/interrupts use `Effect.catchCause(...)`, and React/Solid
+     cleanup hooks also catch defects when they fork controller cleanup.
+   - Benefits: preload-failure observer defects cannot break adapter teardown
+     or retained-ref cleanup.
+
+3. LSP Hover Corrections
+   - Status: fixed.
+   - Files: `packages/core/src/resource.ts`, `packages/core/src/route.ts`,
+     `packages/db/src/index.ts`, `packages/db/src/collection-contract.ts`,
+     `packages/react/src/router.ts`, `packages/start/src/file-route.ts`, and
+     `packages/start/src/hydration.ts`.
+   - Problem: important hovers either taught the wrong ownership model or were
+     missing on Start/Route integration helpers.
+   - Fix: `ResourceFamily` now describes definition/ref-factory ownership
+     rather than runtime cache ownership, DB examples return explicit Effects,
+     React `RouterOutlet` documents route-owned `UiScope` cleanup, Start
+     file-route builders and collection hydration have hovers, and Route
+     preload metadata helpers explain declared/unknown/none diagnostics.
+   - Benefits: LSP hovers now line up with the Effect-first ownership model
+     users need while writing apps.
+
+Focused verification passed: Effect command-runner self-test, verify CLI help
+and invalid-concurrency probes, Core Resource UI Binding tests 1 file / 13
+tests, Core/React/Solid typechecks, public type tests, public API audit,
+Effect-first audit over 411 files, and `git diff --check`. Full `pnpm verify`
+passed after Review238 with 53 root test files / 1154 tests. The active
+Thirty-Sweep clean counter remains 0/30 until a fresh post-Review238 sweep is
+clean.
 
 ## Review 237: Solid Initial Failed Render Cleanup Sequencing
 
@@ -166,7 +228,8 @@ fresh post-Review236 framework sweep.
 Focused verification passed: Solid typecheck, Solid router tests 1 file / 36
 tests, and `git diff --check`. Full `pnpm verify` passed after Review237 with
 53 root test files / 1153 tests. The active Thirty-Sweep clean counter remains
-0/30 until a fresh post-Review237 sweep is clean.
+0/30; the later fresh post-Review237 sweep found Review238 tooling, Resource
+UI cleanup, and LSP hover work.
 
 ## Review 236: Solid Failed Render Cleanup Sequencing
 

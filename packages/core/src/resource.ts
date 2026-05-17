@@ -380,10 +380,12 @@ const customResourceKey = (
 };
 
 /**
- * Runtime cache and state container for a set of resource refs.
+ * Resource family definition and stable ref factory.
  *
- * Most users create one through Resource.family and call the returned ref factory
- * instead of instantiating ResourceFamily directly.
+ * The family owns resource identity, key encoding, loader policy, and static
+ * metadata. Cache state, hydration snapshots, and request/runtime lifetime live
+ * in the active `ResourceStore`, not on the family itself. Most users create a
+ * family through `Resource.family(...)` and call the returned ref factory.
  */
 export class ResourceFamily<I, A, E = never, R = never> {
   constructor(readonly options: ResourceFamilyOptions<I, A, E, R>) {

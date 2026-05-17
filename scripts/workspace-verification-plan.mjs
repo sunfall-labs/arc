@@ -37,7 +37,8 @@ export const verifyPackageTargetsFromManifests = (manifests) =>
     .sort((left, right) => left.packageName.localeCompare(right.packageName));
 
 export const workspaceVerifyPackageTargetsEffect = (workspaceRoot) =>
-  collectWorkspacePackageManifests(workspaceRoot).pipe(
+  workspaceVerificationPlanSelfTestEffect.pipe(
+    Effect.flatMap(() => collectWorkspacePackageManifests(workspaceRoot)),
     Effect.map(verifyPackageTargetsFromManifests),
     Effect.flatMap((targets) =>
       targets.length === 0
@@ -51,35 +52,38 @@ export const workspaceVerifyPackageTargetsEffect = (workspaceRoot) =>
     )
   );
 
-const failSelfTest = (message) => {
-  console.error(message);
-  process.exit(1);
-};
+export const workspaceVerificationPlanSelfTestEffect = Effect.gen(function* () {
+  const selfTestTargets = verifyPackageTargetsFromManifests([
+    {
+      packageJson: {
+        name: "@effect-ui/example-devtools-panel",
+        scripts: { verify: "pnpm test" },
+      },
+    },
+    {
+      packageJson: {
+        name: "@effect-ui/no-verify",
+        scripts: { test: "vitest" },
+      },
+    },
+    {
+      packageJson: {
+        name: "@effect-ui/blank-verify",
+        scripts: { verify: "" },
+      },
+    },
+  ]);
 
-const selfTestTargets = verifyPackageTargetsFromManifests([
-  {
-    packageJson: {
-      name: "@effect-ui/example-devtools-panel",
-      scripts: { verify: "pnpm test" },
-    },
-  },
-  {
-    packageJson: {
-      name: "@effect-ui/no-verify",
-      scripts: { test: "vitest" },
-    },
-  },
-  {
-    packageJson: {
-      name: "@effect-ui/blank-verify",
-      scripts: { verify: "" },
-    },
-  },
-]);
-
-if (selfTestTargets.length !== 1 || selfTestTargets[0]?.packageName !== "@effect-ui/example-devtools-panel") {
-  failSelfTest("workspace verification plan self-test did not select exactly the package with a verify script.");
-}
-if (selfTestTargets[0]?.label !== "devtools panel") {
-  failSelfTest("workspace verification plan self-test did not apply package labels.");
-}
+  if (selfTestTargets.length !== 1 || selfTestTargets[0]?.packageName !== "@effect-ui/example-devtools-panel") {
+    return yield* Effect.fail(fail(
+      "Workspace verification plan self-test did not select exactly the package with a verify script.",
+      "Fix verifyPackageTargetsFromManifests before running workspace verification."
+    ));
+  }
+  if (selfTestTargets[0]?.label !== "devtools panel") {
+    return yield* Effect.fail(fail(
+      "Workspace verification plan self-test did not apply package labels.",
+      "Fix workspaceVerifyLabel before running workspace verification."
+    ));
+  }
+});

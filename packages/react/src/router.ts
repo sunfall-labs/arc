@@ -195,7 +195,12 @@ export const useRouter = <
   return router as unknown as BrowserRouter<Routes, ER>;
 };
 
-/** Renders the matched route component. */
+/**
+ * Renders the matched route component inside a route-owned `UiScope`.
+ *
+ * React commits the scope before route effects become visible and disposes the
+ * previous scope through the route runtime when the outlet changes or unmounts.
+ */
 export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
   props: RouterOutletProps<RoutesOrError, ER>
 ): ReactNode => {

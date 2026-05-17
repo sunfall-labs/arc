@@ -443,6 +443,7 @@ export namespace Route {
   export type Match<R extends Definition<string, unknown, unknown, any> = Definition<string, unknown, unknown, any>> =
     RouteMatch<R>;
 
+  /** Preload result collected for one matched route before navigation/render. */
   export type PreloadPlan<R extends Definition<string, unknown, unknown, any> = Definition<string, unknown, unknown, any>> =
     RoutePreloadPlan<R>;
 
@@ -455,20 +456,26 @@ export namespace Route {
 
   export type Search<R> = RouteSearch<R>;
 
+  /** Service requirements needed by a route preload callback. */
   export type PreloadRequirements<R> = RoutePreloadRequirements<R>;
 
   export type HrefOptions<R extends Definition<string, unknown, unknown, any>> = RouteHrefOptions<R>;
 
   export type HrefArgs<R extends Definition<string, unknown, unknown, any>> = RouteHrefArgs<R>;
 
+  /** Static resource preload hint accepted by Route and Start file-route APIs. */
   export type PreloadResourceInput = RoutePreloadResourceInput;
 
+  /** Resource preload diagnostics consumed by Start manifests and devtools. */
   export type PreloadResourceDiagnostics = RoutePreloadResourceDiagnostics;
 
+  /** Static collection preload hint accepted by Route and Start file-route APIs. */
   export type PreloadCollectionInput = RoutePreloadCollectionInput;
 
+  /** Collection preload diagnostics consumed by Start manifests and devtools. */
   export type PreloadCollectionDiagnostics = RoutePreloadCollectionDiagnostics;
 
+  /** Error union for running route preload and resource hydration planning. */
   export type PreloadError = RoutePreloadPlanError;
 
   export type NavigationError = RouteNavigationPlanError;
@@ -573,16 +580,25 @@ export namespace Route {
     match: Match<R>
   ): Effect.Effect<void, RoutePreloadError, PreloadRequirements<R>> => preloadEffect(match);
 
+  /** Returns sorted resource family names statically declared by a route. */
   export const preloadResourceFamilies = <R extends Definition<string, unknown, unknown, any>>(
     definition: R
   ): readonly string[] =>
     uniqueSortedResourceFamilies(definition.options.preloadResources ?? []);
 
+  /** Returns sorted collection names statically declared by a route. */
   export const preloadCollectionNames = <R extends Definition<string, unknown, unknown, any>>(
     definition: R
   ): readonly string[] =>
     uniqueSortedCollectionNames(definition.options.preloadCollections ?? []);
 
+  /**
+   * Describes route resource preload metadata for manifests and devtools.
+   *
+   * `declared` means the route provided static resource hints, `none` means the
+   * route has no preload work, and `unknown` means custom preload work exists
+   * but no static resource hints were declared.
+   */
   export const describePreloadResources = <R extends Definition<string, unknown, unknown, any>>(
     definition: R
   ): RoutePreloadResourceDiagnostics => {
@@ -604,6 +620,13 @@ export namespace Route {
         };
   };
 
+  /**
+   * Describes route collection preload metadata for manifests and devtools.
+   *
+   * `declared` means the route provided static collection hints, `none` means
+   * the route has no preload work, and `unknown` means custom preload work
+   * exists but no static collection hints were declared.
+   */
   export const describePreloadCollections = <R extends Definition<string, unknown, unknown, any>>(
     definition: R
   ): RoutePreloadCollectionDiagnostics => {
@@ -625,6 +648,7 @@ export namespace Route {
         };
   };
 
+  /** Runs matched route preload and captures touched resources for hydration. */
   export const planPreloadEffect = <R extends Definition<string, unknown, unknown, any>>(
     match: Match<R>
   ): Effect.Effect<PreloadPlan<R>, RoutePreloadPlanError, PreloadRequirements<R>> =>
@@ -640,6 +664,7 @@ export namespace Route {
       )
     );
 
+  /** Alias for `planPreloadEffect`; kept Effect-first for adapters and tests. */
   export const planPreload = <R extends Definition<string, unknown, unknown, any>>(
     match: Match<R>
   ): Effect.Effect<PreloadPlan<R>, RoutePreloadPlanError, PreloadRequirements<R>> => planPreloadEffect(match);

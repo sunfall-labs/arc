@@ -241,6 +241,34 @@ describe("Resource UI Binding Controller", () => {
     );
   });
 
+  it("disposeEffect swallows preload failure observer defects", () => {
+    const runtime = makeRuntime();
+    const ProjectById = Resource.family<string, Project>({
+      name: "ResourceUiBinding.dispose-observer-defect",
+      load: (id) => Effect.succeed({ id, name: id })
+    });
+    const ref = ProjectById("atlas");
+    let observerCalls = 0;
+    const controller = makeResourceUiBindingController<string, Project, never, never, never>({
+      runtime,
+      onPreloadFailureChange: () => {
+        observerCalls++;
+        throw new Error("host setter gone");
+      }
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        controller.bindRef(ref);
+        yield* controller.disposeEffect();
+
+        const store = unsafeMutableResourceStore(runtime.resourceStore);
+        expect([...store.retainedRefs.entries()]).toEqual([]);
+        expect(observerCalls).toBeGreaterThan(0);
+      }).pipe(Effect.ensuring(runtime.disposeEffect))
+    );
+  });
+
   it("interrupts automatic preloads through an awaitable Effect", () => {
     const runtime = makeRuntime();
     return Effect.runPromise(
