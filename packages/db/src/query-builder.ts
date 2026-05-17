@@ -45,6 +45,8 @@ import type {
   CollectionRowValue
 } from "./collection-contract.js";
 
+const QueryBuilderTypeId: unique symbol = Symbol.for("@effect-ui/db/QueryBuilder") as typeof QueryBuilderTypeId;
+
 /**
  * Immutable builder for collection-backed queries.
  *
@@ -52,6 +54,7 @@ import type {
  * synchronously; `Query.onceEffect` and `Query.live` preload sources first.
  */
 export interface QueryBuilderInterface<TContext extends AnyQueryContext, TResult, E = never, R = never> {
+  readonly [QueryBuilderTypeId]: typeof QueryBuilderTypeId;
   readonly Type?: {
     readonly Error: E;
     readonly Requirements: R;
@@ -134,6 +137,7 @@ export interface QueryBuilderInterface<TContext extends AnyQueryContext, TResult
 }
 
 export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, R = never> {
+  declare readonly [QueryBuilderTypeId]: typeof QueryBuilderTypeId;
   declare readonly Type?: {
     readonly Error: E;
     readonly Requirements: R;

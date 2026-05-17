@@ -624,6 +624,7 @@ const planCollectionsHydrationEffect = (
     return { store, entries };
   });
 
+/** Creates in-memory key/value storage for collection persistence tests and demos. */
 export const makeCollectionMemoryStorage = (initial?: Iterable<readonly [string, string]>): CollectionMemoryStorage => {
   const values = new Map(initial);
   return {
@@ -641,6 +642,7 @@ export const makeCollectionMemoryStorage = (initial?: Iterable<readonly [string,
   };
 };
 
+/** Adapts synchronous Web Storage-like hosts into Effect-aware collection persistence storage. */
 export const collectionStorageFromSync = (storage: CollectionStorageLike): CollectionPersistenceStorage<CollectionStorageError, never> => {
   return {
     getItem: (key) =>

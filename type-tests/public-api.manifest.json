@@ -7,6 +7,33 @@
       "source": "packages/core/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/core.test-d.ts",
+      "sourceSurface": [
+        "action",
+        "action-result",
+        "action-submission",
+        "app",
+        "browser-router",
+        "capability",
+        "definition-registry",
+        "effect-like",
+        "form",
+        "program",
+        "read",
+        "request-context",
+        "resource",
+        "resource-registry",
+        "resource-snapshot-codec",
+        "resource-store",
+        "resource-ui-binding",
+        "route",
+        "route-grammar",
+        "runtime",
+        "runtime-provider-lifecycle",
+        "scope",
+        "server",
+        "signal",
+        "stable-stringify"
+      ],
       "requiredTypeTestImports": [
         "ActionConcurrency",
         "ActionDefinition",
@@ -84,6 +111,7 @@
         "ServerCollectionMissingIdentity",
         "UnknownCollectionIndex",
         "and",
+        "backgroundSyncCollectionsPendingMutationsEffect",
         "bindCollectionRuntimeEffect",
         "collectionReactiveDepsValue",
         "collectionStateError",
@@ -117,6 +145,7 @@
         "neq",
         "not",
         "or",
+        "persistedCollectionOptions",
         "UnsupportedLiveQuery"
       ],
       "typeTestReferences": [
@@ -187,6 +216,12 @@
       "source": "packages/react/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/react.test-d.ts",
+      "sourceSurface": [
+        "hooks",
+        "link",
+        "router",
+        "runtime"
+      ],
       "requiredTypeTestImports": [
         "Action",
         "ActionHandle",
@@ -267,6 +302,12 @@
       "source": "packages/solid/src/index.ts",
       "docs": "docs/public-api-inventory.md",
       "typeTest": "type-tests/solid.test-d.ts",
+      "sourceSurface": [
+        "hooks",
+        "link",
+        "router",
+        "runtime"
+      ],
       "requiredTypeTestImports": [
         "Action",
         "ActionHandle",

@@ -339,9 +339,9 @@ Release decisions:
 - `resource-ui-binding` is an expert-public Resource UI Binding Controller
   Module for framework adapters. It owns Resource ref identity, runtime-bound
   refresh/prefetch Effects, automatic preload fibers, keyed preload failures,
-  observer failure swallowing, stale preload interruption, and Suspense
-  preload-token dedupe. React and Solid still own host reactivity and host
-  Suspense throwing.
+  observer failure swallowing, stale preload interruption, retained-ref cleanup
+  through `disposeEffect()`, and Suspense preload-token dedupe. React and Solid
+  still own host reactivity and host Suspense throwing.
 - `action-submission`, `definition-registry`, `resource-registry`,
   `resource-snapshot-codec`, `resource-ui-binding`, and `route-grammar` are
   expert-public Modules.
@@ -904,10 +904,11 @@ Release decisions:
   source, aggregate, build, diagnostics, once, and live helpers, so this
   factory-result guidance stays visible in LSP hovers. The concrete
   `QueryBuilder` constructor is not a package-root export; public callers use
-  `Query.from(...)`, factory callbacks, and the `Query.Builder` fluent
+  `Query.from(...)`, factory callbacks, and the branded `Query.Builder` fluent
   Interface so the Query Module owns builder construction and execution-plan
-  storage. Public `LiveQuery` handles expose data/state/source metadata and
-  lifecycle Effects, not the internal builder.
+  storage. Structural fake builders are rejected at the type seam and runtime
+  factory seam. Public `LiveQuery` handles expose data/state/source metadata
+  and lifecycle Effects, not the internal builder.
 - `QueryGroupKey` and `Query.GroupKey` are the public grouped-query key
   contracts for `Query.groupBy(...)`. They reject Promise-shaped values inside
   nested records, arrays, Maps, and Sets at the type seam, and runtime evaluation reports
@@ -1104,6 +1105,10 @@ Release decisions:
   Promise-shaped observers are rejected, observer failures are swallowed after
   the disposal failure is observed, and the prop is intentionally unavailable
   for host-owned `runtime` props.
+- React `useComponentScope(...)` and `useScoped(...)` install a commit-gated
+  `UiScope`: render-time reads can observe the Runtime Spine, but scoped
+  finalizers and forks are rejected until React commits the component so
+  abandoned renders cannot leak Effect work.
 - React router helpers mirror the Solid route helper surface while exposing
   state through Effect UI `Signal` values that React components consume via
   `useSignal(...)`.

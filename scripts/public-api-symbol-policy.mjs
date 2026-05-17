@@ -725,6 +725,15 @@ export const publicHoverDocGroups = [
     }
   },
   {
+    file: "packages/db/src/collection-persistence.ts",
+    declarations: [
+      "CollectionStorageError",
+      "collectionStorageFromSync",
+      "makeCollectionMemoryStorage",
+      "persistedCollectionOptions"
+    ]
+  },
+  {
     file: "packages/db/src/flush-policy.ts",
     declarations: [
       "FlushCollectionPendingMutationsContext",

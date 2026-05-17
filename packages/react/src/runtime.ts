@@ -1,7 +1,6 @@
 import {
   currentOrDefaultRuntime,
   disposeRuntimeProviderLifecycleEffect,
-  makeRuntimeUiScopeFrame,
   makeRuntime,
   makeRuntimeProviderLifecycleEntry,
   runWithScope,
@@ -9,17 +8,20 @@ import {
   type AnyEffectUiRuntime,
   type EffectInput,
   type EffectUiRuntime,
+  type ForkScopedOptions,
   type RuntimeDisposeError,
   type RuntimeProviderLifecycleEntry,
   type RuntimeUiScopeFrame,
-  type UiScope
+  UiScope,
+  UiScopeDisposed
 } from "@effect-ui/core";
-import { Effect, Layer, ManagedRuntime } from "effect";
+import { Effect, Fiber, Layer, ManagedRuntime, Scope } from "effect";
 import {
   createContext,
   createElement,
   useContext,
   useEffect,
+  useLayoutEffect,
   useRef,
   type ReactNode
 } from "react";
@@ -77,6 +79,58 @@ export const createEffectRuntime = makeRuntime;
 export const useRuntime = <ER = never>(): AnyEffectUiRuntime<ER> =>
   (useContext(RuntimeContext) ?? currentOrDefaultRuntime()) as AnyEffectUiRuntime<ER>;
 
+class ReactCommitUiScope extends UiScope {
+  private committed = false;
+
+  commit(): void {
+    this.committed = true;
+  }
+
+  private assertCommitted(operation: string): void {
+    if (!this.committed) {
+      throw new UiScopeDisposed({ operation });
+    }
+  }
+
+  override addFinalizer(finalizer: () => EffectInput<void>): void {
+    this.assertCommitted("React.useComponentScope.addFinalizer");
+    super.addFinalizer(finalizer);
+  }
+
+  override fork<A, E>(
+    effect: Effect.Effect<A, E, Scope.Scope>,
+    options?: ForkScopedOptions
+  ): Fiber.Fiber<A, E> {
+    this.assertCommitted("React.useComponentScope.fork");
+    return super.fork(effect, options);
+  }
+}
+
+interface ReactRuntimeUiScopeFrame<ER> extends RuntimeUiScopeFrame<ER> {
+  commit(): void;
+}
+
+const makeReactRuntimeUiScopeFrame = <ER>(
+  runtime: AnyEffectUiRuntime<ER>
+): ReactRuntimeUiScopeFrame<ER> => {
+  const scope = new ReactCommitUiScope({
+    runLateFinalizer: (effect) => {
+      void runtime.runFork(effect);
+    }
+  });
+
+  return {
+    runtime,
+    scope,
+    commit: () => {
+      scope.commit();
+    },
+    run: (f) => runWithRuntime(runtime, () => runWithScope(scope, f)),
+    disposeEffect: () =>
+      runtime.provide(scope.disposeEffect()).pipe(Effect.catchCause(() => Effect.void))
+  };
+};
+
 /**
  * Provides an Effect UI runtime to React children.
  *
@@ -128,24 +182,31 @@ export const RuntimeProvider = <RuntimeServices = never, ER = never>(
   });
 };
 
-/** Creates a `UiScope` bound to the current React component cleanup. */
+/**
+ * Creates a `UiScope` bound to the current React component cleanup.
+ *
+ * Scoped finalizers and forks are accepted only after React commits the
+ * component. Render-time reads can use the scope, but render-time background
+ * work is rejected so abandoned renders cannot leak Effects.
+ */
 export const useComponentScope = (): UiScope => {
   const runtime = useRuntime();
   const scopeRef = useRef<{
     readonly runtime: AnyEffectUiRuntime<unknown>;
-    readonly frame: RuntimeUiScopeFrame<unknown>;
+    readonly frame: ReactRuntimeUiScopeFrame<unknown>;
   } | undefined>(undefined);
 
   if (scopeRef.current === undefined || scopeRef.current.runtime !== runtime) {
     scopeRef.current = {
       runtime,
-      frame: makeRuntimeUiScopeFrame(runtime)
+      frame: makeReactRuntimeUiScopeFrame(runtime)
     };
   }
 
   const frame = scopeRef.current.frame;
 
-  useEffect(() => {
+  useLayoutEffect(() => {
+    frame.commit();
     return () => {
       void runtime.runFork(frame.disposeEffect());
     };
@@ -154,7 +215,7 @@ export const useComponentScope = (): UiScope => {
   return frame.scope;
 };
 
-/** Runs synchronous construction while the component `UiScope` is ambient. */
+/** Runs synchronous, render-safe construction while the component `UiScope` is ambient. */
 export const useScoped = <A>(f: (scope: UiScope) => A): A => {
   const runtime = useRuntime();
   const scope = useComponentScope();

@@ -134,6 +134,9 @@ zero hits.
 - The DB `QueryRoot.from(...)` constructor now instantiates `QueryBuilder` with
   the intended context/result types directly instead of casting the builder
   through `never`.
+- Public `Query.Builder` is now branded at the Type Interface, so callers cannot
+  structurally forge builders while the implementation keeps query-plan storage
+  local to the DB Query Builder Module.
 - The DB incremental live-query custom `flatMap` operator now registers through
   a named `IOperator` bridge instead of casting the operator object through
   `never`; the bridge documents the `@tanstack/db-ivm` gap where
@@ -153,9 +156,9 @@ zero hits.
 
 ## Verification Evidence
 
-The current full verification gate is recorded in the Review 229 ledgers: 11
+The current full verification gate is recorded in the Review 230 ledgers: 11
 package builds, workspace typecheck, type tests, public API inventory audit,
-Effect-first audit over 411 files, 53 root test files / 1139 tests,
+Effect-first audit over 411 files, 53 root test files / 1141 tests,
 package-level verifies, generated starter-suite packaging/verifies for
 basic/react/project-console, 16-target package dry-run gate, project-console
 typecheck, 4 project-console test files / 27 tests, build, and leak scans. The

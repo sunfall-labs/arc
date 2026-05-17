@@ -1,4 +1,4 @@
-import { Action, makeRuntime, Program, Resource, ResourceStoreDisposeError, RuntimeDisposeError, Signal } from "@effect-ui/core";
+import { Action, makeRuntime, Program, Resource, ResourceStoreDisposeError, RuntimeDisposeError, Signal, UiScopeDisposed, watch } from "@effect-ui/core";
 import { Window } from "happy-dom";
 import { Cause, Context, Deferred, Effect, Fiber, Layer, Scope, Stream } from "effect";
 import { Suspense, act, createElement, useEffect, useState } from "react";
@@ -207,6 +207,34 @@ describe("react hooks", () => {
     } finally {
       await Effect.runPromise(runtime.disposeEffect);
     }
+  });
+
+  it("rejects render-time scoped work before React commit", async () => {
+    const runtime = makeRuntime();
+    const signal = Signal.make(0);
+
+    function Capture() {
+      return useScoped(() => {
+        watch(() => signal.get(), () => Effect.void);
+        return null;
+      });
+    }
+
+    await expect(
+      withReactRoot(async (root) => {
+        await act(async () => {
+          root.render(
+            createElement(
+              RuntimeProvider,
+              { runtime },
+              createElement(Capture)
+            )
+          );
+        });
+      })
+    ).rejects.toBeInstanceOf(UiScopeDisposed);
+
+    await Effect.runPromise(runtime.disposeEffect);
   });
 
   it("bridges same-ref delete and reload through React resource handles", async () => {

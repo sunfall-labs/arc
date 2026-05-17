@@ -78,8 +78,8 @@ export interface ResourceUiBindingControllerOptions<I, A, E, R, ER> {
  * React and Solid own their host reactivity and Suspense integration. This
  * controller owns the Resource-specific policy that should not drift between
  * adapters: ref identity, runtime-bound refresh/prefetch Effects, automatic
- * preload fibers, keyed preload failures, observer failure swallowing, and
- * stale preload interruption.
+ * preload fibers, keyed preload failures, observer failure swallowing, stale
+ * preload interruption, and retained-ref cleanup.
  */
 export interface ResourceUiBindingController<I, A, E, R, ER> {
   /** Runtime-bound Resource result signal for the supplied ref. */
@@ -94,7 +94,9 @@ export interface ResourceUiBindingController<I, A, E, R, ER> {
   startInitialPreload(ref: ResourceRef<I, A, E, R>, options?: ResourceUiAutoPreloadOptions<E, ER>): void;
   /** Interrupts the current automatic preload join fiber, if any. */
   interruptPreload(): void;
-  /** Disposes controller-owned preload work. */
+  /** Disposes controller-owned preload and retained-ref work as an Effect. */
+  disposeEffect(): Effect.Effect<void>;
+  /** Runtime-owned synchronous convenience for UI adapter cleanup hooks. */
   dispose(): void;
   /** Returns the current automatic preload failure only when it belongs to `ref`. */
   preloadFailureFor(ref: ResourceRef<I, A, E, R>): ResourceLoadError<E> | ER | undefined;
@@ -218,6 +220,15 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
     }
   };
 
+  const interruptPreloadEffect = (): Effect.Effect<void> =>
+    Effect.gen(function* () {
+      const current = preload;
+      preload = undefined;
+      if (current !== undefined) {
+        yield* Fiber.interrupt(current.fiber).pipe(Effect.catch(() => Effect.void));
+      }
+    });
+
   const interruptPreload = (): void => {
     const current = preload;
     preload = undefined;
@@ -247,6 +258,16 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
       forkRetentionEffect(releaseResourceRefEffect(current));
     }
   };
+
+  const disposeEffect = (): Effect.Effect<void> =>
+    Effect.gen(function* () {
+      yield* interruptPreloadEffect();
+      releaseRetainedRef();
+      const currentRetention = retentionFiber;
+      if (currentRetention !== undefined) {
+        yield* Fiber.join(currentRetention).pipe(Effect.catch(() => Effect.void));
+      }
+    });
 
   const retainRef = (ref: ResourceRef<I, A, E, R>): void => {
     retainedRef = ref;
@@ -331,9 +352,9 @@ export const makeResourceUiBindingController = <I, A, E, R = unknown, ER = never
     bindRef,
     startInitialPreload,
     interruptPreload,
+    disposeEffect,
     dispose: () => {
-      interruptPreload();
-      releaseRetainedRef();
+      void options.runtime.runFork(disposeEffect());
     },
     preloadFailureFor: (ref) => resourceUiPreloadFailureFor(preloadFailure, ref)
   };

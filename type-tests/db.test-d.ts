@@ -21,6 +21,7 @@ import {
   CollectionTypeId,
   ReadonlyCollectionMutation,
   UnknownCollectionIndex,
+  backgroundSyncCollectionsPendingMutationsEffect,
   bindCollectionRuntimeEffect,
   collectionReactiveDepsValue,
   collectionStateError,
@@ -55,6 +56,7 @@ import {
   neq,
   not,
   or,
+  persistedCollectionOptions,
   UnsupportedLiveQuery,
   type AnyCollection,
   type CollectionBackgroundSyncResult,
@@ -125,6 +127,22 @@ const sqliteNamespaceMemoryDatabase: SQLitePersistence.MemoryStatementDatabase =
 const sqliteNamespaceStorage = SQLitePersistence.storage(
   SQLitePersistence.statementDriver(sqliteNamespaceMemoryDatabase)
 );
+const persistedProjectOptions = persistedCollectionOptions<
+  Project,
+  string,
+  never,
+  never,
+  EffectInputCallbackError | SQLitePersistenceInvalidRow | SQLitePersistenceInvalidTableName
+>({
+  name: "type-tests/persisted-projects",
+  getKey: (project) => project.id,
+  initialData: [],
+  persistence: {
+    storage: sqliteNamespaceStorage
+  }
+});
+const backgroundSyncEffect: Effect.Effect<CollectionBackgroundSyncResult, unknown> =
+  backgroundSyncCollectionsPendingMutationsEffect([dbStaticProjectsCollection]);
 const sqliteRow: SQLitePersistenceRow = {
   namespace: "workspace",
   key: "projects",
@@ -140,6 +158,21 @@ const publicQueryBuilder: Query.Builder<any, Project, any, any> =
 const publicQueryRows: ReadonlyArray<Project> = publicQueryBuilder.execute();
 // @ts-expect-error public Query.Builder does not expose execution-plan internals.
 publicQueryBuilder.sources;
+declare const neverQueryBuilder: Query.Builder<any, never, any, any>;
+// @ts-expect-error public Query.Builder is branded; use Query.from(...) instead of structural fakes.
+const structuralQueryBuilder: Query.Builder<any, Project, any, any> = {
+  where: () => neverQueryBuilder,
+  select: () => neverQueryBuilder,
+  join: () => neverQueryBuilder,
+  joinIndexed: () => neverQueryBuilder,
+  innerJoin: () => neverQueryBuilder,
+  innerJoinIndexed: () => neverQueryBuilder,
+  groupBy: () => neverQueryBuilder,
+  orderBy: () => neverQueryBuilder,
+  offset: () => neverQueryBuilder,
+  limit: () => neverQueryBuilder,
+  execute: () => []
+};
 const publicLiveQuery = Query.live((query) =>
   query.from({ project: dbStaticProjectsCollection }).select(({ project }) => project)
 );
@@ -225,6 +258,7 @@ const dbExports: Array<unknown> = [
   CollectionRowNotFound,
   ReadonlyCollectionMutation,
   CollectionSnapshotCodecError,
+  backgroundSyncCollectionsPendingMutationsEffect,
   bindCollectionRuntimeEffect,
   collectionReactiveDepsValue,
   collectionStateError,
@@ -234,6 +268,7 @@ const dbExports: Array<unknown> = [
   defaultCollectionDefinitionRegistry,
   eq,
   flushCollectionsPendingMutationsEffect,
+  persistedCollectionOptions,
   isCollection,
   liveQueryStateError,
   makeCollectionDefinitionRegistry,
@@ -253,6 +288,8 @@ const dbExports: Array<unknown> = [
   sqliteStorage,
   sqlitePreparedAdapter,
   sqliteNamespaceStorage,
+  persistedProjectOptions,
+  backgroundSyncEffect,
   sqliteRow,
   collectionAlias,
   liveQueryAlias,

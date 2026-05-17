@@ -415,6 +415,7 @@ const resourceUiBindingControllerOptions: ResourceUiBindingControllerOptions<str
 };
 const resourceUiBindingController: ResourceUiBindingController<string, string, string, never, never> =
   makeResourceUiBindingController(resourceUiBindingControllerOptions);
+const resourceUiBindingDisposeEffect: Effect.Effect<void> = resourceUiBindingController.disposeEffect();
 const resourceUiAutoPreloadOptions: ResourceUiAutoPreloadOptions<string, never> = {
   preload: true,
   onPreloadFailure: () => undefined
@@ -621,6 +622,7 @@ void typeTestResourceHydrationPayload;
 void typeTestResourceHydrationInput;
 void typeTestResourceNamespacePayload;
 void resourceUiBindingController;
+void resourceUiBindingDisposeEffect;
 void resourceUiAutoPreloadOptions;
 void resourceUiAutoPreloadEffectOptions;
 void resourceUiPreloadFailure;

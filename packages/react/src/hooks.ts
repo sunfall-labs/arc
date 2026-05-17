@@ -398,9 +398,9 @@ const useResourceBinding = <I, A, E, R = unknown, ER = never>(
 
   useEffect(() => {
     return () => {
-      controller.dispose();
+      void runtime.runFork(controller.disposeEffect().pipe(Effect.catch(() => Effect.void)));
     };
-  }, [controller]);
+  }, [runtime, controller]);
 
   useEffect(() => {
     controller.startInitialPreload(currentRef, {

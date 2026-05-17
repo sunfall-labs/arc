@@ -121,6 +121,12 @@ are easiest to regress while refactoring internals toward Effect primitives.
   `Collection.Store.disposeEffect`, `LiveQuery.builder`, and QueryBuilder plan
   fields are not public API. It moved the current full verification evidence
   to the Review229 gate.
+- Review230 added a branded `Query.Builder` structural-fake negative pin, Core
+  Resource UI Binding `disposeEffect()` public type ownership, DB
+  `persistedCollectionOptions(...)` and
+  `backgroundSyncCollectionsPendingMutationsEffect(...)` root pins, and
+  Core/React/Solid source-surface manifest ownership. It moved the current full
+  verification evidence to the Review230 gate.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them
@@ -240,11 +246,14 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Verification Evidence
 
-- `pnpm typecheck:types` and full `pnpm verify` passed after Review229 with
-  53 root test files / 1139 tests, including the latest Core helper ownership
-  pins, Stable Identity Codec pins, Resource duration pins, Start action bridge
-  pins, Core Resource direct symbol pins, Solid path-helper pins, DB Query/Store
-  public-surface negative pins, DB `QueryBuilder` root-export negative pin,
+- `pnpm typecheck:types` and full `pnpm verify` passed after Review230 with
+  53 root test files / 1141 tests, including the latest branded
+  `Query.Builder` negative pin, Resource UI Binding `disposeEffect()` pin,
+  DB persistence/background-sync root pins, Core/React/Solid source-surface
+  manifest pins, Core helper ownership pins, Stable Identity Codec pins,
+  Resource duration pins, Start action bridge pins, Core Resource direct symbol
+  pins, Solid path-helper pins, DB Query/Store public-surface negative pins,
+  DB `QueryBuilder` root-export negative pin,
   Core `isPromiseLikeValue(...)` pin, direct DB root export pins, Start
   diagnostics CLI loader Effect-only negative pin, Resource
   hydration top-level

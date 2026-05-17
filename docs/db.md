@@ -113,8 +113,8 @@ without choosing between correctness, inspectability, and ergonomics.
   collections.
 - Live query filters and joins run through `@tanstack/db-ivm`, TanStack DB's
   differential-dataflow / incremental-view-maintenance engine.
-- Grouped aggregate ordering plus `limit` / `offset` windows are maintained
-  inside the D2 graph.
+- Grouped aggregate ordering plus ordered `limit` / `offset` windows are
+  maintained inside the D2 graph.
 - `@effect-ui/react-db` and `@effect-ui/solid-db` adapt collections and live
   queries to framework-local state/accessors.
 
@@ -134,11 +134,11 @@ const ActiveProjectNames = Query.live((query) =>
 
 The concrete `QueryBuilder` constructor is internal to the package source; apps
 use `Query.from(...)`, `Query.build(...)`, `Query.onceEffect(...)`,
-`Query.live(...)`, and the `Query.Builder` fluent Interface. The public
-builder type does not expose execution-plan storage, and public `LiveQuery`
-handles expose data/state/source metadata and lifecycle Effects rather than the
-internal builder. That keeps malformed builder construction and plan mutation
-behind the Query Module seam.
+`Query.live(...)`, and the branded `Query.Builder` fluent Interface. The
+public builder type does not expose execution-plan storage and cannot be
+structurally faked, and public `LiveQuery` handles expose data/state/source
+metadata and lifecycle Effects rather than the internal builder. That keeps
+malformed builder construction and plan mutation behind the Query Module seam.
 
 Internally, Query Builder, Query Execution Plan, Live Query State, and Live
 Query Runtime read source collections through the Collection Query Source

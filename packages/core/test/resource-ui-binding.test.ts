@@ -72,7 +72,7 @@ describe("Resource UI Binding Controller", () => {
         expect(prefetched).toEqual({ id: "atlas", name: "Atlas" });
         expect(refreshed).toEqual({ id: "atlas", name: "Atlas" });
       }).pipe(
-        Effect.ensuring(Effect.sync(() => controller.dispose())),
+        Effect.ensuring(controller.disposeEffect()),
         Effect.ensuring(runtime.disposeEffect)
       )
     );
@@ -130,7 +130,7 @@ describe("Resource UI Binding Controller", () => {
         expect(controller.preloadFailureFor(failedRef)).toBe(failure);
         expect(observedThroughEffect).toEqual([failure]);
       }).pipe(
-        Effect.ensuring(Effect.sync(() => controller.dispose())),
+        Effect.ensuring(controller.disposeEffect()),
         Effect.ensuring(runtime.disposeEffect)
       )
     );
@@ -178,7 +178,7 @@ describe("Resource UI Binding Controller", () => {
         expect(controller.preloadFailureFor(refreshRef)).toBeUndefined();
         expect(changes.at(-1)).toBeUndefined();
       }).pipe(
-        Effect.ensuring(Effect.sync(() => controller.dispose())),
+        Effect.ensuring(controller.disposeEffect()),
         Effect.ensuring(runtime.disposeEffect)
       )
     );
@@ -207,9 +207,37 @@ describe("Resource UI Binding Controller", () => {
           [resourceRefStoreKey(secondRef), 1]
         ]);
       }).pipe(
-        Effect.ensuring(Effect.sync(() => controller.dispose())),
+        Effect.ensuring(controller.disposeEffect()),
         Effect.ensuring(runtime.disposeEffect)
       )
+    );
+  });
+
+  it("disposeEffect releases retained refs before completing", () => {
+    const runtime = makeRuntime();
+    const ProjectById = Resource.family<string, Project>({
+      name: "ResourceUiBinding.dispose-retention",
+      load: (id) => Effect.succeed({ id, name: id })
+    });
+    const ref = ProjectById("atlas");
+    const controller = makeResourceUiBindingController<string, Project, never, never, never>({
+      runtime
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        controller.bindRef(ref);
+        yield* Effect.sleep("20 millis");
+
+        const store = unsafeMutableResourceStore(runtime.resourceStore);
+        expect([...store.retainedRefs.entries()]).toEqual([
+          [resourceRefStoreKey(ref), 1]
+        ]);
+
+        yield* controller.disposeEffect();
+
+        expect([...store.retainedRefs.entries()]).toEqual([]);
+      }).pipe(Effect.ensuring(runtime.disposeEffect))
     );
   });
 

@@ -11,11 +11,11 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review229, the post-Review228 sweep
-fixing Start action public ownership, Effect command-runner output fiber
-lifetime, DB store/query public seams, Solid router path-helper type pins, Core
-Action reset runtime ownership, and direct Core Resource symbol ownership. The
-newest full verification checkpoint is Review229.
+The newest completed focused review is Review230, the post-Review229 sweep
+fixing branded DB query builders, Effect-first Resource UI Binding disposal,
+React commit-gated component scopes, manifest-owned source surfaces, DB
+persisted/background-sync public pins, and D2 locality docs wording. The newest
+full verification checkpoint is Review230.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -35,7 +35,8 @@ and the post-Review225 sweep found Review226 work,
 and the post-Review226 sweep found Review227 work,
 and the post-Review227 sweep found Review228 work,
 and the post-Review228 sweep found Review229 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review229
+and the post-Review229 sweep found Review230 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review230
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -43,7 +44,7 @@ Review199, Review200, Review201, Review202, Review203, Review204, Review205,
 Review206, Review207, Review208, Review209, Review210, Review211, Review212,
 Review213, Review214, Review215, Review216, Review217, Review218, Review219,
 Review220, Review221, Review222, Review223, Review224, Review225,
-Review226, Review227, Review228, and Review229 work.
+Review226, Review227, Review228, Review229, and Review230 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -117,8 +118,77 @@ work,
 and the post-Review227 sweep found Review228 Core, DB, and Start public seam
 work,
 and the post-Review228 sweep found Review229 Core, Solid, DB, Start, and script
-public seam work,
+public seam work, and the post-Review229 sweep found Review230 Core/React/Solid
+Resource UI Binding, DB query/public-surface, and docs/LSP ownership work,
 so the counter remains 0/30.
+
+## Review 230: Branded Builders And Effect-First UI Disposal
+
+Review230 fixed actionable findings from the fresh post-Review229 sweep.
+
+1. DB Query Builder Type Seam
+   - Status: fixed.
+   - Files: `packages/db/src/query-builder.ts`, `docs/db.md`,
+     `docs/public-api-inventory.md`, and `type-tests/db.test-d.ts`.
+   - Problem: public `Query.Builder` was structurally forgeable at the Type
+     Interface even though the runtime Seam rejects fake builders.
+   - Fix: `Query.Builder` now carries an internal brand, the public docs name
+     the branded DSL contract, and type tests reject structural fake builders.
+   - Benefits: the Type Interface and runtime Seam now describe the same
+     Adapter contract, preserving Locality for query-plan internals.
+
+2. Resource UI Binding Disposal Interface
+   - Status: fixed.
+   - Files: `packages/core/src/resource-ui-binding.ts`,
+     `packages/core/test/resource-ui-binding.test.ts`,
+     `packages/react/src/hooks.ts`, `packages/solid/src/hooks.ts`,
+     `type-tests/core.test-d.ts`, and `docs/public-api-inventory.md`.
+   - Problem: `ResourceUiBindingController` only exposed sync `dispose()` even
+     though it owns preload interruption and retained-ref cleanup work.
+   - Fix: the controller now exposes `disposeEffect()` as the Effect-first
+     Interface, React and Solid adapters run that Effect during hook cleanup,
+     and focused tests prove retained refs are released before the Effect
+     completes. The sync `dispose()` remains a captured-runtime convenience
+     Adapter.
+   - Benefits: teardown depth sits behind one Effect Interface, giving adapter
+     callers typed lifecycle Leverage without leaking cleanup sequencing.
+
+3. React Commit-Gated Scope Locality
+   - Status: fixed.
+   - Files: `packages/react/src/runtime.ts` and
+     `packages/react/test/hooks.test.ts`.
+   - Problem: `useScoped(...)` could receive a live `UiScope` during render, so
+     abandoned React renders could start scoped work before React committed.
+   - Fix: React now uses a commit-gated `UiScope` that rejects finalizers and
+     forks before `useLayoutEffect` commits the frame; a regression covers
+     render-time scoped work.
+   - Benefits: React owns the renderer-specific commit Seam locally while Core
+     keeps the general `UiScope` Interface.
+
+4. Public Source Surface And DB Root Pins
+   - Status: fixed.
+   - Files: `type-tests/public-api.manifest.json`,
+     `scripts/public-api-symbol-policy.mjs`,
+     `packages/db/src/collection-persistence.ts`,
+     `type-tests/db.test-d.ts`, and `docs/db.md`.
+   - Problem: Core/React/Solid source-surface ownership lived mostly in docs
+     rather than the public manifest, and documented DB persistence/background
+     helpers were not required type-test imports. DB docs also overstated which
+     unordered grouped windows stay inside the D2 graph.
+   - Fix: the manifest now owns Core/React/Solid source surfaces, DB type tests
+     and hover policy pin `persistedCollectionOptions(...)` and
+     `backgroundSyncCollectionsPendingMutationsEffect(...)`, persistence
+     storage helpers have LSP JSDoc, and DB docs now limit D2 window claims to
+     grouped aggregate ordering and ordered windows.
+   - Benefits: LSP-facing public ownership now has a single audited manifest
+     Seam, and DB locality docs match the implementation.
+
+Focused workspace evidence for this pass: Core/DB/React/Solid typechecks,
+public type tests, public API audit, Effect-first audit, focused Core Resource
+UI Binding tests, focused React hook tests, and `git diff --check` passed. Full
+`pnpm verify` passed after Review230 with 53 root test files / 1141 tests and
+the 411-file Effect-first audit. This sweep found work, so the active clean
+counter remains 0/30 until a fresh post-Review230 sweep is clean.
 
 ## Review 229: Public Surface Ownership And Scoped Command Runners
 
@@ -1756,8 +1826,9 @@ the post-Review222 local sweep found Review223 work, and the post-Review223
 sweep found Review224 work, the post-Review224 sweep found Review225 work, the
 post-Review225 sweep found Review226 work, the post-Review226 sweep found
 Review227 work, the post-Review227 sweep found Review228 work, and the
-post-Review228 sweep found Review229 work. The active counter is 0/30 until a
-fresh post-Review229 sweep reports no actionable findings.
+post-Review228 sweep found Review229 work, and the post-Review229 sweep found
+Review230 work. The active counter is 0/30 until a fresh post-Review230 sweep
+reports no actionable findings.
 
 ## Review 208: Runtime Provider Observers, CLI Bin Execution, And Docs Drift
 
