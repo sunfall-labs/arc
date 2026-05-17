@@ -11,9 +11,10 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review497 React Solid DB Hover Copy Policy, the
-post-Review496 follow-up that fixes public React DB and Solid DB collection
-hook hover grammar so LSP docs read cleanly at the adapter Interface seam.
+The newest focused review is Review498 Router Docs And Legacy Identity Policy,
+the post-Review497 follow-up that fixes router hover truth, React path-helper
+type pins, current checklist evidence, and underscore-form legacy Effect UI
+payload identities.
 The newest full verification checkpoint is Review492.
 Clean Sweep 1 after
 Review208 remains historical 1/30
@@ -56,9 +57,10 @@ follow-up found Review490 work, the fresh post-Review490 sweep found
 Review491 work, the fresh post-Review491 sweep found Review492 work, the fresh
 post-Review492 sweep found Review493 work, the fresh post-Review493 sweep
 found Review494 work, the fresh post-Review494 sweep found Review495 work, and
-the fresh post-Review495 sweep found Review496 work, and the fresh
-post-Review496 sweep found Review497 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review497
+the fresh post-Review495 sweep found Review496 work, the fresh
+post-Review496 sweep found Review497 work, and the fresh post-Review497 sweep
+found Review498 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review498
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -72,7 +74,7 @@ Review235 work, Review236 work, Review237 work, Review238 work, Review239
 work, Review240 work, Review241 work, Review242 work, Review243 work,
 Review244 work, Review245 work, Review246 work, Review247 work, Review490
 work, Review491 work, Review492 work, Review493 work, Review494 work,
-Review495 work, Review496 work, and Review497 work.
+Review495 work, Review496 work, Review497 work, and Review498 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -192,7 +194,73 @@ and the fresh post-Review495 sweep found Review496 starter artifact and
 prerender type pin policy work,
 and the fresh post-Review496 sweep found Review497 React/Solid DB hover copy
 policy work,
+and the fresh post-Review497 sweep found Review498 router docs, React
+path-helper type pins, docs-policy, and legacy underscore identity work,
 so the counter remains 0/30.
+
+## Review 498: Router Docs And Legacy Identity Policy
+
+Review498 fixes the actionable findings from the fresh post-Review497 sweep.
+
+1. Router Adapter Hover Truth
+   - Status: fixed.
+   - Files: `packages/react/src/router.ts` and `packages/solid/src/router.ts`.
+   - Problem: React and Solid `initialHref` docs described a full
+     `window.location.href` default even though the browser history Adapter uses
+     path plus search, and Solid `match` docs said ready-only even though Core
+     exposes pending, ready, and failure matches.
+   - Solution: the Adapter hovers now describe browser path-plus-search defaults
+     and Solid match availability across matched route states.
+   - Benefits: the framework router Interfaces now match Core route identity and
+     match semantics without callers needing to read Implementation modules.
+
+2. React Router Path Helper Type Pins
+   - Status: fixed.
+   - Files: `type-tests/react.test-d.ts`.
+   - Problem: React exposed `hrefByPath(...)`, `navigateByPath(...)`,
+     `matchByPath(...)`, and `preloadByPathEffect(...)` through the shared Core
+     host controller, but Solid had stronger direct public type pins.
+   - Solution: React type tests now mirror the Solid path-helper assertions,
+     including parameter inference and `Route.NavigationError` preload Effects.
+   - Benefits: the React Adapter gains the same public Interface Leverage as
+     Solid, keeping Core-owned helper types visible through both framework
+     seams.
+
+3. Legacy Underscore Identity Policy
+   - Status: fixed.
+   - Files: `packages/db/src/sqlite-persistence.ts`,
+     `packages/db/src/live-query-runtime.ts`,
+     `packages/start/src/request-trace.ts`,
+     `packages/start/src/start-action-request-codec.ts`,
+     `scripts/package-payload-policy.mjs`,
+     `scripts/verify-package-payload-policy.mjs`,
+     `type-tests/db.test-d.ts`, `type-tests/framework.test-d.ts`, and
+     `examples/project-console/src/domain.mock.test.ts`.
+   - Problem: package payload policy rejected hyphenated legacy Effect UI
+     tokens but missed underscore-form public/runtime identities such as the
+     SQLite persistence table, Start hidden form fields, metrics, and DB
+     internal sentinels.
+   - Solution: underscore-form runtime identities now use Sunfall Arc names, DB
+     type tests pin the new SQLite default table, and package payload policy
+     rejects `effect_ui` / `__effect_ui` tokens.
+   - Benefits: package identity policy has better Locality: public data
+     contracts, runtime sentinels, type pins, and payload guardrails now agree
+     on the Sunfall Arc Interface.
+
+4. Current Checklist Policy
+   - Status: fixed.
+   - Files: `docs/ultimate-goal-checklist.md`,
+     `scripts/public-api-symbol-policy.mjs`, and
+     `scripts/audit-public-api-inventory.mjs`.
+   - Problem: the Ultimate Goal Checklist had a stale "Latest focused
+     verification recorded" paragraph naming Review496, and policy only
+     required Review497 somewhere in the file.
+   - Solution: the checklist now records Review498 focused evidence and the
+     policy pins the subsection directly. The current-docs self-test derives
+     stale fixtures from `currentDocsEvidencePolicy` instead of hardcoded older
+     reviews.
+   - Benefits: current-review docs have more Leverage from one policy Module
+     and less duplicated manual bookkeeping.
 
 ## Review 497: React Solid DB Hover Copy Policy
 

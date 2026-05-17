@@ -294,18 +294,18 @@ export const invokeStartEffectInputCallbackEffect = <Input>(
     : Effect.suspend(() => toEffect(callback(input))).pipe(Effect.catchCause(() => Effect.void));
 
 /** Effect Metric counter for total Start requests by transport, method, and path. */
-export const startRequestCountMetric = Metric.counter("effect_ui_start_requests_total", {
+export const startRequestCountMetric = Metric.counter("sunfall_arc_start_requests_total", {
   description: "Total Start requests handled by transport, method, and path.",
   incremental: true,
 });
 
 /** Effect Metric timer for Start request duration by transport, method, and path. */
-export const startRequestDurationMetric = Metric.timer("effect_ui_start_request_duration", {
+export const startRequestDurationMetric = Metric.timer("sunfall_arc_start_request_duration", {
   description: "Start request handler duration by transport, method, and path.",
 });
 
 /** Effect Metric frequency for Start request outcomes by transport, method, path, and status. */
-export const startRequestStatusMetric = Metric.frequency("effect_ui_start_request_status", {
+export const startRequestStatusMetric = Metric.frequency("sunfall_arc_start_request_status", {
   description: "Start request outcomes by transport, method, path, and status.",
 });
 

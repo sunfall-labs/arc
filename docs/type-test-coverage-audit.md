@@ -203,6 +203,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
   prerender hover-policy pins for exported prerender option, event, result,
   error, planning, and Effect runner declarations, while keeping lazy route
   Suspense runtime ownership behind Core's public `Route` namespace.
+- Review498 Router Docs And Legacy Identity Policy adds React router path-helper
+  public type pins matching the existing Solid coverage, updates the DB SQLite
+  default table literal pin to the Sunfall Arc identity, and keeps the Review496
+  Start Vite callback pins current.
 - Review497 React Solid DB Hover Copy Policy changes only public hover copy for
   React DB and Solid DB collection hooks; it adds no new type contract and keeps
   the Review496 Start Vite callback pins current.

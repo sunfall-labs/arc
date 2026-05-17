@@ -44,7 +44,7 @@ export type {
 } from "@sunfall/arc-core";
 
 interface BrowserRouterOptionsBase {
-  /** Initial URL used for tests or SSR hydration. Defaults to `window.location.href`. */
+  /** Initial URL used for tests or SSR hydration. Defaults to the browser path plus search string. */
   readonly initialHref?: string;
   /** True when the initial browser render hydrates existing server-rendered DOM. */
   readonly hydrating?: boolean;
@@ -240,7 +240,11 @@ export const RouterOutlet = <RoutesOrError = readonly AnyRoute[], ER = never>(
   const router = useRouter<Routes, Error>();
   const routeState = useSignal(router.state);
 
-  return renderReactRouteState(routeState, typedProps, router.runtime as AnySunfallArcRuntime<Error>);
+  return renderReactRouteState(
+    routeState,
+    typedProps,
+    router.runtime as AnySunfallArcRuntime<Error>,
+  );
 };
 
 /**

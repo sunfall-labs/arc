@@ -203,6 +203,8 @@ const selfTest = Effect.gen(function* () {
         'export { old } from "@effect-ui/core";',
         'export const virtualId = "virtual:effect-ui/start";',
         'export const header = "x-effect-ui-action";',
+        'export const table = "effect_ui_collection_persistence";',
+        'export const field = "__effect_ui_action";',
         'export const cacheDir = ".effect-ui-packages";',
         'export const packageName = "effect-ui-starter-basic";',
         'export const oldScope = "@sunfall-arc/core";',
@@ -219,7 +221,7 @@ const selfTest = Effect.gen(function* () {
       yield* writeTextEffect(
         directory,
         "src/source-package-entry.ts",
-        'export const oldVirtual = "virtual:effect-ui/source";\n',
+        'export const oldVirtual = "virtual:effect-ui/source";\nexport const oldField = "__effect_ui_input";\n',
       );
       yield* expectFailuresEffect(
         "legacy source payload token",

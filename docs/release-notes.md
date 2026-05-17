@@ -87,11 +87,19 @@ Latest full gate on May 17, 2026 after Review 492:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 498 Router Docs And Legacy Identity Policy updates React/Solid router
+  hovers to describe path-plus-search initial hrefs and Solid matched-state
+  semantics, adds React router path-helper type pins matching Solid parity,
+  renames underscore-form legacy Effect UI runtime identities to Sunfall Arc
+  names, rejects `effect_ui` / `__effect_ui` payload tokens, and pins the
+  Ultimate Goal Checklist latest-focused subsection. The active Thirty-Sweep
+  clean counter remains 0/30 until a fresh post-Review498 sweep reports no
+  actionable findings.
 - Review 497 React Solid DB Hover Copy Policy fixes the public React DB and
   Solid DB `useCollection(...)` hover docs to say "to a Sunfall Arc collection,"
   keeping adapter Interface copy polished for LSP consumers. The active
-  Thirty-Sweep clean counter remains 0/30 until a fresh post-Review497 sweep
-  reports no actionable findings.
+  Thirty-Sweep clean counter remained 0/30; the later fresh post-Review497
+  sweep found Review498 router docs and legacy identity policy work.
 - Review 496 Starter Artifact And Prerender Type Pin Policy makes standalone
   starter packaging format generated route/virtual artifacts before comparing
   them with committed source artifacts, keeping `pnpm starter:package` focused

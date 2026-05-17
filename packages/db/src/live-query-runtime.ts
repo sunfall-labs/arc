@@ -68,7 +68,7 @@ const compareIvmContexts =
     );
   };
 
-const crossJoinKey = "__effect_ui_db_all__";
+const crossJoinKey = "__sunfall_arc_db_all__";
 
 type IvmRuntimeOperator = IOperator<unknown>;
 

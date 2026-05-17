@@ -20,6 +20,11 @@ interruption.
 
 ## Current Sweep Results
 
+- Review498 Router Docs And Legacy Identity Policy keeps the post-Review497
+  fixes Effect-first: router hover and type-test pins add no Promise surface,
+  Start progressive form field names and request metrics now use Sunfall Arc
+  identity strings, and package payload policy rejects underscore-form legacy
+  Effect UI tokens before release artifacts can ship them.
 - Review497 React Solid DB Hover Copy Policy is an LSP-facing adapter copy fix:
   React DB and Solid DB `useCollection(...)` hover docs now use polished grammar
   for the collection subscription Interface. It adds no Promise surface and

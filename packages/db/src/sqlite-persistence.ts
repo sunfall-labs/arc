@@ -4,7 +4,7 @@ import { Data, Effect } from "effect";
 import type { CollectionPersistenceStorage } from "./collection-contract.js";
 
 /** Default SQLite table used by collection persistence helpers. */
-export const SQLITE_PERSISTENCE_DEFAULT_TABLE = "effect_ui_collection_persistence";
+export const SQLITE_PERSISTENCE_DEFAULT_TABLE = "sunfall_arc_collection_persistence";
 /** Default namespace prefix for persisted collection snapshot rows. */
 export const SQLITE_PERSISTENCE_DEFAULT_NAMESPACE = "sunfall-arc:collections";
 /** Default schema version written to collection persistence rows. */

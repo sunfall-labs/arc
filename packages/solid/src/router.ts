@@ -53,7 +53,7 @@ export type {
 } from "@sunfall/arc-core";
 
 interface BrowserRouterOptionsBase {
-  /** Initial URL used for tests or SSR hydration. Defaults to `window.location.href`. */
+  /** Initial URL used for tests or SSR hydration. Defaults to the browser path plus search string. */
   readonly initialHref?: string;
   /** True when the initial browser render hydrates existing server-rendered DOM. */
   readonly hydrating?: boolean;
@@ -108,7 +108,7 @@ export interface BrowserRouter<
 > extends SolidBrowserRouterHostController<Routes, ER> {
   /** Reactive router state: pending, ready, failure, or not found. */
   readonly state: Accessor<BrowserRouterState<Routes, ER>>;
-  /** Current ready route match, or undefined outside a ready state. */
+  /** Current matched route for pending, ready, or failure states; undefined when unmatched. */
   readonly match: Accessor<Route.Match<Routes[number]> | undefined>;
 }
 

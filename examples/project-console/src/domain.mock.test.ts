@@ -1,4 +1,11 @@
-import { Action, ActionResult, makeRuntime, read, Resource, runWithRuntime } from "@sunfall/arc-core";
+import {
+  Action,
+  ActionResult,
+  makeRuntime,
+  read,
+  Resource,
+  runWithRuntime,
+} from "@sunfall/arc-core";
 import { Deferred, Effect, Fiber } from "effect";
 import { describe, expect, it } from "vitest";
 import { type Project, type ProjectRemoteError } from "./domain.contract.js";
@@ -76,7 +83,7 @@ describe("project console contract mocks", () => {
       id: makeProjectId("mocked"),
       redirectTo: makeProjectReturnTo("/projects/mocked?tab=activity"),
     });
-    const input = target.hiddenFields.find((field) => field.name === "__effect_ui_input");
+    const input = target.hiddenFields.find((field) => field.name === "__sunfall_arc_input");
 
     expect(target).toMatchObject({
       method: "post",

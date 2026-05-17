@@ -40,6 +40,8 @@ const forbiddenLegacyPayloadTokens = [
   "Effect UI",
   "EffectUiRuntime",
   "AnyEffectUiRuntime",
+  "effect_ui",
+  "__effect_ui",
   "effect-ui",
   "effect-ui-",
   "virtual:effect-ui",

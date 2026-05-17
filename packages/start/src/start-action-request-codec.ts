@@ -63,9 +63,9 @@ export type StartActionDefinition =
   | ActionDefinition<any, any, any, any>;
 
 /** Hidden form field that carries the action name for progressive POST forms. */
-export const startActionNameField = "__effect_ui_action";
+export const startActionNameField = "__sunfall_arc_action";
 /** Hidden form field that carries the JSON-serialized action input. */
-export const startActionInputField = "__effect_ui_input";
+export const startActionInputField = "__sunfall_arc_input";
 
 /** Error raised by the synchronous progressive form encoding facade. */
 export class StartActionFormEncodeError extends Data.TaggedError("StartActionFormEncodeError")<{

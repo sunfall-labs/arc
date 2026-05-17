@@ -379,7 +379,10 @@ import {
   type StartNodeServerHandlerRuntimeOptions as PackagedStartNodeServerHandlerRuntimeOptions,
   type WriteNodeResponseOptions as PackagedWriteNodeResponseOptions,
 } from "@sunfall/arc-start-node";
-import sunfallArcTsrxDefault, { sunfallArcTsrx, type SunfallArcTsrxOptions } from "@sunfall/arc-tsrx";
+import sunfallArcTsrxDefault, {
+  sunfallArcTsrx,
+  type SunfallArcTsrxOptions,
+} from "@sunfall/arc-tsrx";
 import type { PluginOption } from "vite";
 import { makeProjectId as makeProjectConsoleProjectId } from "../examples/project-console/src/domain.contract.js";
 import "@sunfall/arc-start/virtual";
@@ -4491,7 +4494,10 @@ const readDocumentAndMissingRuntimeActionSubmitErased: Effect.Effect<string> =
 interface RuntimeStartupError {
   readonly _tag: "RuntimeStartupError";
 }
-declare const runtimeWithStartupError: SunfallArcRuntime<RuntimeDocumentService, RuntimeStartupError>;
+declare const runtimeWithStartupError: SunfallArcRuntime<
+  RuntimeDocumentService,
+  RuntimeStartupError
+>;
 const readDocumentRuntimeErrorAction = Action.use(ReadDocumentAction, {
   runtime: runtimeWithStartupError,
 });
@@ -5094,11 +5100,11 @@ type ProjectFormDataValues = typeof ProjectFormDataSchema.Type;
 const browserFormData = new FormData();
 browserFormData.append("tags", "billing");
 browserFormData.append("tags", "core");
-Form.data(browserFormData, { omitFields: ["__effect_ui_action"] }).tags;
+Form.data(browserFormData, { omitFields: ["__sunfall_arc_action"] }).tags;
 const projectFormDataDecode: Effect.Effect<
   ProjectFormDataValues,
   Form.ValidationError<ProjectFormDataValues, Schema.SchemaError>
 > = Form.decodeFormDataEffect(ProjectFormDataSchema, browserFormData, {
-  omitFields: new Set(["__effect_ui_action"]),
+  omitFields: new Set(["__sunfall_arc_action"]),
 });
 void projectFormDataDecode;

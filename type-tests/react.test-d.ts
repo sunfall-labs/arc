@@ -70,7 +70,7 @@ interface ReactProject {
   readonly name: string;
 }
 
-const reactRoutes = [route("/", {})] as const;
+const reactRoutes = [route("/", {}), route("/projects/:id", {})] as const;
 const reactHistory = makeMemoryBrowserHistoryAdapter({ initialHref: "/" });
 const reactBrowserOptions: BrowserRouterOptions<typeof reactRoutes> = {
   history: reactHistory,
@@ -88,6 +88,19 @@ const reactRouteForPath: ReactRouteForHome = reactRoutes[0];
 const reactRouteHref: string = Route.href(reactRoutes[0]);
 const reactNavigateArgs: BrowserNavigateArgs<(typeof reactRoutes)[0]> = [];
 const reactNavigateOptions: BrowserNavigateOptions = { replace: true };
+const reactHrefByPath: string = reactRouter.hrefByPath("/projects/:id", {
+  params: { id: "atlas" },
+});
+reactRouter.navigateByPath(
+  "/projects/:id",
+  {
+    params: { id: "atlas" },
+  },
+  reactNavigateOptions,
+);
+const reactMatchByPath = reactRouter.matchByPath("/projects/:id");
+const reactPreloadByPathEffect: Effect.Effect<void, Route.NavigationError> =
+  reactRouter.preloadByPathEffect("/projects/:id", { params: { id: "atlas" } });
 const reactPlainLeftClick: boolean = isPlainLeftClick({
   button: 0,
   metaKey: false,

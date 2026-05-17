@@ -1,5 +1,9 @@
 import { Effect, PubSub, Scope } from "effect";
-import type { AnySunfallArcRuntime, EffectInput, EffectInputCallbackError } from "@sunfall/arc-core";
+import type {
+  AnySunfallArcRuntime,
+  EffectInput,
+  EffectInputCallbackError,
+} from "@sunfall/arc-core";
 import {
   Collection,
   Query,
@@ -204,7 +208,7 @@ const collectionSqliteMemoryDatabase = Collection.sqliteMemoryStatementDatabase(
 const collectionSqliteStorage = Collection.sqliteStorage(
   Collection.sqliteStatementDriver(collectionSqliteMemoryDatabase),
 );
-const sqliteDefaultTable: "effect_ui_collection_persistence" = SQLITE_PERSISTENCE_DEFAULT_TABLE;
+const sqliteDefaultTable: "sunfall_arc_collection_persistence" = SQLITE_PERSISTENCE_DEFAULT_TABLE;
 const sqliteDefaultNamespace: "sunfall-arc:collections" = SQLITE_PERSISTENCE_DEFAULT_NAMESPACE;
 const sqliteDefaultSchemaVersion: 1 = SQLITE_PERSISTENCE_DEFAULT_SCHEMA_VERSION;
 const sqliteRow: SQLitePersistenceRow = {
