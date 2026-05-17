@@ -485,8 +485,11 @@
         "defaultStartBuildWireSchemaPolicy",
         "fileRouteDefinitionsVirtualModuleId",
         "fileRouteManifestVirtualModuleId",
+        "HandleSsrDevRequestOptions",
         "serverFunctionManifestVirtualModuleId",
+        "StartDevMiddlewareNext",
         "StartSsrHandlerModule",
+        "StartViteDevServer",
         "StartViteDevSsrOptions",
         "writeFileRouteDefinitionsFile",
         "writeFileRouteDefinitionsFileEffect"

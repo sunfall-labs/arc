@@ -3603,6 +3603,8 @@ createBrowserRouter([ServicePreloadRoute] as const, {
   initialHref: "/service-projects/atlas",
   runtime: routePreloadRuntime
 });
+// @ts-expect-error serviceful browser router preloads require an explicit preload-capable runtime
+createBrowserRouter([ServicePreloadRoute] as const);
 createBrowserRouter([ServicePreloadRoute] as const, {
   initialHref: "/service-projects/atlas",
   // @ts-expect-error serviceful browser router preloads require a runtime carrying preload services
@@ -3628,6 +3630,8 @@ createReactBrowserRouter([ServicePreloadRoute] as const, {
   initialHref: "/service-projects/atlas",
   runtime: routePreloadRuntime
 });
+// @ts-expect-error serviceful React browser router preloads require an explicit preload-capable runtime
+createReactBrowserRouter([ServicePreloadRoute] as const);
 createReactBrowserRouter([ServicePreloadRoute] as const, {
   initialHref: "/service-projects/atlas",
   // @ts-expect-error serviceful React browser router preloads require a runtime carrying preload services

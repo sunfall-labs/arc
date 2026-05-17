@@ -75,6 +75,12 @@ export class StartDevServerError extends Data.TaggedError("StartDevServerError")
   readonly error: unknown;
 }> {}
 
+/** Invalid erased handler result reported inside the typed dev-server channel. */
+class StartHandlerInvalidResponse extends Data.TaggedError("StartHandlerInvalidResponse")<{
+  readonly message: string;
+  readonly value: unknown;
+}> {}
+
 /** Vite middleware continuation callback. */
 export type StartDevMiddlewareNext = (error?: unknown) => void;
 
@@ -395,6 +401,19 @@ const handlerResultEffect = <HandlerError = StartRequestHandlerError, Requiremen
         responseWithScopeLifetimeEffect<HandlerError, Requirements>(
           toEffect(result as EffectInput<Response, HandlerError, Scope.Scope | Requirements>)
         )
+      ),
+      Effect.flatMap((response) =>
+        response instanceof Response
+          ? Effect.succeed(response)
+          : Effect.fail(
+              new StartDevServerError({
+                operation: "run-handler",
+                error: new StartHandlerInvalidResponse({
+                  message: "Vite dev SSR handlers must return a Response or an Effect that succeeds with a Response.",
+                  value: response
+                })
+              })
+            )
       ),
       Effect.mapError((error) =>
         error instanceof StartDevServerError

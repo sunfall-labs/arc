@@ -404,9 +404,11 @@ The root export includes:
   callbacks; the embeddable runner surfaces writer failures as
   `StartDiagnosticsCliWriteError` values, while the main/bin runner catches those
   typed failures, assigns exit code `1`, and best-effort reports one compact
-  stderr line instead of leaking an unhandled Promise rejection. The package bin
-  remains the normal app entrypoint; embedders should use this subpath instead
-  of private source imports or process spawning.
+  stderr line instead of leaking an unhandled Promise rejection. Process
+  stdout/stderr defaults are resolved in this CLI Adapter, not in the lower
+  diagnostics command runner. The package bin remains the normal app entrypoint;
+  embedders should use this subpath instead of private source imports or process
+  spawning.
 - Effect RPC compatibility descriptors:
   `serverFunctionToEffectRpc`, `makeStartEffectRpcGroup`,
   `startEffectRpcEndpointDescriptor`, and
@@ -453,7 +455,10 @@ Subpath exports:
   request handler. `StartSsrHandlerModule` and `StartDevServer<R>` preserve
   serviceful dev SSR handler Effects for expert tests/adapters, while
   `EffectUiStartOptions.devSsr` / `StartViteDevSsrOptions` provide the runtime
-  and run options used by the Vite middleware fork seam. It also exports the
+  and run options used by the Vite middleware fork seam. The middleware contains
+  synchronous fork/listener setup failures through Vite's `next(error)` path and
+  reports erased non-`Response` handler results as typed `StartDevServerError`
+  failures. It also exports the
   generated route definitions file writer:
   `writeFileRouteDefinitionsFile(...)` for Vite sync hooks and
   `writeFileRouteDefinitionsFileEffect(...)` plus
@@ -671,6 +676,13 @@ Release decisions:
   view over a Collection Store. They expose counts for registered collections,
   rows, pending/active optimistic mutations, optimistic rows, loading states,
   and failures without exposing mutable row/index maps.
+- `Collection.FlushAllPendingMutationsError`,
+  `Collection.FlushAllPendingMutationsRequirements`,
+  `Collection.BackgroundSyncError`, and
+  `Collection.BackgroundSyncRequirements` mirror the computed channels from the
+  flush policy Module. Adapter and app code can hover the `Collection.*` facade
+  instead of importing internal flush-policy names to understand handler, skip,
+  adapter, and runtime requirements.
 - The Runtime Collection Store Module owns runtime/request-local store creation,
   Resource Store module-registry lookup, initial data materialization,
   diagnostics snapshots, event subscriptions, and synchronous store override
@@ -985,6 +997,10 @@ Release decisions:
   React is hydrating existing server-rendered DOM. That fact is passed to the
   Core Browser Router Initial Matched State Policy so the first matched render
   stays `Ready` instead of replacing server output with pending UI.
+- `createBrowserRouter(...)` and `RouterProvider` require an explicit
+  preload-capable runtime when the route list contains serviceful preloads.
+  Service-free route arrays may still use the ambient/default runtime path, but
+  the public adapter seam no longer erases route preload requirements.
 - `RouterOutlet` renders pending, failure, not-found, and matched route
   branches inside the router Runtime Spine and a route-owned `UiScope`, so Core
   render-seam helpers such as `Resource.status(...)`, `read(...)`,
@@ -1080,11 +1096,10 @@ Release decisions:
   href building, matching, and initial matched-state policy. Solid detects
   existing-DOM hydration by default and also accepts an explicit `hydrating`
   option for tests or custom hosts.
-- When callers pass an explicit router runtime, the runtime type must include
-  the services required by the route preload definitions. Ambient/default
-  runtime fallback remains the host-owned escape hatch for app roots where
-  TypeScript cannot observe the provider layer. `RouterProvider` follows the
-  same rule: routes with serviceful preloads require a runtime prop.
+- `createBrowserRouter(...)` and `RouterProvider` require an explicit
+  preload-capable runtime when the route list contains serviceful preloads.
+  Service-free route arrays may still use the ambient/default runtime path, but
+  the public adapter seam no longer erases route preload requirements.
 - `RouterOutletProps<Routes, ER>` preserves route-specific `match` typing for
   pending and failure renderers. The older `RouterOutletProps<ER>` form remains
   usable for broad route-agnostic renderers.

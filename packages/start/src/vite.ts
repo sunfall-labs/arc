@@ -1,4 +1,4 @@
-import { Data, Effect } from "effect";
+import { Data, Effect, Fiber } from "effect";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve as resolvePath } from "node:path";
 import type { UserConfig } from "vite";
@@ -45,6 +45,17 @@ import {
 import { isStartManifestServerOnlyModule } from "./manifest-entry-core.js";
 import { nodeRequestLifecycle } from "./node-web-exchange.js";
 import { effectUiStartPluginName } from "./start-vite-plugin-names.js";
+
+const callViteDevMiddlewareNextBestEffort = (
+  next: StartDevMiddlewareNext,
+  error: unknown
+): void => {
+  try {
+    next(error);
+  } catch {
+    // Vite owns middleware error reporting; setup failures should not escape.
+  }
+};
 
 export {
   defaultFileRouteDirectory,
@@ -353,36 +364,48 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
           const activeOptions = currentOptions();
           const lifecycle = nodeRequestLifecycle(request, response);
           const devSsr = activeOptions.devSsr;
-          const fiber = forkStartHostEffect(
-            handleSsrDevMiddlewareEffect(
-              startServer,
-              request,
-              response,
-              next,
-              {
-                serverEntry,
-                ...(activeOptions.rpcPath === undefined
-                  ? {}
-                  : { rpcPath: activeOptions.rpcPath }),
-                ...(activeOptions.actionPath === undefined
-                  ? {}
-                  : { actionPath: activeOptions.actionPath }),
-                ...(normalizedOptions.handlerExport === undefined
-                  ? {}
-                  : { handlerExport: normalizedOptions.handlerExport }),
-                nodeRequest: {
-                  ...normalizedOptions.nodeRequest,
-                  signal: lifecycle.signal
+          let fiber: Fiber.Fiber<void, unknown> | undefined;
+
+          try {
+            const startedFiber = forkStartHostEffect(
+              handleSsrDevMiddlewareEffect(
+                startServer,
+                request,
+                response,
+                next,
+                {
+                  serverEntry,
+                  ...(activeOptions.rpcPath === undefined
+                    ? {}
+                    : { rpcPath: activeOptions.rpcPath }),
+                  ...(activeOptions.actionPath === undefined
+                    ? {}
+                    : { actionPath: activeOptions.actionPath }),
+                  ...(normalizedOptions.handlerExport === undefined
+                    ? {}
+                    : { handlerExport: normalizedOptions.handlerExport }),
+                  nodeRequest: {
+                    ...normalizedOptions.nodeRequest,
+                    signal: lifecycle.signal
+                  }
                 }
-              }
-            ),
-            devSsr
-          );
-          const disposeInterrupt = interruptStartHostFiberOnSignal(fiber, lifecycle.signal, devSsr);
-          fiber.addObserver(() => {
-            disposeInterrupt();
+              ),
+              devSsr
+            );
+            fiber = startedFiber;
+            const disposeInterrupt = interruptStartHostFiberOnSignal(startedFiber, lifecycle.signal, devSsr);
+            startedFiber.addObserver(() => {
+              disposeInterrupt();
+              lifecycle.dispose();
+            });
+          } catch (error) {
             lifecycle.dispose();
-          });
+            const startedFiber = fiber;
+            if (startedFiber !== undefined) {
+              void Effect.runFork(Fiber.interrupt(startedFiber).pipe(Effect.ignore));
+            }
+            callViteDevMiddlewareNextBestEffort(next, error);
+          }
         });
       };
     },

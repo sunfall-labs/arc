@@ -15,12 +15,16 @@ import {
   type CollectionBackgroundSyncAdapterContext,
   type CollectionBackgroundSyncOptions,
   type CollectionBackgroundSyncPending,
+  type CollectionBackgroundSyncError,
+  type CollectionBackgroundSyncRequirements,
   type CollectionBackgroundSyncResult,
   type CollectionBackgroundSyncTrigger,
   type FlushCollectionPendingMutationsContext,
   type FlushCollectionPendingMutationsResult,
   type FlushCollectionPendingMutationsSkip,
-  type FlushCollectionsPendingMutationsOptions
+  type FlushCollectionsPendingMutationsError,
+  type FlushCollectionsPendingMutationsOptions,
+  type FlushCollectionsPendingMutationsRequirements
 } from "./flush-policy.js";
 import {
   makeSQLiteMemoryStatementDatabase,
@@ -551,6 +555,16 @@ export namespace Collection {
   /** Options for flushing pending mutations across collections. */
   export type FlushAllPendingMutationsOptions<SkipError = never, SkipRequirements = never> =
     FlushCollectionsPendingMutationsOptions<SkipError, SkipRequirements>;
+  /** Error channel for flushing pending mutations across collections. */
+  export type FlushAllPendingMutationsError<
+    Collections extends Iterable<AnyCollection>,
+    SkipError = never
+  > = FlushCollectionsPendingMutationsError<Collections, SkipError>;
+  /** Requirement channel for flushing pending mutations across collections. */
+  export type FlushAllPendingMutationsRequirements<
+    Collections extends Iterable<AnyCollection>,
+    SkipRequirements = never
+  > = FlushCollectionsPendingMutationsRequirements<Collections, SkipRequirements>;
   /** Result of flushing pending mutations across collections. */
   export type FlushAllPendingMutationsResult = FlushCollectionPendingMutationsResult;
   /** Event that triggered a collection background sync attempt. */
@@ -569,6 +583,18 @@ export namespace Collection {
     SkipError = never,
     SkipRequirements = never
   > = CollectionBackgroundSyncOptions<AdapterError, AdapterRequirements, SkipError, SkipRequirements>;
+  /** Error channel for background sync pending-mutation evaluation. */
+  export type BackgroundSyncError<
+    Collections extends Iterable<AnyCollection>,
+    AdapterError = never,
+    SkipError = never
+  > = CollectionBackgroundSyncError<Collections, AdapterError, SkipError>;
+  /** Requirement channel for background sync pending-mutation evaluation. */
+  export type BackgroundSyncRequirements<
+    Collections extends Iterable<AnyCollection>,
+    AdapterRequirements = never,
+    SkipRequirements = never
+  > = CollectionBackgroundSyncRequirements<Collections, AdapterRequirements, SkipRequirements>;
   /** Result returned by background sync attempts. */
   export type BackgroundSyncResult = CollectionBackgroundSyncResult;
   /** SQLite persistence storage key shape. */

@@ -3,6 +3,7 @@ import {
   PubSub,
   Scope
 } from "effect";
+import type { EffectInputCallbackError } from "@effect-ui/core";
 import {
   Collection,
   Query,
@@ -57,8 +58,21 @@ interface Project {
   readonly name: string;
 }
 
+interface DbRuntimeService {
+  readonly _tag: "DbRuntimeService";
+}
+
+interface DbSkipService {
+  readonly _tag: "DbSkipService";
+}
+
+interface DbAdapterService {
+  readonly _tag: "DbAdapterService";
+}
+
 declare const sqliteStatementDatabase: SQLiteStatementDatabase<SQLitePersistenceInvalidRow>;
 declare const sqlitePreparedStatementDatabase: SQLitePreparedStatementDatabase;
+declare const dbProjectsCollection: Collection.Definition<Project, string, "load", DbRuntimeService>;
 const sqliteStorage = makeSQLitePersistenceStorage(
   makeSQLiteStatementPersistenceDriver(sqliteStatementDatabase)
 );
@@ -154,8 +168,45 @@ type DbServerPins =
   | ServerCollectionDeletePayload<Project, string>;
 type DbFlushPins =
   | FlushCollectionPendingMutationsResult
-  | CollectionBackgroundSyncResult;
+  | CollectionBackgroundSyncResult
+  | Collection.FlushAllPendingMutationsError<readonly [typeof dbProjectsCollection], "skip-error">
+  | Collection.FlushAllPendingMutationsRequirements<readonly [typeof dbProjectsCollection], DbSkipService>
+  | Collection.BackgroundSyncError<readonly [typeof dbProjectsCollection], "adapter-error", "skip-error">
+  | Collection.BackgroundSyncRequirements<readonly [typeof dbProjectsCollection], DbAdapterService, DbSkipService>;
+declare const collectionFlushError: Collection.FlushAllPendingMutationsError<
+  readonly [typeof dbProjectsCollection],
+  "skip-error"
+>;
+declare const collectionFlushRequirements: Collection.FlushAllPendingMutationsRequirements<
+  readonly [typeof dbProjectsCollection],
+  DbSkipService
+>;
+declare const collectionBackgroundSyncError: Collection.BackgroundSyncError<
+  readonly [typeof dbProjectsCollection],
+  "adapter-error",
+  "skip-error"
+>;
+declare const collectionBackgroundSyncRequirements: Collection.BackgroundSyncRequirements<
+  readonly [typeof dbProjectsCollection],
+  DbAdapterService,
+  DbSkipService
+>;
+const collectionFlushErrorPin: Collection.RuntimeError<"load"> | "skip-error" | EffectInputCallbackError =
+  collectionFlushError;
+const collectionFlushRequirementsPin: DbRuntimeService | DbSkipService =
+  collectionFlushRequirements;
+const collectionBackgroundSyncErrorPin:
+  | Collection.RuntimeError<"load">
+  | "adapter-error"
+  | "skip-error"
+  | EffectInputCallbackError = collectionBackgroundSyncError;
+const collectionBackgroundSyncRequirementsPin: DbRuntimeService | DbAdapterService | DbSkipService =
+  collectionBackgroundSyncRequirements;
 void dbExports;
+void collectionFlushErrorPin;
+void collectionFlushRequirementsPin;
+void collectionBackgroundSyncErrorPin;
+void collectionBackgroundSyncRequirementsPin;
 type _DbErrors = DbErrors;
 type _DbReactivePins = DbReactivePins;
 type _DbServerPins = DbServerPins;

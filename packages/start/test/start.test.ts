@@ -9004,6 +9004,64 @@ describe("Effect UI Start", () => {
     expect(headers.get("x-dev-ssr-token")).toBe("runtime-token");
   });
 
+  it("contains Vite dev SSR middleware fork setup failures", () => {
+    const setupError = new Error("dev SSR runtime failed to fork");
+    const nextErrors: Array<unknown> = [];
+    let requestOffCount = 0;
+    let responseOffCount = 0;
+    let middleware:
+      | ((request: IncomingMessage, response: ServerResponse, next: (error?: unknown) => void) => void)
+      | undefined;
+    const plugin = effectUiStart({
+      serverEntry: "/src/server.tsx",
+      devSsr: {
+        runtime: {
+          runFork: () => {
+            throw setupError;
+          }
+        }
+      }
+    });
+    const server = {
+      ssrLoadModule: async () => ({}),
+      transformIndexHtml: async (_url: string, html: string) => html,
+      middlewares: {
+        use: (
+          handler: (request: IncomingMessage, response: ServerResponse, next: (error?: unknown) => void) => void
+        ) => {
+          middleware = handler;
+        }
+      }
+    };
+    const request = {
+      headers: { host: "example.com", accept: "text/html" },
+      method: "GET",
+      url: "/",
+      once: () => request,
+      off: () => {
+        requestOffCount += 1;
+        return request;
+      }
+    } as unknown as IncomingMessage;
+    const response = {
+      writableEnded: false,
+      once: () => response,
+      off: () => {
+        responseOffCount += 1;
+        return response;
+      }
+    } as unknown as ServerResponse;
+
+    plugin.configureServer(server)();
+    middleware?.(request, response, (error) => {
+      nextErrors.push(error);
+    });
+
+    expect(nextErrors).toEqual([setupError]);
+    expect(requestOffCount).toBe(1);
+    expect(responseOffCount).toBe(2);
+  });
+
   it("keeps Vite dev SSR pass-through Scope alive until streamed bodies are cancelled", async () => {
     let finalized = false;
     let cancelled: unknown;
@@ -9104,6 +9162,29 @@ describe("Effect UI Start", () => {
       operation: "run-handler",
       error: expect.objectContaining({
         _tag: "EffectInputPromiseRejected"
+      })
+    });
+  });
+
+  it("rejects invalid dev SSR handler values inside the typed dev server channel", async () => {
+    const server = {
+      ssrLoadModule: (_id: string) =>
+        Effect.succeed({
+          default: () => "not a response" as never
+        }),
+      transformIndexHtml: (_url: string, html: string) => Effect.succeed(html)
+    };
+
+    const exit = await Effect.runPromiseExit(
+      handleSsrDevRequestEffect(server, new Request("https://example.com/invalid"))
+    );
+    const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
+
+    expect(failure).toBeInstanceOf(StartDevServerError);
+    expect(failure).toMatchObject({
+      operation: "run-handler",
+      error: expect.objectContaining({
+        _tag: "StartHandlerInvalidResponse"
       })
     });
   });

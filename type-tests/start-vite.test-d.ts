@@ -35,13 +35,16 @@ import {
   type FileRouteDiscoveryOptions,
   type FileRouteDefinitionsFileWriteFailure,
   type FileRouteDefinitionsFileWriteResult,
+  type HandleSsrDevRequestOptions,
   type LoadedStartAppGraphDiagnostics,
   type LoadStartAppGraphDiagnosticsOptions,
   type StartAppGraphDiagnosticsLoadError,
   type StartBuildPolicy,
   type StartBuildPolicyError,
+  type StartDevMiddlewareNext,
   type StartDevServer,
   type StartSsrHandlerModule,
+  type StartViteDevServer,
   type StartViteDevSsrOptions
 } from "@effect-ui/start/vite";
 
@@ -111,15 +114,22 @@ type ViteTypes =
   | StartAppGraphDiagnosticsLoadError
   | StartBuildPolicy
   | StartBuildPolicyError
+  | StartDevMiddlewareNext
   | StartDevServer
+  | StartViteDevServer
   | StartSsrHandlerModule
-  | StartViteDevSsrOptions;
+  | StartViteDevSsrOptions
+  | HandleSsrDevRequestOptions;
 interface ViteDevSsrService {
   readonly value: string;
 }
 declare const viteDevSsrRuntime: EffectUiRuntime<ViteDevSsrService, "dev-ssr-runtime">;
 declare const servicefulDevSsrServer: StartDevServer<ViteDevSsrService>;
 declare const servicefulDevSsrModule: StartSsrHandlerModule<"handler-error", ViteDevSsrService>;
+declare const hostViteDevServer: StartViteDevServer;
+const devMiddlewareNext: StartDevMiddlewareNext = (error?: unknown) => {
+  void error;
+};
 const devSsrStartOptions = {
   devSsr: {
     runtime: viteDevSsrRuntime
@@ -130,10 +140,19 @@ const devSsrOptions: StartViteDevSsrOptions<"dev-ssr-runtime"> = {
 };
 const servicefulDevSsrEffect: Effect.Effect<Response, unknown, ViteDevSsrService> =
   handleSsrDevRequestEffect(servicefulDevSsrServer, new Request("https://example.com"));
+const devSsrRequestOptions: HandleSsrDevRequestOptions = {
+  serverEntry: defaultServerEntry,
+  handlerExport: "handleRequest",
+  rpcPath: "/__effect-ui/rpc",
+  actionPath: "/__effect-ui/action"
+};
 void devSsrStartOptions;
 void devSsrOptions;
 void servicefulDevSsrEffect;
 void servicefulDevSsrModule;
+void hostViteDevServer;
+void devMiddlewareNext;
+void devSsrRequestOptions;
 declare const viteRoot: string;
 const discoveryOptions: FileRouteDiscoveryOptions = {
   root: viteRoot,

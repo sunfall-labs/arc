@@ -700,7 +700,11 @@ export const runStartDiagnosticsCliEffect = (
 
     const cliResultRef = yield* Ref.make<StartDiagnosticsCliResult | undefined>(undefined);
     const command = makeStartDiagnosticsCliCommand((parsedCommand) =>
-      runStartDiagnosticsCliCommandEffect(parsedCommand, io).pipe(
+      runStartDiagnosticsCliCommandEffect(parsedCommand, {
+        ...io,
+        stdout,
+        stderr
+      }).pipe(
         Effect.tap((result) => Ref.set(cliResultRef, result)),
         Effect.asVoid
       )

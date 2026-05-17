@@ -384,12 +384,16 @@ export const publicHoverDocGroups = [
         "FlushAllPendingMutationsContext",
         "FlushAllPendingMutationsSkip",
         "FlushAllPendingMutationsOptions",
+        "FlushAllPendingMutationsError",
+        "FlushAllPendingMutationsRequirements",
         "FlushAllPendingMutationsResult",
         "BackgroundSyncTrigger",
         "BackgroundSyncPending",
         "BackgroundSyncAdapterContext",
         "BackgroundSyncAdapter",
         "BackgroundSyncOptions",
+        "BackgroundSyncError",
+        "BackgroundSyncRequirements",
         "BackgroundSyncResult",
         "SQLiteStorageKey",
         "SQLiteStorageRow",
@@ -498,6 +502,38 @@ export const publicHoverDocGroups = [
       "CollectionReactivePreloadController",
       "CollectionReactivePreloadControllerOptions",
       "makeCollectionReactivePreloadController"
+    ]
+  },
+  {
+    file: "packages/react-db/src/collection.ts",
+    declarations: [
+      "UseCollectionOptions",
+      "CollectionHandle",
+      "useCollection"
+    ]
+  },
+  {
+    file: "packages/react-db/src/live-query.ts",
+    declarations: [
+      "UseLiveQueryOptions",
+      "LiveQueryHandle",
+      "useLiveQuery"
+    ]
+  },
+  {
+    file: "packages/solid-db/src/collection.ts",
+    declarations: [
+      "UseCollectionOptions",
+      "CollectionHandle",
+      "useCollection"
+    ]
+  },
+  {
+    file: "packages/solid-db/src/live-query.ts",
+    declarations: [
+      "UseLiveQueryOptions",
+      "LiveQueryHandle",
+      "useLiveQuery"
     ]
   },
   {

@@ -28,6 +28,11 @@ import type {
 
 export type StartDiagnosticsCliOutputStream = "stdout" | "stderr";
 
+interface StartDiagnosticsCliCommandIo extends StartDiagnosticsCliIo {
+  readonly stdout: (text: string) => EffectInput<void, unknown>;
+  readonly stderr: (text: string) => EffectInput<void, unknown>;
+}
+
 /**
  * Typed failure raised when an injected diagnostics CLI output writer fails.
  */
@@ -134,15 +139,11 @@ export const writeStartDiagnosticsCliLineEffect = (
  */
 export const runStartDiagnosticsCliCommandEffect = (
   command: Exclude<StartCliCommand, { readonly _tag: "Help" }>,
-  io: StartDiagnosticsCliIo = {}
+  io: StartDiagnosticsCliCommandIo
 ): Effect.Effect<StartDiagnosticsCliResult, StartDiagnosticsCliWriteError> =>
   Effect.gen(function* () {
-    const stdout = io.stdout ?? ((text) => {
-      process.stdout.write(`${text}\n`);
-    });
-    const stderr = io.stderr ?? ((text) => {
-      process.stderr.write(`${text}\n`);
-    });
+    const stdout = io.stdout;
+    const stderr = io.stderr;
     const load = loadDiagnosticsFromIo(io);
 
     const loaded = yield* load(diagnosticOptions(command.options)).pipe(

@@ -11,14 +11,14 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review199, the post-Review198 sweep
-fixing Solid browser-router Interface locality, React DB public-surface pins,
-and Start Vite/CLI host seams. The newest full verification checkpoint is
-Review199. Clean
+The newest completed focused review is Review200, the post-Review199 sweep
+fixing browser-router preload runtime requiredness, DB facade/LSP pins, and
+Start Vite/CLI host-seam containment. The newest full verification checkpoint
+is Review200. Clean
 Sweep 1 after Review190 remains
 historical evidence, but later sweeps found Review191, Review192, Review193,
-Review194, Review195, Review196, Review197, Review198, and Review199 work, so
-the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review199 sweep reports no actionable
+Review194, Review195, Review196, Review197, Review198, Review199, and
+Review200 work, so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review200 sweep reports no actionable
 findings. Some older review entries
 remain below this tip from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
@@ -43,8 +43,108 @@ counter stayed inactive. The first post-Review195 sweep found Review196
 Core/Start/DB/devtools/starter work, and the first post-Review196 sweep found
 Review197 Core/Start/DB work, and the first post-Review197 sweep found
 Review198 DB/Start work, so the counter remains inactive until the
-post-Review199 sweep is clean. The first post-Review198 sweep found Review199
-Solid/React DB/Start work.
+post-Review200 sweep is clean. The first post-Review198 sweep found Review199
+Solid/React DB/Start work, and the first post-Review199 sweep found Review200
+Core/React/Solid, DB, and Start work.
+
+## Review 200: Public Runtime And Host Boundary Pins
+
+Review200 fixed actionable findings from the fresh post-Review199 subagent
+sweep. The Core/React/Solid lane found a serviceful browser-router runtime
+erasure hole, the DB lane found facade/type-test/LSP gaps, and the Start lane
+found dev SSR and CLI host-boundary leaks.
+
+1. Browser Router Preload Runtime Requiredness
+   - Status: fixed.
+   - Files: `packages/react/src/router.ts`, `packages/solid/src/router.ts`,
+     `type-tests/framework.test-d.ts`, `docs/public-api-inventory.md`.
+   - Problem: `createBrowserRouter(...)` accepted missing `runtime` options even
+     for routes whose preloads require services. The implementation then fell
+     back to `currentOrDefaultRuntime()`, erasing preload requirements at the
+     adapter seam while `RouterProvider` already required a preload-capable
+     runtime.
+   - Fix: React and Solid `BrowserRouterOptions` now use the same conditional
+     runtime rule as provider props: service-free route arrays may omit options,
+     while serviceful route arrays require a runtime whose services cover route
+     preload requirements. Public type tests reject missing and wrong runtimes
+     for both adapters.
+   - Benefits: route preload requirements stay visible to TypeScript and LSPs at
+     both direct router construction and provider construction.
+
+2. DB Facade And Adapter Handle Pins
+   - Status: fixed.
+   - Files: `packages/db/src/index.ts`, `scripts/public-api-symbol-policy.mjs`,
+     `type-tests/db.test-d.ts`, `type-tests/solid-db.test-d.ts`,
+     `docs/public-api-inventory.md`.
+   - Problem: the `Collection.*` namespace exposed flush/background context,
+     options, and result aliases but omitted computed error and requirement
+     aliases. Solid DB also lacked the React DB write/flush handle type pins,
+     and public hover-doc policy did not enforce React DB or Solid DB hook/handle
+     JSDoc.
+   - Fix: added `Collection.FlushAllPendingMutationsError`,
+     `Collection.FlushAllPendingMutationsRequirements`,
+     `Collection.BackgroundSyncError`, and
+     `Collection.BackgroundSyncRequirements`, with focused DB type pins. Solid DB
+     now mirrors React DB pending mutation, write, and flush Effect pins, and the
+     public API symbol policy covers React DB and Solid DB options, handles, and
+     hooks.
+   - Benefits: DB adapter authors can discover runtime/error channels through
+     the public facade and both UI adapters have matching LSP/type-test
+     guarantees.
+
+3. Start Vite Dev SSR Host Guardrails
+   - Status: fixed.
+   - Files: `packages/start/src/vite.ts`,
+     `packages/start/src/start-vite-dev-ssr.ts`,
+     `packages/start/test/start.test.ts`, `docs/public-api-inventory.md`.
+   - Problem: synchronous failures while forking Vite dev SSR middleware work
+     could escape the Vite callback and skip request lifecycle cleanup. Erased
+     JavaScript handlers could also return a plain non-`Response` value that
+     later defected outside the declared `StartDevServerError` channel.
+   - Fix: Vite middleware fork/listener setup is guarded with cleanup,
+     best-effort fiber interruption, and `next(error)` reporting. Dev SSR handler
+     results are runtime-validated as `Response` values immediately after
+     `toEffect(...)`, with invalid values reported as `StartDevServerError`
+     `run-handler` failures.
+   - Benefits: the Vite Adapter owns host callback setup failures and handler
+     shape validation instead of leaking synchronous throws or defects.
+
+4. Start Diagnostics CLI Process Locality
+   - Status: fixed.
+   - Files: `packages/start/src/cli.ts`,
+     `packages/start/src/start-diagnostics-cli-runner.ts`,
+     `docs/public-api-inventory.md`.
+   - Problem: `start-diagnostics-cli-runner.ts` still defaulted to
+     `process.stdout`/`process.stderr` even though `cli.ts` is the process
+     boundary. The runner's own comment said process wiring belonged in `cli.ts`.
+   - Fix: `runStartDiagnosticsCliEffect(...)` resolves stdout/stderr writers and
+     passes them into the command runner; the lower command runner now requires
+     explicit writers and only owns diagnostics formatting/loading.
+   - Benefits: Effect v4 CLI parsing stays in `cli.ts`, and process IO defaults
+     have one Adapter owner.
+
+5. Start Vite Public Type Pins
+   - Status: fixed.
+   - Files: `type-tests/start-vite.test-d.ts`,
+     `type-tests/public-api.manifest.json`.
+   - Problem: the Vite subpath publicly exported expert dev SSR seam types such
+     as `HandleSsrDevRequestOptions`, `StartDevMiddlewareNext`, and
+     `StartViteDevServer`, but the public type test and manifest did not pin
+     those names.
+   - Fix: added required imports and small type assignments for those names.
+   - Benefits: public Vite Adapter seam types cannot disappear silently.
+
+Focused workspace evidence for this pass: React, Solid, DB, Start, React DB, and
+Solid DB package typechecks passed; public type tests passed; public API audit
+passed; Effect-first audit passed over 406 physical/virtual files; focused Start
+dev SSR/CLI regressions passed with 13 selected tests; focused Core/React/Solid
+router regressions passed with 3 files / 63 tests; and `git diff --check`
+passed. Full `pnpm verify` passed after Review200 with 11 package builds,
+workspace typecheck, public type tests, public API audit, Effect-first audit
+over 406 files, 53 root test files / 1060 tests, package-level verifies,
+generated starter packaging, 16-target package dry-run gate, project-console
+checks, and leak scans. This sweep found work, so the active clean counter
+remains 0/30.
 
 ## Review 199: Adapter Contract And Host Runtime Seams
 

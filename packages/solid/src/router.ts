@@ -50,21 +50,45 @@ export type {
   BrowserRouterState
 } from "@effect-ui/core";
 
-/** Options for creating a Solid browser router. */
-export interface BrowserRouterOptions<
-  Routes extends readonly AnyRoute[] = readonly AnyRoute[],
-  ER = never,
-  Runtime extends EffectUiRuntime<any, ER> = EffectUiRuntime<Route.PreloadRequirements<Routes[number]>, ER>
-> {
+interface BrowserRouterOptionsBase {
   /** Initial URL used for tests or SSR hydration. Defaults to `window.location.href`. */
   readonly initialHref?: string;
   /** True when the initial browser render hydrates existing server-rendered DOM. */
   readonly hydrating?: boolean;
   /** Host history Adapter. Defaults to `window.history` when a browser is available. */
   readonly history?: BrowserHistoryAdapter;
-  /** Runtime used for route preload Effects and route component scopes. */
-  readonly runtime?: RouterRuntime<Routes, ER, Runtime>;
 }
+
+type BrowserRouterRuntimeOptions<
+  Routes extends readonly AnyRoute[] = readonly AnyRoute[],
+  ER = never,
+  Runtime extends EffectUiRuntime<any, ER> = EffectUiRuntime<Route.PreloadRequirements<Routes[number]>, ER>
+> =
+  [Route.PreloadRequirements<Routes[number]>] extends [never]
+    ? {
+        /** Runtime used for route preload Effects and route component scopes. */
+        readonly runtime?: RouterRuntime<Routes, ER, Runtime>;
+      }
+    : {
+        /** Runtime used for route preload Effects and route component scopes. */
+        readonly runtime: RouterRuntime<Routes, ER, Runtime>;
+      };
+
+/** Options for creating a Solid browser router. */
+export type BrowserRouterOptions<
+  Routes extends readonly AnyRoute[] = readonly AnyRoute[],
+  ER = never,
+  Runtime extends EffectUiRuntime<any, ER> = EffectUiRuntime<Route.PreloadRequirements<Routes[number]>, ER>
+> = BrowserRouterOptionsBase & BrowserRouterRuntimeOptions<Routes, ER, Runtime>;
+
+type BrowserRouterOptionsArgs<
+  Routes extends readonly AnyRoute[],
+  ER,
+  Runtime extends EffectUiRuntime<any, ER>
+> =
+  [Route.PreloadRequirements<Routes[number]>] extends [never]
+    ? [options?: BrowserRouterOptions<Routes, ER, Runtime>]
+    : [options: BrowserRouterOptions<Routes, ER, Runtime>];
 
 type SolidBrowserRouterHostController<
   Routes extends readonly AnyRoute[],
@@ -185,8 +209,11 @@ export const createBrowserRouter = <
   Runtime extends EffectUiRuntime<any, ER> = EffectUiRuntime<Route.PreloadRequirements<Routes[number]>, ER>
 >(
   routes: Routes,
-  options: BrowserRouterOptions<Routes, ER, Runtime> = {}
+  ...args: BrowserRouterOptionsArgs<Routes, ER, Runtime>
 ): BrowserRouter<Routes, ER> => {
+  const options = (args[0] ?? {}) as BrowserRouterOptionsBase & {
+    readonly runtime?: RouterRuntime<Routes, ER, Runtime>;
+  };
   const runtime = (options.runtime ?? currentOrDefaultRuntime()) as AnyEffectUiRuntime<ER>;
   const controller = createBrowserRouterHostController(routes, {
     runtime,
