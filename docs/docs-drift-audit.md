@@ -6,7 +6,7 @@ Current release-tracking truth lives in `docs/architecture-deepening-review.md`
 and `docs/perfection-progress.md`. As of Review511, the latest full
 `pnpm verify` gate is the Review492 run with 58 root test files / 1223 tests,
 the focused Effect-first audit covers 449 physical and virtual files, and the
-active Thirty-Sweep clean counter is 9/30 after Clean Sweep 9 after Review511.
+active Thirty-Sweep clean counter is 10/30 after Clean Sweep 10 after Review511.
 
 This historical audit checks release-tracking docs for claims that no longer match the
 implementation after the request trace, Effect-first, typed-error, package
@@ -184,6 +184,10 @@ diff --check` checks passed.
   policy, package dry-run verification, starter packaging, public type tests,
   formatting, lint, and `git diff --check` checks passed.
 - Clean Sweep 9 after Review511 found no actionable docs or evidence drift
+  after public API inventory policy, Effect-first audit, package payload
+  policy, package dry-run verification, starter packaging, public type tests,
+  formatting, lint, and `git diff --check` checks passed.
+- Clean Sweep 10 after Review511 found no actionable docs or evidence drift
   after public API inventory policy, Effect-first audit, package payload
   policy, package dry-run verification, starter packaging, public type tests,
   formatting, lint, and `git diff --check` checks passed.
