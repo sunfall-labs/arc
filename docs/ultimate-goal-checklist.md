@@ -649,8 +649,9 @@ Last evidence pass: May 17, 2026.
     adapter starter, and documents the generated project-console starter
     payload.
 - [x] New architectural decisions are recorded in docs or ADRs.
-  - Evidence: Review236 updated Solid Route Render Scope Controller vocabulary
-    for failed partial-render cleanup sequencing; Review235 updated the same
+  - Evidence: Review237 updated Solid Route Render Scope Controller vocabulary
+    for initial failed-render cleanup sequencing; Review236 updated the same
+    vocabulary for update failed-render cleanup sequencing; Review235 updated the same
     vocabulary for same-state renderer-swap disposal sequencing and awaitable
     `disposeEffect()` cleanup; Review234 added Collection Reactive Preload Controller
     vocabulary to `CONTEXT.md`; Review233 added Query Stage Plan
@@ -667,9 +668,9 @@ Last evidence pass: May 17, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 236 passed Solid typecheck, Solid router
-    tests 1 file / 35 tests, and full `pnpm verify` after closing Review236
-    Solid Failed Render Cleanup Sequencing.
+  - Latest focused evidence: Review 237 passed Solid typecheck, Solid router
+    tests 1 file / 36 tests, and full `pnpm verify` after closing Review237
+    Solid Initial Failed Render Cleanup Sequencing.
     Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
     sweeps found Review191, Review192, Review193, Review194, Review195, and
     Review196, Review197, Review198, Review199, Review200, Review201,
@@ -681,7 +682,8 @@ Last evidence pass: May 17, 2026.
     Review232 Shared DB Query Stage Plan work, Review233 Stage Plan And UI
     Cleanup Effects work, and Review234 Cleanup Effects And Public Surface
     Pins work, Review235 Solid Route Render Scope Cleanup Sequencing work, and
-    Review236 Solid Failed Render Cleanup Sequencing work.
+    Review236 Solid Failed Render Cleanup Sequencing work, and Review237 Solid
+    Initial Failed Render Cleanup Sequencing work.
     Clean Sweep 1 after Review208 remains historical 1/30 evidence, but Clean
     Sweep 2 found Review209 work and the local post-Review209 pass found
     Review210 work; the first post-Review210 sweep found Review211 work, and
@@ -706,12 +708,13 @@ Last evidence pass: May 17, 2026.
     Cleanup Effects And Public Surface Pins work, and the fresh post-Review234
     Solid route-render follow-up found Review235 Cleanup Sequencing work, and
     the fresh post-Review235 framework sweep found Review236 failed-render
-    cleanup work,
+    cleanup work, and the fresh post-Review236 framework follow-up found
+    Review237 initial failed-render cleanup work,
     leaving the
     active counter at 0/30.
     Latest full evidence:
-    `pnpm verify` ran after Review 236 with 53 root
-    test files / 1152
+    `pnpm verify` ran after Review 237 with 53 root
+    test files / 1153
     tests, plus 4 project-console test files / 27 tests in the package-level
     gate.
 - [x] Type tests pass after compile-time API changes.
@@ -852,24 +855,24 @@ Last evidence pass: May 17, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 236 Solid failed-render
-    cleanup sequencing work.
+  - Evidence: no new ADR required for the Review 237 Solid initial
+    failed-render cleanup sequencing work.
     Future architecture sweeps remain tracked in
     `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
   - Evidence: root `pnpm verify` passed on May 17,
-    2026 after Review 236 Solid Failed Render Cleanup Sequencing:
+    2026 after Review 237 Solid Initial Failed Render Cleanup Sequencing:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
-    411 physical/virtual files, 53 root test files / 1152 tests,
+    411 physical/virtual files, 53 root test files / 1153 tests,
     package-level verifies for the devtools/starter/example packages,
     generated starter-suite packaging/verifies for basic/react/project-console,
     16-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 236 records Solid typecheck, Solid router tests 1 file /
-    35 tests, `git diff --check`, and full `pnpm verify` after closing the
-    Review236 Solid Failed Render Cleanup Sequencing finding. Clean
+  - Evidence: Review 237 records Solid typecheck, Solid router tests 1 file /
+    36 tests, `git diff --check`, and full `pnpm verify` after closing the
+    Review237 Solid Initial Failed Render Cleanup Sequencing finding. Clean
     Sweep 1 after
     Review190 remains historical 1/30 evidence, but later sweeps found
     Review191, Review192, Review193, Review194, Review195, Review196,
@@ -882,7 +885,8 @@ Last evidence pass: May 17, 2026.
     Shared DB Query Stage Plan work, Review233 Stage Plan And UI Cleanup
     Effects work, Review234 Cleanup Effects And Public Surface Pins work, and
     Review235 Solid Route Render Scope Cleanup Sequencing work, and Review236
-    Solid Failed Render Cleanup Sequencing work.
+    Solid Failed Render Cleanup Sequencing work, and Review237 Solid Initial
+    Failed Render Cleanup Sequencing work.
     Clean
     Sweep 1 after Review208 remains historical 1/30 evidence, but Clean Sweep
     2 found Review209 work and the local post-Review209 pass found Review210
@@ -907,7 +911,8 @@ Last evidence pass: May 17, 2026.
     Cleanup Effects And Public Surface Pins work, and the fresh post-Review234
     Solid route-render follow-up found Review235 cleanup sequencing work, and
     the fresh post-Review235 framework sweep found Review236 failed-render
-    cleanup work,
+    cleanup work, and the fresh post-Review236 framework follow-up found
+    Review237 initial failed-render cleanup work,
     leaving the active counter at 0/30.
     Full verification is recorded in the latest full gate above.
 

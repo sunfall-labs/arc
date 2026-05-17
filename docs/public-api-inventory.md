@@ -1267,10 +1267,11 @@ Release decisions:
   examples.
 - `RouterOutlet` delegates branch rendering, route-owned `UiScope` lifetime,
   Solid root cleanup, runtime-bound route finalizers, transition, same-state
-  renderer-swap, and failed partial-render disposal ordering, stale
-  queued-render suppression, and awaitable internal `disposeEffect()` cleanup
-  to the internal Solid Route Render Scope Controller. This keeps the public
-  Solid router surface stable while making route render lifetime policy local.
+  renderer-swap, initial failed-render, and update failed-render disposal
+  ordering, stale queued-render suppression, and awaitable internal
+  `disposeEffect()` cleanup to the internal Solid Route Render Scope
+  Controller. This keeps the public Solid router surface stable while making
+  route render lifetime policy local.
 - `useAction(...)` returns a Solid `ActionHandle`: `state()` and
   `invalidationPlan()` are Solid accessors, while `submitEffect(...)` and
   `resetEffect(...)` stay runtime-bound Effect methods. The underlying Core

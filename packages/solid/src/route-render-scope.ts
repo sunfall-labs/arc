@@ -163,19 +163,7 @@ export const makeSolidRouteRenderScopeController = <Routes extends readonly AnyR
     renderers: options.initialInput.renderers,
     defaults: routeRenderDefaults
   });
-  let initial: RenderedRouteScope;
-  try {
-    initial = renderRouteState(renderedState, options.initialInput.renderers, options.runtime);
-  } catch (error) {
-    const failure = solidRouteRenderFailure(error);
-    if (failure !== undefined) {
-      void options.runtime.runFork(failure.dispose);
-      throw failure.error;
-    }
-    throw error;
-  }
-  options.setNode(() => initial.node);
-  let disposeRoute: Effect.Effect<void, never, never> | undefined = initial.dispose;
+  let disposeRoute: Effect.Effect<void, never, never> | undefined;
   let transitionVersion = 0;
   let disposalFiber: Fiber.Fiber<void, unknown> | undefined;
 
@@ -263,6 +251,29 @@ export const makeSolidRouteRenderScopeController = <Routes extends readonly AnyR
     transitionVersion++;
     void startCurrentRouteDisposal();
   };
+
+  const renderInitial = (): void => {
+    try {
+      const initial = renderRouteState(renderedState, options.initialInput.renderers, options.runtime);
+      disposeRoute = initial.dispose;
+      options.setNode(() => initial.node);
+    } catch (error) {
+      const failure = solidRouteRenderFailure(error);
+      if (failure !== undefined) {
+        startRouteDisposal(failure.dispose);
+        options.setNode(() => undefined);
+        scheduleRouteRenderError(
+          () => transitionVersion === 0,
+          options.setRenderError,
+          failure.error
+        );
+        return;
+      }
+      throw error;
+    }
+  };
+
+  renderInitial();
 
   return {
     update: (input) => {

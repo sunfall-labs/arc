@@ -155,6 +155,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
   cleanup behavior only; the existing package-local controller pins remain
   sufficient. It moved the current full verification evidence to the Review236
   gate.
+- Review237 Solid Initial Failed Render Cleanup Sequencing also changed
+  internal Solid route cleanup behavior only; the existing package-local
+  controller pins remain sufficient. It moved the current full verification
+  evidence to the Review237 gate.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them
@@ -274,9 +278,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Verification Evidence
 
-- `pnpm typecheck:types` and full `pnpm verify` passed after Review236 with
-  53 root test files / 1152 tests, including Solid failed-render cleanup
-  sequencing coverage, Solid Route Render Scope
+- `pnpm typecheck:types` and full `pnpm verify` passed after Review237 with
+  53 root test files / 1153 tests, including Solid initial failed-render
+  cleanup sequencing coverage, Solid failed-render cleanup sequencing coverage,
+  Solid Route Render Scope
   Controller `disposeEffect()` package-local coverage, Collection Reactive Preload
   Controller `interruptEffect()` pins, Resource UI Binding automatic preload
   `interruptPreloadEffect()` pins, Devtools panel boot interrupt pins, Core
