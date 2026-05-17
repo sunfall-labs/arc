@@ -41,10 +41,10 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest focused Review511 Format Policy Drift slice is green: the full
-  workspace formatting policy has been restored after the Clean Sweep 8
-  candidate found drift across docs, examples, Core, Start, DB/Devtools tests,
-  public type tests, and Vitest config.
+- The latest focused Review512 Generated Route Artifact Formatting slice is
+  green: Start route definition generation now emits formatter-stable
+  TypeScript, and source package dry-run verification snapshots generated
+  starter artifacts so package checks cannot silently repair source files.
 - Clean Sweep 1 after Review504 remains historical 1/30 evidence, but the fresh
   post-Review504 sweep found Review505 lazy route and DB type-test work, and
   the fresh post-Review505 sweep found Review506 lazy route Suspense typed-error
@@ -108,6 +108,9 @@ or command result that proves it.
   Locality, Depth, Leverage, Effect-first, LSP/JSDoc, package,
   generated-artifact, formatting, lint, or docs-honesty work. The active
   Thirty-Sweep clean counter is 11/30 after Clean Sweep 11 after Review511.
+  Review512 fixed small generated-artifact gate hygiene without resetting the
+  counter; the active Thirty-Sweep clean counter holds at 11/30 after
+  Review512 until the next no-actionable sweep advances it.
 - Public release metadata is split by package role: framework packages are
   publishable public scoped packages under the MIT license, while the workspace
   root and copyable examples/starters remain private source fixtures.
@@ -910,6 +913,7 @@ or command result that proves it.
 | 524 | Clean Sweep 10 after Review511 | `docs/architecture-deepening-review.md`; `docs/docs-drift-audit.md`; `docs/effect-first-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/type-test-coverage-audit.md`; `docs/ultimate-goal-checklist.md`; `scripts/audit-public-api-inventory.mjs`; `scripts/public-api-symbol-policy.mjs` | Recorded the tenth active no-actionable sweep. Core/React/Solid, DB/React-DB/Solid-DB, Start/docs/package/generated-artifact, and evidence lanes again reported no actionable Module, Interface, Seam, Adapter, Locality, Depth, Leverage, Effect-first, LSP/JSDoc, package, formatting/lint, or docs-honesty work. | Active clean counter reached 10/30. Evidence included public type tests, public API audit, Effect-first audit, package payload policy, package dry-run verification, focused Core/React/Solid tests, DB-family tests, Start tests, DB-family package typechecks, starter packaging, formatting, lint, and clean `git diff --check`. |
 
 | 525 | Clean Sweep 11 after Review511 | `docs/architecture-deepening-review.md`; `docs/docs-drift-audit.md`; `docs/effect-first-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/type-test-coverage-audit.md`; `docs/ultimate-goal-checklist.md`; `scripts/audit-public-api-inventory.mjs`; `scripts/public-api-symbol-policy.mjs` | Recorded the eleventh active no-actionable sweep. Core/React/Solid, DB/React-DB/Solid-DB, Start/docs/package/generated-artifact, and evidence lanes again reported no actionable Module, Interface, Seam, Adapter, Locality, Depth, Leverage, Effect-first, LSP/JSDoc, package, formatting/lint, or docs-honesty work. The project-console starter route artifact drift report was not reproducible in the current worktree after normal, fast/prebuilt, repeated, and clean-output starter packaging runs. | Active clean counter reached 11/30. Evidence included public type tests, public API audit, Effect-first audit, package payload policy, package dry-run verification, focused Core/React/Solid tests, DB-family tests, Start tests, DB-family package typechecks, repeated starter packaging, formatting, lint, and clean `git diff --check`. |
+| 526 | Review 512 Generated Route Artifact Formatting | `docs/architecture-deepening-review.md`; `docs/docs-drift-audit.md`; `docs/effect-first-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/type-test-coverage-audit.md`; `docs/ultimate-goal-checklist.md`; `packages/start/src/file-route-modules.ts`; `packages/start/test/file-route-modules.test.ts`; `scripts/audit-public-api-inventory.mjs`; `scripts/public-api-symbol-policy.mjs`; `scripts/verify-package-dry-runs.mjs` | Fixed the generated route definition writer so Start emits formatter-stable TypeScript literals instead of JSON-shaped object literals, and hardened package dry-run verification to fail if source generated starter artifacts change during a source package dry-run. | Focused verification passed: route module tests, file route tests, `@sunfall/arc-start` build, diagnostics CLI idempotence against `examples/project-console/src/routeTree.gen.ts`, and the 17-target `pnpm example:pack-dry-run`. This small generated-artifact gate-hygiene fix does not reset the active Thirty-Sweep clean counter; it holds at 11/30 after Review512. |
 
 ## Thirty-Sweep Gate
 

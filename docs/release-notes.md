@@ -151,6 +151,12 @@ Latest full gate on May 17, 2026 after Review 492:
   project-console starter route artifact drift report did not reproduce after
   normal, fast/prebuilt, repeated, and clean-output starter packaging runs, and
   the active Thirty-Sweep clean counter moved to 11/30.
+- Review 512 Generated Route Artifact Formatting makes Start route definition
+  output formatter-stable, keeps the diagnostics CLI idempotent for
+  `examples/project-console/src/routeTree.gen.ts`, and hardens source package
+  dry-run verification so it fails if generated starter artifacts drift during
+  packing. This small generated-artifact gate-hygiene fix means the active
+  Thirty-Sweep clean counter holds at 11/30 after Review512.
 - Review 510 Package Dry-Run Count Evidence updates the current release
   snapshot to match the 150-file `@sunfall/arc-db` package dry-run rehearsal.
   Clean Sweep 2 after Review509 found this docs-honesty drift, so the active

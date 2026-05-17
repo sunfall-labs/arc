@@ -20,9 +20,10 @@ interruption.
 
 ## Current Sweep Results
 
-- Review511 Format Policy Drift is mechanical formatting work. It adds no
-  Promise surface, leaves Effect-first Interfaces unchanged, and keeps the
-  active clean counter at 7/30 until the next no-actionable sweep advances it.
+- Review512 Generated Route Artifact Formatting adds no public Promise surface:
+  route definition generation remains synchronous, and the source package
+  dry-run guard uses the existing Effect script Adapter around filesystem reads.
+  The active clean counter holds at 11/30 after Review512.
 - Clean Sweep 8 after Review511 found no actionable Effect-first follow-up:
   Core/React/Solid, DB/React-DB/Solid-DB, Start/docs/package, generated
   artifacts, and evidence lanes preserved Effect-returning public Interfaces

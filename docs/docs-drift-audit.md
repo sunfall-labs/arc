@@ -3,10 +3,10 @@
 Last updated: 2026-05-17.
 
 Current release-tracking truth lives in `docs/architecture-deepening-review.md`
-and `docs/perfection-progress.md`. As of Review511, the latest full
+and `docs/perfection-progress.md`. As of Review512, the latest full
 `pnpm verify` gate is the Review492 run with 58 root test files / 1223 tests,
 the focused Effect-first audit covers 449 physical and virtual files, and the
-active Thirty-Sweep clean counter is 11/30 after Clean Sweep 11 after Review511.
+active Thirty-Sweep clean counter holds at 11/30 after Review512.
 
 This historical audit checks release-tracking docs for claims that no longer match the
 implementation after the request trace, Effect-first, typed-error, package
@@ -195,6 +195,11 @@ diff --check` checks passed.
   after public API inventory policy, Effect-first audit, package payload
   policy, package dry-run verification, repeated starter packaging, public type
   tests, formatting, lint, and `git diff --check` checks passed.
+- Review512 Generated Route Artifact Formatting records a small
+  generated-artifact Locality fix: Start route definition output is
+  formatter-stable, and source package dry-runs now fail if generated starter
+  artifacts drift during verification. The active Thirty-Sweep clean counter
+  holds at 11/30 after Review512.
 - Review209 refreshed current ledgers after Clean Sweep 2 found the
   broad-`unknown` Promise callback rejection hole and reset the active
   Thirty-Sweep counter to 0/30.

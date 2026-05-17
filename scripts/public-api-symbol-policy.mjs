@@ -1413,8 +1413,8 @@ export const namespaceBackedSurfaceModules = new Map([
 ]);
 
 export const currentDocsEvidencePolicy = {
-  latestFocusedReview: 511,
-  latestFocusedTitle: "Format Policy Drift",
+  latestFocusedReview: 512,
+  latestFocusedTitle: "Generated Route Artifact Formatting",
   latestFullGateReview: 492,
   rootTestFiles: 58,
   rootTestCount: 1223,
@@ -1430,8 +1430,9 @@ const latestFocusedReviewPattern = `Review${currentDocsEvidencePolicy.latestFocu
 const activeCleanCounterPattern = escapeRegExp(currentDocsEvidencePolicy.activeCleanCounter);
 
 const staleFocusedReviewPattern =
-  /(?:The latest focused Review|Latest focused evidence: Review|newest focused review is Review) ?(?:1\d\d|2\d\d|3\d\d|4[0-9]\d)\b/;
-const staleAsOfReviewPattern = /As of Review(?:1\d\d|2\d\d|3\d\d|4[0-9]\d), the latest full/;
+  /(?:The latest focused Review|Latest focused evidence: Review|newest focused review is Review) ?(?:1\d\d|2\d\d|3\d\d|4\d\d|50\d|51[0-1])\b/;
+const staleAsOfReviewPattern =
+  /As of Review(?:1\d\d|2\d\d|3\d\d|4\d\d|50\d|51[0-1]), the latest full/;
 const staleFullGateReviewPattern =
   /(?:The latest full verification gate is green after Review|Latest full gate[^.\n]*after Review|latest full `pnpm verify` passed after Review|current full gate is the Review) ?(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0-1])\b/;
 const stalePostReviewWaitPattern =
@@ -1481,7 +1482,7 @@ export const currentDocsTextPolicies = [
       {
         name: "Architecture tip must record the current clean sweep",
         pattern: new RegExp(
-          `active\\s+Thirty-Sweep\\s+clean\\s+counter\\s+is ${activeCleanCounterPattern}\\s+after\\s+Clean\\s+Sweep\\s+11\\s+after\\s+Review${currentDocsEvidencePolicy.latestFocusedReview}`,
+          `active\\s+Thirty-Sweep\\s+clean\\s+counter\\s+holds\\s+at ${activeCleanCounterPattern}\\s+after\\s+Review${currentDocsEvidencePolicy.latestFocusedReview}`,
         ),
       },
     ],
@@ -1512,7 +1513,7 @@ export const currentDocsTextPolicies = [
       {
         name: "Perfection progress must record the current clean sweep",
         pattern: new RegExp(
-          `active\\s+Thirty-Sweep\\s+clean\\s+counter\\s+is ${activeCleanCounterPattern}\\s+after\\s+Clean\\s+Sweep\\s+11\\s+after\\s+Review${currentDocsEvidencePolicy.latestFocusedReview}`,
+          `active\\s+Thirty-Sweep\\s+clean\\s+counter\\s+holds\\s+at ${activeCleanCounterPattern}\\s+after\\s+Review${currentDocsEvidencePolicy.latestFocusedReview}`,
         ),
       },
     ],
@@ -1563,7 +1564,7 @@ export const currentDocsTextPolicies = [
       {
         name: "Release notes must record the current clean sweep",
         pattern: new RegExp(
-          `Clean Sweep 11 after Review${currentDocsEvidencePolicy.latestFocusedReview}\\s+found no actionable`,
+          `counter\\s+holds\\s+at ${activeCleanCounterPattern}\\s+after\\s+Review${currentDocsEvidencePolicy.latestFocusedReview}`,
         ),
       },
     ],
@@ -1608,7 +1609,7 @@ export const currentDocsTextPolicies = [
       {
         name: "Docs drift audit must record the current clean sweep",
         pattern: new RegExp(
-          `counter is ${activeCleanCounterPattern}\\s+after Clean Sweep 11 after Review${currentDocsEvidencePolicy.latestFocusedReview}`,
+          `counter holds at ${activeCleanCounterPattern}\\s+after Review${currentDocsEvidencePolicy.latestFocusedReview}`,
         ),
       },
     ],
@@ -1737,7 +1738,7 @@ export const currentDocsTextPolicies = [
       {
         name: "Ultimate goal checklist must pin latest focused verification subsection",
         pattern: new RegExp(
-          `Latest focused verification recorded\\.[\\s\\S]*?Evidence: Review ${currentDocsEvidencePolicy.latestFocusedReview} records[\\s\\S]*?format policy drift`,
+          `Latest focused verification recorded\\.[\\s\\S]*?Evidence: Review ${currentDocsEvidencePolicy.latestFocusedReview} records[\\s\\S]*?generated route artifact formatting`,
         ),
       },
       {

@@ -681,9 +681,10 @@ diagnostics`, devtools summary tests, and generated virtual modules.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 511 records format policy drift.
-    `pnpm format:check`, public type tests, public API inventory audit,
-    Effect-first audit, lint, and `git diff --check` passed.
+  - Latest focused evidence: Review 512 records generated route artifact
+    formatting. Route module tests, file route tests, `@sunfall/arc-start`
+    build, diagnostics CLI idempotence, and the 17-target package dry-run gate
+    passed.
     Latest full verification evidence is Review 492.
     Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
     sweeps found Review191, Review192, Review193, Review194, Review195, and
@@ -956,9 +957,9 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     17-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 511 records format policy drift. `pnpm format:check`,
-    public type tests, public API inventory audit, Effect-first audit, lint,
-    and `git diff --check` passed. Clean
+  - Evidence: Review 512 records generated route artifact formatting. Route
+    module tests, file route tests, `@sunfall/arc-start` build, diagnostics CLI
+    idempotence, and the 17-target package dry-run gate passed. Clean
     Sweep 1 after Review504 found no actionable Module, Interface, Seam,
     Adapter, Locality, Depth, Leverage, Effect-first, LSP/JSDoc, package, or
     docs-honesty work, but later sweeps found Review505, Review506, Review507,

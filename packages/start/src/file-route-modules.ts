@@ -126,6 +126,47 @@ const asCompanionModuleIdentifier = (
 
 const stringLiteral = (value: string): string => JSON.stringify(value);
 
+const propertyKeyLiteral = (value: string): string =>
+  identifierPattern.test(value) ? value : stringLiteral(value);
+
+const typeScriptLiteral = (value: unknown, depth: number = 0): string => {
+  if (typeof value === "string") {
+    return stringLiteral(value);
+  }
+  if (typeof value === "number" || typeof value === "boolean" || value === null) {
+    return JSON.stringify(value);
+  }
+  if (Array.isArray(value)) {
+    if (value.length === 0) {
+      return "[]";
+    }
+    const childIndent = "  ".repeat(depth + 1);
+    const currentIndent = "  ".repeat(depth);
+    return [
+      "[",
+      ...value.map((item) => `${childIndent}${typeScriptLiteral(item, depth + 1)},`),
+      `${currentIndent}]`,
+    ].join("\n");
+  }
+  if (typeof value === "object" && value !== undefined) {
+    const entries = Object.entries(value).filter(([, entryValue]) => entryValue !== undefined);
+    if (entries.length === 0) {
+      return "{}";
+    }
+    const childIndent = "  ".repeat(depth + 1);
+    const currentIndent = "  ".repeat(depth);
+    return [
+      "{",
+      ...entries.map(
+        ([key, entryValue]) =>
+          `${childIndent}${propertyKeyLiteral(key)}: ${typeScriptLiteral(entryValue, depth + 1)},`,
+      ),
+      `${currentIndent}}`,
+    ].join("\n");
+  }
+  return "undefined";
+};
+
 const normalizePath = (path: string): string =>
   path.replace(/\\/g, "/").replace(/\/+/g, "/").replace(/\/$/, "");
 
@@ -318,17 +359,18 @@ export const createFileRouteDefinitionsModule = (
   );
   const routeIdentifiers = references.map(({ identifier }) => identifier);
   const routeByIdEntries = references.map(
-    ({ identifier }) => `  ${stringLiteral(identifier)}: ${identifier}`,
+    ({ identifier }) => `  ${propertyKeyLiteral(identifier)}: ${identifier},`,
   );
   const routeByPathEntries = references.map(
-    ({ entry, identifier }) => `  ${stringLiteral(entry.routePath)}: ${identifier}`,
+    ({ entry, identifier }) => `  ${propertyKeyLiteral(entry.routePath)}: ${identifier},`,
   );
   const routeIdByPathEntries = references.map(
-    ({ entry, identifier }) => `  ${stringLiteral(entry.routePath)}: ${stringLiteral(identifier)}`,
+    ({ entry, identifier }) =>
+      `  ${propertyKeyLiteral(entry.routePath)}: ${stringLiteral(identifier)},`,
   );
-  const routeModules = JSON.stringify(manifest.modules, null, 2);
+  const routeModules = typeScriptLiteral(manifest.modules);
   const describedRouteMetadata = describeFileRouteManifest(manifest);
-  const routeMetadata = JSON.stringify(describedRouteMetadata, null, 2);
+  const routeMetadata = typeScriptLiteral(describedRouteMetadata);
   const identifierForCompanionModule = (module: FileRouteManifestModule): string => {
     const reference = companionReferenceByModuleId.get(module.moduleId);
     if (!reference) {
@@ -341,19 +383,27 @@ export const createFileRouteDefinitionsModule = (
   };
   const layoutEntries = describedRouteMetadata.map(
     (entry) =>
-      `  ${stringLiteral(String(entry.routeId))}: [${entry.layouts.map(identifierForCompanionModule).join(", ")}]`,
+      `  ${propertyKeyLiteral(String(entry.routeId))}: [${entry.layouts.map(identifierForCompanionModule).join(", ")}],`,
   );
   const errorBoundaryEntries = describedRouteMetadata.flatMap((entry) =>
     entry.errorBoundary === undefined
       ? []
       : [
-          `  ${stringLiteral(String(entry.routeId))}: ${identifierForCompanionModule(entry.errorBoundary)}`,
+          `  ${propertyKeyLiteral(String(entry.routeId))}: ${identifierForCompanionModule(entry.errorBoundary)},`,
         ],
   );
   const metadataEntries = describedRouteMetadata.map(
     (entry) =>
-      `  ${stringLiteral(String(entry.routeId))}: [${entry.metadataModules.map(identifierForCompanionModule).join(", ")}]`,
+      `  ${propertyKeyLiteral(String(entry.routeId))}: [${entry.metadataModules.map(identifierForCompanionModule).join(", ")}],`,
   );
+  const fileRouteErrorBoundaryById =
+    errorBoundaryEntries.length === 0
+      ? ["export const fileRouteErrorBoundaryById = {} as const;"]
+      : [
+          "export const fileRouteErrorBoundaryById = {",
+          errorBoundaryEntries.join("\n"),
+          "} as const;",
+        ];
 
   return [
     'import { Route } from "@sunfall/arc-core";',
@@ -370,15 +420,15 @@ export const createFileRouteDefinitionsModule = (
     "export const routeTree = routes;",
     "/** Map from generated route id to the exact route definition for that file route. */",
     "export const routeById = {",
-    routeByIdEntries.join(",\n"),
+    routeByIdEntries.join("\n"),
     "} as const;",
     "/** Map from route path pattern to the exact route definition for that file route. */",
     "export const routeByPath = {",
-    routeByPathEntries.join(",\n"),
+    routeByPathEntries.join("\n"),
     "} as const;",
     "/** Map from route path pattern to generated route id. */",
     "export const routeIdByPath = {",
-    routeIdByPathEntries.join(",\n"),
+    routeIdByPathEntries.join("\n"),
     "} as const;",
     "/** Builds a typed href for a generated route id. */",
     "export const hrefById = <Id extends RouteId>(",
@@ -393,40 +443,36 @@ export const createFileRouteDefinitionsModule = (
     "",
     "/** Layout modules that wrap each generated route, ordered from source-scope root to leaf. */",
     "export const fileRouteLayoutsById = {",
-    layoutEntries.join(",\n"),
+    layoutEntries.join("\n"),
     "} as const;",
     "/** Nearest source-scoped error boundary module for each generated route, when one exists. */",
-    "export const fileRouteErrorBoundaryById = {",
-    errorBoundaryEntries.join(",\n"),
-    "} as const;",
+    ...fileRouteErrorBoundaryById,
     "/** Metadata modules scoped to each generated route by source id, ordered from root to leaf. */",
     "export const fileRouteMetadataById = {",
-    metadataEntries.join(",\n"),
+    metadataEntries.join("\n"),
     "} as const;",
     "/** Returns layout modules for a generated route id. */",
-    "export const layoutsById = <Id extends RouteId>(",
-    "  id: Id",
-    "): FileRouteLayouts<Id> => fileRouteLayoutsById[id];",
+    "export const layoutsById = <Id extends RouteId>(id: Id): FileRouteLayouts<Id> =>",
+    "  fileRouteLayoutsById[id];",
     "/** Returns layout modules for a generated route path pattern. */",
     "export const layoutsByPath = <Path extends RoutePath>(",
-    "  path: Path",
+    "  path: Path,",
     "): FileRouteLayouts<RouteIdByPath[Path]> => layoutsById(routeIdByPath[path]);",
     "/** Returns the nearest error boundary module for a generated route id, when one exists. */",
-    "export const errorBoundaryById = <Id extends RouteId>(",
-    "  id: Id",
-    "): FileRouteErrorBoundary<Id> =>",
-    "  (fileRouteErrorBoundaryById as Partial<Record<RouteId, unknown>>)[id] as FileRouteErrorBoundary<Id>;",
+    "export const errorBoundaryById = <Id extends RouteId>(id: Id): FileRouteErrorBoundary<Id> =>",
+    "  (fileRouteErrorBoundaryById as Partial<Record<RouteId, unknown>>)[",
+    "    id",
+    "  ] as FileRouteErrorBoundary<Id>;",
     "/** Returns the nearest error boundary module for a generated route path pattern, when one exists. */",
     "export const errorBoundaryByPath = <Path extends RoutePath>(",
-    "  path: Path",
+    "  path: Path,",
     "): FileRouteErrorBoundary<RouteIdByPath[Path]> => errorBoundaryById(routeIdByPath[path]);",
     "/** Returns metadata modules for a generated route id. */",
-    "export const metadataById = <Id extends RouteId>(",
-    "  id: Id",
-    "): FileRouteMetadataModules<Id> => fileRouteMetadataById[id];",
+    "export const metadataById = <Id extends RouteId>(id: Id): FileRouteMetadataModules<Id> =>",
+    "  fileRouteMetadataById[id];",
     "/** Returns metadata modules for a generated route path pattern. */",
     "export const metadataByPath = <Path extends RoutePath>(",
-    "  path: Path",
+    "  path: Path,",
     "): FileRouteMetadataModules<RouteIdByPath[Path]> => metadataById(routeIdByPath[path]);",
     "",
     "/** Route, layout, error boundary, and metadata modules discovered by Start. */",
@@ -455,7 +501,9 @@ export const createFileRouteDefinitionsModule = (
     "/** Search values for each generated route id. */",
     "export type FileRouteSearchById = { readonly [Id in FileRouteId]: Route.Search<RouteById[Id]> };",
     "/** Href options for each generated route id. */",
-    "export type FileRouteHrefOptionsById = { readonly [Id in FileRouteId]: Route.HrefOptions<RouteById[Id]> };",
+    "export type FileRouteHrefOptionsById = {",
+    "  readonly [Id in FileRouteId]: Route.HrefOptions<RouteById[Id]>;",
+    "};",
     "/** Href options for one generated route id. */",
     "export type FileRouteHrefOptions<Id extends FileRouteId> = FileRouteHrefOptionsById[Id];",
     "/** Href arguments for each generated route id. */",
@@ -463,13 +511,21 @@ export const createFileRouteDefinitionsModule = (
     "/** Href arguments for one generated route id. */",
     "export type FileRouteHrefArgs<Id extends FileRouteId> = FileRouteHrefArgsById[Id];",
     "/** Params for each generated route path pattern. */",
-    "export type FileRouteParamsByPath = { readonly [Path in keyof FileRouteByPath]: Route.Params<FileRouteByPath[Path]> };",
+    "export type FileRouteParamsByPath = {",
+    "  readonly [Path in keyof FileRouteByPath]: Route.Params<FileRouteByPath[Path]>;",
+    "};",
     "/** Search values for each generated route path pattern. */",
-    "export type FileRouteSearchByPath = { readonly [Path in keyof FileRouteByPath]: Route.Search<FileRouteByPath[Path]> };",
+    "export type FileRouteSearchByPath = {",
+    "  readonly [Path in keyof FileRouteByPath]: Route.Search<FileRouteByPath[Path]>;",
+    "};",
     "/** Href options for each generated route path pattern. */",
-    "export type FileRouteHrefOptionsByPath = { readonly [Path in keyof FileRouteByPath]: Route.HrefOptions<FileRouteByPath[Path]> };",
+    "export type FileRouteHrefOptionsByPath = {",
+    "  readonly [Path in keyof FileRouteByPath]: Route.HrefOptions<FileRouteByPath[Path]>;",
+    "};",
     "/** Href arguments for each generated route path pattern. */",
-    "export type FileRouteHrefArgsByPath = { readonly [Path in keyof FileRouteByPath]: Route.HrefArgs<FileRouteByPath[Path]> };",
+    "export type FileRouteHrefArgsByPath = {",
+    "  readonly [Path in keyof FileRouteByPath]: Route.HrefArgs<FileRouteByPath[Path]>;",
+    "};",
     "/** Route match narrowed to one generated route path pattern. */",
     "export type FileRouteMatch<Path extends FileRoutePath> = Route.Match<FileRouteByPath[Path]>;",
     "/** Layout modules keyed by generated route id. */",
@@ -481,7 +537,8 @@ export const createFileRouteDefinitionsModule = (
     "/** Layout modules for one generated route id. */",
     "export type FileRouteLayouts<Id extends FileRouteId> = FileRouteLayoutsById[Id];",
     "/** Error boundary module for one generated route id, or undefined when none is scoped. */",
-    "export type FileRouteErrorBoundary<Id extends FileRouteId> = Id extends keyof FileRouteErrorBoundaryById ? FileRouteErrorBoundaryById[Id] : undefined;",
+    "export type FileRouteErrorBoundary<Id extends FileRouteId> =",
+    "  Id extends keyof FileRouteErrorBoundaryById ? FileRouteErrorBoundaryById[Id] : undefined;",
     "/** Metadata modules for one generated route id. */",
     "export type FileRouteMetadataModules<Id extends FileRouteId> = FileRouteMetadataById[Id];",
     "/** Friendly alias for the generated route id union. */",
@@ -513,7 +570,7 @@ export const createFileRouteDefinitionsModule = (
     "/** Narrows a broad route match to one generated route path pattern. */",
     "export const isRoutePathMatch = <Path extends FileRoutePath>(",
     "  path: Path,",
-    "  match: Route.Match<FileRoute> | undefined",
+    "  match: Route.Match<FileRoute> | undefined,",
     "): match is FileRouteMatch<Path> => match?.route.path === path;",
     "/** Static metadata for all file-route modules discovered by Start. */",
     "export type FileRouteModules = typeof fileRouteModules;",

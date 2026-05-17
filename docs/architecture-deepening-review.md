@@ -11,14 +11,12 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review511 Format Policy Drift, the
-Clean-Sweep-8-after-Review510 follow-up that restores the workspace formatting
-policy Interface. Clean Sweep 7 after Review510 remains the newest
-historical no-actionable sweep, and Clean Sweep 8 after Review511 is the
-previous no-actionable sweep, Clean Sweep 9 after Review511 is the previous
-no-actionable sweep, Clean Sweep 10 after Review511 is the previous
-no-actionable sweep, and Clean Sweep 11 after Review511 is the newest
-no-actionable sweep.
+The newest focused review is Review512 Generated Route Artifact Formatting,
+the generated-artifact Locality follow-up that makes Start route definitions
+formatter-stable and hardens source package dry-run verification. Clean Sweep 7
+after Review510 remains historical no-actionable evidence, and Clean Sweep 8
+after Review511, Clean Sweep 9 after Review511, Clean Sweep 10 after Review511,
+and Clean Sweep 11 after Review511 remain the latest no-actionable sweeps.
 The newest full verification checkpoint is Review492.
 Clean Sweep 1 after
 Review208 remains historical 1/30
@@ -120,7 +118,9 @@ counter is 10/30 after Clean Sweep 10 after Review511. The next fresh sweep
 found no actionable work across Core/React/Solid, DB/public API,
 Start/docs/package, and evidence lanes, creating Clean Sweep 11 after Review511,
 so the active Thirty-Sweep clean counter is 11/30 after Clean Sweep 11 after
-Review511. Clean Sweep 1 after
+Review511. Review512 fixed small generated-artifact gate hygiene without
+resetting the counter, so the active Thirty-Sweep clean counter holds at 11/30
+after Review512 until the next no-actionable sweep advances it. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
@@ -521,6 +521,31 @@ findings.
      rerun the full formatting policy.
    - Benefits: the formatting Seam regains Locality and future architecture
      sweeps can treat format failures as local to the changed Implementation.
+
+## Review 512: Generated Route Artifact Formatting
+
+Review512 fixes the actionable finding from the next generated-artifact lane
+after Clean Sweep 11 after Review511. This is small gate hygiene, so the active
+Thirty-Sweep clean counter holds at 11/30 until the next no-actionable sweep
+advances it.
+
+1. Generated Route Artifact Formatting
+   - Status: fixed.
+   - Files: `packages/start/src/file-route-modules.ts`,
+     `packages/start/test/file-route-modules.test.ts`,
+     `scripts/verify-package-dry-runs.mjs`, and
+     `examples/project-console/src/routeTree.gen.ts`.
+   - Problem: the Start diagnostics CLI and package dry-run path could rewrite
+     the project-console `routeTree.gen.ts` artifact into JSON-shaped TypeScript
+     and still leave the package verification Interface green. That crossed the
+     generated-artifact Seam and weakened Locality for source package checks.
+   - Solution: move route definition generation to formatter-stable TypeScript
+     literals, keep helper signatures in the formatter-stable shape, and make
+     the package dry-run Adapter snapshot source generated artifacts around
+     source package dry-runs.
+   - Benefits: generated route artifacts are idempotent at the Start Module
+     boundary, and a future package dry-run cannot silently repair source
+     generated artifacts while reporting success.
 
 ## Clean Sweep 8 After Review511
 

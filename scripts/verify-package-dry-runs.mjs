@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdtemp, readdir, rm, stat, symlink } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, stat, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -19,6 +19,7 @@ import {
   workspaceDistPackagePayloadPolicies,
 } from "./package-payload-policy.mjs";
 import {
+  starterCatalog,
   starterCatalogConsistencyEffect,
   starterSourcePackagePayloadPolicies,
 } from "./starter-catalog.mjs";
@@ -96,6 +97,13 @@ const packagePayloadPolicies = new Map([
   ],
   ...starterSourcePackagePayloadPolicies,
 ]);
+
+const sourcePackageGeneratedArtifactFiles = new Map(
+  starterCatalog.map((starter) => [
+    starter.sourcePackageName,
+    starter.artifacts.map((artifact) => join(starter.sourceDir, artifact.file)),
+  ]),
+);
 
 const forbiddenGeneratedSegments = new Set([".test-dist", "node_modules"]);
 const forbiddenSourcePackageSegments = new Set([
@@ -562,6 +570,35 @@ const collectSourcePackageFiles = (target) =>
     return files.sort((left, right) => left.localeCompare(right));
   });
 
+const collectSourceGeneratedArtifactSnapshots = (target) =>
+  Effect.gen(function* () {
+    const artifactFiles = sourcePackageGeneratedArtifactFiles.get(target.label) ?? [];
+    const snapshots = new Map();
+    for (const artifactFile of artifactFiles) {
+      snapshots.set(
+        artifactFile,
+        yield* fsEffect(`read ${relative(workspaceRoot, artifactFile)}`, () =>
+          readFile(artifactFile, "utf8"),
+        ),
+      );
+    }
+    return snapshots;
+  });
+
+const sourceGeneratedArtifactDriftFailuresEffect = (target, snapshots) =>
+  Effect.gen(function* () {
+    const failures = [];
+    for (const [artifactFile, before] of snapshots) {
+      const after = yield* fsEffect(`read ${relative(workspaceRoot, artifactFile)}`, () =>
+        readFile(artifactFile, "utf8"),
+      );
+      if (after !== before) {
+        failures.push(toPosixPath(relative(workspaceRoot, artifactFile)));
+      }
+    }
+    return failures;
+  });
+
 const verifyStartCliSymlinkBinEffect = (target) => {
   if (target.label !== "@sunfall/arc-start") {
     return Effect.void;
@@ -677,6 +714,10 @@ const verifyPackageTarget = (target) =>
       );
     }
 
+    const generatedArtifactSnapshots =
+      target.payload === "source-package"
+        ? yield* collectSourceGeneratedArtifactSnapshots(target)
+        : new Map();
     const { stdout } = yield* commandEffect(`${target.label} package dry-run`, "pnpm", [
       "--filter",
       target.filter,
@@ -713,6 +754,10 @@ const verifyPackageTarget = (target) =>
             files,
             workspaceRoot,
           })
+        : [];
+    const sourceGeneratedArtifactDrift =
+      target.payload === "source-package"
+        ? yield* sourceGeneratedArtifactDriftFailuresEffect(target, generatedArtifactSnapshots)
         : [];
 
     if (target.requiresGitignore && !files.includes(".gitignore")) {
@@ -763,6 +808,17 @@ const verifyPackageTarget = (target) =>
           [
             "Remove stale Effect UI rename tokens from packed package files.",
             ...legacyPackagePayloadTokenDrift,
+          ].join(" "),
+        ),
+      );
+    }
+    if (sourceGeneratedArtifactDrift.length > 0) {
+      return yield* Effect.fail(
+        fail(
+          `${target.label} package dry-run changed generated source artifacts.`,
+          [
+            "Regenerate and commit source generated artifacts before package verification so dry-runs cannot silently repair examples.",
+            `Changed artifacts: ${sourceGeneratedArtifactDrift.join(", ")}.`,
           ].join(" "),
         ),
       );
