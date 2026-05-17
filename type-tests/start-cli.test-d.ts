@@ -32,10 +32,10 @@ const startDiagnosticsCliResultEffect: Effect.Effect<StartDiagnosticsCliResult, 
   runStartDiagnosticsCliEffect(["--help"], cliIo);
 const startDiagnosticsCliResultAliasEffect: Effect.Effect<StartDiagnosticsCliResult, StartDiagnosticsCliWriteError> =
   runStartDiagnosticsCli(["--help"], cliIo);
-const startDiagnosticsCliMainEffect: Effect.Effect<void, StartDiagnosticsCliWriteError> =
-  runStartDiagnosticsCliMainEffect(["--help"]);
-const startDiagnosticsCliMainAliasEffect: Effect.Effect<void, StartDiagnosticsCliWriteError> =
-  runStartDiagnosticsCliMain(["--help"]);
+const startDiagnosticsCliMainEffect: Effect.Effect<void> =
+  runStartDiagnosticsCliMainEffect(["--help"], cliIo);
+const startDiagnosticsCliMainAliasEffect: Effect.Effect<void> =
+  runStartDiagnosticsCliMain(["--help"], cliIo);
 const startDiagnosticsCliWriteError = new StartDiagnosticsCliWriteError({
   stream: "stdout",
   cause: "boom",

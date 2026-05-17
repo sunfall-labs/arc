@@ -11,13 +11,14 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review198, the post-Review197 sweep
-fixing Promise-shaped Query callbacks and Start file-route/Vite policy
-locality. The newest full verification checkpoint is Review198. Clean
+The newest completed focused review is Review199, the post-Review198 sweep
+fixing Solid browser-router Interface locality, React DB public-surface pins,
+and Start Vite/CLI host seams. The newest full verification checkpoint is
+Review199. Clean
 Sweep 1 after Review190 remains
 historical evidence, but later sweeps found Review191, Review192, Review193,
-Review194, Review195, Review196, Review197, and Review198 work, so the active
-Thirty-Sweep clean counter is 0/30 until a fresh post-Review198 sweep reports no actionable
+Review194, Review195, Review196, Review197, Review198, and Review199 work, so
+the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review199 sweep reports no actionable
 findings. Some older review entries
 remain below this tip from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
@@ -42,7 +43,120 @@ counter stayed inactive. The first post-Review195 sweep found Review196
 Core/Start/DB/devtools/starter work, and the first post-Review196 sweep found
 Review197 Core/Start/DB work, and the first post-Review197 sweep found
 Review198 DB/Start work, so the counter remains inactive until the
-post-Review198 sweep is clean.
+post-Review199 sweep is clean. The first post-Review198 sweep found Review199
+Solid/React DB/Start work.
+
+## Review 199: Adapter Contract And Host Runtime Seams
+
+Review199 fixed actionable findings from the fresh post-Review198 subagent
+sweep. The Core/React/Solid lane found Solid router Interface duplication, the
+DB lane found React DB public docs/type-test shallowness, and the Start lane
+found Vite dev SSR, diagnostics close, and CLI bin host-seam gaps.
+
+1. Solid Browser Router Interface Locality
+   - Status: fixed.
+   - Files: `packages/solid/src/router.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: Core owns the shared `BrowserRouterHostController` Interface and
+     React extends it directly, but Solid manually restated the same route
+     helpers, runtime, match, and preload methods while only replacing
+     `state`/`match` with Solid `Accessor`s. Future Core controller additions
+     could drift without a Solid type-level parity failure.
+   - Fix: Solid `BrowserRouter` now extends an `Omit<BrowserRouterHostController,
+     "state" | "match" | "start" | "dispose">` projection and redefines only the
+     Solid reactive members. Public type tests assert the Solid router satisfies
+     the projected Core controller shape while `state()` and `match()` remain
+     Solid accessors.
+   - Benefits: the Core browser-router host controller stays the owning Seam for
+     route helpers, preload helpers, and runtime/controller shape; Solid keeps
+     host reactivity and owner cleanup local.
+
+2. React DB Public Handle Pins
+   - Status: fixed.
+   - Files: `docs/public-api-inventory.md`,
+     `type-tests/react-db.test-d.ts`.
+   - Problem: `CollectionHandle` exposes `pendingMutations`, direct write
+     Effects, and `flushPendingMutationsEffect(...)`, but React DB's public docs
+     and focused type test only broadly named values/mutation/preload/refetch.
+     Solid DB already documented the deeper adapter handle.
+   - Fix: React DB docs now mirror the Solid DB runtime-bound handle wording, and
+     the focused React DB type test pins `pendingMutations`,
+     `writeInsertEffect(...)`, `writeUpdateEffect(...)`,
+     `writeDeleteEffect(...)`, `flushPendingMutationsEffect(...)`, and `ER`
+     propagation through those returned Effects.
+   - Benefits: the React DB Adapter Interface now has the same LSP and type-test
+     Locality as Solid DB, so app code can discover mutation queue/write/flush
+     behavior without reading implementation files.
+
+3. Start Vite Dev SSR Runtime Seam
+   - Status: fixed.
+   - Files: `packages/start/src/start-manifest-wall.ts`,
+     `packages/start/src/start-vite-dev-ssr.ts`,
+     `packages/start/src/vite.ts`,
+     `packages/start/test/start.test.ts`,
+     `type-tests/start-vite.test-d.ts`,
+     `docs/public-api-inventory.md`.
+   - Problem: Vite dev SSR server-entry handlers could return serviceful Effects,
+     but `EffectUiStartOptions` had no runtime/run-options seam and the dynamic
+     handler types erased non-`Scope` requirements. The middleware therefore
+     forked through the default host runner unless application code fully
+     provided every service before export.
+   - Fix: added `StartViteDevSsrOptions` and `EffectUiStartOptions.devSsr` for
+     the dev middleware fork seam, threaded it through `forkStartHostEffect(...)`
+     and abort interruption, and typed `StartSsrRequestHandler`,
+     `StartSsrHandlerModule`, and `StartDevServer<R>` so expert tests/adapters can
+     preserve handler requirements. A regression covers a serviceful handler
+     running through the configured runtime.
+   - Benefits: Vite remains the host Adapter, while Runtime Spine selection is
+     explicit and typed for serviceful dev SSR work.
+
+4. Start Vite Diagnostics Close Failures
+   - Status: fixed.
+   - Files: `packages/start/src/start-vite-diagnostics-loader.ts`,
+     `packages/start/test/start.test.ts`,
+     `docs/public-api-inventory.md`.
+   - Problem: diagnostics server acquisition and module-load failures were typed
+     as `StartAppGraphDiagnosticsLoadError`, but temporary Vite server close
+     failures were converted to defects in the release finalizer.
+   - Fix: diagnostics loading now uses `Effect.acquireUseRelease(...)` so close
+     failures stay in the typed load channel as
+     `StartAppGraphDiagnosticsRunnerError`. The loader has a small testable
+     server Adapter helper, and a regression verifies close failure typing.
+   - Benefits: CLI, CI, and build-gate diagnostics report Vite lifetime failures
+     through one Start Vite Diagnostics Loader Interface instead of leaking host
+     Promise rejection defects.
+
+5. Start Diagnostics CLI Bin Boundary
+   - Status: fixed.
+   - Files: `packages/start/src/cli.ts`,
+     `packages/start/test/start.test.ts`,
+     `type-tests/start-cli.test-d.ts`,
+     `docs/public-api-inventory.md`.
+   - Problem: the embeddable CLI runner correctly reported writer failures as
+     `StartDiagnosticsCliWriteError`, but the package bin discarded
+     `Effect.runPromise(...)`. A write failure at the process boundary could
+     become an unhandled rejected Promise instead of a controlled exit.
+   - Fix: `runStartDiagnosticsCliMainEffect(...)` remains an Effect-owned process
+     boundary but no longer fails with typed writer errors. It catches them,
+     assigns `process.exitCode = 1`, and best-effort writes one compact stderr
+     message. The lower-level `runStartDiagnosticsCliEffect(...)` still exposes
+     `StartDiagnosticsCliWriteError` for embedders and tests.
+   - Benefits: the CLI keeps Effect v4 command parsing/execution and typed writer
+     failures at the runner Seam, while the bin Adapter owns process exit
+     behavior without raw Promise rejection leakage.
+
+Focused workspace evidence for this pass: Start, Solid, DB, React DB, and
+Solid DB package typechecks passed; public type tests passed; public API audit
+passed; Effect-first audit passed over 406 physical/virtual files; focused Start
+Vite diagnostics/CLI/dev SSR regressions passed with 17 selected tests; focused
+Core/React/Solid router regressions passed with 3 files / 63 tests; focused
+React DB/Solid DB regressions passed with 2 files / 27 tests; and
+`git diff --check` passed. Full `pnpm verify` passed after Review199 with 11
+package builds, workspace typecheck, public type tests, public API audit,
+Effect-first audit over 406 files, 53 root test files / 1058 tests,
+package-level verifies, generated starter packaging, 16-target package dry-run
+gate, project-console checks, and leak scans. This sweep found work, so the
+active clean counter remains 0/30.
 
 ## Review 198: Query Callback And Start Discovery Policy Guardrails
 

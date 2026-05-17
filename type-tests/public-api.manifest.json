@@ -486,6 +486,8 @@
         "fileRouteDefinitionsVirtualModuleId",
         "fileRouteManifestVirtualModuleId",
         "serverFunctionManifestVirtualModuleId",
+        "StartSsrHandlerModule",
+        "StartViteDevSsrOptions",
         "writeFileRouteDefinitionsFile",
         "writeFileRouteDefinitionsFileEffect"
       ]

@@ -38,6 +38,7 @@ import type { GeneratedFileRouteDefinitionsModuleOptions } from "./file-route-mo
 import type {
   StartAppGraphDiagnosticsPolicy
 } from "./start-app-graph-diagnostics-policy.js";
+import type { StartHostForkRunnerOptions } from "./start-host-runtime-runner.js";
 import {
   makeServerFunctionManifest,
   serializeServerFunctionManifest,
@@ -60,6 +61,10 @@ export interface FileRouteGenerationOptions
   /** Generated route definition path. String values must stay inside the Vite root; `false` disables writes. */
   readonly outputFile?: string | false;
 }
+
+/** Vite dev SSR host runtime options for serviceful server-entry handlers. */
+export interface StartViteDevSsrOptions<RuntimeError = never>
+  extends StartHostForkRunnerOptions<RuntimeError> {}
 
 type AnyActionDefinition = ActionDefinition<any, any, any, any>;
 
@@ -95,6 +100,14 @@ export interface EffectUiStartOptions {
   readonly serverEntry?: string;
   /** Named handler export to load from the server entry. */
   readonly handlerExport?: string;
+  /**
+   * Runtime and run options used by the Vite dev SSR middleware.
+   *
+   * Pass this when the server-entry handler returns Effects that require app
+   * services. The handler still owns request/runtime construction; this option
+   * only selects the host Runtime Runner used to fork the dev middleware Effect.
+   */
+  readonly devSsr?: StartViteDevSsrOptions<unknown>;
   /** RPC endpoint path used by generated server-function client references. */
   readonly rpcPath?: string;
   /** Action endpoint path used by generated POST client references. */

@@ -57,6 +57,7 @@ import {
   type BrowserRouterLinkIgnoreReason,
   type BrowserRouterLinkPreloadDecision,
   type BrowserRouterLinkPreloadIdentity,
+  type BrowserRouterHostController,
   type EffectUiRuntime,
   type EffectInput,
   type MemoryBrowserHistoryAdapter,
@@ -692,6 +693,14 @@ const projectBrowserRouter: BrowserRouter<readonly [typeof ProjectRoute]> = crea
   [ProjectRoute] as const,
   { initialHref: "/projects/atlas", history: browserHistoryAdapter }
 );
+const projectBrowserRouterCoreProjection: Omit<
+  BrowserRouterHostController<readonly [typeof ProjectRoute]>,
+  "state" | "match" | "start" | "dispose"
+> = projectBrowserRouter;
+const projectBrowserRouterState: BrowserRouterState<readonly [typeof ProjectRoute]> =
+  projectBrowserRouter.state();
+const projectBrowserRouterMatch: Route.Match<typeof ProjectRoute> | undefined =
+  projectBrowserRouter.match();
 projectBrowserRouter.href(ProjectRoute, {
   params: { id: "atlas" },
   search: { tab: "activity" }
@@ -810,6 +819,9 @@ const badProjectRouterLinkProps: RouterLinkProps<typeof ProjectRoute> = {
 };
 void projectRouterOutletProps;
 void projectBrowserRouterPreload;
+void projectBrowserRouterCoreProjection;
+void projectBrowserRouterState;
+void projectBrowserRouterMatch;
 void mixedProjectRouterPath;
 void mixedStaticRouterPath;
 void badMixedProjectRouterPath;

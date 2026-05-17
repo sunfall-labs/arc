@@ -74,6 +74,7 @@ export type {
   StartAppGraphError,
   StartBuildPolicy,
   StartBuildPolicyError,
+  StartViteDevSsrOptions,
   StartManifestDirectReferenceKind
 } from "./start-manifest-wall.js";
 export {
@@ -127,6 +128,7 @@ export type {
   HandleSsrDevRequestOptions,
   StartDevMiddlewareNext,
   StartDevServer,
+  StartSsrHandlerModule,
   StartSsrRequestHandler,
   StartViteDevServer
 } from "./start-vite-dev-ssr.js";
@@ -350,6 +352,7 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
         server.middlewares.use((request, response, next) => {
           const activeOptions = currentOptions();
           const lifecycle = nodeRequestLifecycle(request, response);
+          const devSsr = activeOptions.devSsr;
           const fiber = forkStartHostEffect(
             handleSsrDevMiddlewareEffect(
               startServer,
@@ -372,16 +375,17 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
                   signal: lifecycle.signal
                 }
               }
-            )
+            ),
+            devSsr
           );
-          const disposeInterrupt = interruptStartHostFiberOnSignal(fiber, lifecycle.signal);
+          const disposeInterrupt = interruptStartHostFiberOnSignal(fiber, lifecycle.signal, devSsr);
           fiber.addObserver(() => {
             disposeInterrupt();
             lifecycle.dispose();
           });
         });
       };
-	    },
+    },
     hotUpdate(context) {
       if (isFileRouteUpdate(context.file)) {
         refreshFileRouteArtifacts(context.server);

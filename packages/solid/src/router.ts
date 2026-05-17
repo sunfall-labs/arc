@@ -5,15 +5,12 @@ import {
   currentOrDefaultRuntime,
   runWithRuntime,
   type AnyEffectUiRuntime,
-  type BrowserNavigateArgs,
-  type BrowserNavigateOptions,
   type BrowserHistoryAdapter,
-  type BrowserRouterPath,
-  type BrowserRouterRouteForPath,
+  type BrowserRouterHostController,
   type BrowserRouterState,
   type EffectUiRuntime
 } from "@effect-ui/core";
-import { Data, Effect } from "effect";
+import { Data } from "effect";
 import {
   createContext,
   createMemo,
@@ -69,48 +66,18 @@ export interface BrowserRouterOptions<
   readonly runtime?: RouterRuntime<Routes, ER, Runtime>;
 }
 
+type SolidBrowserRouterHostController<
+  Routes extends readonly AnyRoute[],
+  ER
+> = Omit<BrowserRouterHostController<Routes, ER>, "state" | "match" | "start" | "dispose">;
+
 /** Solid browser router backed by Effect UI route definitions and preload. */
-export interface BrowserRouter<Routes extends readonly AnyRoute[] = readonly AnyRoute[], ER = never> {
-  /** Route definitions this router can match. */
-  readonly routes: Routes;
-  /** Runtime used for route preloads and route component scopes. */
-  readonly runtime: AnyEffectUiRuntime<ER>;
+export interface BrowserRouter<Routes extends readonly AnyRoute[] = readonly AnyRoute[], ER = never>
+  extends SolidBrowserRouterHostController<Routes, ER> {
   /** Reactive router state: pending, ready, failure, or not found. */
   readonly state: Accessor<BrowserRouterState<Routes, ER>>;
   /** Current ready route match, or undefined outside a ready state. */
   readonly match: Accessor<Route.Match<Routes[number]> | undefined>;
-  /** Returns true when a route definition belongs to this router. */
-  canHandleRoute(definition: AnyRoute): definition is Routes[number];
-  /** Builds a typed href for a route definition. */
-  href<R extends Routes[number]>(definition: R, ...args: Route.HrefArgs<R>): string;
-  /** Builds a typed href for a route path owned by this router. */
-  hrefByPath<Path extends BrowserRouterPath<Routes>>(
-    path: Path,
-    ...args: Route.HrefArgs<BrowserRouterRouteForPath<Routes, Path>>
-  ): string;
-  /** Navigates to a typed route and runs its preload in the router runtime. */
-  navigate<R extends Routes[number]>(
-    definition: R,
-    ...args: BrowserNavigateArgs<R>
-  ): void;
-  /** Navigates to a typed route path and runs its preload in the router runtime. */
-  navigateByPath<Path extends BrowserRouterPath<Routes>>(
-    path: Path,
-    ...args: BrowserNavigateArgs<BrowserRouterRouteForPath<Routes, Path>>
-  ): void;
-  /** Navigates to a raw href and matches it against the router's route list. */
-  navigateHref(href: string, options?: BrowserNavigateOptions): void;
-  /** Returns the current match narrowed to a route path, when that path is active. */
-  matchByPath<Path extends BrowserRouterPath<Routes>>(
-    path: Path
-  ): Route.Match<BrowserRouterRouteForPath<Routes, Path>> | undefined;
-  /** Preloads a route without changing browser history. */
-  preloadEffect<R extends Routes[number]>(definition: R, ...args: Route.HrefArgs<R>): Effect.Effect<void, Route.NavigationError | ER>;
-  /** Preloads a route path without changing browser history. */
-  preloadByPathEffect<Path extends BrowserRouterPath<Routes>>(
-    path: Path,
-    ...args: Route.HrefArgs<BrowserRouterRouteForPath<Routes, Path>>
-  ): Effect.Effect<void, Route.NavigationError | ER>;
 }
 
 /** Props for `RouterProvider`, including route definitions and render fallbacks. */

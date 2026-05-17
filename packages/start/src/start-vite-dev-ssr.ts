@@ -23,13 +23,25 @@ import { runStartAbortFinalizerOnSignalEffect } from "./start-abort-lifecycle.js
  * Dev SSR accepts a plain `Response` or an Effect so server entries can stay
  * Effect-first without adding a Promise wrapper inside application code.
  */
-export type StartSsrRequestHandler<HandlerError = StartRequestHandlerError> = (
+export type StartSsrRequestHandler<
+  HandlerError = StartRequestHandlerError,
+  Requirements = never
+> = (
   request: Request
-) => Response | Effect.Effect<Response, HandlerError, Scope.Scope>;
+) => Response | Effect.Effect<Response, HandlerError, Scope.Scope | Requirements>;
+
+/** Loaded Vite dev SSR module with a handler that may require Effect services. */
+export type StartSsrHandlerModule<
+  HandlerError = StartRequestHandlerError,
+  Requirements = never
+> = Record<string, unknown> & {
+  readonly default?: StartSsrRequestHandler<HandlerError, Requirements>;
+  readonly handleRequest?: StartSsrRequestHandler<HandlerError, Requirements>;
+};
 
 /** Effect-first dev server operations used by Start SSR middleware. */
 export interface StartDevServer<Requirements = never> {
-  ssrLoadModule(id: string): Effect.Effect<Record<string, unknown>, StartDevServerError, Requirements>;
+  ssrLoadModule(id: string): Effect.Effect<StartSsrHandlerModule<unknown, Requirements>, StartDevServerError, Requirements>;
   transformIndexHtml(url: string, html: string): Effect.Effect<string, StartDevServerError, Requirements>;
   ssrFixStacktrace?(error: Error): Effect.Effect<void, never, Requirements>;
 }
@@ -107,7 +119,7 @@ const tryViteDevPromise = <A>(
   Effect.tryPromise({
     try: f,
     catch: (error) => new StartDevServerError({ operation, error })
-	  });
+  });
 
 const devServerError = (
   operation: StartDevServerError["operation"],
@@ -333,10 +345,13 @@ export const shouldHandleSsrRequest = (
 };
 
 /** Resolves the SSR request handler export from a loaded server module. */
-export const resolveStartHandler = (
-  module: Record<string, unknown>,
+export const resolveStartHandler = <
+  HandlerError = StartRequestHandlerError,
+  Requirements = never
+>(
+  module: StartSsrHandlerModule<HandlerError, Requirements>,
   options: { readonly handlerExport?: string } = {}
-): StartSsrRequestHandler => {
+): StartSsrRequestHandler<HandlerError, Requirements> => {
   const candidate = options.handlerExport
     ? module[options.handlerExport]
     : module.default ?? module.handleRequest;
@@ -346,14 +361,17 @@ export const resolveStartHandler = (
     throw new StartHandlerNotFound({ exportName });
   }
 
-  return candidate as StartSsrRequestHandler;
+  return candidate as StartSsrRequestHandler<HandlerError, Requirements>;
 };
 
 /** Effect wrapper for `resolveStartHandler` with a typed not-found error. */
-export const resolveStartHandlerEffect = (
-  module: Record<string, unknown>,
+export const resolveStartHandlerEffect = <
+  HandlerError = StartRequestHandlerError,
+  Requirements = never
+>(
+  module: StartSsrHandlerModule<HandlerError, Requirements>,
   options: { readonly handlerExport?: string } = {}
-): Effect.Effect<StartSsrRequestHandler, StartHandlerNotFound> =>
+): Effect.Effect<StartSsrRequestHandler<HandlerError, Requirements>, StartHandlerNotFound> =>
   Effect.try({
     try: () => resolveStartHandler(module, options),
     catch: (error) =>
@@ -364,18 +382,18 @@ export const resolveStartHandlerEffect = (
           })
   });
 
-const handlerResultEffect = <HandlerError = StartRequestHandlerError>(
-  handler: StartSsrRequestHandler<HandlerError>,
+const handlerResultEffect = <HandlerError = StartRequestHandlerError, Requirements = never>(
+  handler: StartSsrRequestHandler<HandlerError, Requirements>,
   request: Request
-): Effect.Effect<Response, StartDevServerError> =>
+): Effect.Effect<Response, StartDevServerError, Requirements> =>
   Effect.suspend(() =>
     Effect.try({
       try: () => handler(request),
       catch: (error) => new StartDevServerError({ operation: "run-handler", error })
     }).pipe(
       Effect.flatMap((result) =>
-        responseWithScopeLifetimeEffect<HandlerError, never>(
-          toEffect(result as EffectInput<Response, HandlerError, Scope.Scope>)
+        responseWithScopeLifetimeEffect<HandlerError, Requirements>(
+          toEffect(result as EffectInput<Response, HandlerError, Scope.Scope | Requirements>)
         )
       ),
       Effect.mapError((error) =>
@@ -418,9 +436,9 @@ export const handleSsrDevRequestEffect = <R = never>(
     const transformedResponse = yield* suspendResponseStreamSuccessFinalizerEffect(
       response,
       Effect.gen(function* () {
-	        const url = new URL(request.url);
-	        const html = yield* readResponseTextEffect(response, request.signal);
-	        const transformed = yield* server.transformIndexHtml(`${url.pathname}${url.search}`, html);
+        const url = new URL(request.url);
+        const html = yield* readResponseTextEffect(response, request.signal);
+        const transformed = yield* server.transformIndexHtml(`${url.pathname}${url.search}`, html);
         const headers = new Headers(response.headers);
         headers.delete("content-length");
 

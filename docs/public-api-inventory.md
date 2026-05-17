@@ -401,8 +401,10 @@ The root export includes:
   `parseStartDiagnosticsCliArgs(...)`, `runStartDiagnosticsCliEffect(...)`,
   `runStartDiagnosticsCli(...)`, `runStartDiagnosticsCliMainEffect(...)`, and
   `runStartDiagnosticsCliMain(...)`. Injected output writers are `EffectInput`
-  callbacks, and writer failures surface as `StartDiagnosticsCliWriteError`
-  values instead of Promise-shaped or untyped side effects. The package bin
+  callbacks; the embeddable runner surfaces writer failures as
+  `StartDiagnosticsCliWriteError` values, while the main/bin runner catches those
+  typed failures, assigns exit code `1`, and best-effort reports one compact
+  stderr line instead of leaking an unhandled Promise rejection. The package bin
   remains the normal app entrypoint; embedders should use this subpath instead
   of private source imports or process spawning.
 - Effect RPC compatibility descriptors:
@@ -448,11 +450,10 @@ Subpath exports:
   `effectUiStart` returns the concrete `EffectUiStartPlugin` interface rather
   than a broad Vite `PluginOption`, and its SSR module handler type is named
   `StartSsrRequestHandler` so it cannot be confused with the root Effect
-  request handler. Dev SSR handler Effects must be fully provided before they
-  are returned to Vite because the dev middleware does not own app services; the
-  default Vite loader surface is requirement-free after request Scope
-  provisioning, while expert `StartDevServer<R>` helpers preserve remaining app
-  service requirements until the caller provides them. It also exports the
+  request handler. `StartSsrHandlerModule` and `StartDevServer<R>` preserve
+  serviceful dev SSR handler Effects for expert tests/adapters, while
+  `EffectUiStartOptions.devSsr` / `StartViteDevSsrOptions` provide the runtime
+  and run options used by the Vite middleware fork seam. It also exports the
   generated route definitions file writer:
   `writeFileRouteDefinitionsFile(...)` for Vite sync hooks and
   `writeFileRouteDefinitionsFileEffect(...)` plus
@@ -515,10 +516,11 @@ Subpath exports:
   Planner Modules keep DTO vocabulary, query matching, text presentation, and
   impact semantics separate while `agent-graph.ts` remains the public facade.
   The
-  diagnostics loader acquires the temporary Vite server with
-  `Effect.acquireRelease(...)` inside `Effect.scoped(...)`, so CLI and CI
-  diagnostics close the Vite resource on success, typed failure, or
-  interruption.
+  diagnostics loader runs the temporary Vite server with
+  `Effect.acquireUseRelease(...)`, so CLI and CI diagnostics close the Vite
+  resource on success, typed failure, or interruption, and close failures remain
+  `StartAppGraphDiagnosticsRunnerError` values in the typed diagnostics load
+  channel.
 - Start action clients parse and decode action responses through the internal
   Start Action Response Codec Module. It owns wire DTOs, response metadata,
   invalidation metadata serialization, response-mode selection, Exit-to-Response
@@ -549,6 +551,10 @@ Release decisions:
   header policy as the Node adapter through `HandleSsrDevRequestOptions` and
   `EffectUiStartOptions.nodeRequest`, so development and production host
   adapters do not disagree about public request URLs.
+- Serviceful Vite dev SSR handlers should provide app services through
+  `EffectUiStartOptions.devSsr.runtime`. The server-entry handler still owns
+  request/runtime construction; the Vite Adapter only owns the host callback
+  fork seam and abort/run options.
 - `StartRequestTrace` is intentionally structural with
   `DevtoolsRequestTrace`. Keep type-test coverage so Start can emit devtools
   facts without depending on `@effect-ui/devtools`.
@@ -1028,9 +1034,16 @@ Release decisions:
   `Query`, `useCollection`, `useLiveQuery`, `CollectionHandle`, and
   `LiveQueryHandle` as direct imports so this Adapter re-export Interface cannot
   drift silently.
-- React DB handles expose current values directly, such as `projects.rows` and
-  `query.data`, while returned mutation, preload, and refetch methods remain
-  Effect-returning and runtime-bound.
+- `useCollection(...)` and `useLiveQuery(...)` share one internal React DB
+  Reactive Binding Module for runtime capture, source subscriptions, cleanup,
+  automatic preload, and runtime-bound returned Effects. The public handles
+  remain the supported app surface. Returned `preloadEffect(...)` and
+  `refetchEffect(...)` are already bound to the React runtime, so they no longer
+  expose the collection/query service requirement `R`; pass the optional `ER`
+  generic when a fallible Runtime Provider should be reflected in the error
+  channel. `useCollection(...)` also exposes current `pendingMutations` and
+  runtime-bound insert, update, delete, write, and flush Effects, so React
+  callers do not need to rebind the raw Collection Definition for mutation work.
 - The shared React DB binding owns runtime capture, collection subscriptions,
   component cleanup, automatic preload, and runtime-bound returned Effects.
   Automatic preload failure observers may return a plain value or an

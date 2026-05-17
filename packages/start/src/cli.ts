@@ -610,7 +610,7 @@ const usageErrorFromCliCause = (
     return makeUsageError(cause.message, guidance);
   }
 
-    return makeUsageError(String(cause), guidance);
+  return makeUsageError(String(cause), guidance);
 };
 
 const flushStartDiagnosticsCliConsoleLinesEffect = (
@@ -651,7 +651,11 @@ export const parseStartDiagnosticsCliArgsEffect = (
     );
 
     if (grammarResult._tag === "Failure") {
-      if (CliError.isCliError(grammarResult.cause) && grammarResult.cause._tag === "ShowHelp" && grammarResult.cause.errors.length === 0) {
+      if (
+        CliError.isCliError(grammarResult.cause) &&
+        grammarResult.cause._tag === "ShowHelp" &&
+        grammarResult.cause.errors.length === 0
+      ) {
         return { _tag: "Help" };
       }
 
@@ -740,22 +744,50 @@ export const runStartDiagnosticsCli = (
 ): Effect.Effect<StartDiagnosticsCliResult, StartDiagnosticsCliWriteError> =>
   runStartDiagnosticsCliEffect(args, io);
 
+const startDiagnosticsCliMainFailureMessage = (error: unknown): string => {
+  if (error instanceof StartDiagnosticsCliWriteError) {
+    return `Could not write ${error.stream} output.`;
+  }
+  const payload = startDiagnosticsCliErrorPayload(error);
+  return String(payload.message);
+};
+
 /** Runs the diagnostics CLI and assigns `process.exitCode`. */
 export const runStartDiagnosticsCliMainEffect = (
-  args: readonly string[] = process.argv.slice(2)
-): Effect.Effect<void, StartDiagnosticsCliWriteError> =>
-  Effect.gen(function* () {
-    const result = yield* runStartDiagnosticsCliEffect(args);
+  args: readonly string[] = process.argv.slice(2),
+  io: StartDiagnosticsCliIo = {}
+): Effect.Effect<void> => {
+  const stderr = io.stderr ?? ((text: string) => {
+    process.stderr.write(`${text}\n`);
+  });
+
+  return Effect.gen(function* () {
+    const result = yield* runStartDiagnosticsCliEffect(args, io);
     yield* Effect.sync(() => {
       process.exitCode = result.exitCode;
     });
-  });
+  }).pipe(
+    Effect.catch((error) =>
+      Effect.gen(function* () {
+        yield* Effect.sync(() => {
+          process.exitCode = 1;
+        });
+        yield* writeStartDiagnosticsCliLineEffect(
+          "stderr",
+          stderr,
+          `Effect UI diagnostics CLI failed: ${startDiagnosticsCliMainFailureMessage(error)}`
+        ).pipe(Effect.catchCause(() => Effect.void));
+      })
+    )
+  );
+};
 
 /** Alias for `runStartDiagnosticsCliMainEffect`. */
 export const runStartDiagnosticsCliMain = (
-  args: readonly string[] = process.argv.slice(2)
-): Effect.Effect<void, StartDiagnosticsCliWriteError> =>
-  runStartDiagnosticsCliMainEffect(args);
+  args: readonly string[] = process.argv.slice(2),
+  io: StartDiagnosticsCliIo = {}
+): Effect.Effect<void> =>
+  runStartDiagnosticsCliMainEffect(args, io);
 
 const isMain = process.argv[1] !== undefined &&
   import.meta.url === pathToFileURL(process.argv[1]).href;

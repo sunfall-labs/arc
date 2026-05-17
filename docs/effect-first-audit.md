@@ -544,10 +544,10 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 198 `pnpm verify` run recorded in
+- The current full gate is the Review 199 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
-  over 406 files, 53 root test files / 1055 tests, package-level verifies,
+  over 406 files, 53 root test files / 1058 tests, package-level verifies,
   generated starter packaging, 16-target package dry-run gate, project-console
   checks, and leak scans. Review 185 remains historical focused evidence for
   the starter catalog typed-error seam, and Review 165 remains historical
@@ -1347,12 +1347,12 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The current full `pnpm verify` passed after the Review 198 Query callback
-  Promise guardrails and Start file-route/Vite policy locality: 11 package
+- The current full `pnpm verify` passed after the Review 199 adapter contract
+  and host runtime seams: 11 package
   builds, workspace typecheck, type tests,
   public API inventory audit, Effect-first audit over 406
   package/example/config/script/type-test/generated/docs files, 53 root test
-  files / 1055 tests, package-level verifies for copyable/source packages,
+  files / 1058 tests, package-level verifies for copyable/source packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console
   test files / 27 tests, build, and leak scans. The Effect-first audit now

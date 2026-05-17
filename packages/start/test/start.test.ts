@@ -74,12 +74,14 @@ import {
   requestRuntimeTeardownSnapshot
 } from "../src/request-trace.js";
 import {
-  effectUiStartVirtualModules
+  effectUiStartVirtualModules,
+  loadStartAppGraphDiagnosticsWithServerEffect
 } from "../src/start-vite-diagnostics-loader.js";
 import {
   parseStartDiagnosticsCliArgs,
   runStartDiagnosticsCli,
-  runStartDiagnosticsCliEffect
+  runStartDiagnosticsCliEffect,
+  runStartDiagnosticsCliMainEffect
 } from "../src/cli.js";
 import type {
   StartAgentGraphQueryKind
@@ -120,6 +122,7 @@ import {
   serializeStartServerFunctionManifest,
   serverFunctionManifestVirtualModuleId,
   startDevServerFromVite,
+  StartAppGraphDiagnosticsRunnerError,
   StartAppGraphMissingWireSchemas,
   StartAppGraphUnknownActionBehavior,
   StartDevServerError,
@@ -6966,6 +6969,31 @@ describe("Effect UI Start", () => {
     }
   }, 20000);
 
+  it("reports Vite diagnostics server close failures as typed load errors", async () => {
+    const graph = JSON.parse(serializeStartAppGraph({ fileRoutes: [] }));
+    let closeCalls = 0;
+    const exit = await Effect.runPromiseExit(
+      loadStartAppGraphDiagnosticsWithServerEffect({
+        ssrLoadModule: async () => ({
+          graph,
+          diagnostics: describeStartAppGraph(graph),
+          diagnosticsPolicyViolations: []
+        }),
+        close: async () => {
+          closeCalls += 1;
+          throw new Error("diagnostics close failed");
+        }
+      })
+    );
+    const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
+
+    expect(closeCalls).toBe(1);
+    expect(failure).toBeInstanceOf(StartAppGraphDiagnosticsRunnerError);
+    expect(failure).toMatchObject({
+      message: "Could not close the temporary Vite server for Effect UI app graph diagnostics."
+    });
+  });
+
   it("allows resolved app graph diagnostics policy opt-outs through Vite", async () => {
     const root = mkdtempSync(join(tmpdir(), "effect-ui-diagnostics-runner-opt-out-"));
 
@@ -8208,6 +8236,32 @@ describe("Effect UI Start", () => {
     expect(missingImpactStderr.join("\n")).toContain("an impact query such as `impact route /projects/:id`");
   });
 
+  it("keeps Start diagnostics CLI bin write failures inside the Effect boundary", async () => {
+    const stderr: string[] = [];
+    const previousExitCode = process.exitCode;
+    let observedExitCode: string | number | undefined;
+    try {
+      process.exitCode = undefined;
+      await Effect.runPromise(
+        runStartDiagnosticsCliMainEffect(["--help"], {
+          stdout: () => Effect.fail("stdout unavailable"),
+          stderr: (text) => {
+            stderr.push(text);
+          },
+          loadDiagnosticsEffect: () => Effect.die("unreachable")
+        })
+      );
+      observedExitCode = process.exitCode;
+    } finally {
+      process.exitCode = previousExitCode;
+    }
+
+    expect(observedExitCode).toBe(1);
+    expect(stderr).toEqual([
+      "Effect UI diagnostics CLI failed: Could not write stdout output."
+    ]);
+  });
+
   it("prints an agent-readable Start diagnostics repair report", async () => {
     const loadedDiagnostics = {
       graph: {
@@ -8877,6 +8931,77 @@ describe("Effect UI Start", () => {
 
     await expect(response.text()).resolves.toContain("scoped");
     expect(finalized).toBe(true);
+  });
+
+  it("runs Vite dev SSR middleware handler Effects in the configured runtime", async () => {
+    interface DevSsrToken {
+      readonly value: string;
+    }
+    const DevSsrToken = Context.Service<DevSsrToken>("@effect-ui/start/test/DevSsrToken");
+    const runtime = makeRuntime(
+      Layer.succeed(DevSsrToken)({ value: "runtime-token" })
+    );
+    const done = Effect.runSync(Deferred.make<void>());
+    const headers = new Map<string, string | readonly string[]>();
+    const nextErrors: Array<unknown> = [];
+    let middleware:
+      | ((request: IncomingMessage, response: ServerResponse, next: (error?: unknown) => void) => void)
+      | undefined;
+    const plugin = effectUiStart({
+      serverEntry: "/src/server.tsx",
+      devSsr: { runtime }
+    });
+    const server = {
+      ssrLoadModule: async () => ({
+        default: () =>
+          DevSsrToken.use((token) =>
+            Effect.succeed(new Response(null, {
+              status: 204,
+              headers: { "x-dev-ssr-token": token.value }
+            }))
+          )
+      }),
+      transformIndexHtml: async (_url: string, html: string) => html,
+      middlewares: {
+        use: (
+          handler: (request: IncomingMessage, response: ServerResponse, next: (error?: unknown) => void) => void
+        ) => {
+          middleware = handler;
+        }
+      }
+    };
+    const request = {
+      headers: { host: "example.com", accept: "text/html" },
+      method: "GET",
+      url: "/",
+      once: () => request,
+      off: () => request
+    } as unknown as IncomingMessage;
+    const response = {
+      writableEnded: false,
+      setHeader: (name: string, value: string | readonly string[]) => {
+        headers.set(name.toLowerCase(), value);
+      },
+      end: () => {
+        (response as { writableEnded: boolean }).writableEnded = true;
+        Effect.runSync(Deferred.succeed(done, undefined).pipe(Effect.ignore));
+      },
+      once: () => response,
+      off: () => response
+    } as unknown as ServerResponse;
+
+    try {
+      plugin.configureServer(server)();
+      middleware?.(request, response, (error) => {
+        nextErrors.push(error);
+      });
+      await Effect.runPromise(Deferred.await(done).pipe(Effect.timeout("1 second")));
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+
+    expect(nextErrors).toEqual([]);
+    expect(headers.get("x-dev-ssr-token")).toBe("runtime-token");
   });
 
   it("keeps Vite dev SSR pass-through Scope alive until streamed bodies are cancelled", async () => {
