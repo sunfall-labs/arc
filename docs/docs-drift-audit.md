@@ -3,9 +3,9 @@
 Last updated: 2026-05-17.
 
 Current release-tracking truth lives in `docs/architecture-deepening-review.md`
-and `docs/perfection-progress.md`. As of Review225, the latest full
-`pnpm verify` gate passed with 53 root test files / 1131 tests, and the active
-Thirty-Sweep clean counter is 0/30 until a fresh post-Review225 sweep reports
+and `docs/perfection-progress.md`. As of Review226, the latest full
+`pnpm verify` gate passed with 53 root test files / 1132 tests, and the active
+Thirty-Sweep clean counter is 0/30 until a fresh post-Review226 sweep reports
 no actionable findings.
 
 This historical audit checks release-tracking docs for claims that no longer match the
@@ -158,6 +158,9 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Review225 refreshed current ledgers after the post-Review224 sweep found
   Resource hydration helper hover wording and query-sync key type-test
   ownership work.
+- Review226 refreshed current ledgers after the post-Review225 sweep found DB
+  Query entrypoint hover ownership and Start diagnostics CLI loader Effect seam
+  work.
 - Review201 refreshed the current release ledgers after script command,
   Resource public-surface, React/Solid router LSP, DB erased-channel, and
   generated-starter README guardrail fixes; the historical enumeration above

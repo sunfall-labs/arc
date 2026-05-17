@@ -639,7 +639,17 @@ export const publicHoverDocGroups = [
         "GroupKey",
         "Aggregate",
         "Aggregates",
-        "AggregateResult"
+        "AggregateResult",
+        "from",
+        "count",
+        "sum",
+        "avg",
+        "min",
+        "max",
+        "build",
+        "diagnostics",
+        "onceEffect",
+        "live"
       ]
     }
   },

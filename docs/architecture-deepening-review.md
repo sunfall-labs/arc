@@ -11,9 +11,9 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review225, the post-Review224 sweep
-fixing Resource hydration payload helper hover ownership and DB query-sync key
-type-test ownership. The newest full verification checkpoint is Review225.
+The newest completed focused review is Review226, the post-Review225 sweep
+fixing DB Query entrypoint hover ownership and the Start diagnostics CLI loader
+Effect seam. The newest full verification checkpoint is Review226.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -29,14 +29,16 @@ the fresh post-Review221 sweep found Review222 work,
 and the post-Review222 local sweep found Review223 work,
 and the post-Review223 sweep found Review224 work,
 and the post-Review224 sweep found Review225 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review225
+and the post-Review225 sweep found Review226 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review226
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
 Review206, Review207, Review208, Review209, Review210, Review211, Review212,
 Review213, Review214, Review215, Review216, Review217, Review218, Review219,
-Review220, Review221, Review222, Review223, Review224, and Review225 work.
+Review220, Review221, Review222, Review223, Review224, Review225, and
+Review226 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -103,7 +105,67 @@ and docs/LSP work,
 and the post-Review223 sweep found Review224 DB and docs/current-evidence work,
 and the post-Review224 sweep found Review225 Core/DB LSP/type-test ownership
 work,
+and the post-Review225 sweep found Review226 DB LSP and Start host Adapter
+work,
 so the counter remains 0/30.
+
+## Review 226: Query Hovers And Diagnostics Loader Effect Seam
+
+Review226 fixed actionable findings from the fresh post-Review225 sweep.
+
+1. Query Entrypoint Hover Ownership
+   - Status: fixed.
+   - Files: `packages/db/src/query-builder.ts` and
+     `scripts/public-api-symbol-policy.mjs`.
+   - Problem: `Query.build(...)`, `Query.diagnostics(...)`,
+     `Query.onceEffect(...)`, and `Query.live(...)` already reject erased
+     Promise-shaped, Effect-shaped, and other non-builder factory results, but
+     their LSP hovers collapsed that Interface to "non-builder factory
+     results." The public hover policy also owned only Query namespace type
+     aliases, so the value entrypoints could drift without the public API audit
+     noticing.
+   - Fix: the four hovers now name Promise-shaped, Effect-shaped, and other
+     non-builder factory-result rejection explicitly. The public hover policy
+     now owns the Query DSL value helpers `from`, `count`, `sum`, `avg`, `min`,
+     `max`, `build`, `diagnostics`, `onceEffect`, and `live` alongside the
+     namespace type aliases.
+   - Benefits: the Query Builder Module's public Interface now describes the
+     same Effect-first factory contract enforced at runtime, and future hover
+     drift is audit-visible instead of relying on reviewer memory.
+
+2. Start Diagnostics CLI Loader Adapter Seam
+   - Status: fixed.
+   - Files: `packages/start/src/start-diagnostics-cli-runner.ts`,
+     `packages/start/test/start.test.ts`, `type-tests/framework.test-d.ts`,
+     and `CONTEXT.md`.
+   - Problem: `StartDiagnosticsCliIo.loadDiagnosticsEffect` was typed as an
+     Effect-returning loader but invoked raw at runtime. In erased JavaScript, a
+     synchronous throw, Promise-shaped return, or plain-object return could
+     escape as a defect or unformatted crash while stdout/stderr writers already
+     crossed an explicit EffectInput seam.
+   - Fix: injected diagnostics loaders now cross an Effect-only Adapter seam:
+     synchronous throws become `StartAppGraphDiagnosticsRunnerError`,
+     Promise-shaped and plain non-Effect returns fail with the same typed loader
+     error, and the existing CLI failure formatting path reports them through
+     stderr/JSON. Runtime regressions cover sync throw, Promise return, and
+     plain return, while public type tests reject Promise-returning loaders.
+   - Benefits: the Start Diagnostics CLI Runner keeps host embedder mistakes in
+     the typed Effect error channel, preserving Locality at the loader Adapter
+     seam and keeping CLI output deterministic.
+
+Focused workspace evidence for this pass: `pnpm --filter @effect-ui/start
+typecheck`, `pnpm --filter @effect-ui/db typecheck`, `pnpm typecheck:types`,
+`pnpm audit:public-api`, `pnpm audit:effect-first`, `pnpm
+verify:command-runner`, `pnpm exec vitest run packages/start/test/start.test.ts
+-t "diagnostics CLI"`, `pnpm exec vitest run
+packages/db/test/collection.test.ts -t "query factory|unsupported live query
+plan|Promise-shaped query callbacks|Effect-shaped query callback"`, and `git
+diff --check` passed. Full `pnpm verify` passed after Review226: 11 package
+builds, workspace typecheck, public type tests, public API audit,
+Effect-first audit over 411 files, 53 root test files / 1132 tests,
+package-level verifies, generated starter packaging, 16-target package dry-run
+gate, project-console checks, and leak scans. This sweep found work, so the
+active clean counter remains 0/30.
 
 ## Review 225: Resource Payload Hovers And Query Sync Type Ownership
 
@@ -1413,9 +1475,9 @@ work, the first post-Review218 sweep found Review219 work, and the fresh
 post-Review219 sweep found Review220 work, and the fresh post-Review220 sweep
 found Review221 work, the fresh post-Review221 sweep found Review222 work, and
 the post-Review222 local sweep found Review223 work, and the post-Review223
-sweep found Review224 work, and the post-Review224 sweep found Review225 work.
-The active counter is 0/30 until a fresh post-Review225 sweep reports no
-actionable findings.
+sweep found Review224 work, the post-Review224 sweep found Review225 work, and
+the post-Review225 sweep found Review226 work. The active counter is 0/30 until
+a fresh post-Review226 sweep reports no actionable findings.
 
 ## Review 208: Runtime Provider Observers, CLI Bin Execution, And Docs Drift
 

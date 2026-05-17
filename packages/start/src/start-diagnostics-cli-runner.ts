@@ -17,6 +17,7 @@ import {
   loadStartAppGraphDiagnosticsEffect,
   type LoadedStartAppGraphDiagnostics,
   type LoadStartAppGraphDiagnosticsOptions,
+  StartAppGraphDiagnosticsRunnerError,
   type StartAppGraphDiagnosticsLoadError
 } from "./start-vite-diagnostics-loader.js";
 import type {
@@ -62,6 +63,23 @@ const impactOptions = (
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
+
+const isPromiseShaped = (value: unknown): boolean => {
+  if (value === null) {
+    return false;
+  }
+
+  const valueType = typeof value;
+  if (valueType !== "object" && valueType !== "function") {
+    return false;
+  }
+
+  try {
+    return typeof Reflect.get(value as object, "then") === "function";
+  } catch {
+    return false;
+  }
+};
 
 export const startDiagnosticsCliErrorPayload = (cause: unknown): Record<string, unknown> => {
   if (cause instanceof Error) {
@@ -109,7 +127,32 @@ const loadDiagnosticsFromIo = (
   options: LoadStartAppGraphDiagnosticsOptions
 ) => Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsLoadError>) => {
   if (io.loadDiagnosticsEffect) {
-    return io.loadDiagnosticsEffect;
+    const loadDiagnosticsEffect = io.loadDiagnosticsEffect;
+    return (options) =>
+      Effect.flatMap(
+        Effect.try({
+          try: () => loadDiagnosticsEffect(options) as unknown,
+          catch: (cause) =>
+            new StartAppGraphDiagnosticsRunnerError({
+              message: "Diagnostics CLI loader threw before returning an Effect.",
+              cause
+            })
+        }),
+        (result) => {
+          if (Effect.isEffect(result)) {
+            return result as Effect.Effect<LoadedStartAppGraphDiagnostics, StartAppGraphDiagnosticsLoadError>;
+          }
+
+          return Effect.fail(
+            new StartAppGraphDiagnosticsRunnerError({
+              message: isPromiseShaped(result)
+                ? "Diagnostics CLI loader returned Promise-shaped work instead of an Effect."
+                : "Diagnostics CLI loader must return an Effect.",
+              cause: result
+            })
+          );
+        }
+      );
   }
 
   return loadStartAppGraphDiagnosticsEffect;

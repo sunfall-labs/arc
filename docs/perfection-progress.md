@@ -41,11 +41,11 @@ or command result that proves it.
 - The cleanup backlog is checked through richer starter packaging, devtools
   extension packaging, CLI Effect-runner hardening, typed CLI usage errors, and
   Start stream/Vite diagnostics lifecycle Effect sweeps.
-- The latest focused Review225 slice is green for closing Resource hydration
-  payload helper hover ownership and DB query-sync key type-test ownership.
+- The latest focused Review226 slice is green for closing Query hover ownership
+  and the Start diagnostics CLI loader Effect seam.
 - The latest implementation and full verification gate is green after
-  Review225:
-  `pnpm verify` completed with 53 root test files / 1131 tests, public API
+  Review226:
+  `pnpm verify` completed with 53 root test files / 1132 tests, public API
   inventory audit, Effect-first audit over 411 physical/virtual files,
   package-level verifies, parallel example package verifies and leak scans,
   generated starter packaging, and the 16-target package dry-run gate.
@@ -101,9 +101,10 @@ or command result that proves it.
   and the fresh post-Review221 sweep found Review222 Core, DB, and docs/LSP
   work, the post-Review222 local sweep found Review223 Core, DB, starter
   package, and docs/LSP work, the post-Review223 sweep found Review224 DB
-  and docs/current-evidence work, and the post-Review224 sweep found Review225
-  Core/DB LSP and type-test ownership work, so the active counter stays at 0/30
-  until a fresh post-Review225 sweep is clean.
+  and docs/current-evidence work, the post-Review224 sweep found Review225
+  Core/DB LSP and type-test ownership work, and the post-Review225 sweep found
+  Review226 DB LSP and Start host Adapter work, so the active counter stays at
+  0/30 until a fresh post-Review226 sweep is clean.
 - The cast sweep removed all `as any` and `@ts-ignore` hits from package,
   example, script, and type-test sources while keeping negative runtime
   validation tests explicit.
@@ -700,6 +701,7 @@ or command result that proves it.
 | 464 | Review 223 query, hydration payload, starter, and LSP envelope | `docs/architecture-deepening-review.md`; `docs/db.md`; `docs/effect-style.md`; `docs/perfection-progress.md`; `docs/public-api-inventory.md`; `docs/release-notes.md`; `packages/core/src/resource-runtime.ts`; `packages/core/src/resource.ts`; `packages/core/test/resource.test.ts`; `packages/db/src/index.ts`; `packages/db/src/query-builder.ts`; `packages/db/src/query-execution-plan.ts`; `packages/db/test/collection.test.ts`; `scripts/package-project-console-starter.mjs`; `scripts/public-api-symbol-policy.mjs`; `type-tests/public-api.manifest.json` | Fixed post-Review222 local findings. `Query.build(factory).execute()` now validates plans before projection and wraps plan-validation and factory failures in `QueryEvaluationError` operation `"evaluate"`, matching diagnostics, once, and live query APIs. Resource hydration payload constructors now validate duplicate ref snapshots before returning; the public type-test manifest owns the top-level hydration payload/input names; docs distinguish existing snapshot arrays as `{ resources: snapshots }` from ref-based payload helpers. Starter transitive workspace dependency discovery now fails as `StarterPackageError`, and public LSP policy covers Resource diagnostics/result/value/error helpers plus `Collection.QuerySyncKeyPart`. | Focused verification passed: Core/DB typechecks, public API audit, focused Resource hydration regressions, focused DB factory/unsupported-plan regressions, full DB collection suite, script syntax check, and `git diff --check`. Full `pnpm verify` passed after Review223: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 411 files, 53 root test files / 1130 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. This sweep found work, so the active clean counter remains 0/30. |
 | 465 | Review 224 query factory result and current evidence envelope | `docs/architecture-deepening-review.md`; `docs/db.md`; `docs/docs-drift-audit.md`; `docs/effect-first-audit.md`; `docs/perfection-progress.md`; `docs/public-api-inventory.md`; `docs/release-notes.md`; `docs/ultimate-goal-checklist.md`; `packages/db/src/query-builder.ts`; `packages/db/test/collection.test.ts` | Fixed post-Review223 findings. `Query.build(...)` now rejects erased Promise-shaped, Effect-shaped, and non-builder factory results immediately as `QueryEvaluationError` operation `"evaluate"` with `QueryFactoryResultRejected` cause details, so build/execute, diagnostics, once, and live query entrypoints all share the same factory boundary. Current Sweep Results sections now name Review223 and Review224 evidence instead of stopping at Review222. | Focused verification passed: DB typecheck, focused query factory tests, public API audit, Effect-first audit, current-sweep/current-gate greps, and `git diff --check`. Full `pnpm verify` passed after Review224: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 411 files, 53 root test files / 1131 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. This sweep found work, so the active clean counter remains 0/30. |
 | 466 | Review 225 Resource hydration hovers and query-sync type ownership | `docs/architecture-deepening-review.md`; `docs/docs-drift-audit.md`; `docs/effect-first-audit.md`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/type-test-coverage-audit.md`; `docs/ultimate-goal-checklist.md`; `packages/core/src/resource.ts`; `scripts/public-api-symbol-policy.mjs`; `type-tests/db.test-d.ts`; `type-tests/public-api.manifest.json` | Fixed post-Review224 findings. `Resource.hydrationPayload(...)` and `Resource.hydrationPayloadEffect(...)` hovers now say they build validated payloads from loaded Resource refs, and hover policy owns both helper names. DB public type tests now assert `Collection.QuerySyncKey` and `Collection.QuerySyncKeyPart`, and the manifest owns both query-sync key aliases. | Focused verification passed: public type tests, public API audit, Effect-first audit, stale hover wording grep, query-sync type ownership grep, and `git diff --check`. Full `pnpm verify` passed after Review225: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 411 files, 53 root test files / 1131 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. This sweep found work, so the active clean counter remains 0/30. |
+| 467 | Review 226 query hovers and diagnostics loader Effect seam | `CONTEXT.md`; `docs/architecture-deepening-review.md`; `docs/docs-drift-audit.md`; `docs/effect-first-audit.md`; `docs/package-hygiene-audit.md`; `docs/perfection-progress.md`; `docs/public-api-inventory.md`; `docs/release-notes.md`; `docs/sharp-cast-audit.md`; `docs/type-test-coverage-audit.md`; `docs/ultimate-goal-checklist.md`; `packages/db/src/query-builder.ts`; `packages/start/src/start-diagnostics-cli-runner.ts`; `packages/start/test/start.test.ts`; `scripts/public-api-symbol-policy.mjs`; `type-tests/framework.test-d.ts` | Fixed post-Review225 findings. Query entrypoint hovers now name Promise-shaped, Effect-shaped, and other non-builder factory-result rejection explicitly, and public hover policy owns the full Query DSL namespace value surface. Injected Start diagnostics CLI loaders now cross an Effect-only Adapter seam that reports sync throws, Promise-shaped returns, and plain non-Effect returns as `StartAppGraphDiagnosticsRunnerError`; public type tests reject Promise-returning loaders. | Focused verification passed: Start and DB typechecks, public type tests, public API audit, Effect-first audit, command-runner policy, focused Start diagnostics CLI regressions, focused DB query factory regressions, and `git diff --check`. Full `pnpm verify` passed after Review226: 11 package builds, workspace typecheck, public type tests, public API audit, Effect-first audit over 411 files, 53 root test files / 1132 tests, package-level verifies, generated starter packaging, 16-target package dry-run gate, project-console checks, and leak scans. This sweep found work, so the active clean counter remains 0/30. |
 
 ## Thirty-Sweep Gate
 
@@ -752,7 +754,8 @@ sweep found Review222 Core, DB, and docs/LSP work, the post-Review222
 local sweep found Review223 Core, DB, starter package, and docs/LSP work, and
 the post-Review223 sweep found Review224 DB and docs/current-evidence work.
 The post-Review224 sweep found Review225 Core/DB LSP and type-test ownership
-work. The active counter is therefore 0/30 until a fresh post-Review225 sweep
+work, and the post-Review225 sweep found Review226 DB LSP and Start host
+Adapter work. The active counter is therefore 0/30 until a fresh post-Review226 sweep
 reports no actionable findings.
 
 - Re-run the Promise and docs drift audits after each single-command full

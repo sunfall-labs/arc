@@ -583,8 +583,9 @@ export namespace Query {
   /**
    * Build a query without executing or preloading it.
    *
-   * Synchronous factory throws and non-builder factory results are normalized
-   * and thrown as `QueryEvaluationError` with operation `"evaluate"`.
+   * Synchronous factory throws, Promise-shaped factory results, Effect-shaped
+   * factory results, and other non-builder factory results are normalized and
+   * thrown as `QueryEvaluationError` with operation `"evaluate"`.
    */
   export const build = <T, E = never, R = never>(factory: QueryFactory<T, E, R>): AnyQueryBuilder<T, E, R> => {
     try {
@@ -607,9 +608,10 @@ export namespace Query {
   /**
    * Return query plan diagnostics for joins, filters, ordering, and row counts.
    *
-   * Synchronous factory failures, non-builder factory results, and
-   * plan-validation throws are normalized and thrown as `QueryEvaluationError`
-   * with operation `"evaluate"`.
+   * Synchronous factory failures, Promise-shaped factory results, Effect-shaped
+   * factory results, other non-builder factory results, and plan-validation
+   * throws are normalized and thrown as `QueryEvaluationError` with operation
+   * `"evaluate"`.
    */
   export const diagnostics = <T, E = never, R = never>(
     factory: QueryFactory<T, E, R>
@@ -626,7 +628,8 @@ export namespace Query {
    * Preload source collections once, then execute the query.
    *
    * Source collection errors and requirements are preserved in the returned
-   * Effect. Synchronous factory failures and non-builder factory results are
+   * Effect. Synchronous factory failures, Promise-shaped factory results,
+   * Effect-shaped factory results, and other non-builder factory results are
    * normalized as `QueryEvaluationError` with operation `"evaluate"` in the
    * Effect error channel.
    */
@@ -650,8 +653,9 @@ export namespace Query {
    * Create a reactive live query over collection rows.
    *
    * The returned signals update when source collection versions change.
-   * Synchronous factory failures and non-builder factory results are normalized
-   * and thrown as `QueryEvaluationError` with operation `"evaluate"`.
+   * Synchronous factory failures, Promise-shaped factory results, Effect-shaped
+   * factory results, and other non-builder factory results are normalized and
+   * thrown as `QueryEvaluationError` with operation `"evaluate"`.
    *
    * @example
    * const openTodos = Query.live((query) =>

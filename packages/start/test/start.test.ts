@@ -8422,6 +8422,47 @@ describe("Effect UI Start", () => {
     ]);
   });
 
+  it("keeps invalid diagnostics CLI loaders inside the Effect boundary", async () => {
+    const syncCause = new Error("loader setup failed");
+    const cases = [
+      {
+        label: "sync throw",
+        loadDiagnosticsEffect: () => {
+          throw syncCause;
+        },
+        message: "Diagnostics CLI loader threw before returning an Effect."
+      },
+      {
+        label: "Promise return",
+        loadDiagnosticsEffect: () => Promise.resolve({}),
+        message: "Diagnostics CLI loader returned Promise-shaped work instead of an Effect."
+      },
+      {
+        label: "plain return",
+        loadDiagnosticsEffect: () => ({ graph: {} }),
+        message: "Diagnostics CLI loader must return an Effect."
+      }
+    ];
+
+    for (const testCase of cases) {
+      const stdout: string[] = [];
+      const stderr: string[] = [];
+      const result = await Effect.runPromise(
+        runStartDiagnosticsCliEffect(["diagnostics"], {
+          stdout: (text) => stdout.push(text),
+          stderr: (text) => stderr.push(text),
+          loadDiagnosticsEffect: testCase.loadDiagnosticsEffect as never
+        })
+      );
+
+      expect(result.exitCode, testCase.label).toBe(1);
+      expect(stdout, testCase.label).toEqual([]);
+      expect(stderr.join("\n"), testCase.label).toContain(
+        `Effect UI Start diagnostics failed: ${testCase.message}`
+      );
+    }
+  });
+
   it("prints an agent-readable Start diagnostics repair report", async () => {
     const loadedDiagnostics = {
       graph: {

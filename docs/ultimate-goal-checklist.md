@@ -661,17 +661,19 @@ Last evidence pass: May 17, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 225 passed public type tests, public API
-    audit, Effect-first audit, stale hover wording grep, query-sync ownership
-    grep, and full `pnpm verify` after closing Resource hydration helper hover
-    ownership and DB query-sync key type-test ownership.
+  - Latest focused evidence: Review 226 passed Start and DB typechecks, public
+    type tests, public API audit, Effect-first audit, command-runner policy,
+    focused Start diagnostics CLI regressions, focused DB query factory
+    regressions, and full `pnpm verify` after closing Query hover ownership and
+    the Start diagnostics CLI loader Effect seam.
     Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
     sweeps found Review191, Review192, Review193, Review194, Review195, and
     Review196, Review197, Review198, Review199, Review200, Review201,
     Review202, Review203, Review204, Review205, Review206, Review207,
     Review208, Review209, Review210, Review211, Review212, Review213,
     Review214, Review215, Review216, Review217, Review218, Review219,
-    Review220, Review221, Review222, Review223, Review224, and Review225 work.
+    Review220, Review221, Review222, Review223, Review224, Review225, and
+    Review226 work.
     Clean Sweep 1 after Review208 remains historical 1/30 evidence, but Clean
     Sweep 2 found Review209 work and the local post-Review209 pass found
     Review210 work; the first post-Review210 sweep found Review211 work, and
@@ -685,11 +687,12 @@ Last evidence pass: May 17, 2026.
     fresh post-Review220 sweep found Review221 work, and the fresh
     post-Review221 sweep found Review222 work, the post-Review222 local
     sweep found Review223 work, the post-Review223 sweep found Review224
-    work, and the post-Review224 sweep found Review225 work, leaving the
+    work, the post-Review224 sweep found Review225 work, and the
+    post-Review225 sweep found Review226 work, leaving the
     active counter at 0/30.
     Latest full evidence:
-    `pnpm verify` ran after Review 225 with 53 root
-    test files / 1131
+    `pnpm verify` ran after Review 226 with 53 root
+    test files / 1132
     tests, plus 4 project-console test files / 27 tests in the package-level
     gate.
 - [x] Type tests pass after compile-time API changes.
@@ -830,25 +833,26 @@ Last evidence pass: May 17, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 225 Resource hydration helper
-    hover ownership and DB query-sync key type-test ownership refresh.
+  - Evidence: no new ADR required for the Review 226 Query hover ownership and
+    Start diagnostics CLI loader Effect seam refresh.
     Future architecture sweeps remain tracked in
     `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
   - Evidence: root `pnpm verify` passed on May 17,
-    2026 after Review 225 Resource hydration helper hover ownership and DB
-    query-sync key type-test ownership:
+    2026 after Review 226 Query hover ownership and the Start diagnostics CLI
+    loader Effect seam:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
-    411 physical/virtual files, 53 root test files / 1131 tests,
+    411 physical/virtual files, 53 root test files / 1132 tests,
     package-level verifies for the devtools/starter/example packages,
     generated starter-suite packaging/verifies for basic/react/project-console,
     16-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 225 records public type tests, public API audit,
-    Effect-first audit, stale hover wording grep, query-sync ownership grep, and
-    full `pnpm verify` after closing the Review225 findings. Clean
+  - Evidence: Review 226 records Start and DB typechecks, public type tests,
+    public API audit, Effect-first audit, command-runner policy, focused Start
+    diagnostics CLI regressions, focused DB query factory regressions, and full
+    `pnpm verify` after closing the Review226 findings. Clean
     Sweep 1 after
     Review190 remains historical 1/30 evidence, but later sweeps found
     Review191, Review192, Review193, Review194, Review195, Review196,
@@ -856,7 +860,7 @@ Last evidence pass: May 17, 2026.
     Review203, Review204, Review205, Review206, Review207, Review208,
     Review209, Review210, Review211, Review212, Review213, Review214,
     Review215, Review216, Review217, Review218, Review219, Review220,
-    Review221, Review222, Review223, Review224, and Review225 work.
+    Review221, Review222, Review223, Review224, Review225, and Review226 work.
     Clean
     Sweep 1 after Review208 remains historical 1/30 evidence, but Clean Sweep
     2 found Review209 work and the local post-Review209 pass found Review210
@@ -870,8 +874,8 @@ Last evidence pass: May 17, 2026.
     post-Review219 sweep found Review220 work; the fresh post-Review220 sweep
     found Review221 work; the fresh post-Review221 sweep found Review222 work,
     the post-Review222 local sweep found Review223 work, the post-Review223
-    sweep found Review224 work, and the post-Review224 sweep found Review225
-    work,
+    sweep found Review224 work, the post-Review224 sweep found Review225 work,
+    and the post-Review225 sweep found Review226 work,
     leaving the active counter at 0/30.
     Full verification is recorded in the latest full gate above.
 

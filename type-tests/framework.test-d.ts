@@ -2290,6 +2290,10 @@ const promiseStartDiagnosticsCliIo: FrameworkStartDiagnosticsCliIo = {
   // @ts-expect-error diagnostics CLI writers must return EffectInput, not host async work
   stdout: () => promisedVoid
 };
+const promiseStartDiagnosticsCliLoaderIo: FrameworkStartDiagnosticsCliIo = {
+  // @ts-expect-error diagnostics CLI loaders must return Effect, not host async work
+  loadDiagnosticsEffect: () => promisedString
+};
 declare const startResponsePromise: Promise<Response>;
 // @ts-expect-error root Start request handlers must return Effect, not Promise
 const promiseStartRequestHandler: StartRequestHandler = () => startResponsePromise;

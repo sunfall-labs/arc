@@ -859,7 +859,9 @@ Release decisions:
   failures, Promise-shaped, Effect-shaped, or non-builder factory results, and
   plan-validation throws as `QueryEvaluationError` values. Invalid
   `orderBy(...)` comparables such as `NaN` or invalid Dates fail with operation
-  `"order"`.
+  `"order"`. Public hover policy owns the Query DSL value surface, including
+  source, aggregate, build, diagnostics, once, and live helpers, so this
+  factory-result guidance stays visible in LSP hovers.
 - `QueryGroupKey` and `Query.GroupKey` are the public grouped-query key
   contracts for `Query.groupBy(...)`. They reject Promise-shaped values inside
   nested records, arrays, Maps, and Sets at the type seam, and runtime evaluation reports
