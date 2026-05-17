@@ -227,6 +227,7 @@ const coreLazyRouteSuspenseFiber:
 Route.isLazyComponent(coreLazyRouteComponent);
 Route.readComponent(coreNamedLazyRouteComponent);
 Route.withComponent(coreRoutes[0], coreLazyRouteComponent);
+Route.withComponent(coreRoutes[0], coreLazyRouteComponentWithImportError);
 void coreLazyRouteComponentWithImportErrorShape;
 void coreLazyRouteComponentImportErrorPreloadEffect;
 void coreLazyRoutePendingEffect;

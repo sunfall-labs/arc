@@ -736,9 +736,9 @@ export namespace Route {
     ExportName extends string = "default",
   > = RouteLazyComponentModule<ComponentValue, ExportName>;
 
-  export type ComponentInput<R extends Definition<string, unknown, unknown, any>> =
+  export type ComponentInput<R extends Definition<string, unknown, unknown, any>, E = unknown> =
     | Component<R>
-    | LazyComponent<Component<R>>;
+    | LazyComponent<Component<R>, E>;
 
   /** Creates a route component descriptor backed by a lazily imported module. */
   export const lazyComponent = lazyRouteComponent;
@@ -766,7 +766,8 @@ export namespace Route {
 
   export const withComponent = <
     R extends Definition<string, unknown, unknown, any>,
-    RouteComponent extends ComponentInput<R>,
+    E = unknown,
+    RouteComponent extends ComponentInput<R, E> = ComponentInput<R, E>,
   >(
     definition: R,
     component: RouteComponent,

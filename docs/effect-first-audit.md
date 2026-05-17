@@ -20,6 +20,9 @@ interruption.
 
 ## Current Sweep Results
 
+- Review508 Lazy Component WithComponent Error Generic keeps route component
+  attachment Effect-first by preserving typed lazy importer errors through
+  `Route.ComponentInput<R, E>` and `Route.withComponent(...)`.
 - Review507 Lazy Component Namespace Error Generic keeps the Route namespace
   Effect-first by forwarding lazy component importer errors through
   `Route.LazyComponent<Component, E>` instead of dropping the typed channel.

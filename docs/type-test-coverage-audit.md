@@ -7,6 +7,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Current Sweep Results
 
+- Review508 Lazy Component WithComponent Error Generic pins
+  `Route.withComponent(...)` accepting a typed-error lazy route component
+  descriptor through `Route.ComponentInput<R, E>`.
 - Review507 Lazy Component Namespace Error Generic pins
   `Route.LazyComponent<Component, E>` so namespace users keep importer error
   channels on lazy route components.
