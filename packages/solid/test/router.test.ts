@@ -909,6 +909,80 @@ describe("createBrowserRouter", () => {
       ),
     ));
 
+  it("publishes unloaded lazy route components as Solid route render suspensions", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+
+          const release = yield* Deferred.make<void>();
+          let imports = 0;
+          let renders = 0;
+          const LazyProject = Route.lazyComponent(
+            Effect.gen(function* () {
+              imports++;
+              yield* Deferred.await(release);
+              return {
+                default: ({ params }: { readonly params: { readonly id: string } }) => {
+                  renders++;
+                  return `Project ${params.id}`;
+                },
+              };
+            }),
+          );
+          const ProjectRoute = route("/ready-lazy-solid-projects/:id", {
+            component: LazyProject,
+          });
+          const match = ProjectRoute.match("/ready-lazy-solid-projects/atlas");
+          if (!match) {
+            expect.fail("Expected ready lazy Solid route to match.");
+          }
+
+          let node: (() => JSX.Element) | undefined;
+          let suspension: (() => unknown) | undefined;
+          let dispose: () => void = () => undefined;
+          createRoot((rootDispose) => {
+            dispose = rootDispose;
+            const [currentNode, setNode] = createSignal<JSX.Element>();
+            const [, setRenderError] = createSignal<unknown>();
+            const [currentSuspension, setRenderSuspension] = createSignal<unknown>();
+            makeSolidRouteRenderScopeController({
+              initialInput: {
+                state: {
+                  _tag: "Ready",
+                  href: "/ready-lazy-solid-projects/atlas",
+                  match,
+                },
+                renderers: {},
+              },
+              runtime,
+              setNode,
+              setRenderError,
+              setRenderSuspension,
+            });
+            node = currentNode;
+            suspension = currentSuspension;
+          });
+          yield* Effect.addFinalizer(() => Effect.sync(dispose));
+
+          expect(imports).toBe(1);
+          expect(node?.()).toBeUndefined();
+          expect(suspension?.()).toBeDefined();
+
+          yield* Deferred.succeed(release, undefined);
+          yield* Effect.promise(() =>
+            vi.waitFor(() => {
+              expect(node?.()).toBe("Project atlas");
+              expect(suspension?.()).toBeUndefined();
+            }),
+          );
+          expect(imports).toBe(1);
+          expect(renders).toBe(1);
+        }),
+      ),
+    ));
+
   it("does not preload or trap RouterLink routes outside provider routes", () =>
     Effect.runPromise(
       Effect.scoped(

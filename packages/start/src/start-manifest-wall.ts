@@ -47,6 +47,7 @@ import {
   type ServerFunctionManifestSource,
 } from "./server-function-manifest.js";
 import type { StartNodeRequestOptions } from "./node-web-exchange.js";
+import type { StartPrerenderConfig } from "./start-prerender.js";
 import {
   resolveStartTransportEndpointsEffect,
   type StartTransportEndpointConflictError,
@@ -112,6 +113,13 @@ export interface EffectUiStartOptions {
    * only selects the host Runtime Runner used to fork the dev middleware Effect.
    */
   readonly devSsr?: StartViteDevSsrOptions<unknown>;
+  /**
+   * Static prerendering to run after a production Vite build.
+   *
+   * `true` enables default static route discovery and link crawling. Use the
+   * object form to set explicit pages, retry behavior, and output-path style.
+   */
+  readonly prerender?: StartPrerenderConfig;
   /** RPC endpoint path used by generated server-function client references. */
   readonly rpcPath?: string;
   /** Action endpoint path used by generated POST client references. */

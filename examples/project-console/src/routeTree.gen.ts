@@ -18,21 +18,21 @@ export const routes = [route_root, route_projects, route_projects_$id] as const;
 export const routeTree = routes;
 /** Map from generated route id to the exact route definition for that file route. */
 export const routeById = {
-  "route_root": route_root,
-  "route_projects": route_projects,
-  "route_projects_$id": route_projects_$id
+  route_root: route_root,
+  route_projects: route_projects,
+  route_projects_$id: route_projects_$id,
 } as const;
 /** Map from route path pattern to the exact route definition for that file route. */
 export const routeByPath = {
   "/": route_root,
   "/projects": route_projects,
-  "/projects/:id": route_projects_$id
+  "/projects/:id": route_projects_$id,
 } as const;
 /** Map from route path pattern to generated route id. */
 export const routeIdByPath = {
   "/": "route_root",
   "/projects": "route_projects",
-  "/projects/:id": "route_projects_$id"
+  "/projects/:id": "route_projects_$id",
 } as const;
 /** Builds a typed href for a generated route id. */
 export const hrefById = <Id extends RouteId>(
@@ -47,179 +47,175 @@ export const hrefByPath = <Path extends RoutePath>(
 
 /** Layout modules that wrap each generated route, ordered from source-scope root to leaf. */
 export const fileRouteLayoutsById = {
-  "route_root": [],
-  "route_projects": [],
-  "route_projects_$id": []
+  route_root: [],
+  route_projects: [],
+  route_projects_$id: [],
 } as const;
 /** Nearest source-scoped error boundary module for each generated route, when one exists. */
-export const fileRouteErrorBoundaryById = {
-
-} as const;
+export const fileRouteErrorBoundaryById = {} as const;
 /** Metadata modules scoped to each generated route by source id, ordered from root to leaf. */
 export const fileRouteMetadataById = {
-  "route_root": [],
-  "route_projects": [],
-  "route_projects_$id": []
+  route_root: [],
+  route_projects: [],
+  route_projects_$id: [],
 } as const;
 /** Returns layout modules for a generated route id. */
-export const layoutsById = <Id extends RouteId>(
-  id: Id
-): FileRouteLayouts<Id> => fileRouteLayoutsById[id];
+export const layoutsById = <Id extends RouteId>(id: Id): FileRouteLayouts<Id> =>
+  fileRouteLayoutsById[id];
 /** Returns layout modules for a generated route path pattern. */
 export const layoutsByPath = <Path extends RoutePath>(
-  path: Path
+  path: Path,
 ): FileRouteLayouts<RouteIdByPath[Path]> => layoutsById(routeIdByPath[path]);
 /** Returns the nearest error boundary module for a generated route id, when one exists. */
-export const errorBoundaryById = <Id extends RouteId>(
-  id: Id
-): FileRouteErrorBoundary<Id> =>
-  (fileRouteErrorBoundaryById as Partial<Record<RouteId, unknown>>)[id] as FileRouteErrorBoundary<Id>;
+export const errorBoundaryById = <Id extends RouteId>(id: Id): FileRouteErrorBoundary<Id> =>
+  (fileRouteErrorBoundaryById as Partial<Record<RouteId, unknown>>)[
+    id
+  ] as FileRouteErrorBoundary<Id>;
 /** Returns the nearest error boundary module for a generated route path pattern, when one exists. */
 export const errorBoundaryByPath = <Path extends RoutePath>(
-  path: Path
+  path: Path,
 ): FileRouteErrorBoundary<RouteIdByPath[Path]> => errorBoundaryById(routeIdByPath[path]);
 /** Returns metadata modules for a generated route id. */
-export const metadataById = <Id extends RouteId>(
-  id: Id
-): FileRouteMetadataModules<Id> => fileRouteMetadataById[id];
+export const metadataById = <Id extends RouteId>(id: Id): FileRouteMetadataModules<Id> =>
+  fileRouteMetadataById[id];
 /** Returns metadata modules for a generated route path pattern. */
 export const metadataByPath = <Path extends RoutePath>(
-  path: Path
+  path: Path,
 ): FileRouteMetadataModules<RouteIdByPath[Path]> => metadataById(routeIdByPath[path]);
 
 /** Route, layout, error boundary, and metadata modules discovered by Start. */
 export const fileRouteModules = [
   {
-    "id": "index",
-    "kind": "Route",
-    "routeId": "route_root",
-    "moduleId": "src/routes/index.ts",
-    "filePath": "src/routes/index.ts",
-    "routePath": "/",
-    "segments": [],
-    "params": [],
-    "exportName": "Route"
+    id: "index",
+    kind: "Route",
+    routeId: "route_root",
+    moduleId: "src/routes/index.ts",
+    filePath: "src/routes/index.ts",
+    routePath: "/",
+    segments: [],
+    params: [],
+    exportName: "Route",
   },
   {
-    "id": "projects/index",
-    "kind": "Route",
-    "routeId": "route_projects",
-    "moduleId": "src/routes/projects/index.ts",
-    "filePath": "src/routes/projects/index.ts",
-    "routePath": "/projects",
-    "segments": [
+    id: "projects/index",
+    kind: "Route",
+    routeId: "route_projects",
+    moduleId: "src/routes/projects/index.ts",
+    filePath: "src/routes/projects/index.ts",
+    routePath: "/projects",
+    segments: [
       {
-        "_tag": "Static",
-        "value": "projects"
-      }
+        _tag: "Static",
+        value: "projects",
+      },
     ],
-    "params": [],
-    "exportName": "Route"
+    params: [],
+    exportName: "Route",
   },
   {
-    "id": "projects/$id",
-    "kind": "Route",
-    "routeId": "route_projects_$id",
-    "moduleId": "src/routes/projects/$id.ts",
-    "filePath": "src/routes/projects/$id.ts",
-    "routePath": "/projects/:id",
-    "segments": [
+    id: "projects/$id",
+    kind: "Route",
+    routeId: "route_projects_$id",
+    moduleId: "src/routes/projects/$id.ts",
+    filePath: "src/routes/projects/$id.ts",
+    routePath: "/projects/:id",
+    segments: [
       {
-        "_tag": "Static",
-        "value": "projects"
+        _tag: "Static",
+        value: "projects",
       },
       {
-        "_tag": "Dynamic",
-        "name": "id",
-        "optional": false
-      }
+        _tag: "Dynamic",
+        name: "id",
+        optional: false,
+      },
     ],
-    "params": [
+    params: [
       {
-        "name": "id",
-        "optional": false
-      }
+        name: "id",
+        optional: false,
+      },
     ],
-    "exportName": "Route"
-  }
+    exportName: "Route",
+  },
 ] as const;
 /** Parent, layout, error boundary, and metadata relationships for each generated route. */
 export const fileRouteMetadata = [
   {
-    "routeId": "route_root",
-    "routePath": "/",
-    "routeModule": {
-      "id": "index",
-      "kind": "Route",
-      "routeId": "route_root",
-      "moduleId": "src/routes/index.ts",
-      "filePath": "src/routes/index.ts",
-      "routePath": "/",
-      "segments": [],
-      "params": [],
-      "exportName": "Route"
+    routeId: "route_root",
+    routePath: "/",
+    routeModule: {
+      id: "index",
+      kind: "Route",
+      routeId: "route_root",
+      moduleId: "src/routes/index.ts",
+      filePath: "src/routes/index.ts",
+      routePath: "/",
+      segments: [],
+      params: [],
+      exportName: "Route",
     },
-    "layouts": [],
-    "metadataModules": []
+    layouts: [],
+    metadataModules: [],
   },
   {
-    "routeId": "route_projects",
-    "routePath": "/projects",
-    "routeModule": {
-      "id": "projects/index",
-      "kind": "Route",
-      "routeId": "route_projects",
-      "moduleId": "src/routes/projects/index.ts",
-      "filePath": "src/routes/projects/index.ts",
-      "routePath": "/projects",
-      "segments": [
+    routeId: "route_projects",
+    routePath: "/projects",
+    routeModule: {
+      id: "projects/index",
+      kind: "Route",
+      routeId: "route_projects",
+      moduleId: "src/routes/projects/index.ts",
+      filePath: "src/routes/projects/index.ts",
+      routePath: "/projects",
+      segments: [
         {
-          "_tag": "Static",
-          "value": "projects"
-        }
+          _tag: "Static",
+          value: "projects",
+        },
       ],
-      "params": [],
-      "exportName": "Route"
+      params: [],
+      exportName: "Route",
     },
-    "parentRouteId": "route_root",
-    "parentRoutePath": "/",
-    "layouts": [],
-    "metadataModules": []
+    parentRouteId: "route_root",
+    parentRoutePath: "/",
+    layouts: [],
+    metadataModules: [],
   },
   {
-    "routeId": "route_projects_$id",
-    "routePath": "/projects/:id",
-    "routeModule": {
-      "id": "projects/$id",
-      "kind": "Route",
-      "routeId": "route_projects_$id",
-      "moduleId": "src/routes/projects/$id.ts",
-      "filePath": "src/routes/projects/$id.ts",
-      "routePath": "/projects/:id",
-      "segments": [
+    routeId: "route_projects_$id",
+    routePath: "/projects/:id",
+    routeModule: {
+      id: "projects/$id",
+      kind: "Route",
+      routeId: "route_projects_$id",
+      moduleId: "src/routes/projects/$id.ts",
+      filePath: "src/routes/projects/$id.ts",
+      routePath: "/projects/:id",
+      segments: [
         {
-          "_tag": "Static",
-          "value": "projects"
+          _tag: "Static",
+          value: "projects",
         },
         {
-          "_tag": "Dynamic",
-          "name": "id",
-          "optional": false
-        }
+          _tag: "Dynamic",
+          name: "id",
+          optional: false,
+        },
       ],
-      "params": [
+      params: [
         {
-          "name": "id",
-          "optional": false
-        }
+          name: "id",
+          optional: false,
+        },
       ],
-      "exportName": "Route"
+      exportName: "Route",
     },
-    "parentRouteId": "route_projects",
-    "parentRoutePath": "/projects",
-    "layouts": [],
-    "metadataModules": []
-  }
+    parentRouteId: "route_projects",
+    parentRoutePath: "/projects",
+    layouts: [],
+    metadataModules: [],
+  },
 ] as const;
 
 /** Tuple type for the generated app-specific route tree. */
@@ -243,7 +239,9 @@ export type FileRouteParamsById = { readonly [Id in FileRouteId]: Route.Params<R
 /** Search values for each generated route id. */
 export type FileRouteSearchById = { readonly [Id in FileRouteId]: Route.Search<RouteById[Id]> };
 /** Href options for each generated route id. */
-export type FileRouteHrefOptionsById = { readonly [Id in FileRouteId]: Route.HrefOptions<RouteById[Id]> };
+export type FileRouteHrefOptionsById = {
+  readonly [Id in FileRouteId]: Route.HrefOptions<RouteById[Id]>;
+};
 /** Href options for one generated route id. */
 export type FileRouteHrefOptions<Id extends FileRouteId> = FileRouteHrefOptionsById[Id];
 /** Href arguments for each generated route id. */
@@ -251,13 +249,21 @@ export type FileRouteHrefArgsById = { readonly [Id in FileRouteId]: Route.HrefAr
 /** Href arguments for one generated route id. */
 export type FileRouteHrefArgs<Id extends FileRouteId> = FileRouteHrefArgsById[Id];
 /** Params for each generated route path pattern. */
-export type FileRouteParamsByPath = { readonly [Path in keyof FileRouteByPath]: Route.Params<FileRouteByPath[Path]> };
+export type FileRouteParamsByPath = {
+  readonly [Path in keyof FileRouteByPath]: Route.Params<FileRouteByPath[Path]>;
+};
 /** Search values for each generated route path pattern. */
-export type FileRouteSearchByPath = { readonly [Path in keyof FileRouteByPath]: Route.Search<FileRouteByPath[Path]> };
+export type FileRouteSearchByPath = {
+  readonly [Path in keyof FileRouteByPath]: Route.Search<FileRouteByPath[Path]>;
+};
 /** Href options for each generated route path pattern. */
-export type FileRouteHrefOptionsByPath = { readonly [Path in keyof FileRouteByPath]: Route.HrefOptions<FileRouteByPath[Path]> };
+export type FileRouteHrefOptionsByPath = {
+  readonly [Path in keyof FileRouteByPath]: Route.HrefOptions<FileRouteByPath[Path]>;
+};
 /** Href arguments for each generated route path pattern. */
-export type FileRouteHrefArgsByPath = { readonly [Path in keyof FileRouteByPath]: Route.HrefArgs<FileRouteByPath[Path]> };
+export type FileRouteHrefArgsByPath = {
+  readonly [Path in keyof FileRouteByPath]: Route.HrefArgs<FileRouteByPath[Path]>;
+};
 /** Route match narrowed to one generated route path pattern. */
 export type FileRouteMatch<Path extends FileRoutePath> = Route.Match<FileRouteByPath[Path]>;
 /** Layout modules keyed by generated route id. */
@@ -269,7 +275,8 @@ export type FileRouteMetadataById = typeof fileRouteMetadataById;
 /** Layout modules for one generated route id. */
 export type FileRouteLayouts<Id extends FileRouteId> = FileRouteLayoutsById[Id];
 /** Error boundary module for one generated route id, or undefined when none is scoped. */
-export type FileRouteErrorBoundary<Id extends FileRouteId> = Id extends keyof FileRouteErrorBoundaryById ? FileRouteErrorBoundaryById[Id] : undefined;
+export type FileRouteErrorBoundary<Id extends FileRouteId> =
+  Id extends keyof FileRouteErrorBoundaryById ? FileRouteErrorBoundaryById[Id] : undefined;
 /** Metadata modules for one generated route id. */
 export type FileRouteMetadataModules<Id extends FileRouteId> = FileRouteMetadataById[Id];
 /** Friendly alias for the generated route id union. */
@@ -301,7 +308,7 @@ export type Match<Path extends RoutePath> = FileRouteMatch<Path>;
 /** Narrows a broad route match to one generated route path pattern. */
 export const isRoutePathMatch = <Path extends FileRoutePath>(
   path: Path,
-  match: Route.Match<FileRoute> | undefined
+  match: Route.Match<FileRoute> | undefined,
 ): match is FileRouteMatch<Path> => match?.route.path === path;
 /** Static metadata for all file-route modules discovered by Start. */
 export type FileRouteModules = typeof fileRouteModules;

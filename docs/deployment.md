@@ -127,17 +127,39 @@ Vercel and Netlify Node functions should use `@effect-ui/start-node` when the
 host provides Node `IncomingMessage`/`ServerResponse` values. Prefer
 `@effect-ui/start-fetch` for their edge runtimes.
 
-Static and SPA-only hosts can use the app build output directly when a route
-does not need SSR, request-local Resource Stores, server functions, or Start
-actions. Keep those routes separate from the full-stack SSR handler so the
-deployment mode is explicit.
+Static hosts can prerender routes during the production Vite build:
+
+```ts
+import { effectUiStart } from "@effect-ui/start/vite";
+
+export default defineConfig({
+  plugins: [
+    effectUiStart({
+      serverEntry: "/src/server.tsx",
+      prerender: {
+        enabled: true,
+        autoStaticPathsDiscovery: true,
+        autoSubfolderIndex: true,
+        crawlLinks: true,
+      },
+    }),
+  ],
+});
+```
+
+Static file routes are discovered automatically when they have no path params.
+Dynamic routes stay explicit: add concrete paths through `prerender.pages` or
+link to them from a discovered page when `crawlLinks` is enabled. The build
+writes ordinary HTML files into Vite's output directory, using
+`/page/index.html` paths by default.
 
 ## Current Limits
 
 - Host-specific packages for Cloudflare, Vercel, Netlify, Bun, or static hosts
   are not split out yet. Node HTTP and generic Fetch hosts have package facades
   and platform recipes.
-- Static and SPA-only deployment remains a recipe, not a dedicated package.
+- Static prerendering is built into the Start Vite plugin. Host-specific static
+  packages can still add deploy-provider details later.
 - Package publication still needs final repository metadata and real version
   numbers before npm release, but framework package manifests are already
   publishable public scoped packages.

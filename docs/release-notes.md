@@ -87,6 +87,16 @@ Latest full gate on May 17, 2026 after Review 240:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 491 Prerender Effect Interface And Lazy Route Suspense Probes removed
+  the new Start prerender Promise facade, kept `runStartPrerenderEffect(...)`
+  as the public runner, moved retry delay and host IO through Effect
+  primitives, and made Vite `closeBundle` the final host Promise seam. React
+  and Solid now directly test unloaded lazy route Suspense conversion, and
+  Start route-code-splitting tests typecheck generated lazy-loader output so
+  Effect v4 `tryPromise(...)` contract drift is caught. Package payload policy
+  also self-tests package-local `LICENSE` content drift against the workspace
+  MIT license. The active Thirty-Sweep clean counter remains 0/30 until a fresh
+  post-Review491 sweep reports no actionable findings.
 - Review 490 Effect-First Lazy Route Components And Formatter-Tolerant Public
   API Inventory closed the dirty-lane follow-up: Core `Route.lazyComponent(...)`
   now accepts an Effect loader, exposes `preloadEffect()`, caches the detached
@@ -96,8 +106,9 @@ Latest full gate on May 17, 2026 after Review 240:
   Start auto code splitting emits Effect loaders. The public API inventory
   audit now survives formatter-aligned Markdown tables, and package payload
   policy requires package-local MIT license files in publishable tarballs. The
-  active Thirty-Sweep clean counter remains 0/30 until a fresh post-Review490
-  sweep reports no actionable findings.
+  active Thirty-Sweep clean counter remained 0/30; the later fresh
+  post-Review490 sweep found Review491 prerender Effect Interface and lazy
+  route probe work.
 - Review 247 Scope Cleanup Capture And Namespace Public Pins closed the
   post-Review246 sweep: `UiScope` and runtime UI frames now expose synchronous
   capture seams while retaining lazy `disposeEffect()` composition, React and

@@ -16,7 +16,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "tsrx-tsc -p tsconfig.json --noEmit && vite build && node scripts/static-export.mjs",
+    "build": "tsrx-tsc -p tsconfig.json --noEmit && vite build",
     "typecheck": "tsrx-tsc -p tsconfig.json --noEmit",
     "test": "vitest run src/*.test.ts",
     "leak-scan": "node scripts/leak-scan.mjs",

@@ -1,6 +1,6 @@
-import { effectUiStart } from "@effect-ui/start/vite";
 import { effectUiTsrx } from "@effect-ui/tsrx";
 import { defineConfig } from "vite";
+import { effectUiStart } from "../../packages/start/src/vite.js";
 import { docsSiteStartOptions } from "./src/start-options.js";
 
 const fromRoot = (path: string): string => new URL(`../../${path}`, import.meta.url).pathname;

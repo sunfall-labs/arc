@@ -34,6 +34,13 @@ export const docsSiteStartOptions = {
   fileRouteGeneration: {
     outputFile: "src/routeTree.gen.ts",
   },
+  prerender: {
+    enabled: true,
+    autoSubfolderIndex: true,
+    autoStaticPathsDiscovery: true,
+    crawlLinks: true,
+    failOnError: true,
+  },
   buildPolicy: {
     diagnostics: {
       routePreloadResources: {

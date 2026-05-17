@@ -119,9 +119,16 @@ export const effectUiStartVirtualModules = (
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null;
 
+const temporaryServerExcludedPluginNames = new Set([
+  effectUiStartPluginName,
+  effectUiStartVirtualModulesPluginName,
+  "effect-ui-tsrx-deps",
+]);
+
 const isStartPluginRecord = (value: unknown): value is { readonly name: string } =>
   isRecord(value) &&
-  (value.name === effectUiStartPluginName || value.name === effectUiStartVirtualModulesPluginName);
+  typeof value.name === "string" &&
+  temporaryServerExcludedPluginNames.has(value.name);
 
 const removeStartPlugins = (pluginOption: unknown): unknown => {
   if (Array.isArray(pluginOption)) {
@@ -138,6 +145,24 @@ const pluginOptionArray = (
   ? readonly Plugin[]
   : readonly unknown[] =>
   plugins === undefined ? [] : Array.isArray(plugins) ? plugins : [plugins];
+
+const unrefInactiveNodeServers = (): void => {
+  const getActiveHandles = (
+    process as typeof process & {
+      _getActiveHandles?: () => readonly unknown[];
+    }
+  )._getActiveHandles;
+  for (const handle of getActiveHandles?.() ?? []) {
+    const server = handle as {
+      readonly constructor?: { readonly name?: string };
+      readonly listening?: boolean;
+      unref?: () => void;
+    };
+    if (server.constructor?.name === "Server" && server.listening === false) {
+      server.unref?.();
+    }
+  }
+};
 
 export const startDiagnosticsInlineConfig = (
   config: UserConfig,
@@ -186,6 +211,7 @@ const startDiagnosticsViteServerEffect = (
           ...inlineConfig.server,
           middlewareMode: true,
           hmr: false,
+          watch: null,
         },
       }),
     catch: (cause) =>
@@ -206,7 +232,10 @@ const closeStartDiagnosticsViteServerEffect = (
         "Could not close the temporary Vite server for Effect UI app graph diagnostics.",
         cause,
       ),
-  }).pipe(Effect.asVoid);
+  }).pipe(
+    Effect.tap(() => Effect.sync(unrefInactiveNodeServers)),
+    Effect.asVoid,
+  );
 
 /**
  * Loads diagnostics from a caller-owned Vite server without closing it.

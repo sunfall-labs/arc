@@ -45,6 +45,7 @@ import {
   resolveStartRouteComponentSplitModuleId,
   transformStartRouteAutoCodeSplitting,
 } from "./route-code-splitting.js";
+import { runStartPrerenderEffect } from "./start-prerender.js";
 
 export {
   defaultFileRouteDirectory,
@@ -77,6 +78,26 @@ export type {
   StartViteDevSsrOptions,
   StartManifestDirectReferenceKind,
 } from "./start-manifest-wall.js";
+export type {
+  ResolvedStartPrerenderOptions,
+  StartPrerenderConfig,
+  StartPrerenderFailureEvent,
+  StartPrerenderOptions,
+  StartPrerenderPage,
+  StartPrerenderPageContext,
+  StartPrerenderPageInput,
+  StartPrerenderPageOptions,
+  StartPrerenderPlannedPage,
+  StartPrerenderResult,
+  StartPrerenderRunOptions,
+  StartPrerenderSuccessEvent,
+} from "./start-prerender.js";
+export {
+  planStartPrerenderPages,
+  resolveStartPrerenderOptions,
+  runStartPrerenderEffect,
+  StartPrerenderError,
+} from "./start-prerender.js";
 export {
   actionManifestVirtualModuleId,
   appGraphVirtualModuleId,
@@ -157,6 +178,10 @@ export interface EffectUiStartResolvedConfig {
   readonly root: string;
   readonly command?: "build" | "serve";
   readonly mode?: string;
+  readonly configFile?: string | false;
+  readonly build?: {
+    readonly outDir?: string;
+  };
 }
 
 /** Vite plugin shape returned by `effectUiStart`. */
@@ -165,6 +190,7 @@ export interface EffectUiStartPlugin {
   readonly config: (config?: UserConfig) => UserConfig;
   readonly configResolved: (config: EffectUiStartResolvedConfig) => void;
   readonly buildStart: () => void | Promise<void>;
+  readonly closeBundle: () => void | Promise<void>;
   readonly resolveId: (id: string) => string | null;
   readonly load: (id: string) => string | null;
   readonly transform: (
@@ -232,6 +258,7 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
   let viteUserConfig: UserConfig = {};
   let viteCommand: "build" | "serve" | undefined;
   let viteMode: string | undefined;
+  let viteOutDir = "dist";
 
   const currentOptions = (): EffectUiStartOptions =>
     withDiscoveredFileRoutes({ ...normalizedOptions, serverEntry }, viteRoot);
@@ -336,6 +363,7 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
       viteRoot = config.root;
       viteCommand = config.command;
       viteMode = config.mode;
+      viteOutDir = config.build?.outDir ?? "dist";
       refreshFileRouteArtifacts();
     },
     buildStart() {
@@ -343,6 +371,77 @@ export const effectUiStart = (options: EffectUiStartOptions = {}): EffectUiStart
       if (shouldRunDiagnosticsGate()) {
         return runCurrentDiagnosticsGate();
       }
+    },
+    closeBundle() {
+      if (viteCommand !== "build" || normalizedOptions.prerender === undefined) {
+        return undefined;
+      }
+      const activeOptions = currentOptions();
+      const prerenderRunnerOptions =
+        normalizedOptions.devSsr?.runOptions === undefined
+          ? {}
+          : { runOptions: normalizedOptions.devSsr.runOptions };
+      const promise = runStartHostPromise(
+        runStartPrerenderEffect({
+          root: viteRoot,
+          outDir: viteOutDir,
+          manifest: Effect.runSync(makeStartFileRouteManifestEffect(activeOptions)),
+          prerender: activeOptions.prerender ?? normalizedOptions.prerender,
+          vite: startDiagnosticsInlineConfig(viteUserConfig, viteRoot, viteMode),
+          serverEntry,
+          ...(normalizedOptions.handlerExport === undefined
+            ? {}
+            : { handlerExport: normalizedOptions.handlerExport }),
+          ...(viteMode === undefined ? {} : { mode: viteMode }),
+          ...(normalizedOptions.nodeRequest === undefined
+            ? {}
+            : { nodeRequest: normalizedOptions.nodeRequest }),
+        }).pipe(
+          Effect.tap(() =>
+            Effect.sync(() => {
+              console.log("Start prerender complete.");
+              const processDebug = process as typeof process & {
+                _getActiveHandles?: () => readonly unknown[];
+                _getActiveRequests?: () => readonly unknown[];
+                getActiveResourcesInfo?: () => readonly string[];
+              };
+              console.log(
+                "Start prerender active resources:",
+                processDebug.getActiveResourcesInfo?.(),
+              );
+              console.log(
+                "Start prerender active handles:",
+                processDebug._getActiveHandles?.().map((handle) => ({
+                  name: (handle as { readonly constructor?: { readonly name?: string } })
+                    .constructor?.name,
+                })),
+              );
+              console.log(
+                "Start prerender active requests:",
+                processDebug._getActiveRequests?.().map((request) => ({
+                  name: (request as { readonly constructor?: { readonly name?: string } })
+                    .constructor?.name,
+                })),
+              );
+            }),
+          ),
+          Effect.asVoid,
+        ),
+        prerenderRunnerOptions,
+      );
+      return promise.then((value) => {
+        console.log("Start prerender promise resolved.");
+        setTimeout(() => {
+          const processDebug = process as typeof process & {
+            getActiveResourcesInfo?: () => readonly string[];
+          };
+          console.log(
+            "Start prerender delayed resources:",
+            processDebug.getActiveResourcesInfo?.(),
+          );
+        }, 1000);
+        return value;
+      });
     },
     resolveId(id) {
       return resolveStartRouteComponentSplitModuleId(id) ?? resolveStartVirtualModuleId(id);

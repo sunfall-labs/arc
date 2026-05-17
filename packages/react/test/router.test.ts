@@ -173,6 +173,62 @@ describe("react router", () => {
     }, "http://effect-ui.test/lazy-react-projects/atlas");
   });
 
+  it("turns unloaded lazy route components in ready state into React Suspense tokens", async () => {
+    const runtime = makeRuntime();
+    const release = await Effect.runPromise(Deferred.make<void>());
+    let imports = 0;
+    const LazyProject = Route.lazyComponent(
+      Effect.gen(function* () {
+        imports++;
+        yield* Deferred.await(release);
+        return {
+          default: ({ params }: { readonly params: { readonly id: string } }) =>
+            createElement("h1", {}, `Project ${params.id}`),
+        };
+      }),
+    );
+    const Project = route("/ready-lazy-react-projects/:id", {
+      component: LazyProject,
+    });
+    const match = Project.match("/ready-lazy-react-projects/atlas");
+    if (!match) {
+      expect.fail("Expected ready lazy React route to match.");
+    }
+    const state: BrowserRouterState<readonly [typeof Project], never> = {
+      _tag: "Ready",
+      href: "/ready-lazy-react-projects/atlas",
+      match,
+    };
+
+    try {
+      await withReactRoot(async (root, container) => {
+        await act(async () => {
+          root.render(
+            createElement(
+              Suspense,
+              { fallback: createElement("span", {}, "loading") },
+              renderReactRouteState(state, {}, runtime),
+            ),
+          );
+        });
+        await flushReact();
+
+        expect(imports).toBe(1);
+        expect(container.textContent).toBe("loading");
+
+        await act(async () => {
+          await Effect.runPromise(Deferred.succeed(release, undefined));
+        });
+        await flushReact();
+
+        await vi.waitFor(() => expect(container.textContent).toBe("Project atlas"));
+        expect(imports).toBe(1);
+      });
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
   it("starts matched routes ready while React hydrates existing DOM", async () => {
     const cleanupDom = installDom("http://effect-ui.test/hydrating-projects/atlas");
     const runtime = makeRuntime();

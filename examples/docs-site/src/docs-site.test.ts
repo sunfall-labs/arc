@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { Effect } from "effect";
-import { streamHydrationAttribute, type StartHydrationChunk } from "@effect-ui/start";
+import {
+  extractStartStaticHtmlLinks,
+  startStaticPageOutputPath,
+  streamHydrationAttribute,
+  type StartHydrationChunk,
+} from "@effect-ui/start";
 import { makeRecipeSlug, RecipeBySlug, RecipeIndexRef } from "./content.js";
 import {
   hrefById,
@@ -12,12 +17,7 @@ import {
   type FileRouteHrefOptionsById,
 } from "./routeTree.gen.js";
 import { handleRequest, serverApp } from "./server.js";
-import {
-  docsSiteStaticLinks,
-  docsSiteStaticOutputPath,
-  docsSiteStaticSeedPathsEffect,
-  renderDocsSiteStaticPageEffect,
-} from "./static-export.js";
+import { docsSiteStartOptions } from "./start-options.js";
 
 const htmlJsonScriptPattern = /<script\b([^>]*)>([\s\S]*?)<\/script>/g;
 
@@ -45,6 +45,7 @@ describe("docs site", () => {
 
         expect(response.status).toBe(200);
         expect(response.headers.get("x-effect-ui-docs")).toBe("cookbook");
+        expect(html).toContain('href="/src/styles.css"');
         expect(html).toContain("Idiomatic Effect UI examples");
         expect(html).toContain("Resource from a server function");
         expect(html).toContain("Progressive Start action form");
@@ -100,24 +101,50 @@ describe("docs site", () => {
     );
   });
 
-  it("plans and renders docs static export pages", () =>
+  it("uses Start prerender as the docs static output contract", () =>
     Effect.runPromise(
       Effect.gen(function* () {
-        const paths = yield* docsSiteStaticSeedPathsEffect;
-        const page = yield* renderDocsSiteStaticPageEffect(
-          "/cookbook/resource-from-server-function",
+        const response = yield* Effect.scoped(
+          serverApp.runtime.provide(
+            handleRequest(new Request("https://docs.test/cookbook/resource-from-server-function")),
+          ),
         );
-        const links = docsSiteStaticLinks(page.html, page.path);
+        const html = yield* Effect.tryPromise(() => response.text());
+        const links = extractStartStaticHtmlLinks(html, {
+          origin: "https://docs.test",
+          fromPath: "/cookbook/resource-from-server-function",
+        });
+        const prerender = docsSiteStartOptions.prerender;
 
-        expect(paths).toContain("/");
-        expect(paths).toContain("/cookbook");
-        expect(paths).toContain("/cookbook/resource-from-server-function");
-        expect(page.status).toBe(200);
-        expect(page.html).toContain("Resource from a server function");
-        expect(links).toContain("/cookbook/semantic-invalidation");
-        expect(docsSiteStaticOutputPath("/cookbook/resource-from-server-function")).toBe(
-          "cookbook/resource-from-server-function/index.html",
+        expect(prerender).toMatchObject({
+          enabled: true,
+          autoSubfolderIndex: true,
+          autoStaticPathsDiscovery: true,
+          crawlLinks: true,
+          failOnError: true,
+        });
+        expect(response.status).toBe(200);
+        expect(html).toContain("Resource from a server function");
+        expect(links).toEqual(
+          expect.arrayContaining([
+            "/",
+            "/cookbook",
+            "/cookbook/route-preload-hydration",
+            "/cookbook/capability-mocks",
+          ]),
         );
+        expect(
+          startStaticPageOutputPath("/cookbook/resource-from-server-function", {
+            autoSubfolderIndex: prerender.autoSubfolderIndex,
+          }),
+        ).toBe("cookbook/resource-from-server-function/index.html");
       }),
     ));
+
+  it("keeps internal docs navigation on native typed anchors", () => {
+    const source = readFileSync(new URL("./App.tsx", import.meta.url), "utf8");
+
+    expect(source).toMatch(/<a\s+href={Route\.href/);
+    expect(source).not.toContain("RouterLink");
+  });
 });

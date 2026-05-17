@@ -11,11 +11,11 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review490 Effect-First Lazy Route Components And
-Formatter-Tolerant Public API Inventory, the dirty-lane follow-up that removed
-Promise-shaped lazy route component Interfaces from Core, moved route lazy
-Suspense token conversion into the React/Solid host Adapter seams, and made
-the public API inventory parser tolerate formatter-aligned Markdown tables.
+The newest focused review is Review491 Prerender Effect Interface And Lazy
+Route Suspense Probes, the post-Review490 follow-up that removed the new
+Promise-shaped prerender runner Interface, kept Start prerender internals
+Effect-first, added direct lazy route Suspense Adapter tests, and typechecked
+Start route-splitting generated code instead of relying on string-shape tests.
 The newest full verification checkpoint remains Review240.
 Clean Sweep 1 after
 Review208 remains historical 1/30
@@ -53,9 +53,10 @@ and the fresh post-Review242 sweep found Review243 work,
 and the fresh post-Review243 sweep found Review244 work,
 and the fresh post-Review244 sweep found Review245 work,
 and the fresh post-Review245 sweep found Review246 work,
-and the fresh post-Review246 sweep found Review247 work, and the dirty-lane
-follow-up found Review490 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review490
+and the fresh post-Review246 sweep found Review247 work, the dirty-lane
+follow-up found Review490 work, and the fresh post-Review490 sweep found
+Review491 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review491
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -67,8 +68,8 @@ Review226, Review227, Review228, Review229, Review230, Review231, and
 Review232 Shared DB Query Stage Plan work, Review233 work, Review234 work,
 Review235 work, Review236 work, Review237 work, Review238 work, Review239
 work, Review240 work, Review241 work, Review242 work, Review243 work,
-Review244 work, Review245 work, Review246 work, Review247 work, and Review490
-work.
+Review244 work, Review245 work, Review246 work, Review247 work, Review490
+work, and Review491 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -174,7 +175,79 @@ and the fresh post-Review246 sweep found Review247 Scope cleanup capture and
 namespace public pin work,
 and the dirty-lane follow-up found Review490 lazy route Effect Interface and
 formatter-tolerant inventory work,
+and the fresh post-Review490 sweep found Review491 prerender Effect Interface
+and lazy route probe work,
 so the counter remains 0/30.
+
+## Review 491: Prerender Effect Interface And Lazy Route Suspense Probes
+
+Review491 fixes the actionable findings from the fresh post-Review490
+subagent sweep.
+
+1. Start Prerender Effect Interface
+   - Status: fixed.
+   - Files: `packages/start/src/start-prerender.ts`,
+     `packages/start/src/vite.ts`, `packages/start/src/start-manifest-wall.ts`,
+     `packages/start/test/start-prerender.test.ts`,
+     `type-tests/start-vite.test-d.ts`,
+     `type-tests/public-api.manifest.json`, and
+     `docs/public-api-inventory.md`.
+   - Problem: the new Start Prerender Module exposed a
+     `runStartPrerender(...)` Promise Interface and used raw Promise-shaped
+     delay and Vite hook sequencing, so a build feature that should have
+     lived behind Effect primitives leaked host mechanics into the public
+     Interface.
+   - Solution: keep `runStartPrerenderEffect(...)` as the public runner,
+     remove the Promise facade, use `Effect.sleep(...)` for retry delay, map
+     host file/Vite/body promises through local `Effect.tryPromise(...)`
+     adapters, and have the Vite `closeBundle` host Adapter run the
+     prerender Effect as void at the final host seam.
+   - Benefits: Start prerender has better Depth because planning, retries,
+     asset injection, crawling, writes, and typed failures sit behind one
+     Effect Interface. Locality improves because Vite is the only Promise
+     host seam for production build integration.
+
+2. Lazy Route Suspense And Generated-Code Probes
+   - Status: fixed.
+   - Files: `packages/react/test/router.test.ts`,
+     `packages/solid/test/router.test.ts`,
+     `packages/start/src/route-code-splitting.ts`,
+     and `packages/start/test/route-code-splitting.test.ts`.
+   - Problem: React and Solid lazy route tests covered preload-before-render,
+     but not the Ready-with-unloaded-lazy route path that actually exercises
+     each framework Suspense Adapter. Start route splitting also only asserted
+     generated string snippets, so Effect v4 `tryPromise(...)` type drift
+     could pass package typecheck.
+   - Solution: add direct React and Solid tests for unloaded lazy route
+     components in Ready state, publish Solid route render suspension through
+     the controller, typecheck transformed Start route code in a temporary
+     TypeScript project, and make generated lazy loaders provide the required
+     Effect v4 `tryPromise` `catch` mapper.
+   - Benefits: the framework Adapter seams now have better test Locality, and
+     Start route splitting gains Leverage because generated code must satisfy
+     the same TypeScript contracts users compile.
+
+3. Evidence And Formatter Hygiene
+   - Status: fixed.
+   - Files: `scripts/audit-effect-first.mjs`,
+     `scripts/public-api-symbol-policy.mjs`,
+     `scripts/verify-package-payload-policy.mjs`,
+     `examples/docs-site/src/routeTree.gen.ts`,
+     `examples/project-console/src/routeTree.gen.ts`,
+     `docs/package-hygiene-audit.md`, and this review ledger.
+   - Problem: the post-Review490 sweep found stale current evidence and
+     generated route files that needed the workspace formatter after the
+     docs-site/prerender lane landed. The package payload policy also checked
+     package-local `LICENSE` presence but lacked a self-test proving that
+     license content drift fails against the workspace MIT license.
+   - Solution: update current evidence policy to Review491, record the
+     449-file Effect-first audit, add the Vite `closeBundle` Promise return
+     as an anchored host hook allowance, add a temp-workspace package payload
+     self-test for license content drift, and format the generated route files.
+   - Benefits: release-tracking docs, audit policy, and generated artifacts
+     stay aligned with the actual verification surface. Package hygiene also
+     gains Locality because license-byte policy failures are exercised at the
+     payload-policy Interface rather than inferred from dry-run output.
 
 ## Review 490: Effect-First Lazy Route Components And Formatter-Tolerant Public API Inventory
 

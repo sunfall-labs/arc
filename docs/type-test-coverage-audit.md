@@ -200,6 +200,12 @@ are easiest to regress while refactoring internals toward Effect primitives.
   DB namespace-local error-channel pins, and direct Start Vite dev SSR
   middleware/helper imports so LSP-facing public concepts cannot drift behind
   root-only symbols.
+- Review491 Prerender Effect Interface And Lazy Route Suspense Probes removed
+  the public `runStartPrerender(...)` Promise facade from Start Vite type
+  pins, kept `runStartPrerenderEffect(...)` as the public runner, and added a
+  generated-code type probe for Start route splitting so Effect v4
+  `tryPromise(...)` output is checked by TypeScript instead of substring
+  assertions alone.
 - Review490 Effect-First Lazy Route Components And Formatter-Tolerant Public
   API Inventory updated Core route type tests so `Route.lazyComponent(...)`
   accepts an Effect loader and exposes `preloadEffect()` instead of a

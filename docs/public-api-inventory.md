@@ -547,12 +547,13 @@ The root export includes:
 Subpath exports:
 
 - `./vite` owns `effectUiStart`, file route discovery, virtual module creation,
-  build-policy validation, app graph diagnostics loading, and SSR dev handling.
+  build-policy validation, app graph diagnostics loading, prerendering, and SSR
+  dev handling.
   Manifest-pinned Source Surface Modules: `app-graph`,
   `route-code-splitting`,
   `generated-route-definitions`, `start-app-graph-diagnostics-policy`,
-  `start-manifest-wall`, `start-virtual-modules`, `start-vite-dev-ssr`, and
-  `start-vite-diagnostics-loader`.
+  `start-manifest-wall`, `start-prerender`, `start-virtual-modules`,
+  `start-vite-dev-ssr`, and `start-vite-diagnostics-loader`.
   `effectUiStart` returns the concrete `EffectUiStartPlugin` interface rather
   than a broad Vite `PluginOption`, and its SSR module handler type is named
   `StartSsrRequestHandler` so it cannot be confused with the root Effect
@@ -586,6 +587,14 @@ Subpath exports:
   projection through `effect-ui-start graph` and `effect-ui-start impact`, with
   concise text by default, raw graph detail behind `--verbose`, and complete
   machine payloads behind `--json`.
+- `EffectUiStartOptions.prerender` enables production static prerendering from
+  the Vite plugin. The Vite subpath exports `StartPrerenderOptions`,
+  `planStartPrerenderPages(...)`, `resolveStartPrerenderOptions(...)`,
+  `runStartPrerenderEffect(...)`, and `StartPrerenderError` for adapter tests
+  and custom build hosts. The planner discovers static file routes by default,
+  keeps dynamic route params explicit through `pages`, crawls internal links
+  after render, and writes portable HTML paths with the root static-export
+  helpers.
 - `./adapters` is a compatibility facade that re-exports the host-specific
   fetch and Node adapter Modules, including `StartRequestHandlerError` and
   `StartNodeAdapterError` for host-facing failure handling. Manifest-pinned

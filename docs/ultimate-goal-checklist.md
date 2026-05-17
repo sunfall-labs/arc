@@ -681,12 +681,13 @@ diagnostics`, devtools summary tests, and generated virtual modules.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 490 passed
-    `pnpm --filter @effect-ui/core build`, `pnpm typecheck:types`,
-    `pnpm audit:effect-first`, `pnpm audit:public-api`, focused Core/React/Solid
-    router tests 3 files / 90 tests, and `pnpm typecheck` while closing the
-    lazy route Effect Interface and formatter-tolerant public API inventory
-    parser work. Latest full verification evidence remains Review 240.
+  - Latest focused evidence: Review 491 passed focused React/Solid router and
+    Start route-code-splitting/prerender tests 4 files / 81 tests,
+    `pnpm typecheck`, `pnpm audit:effect-first` over 449 files,
+    `pnpm audit:public-api`, `pnpm format:check`, `pnpm lint`, and
+    `git diff --check` while closing the prerender Effect Interface and lazy
+    route Suspense probe work. Latest full verification evidence remains
+    Review 240.
     Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
     sweeps found Review191, Review192, Review193, Review194, Review195, and
     Review196, Review197, Review198, Review199, Review200, Review201,
@@ -751,9 +752,10 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     Review245 public API symbol reachability and router Adapter parity work,
     and the fresh post-Review245 sweep found Review246 Effect cleanup capture
     and Vite middleware lifecycle work, and the fresh post-Review246 sweep
-    found Review247 Scope cleanup capture and namespace public pin work, and
-    the dirty-lane follow-up found Review490 lazy route Effect Interface and
-    formatter-tolerant inventory work,
+    found Review247 Scope cleanup capture and namespace public pin work, the
+    dirty-lane follow-up found Review490 lazy route Effect Interface and
+    formatter-tolerant inventory work, and the fresh post-Review490 sweep found
+    Review491 prerender Effect Interface and lazy route probe work,
     leaving the active counter at 0/30.
     Latest full evidence:
     `pnpm verify` ran after Review 240 with 53 root
@@ -916,10 +918,11 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     16-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 490 records Core build, public type tests,
-    Effect-first audit, public API audit, focused Core/React/Solid router tests,
-    and workspace typecheck after closing lazy route Effect Interface and
-    formatter-tolerant public API inventory findings. Review240 records the latest full gate. Clean
+  - Evidence: Review 491 records focused React/Solid router and Start
+    route-code-splitting/prerender tests, workspace typecheck, Effect-first
+    audit, public API audit, format, lint, and diff hygiene after closing
+    prerender Effect Interface and lazy route Suspense probe findings.
+    Review240 records the latest full gate. Clean
     Sweep 1 after
     Review190 remains historical 1/30 evidence, but later sweeps found
     Review191, Review192, Review193, Review194, Review195, Review196,
@@ -981,9 +984,10 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     Review245 public API symbol reachability and router Adapter parity work,
     and the fresh post-Review245 sweep found Review246 Effect cleanup capture
     and Vite middleware lifecycle work, and the fresh post-Review246 sweep
-    found Review247 Scope cleanup capture and namespace public pin work, and
-    the dirty-lane follow-up found Review490 lazy route Effect Interface and
-    formatter-tolerant inventory work,
+    found Review247 Scope cleanup capture and namespace public pin work, the
+    dirty-lane follow-up found Review490 lazy route Effect Interface and
+    formatter-tolerant inventory work, and the fresh post-Review490 sweep found
+    Review491 prerender Effect Interface and lazy route probe work,
     leaving the active counter at 0/30.
     Full verification is recorded in the latest full gate above.
 

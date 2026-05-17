@@ -25,6 +25,7 @@ const shellOpen = (solidHydrationScript: string): string => `<!doctype html>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Effect UI Cookbook</title>
+    <link rel="stylesheet" href="/src/styles.css" data-effect-ui-docs-dev-style />
     ${solidHydrationScript}
   </head>
   <body>

@@ -189,6 +189,36 @@ const selfTest = Effect.gen(function* () {
       ["missing LICENSE"],
     ),
   );
+  yield* Effect.scoped(
+    Effect.gen(function* () {
+      const workspaceRoot = yield* fsEffect("create temp workspace for license drift", () =>
+        mkdtemp(join(tmpdir(), "effect-ui-payload-policy-")),
+      );
+      yield* Effect.addFinalizer(() =>
+        fsEffect("remove temp workspace for license drift", () =>
+          rm(workspaceRoot, { recursive: true, force: true }),
+        ).pipe(Effect.catchCause(() => Effect.void)),
+      );
+      const packageDirectory = join(workspaceRoot, "packages", "self-test");
+      yield* writeTextEffect(
+        workspaceRoot,
+        "LICENSE",
+        "MIT License\n\nCopyright (c) 2026 Andrew Lee\n",
+      );
+      yield* populatePackageEffect(packageDirectory);
+      yield* writeTextEffect(packageDirectory, "LICENSE", "MIT License\n\nDifferent grant.\n");
+      yield* expectFailuresEffect(
+        "license content drift",
+        validateDistPackagePayloadEffect({
+          target: makeTarget(packageDirectory),
+          files: baseFiles,
+          workspaceRoot,
+          payloadLabel: "license content drift",
+        }),
+        ["LICENSE must match the workspace LICENSE"],
+      );
+    }),
+  );
   yield* withTempPackageEffect(
     "declaration content drift",
     {

@@ -17,10 +17,14 @@ import {
   handleSsrDevRequest,
   loadStartAppGraphDiagnostics,
   loadStartAppGraphDiagnosticsEffect,
+  planStartPrerenderPages,
+  resolveStartPrerenderOptions,
   runStartViteDiagnosticsGateEffect,
+  runStartPrerenderEffect,
   serverFunctionManifestVirtualModuleId,
   StartDevServerError,
   StartHandlerNotFound,
+  StartPrerenderError,
   StartAppGraphDiagnosticsRunnerError,
   FileRouteDefinitionsFileWriteError,
   FileRouteDefinitionsOutputPathError,
@@ -44,11 +48,23 @@ import {
   type HandleSsrDevRequestOptions,
   type LoadedStartAppGraphDiagnostics,
   type LoadStartAppGraphDiagnosticsOptions,
+  type ResolvedStartPrerenderOptions,
   type StartAppGraphDiagnosticsLoadError,
   type StartBuildPolicy,
   type StartBuildPolicyError,
   type StartDevMiddlewareNext,
   type StartDevServer,
+  type StartPrerenderConfig,
+  type StartPrerenderFailureEvent,
+  type StartPrerenderOptions,
+  type StartPrerenderPage,
+  type StartPrerenderPageContext,
+  type StartPrerenderPageInput,
+  type StartPrerenderPageOptions,
+  type StartPrerenderPlannedPage,
+  type StartPrerenderResult,
+  type StartPrerenderRunOptions,
+  type StartPrerenderSuccessEvent,
   type StartSsrHandlerModule,
   type StartViteDevServer,
   type StartViteDevSsrOptions,
@@ -71,10 +87,14 @@ const viteExports: Array<unknown> = [
   handleSsrDevRequest,
   loadStartAppGraphDiagnostics,
   loadStartAppGraphDiagnosticsEffect,
+  planStartPrerenderPages,
+  resolveStartPrerenderOptions,
   runStartViteDiagnosticsGateEffect,
+  runStartPrerenderEffect,
   serverFunctionManifestVirtualModuleId,
   StartDevServerError,
   StartHandlerNotFound,
+  StartPrerenderError,
   StartAppGraphDiagnosticsRunnerError,
   FileRouteDefinitionsFileWriteError,
   FileRouteDefinitionsOutputPathError,
@@ -124,11 +144,23 @@ type ViteTypes =
   | FileRouteDefinitionsFileWriteResult
   | LoadedStartAppGraphDiagnostics
   | LoadStartAppGraphDiagnosticsOptions
+  | ResolvedStartPrerenderOptions
   | StartAppGraphDiagnosticsLoadError
   | StartBuildPolicy
   | StartBuildPolicyError
   | StartDevMiddlewareNext
   | StartDevServer
+  | StartPrerenderConfig
+  | StartPrerenderFailureEvent
+  | StartPrerenderOptions
+  | StartPrerenderPage
+  | StartPrerenderPageContext
+  | StartPrerenderPageInput
+  | StartPrerenderPageOptions
+  | StartPrerenderPlannedPage
+  | StartPrerenderResult
+  | StartPrerenderRunOptions
+  | StartPrerenderSuccessEvent
   | StartViteDevServer
   | StartSsrHandlerModule
   | StartViteDevSsrOptions
@@ -149,6 +181,25 @@ const devMiddlewareNext: StartDevMiddlewareNext = (error?: unknown) => {
 const devSsrStartOptions = {
   devSsr: {
     runtime: viteDevSsrRuntime,
+  },
+} satisfies EffectUiStartOptions;
+const prerenderStartOptions = {
+  prerender: {
+    enabled: true,
+    autoSubfolderIndex: true,
+    autoStaticPathsDiscovery: true,
+    crawlLinks: true,
+    retryCount: 1,
+    retryDelay: 10,
+    pages: [
+      "/docs",
+      {
+        path: "/docs/static",
+        outputPath: "docs/static/index.html",
+        prerender: { enabled: true },
+      },
+    ],
+    filter: ({ path }) => !path.startsWith("/private"),
   },
 } satisfies EffectUiStartOptions;
 const devSsrOptions: StartViteDevSsrOptions<"dev-ssr-runtime"> = {
@@ -204,6 +255,25 @@ const discoveryOptions: FileRouteDiscoveryOptions = {
 };
 void discoveryOptions;
 declare const viteManifest: Parameters<typeof writeFileRouteDefinitionsFile>[1];
+const resolvedPrerenderOptions: ResolvedStartPrerenderOptions | undefined =
+  resolveStartPrerenderOptions(prerenderStartOptions.prerender);
+const plannedPrerenderPages: readonly StartPrerenderPlannedPage[] = planStartPrerenderPages(
+  viteManifest,
+  prerenderStartOptions.prerender,
+);
+const prerenderRunOptions: StartPrerenderRunOptions = {
+  root: viteRoot,
+  outDir: "dist",
+  manifest: viteManifest,
+  prerender: prerenderStartOptions.prerender,
+  serverEntry: defaultServerEntry,
+};
+const prerenderEffect = runStartPrerenderEffect(prerenderRunOptions);
+const prerenderError = new StartPrerenderError({
+  operation: "render-page",
+  message: "Could not render.",
+  path: "/docs",
+});
 declare const routeOutputFailure: FileRouteDefinitionsOutputPathError;
 declare const routeWriteFailure: FileRouteDefinitionsFileWriteError;
 const routeOutputGuidance: string = routeOutputFailure.guidance;
@@ -217,8 +287,14 @@ const routeDefinitionsWriteEffect: Effect.Effect<
 > = writeFileRouteDefinitionsFileEffect(viteRoot, viteManifest);
 void viteExports;
 void diagnosticsBuildPolicyOptions;
+void prerenderStartOptions;
 void routeOutputGuidance;
 void routeWriteOperation;
 void routeDefinitionsWriteResult;
 void routeDefinitionsWriteEffect;
+void resolvedPrerenderOptions;
+void plannedPrerenderPages;
+void prerenderRunOptions;
+void prerenderEffect;
+void prerenderError;
 type _ViteTypes = ViteTypes;

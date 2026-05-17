@@ -788,7 +788,7 @@ export const transformStartRouteAutoCodeSplitting = (
       }
       return `${prefix}component: ${routeNamespace}.lazyComponent(${effectNamespace}.tryPromise({ try: () => import(${JSON.stringify(
         splitCandidateModuleId(candidate, options.root, id),
-      )}) }), ${JSON.stringify(candidate.local)})`;
+      )}), catch: (error) => error }), ${JSON.stringify(candidate.local)})`;
     },
   );
 

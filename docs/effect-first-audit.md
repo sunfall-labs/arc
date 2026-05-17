@@ -20,6 +20,14 @@ interruption.
 
 ## Current Sweep Results
 
+- Review491 Prerender Effect Interface And Lazy Route Suspense Probes keeps
+  the post-Review490 fixes Effect-first: Start prerender exposes
+  `runStartPrerenderEffect(...)` as the public runner, removes the
+  Promise-shaped runner facade, uses `Effect.sleep(...)` for retry delay,
+  adapts host file/Vite/body operations with `Effect.tryPromise(...)`, and
+  runs the Vite `closeBundle` host hook through the Start host Promise runner
+  only after the prerender Effect is shaped as void. The Effect-first audit
+  over 449 physical and virtual files is green.
 - Review490 Effect-First Lazy Route Components And Formatter-Tolerant Public
   API Inventory keeps the dirty-lane follow-up Effect-first: Core
   `Route.lazyComponent(...)` now accepts an Effect loader, exposes

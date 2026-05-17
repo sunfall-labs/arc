@@ -1,3 +1,8 @@
+import { execFileSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, relative, sep } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import {
   effectUiStart,
@@ -10,6 +15,77 @@ const splitImportId = (transformed: string): string => {
   const match = transformed.match(/import\("([^"]+)"\)/);
   expect(match?.[1]).toBeDefined();
   return match?.[1] ?? "";
+};
+
+const workspaceRoot = fileURLToPath(new URL("../../..", import.meta.url));
+const tsgoBin = join(
+  workspaceRoot,
+  "node_modules",
+  ".bin",
+  process.platform === "win32" ? "tsgo.cmd" : "tsgo",
+);
+const toPosixPath = (path: string): string => path.split(sep).join("/");
+
+const typecheckGeneratedRouteModule = (transformed: string): void => {
+  const root = mkdtempSync(join(tmpdir(), "effect-ui-route-split-"));
+  const sourceDirectory = join(root, "src");
+  mkdirSync(sourceDirectory, { recursive: true });
+
+  try {
+    const moduleId = splitImportId(transformed);
+    const workspaceRelative = toPosixPath(relative(root, workspaceRoot));
+    writeFileSync(join(sourceDirectory, "HomePage.ts"), 'export const HomePage = () => "Home";\n');
+    writeFileSync(
+      join(sourceDirectory, "virtual-route-component.d.ts"),
+      [
+        `declare module "${moduleId}" {`,
+        '  export const HomePage: typeof import("./HomePage.js").HomePage;',
+        "}",
+        "",
+      ].join("\n"),
+    );
+    writeFileSync(join(sourceDirectory, "route.ts"), `${transformed}\n`);
+    writeFileSync(
+      join(root, "tsconfig.json"),
+      JSON.stringify(
+        {
+          compilerOptions: {
+            target: "ES2022",
+            module: "NodeNext",
+            moduleResolution: "NodeNext",
+            strict: true,
+            skipLibCheck: true,
+            paths: {
+              "@effect-ui/core": [`${workspaceRelative}/packages/core/src/index.ts`],
+              "@effect-ui/start": [`${workspaceRelative}/packages/start/src/index.ts`],
+              effect: [`${workspaceRelative}/node_modules/effect/dist/index.d.ts`],
+              "effect/*": [
+                `${workspaceRelative}/node_modules/effect/dist/*/index.d.ts`,
+                `${workspaceRelative}/node_modules/effect/dist/*.d.ts`,
+              ],
+              "*": [`${workspaceRelative}/*`],
+            },
+          },
+          include: ["src/**/*.ts"],
+        },
+        null,
+        2,
+      ),
+    );
+
+    execFileSync(tsgoBin, ["-p", join(root, "tsconfig.json"), "--noEmit", "--pretty", "false"], {
+      cwd: workspaceRoot,
+      stdio: "pipe",
+    });
+  } catch (error) {
+    const output =
+      error instanceof Error && "stdout" in error && "stderr" in error
+        ? `${String(error.stdout)}${String(error.stderr)}`
+        : String(error);
+    throw new Error(`Generated route module failed to typecheck:\n${output}`);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
 };
 
 describe("Start route code splitting", () => {
@@ -36,6 +112,7 @@ describe("Start route code splitting", () => {
     expect(transformed).toContain("source=%2Fsrc%2FHomePage.js");
     expect(transformed).toContain("import=HomePage");
     expect(transformed).toContain("export=HomePage");
+    typecheckGeneratedRouteModule(transformed);
   });
 
   it("keeps component imports eager when the component identifier is used elsewhere", () => {

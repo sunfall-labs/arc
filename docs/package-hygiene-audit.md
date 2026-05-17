@@ -144,10 +144,14 @@ exports. It supports the release-engineering charter workstream.
 - Historical framework package dry-run pack payloads contained only `dist` JavaScript,
   declaration, source-map files, and package manifests; no `.tsbuildinfo`
   compiler cache files are included.
-- `pnpm build && pnpm example:pack-dry-run` passed after Review150 and verified
-  all 16 package payloads: 11 framework dist packages, 19 basic starter files,
-  24 React starter files, 30 project-console files, 10 devtools panel files,
-  and 15 devtools extension files.
+- `pnpm build && pnpm example:pack-dry-run` passed after Review490 and verified
+  all 17 package payloads: 11 framework dist packages plus the basic starter,
+  React starter, project-console, docs-site, devtools panel, and devtools
+  extension source packages. Framework dist payloads include package-local
+  `LICENSE` files that match the workspace MIT license.
+- Review491 added a package payload policy self-test that creates a temporary
+  workspace/package pair and verifies mismatched package-local `LICENSE`
+  contents fail against the workspace MIT license text.
 - The current full `pnpm verify` passed after Review240 with 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
   Effect-first audit over 415 files, 53 root test files / 1170 tests, derived
