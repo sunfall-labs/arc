@@ -7,6 +7,8 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Current Sweep Results
 
+- Review510 Package Dry-Run Count Evidence adds no public type-test change: it
+  corrects current package dry-run evidence for `@sunfall/arc-db`.
 - Clean Sweep 1 after Review509 found no actionable public type-test follow-up:
   the current lazy route, DB-family, Start trace, and package-root pins still
   cover the public Interfaces exposed to callers and LSP.

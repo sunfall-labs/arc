@@ -20,6 +20,9 @@ interruption.
 
 ## Current Sweep Results
 
+- Review510 Package Dry-Run Count Evidence is release-evidence docs work for
+  the `@sunfall/arc-db` package dry-run count; it adds no Promise surface and
+  leaves Effect-first Interfaces unchanged.
 - Clean Sweep 1 after Review509 found no actionable Effect-first follow-up:
   Core/React/Solid, DB/React-DB/Solid-DB, Start/docs/package, generated
   artifacts, and evidence lanes preserved Effect-returning public Interfaces

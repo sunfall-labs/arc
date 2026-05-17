@@ -11,11 +11,9 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review509 Route Component Attachment Hover Docs,
-the post-Clean-Sweep-1-after-Review508 follow-up that documents the public
-`Route.ComponentInput<R, E>` and `Route.withComponent(...)` component
-attachment Interface. Clean Sweep 1 after Review509 is the newest no-actionable
-sweep.
+The newest focused review is Review510 Package Dry-Run Count Evidence, the
+Clean-Sweep-2-after-Review509 follow-up that corrects the current
+`@sunfall/arc-db` package dry-run file count in release evidence.
 The newest full verification checkpoint is Review492.
 Clean Sweep 1 after
 Review208 remains historical 1/30
@@ -75,8 +73,9 @@ Start/docs/package, and evidence lanes, creating Clean Sweep 1 after Review508,
 the next fresh sweep found Review509 work, and the fresh post-Review509 sweep
 found no actionable work across Core/React/Solid, DB/public API,
 Start/docs/package, and evidence lanes, creating Clean Sweep 1 after Review509,
-so the active Thirty-Sweep clean counter is 1/30 after
-Clean Sweep 1 after Review509. Clean Sweep 1 after
+and the next Clean Sweep 2 candidate found Review510 work, so the active
+Thirty-Sweep clean counter is 0/30 until a fresh post-Review510 sweep reports
+no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
@@ -94,7 +93,7 @@ work, Review500 work, Review501 work, Review502 work, Review503 work,
 Review504 work, Review505 work after Clean Sweep 1 after Review504,
 Review506 work, Review507 work, Review508 work before Clean Sweep 1 after
 Review508 found no actionable follow-up, and Review509 work before Clean Sweep
-1 after Review509 found no actionable follow-up.
+1 after Review509 found no actionable follow-up, and Review510 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -306,6 +305,25 @@ review lanes.
 At the Clean Sweep 1 after Review509 checkpoint, the Thirty-Sweep clean counter
 reached 1/30. The next sweep must still run; if it finds work, the counter
 resets to 0/30.
+
+## Review 510: Package Dry-Run Count Evidence
+
+Review510 fixes the actionable finding from the Clean Sweep 2 candidate after
+Review509. The Core/React/Solid and DB-family lanes reported no actionable
+findings.
+
+1. Package Dry-Run Count Evidence
+   - Status: fixed.
+   - Files: `docs/release-notes.md`.
+   - Problem: the current release snapshot still described the
+     `@sunfall/arc-db` package dry-run rehearsal as 149 files, while the current
+     package dry-run reports 150 files. That stale release evidence weakened the
+     package payload Interface for readers and agents.
+   - Solution: the current release snapshot now records the 150-file
+     `@sunfall/arc-db` package rehearsal.
+   - Benefits: release evidence regains Locality with the package dry-run
+     Adapter, preserving package payload Leverage without changing runtime or
+     public type behavior.
 
 ## Review 509: Route Component Attachment Hover Docs
 
