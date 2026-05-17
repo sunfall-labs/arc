@@ -71,7 +71,7 @@ const packagePayloadPolicies = new Map([
 ]);
 
 const forbiddenGeneratedSegments = new Set([".test-dist", "node_modules"]);
-const forbiddenSourcePackageSegments = new Set(["dist", ...forbiddenGeneratedSegments]);
+const forbiddenSourcePackageSegments = new Set(["dist", "type-tests", ...forbiddenGeneratedSegments]);
 const forbiddenFileNames = new Set([
   ".DS_Store",
   "bun.lock",

@@ -30,6 +30,7 @@ import {
   createBrowserRouterKernel,
   createBrowserRouterHostController,
   defineApp,
+  disposeRuntimeProviderLifecycleEffect,
   disposeResourceStoreEffect,
   forkScoped,
   hrefForRouteInput,
@@ -47,6 +48,7 @@ import {
   makeResourceStore,
   makeBrowserRouterLinkPreloader,
   makeRuntime,
+  makeRuntimeProviderLifecycleEntry,
   makeRuntimeUiScope,
   makeRuntimeUiScopeFrame,
   matchRoutePath,
@@ -97,6 +99,7 @@ import {
   type ActionSubmissionState,
   type ActionUseOptions,
   type AnyEffectUiRuntime,
+  type DisposeRuntimeProviderLifecycleOptions,
   type EffectUiRuntime,
   type FormInstance,
   type ParamsForPath,
@@ -110,6 +113,9 @@ import {
   type ResourceUiSuspensePreloadController,
   type ResourceUiSuspensePreloadFiber,
   type ResourceUiSuspensePreloadOptions,
+  type RuntimeProviderDisposeObserver,
+  type RuntimeProviderLifecycleEntry,
+  type RuntimeProviderLifecycleOptions,
   type RuntimeUiScopeFrame
 } from "@effect-ui/core";
 // @ts-expect-error ResourceCollector is an internal preload planning service, not a root export.
@@ -120,6 +126,16 @@ type ResourceCollectedIsNamespaced = import("@effect-ui/core").ResourceCollected
 const runtime = makeRuntime();
 const requestRuntime = withResourceStore(runtime, makeResourceStore());
 const runtimeDisposeEffect: Effect.Effect<void, RuntimeDisposeError> = runtime.disposeEffect;
+const runtimeProviderLifecycleOptions: RuntimeProviderLifecycleOptions = { runtime };
+const runtimeProviderLifecycleEntry: RuntimeProviderLifecycleEntry =
+  makeRuntimeProviderLifecycleEntry(runtimeProviderLifecycleOptions);
+const runtimeProviderDisposeObserver: RuntimeProviderDisposeObserver = () => Effect.void;
+const runtimeProviderDisposeOptions: DisposeRuntimeProviderLifecycleOptions = {
+  observerOperation: "CoreTypeTestRuntimeProvider.onDisposeFailure",
+  onDisposeFailure: runtimeProviderDisposeObserver
+};
+const runtimeProviderLifecycleDisposeEffect: Effect.Effect<void> =
+  disposeRuntimeProviderLifecycleEffect(runtimeProviderLifecycleEntry, runtimeProviderDisposeOptions);
 class CoreAdapterCleanupError {
   readonly _tag = "CoreAdapterCleanupError";
 }
@@ -254,6 +270,10 @@ const coreExports: Array<unknown> = [
   runtime,
   requestRuntime,
   runtimeDisposeEffect,
+  runtimeProviderLifecycleOptions,
+  runtimeProviderLifecycleEntry,
+  runtimeProviderDisposeOptions,
+  runtimeProviderLifecycleDisposeEffect,
   requestRuntimeStoreDisposeEffect,
   resourceUiMatchState,
   routeParamsFromSegments,

@@ -1,13 +1,15 @@
 import {
   currentOrDefaultRuntime,
-  invokeEffectInput,
+  disposeRuntimeProviderLifecycleEffect,
   makeRuntimeUiScopeFrame,
   makeRuntime,
+  makeRuntimeProviderLifecycleEntry,
   runWithRuntime,
   type AnyEffectUiRuntime,
   type EffectInput,
   type EffectUiRuntime,
   type RuntimeDisposeError,
+  type RuntimeProviderLifecycleEntry,
   type UiScope
 } from "@effect-ui/core";
 import { Effect, Layer, ManagedRuntime } from "effect";
@@ -60,11 +62,6 @@ export type RuntimeProviderProps<RuntimeServices = never, ER = never> =
   | RuntimeProviderSourceProps<RuntimeServices, ER>
   | RuntimeProviderDefaultProps;
 
-interface RuntimeProviderEntry<ER> {
-  readonly runtime: AnyEffectUiRuntime<ER>;
-  readonly ownsRuntime: boolean;
-}
-
 /** Creates an Effect UI runtime for Solid applications. */
 export const createEffectRuntime = makeRuntime;
 
@@ -81,14 +78,15 @@ export const useRuntime = <ER = never>(): AnyEffectUiRuntime<ER> =>
 export const RuntimeProvider = <RuntimeServices = never, ER = never>(
   props: RuntimeProviderProps<RuntimeServices, ER>
 ): JSX.Element => {
-  const entry = createMemo<RuntimeProviderEntry<ER>>(() => ({
-    runtime: (props.runtime ?? makeRuntime(props.source)) as AnyEffectUiRuntime<ER>,
-    ownsRuntime: props.runtime === undefined
-  }));
+  const entry = createMemo<RuntimeProviderLifecycleEntry<ER>>(() =>
+    props.runtime === undefined
+      ? makeRuntimeProviderLifecycleEntry({ source: props.source })
+      : makeRuntimeProviderLifecycleEntry({ runtime: props.runtime })
+  );
   const [view, setView] = createSignal<JSX.Element>();
   let disposeEntry: (() => void) | undefined;
 
-  const mountEntry = (current: RuntimeProviderEntry<ER>): void => {
+  const mountEntry = (current: RuntimeProviderLifecycleEntry<ER>): void => {
     disposeEntry?.();
     createRoot((dispose) => {
       disposeEntry = dispose;
@@ -122,7 +120,7 @@ export const RuntimeProvider = <RuntimeServices = never, ER = never>(
 
 const RuntimeProviderInstance = <ER>(
   props: {
-    readonly entry: RuntimeProviderEntry<ER>;
+    readonly entry: RuntimeProviderLifecycleEntry<ER>;
     readonly onDisposeFailure?: ((error: RuntimeDisposeError) => EffectInput<void, unknown>) | undefined;
     readonly children?: JSX.Element;
   }
@@ -130,16 +128,10 @@ const RuntimeProviderInstance = <ER>(
   if (props.entry.ownsRuntime) {
     onCleanup(() => {
       void Effect.runFork(
-        props.entry.runtime.disposeEffect.pipe(
-          Effect.catch((error) =>
-            props.onDisposeFailure === undefined
-              ? Effect.void
-              : invokeEffectInput("SolidRuntimeProvider.onDisposeFailure", props.onDisposeFailure, error).pipe(
-                  Effect.catchCause(() => Effect.void),
-                  Effect.asVoid
-                )
-          )
-        )
+        disposeRuntimeProviderLifecycleEffect(props.entry, {
+          observerOperation: "SolidRuntimeProvider.onDisposeFailure",
+          onDisposeFailure: props.onDisposeFailure
+        })
       );
     });
   }

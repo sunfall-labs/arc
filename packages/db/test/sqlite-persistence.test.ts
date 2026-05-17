@@ -658,4 +658,74 @@ describe("SQLite persistence storage", () => {
         });
       })
     ));
+
+  it("rejects malformed direct-driver rows instead of coercing them", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const storage = makeSQLitePersistenceStorage(
+          {
+            table: () => ({
+              get: () => ({
+                namespace: "workspace:a",
+                key: "projects-cache",
+                schemaVersion: 1,
+                value: "{\"collections\":[]}",
+                updatedAt: Number.POSITIVE_INFINITY
+              } as SQLitePersistenceRow),
+              upsert: () => undefined
+            })
+          },
+          {
+            namespace: "workspace:a",
+            schemaVersion: 1
+          }
+        );
+
+        const failure = yield* Effect.flip(toEffect(storage.getItem("projects-cache")));
+
+        expect(failure).toBeInstanceOf(SQLitePersistenceInvalidRow);
+        expect(failure).toMatchObject({
+          _tag: "SQLitePersistenceInvalidRow",
+          field: "updated_at",
+          expected: "finite-number"
+        });
+      })
+    ));
+
+  it("rejects non-finite direct-driver metadata before writes reach SQLite", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const fake = makeFakeDriver();
+        const invalidVersionStorage = makeSQLitePersistenceStorage(fake.driver, {
+          namespace: "workspace:a",
+          schemaVersion: Number.NaN
+        });
+        const invalidTimestampStorage = makeSQLitePersistenceStorage(fake.driver, {
+          namespace: "workspace:a",
+          schemaVersion: 1,
+          now: () => Number.POSITIVE_INFINITY
+        });
+
+        const versionFailure = yield* Effect.flip(toEffect(
+          invalidVersionStorage.setItem("projects-cache", "{\"collections\":[]}")
+        ));
+        const timestampFailure = yield* Effect.flip(toEffect(
+          invalidTimestampStorage.setItem("projects-cache", "{\"collections\":[]}")
+        ));
+
+        expect(versionFailure).toBeInstanceOf(SQLitePersistenceInvalidRow);
+        expect(versionFailure).toMatchObject({
+          _tag: "SQLitePersistenceInvalidRow",
+          field: "schema_version",
+          expected: "finite-number"
+        });
+        expect(timestampFailure).toBeInstanceOf(SQLitePersistenceInvalidRow);
+        expect(timestampFailure).toMatchObject({
+          _tag: "SQLitePersistenceInvalidRow",
+          field: "updated_at",
+          expected: "finite-number"
+        });
+        expect(fake.table().row("workspace:a", "projects-cache")).toBeUndefined();
+      })
+    ));
 });

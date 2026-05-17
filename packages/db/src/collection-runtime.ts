@@ -26,6 +26,7 @@ import {
   pendingMutationSnapshots
 } from "./collection-mutation-queue.js";
 import {
+  applyCollectionUpdateEffect,
   collectionProjectionEffect,
   collectionStateEffect,
   ensureCollectionRowKey
@@ -301,7 +302,8 @@ const writeUpdateRow = <A extends object, K extends CollectionKey, E, R>(
       return yield* new CollectionRowNotFound({ collection: definition.name, key });
     }
 
-    const rows = yield* ingestCollectionMutationRowsEffect(definition, [{ ...row.value, ...changes }], {
+    const updated = yield* applyCollectionUpdateEffect(definition, row.value, changes);
+    const rows = yield* ingestCollectionMutationRowsEffect(definition, [updated.value], {
       operation: "write",
       path: `$.collections[${definition.name}].rows`,
       synced: options.synced ?? true,

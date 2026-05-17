@@ -4666,6 +4666,57 @@ describe("Collection", () => {
     );
   });
 
+  it("rejects hostile direct-write update patches before persistence", () => {
+    const runtime = makeRuntime();
+    const getterFailure = new Error("patch getter failed");
+    let writes = 0;
+    const storage: Collection.PersistenceStorage = {
+      getItem: () => null,
+      setItem: () => {
+        writes += 1;
+      }
+    };
+    const Projects = Collection.define<Project>({
+      name: "Projects.hostile-write-update-patch",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 }
+      ],
+      persistence: {
+        storage,
+        persistOnWrite: true
+      }
+    });
+    const changes = Object.defineProperty({}, "progress", {
+      enumerable: true,
+      get: () => {
+        throw getterFailure;
+      }
+    }) as Partial<Project>;
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        const failure = yield* Effect.flip(
+          runtime.provide(Projects.writeUpdateEffect("atlas", changes))
+        );
+
+        expect(failure).toBeInstanceOf(EffectInputCallbackError);
+        expect((failure as EffectInputCallbackError).operation).toBe(
+          "Collection.update(Projects.hostile-write-update-patch)"
+        );
+        expect((failure as EffectInputCallbackError).cause).toBe(getterFailure);
+        expect(writes).toBe(0);
+        expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
+          id: "atlas",
+          progress: 72,
+          $synced: true
+        });
+      }).pipe(
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
   it("does not roll back a committed mutation when post-commit persistence fails", () => {
     const runtime = makeRuntime();
     let writes = 0;
@@ -7323,6 +7374,61 @@ describe("Query", () => {
       "Atlas:Retry workflow",
       "Lumen:Queue ownership"
     ]);
+  });
+
+  it("evaluates indexed join selectors against public row values", async () => {
+    const seenTaskKeys: Array<ReadonlyArray<string>> = [];
+    const Projects = Collection.define<Project>({
+      name: "Projects.indexed-join-public-values",
+      getKey: (project) => project.id,
+      initialData: [
+        { id: "atlas", name: "Atlas", status: "active", progress: 72 },
+        { id: "lumen", name: "Lumen", status: "blocked", progress: 34 }
+      ]
+    });
+    const Tasks = Collection.define<Task>({
+      name: "Tasks.indexed-join-public-values",
+      getKey: (task) => task.id,
+      indexes: {
+        byProject: (task) => {
+          seenTaskKeys.push(Object.keys(task));
+          return task.projectId;
+        }
+      },
+      initialData: [
+        { id: "t1", projectId: "atlas", title: "Retry workflow", done: false },
+        { id: "t2", projectId: "lumen", title: "Queue ownership", done: false }
+      ]
+    });
+    const factory = (query: Query.Root) =>
+      query
+        .from({ project: Projects })
+        .joinIndexed("task", Tasks, ({ project }) => project.id, "byProject")
+        .select(({ project, task }) => `${project.name}:${task.title}`)
+        .orderBy(({ project, task }) => `${project.name}:${task.title}`);
+
+    expect(Query.diagnostics(factory)).toMatchObject({
+      joins: [
+        {
+          alias: "task",
+          strategy: "collection-index",
+          index: "byProject",
+          outputRows: 2
+        }
+      ]
+    });
+    await expect(Effect.runPromise(Query.onceEffect(factory))).resolves.toEqual([
+      "Atlas:Retry workflow",
+      "Lumen:Queue ownership"
+    ]);
+
+    const live = Query.live(factory);
+    expect(live.evaluate()).toEqual([
+      "Atlas:Retry workflow",
+      "Lumen:Queue ownership"
+    ]);
+    expect(seenTaskKeys.length).toBeGreaterThan(0);
+    expect(seenTaskKeys.every((keys) => keys.every((key) => !key.startsWith("$")))).toBe(true);
   });
 
   it("normalizes indexed join index selector throws as join evaluation errors", async () => {

@@ -261,6 +261,14 @@ const queryKeyName = (queryKey: CollectionQuerySyncKey): string => {
   return `query:${typeof first === "string" || typeof first === "number" ? String(first) : "collection"}`;
 };
 
+const queryKeyNameFromInput = (queryKey: CollectionQuerySyncKey): string => {
+  try {
+    return queryKeyName(queryKey);
+  } catch {
+    return "query:collection";
+  }
+};
+
 const querySyncKeyGuidance =
   "Collection query sync keys must be plain cache identity data. Move host Promise work into queryFn or sync adapter Effects, and do not store direct Effect values in query keys.";
 
@@ -291,11 +299,33 @@ const detachQuerySyncKey = (queryKey: CollectionQuerySyncKey): CollectionQuerySy
   }
 };
 
-const initialQuerySyncKey = (queryKey: CollectionQuerySyncKey): CollectionQuerySyncKey => {
+type QuerySyncKeyState =
+  | {
+      readonly _tag: "Valid";
+      readonly queryKey: CollectionQuerySyncKey;
+      readonly name: string;
+    }
+  | {
+      readonly _tag: "Invalid";
+      readonly error: EffectInputCallbackError;
+      readonly name: string;
+    };
+
+const initialQuerySyncKeyState = (queryKey: CollectionQuerySyncKey): QuerySyncKeyState => {
+  const name = queryKeyNameFromInput(queryKey);
   try {
-    return detachQuerySyncKey(queryKey);
-  } catch {
-    return Array.from(queryKey);
+    const owned = detachQuerySyncKey(queryKey);
+    return {
+      _tag: "Valid",
+      queryKey: owned,
+      name: queryKeyName(owned)
+    };
+  } catch (cause) {
+    return {
+      _tag: "Invalid",
+      error: cause instanceof EffectInputCallbackError ? cause : querySyncKeyError(cause),
+      name
+    };
   }
 };
 
@@ -415,8 +445,13 @@ export const collectionQuerySyncAdapter = <
 >(
   options: CollectionQuerySyncAdapterOptions<A, K, E, R>
 ): CollectionSyncAdapter<A, K, E | EffectInputCallbackError, R> => {
-  const queryKey = initialQuerySyncKey(options.queryKey);
-  const queryKeyInput = (): CollectionQuerySyncKey => detachQuerySyncKey(queryKey);
+  const queryKey = initialQuerySyncKeyState(options.queryKey);
+  const queryKeyInput = (): CollectionQuerySyncKey => {
+    if (queryKey._tag === "Invalid") {
+      throw queryKey.error;
+    }
+    return detachQuerySyncKey(queryKey.queryKey);
+  };
   const queryKeyInputEffect = (): Effect.Effect<CollectionQuerySyncKey, EffectInputCallbackError> =>
     Effect.try({
       try: queryKeyInput,
@@ -446,7 +481,7 @@ export const collectionQuerySyncAdapter = <
       : invalidate().pipe(Effect.catch(() => Effect.void));
 
   return {
-    name: options.name ?? queryKeyName(queryKey),
+    name: options.name ?? queryKey.name,
     load: fetch,
     refetch: (): Effect.Effect<ReadonlyArray<A>, E | EffectInputCallbackError, R> =>
       Effect.gen(function* () {

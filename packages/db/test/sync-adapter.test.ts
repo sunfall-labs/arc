@@ -514,6 +514,78 @@ describe("Collection.syncOptions", () => {
     );
   });
 
+  it("keeps invalid query sync key state independent from later host mutations", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const filter = {
+          nested: Effect.succeed("not-cache-data")
+        } as unknown as Collection.QuerySyncKeyPart;
+        const queryKey: Array<Collection.QuerySyncKeyPart> = ["projects", filter];
+        const fetchQuery = vi.fn(() => [{ id: "atlas", name: "Atlas", archived: false }]);
+        const invalidateQueries = vi.fn();
+        const sync = Collection.querySyncAdapter<Project>({
+          queryKey,
+          queryFn: () => [{ id: "atlas", name: "Atlas", archived: false }],
+          queryClient: {
+            fetchQuery,
+            invalidateQueries
+          }
+        });
+
+        queryKey[1] = { archived: true };
+        queryKey.push("later");
+
+        const Projects = Collection.define(Collection.syncOptions<Project>({
+          name: "Projects.sync.query-key-invalid-owned",
+          getKey: (project) => project.id,
+          sync
+        }));
+
+        const preloadFailure = yield* Effect.flip(Projects.preloadEffect());
+        const refetchFailure = yield* Effect.flip(Projects.refetchEffect());
+
+        expect(preloadFailure).toBeInstanceOf(EffectInputCallbackError);
+        expect((preloadFailure as EffectInputCallbackError).operation).toBe("Collection.querySync.queryKey");
+        expect(refetchFailure).toBeInstanceOf(EffectInputCallbackError);
+        expect(fetchQuery).not.toHaveBeenCalled();
+        expect(invalidateQueries).not.toHaveBeenCalled();
+      })
+    ));
+
+  it("normalizes throwing query sync key reads before query client callbacks", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const readFailure = new Error("query key getter failed");
+        const queryKey = Object.defineProperty(["projects"], 0, {
+          enumerable: true,
+          get: () => {
+            throw readFailure;
+          }
+        }) as unknown as Collection.QuerySyncKey;
+        const fetchQuery = vi.fn(() => [{ id: "atlas", name: "Atlas", archived: false }]);
+        const sync = Collection.querySyncAdapter<Project>({
+          queryKey,
+          queryFn: () => [{ id: "atlas", name: "Atlas", archived: false }],
+          queryClient: {
+            fetchQuery
+          }
+        });
+        const Projects = Collection.define(Collection.syncOptions<Project>({
+          name: "Projects.sync.query-key-throwing-read",
+          getKey: (project) => project.id,
+          sync
+        }));
+
+        const failure = yield* Effect.flip(Projects.preloadEffect());
+
+        expect(sync.name).toBe("query:collection");
+        expect(failure).toBeInstanceOf(EffectInputCallbackError);
+        expect((failure as EffectInputCallbackError).operation).toBe("Collection.querySync.queryKey");
+        expect((failure as EffectInputCallbackError).cause).toBe(readFailure);
+        expect(fetchQuery).not.toHaveBeenCalled();
+      })
+    ));
+
   it("preserves query sync receivers for method-style queryFn callbacks", () => {
     return Effect.runPromise(
       Effect.gen(function* () {

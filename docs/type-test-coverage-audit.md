@@ -1,6 +1,6 @@
 # Type-Test Coverage Audit
 
-Last updated: 2026-05-16.
+Last updated: 2026-05-17.
 
 This audit checks compile-time coverage for the public framework contracts that
 are easiest to regress while refactoring internals toward Effect primitives.
@@ -76,6 +76,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
   Program initial models and story resets, ActionResult success and validation
   values, ActionResult failure errors from Effects, and React/Solid
   ProgramHandle dispatch/dispatchEffect messages.
+- Review218 added Core Runtime Provider Lifecycle export pins and a
+  project-console typecheck-only runtime probe proving app runtimes must
+  provide `ProjectApi`; SQLite persistence type pins now include
+  `SQLitePersistenceInvalidRow` in direct storage error channels.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them
@@ -195,10 +199,11 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Verification Evidence
 
-- `pnpm typecheck:types` and full `pnpm verify` passed after Review217 with
-  53 root test files / 1112 tests, including the latest plain-data pins for
-  Program models/messages, ActionResult payloads/errors, Resource and Action
-  metadata entries, Form validation errors, Capability sync reads, collection
+- `pnpm typecheck:types` and full `pnpm verify` passed after Review218 with
+  53 root test files / 1122 tests, including the latest Runtime Provider
+  Lifecycle export pins, project-console runtime service probe, SQLite
+  persistence metadata error typing, plain-data pins for Program models/
+  messages, ActionResult payloads/errors, Form validation errors, collection
   row ingress, query sync keys, secondary index values, and nested query
   projection/group/aggregate values.
 - `pnpm typecheck:types` passed after the explicit request-trace teardown and

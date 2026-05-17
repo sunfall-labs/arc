@@ -7083,6 +7083,63 @@ describe("Effect UI Start", () => {
     }
   }, 20000);
 
+  it("prefers explicit Start diagnostics options over config-file Start plugins", async () => {
+    const root = mkdtempSync(join(tmpdir(), "effect-ui-diagnostics-explicit-start-"));
+
+    try {
+      mkdirSync(join(root, "src/routes"), { recursive: true });
+      writeFileSync(
+        join(root, "src/routes/config.ts"),
+        [
+          "import { route } from \"@effect-ui/core\";",
+          "export const Route = route(\"/config\", {});"
+        ].join("\n")
+      );
+      writeFileSync(
+        join(root, "src/routes/explicit.ts"),
+        [
+          "import { route } from \"@effect-ui/core\";",
+          "export const Route = route(\"/explicit\", {});"
+        ].join("\n")
+      );
+      writeFileSync(
+        join(root, "vite.config.ts"),
+        [
+          "import { effectUiStart } from \"@effect-ui/start/vite\";",
+          "export default {",
+          "  plugins: [effectUiStart({",
+          "    fileRoutes: [\"src/routes/config.ts\"],",
+          "    fileRouteOptions: { routeDirectory: \"src/routes\" }",
+          "  })]",
+          "};"
+        ].join("\n")
+      );
+
+      const result = await Effect.runPromise(
+        loadStartAppGraphDiagnosticsEffect({
+          root,
+          start: {
+            fileRoutes: ["src/routes/explicit.ts"],
+            fileRouteOptions: {
+              routeDirectory: "src/routes"
+            }
+          },
+          vite: startDiagnosticsRunnerViteConfig()
+        })
+      );
+
+      expect(result.diagnostics.routePaths).toEqual(["/explicit"]);
+      expect(result.graph.routes.entries).toEqual([
+        expect.objectContaining({
+          routePath: "/explicit",
+          moduleId: "src/routes/explicit.ts"
+        })
+      ]);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }, 20000);
+
   it("rejects loaded diagnostics that are not coherent with their graph", async () => {
     const root = mkdtempSync(join(tmpdir(), "effect-ui-diagnostics-incoherent-"));
 

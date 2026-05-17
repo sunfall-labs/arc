@@ -661,18 +661,19 @@ Last evidence pass: May 17, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 217 passed focused typechecks, project
-    console typecheck, public API and Effect-first audits, Core
-    Form/ActionResult tests, DB sync-adapter/collection/live-query tests,
-    Devtools tests, and root `pnpm test` after closing Core validation
-    plain-data, DB query sync/index/hostile row guardrail, Devtools/runtime LSP,
-    project-console runtime seam, and docs findings.
+  - Latest focused evidence: Review 218 passed Core/React/Solid/DB/Start and
+    project-console typechecks, public type tests, public API and Effect-first
+    audits, Core runtime lifecycle tests, DB sync-adapter/collection/SQLite
+    persistence tests, focused Start diagnostics, React/Solid hook tests,
+    `pnpm test`, starter packaging, and package dry-runs after closing runtime
+    lifecycle, explicit diagnostics, DB guardrail, project-console runtime, and
+    package manifest findings.
     Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
     sweeps found Review191, Review192, Review193, Review194, Review195, and
     Review196, Review197, Review198, Review199, Review200, Review201,
     Review202, Review203, Review204, Review205, Review206, Review207,
     Review208, Review209, Review210, Review211, Review212, Review213,
-    Review214, Review215, Review216, and Review217 work.
+    Review214, Review215, Review216, Review217, and Review218 work.
     Clean Sweep 1 after Review208 remains historical 1/30 evidence, but Clean
     Sweep 2 found Review209 work and the local post-Review209 pass found
     Review210 work; the first post-Review210 sweep found Review211 work, and
@@ -680,11 +681,11 @@ Last evidence pass: May 17, 2026.
     post-Review212 sweep found Review213 work, the first post-Review213 sweep
     found Review214 work, the first post-Review214 sweep found Review215 work,
     the first post-Review215 sweep found Review216 work, and the first
-    post-Review216 sweep found Review217 work, leaving the active counter at
-    0/30.
+    post-Review216 sweep found Review217 work, and the first post-Review217
+    sweep found Review218 work, leaving the active counter at 0/30.
     Latest full evidence:
-    `pnpm verify` ran after Review 217 with 53 root
-    test files / 1112
+    `pnpm verify` ran after Review 218 with 53 root
+    test files / 1122
     tests, plus 4 project-console test files / 27 tests in the package-level
     gate.
 - [x] Type tests pass after compile-time API changes.
@@ -825,36 +826,37 @@ Last evidence pass: May 17, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 217 Core validation
-    plain-data, DB query sync/index/hostile row guardrail, Devtools/runtime LSP,
-    project-console runtime seam, and docs fixes.
+  - Evidence: no new ADR required for the Review 218 runtime lifecycle,
+    explicit diagnostics, DB guardrail, project-console runtime, and package
+    manifest fixes.
     Future architecture sweeps remain tracked in
     `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
   - Evidence: root `pnpm verify` passed on May 17,
-    2026 after the Review 217 Core validation plain-data, DB query
-    sync/index/hostile row guardrail, Devtools/runtime LSP, project-console
-    runtime seam, and docs fixes:
+    2026 after the Review 218 runtime lifecycle, explicit Start diagnostics,
+    DB indexed join/query-key/direct-write/SQLite guardrail, project-console
+    runtime service, and package manifest fixes:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
-    408 physical/virtual files, 53 root test files / 1112 tests,
+    409 physical/virtual files, 53 root test files / 1122 tests,
     package-level verifies for the devtools/starter/example packages,
     generated starter-suite packaging/verifies for basic/react/project-console,
     16-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 217 records
-    `pnpm typecheck:types`, Core/DB/Devtools/project-console typechecks, public
-    API and Effect-first audits, focused Core Form/ActionResult, DB
-    sync-adapter/collection/live-query, and Devtools tests, plus root
-    `pnpm test` after closing the Review217 findings. Clean
+  - Evidence: Review 218 records
+    Core/React/Solid/DB/Start and project-console typechecks, public type
+    tests, public API and Effect-first audits, focused Core runtime lifecycle,
+    DB sync-adapter/collection/SQLite, Start diagnostics, React/Solid hook
+    tests, root `pnpm test`, starter packaging, and package dry-runs after
+    closing the Review218 findings. Clean
     Sweep 1 after
     Review190 remains historical 1/30 evidence, but later sweeps found
     Review191, Review192, Review193, Review194, Review195, Review196,
     Review197, Review198, Review199, Review200, Review201, Review202,
     Review203, Review204, Review205, Review206, Review207, Review208,
     Review209, Review210, Review211, Review212, Review213, Review214,
-    Review215, Review216, and Review217 work. Clean
+    Review215, Review216, Review217, and Review218 work. Clean
     Sweep 1 after Review208 remains historical 1/30 evidence, but Clean Sweep
     2 found Review209 work and the local post-Review209 pass found Review210
     work; the first post-Review210 sweep found Review211 work, and the first
@@ -862,7 +864,8 @@ Last evidence pass: May 17, 2026.
     found Review213 work; the first post-Review213 sweep found Review214 work;
     the first post-Review214 sweep found Review215 work; the first
     post-Review215 sweep found Review216 work; the first post-Review216 sweep
-    found Review217 work, leaving the active counter at 0/30.
+    found Review217 work; the first post-Review217 sweep found Review218 work,
+    leaving the active counter at 0/30.
     Full verification is recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items

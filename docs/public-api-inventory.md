@@ -90,7 +90,8 @@ The root export re-exports these local modules:
   `request-context`
 - `resource`, `resource-registry`, `resource-snapshot-codec`,
   `resource-store`, `resource-ui-binding`, `route`, `route-grammar`
-- `runtime`, `scope`, `server`, `signal`, `stable-stringify`
+- `runtime`, `runtime-provider-lifecycle`, `scope`, `server`, `signal`,
+  `stable-stringify`
 
 `resource-store` is intentionally selected rather than star-exported so the
 public root exposes `ResourceStore`, `makeResourceStore(...)`, diagnostics, and
@@ -104,6 +105,9 @@ Golden-path public groups:
 - `Signal`, `Form`, `Capability`, `UiScope`
 - `makeRuntime`, `runWithRuntime`, `runFork`, `EffectUiRuntime.provide(...)`,
   `AnyEffectUiRuntime`
+- `makeRuntimeProviderLifecycleEntry(...)` and
+  `disposeRuntimeProviderLifecycleEffect(...)` for framework Runtime Provider
+  adapters that normalize host-owned versus provider-owned lifecycle.
 - `Resource.requestFamily` for Resource state backed by Effect
   `RequestResolver` batching/deduping.
 - `Resource.deleteEffect(ref)` for explicit Effect-first removal from the

@@ -1,14 +1,16 @@
 import {
   currentOrDefaultRuntime,
-  invokeEffectInput,
+  disposeRuntimeProviderLifecycleEffect,
   makeRuntimeUiScopeFrame,
   makeRuntime,
+  makeRuntimeProviderLifecycleEntry,
   runWithScope,
   runWithRuntime,
   type AnyEffectUiRuntime,
   type EffectInput,
   type EffectUiRuntime,
   type RuntimeDisposeError,
+  type RuntimeProviderLifecycleEntry,
   type RuntimeUiScopeFrame,
   type UiScope
 } from "@effect-ui/core";
@@ -86,7 +88,7 @@ export const RuntimeProvider = <RuntimeServices = never, ER = never>(
 ): ReactNode => {
   const ownedRuntimeRef = useRef<{
     readonly source: RuntimeProviderSourceProps<RuntimeServices, ER>["source"] | undefined;
-    readonly runtime: AnyEffectUiRuntime<ER>;
+    readonly entry: RuntimeProviderLifecycleEntry<ER>;
   } | undefined>(undefined);
   const ownsRuntime = props.runtime === undefined;
 
@@ -95,37 +97,30 @@ export const RuntimeProvider = <RuntimeServices = never, ER = never>(
     if (ownedRuntimeRef.current === undefined || ownedRuntimeRef.current.source !== source) {
       ownedRuntimeRef.current = {
         source,
-        runtime: makeRuntime(source) as AnyEffectUiRuntime<ER>
+        entry: makeRuntimeProviderLifecycleEntry({ source })
       };
     }
   } else {
     ownedRuntimeRef.current = undefined;
   }
 
-  const runtime = (props.runtime ?? ownedRuntimeRef.current?.runtime) as AnyEffectUiRuntime<ER>;
+  const entry = props.runtime === undefined
+    ? ownedRuntimeRef.current!.entry
+    : makeRuntimeProviderLifecycleEntry({ runtime: props.runtime });
+  const runtime = entry.runtime;
   const onDisposeFailureRef = useRef(props.onDisposeFailure);
   onDisposeFailureRef.current = props.onDisposeFailure;
 
   useEffect(() => {
-    if (!ownsRuntime) {
-      return undefined;
-    }
-
     return () => {
       void Effect.runFork(
-        runtime.disposeEffect.pipe(
-          Effect.catch((error) =>
-            onDisposeFailureRef.current === undefined
-              ? Effect.void
-              : invokeEffectInput("ReactRuntimeProvider.onDisposeFailure", onDisposeFailureRef.current, error).pipe(
-                  Effect.catchCause(() => Effect.void),
-                  Effect.asVoid
-                )
-          )
-        )
+        disposeRuntimeProviderLifecycleEffect(entry, {
+          observerOperation: "ReactRuntimeProvider.onDisposeFailure",
+          onDisposeFailure: onDisposeFailureRef.current
+        })
       );
     };
-  }, [ownsRuntime, runtime]);
+  }, [entry]);
 
   return createElement(RuntimeContext.Provider, {
     value: runtime as AnyEffectUiRuntime<never>,

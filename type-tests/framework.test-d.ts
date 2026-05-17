@@ -83,6 +83,7 @@ import {
   CollectionStorageError,
   ReadonlyCollectionMutation,
   QueryEvaluationError,
+  SQLitePersistenceInvalidRow,
   SQLitePersistenceInvalidTableName,
   createLiveQueryCollection,
   eq,
@@ -2092,7 +2093,7 @@ const invalidSqliteTableStorage = Collection.sqliteStorage({
 }, { tableName: "" });
 const invalidSqliteTableGetEffect: Effect.Effect<
   string | null,
-  EffectInputCallbackError | SQLitePersistenceInvalidTableName
+  EffectInputCallbackError | SQLitePersistenceInvalidRow | SQLitePersistenceInvalidTableName
 > = toEffect(invalidSqliteTableStorage.getItem("projects"));
 void invalidSqliteTableGetEffect;
 const sqliteStorageTopLevel = makeSQLitePersistenceStorage({
@@ -2153,7 +2154,7 @@ const PersistedProjectsCollection = Collection.define(Collection.persistedOption
   string,
   never,
   never,
-  EffectInputCallbackError | SQLitePersistenceInvalidTableName
+  EffectInputCallbackError | SQLitePersistenceInvalidRow | SQLitePersistenceInvalidTableName
 >({
   name: "Projects.persistedCollection",
   getKey: (project) => project.id,
@@ -2172,7 +2173,7 @@ Collection.define(Collection.persistedOptions<
   string,
   never,
   never,
-  EffectInputCallbackError | SQLitePersistenceInvalidTableName
+  EffectInputCallbackError | SQLitePersistenceInvalidRow | SQLitePersistenceInvalidTableName
 >({
   name: "Projects.badPersistedCollection",
   getKey: (project) => project.id,

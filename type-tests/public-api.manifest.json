@@ -16,6 +16,7 @@
         "ActionState",
         "ActionTypeId",
         "ActionUseOptions",
+        "DisposeRuntimeProviderLifecycleOptions",
         "isActionDefinition"
       ]
     },

@@ -170,7 +170,7 @@ const startDiagnosticsViteServerEffect = (
     ...(options.start === undefined ? [] : [effectUiStartVirtualModules(options.start)])
   ];
   const root = options.root ?? inlineConfig.root;
-  const configFile = options.configFile ?? inlineConfig.configFile;
+  const configFile = options.configFile ?? inlineConfig.configFile ?? (options.start === undefined ? undefined : false);
   const mode = options.mode ?? inlineConfig.mode;
 
   return Effect.tryPromise({

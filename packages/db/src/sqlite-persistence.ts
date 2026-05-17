@@ -248,6 +248,19 @@ const statementRowString = (
     ? Effect.succeed(value)
     : Effect.fail(invalidStatementRow(field, value, "string"));
 
+const sqlitePersistenceRowEffect = (
+  row: SQLitePersistenceRow
+): Effect.Effect<SQLitePersistenceRow, SQLitePersistenceInvalidRow> =>
+  Effect.gen(function* () {
+    return {
+      namespace: yield* statementRowString("namespace", row.namespace),
+      key: yield* statementRowString("key", row.key),
+      schemaVersion: yield* statementRowNumber("schema_version", row.schemaVersion),
+      value: yield* statementRowString("value", row.value),
+      updatedAt: yield* statementRowNumber("updated_at", row.updatedAt)
+    };
+  });
+
 const invalidStatementParams = (
   operation: SQLitePersistenceInvalidStatementParams["operation"],
   field: SQLitePersistenceInvalidStatementParams["field"],
@@ -522,7 +535,7 @@ export const makeSQLiteStatementPersistenceDriver = <E = never, R = never>(
 export const makeSQLitePersistenceStorage = <E = never, R = never>(
   driver: SQLitePersistenceDriver<E, R>,
   options: SQLitePersistenceOptions = {}
-): CollectionPersistenceStorage<E | EffectInputCallbackError | SQLitePersistenceInvalidTableName, R> => {
+): CollectionPersistenceStorage<E | EffectInputCallbackError | SQLitePersistenceInvalidRow | SQLitePersistenceInvalidTableName, R> => {
   const namespace = options.namespace ?? SQLITE_PERSISTENCE_DEFAULT_NAMESPACE;
   const tableName = options.tableName ?? SQLITE_PERSISTENCE_DEFAULT_TABLE;
   const schemaVersion = options.schemaVersion ?? SQLITE_PERSISTENCE_DEFAULT_SCHEMA_VERSION;
@@ -563,23 +576,27 @@ export const makeSQLitePersistenceStorage = <E = never, R = never>(
       Effect.gen(function* () {
         const table = yield* tableEffect();
         yield* ensureTable(table);
+        const currentSchemaVersion = yield* statementRowNumber("schema_version", schemaVersion);
         const row = yield* runStorageCallback("get", () => table.get(rowKey(key)));
-        return row?.schemaVersion === schemaVersion ? row.value : null;
+        const validRow = row == null ? null : yield* sqlitePersistenceRowEffect(row);
+        return validRow?.schemaVersion === currentSchemaVersion ? validRow.value : null;
       }),
     setItem: (key: string, value: string) =>
       Effect.gen(function* () {
         const table = yield* tableEffect();
         yield* ensureTable(table);
+        const currentSchemaVersion = yield* statementRowNumber("schema_version", schemaVersion);
         const updatedAt = yield* runStorageCallback("now", now);
+        const validUpdatedAt = yield* statementRowNumber("updated_at", updatedAt);
         yield* runStorageCallback("upsert", () => table.upsert({
           ...rowKey(key),
-          schemaVersion,
+          schemaVersion: currentSchemaVersion,
           value,
-          updatedAt
+          updatedAt: validUpdatedAt
         }));
       })
   } satisfies Omit<
-    CollectionPersistenceStorage<E | EffectInputCallbackError | SQLitePersistenceInvalidTableName, R>,
+    CollectionPersistenceStorage<E | EffectInputCallbackError | SQLitePersistenceInvalidRow | SQLitePersistenceInvalidTableName, R>,
     "removeItem"
   >;
 

@@ -97,6 +97,7 @@ const forbiddenSourceSegments = new Set([
   "node_modules",
   "dist",
   ".test-dist",
+  "type-tests",
   localPackagesDirectoryName,
 ]);
 const forbiddenGeneratedAppSegments = new Set(["node_modules", "dist", ".test-dist"]);

@@ -16,7 +16,10 @@ import {
   type CollectionState,
   type StoredRow
 } from "./collection-state.js";
-import { collectionExecutableValuePath } from "./collection-value-detachment.js";
+import {
+  cloneCollectionValue,
+  collectionExecutableValuePath
+} from "./collection-value-detachment.js";
 
 /**
  * Error raised when reading an index that was not declared on the collection.
@@ -200,9 +203,22 @@ export const rowsByCollectionIndex = <A extends object, K extends CollectionKey,
     .map((row) => augmentCollectionRow(definition, row));
 };
 
+const collectionIndexRowValue = <A extends object>(
+  row: CollectionRow<A, any>
+): A => {
+  const {
+    $key: _key,
+    $collection: _collection,
+    $synced: _synced,
+    $origin: _origin,
+    ...value
+  } = row as CollectionRow<Record<string, unknown>, any>;
+  return cloneCollectionValue(value) as A;
+};
+
 export const collectionIndexJoinKeys = <A extends object>(
   definition: AnyCollection,
   index: string,
   row: CollectionRow<A, any>
 ): ReadonlyArray<CollectionIndexValue> =>
-  uniqueCollectionIndexValues(collectionIndex(definition, index), row as CollectionRow<any, any>);
+  uniqueCollectionIndexValues(collectionIndex(definition, index), collectionIndexRowValue(row));

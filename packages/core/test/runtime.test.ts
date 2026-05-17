@@ -1,13 +1,16 @@
-import { Cause, Context, Effect, Layer } from "effect";
+import { Cause, Context, Deferred, Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 import {
   Action,
+  disposeRuntimeProviderLifecycleEffect,
   disposeResourceStoreEffect,
+  makeRuntimeProviderLifecycleEntry,
   makeResourceStore,
   makeRuntime,
   Resource,
   ResourceStoreDisposeError,
   RuntimeDisposeError,
+  type RuntimeProviderDisposeObserver,
   ResourcePending,
   runWithRuntime,
   Server,
@@ -195,6 +198,105 @@ describe("Effect UI runtime", () => {
             }
           }
           expect(layerFinalized).toBe(true);
+        });
+      })
+    ));
+
+  it("does not dispose host-owned runtime-provider entries", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        let disposals = 0;
+        const runtime = makeRuntime();
+        const entry = makeRuntimeProviderLifecycleEntry({ runtime });
+        runtime.resourceStore.moduleRegistry.register(Symbol("host-owned-runtime-provider"), {
+          disposeEffect: Effect.sync(() => {
+            disposals++;
+          })
+        });
+
+        yield* disposeRuntimeProviderLifecycleEffect(entry, {
+          observerOperation: "CoreRuntimeProvider.onDisposeFailure"
+        });
+
+        yield* Effect.sync(() => {
+          expect(entry.ownsRuntime).toBe(false);
+          expect(disposals).toBe(0);
+        });
+        yield* runtime.disposeEffect;
+      })
+    ));
+
+  it("disposes provider-owned runtime lifecycle entries", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        let disposals = 0;
+        const entry = makeRuntimeProviderLifecycleEntry();
+        entry.runtime.resourceStore.moduleRegistry.register(Symbol("owned-runtime-provider"), {
+          disposeEffect: Effect.sync(() => {
+            disposals++;
+          })
+        });
+
+        yield* disposeRuntimeProviderLifecycleEffect(entry, {
+          observerOperation: "CoreRuntimeProvider.onDisposeFailure"
+        });
+
+        yield* Effect.sync(() => {
+          expect(entry.ownsRuntime).toBe(true);
+          expect(disposals).toBe(1);
+        });
+      })
+    ));
+
+  it("reports provider-owned runtime disposal failures and swallows observer failures", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const observed = yield* Deferred.make<RuntimeDisposeError>();
+        const failingObserver = yield* Deferred.make<RuntimeDisposeError>();
+        const promiseRejectedObserver = yield* Deferred.make<RuntimeDisposeError>();
+
+        const observedEntry = makeRuntimeProviderLifecycleEntry();
+        observedEntry.runtime.resourceStore.moduleRegistry.register(Symbol("observed-runtime-provider-failure"), {
+          disposeEffect: Effect.fail("observed dispose failed")
+        });
+        yield* disposeRuntimeProviderLifecycleEffect(observedEntry, {
+          observerOperation: "CoreRuntimeProvider.onDisposeFailure",
+          onDisposeFailure: (error) => Deferred.succeed(observed, error)
+        });
+        const observedError = yield* Deferred.await(observed);
+
+        const failingEntry = makeRuntimeProviderLifecycleEntry();
+        failingEntry.runtime.resourceStore.moduleRegistry.register(Symbol("failing-observer-runtime-provider"), {
+          disposeEffect: Effect.fail("observer dispose failed")
+        });
+        yield* disposeRuntimeProviderLifecycleEffect(failingEntry, {
+          observerOperation: "CoreRuntimeProvider.onDisposeFailure",
+          onDisposeFailure: (error) =>
+            Deferred.succeed(failingObserver, error).pipe(
+              Effect.flatMap(() => Effect.fail("observer failed"))
+            )
+        });
+        const failingObservedError = yield* Deferred.await(failingObserver);
+
+        const thenableEntry = makeRuntimeProviderLifecycleEntry();
+        thenableEntry.runtime.resourceStore.moduleRegistry.register(Symbol("thenable-observer-runtime-provider"), {
+          disposeEffect: Effect.fail("thenable observer dispose failed")
+        });
+        const thenableObserver: RuntimeProviderDisposeObserver = (error) => {
+          void Effect.runFork(Deferred.succeed(promiseRejectedObserver, error));
+          return { then: () => undefined } as never;
+        };
+        yield* disposeRuntimeProviderLifecycleEffect(thenableEntry, {
+          observerOperation: "CoreRuntimeProvider.onDisposeFailure",
+          onDisposeFailure: thenableObserver
+        });
+        const thenableObservedError = yield* Deferred.await(promiseRejectedObserver);
+
+        yield* Effect.sync(() => {
+          expect(observedError).toBeInstanceOf(RuntimeDisposeError);
+          expect(observedError.phase).toBe("resource-store");
+          expect(failingObservedError).toBeInstanceOf(RuntimeDisposeError);
+          expect(thenableObservedError).toBeInstanceOf(RuntimeDisposeError);
         });
       })
     ));

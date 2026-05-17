@@ -171,6 +171,17 @@ export const publicHoverDocGroups = [
     ]
   },
   {
+    file: "packages/core/src/runtime-provider-lifecycle.ts",
+    declarations: [
+      "RuntimeProviderDisposeObserver",
+      "RuntimeProviderLifecycleOptions",
+      "RuntimeProviderLifecycleEntry",
+      "makeRuntimeProviderLifecycleEntry",
+      "DisposeRuntimeProviderLifecycleOptions",
+      "disposeRuntimeProviderLifecycleEffect"
+    ]
+  },
+  {
     file: "packages/core/src/program-contract.ts",
     declarations: [
       "ProgramStepTypeId",

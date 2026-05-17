@@ -33,6 +33,7 @@ export * from "./resource-ui-binding.js";
 export * from "./route-grammar.js";
 export * from "./route.js";
 export * from "./runtime.js";
+export * from "./runtime-provider-lifecycle.js";
 export * from "./scope.js";
 export * from "./server.js";
 export * from "./signal.js";

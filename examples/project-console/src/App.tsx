@@ -17,7 +17,7 @@ import {
   useRuntimeEffect,
   watch
 } from "@effect-ui/solid";
-import { Form, type AnyEffectUiRuntime, type EffectUiRuntime } from "@effect-ui/core";
+import { Form, type EffectUiRuntime } from "@effect-ui/core";
 import type { CollectionRow } from "@effect-ui/db";
 import { useCollection } from "@effect-ui/solid-db";
 import { StartAction, startActionInputField, startActionNameField } from "@effect-ui/start";
@@ -54,6 +54,10 @@ const ProjectsUiRoute = Route.withComponent(ProjectsRoute, ProjectIndexRouteView
 const ProjectUiRoute = Route.withComponent(ProjectRoute, ProjectRouteView);
 const routes = [HomeUiRoute, ProjectsUiRoute, ProjectUiRoute] as const;
 type AppRoutes = typeof routes;
+type ProjectConsoleRuntime<RuntimeServices = ProjectApi> =
+  [ProjectApi] extends [RuntimeServices]
+    ? EffectUiRuntime<RuntimeServices, never>
+    : never;
 type ProjectSummaryRow = CollectionRow<ProjectSummary, ProjectId>;
 type ProjectNameSubmissionClientResult = StartAction.Result<typeof SubmitProjectName>;
 
@@ -66,9 +70,9 @@ const projectHref = (id: ProjectId, tab?: ProjectTab): string =>
     ? hrefByPath("/projects/:id", { params: { id } })
     : hrefByPath("/projects/:id", { params: { id }, search: { tab } });
 
-export interface AppProps<RuntimeServices = never> {
+export interface AppProps<RuntimeServices = ProjectApi> {
   readonly initialHref?: string;
-  readonly runtime?: EffectUiRuntime<RuntimeServices, never> | AnyEffectUiRuntime<never>;
+  readonly runtime?: ProjectConsoleRuntime<RuntimeServices>;
 }
 
 const initialPresence: PresenceEvent = {
@@ -132,8 +136,8 @@ const SaveIcon = () => (
   </svg>
 );
 
-export default function App<RuntimeServices = never>(props: AppProps<RuntimeServices> = {}) {
-  const runtime = (props.runtime ?? app.runtime) as EffectUiRuntime<ProjectApi, never>;
+export default function App<RuntimeServices = ProjectApi>(props: AppProps<RuntimeServices> = {}) {
+  const runtime = (props.runtime ?? app.runtime) as EffectUiRuntime<ProjectApi | RuntimeServices, never>;
   const routerProps = props.initialHref === undefined
     ? { routes, runtime }
     : { routes, initialHref: props.initialHref, runtime };

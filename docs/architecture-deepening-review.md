@@ -11,25 +11,27 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review217, the post-Review216 sweep
-fixing Core validation plain-data seams and hover policy coverage, DB query
-sync keys, secondary index values, hostile row detachment, Devtools/runtime LSP
-coverage, project-console runtime erasure, and stale current docs. The newest
-full verification checkpoint is Review217. Clean Sweep 1 after
+The newest completed focused review is Review218, the post-Review217 sweep
+fixing shared Runtime Provider lifecycle locality, explicit Start diagnostics
+precedence, project-console runtime service erasure, DB indexed join/query-key/
+direct-write/SQLite persistence guardrails, and starter/package manifest
+verification policy for typecheck-only probes. The newest full verification
+checkpoint is Review218. Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
 post-Review210 sweep found Review211 work, the first post-Review211 sweep
 found Review212 work, the first post-Review212 sweep found Review213 work, and
 the first post-Review213 sweep found Review214 work, and the first
 post-Review214 sweep found Review215 work, and the first post-Review215 sweep
-found Review216 work, and the first post-Review216 sweep found Review217 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review217
+found Review216 work, the first post-Review216 sweep found Review217 work, and
+the first post-Review217 sweep found Review218 work, so the active
+Thirty-Sweep clean counter is 0/30 until a fresh post-Review218
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
 Review206, Review207, Review208, Review209, Review210, Review211, Review212,
-Review213, Review214, Review215, Review216, and Review217 work.
+Review213, Review214, Review215, Review216, Review217, and Review218 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -82,9 +84,95 @@ Core, DB, Start CLI, adapter, docs, and evidence work. The first
 post-Review213 sweep found Review214 Core, Devtools, LSP/adapter cleanup, and
 root verification gate work. The first post-Review214 sweep found Review215
 Core, DB, Devtools, and docs/LSP work. The first post-Review215 sweep found
-Review216 Core, DB, Devtools, and docs/API work, and the first post-Review216
+Review216 Core, DB, Devtools, and docs/API work, the first post-Review216
 sweep found Review217 Core, DB, Devtools, runtime LSP, example, and docs work,
-so the counter remains 0/30.
+and the first post-Review217 sweep found Review218 runtime lifecycle, Start,
+DB, project-console, package, and docs work, so the counter remains 0/30.
+
+## Review 218: Runtime Provider Lifecycle, Explicit Diagnostics, And DB Guardrails
+
+Review218 fixed actionable findings from the fresh post-Review217 sweep.
+
+1. Runtime Provider Lifecycle And Project Console Runtime Interface
+   - Status: fixed.
+   - Files: `packages/core/src/runtime-provider-lifecycle.ts`,
+     `packages/core/src/index.ts`, `packages/react/src/runtime.ts`,
+     `packages/solid/src/runtime.ts`, `packages/core/test/runtime.test.ts`,
+     `examples/project-console/src/App.tsx`,
+     `examples/project-console/type-tests/app-runtime.typecheck.ts`,
+     `scripts/public-api-symbol-policy.mjs`,
+     `type-tests/core.test-d.ts`, `type-tests/framework.test-d.ts`, and
+     `type-tests/public-api.manifest.json`.
+   - Problem: React and Solid carried duplicate provider-owned runtime
+     disposal rules, and project-console still accepted runtime values whose
+     Interface did not prove `ProjectApi` was available.
+   - Fix: Core now owns the normalized Runtime Provider lifecycle entry and
+     disposal observer Effect, while React and Solid consume that shared
+     Module. Project-console runtime props now require a runtime that provides
+     `ProjectApi`, with a typecheck-only probe proving empty runtimes are
+     rejected.
+   - Benefits: runtime ownership has one tested lifecycle seam, adapter
+     cleanup behavior has better locality, and the example app no longer
+     teaches service-erasing runtime inputs.
+
+2. Start Diagnostics Explicit Options Precedence
+   - Status: fixed.
+   - Files: `packages/start/src/start-vite-diagnostics-loader.ts` and
+     `packages/start/test/start.test.ts`.
+   - Problem: callers that supplied explicit Start diagnostics options could
+     still accidentally merge a Start plugin from a discovered Vite config
+     unless they also remembered `configFile: false`.
+   - Fix: explicit `start` options now default Vite config loading to
+     `false` unless the caller explicitly opts into a config file.
+   - Benefits: the explicit diagnostics Interface is deep enough to be the
+     whole instruction, while Vite config merging stays an opt-in Adapter.
+
+3. DB Indexed Join, Query Key, Direct Write, And SQLite Metadata Guardrails
+   - Status: fixed.
+   - Files: `packages/db/src/collection-index-materialization.ts`,
+     `packages/db/src/collection-runtime.ts`, `packages/db/src/sync-adapter.ts`,
+     `packages/db/src/sqlite-persistence.ts`,
+     `packages/db/test/collection.test.ts`,
+     `packages/db/test/sync-adapter.test.ts`, and
+     `packages/db/test/sqlite-persistence.test.ts`.
+   - Problem: indexed join selectors could observe augmented row metadata,
+     invalid query sync keys retained a shallow raw-key fallback, hostile
+     direct-write update patches could be spread before policy-owned update
+     validation, and direct SQLite persistence did not validate finite
+     `schemaVersion` / `updatedAt` metadata like the statement Adapter.
+   - Fix: indexed join key recomputation strips collection metadata, invalid
+     query sync keys are stored as typed failure state without retaining raw
+     fallback objects, direct write updates reuse `applyCollectionUpdateEffect`,
+     and direct SQLite persistence validates row and option metadata before
+     reads/writes reach the table Adapter.
+   - Benefits: DB callers get one plain-data/error policy across query
+     identity, index selectors, direct writes, and SQLite persistence, with
+     failures staying local to the owning Module.
+
+4. Typecheck-Only Probe Packaging Policy
+   - Status: fixed.
+   - Files: `scripts/package-project-console-starter.mjs` and
+     `scripts/verify-package-dry-runs.mjs`.
+   - Problem: the project-console runtime type probe belongs to example
+     typechecking, but starter/package manifest checks initially treated the
+     `type-tests` folder as copyable payload.
+   - Fix: generated starter copy filters and source-package dry-run manifests
+     now exclude `type-tests` as verification-only source.
+   - Benefits: starter payloads and package dry-runs stay aligned with
+     copyable app files while examples can keep stronger local type probes.
+
+Focused verification for Review218 passed: Core/React/Solid/DB/Start and
+project-console typechecks, public type tests, public API audit, Effect-first
+audit over 409 files, focused Core runtime tests 1 file / 11 tests, focused
+DB regression tests 3 files / 192 tests, focused Start diagnostics test,
+focused React/Solid hook tests 2 files / 41 tests, `pnpm test` with 53 files /
+1122 tests, `pnpm starter:package`, and the 16-target package dry-run gate.
+Full `pnpm verify` passed after Review218 with 11 package builds, workspace
+typecheck, public type tests, public API audit, Effect-first audit over 409
+files, 53 root test files / 1122 tests, package-level verifies, generated
+starter packaging for basic/react/project-console at 19/24/30 app files,
+16-target package dry-run gate, project-console checks, and leak scans. This
+sweep found work, so the active clean counter remains 0/30.
 
 ## Review 217: Plain Validation, DB Guardrails, And Runtime LSP Seams
 
@@ -832,8 +920,9 @@ the first post-Review211 sweep found Review212 work, and the first
 post-Review212 sweep found Review213 work, and the first post-Review213 sweep
 found Review214 work, the first post-Review214 sweep found Review215 work, the
 first post-Review215 sweep found Review216 work, and the first post-Review216
-sweep found Review217 work. The active counter is 0/30 until a fresh
-post-Review217 sweep reports no actionable findings.
+sweep found Review217 work, and the first post-Review217 sweep found Review218
+work. The active counter is 0/30 until a fresh post-Review218 sweep reports no
+actionable findings.
 
 ## Review 208: Runtime Provider Observers, CLI Bin Execution, And Docs Drift
 
