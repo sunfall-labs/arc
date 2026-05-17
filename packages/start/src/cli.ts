@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { pathToFileURL } from "node:url";
+import { realpathSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   Console,
   Data,
@@ -793,8 +794,29 @@ export const runStartDiagnosticsCliMain = (
 ): Effect.Effect<void> =>
   runStartDiagnosticsCliMainEffect(args, io);
 
+const realpathForStartDiagnosticsCliMain = (path: string): string | undefined => {
+  try {
+    return realpathSync.native(path);
+  } catch {
+    try {
+      return realpathSync(path);
+    } catch {
+      return undefined;
+    }
+  }
+};
+
+const startDiagnosticsCliMainPathEquals = (
+  moduleUrl: string,
+  argvPath: string
+): boolean => {
+  const modulePath = realpathForStartDiagnosticsCliMain(fileURLToPath(moduleUrl));
+  const processPath = realpathForStartDiagnosticsCliMain(argvPath);
+  return modulePath !== undefined && modulePath === processPath;
+};
+
 const isMain = process.argv[1] !== undefined &&
-  import.meta.url === pathToFileURL(process.argv[1]).href;
+  startDiagnosticsCliMainPathEquals(import.meta.url, process.argv[1]);
 
 if (isMain) {
   void Effect.runPromise(runStartDiagnosticsCliMainEffect());

@@ -600,10 +600,13 @@ preloaded.resources // { resources: [...] }
 ```
 
 The payload includes the resource family name, stable key, original input, and
-successful resource state. Client hydration calls `Resource.hydrate(payload)`,
-which updates the visible resource signal and uses Effect `Cache.set` so the
-first client `prefetchEffect` observes the SSR value instead of repeating the
-load.
+successful resource state. Start client hydration applies that payload with
+`hydrateFromDocumentEffect(...)` or `hydrateStartPayloadEffect(...)`; those
+helpers call `Resource.hydrateEffect(payload)` so the visible resource signal
+and Effect `Cache` entry update in the same Runtime Spine. The synchronous
+`Resource.hydrate(payload)` helper is the host/UI-context facade for callers
+that are already inside the current runtime, not the path Start hydration docs
+should teach first.
 
 Preload dehydration has both sync and Effect forms. Runtime/request work should
 prefer `Resource.hydrationPayloadEffect(refs)` so the payload is read from the
@@ -647,13 +650,13 @@ createRequestHandler(app, {
 ```
 
 The browser entrypoint passes the same definitions and browser runtime back to
-`hydrateFromDocument` so resources and collection rows are restored from one
-script into the same Runtime Spine that the UI will use:
+`hydrateFromDocumentEffect` so resources and collection rows are restored from
+one script into the same Runtime Spine that the UI will use:
 
 ```ts
 const runtime = createEffectRuntime(AppLive)
 
-hydrateFromDocument(document, "__EFFECT_UI_HYDRATION__", {
+yield* hydrateFromDocumentEffect(document, "__EFFECT_UI_HYDRATION__", {
   runtime,
   collections: [Projects, Tasks]
 })
@@ -664,7 +667,9 @@ hydrateFromDocument(document, "__EFFECT_UI_HYDRATION__", {
 `hydrationRootScript`/`hydrationPlan` pair for streamed HTML. Browser
 entrypoints can call `hydrateFromDocument(...)` before mounting the app, or
 `hydrateFromDocumentEffect(...)` when they want the host runtime to run the
-hydration Effect directly.
+hydration Effect directly. Lower-level resource-only hosts should prefer
+`yield* Resource.hydrateEffect(payload)` and reserve `Resource.hydrate(payload)`
+for synchronous current-runtime host facades.
 
 Streamed SSR chunks are emitted as JSON scripts with
 `data-effect-ui-hydration-chunk`. Browser entries that progressively inspect the

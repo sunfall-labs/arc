@@ -11,13 +11,15 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review205, the post-Review204 sweep
-fixing local evidence-date metadata and a stale historical `verify:serial`
-ledger sentence. The newest full verification checkpoint is Review205. Clean
+The newest completed focused review is Review206, the post-Review205 sweep
+fixing the Start CLI symlink bin entrypoint and Effect-first hydration docs.
+The newest full verification checkpoint is Review206. Clean
 Sweep 1 after Review190 remains
 historical evidence, but later sweeps found Review191, Review192, Review193,
 Review194, Review195, Review196, Review197, Review198, Review199, and
-Review200, Review201, Review202, Review203, Review204, and Review205 work, so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review205 sweep reports no actionable
+Review200, Review201, Review202, Review203, Review204, Review205, and
+Review206 work, so the active Thirty-Sweep clean counter is 0/30 until a fresh
+post-Review206 sweep reports no actionable
 findings. Some older review entries
 remain below this tip from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
@@ -49,10 +51,63 @@ The first post-Review201 sweep found Review202 adapter-root, DB, scripts, and
 docs work. The first post-Review202 sweep found Review203 adapter router,
 Start fetch abort-lifetime, package typecheck, verify failure-path, and docs
 metadata work. The first post-Review203 sweep found Review204 React/Solid hook
-LSP policy and adapter-root resource alias pin work. The counter remains
-inactive after the first post-Review204 sweep found Review205 local
-evidence-date and historical serial-ledger drift. The counter remains inactive
-until a fresh post-Review205 sweep is clean.
+LSP policy and adapter-root resource alias pin work. The first post-Review204
+sweep found Review205 local evidence-date and historical serial-ledger drift,
+and the first post-Review205 sweep found Review206 Start CLI symlink bin and
+hydration-doc drift. The counter remains inactive until a fresh post-Review206
+sweep is clean.
+
+## Review 206: Start CLI Symlink Bin And Hydration Docs
+
+Review206 fixed actionable findings from the fresh post-Review205 sweep. The
+Core/React/Solid and DB lanes reported no actionable implementation or public
+API findings. The Start/verification lane found that the built CLI did not run
+when invoked through a package-manager-style symlink, and the docs lane found
+two hydration docs still teaching the synchronous Resource facade as the primary
+client path.
+
+1. Start CLI Symlink Entrypoint
+   - Status: fixed.
+   - Files: `packages/start/src/cli.ts`,
+     `scripts/verify-package-dry-runs.mjs`.
+   - Problem: the CLI bin main guard compared `import.meta.url` directly to
+     `pathToFileURL(process.argv[1]).href`. Node resolves `import.meta.url` to
+     the real file for symlinked bins while `process.argv[1]` remains the
+     symlink path, so `node <symlink-to-dist/cli.js> --version` exited 0 with
+     no output.
+   - Fix: the main guard now compares real filesystem paths for both the module
+     URL and process entry path, with a synchronous host-boundary fallback when
+     `realpathSync.native(...)` is unavailable. The package dry-run verifier now
+     creates a temporary `effect-ui-start` symlink and runs the built bin with
+     `process.execPath` so package-manager entrypoint behavior is part of the
+     release gate.
+   - Benefits: installed `effect-ui-start` bins execute through npm/pnpm-style
+     symlinks, and the publish rehearsal catches regressions.
+
+2. Effect-First Hydration Docs
+   - Status: fixed.
+   - Files: `docs/architecture.md`, `docs/effect-style.md`.
+   - Problem: the docs still presented Start/client hydration as
+     `Resource.hydrate(payload)`, even though Start applies payloads through
+     `hydrateFromDocumentEffect(...)` / `hydrateStartPayloadEffect(...)` and
+     those helpers call `Resource.hydrateEffect(payload)`.
+   - Fix: the docs now teach Start hydration through the Effect helpers first
+     and describe `Resource.hydrate(payload)` as the synchronous host/UI-context
+     facade for callers already inside the current runtime.
+   - Benefits: the LSP-facing docs point users and agents toward the
+     Effect-first hydration path.
+
+Focused verification for Review206 passed: `pnpm --filter @effect-ui/start
+build`, `pnpm --filter @effect-ui/start typecheck`, syntax checks for
+`packages/start/src/cli.ts` and `scripts/verify-package-dry-runs.mjs`,
+`pnpm example:pack-dry-run` including the new symlinked CLI bin check,
+Effect-first hydration-doc greps, public API audit, Effect-first audit,
+workspace typecheck, and `git diff --check`. Full `pnpm verify` and
+`pnpm verify:serial` passed after Review206 with 11 package builds, workspace
+typecheck, public type tests, public API inventory audit, Effect-first audit
+over 408 files, 53 root test files / 1062 tests, package-level verifies,
+generated starter packaging, the 16-target package dry-run gate, project-console
+checks, and leak scans.
 
 ## Review 205: Local Evidence Dates And Serial Ledger Drift
 

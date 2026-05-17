@@ -20,6 +20,16 @@ interruption.
 
 ## Current Sweep Results
 
+- Review206 kept the Start CLI bin host boundary synchronous but symlink-safe:
+  `packages/start/src/cli.ts` now resolves the module URL and process entry
+  path through real filesystem paths before deciding whether to run
+  `runStartDiagnosticsCliMainEffect(...)`, and
+  `scripts/verify-package-dry-runs.mjs` exercises the built
+  `effect-ui-start` bin through a temporary package-manager-style symlink.
+- Review206 refreshed hydration docs so Start/client hydration teaches
+  `hydrateFromDocumentEffect(...)`, `hydrateStartPayloadEffect(...)`, and
+  `Resource.hydrateEffect(payload)` before naming the synchronous
+  `Resource.hydrate(payload)` host/UI-context facade.
 - `scripts/audit-effect-first.mjs`
   - The executable audit now preserves template interpolation code while
     sanitizing strings, so non-Effect `.catch(...)` and other banned async
@@ -544,7 +554,7 @@ interruption.
 - Review 139 focused verification passed `pnpm audit:effect-first` over 248
   package/example/script/type-test files after anchoring allowed occurrences to
   named seams and context matchers.
-- The current full gate is the Review 205 `pnpm verify` run recorded in
+- The current full gate is the Review 206 `pnpm verify` run recorded in
   `docs/architecture-deepening-review.md`: 11 package builds, workspace
   typecheck, public type tests, public API inventory audit, Effect-first audit
   over 408 files, 53 root test files / 1062 tests, package-level verifies,
@@ -1366,8 +1376,8 @@ interruption.
 - Review 135 tightened the Start fetch adapter Promise-return allowance while
   keeping the focused Effect-first audit green over the same 246 auditable
   files.
-- The current full `pnpm verify` passed after the Review 205 local
-  evidence-date and serial-ledger drift fix: 11 package
+- The current full `pnpm verify` passed after the Review 206 Start CLI symlink
+  bin and hydration-doc fix: 11 package
   builds, workspace typecheck, type tests,
   public API inventory audit, Effect-first audit over 408
   package/example/config/script/type-test/generated/docs files, 53 root test

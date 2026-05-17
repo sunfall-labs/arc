@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
-import { readFile, readdir, stat } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm, stat, symlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join, relative, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Data, Effect } from "effect";
@@ -652,6 +653,64 @@ const collectSourcePackageFiles = (target) =>
     return files.sort((left, right) => left.localeCompare(right));
   });
 
+const verifyStartCliSymlinkBinEffect = (target) => {
+  if (target.label !== "@effect-ui/start") {
+    return Effect.void;
+  }
+
+  return Effect.gen(function* () {
+    const binTarget = target.packageJson.bin?.["effect-ui-start"];
+    if (!isNonEmptyString(binTarget)) {
+      return yield* Effect.fail(
+        fail(
+          "@effect-ui/start package.json is missing the effect-ui-start bin target.",
+          "Keep the diagnostics CLI bin declared so package-manager installs expose the Start diagnostics command.",
+        ),
+      );
+    }
+
+    const cliPath = join(target.directory, binTarget);
+    const tempDirectory = yield* fsEffect(
+      "create effect-ui-start symlink bin check directory",
+      () => mkdtemp(join(tmpdir(), "effect-ui-start-bin-")),
+    );
+
+    return yield* Effect.gen(function* () {
+      const linkedBin = join(tempDirectory, "effect-ui-start");
+      yield* fsEffect(
+        "create effect-ui-start bin symlink",
+        () => symlink(cliPath, linkedBin, "file"),
+      );
+
+      const { stdout } = yield* commandEffect(
+        "@effect-ui/start symlinked CLI bin version check",
+        process.execPath,
+        [linkedBin, "--version"],
+      );
+      const expected = `effect-ui-start v${target.packageJson.version}`;
+      if (stdout.trim() !== expected) {
+        return yield* Effect.fail(
+          fail(
+            "@effect-ui/start symlinked CLI bin did not execute.",
+            [
+              "Keep the CLI main-module guard resilient to package-manager symlink entrypoints.",
+              `Expected stdout: ${expected}`,
+              stdout.trim() === "" ? "Actual stdout was empty." : `Actual stdout: ${stdout.trim()}`,
+            ].join(" "),
+          ),
+        );
+      }
+    }).pipe(
+      Effect.ensuring(
+        fsEffect(
+          "remove effect-ui-start symlink bin check directory",
+          () => rm(tempDirectory, { recursive: true, force: true }),
+        ).pipe(Effect.catch(() => Effect.void)),
+      ),
+    );
+  });
+};
+
 const verifyPackageTarget = (target) =>
   Effect.gen(function* () {
     const manifestMetadataFailures = manifestMetadataValidationFailures(target);
@@ -784,6 +843,7 @@ const verifyPackageTarget = (target) =>
         );
       }
     }
+    yield* verifyStartCliSymlinkBinEffect(target);
 
     return {
       label: target.label,

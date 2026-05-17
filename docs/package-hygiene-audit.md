@@ -78,6 +78,10 @@ exports. It supports the release-engineering charter workstream.
   omit their forbidden declaration map. Source packages must also declare a
   package-local `verify` script so the root verifier cannot skip a copyable app
   package silently.
+- Review206 added an installed-bin rehearsal to the same dry-run gate:
+  `@effect-ui/start` now creates a temporary package-manager-style symlink to
+  the built `dist/cli.js` and verifies `effect-ui-start --version` executes
+  through that symlink.
 
 ## Verification Evidence
 
@@ -127,7 +131,7 @@ exports. It supports the release-engineering charter workstream.
   all 16 package payloads: 11 framework dist packages, 19 basic starter files,
   24 React starter files, 30 project-console files, 10 devtools panel files,
   and 15 devtools extension files.
-- The current full `pnpm verify` passed after Review205 with 11 package builds,
+- The current full `pnpm verify` passed after Review206 with 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
   Effect-first audit over 408 files, 53 root test files / 1062 tests, derived
   package-level verifies for the five copyable source packages, generated

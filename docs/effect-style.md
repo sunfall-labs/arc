@@ -173,12 +173,19 @@ already-total callbacks and quick inspection.
 SSR hydration must populate both layers:
 
 ```ts
-Resource.hydrate(payload)
+yield* hydrateStartPayloadEffect(payload, {
+  runtime,
+  collections: [Projects, Tasks]
+})
 ```
 
-This updates the resource signal used by components and sets the Effect cache
-entry in the active `ResourceStore`, so hydrated client reads stay synchronous
-and duplicate route preloads are avoided.
+Start hydration helpers call `Resource.hydrateEffect(payload)` for resource
+entries and collection hydration for DB snapshots, so the resource signal used
+by components and the Effect cache entry in the active `ResourceStore` update
+together. Use `hydrateFromDocumentEffect(...)` for full browser payloads and
+`hydrateStartPayloadEffect(...)` for already-parsed payloads; reserve
+`Resource.hydrate(payload)` for synchronous host/UI-context facades that are
+already inside the current runtime.
 
 ```tsx
 const user = useResource(() => UserById(props.id));
