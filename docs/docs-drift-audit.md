@@ -5,9 +5,8 @@ Last updated: 2026-05-17.
 Current release-tracking truth lives in `docs/architecture-deepening-review.md`
 and `docs/perfection-progress.md`. As of Review504, the latest full
 `pnpm verify` gate is the Review492 run with 58 root test files / 1223 tests,
-the focused Effect-first audit covers 449 physical and virtual files, and the active Thirty-Sweep clean
-counter is 0/30 until a fresh post-Review504 sweep reports no actionable
-findings.
+the focused Effect-first audit covers 449 physical and virtual files, and the
+active Thirty-Sweep clean counter is 1/30 after Clean Sweep 1 after Review504.
 
 This historical audit checks release-tracking docs for claims that no longer match the
 implementation after the request trace, Effect-first, typed-error, package
@@ -121,6 +120,10 @@ seams.
 - Clean Sweep 1 after Review208 found no actionable docs or evidence drift
   after targeted current-gate, clean-counter, Review208 file-list, package
   hygiene, and Solid adapter example checks.
+- Clean Sweep 1 after Review504 found no actionable docs or evidence drift
+  after public API inventory policy, Effect-first audit, package payload policy,
+  package dry-run, starter packaging, lint, and `git diff --check` checks
+  passed.
 - Review209 refreshed current ledgers after Clean Sweep 2 found the
   broad-`unknown` Promise callback rejection hole and reset the active
   Thirty-Sweep counter to 0/30.

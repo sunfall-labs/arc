@@ -773,7 +773,8 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     Review503 React/Solid DB live query handle hover work, and the fresh
     post-Review503 sweep found Review504 Resource preload observer Promise pin
     work,
-    leaving the active counter at 0/30.
+    and Clean Sweep 1 after Review504 found no actionable follow-up, leaving
+    the active counter at 1/30.
     Latest full evidence:
     `pnpm verify` ran after Review 492 with 58 root
     test files / 1223
@@ -939,7 +940,9 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     public API inventory audit, Effect-first audit, package payload policy
     self-test, package dry-run gate, starter packaging, targeted format checks,
     and diff hygiene after closing Resource preload observer Promise rejection
-    pins. Review492 records the latest
+    pins. Clean Sweep 1 after Review504 found no actionable Module, Interface,
+    Seam, Adapter, Locality, Depth, Leverage, Effect-first, LSP/JSDoc, package,
+    or docs-honesty work. Review492 records the latest
     full gate. Clean
     Sweep 1 after
     Review190 remains historical 1/30 evidence, but later sweeps found
@@ -1024,7 +1027,8 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     Review503 React/Solid DB live query handle hover work, and the fresh
     post-Review503 sweep found Review504 Resource preload observer Promise pin
     work,
-    leaving the active counter at 0/30.
+    and Clean Sweep 1 after Review504 found no actionable follow-up, leaving
+    the active counter at 1/30.
     Full verification is recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items

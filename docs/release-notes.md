@@ -90,8 +90,10 @@ Latest full gate on May 17, 2026 after Review 492:
 - Review 504 Resource Preload Observer Promise Pins adds public type-test
   negative assertions proving Core Resource UI binding, React Resource hooks,
   and Solid Resource hooks reject Promise-shaped preload failure observers at
-  the EffectInput Seam. The active Thirty-Sweep clean counter remains 0/30 until
-  a fresh post-Review504 sweep reports no actionable findings.
+  the EffectInput Seam. Clean Sweep 1 after Review504 found no actionable
+  Module, Interface, Seam, Adapter, Locality, Depth, Leverage, Effect-first,
+  LSP/JSDoc, package, or docs-honesty work, moving the active Thirty-Sweep clean
+  counter to 1/30.
 - Review 503 React Solid DB Live Query Handle Hovers adds member-level LSP docs
   to public React DB and Solid DB live query handles, covering live query rows,
   state, waiting/error/preload failure semantics, and Effect-returning

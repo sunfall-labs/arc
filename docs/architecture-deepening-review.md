@@ -63,9 +63,11 @@ found Review498 work, the fresh post-Review498 sweep found Review499 work, the
 fresh post-Review499 sweep found Review500 work, the fresh post-Review500
 sweep found Review501 work, the fresh post-Review501 sweep found Review502
 work, the fresh post-Review502 sweep found Review503 work, and the fresh
-post-Review503 sweep found Review504 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review504
-sweep reports no actionable findings. Clean Sweep 1 after
+post-Review503 sweep found Review504 work, and the fresh post-Review504 sweep
+found no actionable work across Core/React/Solid, DB/public API,
+Start/docs/package, and evidence lanes,
+so the active Thirty-Sweep clean counter is 1/30 after
+Clean Sweep 1 after Review504. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
@@ -80,7 +82,8 @@ Review244 work, Review245 work, Review246 work, Review247 work, Review490
 work, Review491 work, Review492 work, Review493 work, Review494 work,
 Review495 work, Review496 work, Review497 work, Review498 work, Review499
 work, Review500 work, Review501 work, Review502 work, Review503 work, and
-Review504 work.
+Review504 work before Clean Sweep 1 after Review504 found no actionable
+follow-up.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -213,8 +216,46 @@ invalidation hover work,
 and the fresh post-Review502 DB adapter sweep found Review503 React/Solid DB
 live query handle hover work,
 and the fresh post-Review503 Core/React/Solid sweep found Review504 Resource
-preload observer Promise pin work,
-so the counter remains 0/30.
+preload observer Promise pin work. The fresh post-Review504 architecture sweep
+found no actionable Module, Interface, Seam, Adapter, Locality, Depth,
+Leverage, Effect-first, LSP/JSDoc, package, or docs-honesty work, creating
+Clean Sweep 1 after Review504.
+
+## Clean Sweep 1 After Review504
+
+The fresh post-Review504 sweep found no actionable findings across the current
+review lanes.
+
+1. Core/React/Solid Runtime And Adapter Lane
+   - Status: clean.
+   - Evidence: Ptolemy inspected Core Resource UI binding, React and Solid
+     router/resource adapters, public Resource preload observer pins, and
+     adjacent LSP/type-test policy. `pnpm exec tsc -p tsconfig.type-tests.json
+--pretty false`, `pnpm audit:effect-first`, `pnpm audit:public-api`, and
+     focused Core/React/Solid runtime tests passed.
+
+2. DB, React DB, And Solid DB Lane
+   - Status: clean.
+   - Evidence: Fermat inspected DB live query runtime, collection reactive
+     binding, persistence/sync seams, React DB and Solid DB live query handles,
+     and public type-test pins. `pnpm exec tsc -p tsconfig.type-tests.json
+--noEmit`, `pnpm audit:public-api`, `pnpm audit:effect-first`, and
+     focused DB/React-DB/Solid-DB tests passed: 11 files / 295 tests.
+
+3. Start, Scripts, Package, And Docs Lane
+   - Status: clean.
+   - Evidence: local sweep inspected Start request trace invalidation policy,
+     current docs ledgers, public API inventory policy, package payload policy,
+     and generated starter packaging. `node scripts/audit-public-api-inventory.mjs`,
+     `node scripts/audit-effect-first.mjs`, `pnpm typecheck:types`, `pnpm
+lint`, `pnpm --filter @sunfall/arc-start typecheck`, focused Start
+     invalidation/metrics tests, `pnpm verify:package-payload-policy`, `pnpm
+example:pack-dry-run`, `pnpm starter:package`, and `git diff --check`
+     passed.
+
+At the Clean Sweep 1 after Review504 checkpoint, the Thirty-Sweep clean counter
+reached 1/30. The next sweep must still run; if it finds work, the counter
+resets to 0/30.
 
 ## Review 504: Resource Preload Observer Promise Pins
 

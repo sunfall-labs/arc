@@ -7,6 +7,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Current Sweep Results
 
+- Clean Sweep 1 after Review504 found no actionable public type-test follow-up:
+  the current pins for Resource preload observers, live query handles, Start
+  request traces, and package-root manifests still describe the public
+  Interfaces that callers see through LSP and compile-time checks.
 - Review504 Resource Preload Observer Promise Pins adds negative public
   type-test coverage for Core `ResourceUiAutoPreloadOptions`, React
   `UseResourceOptions`, and Solid `UseResourceOptions`, proving preload failure
