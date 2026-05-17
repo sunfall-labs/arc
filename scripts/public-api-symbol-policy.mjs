@@ -1413,8 +1413,8 @@ export const namespaceBackedSurfaceModules = new Map([
 ]);
 
 export const currentDocsEvidencePolicy = {
-  latestFocusedReview: 499,
-  latestFocusedTitle: "Request Metrics And Evidence Policy",
+  latestFocusedReview: 500,
+  latestFocusedTitle: "Devtools Trace Docs And Lint Evidence",
   latestFullGateReview: 492,
   rootTestFiles: 58,
   rootTestCount: 1223,
@@ -1427,17 +1427,15 @@ const spacedTextPattern = (value) => escapeRegExp(value).replace(/\s+/g, "\\s+")
 const latestFocusedReviewPattern = `Review${currentDocsEvidencePolicy.latestFocusedReview}\\s+${spacedTextPattern(
   currentDocsEvidencePolicy.latestFocusedTitle,
 )}`;
-const latestFullGateReviewPattern = `Review ?${currentDocsEvidencePolicy.latestFullGateReview}`;
 const activeCleanCounterPattern = escapeRegExp(currentDocsEvidencePolicy.activeCleanCounter);
 
 const staleFocusedReviewPattern =
-  /(?:The latest focused Review|Latest focused evidence: Review|newest focused review is Review) ?(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0-8])\b/;
-const staleAsOfReviewPattern =
-  /As of Review(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0-8]), the latest full/;
+  /(?:The latest focused Review|Latest focused evidence: Review|newest focused review is Review) ?(?:1\d\d|2\d\d|3\d\d|4[0-9]\d)\b/;
+const staleAsOfReviewPattern = /As of Review(?:1\d\d|2\d\d|3\d\d|4[0-9]\d), the latest full/;
 const staleFullGateReviewPattern =
   /(?:The latest full verification gate is green after Review|Latest full gate[^.\n]*after Review|latest full `pnpm verify` passed after Review|current full gate is the Review) ?(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0-1])\b/;
 const stalePostReviewWaitPattern =
-  /until\s+a fresh\s+post-Review(?:1\d\d|2\d\d|3\d\d|4[0-8]\d|49[0-8])\s+sweep reports no actionable\s+findings/;
+  /until\s+a fresh\s+post-Review(?:1\d\d|2\d\d|3\d\d|4[0-9]\d)\s+sweep reports no actionable\s+findings/;
 
 export const currentDocsTextPolicies = [
   {
@@ -1739,13 +1737,13 @@ export const currentDocsTextPolicies = [
       {
         name: "Ultimate goal checklist must pin latest focused verification subsection",
         pattern: new RegExp(
-          `Latest focused verification recorded\\.[\\s\\S]*?Evidence: Review ${currentDocsEvidencePolicy.latestFocusedReview} records[\\s\\S]*?request metrics and evidence policy\\s+findings`,
+          `Latest focused verification recorded\\.[\\s\\S]*?Evidence: Review ${currentDocsEvidencePolicy.latestFocusedReview} records[\\s\\S]*?Devtools trace docs and lint evidence\\s+findings`,
         ),
       },
       {
         name: "Ultimate goal checklist must keep Review492 as latest full evidence",
         pattern: new RegExp(
-          `Review${currentDocsEvidencePolicy.latestFullGateReview} records the\\s+latest full gate`,
+          `Review ?${currentDocsEvidencePolicy.latestFullGateReview} records the\\s+latest\\s+full gate`,
         ),
       },
       {

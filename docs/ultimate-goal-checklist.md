@@ -681,11 +681,11 @@ diagnostics`, devtools summary tests, and generated virtual modules.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 499 passed Start request metrics tests,
-    Start package typecheck, public type tests, public API inventory audit,
-    Effect-first audit, package payload policy self-test, package dry-run gate,
-    targeted format checks, and `git diff --check` while closing request metrics
-    and evidence policy work. Latest full verification evidence is Review 492.
+  - Latest focused evidence: Review 500 passed `pnpm lint`, Devtools package
+    typecheck, public type tests, public API inventory audit, Effect-first audit,
+    package payload policy self-test, targeted format checks, and
+    `git diff --check` while closing Devtools trace docs and lint evidence work.
+    Latest full verification evidence is Review 492.
     Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
     sweeps found Review191, Review192, Review193, Review194, Review195, and
     Review196, Review197, Review198, Review199, Review200, Review201,
@@ -763,8 +763,9 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     found Review496 starter artifact and prerender type pin policy work, the
     fresh post-Review496 sweep found Review497 React/Solid DB hover copy policy
     work, the fresh post-Review497 sweep found Review498 router docs and legacy
-    identity policy work, and the fresh post-Review498 sweep found Review499
-    request metrics and evidence policy work,
+    identity policy work, the fresh post-Review498 sweep found Review499 request
+    metrics and evidence policy work, and the fresh post-Review499 sweep found
+    Review500 Devtools trace docs and lint evidence work,
     leaving the active counter at 0/30.
     Latest full evidence:
     `pnpm verify` ran after Review 492 with 58 root
@@ -927,11 +928,11 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     17-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 499 records Start request metrics tests, Start package
-    typecheck, public type tests, public API inventory audit, Effect-first audit,
-    package payload policy self-test, package dry-run gate, targeted format
-    checks, and diff hygiene after closing request metrics and evidence policy
-    findings. Review492 records the latest full gate. Clean
+  - Evidence: Review 500 records `pnpm lint`, Devtools package typecheck, public
+    type tests, public API inventory audit, Effect-first audit, package payload
+    policy self-test, targeted format checks, and diff hygiene after closing
+    Devtools trace docs and lint evidence findings. Review492 records the latest
+    full gate. Clean
     Sweep 1 after
     Review190 remains historical 1/30 evidence, but later sweeps found
     Review191, Review192, Review193, Review194, Review195, Review196,
@@ -1006,8 +1007,9 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     found Review496 starter artifact and prerender type pin policy work, the
     fresh post-Review496 sweep found Review497 React/Solid DB hover copy policy
     work, the fresh post-Review497 sweep found Review498 router docs and legacy
-    identity policy work, and the fresh post-Review498 sweep found Review499
-    request metrics and evidence policy work,
+    identity policy work, the fresh post-Review498 sweep found Review499 request
+    metrics and evidence policy work, and the fresh post-Review499 sweep found
+    Review500 Devtools trace docs and lint evidence work,
     leaving the active counter at 0/30.
     Full verification is recorded in the latest full gate above.
 

@@ -11,11 +11,10 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review499 Request Metrics And Evidence Policy,
-the post-Review498 follow-up that moves Start request metrics to
-low-cardinality route labels, narrows request trace resource docs to SSR route
-preload resources, records React/Solid router path-helper parity in public
-inventory, and deepens current-evidence policy generation.
+The newest focused review is Review500 Devtools Trace Docs And Lint Evidence,
+the post-Review499 follow-up that aligns Devtools request trace resource docs
+with Start's SSR route-plan resource semantics and restores lint coverage for
+script policy changes.
 The newest full verification checkpoint is Review492.
 Clean Sweep 1 after
 Review208 remains historical 1/30
@@ -60,8 +59,9 @@ post-Review492 sweep found Review493 work, the fresh post-Review493 sweep
 found Review494 work, the fresh post-Review494 sweep found Review495 work, and
 the fresh post-Review495 sweep found Review496 work, the fresh
 post-Review496 sweep found Review497 work, the fresh post-Review497 sweep
-found Review498 work, and the fresh post-Review498 sweep found Review499 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review499
+found Review498 work, the fresh post-Review498 sweep found Review499 work, and
+the fresh post-Review499 sweep found Review500 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review500
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -75,8 +75,8 @@ Review235 work, Review236 work, Review237 work, Review238 work, Review239
 work, Review240 work, Review241 work, Review242 work, Review243 work,
 Review244 work, Review245 work, Review246 work, Review247 work, Review490
 work, Review491 work, Review492 work, Review493 work, Review494 work,
-Review495 work, Review496 work, Review497 work, Review498 work, and Review499
-work.
+Review495 work, Review496 work, Review497 work, Review498 work, Review499
+work, and Review500 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -200,7 +200,39 @@ and the fresh post-Review497 sweep found Review498 router docs, React
 path-helper type pins, docs-policy, and legacy underscore identity work,
 and the fresh post-Review498 sweep found Review499 request metrics, public
 inventory parity, request trace resource docs, and current-evidence policy work,
+and the fresh post-Review499 sweep found Review500 Devtools trace docs and lint
+evidence work,
 so the counter remains 0/30.
+
+## Review 500: Devtools Trace Docs And Lint Evidence
+
+Review500 fixes the actionable findings from the fresh post-Review499 sweep.
+
+1. Devtools Request Trace Resource Docs
+   - Status: fixed.
+   - Files: `packages/devtools/src/devtools-contract.ts`.
+   - Problem: Start now documents and emits request trace resources as SSR
+     route-plan resources, but Devtools still described request trace resources
+     as touched, loaded, or serialized during any request.
+   - Solution: Devtools now describes resources as facts supplied by compatible
+     request traces, and explicitly notes that Start currently emits SSR
+     route-plan resources while compatible non-Start producers may provide
+     broader facts.
+   - Benefits: the structural Devtools Adapter Interface stays honest without
+     claiming unimplemented Start RPC/action resource tracking.
+
+2. Script Lint Evidence
+   - Status: fixed.
+   - Files: `scripts/public-api-symbol-policy.mjs`,
+     `scripts/package-payload-policy.mjs`, `docs/perfection-progress.md`, and
+     `docs/ultimate-goal-checklist.md`.
+   - Problem: Review499 script changes left unused symbols that made
+     `pnpm lint` fail, while focused evidence did not include lint.
+   - Solution: removed the unused policy bindings and updated current evidence
+     to include the lint gate.
+   - Benefits: script policy Modules now pass the same static lint Interface
+     recorded by the review ledger, improving docs honesty and Locality for
+     future policy changes.
 
 ## Review 499: Request Metrics And Evidence Policy
 

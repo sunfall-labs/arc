@@ -20,6 +20,10 @@ interruption.
 
 ## Current Sweep Results
 
+- Review500 Devtools Trace Docs And Lint Evidence is a docs/static-policy fix:
+  Devtools trace resource hovers now align with Start's SSR route-plan resource
+  semantics, and unused script policy bindings were removed. It adds no Promise
+  surface.
 - Review499 Request Metrics And Evidence Policy keeps the post-Review498 fixes
   Effect-first: request metrics finalize through Effect metrics after route
   facts are known, request trace resource docs are narrowed without new async

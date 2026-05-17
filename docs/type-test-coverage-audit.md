@@ -203,6 +203,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
   prerender hover-policy pins for exported prerender option, event, result,
   error, planning, and Effect runner declarations, while keeping lazy route
   Suspense runtime ownership behind Core's public `Route` namespace.
+- Review500 Devtools Trace Docs And Lint Evidence changes public hover copy and
+  script lint hygiene only; it adds no new type-test contract and keeps the
+  Review499 request metrics evidence current.
 - Review499 Request Metrics And Evidence Policy changes runtime observability
   and docs policy only; it adds no new public type-test contract and keeps the
   Review498 React router path-helper pins current.

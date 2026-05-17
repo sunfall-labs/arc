@@ -326,7 +326,7 @@ export const declarationArtifactContentFailuresEffect = ({ target, workspaceRoot
     return failures;
   });
 
-const legacyPayloadTokenFailuresEffect = ({ target, files, workspaceRoot, textFiles }) =>
+const legacyPayloadTokenFailuresEffect = ({ target, workspaceRoot, textFiles }) =>
   Effect.gen(function* () {
     const failures = [];
     for (const file of textFiles) {

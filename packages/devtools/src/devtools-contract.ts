@@ -269,7 +269,12 @@ export interface DevtoolsRequestTraceResponse {
   readonly setCookieCount?: number;
 }
 
-/** Resource fact touched, loaded, or serialized during one request. */
+/**
+ * Resource fact supplied by a compatible request trace.
+ *
+ * Start currently emits SSR route-plan resources here; compatible non-Start
+ * producers may provide broader request-resource facts.
+ */
 export interface DevtoolsRequestTraceResource {
   readonly key: string;
   readonly family: string;
