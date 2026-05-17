@@ -208,6 +208,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
   metrics, request trace/action response metadata, and transport helper
   symbols, so those public Interfaces are directly exercised in
   `type-tests/start.test-d.ts`.
+- Review502 Start Action Trace Invalidation Hover changes public hover copy
+  only; it adds no new type-test contract and keeps the Review501 Start root
+  manifest pins current.
 - Review500 Devtools Trace Docs And Lint Evidence changes public hover copy and
   script lint hygiene only; it adds no new type-test contract and keeps the
   Review499 request metrics evidence current.

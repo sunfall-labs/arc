@@ -20,6 +20,9 @@ interruption.
 
 ## Current Sweep Results
 
+- Review502 Start Action Trace Invalidation Hover is an LSP-facing docs fix:
+  the request trace action hover now matches the Review501 Effect-first
+  Implementation and adds no Promise surface.
 - Review501 Start Action Trace Invalidation And Manifest Pins keeps the
   post-Review500 fixes Effect-first: Start action traces derive invalidation
   indexes from already-produced action response metadata inside the action

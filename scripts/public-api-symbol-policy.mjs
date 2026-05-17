@@ -1413,8 +1413,8 @@ export const namespaceBackedSurfaceModules = new Map([
 ]);
 
 export const currentDocsEvidencePolicy = {
-  latestFocusedReview: 501,
-  latestFocusedTitle: "Start Action Trace Invalidation And Manifest Pins",
+  latestFocusedReview: 502,
+  latestFocusedTitle: "Start Action Trace Invalidation Hover",
   latestFullGateReview: 492,
   rootTestFiles: 58,
   rootTestCount: 1223,
@@ -1737,7 +1737,7 @@ export const currentDocsTextPolicies = [
       {
         name: "Ultimate goal checklist must pin latest focused verification subsection",
         pattern: new RegExp(
-          `Latest focused verification recorded\\.[\\s\\S]*?Evidence: Review ${currentDocsEvidencePolicy.latestFocusedReview} records[\\s\\S]*?Start action trace invalidation and\\s+manifest pin findings`,
+          `Latest focused verification recorded\\.[\\s\\S]*?Evidence: Review ${currentDocsEvidencePolicy.latestFocusedReview} records[\\s\\S]*?Start\\s+action\\s+trace\\s+invalidation\\s+hover findings`,
         ),
       },
       {

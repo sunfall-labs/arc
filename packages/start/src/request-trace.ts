@@ -123,7 +123,7 @@ export interface StartRequestTraceAction {
   readonly state?: string;
   /** Failure kind for this action call when it failed. */
   readonly failureKind?: StartRequestTraceFailureKind;
-  /** Invalidation indexes returned by the action response payload. */
+  /** Indexes of invalidation entries included in action response metadata. */
   readonly invalidationIndexes?: ReadonlyArray<number>;
 }
 

@@ -11,11 +11,11 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review501 Start Action Trace Invalidation And
-Manifest Pins, the post-Review500 follow-up that populates Start action request
-trace invalidation indexes from real action response metadata and expands the
-Start root type-test manifest pins for observability, action response metadata,
-and transport helper exports.
+The newest focused review is Review502 Start Action Trace Invalidation Hover,
+the post-Review501 follow-up that aligns the LSP-facing
+`StartRequestTraceAction.invalidationIndexes` docs with the Review501
+implementation: indexes refer to invalidation metadata entries, not to a
+separate payload field.
 The newest full verification checkpoint is Review492.
 Clean Sweep 1 after
 Review208 remains historical 1/30
@@ -61,9 +61,10 @@ found Review494 work, the fresh post-Review494 sweep found Review495 work, and
 the fresh post-Review495 sweep found Review496 work, the fresh
 post-Review496 sweep found Review497 work, the fresh post-Review497 sweep
 found Review498 work, the fresh post-Review498 sweep found Review499 work, the
-fresh post-Review499 sweep found Review500 work, and the fresh post-Review500
-sweep found Review501 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review501
+fresh post-Review499 sweep found Review500 work, the fresh post-Review500
+sweep found Review501 work, and the fresh post-Review501 sweep found Review502
+work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review502
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -78,7 +79,7 @@ work, Review240 work, Review241 work, Review242 work, Review243 work,
 Review244 work, Review245 work, Review246 work, Review247 work, Review490
 work, Review491 work, Review492 work, Review493 work, Review494 work,
 Review495 work, Review496 work, Review497 work, Review498 work, Review499
-work, Review500 work, and Review501 work.
+work, Review500 work, Review501 work, and Review502 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -206,7 +207,26 @@ and the fresh post-Review499 sweep found Review500 Devtools trace docs and lint
 evidence work,
 and the fresh post-Review500 sweep found Review501 Start action trace
 invalidation and manifest pin work,
+and the fresh post-Review501 sweep found Review502 Start action trace
+invalidation hover work,
 so the counter remains 0/30.
+
+## Review 502: Start Action Trace Invalidation Hover
+
+Review502 fixes the actionable finding from the fresh post-Review501 Start
+trace LSP/docs follow-up.
+
+1. Start Action Trace Invalidation Hover
+   - Status: fixed.
+   - Files: `packages/start/src/request-trace.ts`.
+   - Problem: Review501 populated `StartRequestTraceAction.invalidationIndexes`
+     from response metadata entries, but the public hover still described the
+     indexes as returned by the action response payload.
+   - Solution: the JSDoc now says the indexes correspond to invalidation entries
+     included in action response metadata.
+   - Benefits: the request trace Interface now gives LSP consumers an accurate
+     explanation of the observability field, preserving Locality between the
+     runtime Implementation and public docs.
 
 ## Review 501: Start Action Trace Invalidation And Manifest Pins
 

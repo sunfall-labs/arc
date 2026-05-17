@@ -87,12 +87,18 @@ Latest full gate on May 17, 2026 after Review 492:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 502 Start Action Trace Invalidation Hover aligns the public
+  `StartRequestTraceAction.invalidationIndexes` hover with the Review501 runtime
+  behavior: indexes refer to invalidation entries included in action response
+  metadata. The active Thirty-Sweep clean counter remains 0/30 until a fresh
+  post-Review502 sweep reports no actionable findings.
 - Review 501 Start Action Trace Invalidation And Manifest Pins populates Start
   action request trace invalidation indexes from successful action response
   metadata, adds a runtime trace regression for invalidating actions, and pins
   Start root observability/action metadata/transport helper exports in the
-  public type-test manifest. The active Thirty-Sweep clean counter remains
-  0/30 until a fresh post-Review501 sweep reports no actionable findings.
+  public type-test manifest. The active Thirty-Sweep clean counter remained
+  0/30; the later fresh post-Review501 sweep found Review502 Start action trace
+  invalidation hover work.
 - Review 500 Devtools Trace Docs And Lint Evidence aligns Devtools request trace
   resource docs with Start's SSR route-plan resource semantics, keeps compatible
   non-Start producers structurally possible, removes unused script policy
