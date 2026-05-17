@@ -14,7 +14,8 @@ explicitly scoped future work.
 The newest focused review is Review509 Route Component Attachment Hover Docs,
 the post-Clean-Sweep-1-after-Review508 follow-up that documents the public
 `Route.ComponentInput<R, E>` and `Route.withComponent(...)` component
-attachment Interface.
+attachment Interface. Clean Sweep 1 after Review509 is the newest no-actionable
+sweep.
 The newest full verification checkpoint is Review492.
 Clean Sweep 1 after
 Review208 remains historical 1/30
@@ -71,9 +72,11 @@ found Review506 work, the fresh post-Review506 sweep found Review507 work, and
 the fresh post-Review507 sweep found Review508 work, the fresh post-Review508
 sweep found no actionable work across Core/React/Solid, DB/public API,
 Start/docs/package, and evidence lanes, creating Clean Sweep 1 after Review508,
-and the next fresh sweep found Review509 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review509
-sweep reports no actionable findings. Clean Sweep 1 after
+the next fresh sweep found Review509 work, and the fresh post-Review509 sweep
+found no actionable work across Core/React/Solid, DB/public API,
+Start/docs/package, and evidence lanes, creating Clean Sweep 1 after Review509,
+so the active Thirty-Sweep clean counter is 1/30 after
+Clean Sweep 1 after Review509. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
@@ -90,7 +93,8 @@ Review495 work, Review496 work, Review497 work, Review498 work, Review499
 work, Review500 work, Review501 work, Review502 work, Review503 work,
 Review504 work, Review505 work after Clean Sweep 1 after Review504,
 Review506 work, Review507 work, Review508 work before Clean Sweep 1 after
-Review508 found no actionable follow-up, and Review509 work.
+Review508 found no actionable follow-up, and Review509 work before Clean Sweep
+1 after Review509 found no actionable follow-up.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -266,6 +270,40 @@ audit:effect-first`, DB-family tests, DB-family package typechecks, and
 --check`.
 
 At the Clean Sweep 1 after Review508 checkpoint, the Thirty-Sweep clean counter
+reached 1/30. The next sweep must still run; if it finds work, the counter
+resets to 0/30.
+
+## Clean Sweep 1 After Review509
+
+The fresh post-Review509 sweep found no actionable findings across the current
+review lanes.
+
+1. Core/React/Solid Runtime And Adapter Lane
+   - Status: clean.
+   - Evidence: Ptolemy inspected Core/React/Solid routing, Resource, Action,
+     runtime, public LSP/JSDoc, namespace aliases, typed-error channels, and
+     type-test pins. Public type tests, public API audit, Effect-first audit,
+     focused Core/React/Solid route tests, focused Resource/hook tests, focused
+     Core ActionResult/Runtime/Scope tests, and `git diff --stat --exit-code`
+     passed.
+
+2. DB, React DB, And Solid DB Lane
+   - Status: clean.
+   - Evidence: Fermat inspected DB reactive/live-query Modules, React DB and
+     Solid DB Adapter Interfaces, query/persistence/sync Seams, public type
+     tests, LSP/JSDoc pins, and public symbol policy. Public type tests, public
+     API audit, Effect-first audit, DB/React DB/Solid DB typechecks, DB-family
+     tests, `git diff --check`, and clean `git status --short` passed.
+
+3. Start, Scripts, Package, And Docs Lane
+   - Status: clean.
+   - Evidence: Sagan inspected Start CLI/Vite/host Seams, request
+     metrics/traces, generated artifacts, starter/package payload policies, and
+     docs/evidence policy. Public API inventory audit, Effect-first audit,
+     package payload policy, package dry-run verification, and diff hygiene
+     passed.
+
+At the Clean Sweep 1 after Review509 checkpoint, the Thirty-Sweep clean counter
 reached 1/30. The next sweep must still run; if it finds work, the counter
 resets to 0/30.
 

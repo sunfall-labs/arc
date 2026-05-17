@@ -777,8 +777,9 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     the fresh post-Review506 sweep found Review507 namespace generic work, the
     fresh post-Review507 sweep found Review508 withComponent generic work,
     Clean Sweep 1 after Review508 found no actionable follow-up, and the next
-    fresh sweep found Review509 route component attachment hover docs work,
-    leaving the active counter at 0/30.
+    fresh sweep found Review509 route component attachment hover docs work.
+    Clean Sweep 1 after Review509 found no actionable follow-up, leaving the
+    active counter at 1/30.
     Latest full evidence:
     `pnpm verify` ran after Review 492 with 58 root
     test files / 1223
@@ -948,8 +949,9 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     Adapter, Locality, Depth, Leverage, Effect-first, LSP/JSDoc, package, or
     docs-honesty work, but later sweeps found Review505, Review506, Review507,
     and Review508 work. Clean Sweep 1 after Review508 found no actionable
-    follow-up, and the next fresh sweep found Review509 work, leaving the
-    active counter at 0/30.
+    follow-up, and the next fresh sweep found Review509 work. Clean Sweep 1
+    after Review509 found no actionable follow-up, leaving the active counter
+    at 1/30.
     Review492 records the latest
     full gate. Clean
     Sweep 1 after
@@ -1040,8 +1042,9 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     the fresh post-Review506 sweep found Review507 namespace generic work, the
     fresh post-Review507 sweep found Review508 withComponent generic work,
     Clean Sweep 1 after Review508 found no actionable follow-up, and the next
-    fresh sweep found Review509 route component attachment hover docs work,
-    leaving the active counter at 0/30.
+    fresh sweep found Review509 route component attachment hover docs work.
+    Clean Sweep 1 after Review509 found no actionable follow-up, leaving the
+    active counter at 1/30.
     Full verification is recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items

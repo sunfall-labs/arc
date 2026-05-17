@@ -7,6 +7,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Current Sweep Results
 
+- Clean Sweep 1 after Review509 found no actionable public type-test follow-up:
+  the current lazy route, DB-family, Start trace, and package-root pins still
+  cover the public Interfaces exposed to callers and LSP.
 - Review509 Route Component Attachment Hover Docs adds no new type-test pins:
   the Review508 public type tests already cover typed-error lazy descriptors
   through `Route.ComponentInput<R, E>` and `Route.withComponent(...)`; Review509
