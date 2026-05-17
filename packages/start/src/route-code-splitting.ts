@@ -566,8 +566,26 @@ const hasLocalDeclarationDependency = (
   return false;
 };
 
-const boundImportDeclarationSources = (code: string): readonly string[] =>
-  Array.from(code.matchAll(boundImportDeclarationPattern), (match) => match[0]);
+const boundImportDeclarationSources = (
+  code: string,
+  root: string,
+  routeModuleId: string,
+): readonly string[] =>
+  Array.from(code.matchAll(boundImportDeclarationPattern), (match) => {
+    const full = match[0];
+    const quote = match[1];
+    const source = match[2];
+    if (quote === undefined || source === undefined) {
+      return full;
+    }
+    const sourceLiteral = new RegExp(
+      `${escapeRegExp(quote)}${escapeRegExp(source)}${escapeRegExp(quote)}`,
+    );
+    return full.replace(
+      sourceLiteral,
+      JSON.stringify(resolveComponentSource(root, routeModuleId, source)),
+    );
+  });
 
 const removeLocalDeclarationSources = (
   code: string,
@@ -670,8 +688,13 @@ const pruneUnusedImportBindings = (code: string): string => {
     : removeImportDeclarations(code, declarations, removedLocals);
 };
 
-const createLocalSplitModule = (code: string, declaration: LocalComponentDeclaration): string => {
-  const imports = boundImportDeclarationSources(code);
+const createLocalSplitModule = (
+  code: string,
+  declaration: LocalComponentDeclaration,
+  root: string,
+  routeModuleId: string,
+): string => {
+  const imports = boundImportDeclarationSources(code, root, routeModuleId);
   const moduleCode = `${imports.length === 0 ? "" : `${imports.join("\n")}\n`}${
     declaration.exportedSource
   }`;
@@ -746,7 +769,7 @@ export const transformStartRouteAutoCodeSplitting = (
     if (candidate.kind === "local") {
       generatedSplitModules.set(
         splitLocalModuleId(candidate, options.root, id),
-        createLocalSplitModule(code, candidate.declaration),
+        createLocalSplitModule(code, candidate.declaration, options.root, id),
       );
     }
   }

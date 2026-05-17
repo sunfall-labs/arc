@@ -93,7 +93,7 @@ describe("Start route code splitting", () => {
     const moduleCode = loadStartRouteComponentSplitModule(moduleId);
     expect(moduleCode).toBe(
       [
-        'import { Button } from "../Button.js";',
+        'import { Button } from "/src/Button.js";',
         "export function HomePage() {",
         "  return Button();",
         "}",
