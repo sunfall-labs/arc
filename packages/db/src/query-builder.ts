@@ -299,9 +299,17 @@ export class QueryBuilder<TContext extends AnyQueryContext, TResult, E = never, 
     );
   }
 
-  /** Synchronously evaluates the query against the current collection state. */
+  /**
+   * Synchronously evaluates the query against the current collection state.
+   *
+   * Plan-validation and callback failures are thrown as `QueryEvaluationError`.
+   */
   execute(): ReadonlyArray<TResult> {
-    return executeQueryPlan(this);
+    try {
+      return executeQueryPlan(this);
+    } catch (cause) {
+      throw toQueryEvaluationError("evaluate", cause);
+    }
   }
 }
 
@@ -532,9 +540,19 @@ export namespace Query {
   /** Maximum aggregate value in `groupBy`. */
   export const max = aggregateMax;
 
-  /** Build a query without executing or preloading it. */
-  export const build = <T, E = never, R = never>(factory: QueryFactory<T, E, R>): AnyQueryBuilder<T, E, R> =>
-    factory(queryRoot);
+  /**
+   * Build a query without executing or preloading it.
+   *
+   * Synchronous factory throws are normalized and thrown as
+   * `QueryEvaluationError` with operation `"evaluate"`.
+   */
+  export const build = <T, E = never, R = never>(factory: QueryFactory<T, E, R>): AnyQueryBuilder<T, E, R> => {
+    try {
+      return factory(queryRoot);
+    } catch (cause) {
+      throw toQueryEvaluationError("evaluate", cause);
+    }
+  };
 
   const buildOrThrowQueryEvaluationError = <T, E = never, R = never>(
     factory: QueryFactory<T, E, R>

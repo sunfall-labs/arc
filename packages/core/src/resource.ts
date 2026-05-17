@@ -227,8 +227,9 @@ export interface ResourceHydrationSnapshot<I = unknown, A = unknown, E = never> 
  * Payload object accepted by `Resource.hydrateEffect(...)` and `Resource.hydrate(...)`.
  *
  * Resource hydration APIs intentionally accept this wrapper shape only; raw
- * snapshot arrays must first be wrapped with `Resource.hydrationPayload(...)`
- * or `Resource.hydrationPayloadEffect(...)`.
+ * snapshot arrays must be wrapped as `{ resources: snapshots }`. Use
+ * `Resource.hydrationPayload(...)` or `Resource.hydrationPayloadEffect(...)`
+ * when creating a payload from loaded Resource refs.
  */
 export interface ResourceHydrationPayload {
   /** Successful Resource snapshots to restore into the active Resource Store. */
@@ -727,6 +728,7 @@ export namespace Resource {
       : makeTagDefinition(name, options);
   }
 
+  /** Registered Resource family definitions for diagnostics and hydration lookup. */
   export const definitions = (): ReadonlyMap<string, AnyResourceFamily> =>
     resourceDefinitionRegistry();
 
@@ -736,15 +738,18 @@ export namespace Resource {
   ): Effect.Effect<AnyResourceFamily | undefined> =>
     lookupResourceFamilyEffect(name);
 
+  /** Registered Resource tag definitions for diagnostics and invalidation UIs. */
   export const tagDefinitions = (): ReadonlyMap<string, ResourceTagDiagnostics> =>
     resourceTagDefinitionRegistry();
 
+  /** Resource registry/cache diagnostics for devtools and adapter health checks. */
   export const diagnostics = (): ResourceDiagnostics =>
     resourceDiagnostics();
 
   /** Registry diagnostics, including duplicate resource family/tag registrations. */
   export const registryDiagnostics = resourceRegistryDiagnostics;
 
+  /** Cached refs currently indexed under a Resource tag. */
   export const refsForTag = (tag: ResourceTag): ReadonlyArray<AnyResourceRef<any>> =>
     refsForResourceTag(tag);
 
@@ -760,6 +765,7 @@ export namespace Resource {
 
   export const subscribeEventsEffect = subscribeResourceEventsEffect;
 
+  /** Reactive state signal for a Resource ref, including callback failures. */
   export const result = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): ReadableSignal<ResourceState<A, ResourceLoadError<E>>> =>
     resourceResult(ref);
 
@@ -780,6 +786,7 @@ export namespace Resource {
   export const statusEffect = <I, A, E, R>(ref: ResourceRef<I, A, E, R>): Effect.Effect<ResourceStatus<I, A, ResourceLoadError<E>, R, E>> =>
     resourceStatusEffect(ref);
 
+  /** Extracts the current or previous successful value from Resource state. */
   export const value = <A, E>(state: ResourceState<A, E>): A | undefined => {
     switch (state._tag) {
       case "Success":
@@ -792,6 +799,7 @@ export namespace Resource {
     }
   };
 
+  /** Extracts the current failure error from Resource state, when present. */
   export const error = <A, E>(state: ResourceState<A, E>): E | undefined =>
     state._tag === "Failure" ? state.error : undefined;
 

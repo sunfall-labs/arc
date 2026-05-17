@@ -11,10 +11,11 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review222, the post-Review221 sweep
-fixing Resource hydration public/LSP ownership, DB query diagnostics error
-envelopes, and DB valid-Date/order hover guidance. The newest full
-verification checkpoint is Review222.
+The newest completed focused review is Review223, the post-Review222 local
+sweep fixing query build/execute failure envelopes, Resource hydration payload
+validation/type-test ownership, starter transitive workspace dependency errors,
+and public LSP docs/policy. The newest full verification checkpoint is
+Review223.
 Clean Sweep 1 after
 Review208 remains historical 1/30
 evidence, but later sweeps found Review209 and Review210 work, the first
@@ -27,14 +28,15 @@ the first post-Review217 sweep found Review218 work, and the first
 post-Review218 sweep found Review219 work, the fresh post-Review219 sweep
 found Review220 work, the fresh post-Review220 sweep found Review221 work, and
 the fresh post-Review221 sweep found Review222 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review222
+and the post-Review222 local sweep found Review223 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review223
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
 Review206, Review207, Review208, Review209, Review210, Review211, Review212,
 Review213, Review214, Review215, Review216, Review217, Review218, Review219,
-Review220, Review221, and Review222 work.
+Review220, Review221, Review222, and Review223 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -96,7 +98,91 @@ and the fresh post-Review219 sweep found Review220 Core, DB, Start, script,
 package-policy, and docs work, and the fresh post-Review220 sweep found
 Review221 Core, DB, and script work, and the fresh post-Review221 sweep found
 Review222 Core, DB, and docs/LSP work,
+and the post-Review222 local sweep found Review223 Core, DB, starter package,
+and docs/LSP work,
 so the counter remains 0/30.
+
+## Review 223: Query, Hydration Payload, Starter, And LSP Envelope
+
+Review223 fixed actionable findings from the post-Review222 local sweep.
+
+1. Query Build Execute Plan Validation
+   - Status: fixed.
+   - Files: `packages/db/src/query-builder.ts`,
+     `packages/db/src/query-execution-plan.ts`,
+     `packages/db/test/collection.test.ts`, `docs/db.md`,
+     `docs/public-api-inventory.md`, and release ledgers.
+   - Problem: `Query.diagnostics(...)`, `Query.onceEffect(...)`, and
+     `Query.live(...)` wrapped invalid plan shapes as `QueryEvaluationError`,
+     but `Query.build(factory).execute()` could still let raw
+     `UnsupportedLiveQuery` plan-validation failures escape.
+   - Fix: query execution now validates the plan before projection, and
+     `QueryBuilder.execute()` normalizes raw plan failures through
+     `toQueryEvaluationError("evaluate", cause)` while preserving more specific
+     typed query callback errors.
+   - Benefits: every public query execution path now shares the same typed
+     plan-validation envelope.
+
+2. Query Build Factory Failure Envelope
+   - Status: fixed.
+   - Files: `packages/db/src/query-builder.ts` and
+     `packages/db/test/collection.test.ts`.
+   - Problem: synchronous `Query.build(...)` factory throws still escaped raw
+     before callers reached `.execute()`, even though diagnostics, once, and
+     live query APIs normalized factory failures as `QueryEvaluationError`.
+   - Fix: `Query.build(...)` now wraps synchronous factory failures in
+     `QueryEvaluationError` operation `"evaluate"`, and the factory-throw
+     regression covers build, diagnostics, and live entrypoints together.
+   - Benefits: query construction and execution expose one public typed failure
+     envelope.
+
+3. Resource Hydration Payload Constructor Validation
+   - Status: fixed.
+   - Files: `packages/core/src/resource-runtime.ts`,
+     `packages/core/test/resource.test.ts`,
+     `type-tests/public-api.manifest.json`, `packages/core/src/resource.ts`,
+     `docs/effect-style.md`, and `docs/public-api-inventory.md`.
+   - Problem: `Resource.hydrationPayload(...)` and
+     `Resource.hydrationPayloadEffect(...)` could create duplicate payload
+     snapshots that `Resource.hydrateEffect(...)` rejected later. The public
+     type-test manifest also missed the top-level hydration payload/input names,
+     and docs implied raw snapshot arrays should be passed to the ref-based
+     payload helper.
+   - Fix: sync and Effect payload constructors now validate through the
+     snapshot-codec payload path before returning. Type-test ownership includes
+     the top-level hydration payload/input names. Docs now distinguish existing
+     snapshot arrays as `{ resources: snapshots }` from ref-based
+     `hydrationPayloadEffect(...)` creation.
+   - Benefits: the dehydrate-to-hydrate seam fails early through typed
+     `ResourceSnapshotCodecError`, and LSP/docs describe the payload-only API
+     accurately.
+
+4. Starter Transitive Workspace Dependency Failure
+   - Status: fixed.
+   - Files: `scripts/package-project-console-starter.mjs`.
+   - Problem: a missing transitive `workspace:*` dependency could enter the
+     starter package closure and later defect as a raw property access while
+     building local file references.
+   - Fix: the closure is now an Effect workflow that fails with
+     `StarterPackageError` and the existing repair guidance as soon as a
+     transitive workspace manifest is missing.
+   - Benefits: generated starter packaging keeps missing workspace dependency
+     failures typed and repairable.
+
+5. Public LSP Hover Policy Coverage
+   - Status: fixed.
+   - Files: `packages/core/src/resource.ts`, `packages/db/src/index.ts`,
+     `scripts/public-api-symbol-policy.mjs`, and
+     `docs/public-api-inventory.md`.
+   - Problem: Resource diagnostics/result/value/error helpers and
+     `Collection.QuerySyncKeyPart` were public integration vocabulary but not
+     pinned by hover-doc policy.
+   - Fix: added concise JSDoc and public API policy coverage for those symbols.
+   - Benefits: future public LSP drift is audit-visible.
+
+Focused verification for Review223 passed: Core/DB typechecks, public API
+audit, focused Resource hydration regressions, focused DB factory/unsupported
+plan regressions, the full DB collection suite, and script syntax checks.
 
 ## Review 222: Hydration Hovers And Query Diagnostics Envelope
 
@@ -1253,9 +1339,9 @@ first post-Review215 sweep found Review216 work, and the first post-Review216
 sweep found Review217 work, the first post-Review217 sweep found Review218
 work, the first post-Review218 sweep found Review219 work, and the fresh
 post-Review219 sweep found Review220 work, and the fresh post-Review220 sweep
-found Review221 work, and the fresh post-Review221 sweep found Review222 work.
-The active counter is 0/30 until a fresh post-Review222 sweep reports no
-actionable findings.
+found Review221 work, the fresh post-Review221 sweep found Review222 work, and
+the post-Review222 local sweep found Review223 work. The active counter is
+0/30 until a fresh post-Review223 sweep reports no actionable findings.
 
 ## Review 208: Runtime Provider Observers, CLI Bin Execution, And Docs Drift
 

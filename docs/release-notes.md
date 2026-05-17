@@ -65,14 +65,14 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 17, 2026 after Review 222:
+Latest full gate on May 17, 2026 after Review 223:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
 - Effect-first audit over 411 package/example/config/script/type-test/generated
   template/docs-snippet physical and virtual files;
-- 53 root test files / 1129 tests;
+- 53 root test files / 1130 tests;
 - package-level verifies for the devtools panel, devtools extension, basic
   starter, React starter, and project console packages;
 - starter-suite packaging for basic (19 app files / 5 local packages), React
@@ -86,14 +86,26 @@ Latest full gate on May 17, 2026 after Review 222:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 223 closed the post-Review222 local findings: `Query.build(...).execute()`
+  now validates query plans before projection and wraps plan-validation and
+  factory failures in `QueryEvaluationError` operation `"evaluate"`, matching
+  `Query.diagnostics(...)`, `Query.onceEffect(...)`, and `Query.live(...)`.
+  Resource hydration payload constructors now validate duplicate ref snapshots
+  before returning; the public type-test manifest owns the top-level hydration
+  payload/input names; docs distinguish `{ resources: snapshots }` from
+  ref-based payload helpers; starter transitive workspace dependency discovery
+  fails as `StarterPackageError`; and public LSP policy covers Resource
+  diagnostics/result/value/error helpers plus `Collection.QuerySyncKeyPart`.
+  The active Thirty-Sweep clean counter remains 0/30 until a fresh
+  post-Review223 sweep is clean.
 - Review 222 closed the post-Review221 sweep findings: top-level Resource
   hydration payload/input symbols now have public hover-policy and type-test
   ownership; sync `Resource.hydrate(...)` rejects legacy raw snapshot arrays in
   type and runtime coverage; `Query.diagnostics(...)` wraps plan-validation
   failures in the same `QueryEvaluationError` envelope used by once/live APIs;
   and DB query/index hovers and docs name valid Dates, invalid Dates, and NaN
-  comparable failures explicitly. The active Thirty-Sweep clean counter remains
-  0/30 until a fresh post-Review222 sweep is clean.
+  comparable failures explicitly. A later post-Review222 local sweep found
+  Review223 work, so the active Thirty-Sweep clean counter stayed at 0/30.
 - Review 221 closed the post-Review220 sweep findings: Resource hydration now
   accepts only payload objects, with raw snapshot arrays rejected at type and
   runtime; DB secondary indexes reject invalid Dates at selector and lookup
@@ -320,9 +332,10 @@ Latest full gate on May 17, 2026 after Review 222:
   found Review217 work, the first post-Review217 sweep found Review218 work,
   the first post-Review218 sweep found Review219 work, and the fresh
   post-Review219 sweep found Review220 work, the fresh post-Review220 sweep
-  found Review221 work, and the fresh post-Review221 sweep found Review222
-  work. The active Thirty-Sweep clean counter is 0/30 until a fresh
-  post-Review222 sweep reports no actionable findings.
+  found Review221 work, the fresh post-Review221 sweep found Review222 work,
+  and the post-Review222 local sweep found Review223 work. The active
+  Thirty-Sweep clean counter is 0/30 until a fresh post-Review223 sweep reports
+  no actionable findings.
 - Review 192 refreshed stale current-gate docs wording that still named
   Review190 or active 1/30 progress after Review191.
 - Review 190 tightened `Server.fn(...)` so union-shaped Promise handler returns
@@ -1260,9 +1273,9 @@ Latest full gate on May 17, 2026 after Review 222:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 222 Resource hydration
-  public/LSP ownership, sync hydrate raw-array rejection coverage, DB query
-  diagnostics envelope normalization, and valid-Date/comparable hover guidance.
+- The latest full `pnpm verify` passed after Review 223 query build/execute
+  envelope normalization, Resource hydration payload validation, starter
+  package dependency-error normalization, and public LSP policy coverage.
   Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
   sweeps found Review191, Review192, Review193, Review194, Review195, and
   Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, Review208, Review209, Review210, Review211, Review212, and Review213 work.
@@ -1277,11 +1290,12 @@ Latest full gate on May 17, 2026 after Review 222:
   found Review217 work, the first post-Review217 sweep found Review218 work,
   the first post-Review218 sweep found Review219 work, and the fresh
   post-Review219 sweep found Review220 work, the fresh post-Review220 sweep
-  found Review221 work, and the fresh post-Review221 sweep found Review222
-  work, so the active counter is 0/30.
+  found Review221 work, the fresh post-Review221 sweep found Review222 work,
+  and the post-Review222 local sweep found Review223 work, so the active
+  counter is 0/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 411 physical/virtual files, 53 root test files / 1129
+  Effect-first audit over 411 physical/virtual files, 53 root test files / 1130
   tests, package-level verifies for the devtools/starter/example packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console

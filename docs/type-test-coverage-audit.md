@@ -92,6 +92,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
   `ResourceHydrationInput` pins plus sync `Resource.hydrate(...)` raw-array
   negative coverage and moved the current full verification evidence to the
   Review222 gate.
+- Review223 added public manifest ownership for the top-level
+  `ResourceHydrationPayload`/`ResourceHydrationInput` type-test imports and
+  moved the current full verification evidence to the Review223 gate.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them
@@ -211,9 +214,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Verification Evidence
 
-- `pnpm typecheck:types` and full `pnpm verify` passed after Review222 with
-  53 root test files / 1129 tests, including the latest Resource hydration
-  top-level payload/input and payload-only pins, Router Link Preloader identity
+- `pnpm typecheck:types` and full `pnpm verify` passed after Review223 with
+  53 root test files / 1130 tests, including the latest Resource hydration
+  top-level payload/input manifest ownership and payload-only pins, Router Link Preloader identity
   pin, Runtime Provider Lifecycle typed disposal/export pins,
   project-console runtime service probe, SQLite
   persistence metadata error typing, plain-data pins for Program models/

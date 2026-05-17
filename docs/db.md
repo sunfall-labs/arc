@@ -225,10 +225,11 @@ plan.joins[0]
 // }
 ```
 
-`Query.diagnostics(...)`, `Query.onceEffect(...)`, and `Query.live(...)` use
-the same typed failure envelope. Unsupported plan shapes, invalid source aliases
-or indexes, and invalid `orderBy(...)` comparable values such as `NaN` or
-invalid Dates fail as `QueryEvaluationError` instead of leaking raw exceptions.
+`Query.build(...).execute()`, `Query.diagnostics(...)`,
+`Query.onceEffect(...)`, and `Query.live(...)` use the same typed failure
+envelope. Unsupported plan shapes, invalid source aliases or indexes, and
+invalid `orderBy(...)` comparable values such as `NaN` or invalid Dates fail as
+`QueryEvaluationError` instead of leaking raw exceptions.
 
 Grouped aggregates are also live:
 

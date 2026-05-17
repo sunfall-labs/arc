@@ -507,6 +507,7 @@ export namespace Collection {
     CollectionResourceSyncAdapterOptions<I, A, K, E, R>;
   /** Stable cache key used by query-sync adapters. */
   export type QuerySyncKey = CollectionQuerySyncKey;
+  /** One structured segment inside a query-sync cache key. */
   export type QuerySyncKeyPart = CollectionQuerySyncKeyPart;
   /** Options passed when a query-sync adapter fetches rows. */
   export type QuerySyncFetchOptions<A extends object, E = never, R = never> =

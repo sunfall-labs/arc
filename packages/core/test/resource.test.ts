@@ -1654,6 +1654,44 @@ describe("Resource", () => {
     });
   });
 
+  it("rejects duplicate hydration payload snapshots created from refs", async () => {
+    const runtime = makeRuntime();
+    const User = Resource.family({
+      name: "User.duplicate-payload",
+      load: (id: string) => Effect.succeed({ id })
+    });
+    const ref = User("1");
+
+    try {
+      await Effect.runPromise(runtime.provide(Resource.prefetchEffect(ref)));
+
+      expect(() => runWithRuntime(runtime, () => Resource.hydrationPayload([ref, ref]))).toThrow(
+        ResourceSnapshotCodecError
+      );
+      try {
+        runWithRuntime(runtime, () => Resource.hydrationPayload([ref, ref]));
+        expect.fail("Expected Resource.hydrationPayload to reject duplicate ref snapshots.");
+      } catch (error) {
+        expect(error).toMatchObject({
+          _tag: "ResourceSnapshotCodecError",
+          operation: "snapshot",
+          path: "$.resources[1].key"
+        });
+      }
+
+      const failure = await Effect.runPromise(
+        runtime.provide(Resource.hydrationPayloadEffect([ref, ref]).pipe(Effect.flip))
+      );
+      expect(failure).toBeInstanceOf(ResourceSnapshotCodecError);
+      expect(failure).toMatchObject({
+        operation: "snapshot",
+        path: "$.resources[1].key"
+      });
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
   it("treats resource hydration snapshot identity as a structured name/key tuple", () => {
     const first = {
       name: "User.snapshot\u0000collision",

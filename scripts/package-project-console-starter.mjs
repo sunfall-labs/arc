@@ -313,27 +313,80 @@ const workspaceDependencyNames = (packageJson, includeDevDependencies) => {
   );
 };
 
-const internalPackageClosure = (packageJson, workspacePackages) => {
-  const seen = new Set();
-  const pending = workspaceDependencyNames(packageJson, true);
-  while (pending.length > 0) {
-    const name = pending.shift();
-    if (name === undefined || seen.has(name)) {
-      continue;
-    }
+const missingWorkspacePackageManifestError = (name) =>
+  fail(
+    `Starter depends on ${name}, but no workspace package manifest declares it.`,
+    "Add the missing package manifest or remove the workspace protocol dependency before packaging.",
+  );
 
-    const workspacePackage = workspacePackages.get(name);
-    if (workspacePackage === undefined) {
+const internalPackageClosure = (packageJson, workspacePackages) =>
+  Effect.gen(function* () {
+    const seen = new Set();
+    const pending = workspaceDependencyNames(packageJson, true);
+    while (pending.length > 0) {
+      const name = pending.shift();
+      if (name === undefined || seen.has(name)) {
+        continue;
+      }
+
+      const workspacePackage = workspacePackages.get(name);
+      if (workspacePackage === undefined) {
+        return yield* Effect.fail(missingWorkspacePackageManifestError(name));
+      }
+
       seen.add(name);
-      continue;
+      pending.push(...workspaceDependencyNames(workspacePackage.packageJson, false));
     }
 
-    seen.add(name);
-    pending.push(...workspaceDependencyNames(workspacePackage.packageJson, false));
-  }
+    return [...seen].sort((left, right) => left.localeCompare(right));
+  });
 
-  return [...seen].sort((left, right) => left.localeCompare(right));
-};
+const assertStarterPackagePlanningPolicy = (condition, message, cause) =>
+  condition
+    ? Effect.void
+    : Effect.fail(
+        fail(
+          message,
+          "Keep starter dependency planning failures typed before package.json rewriting.",
+          cause,
+        ),
+      );
+
+const starterPackagePlanningPolicyEffect = Effect.gen(function* () {
+  const error = yield* Effect.flip(
+    internalPackageClosure(
+      {
+        dependencies: {
+          "@effect-ui/starter-package-present": "workspace:*",
+        },
+      },
+      new Map([
+        [
+          "@effect-ui/starter-package-present",
+          {
+            packageJson: {
+              name: "@effect-ui/starter-package-present",
+              dependencies: {
+                "@effect-ui/starter-package-missing": "workspace:*",
+              },
+            },
+          },
+        ],
+      ]),
+    ),
+  );
+
+  yield* assertStarterPackagePlanningPolicy(
+    error instanceof StarterPackageError,
+    "Starter dependency closure should fail with StarterPackageError.",
+    error,
+  );
+  yield* assertStarterPackagePlanningPolicy(
+    error.message.includes("@effect-ui/starter-package-missing"),
+    "Starter dependency closure should name missing transitive workspace packages.",
+    error,
+  );
+});
 
 const rewriteDependencyMap = (dependencies, workspacePackages, toFileReference) =>
   Effect.gen(function* () {
@@ -349,12 +402,7 @@ const rewriteDependencyMap = (dependencies, workspacePackages, toFileReference) 
 
         const workspacePackage = workspacePackages.get(name);
         if (workspacePackage === undefined) {
-          return yield* Effect.fail(
-            fail(
-              `Starter depends on ${name}, but no workspace package manifest declares it.`,
-              "Add the missing package manifest or remove the workspace protocol dependency before packaging.",
-            ),
-          );
+          return yield* Effect.fail(missingWorkspacePackageManifestError(name));
         }
 
         return [name, toFileReference(workspacePackage)];
@@ -478,12 +526,7 @@ const writeLocalWorkspacePackage = (starter, workspacePackages, builtPackageName
   Effect.gen(function* () {
     const workspacePackage = workspacePackages.get(packageName);
     if (workspacePackage === undefined) {
-      return yield* Effect.fail(
-        fail(
-          `Starter depends on ${packageName}, but no workspace package manifest declares it.`,
-          "Add the missing package manifest or remove the workspace protocol dependency before packaging.",
-        ),
-      );
+      return yield* Effect.fail(missingWorkspacePackageManifestError(packageName));
     }
 
     yield* ensureFreshWorkspacePackage(builtPackageNames, workspacePackage);
@@ -1064,7 +1107,7 @@ const packageStarter = (workspacePackages, builtPackageNames, starter) =>
   Effect.gen(function* () {
     const sourcePackageJsonPath = resolve(starter.sourceDir, "package.json");
     const sourcePackageJson = yield* readPackageJson(sourcePackageJsonPath);
-    const internalPackageNames = internalPackageClosure(sourcePackageJson, workspacePackages);
+    const internalPackageNames = yield* internalPackageClosure(sourcePackageJson, workspacePackages);
 
     yield* assertCopyableSourceReadme(starter);
     yield* fsEffect(`remove the previous generated ${starter.displayName}`, () =>
@@ -1127,6 +1170,7 @@ const packageStarter = (workspacePackages, builtPackageNames, starter) =>
   });
 
 const packageStarters = Effect.gen(function* () {
+  yield* starterPackagePlanningPolicyEffect;
   yield* starterCatalogConsistencyEffect();
   const workspacePackages = yield* collectWorkspacePackages;
   yield* assertStarterLeakScanParity(starterDefinitions);

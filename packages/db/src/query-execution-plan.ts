@@ -118,8 +118,10 @@ export const projectQueryContexts = <TContext extends AnyQueryContext, TResult>(
 /** Executes a query snapshot through the full execution plan. */
 export const executeQueryPlan = <TContext extends AnyQueryContext, TResult>(
   builder: QueryExecutionPlanBuilder<TContext, TResult>
-): ReadonlyArray<TResult> =>
-  projectQueryContexts(builder, buildQueryContexts(builder));
+): ReadonlyArray<TResult> => {
+  validateQueryExecutionPlan(builder);
+  return projectQueryContexts(builder, buildQueryContexts(builder));
+};
 
 /** Builds diagnostics for the query execution plan. */
 export const queryExecutionPlanDiagnostics = (

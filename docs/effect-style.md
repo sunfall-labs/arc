@@ -410,7 +410,7 @@ Route.href(UserRoute, { params: { id: makeUserId("1") } });
 
 ```ts
 const result = yield* Resource.collectEffect(Route.preloadEffect(match));
-const payload = Resource.hydrationPayload(result.refs);
+const payload = yield* Resource.hydrationPayloadEffect(result.refs);
 ```
 
 Prefer route plans when callers need the full navigation data graph:

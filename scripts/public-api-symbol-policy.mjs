@@ -297,7 +297,17 @@ export const publicHoverDocGroups = [
         "HydrationPayload",
         "HydrationInput",
         "HydrationOptions",
-        "Status"
+        "Status",
+        "definitions",
+        "definitionEffect",
+        "tagDefinitions",
+        "diagnostics",
+        "registryDiagnostics",
+        "refsForTag",
+        "result",
+        "status",
+        "value",
+        "error"
       ]
     }
   },
@@ -535,6 +545,7 @@ export const publicHoverDocGroups = [
         "SyncOptions",
         "ResourceSyncAdapterOptions",
         "QuerySyncKey",
+        "QuerySyncKeyPart",
         "QuerySyncFetchOptions",
         "QuerySyncInvalidateOptions",
         "QuerySyncClient",

@@ -20,6 +20,8 @@
         "RuntimeProviderDisposeObserver",
         "RuntimeProviderLifecycleEntry",
         "RuntimeProviderLifecycleOptions",
+        "ResourceHydrationInput",
+        "ResourceHydrationPayload",
         "disposeRuntimeProviderLifecycleEntryEffect",
         "isActionDefinition"
       ]

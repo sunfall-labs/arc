@@ -17,10 +17,12 @@ import {
   decodeResourceHydrationInputEffect,
   decodeResourceHydrationStateEffect,
   ResourceHydrationApplyError,
+  resourceHydrationPayloadFromSnapshots,
   resourceHydrationSnapshotFromRef,
   resourceHydrationSnapshotFromRefEffect,
   type ResourceSnapshotCodecError,
-  validateResourceHydrationInputEffect
+  validateResourceHydrationInputEffect,
+  validateResourceHydrationPayloadEffect
 } from "./resource-snapshot-codec.js";
 import {
   clearResourceInFlight,
@@ -698,14 +700,16 @@ export const dehydrateResourcesEffect = (
     return snapshot;
   });
 
-export const resourceHydrationPayload = (refs: Iterable<AnyResourceRef<any>>): ResourceHydrationPayload => ({
-  resources: dehydrateResources(refs)
-});
+export const resourceHydrationPayload = (refs: Iterable<AnyResourceRef<any>>): ResourceHydrationPayload =>
+  resourceHydrationPayloadFromSnapshots(dehydrateResources(refs));
 
 export const resourceHydrationPayloadEffect = (
   refs: Iterable<AnyResourceRef<any>>
 ): Effect.Effect<ResourceHydrationPayload, ResourceSnapshotCodecError> =>
-  Effect.map(dehydrateResourcesEffect(refs), (resources) => ({ resources }));
+  Effect.flatMap(
+    dehydrateResourcesEffect(refs),
+    (resources) => validateResourceHydrationPayloadEffect({ resources }, "snapshot")
+  );
 
 interface ResourceHydrationPlanEntry {
   readonly ref: ResourceRef<any, any, any, any>;

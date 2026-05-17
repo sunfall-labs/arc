@@ -6550,10 +6550,25 @@ describe("Collection", () => {
 });
 
 describe("Query", () => {
-  const expectDiagnosticsUnsupportedLiveQuery = (
+  const expectUnsupportedLiveQueryPlan = (
     factory: Query.Factory<any, any, any>,
     reason: string
   ): void => {
+    expect(() => Query.build(factory).execute()).toThrow(QueryEvaluationError);
+    try {
+      Query.build(factory).execute();
+      expect.fail("Expected query build execution to reject the unsupported live query plan.");
+    } catch (error) {
+      expect(error).toBeInstanceOf(QueryEvaluationError);
+      expect(error).toMatchObject({
+        operation: "evaluate",
+        cause: {
+          _tag: "UnsupportedLiveQuery",
+          reason
+        }
+      });
+    }
+
     expect(() => Query.diagnostics(factory)).toThrow(QueryEvaluationError);
     try {
       Query.diagnostics(factory);
@@ -6570,13 +6585,14 @@ describe("Query", () => {
     }
   };
 
-  it("normalizes live and diagnostics factory throws to QueryEvaluationError", () => {
+  it("normalizes build, live, and diagnostics factory throws to QueryEvaluationError", () => {
     const thrown = new Error("query factory failed");
     const factory: Query.Factory<string> = () => {
       throw thrown;
     };
 
     for (const evaluate of [
+      () => Query.build(factory).execute(),
       () => Query.live(factory),
       () => Query.diagnostics(factory)
     ]) {
@@ -6728,7 +6744,7 @@ describe("Query", () => {
     );
     const factory = () => malformed;
 
-    expectDiagnosticsUnsupportedLiveQuery(
+    expectUnsupportedLiveQueryPlan(
       factory,
       "Live queries require at least one source collection."
     );
@@ -6813,7 +6829,7 @@ describe("Query", () => {
     ];
 
     for (const { factory, reason } of cases) {
-      expectDiagnosticsUnsupportedLiveQuery(factory, reason);
+      expectUnsupportedLiveQueryPlan(factory, reason);
 
       const onceExit = await Effect.runPromiseExit(Query.onceEffect(factory));
       expect(Exit.isFailure(onceExit)).toBe(true);
@@ -6861,7 +6877,7 @@ describe("Query", () => {
           .from({ [alias]: Projects } as Record<string, typeof Projects>)
           .select(() => "unreachable");
 
-      expectDiagnosticsUnsupportedLiveQuery(factory, reason);
+      expectUnsupportedLiveQueryPlan(factory, reason);
 
       const onceExit = await Effect.runPromiseExit(Query.onceEffect(factory));
       expect(Exit.isFailure(onceExit)).toBe(true);
@@ -6918,7 +6934,7 @@ describe("Query", () => {
         .join("project", Tasks, ({ project }) => project.id, (task) => task.projectId)
         .select(({ project }) => project.name);
 
-    expectDiagnosticsUnsupportedLiveQuery(
+    expectUnsupportedLiveQueryPlan(
       factory,
       'Query source alias "project" is registered more than once.'
     );
@@ -7322,7 +7338,7 @@ describe("Query", () => {
     );
     const factory = () => malformed;
 
-    expectDiagnosticsUnsupportedLiveQuery(
+    expectUnsupportedLiveQueryPlan(
       factory,
       'Join source "task" is not registered.'
     );
@@ -7650,7 +7666,7 @@ describe("Query", () => {
         .joinIndexed("task", Tasks, ({ project }) => project.id, "missing")
         .select(({ project, task }) => `${project.name}:${task.title}`);
 
-    expectDiagnosticsUnsupportedLiveQuery(
+    expectUnsupportedLiveQueryPlan(
       factory,
       'Join source "task" uses unknown index "missing" on collection "Tasks.missing-indexed-join".'
     );
