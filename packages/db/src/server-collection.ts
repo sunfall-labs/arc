@@ -3,6 +3,7 @@ import {
   isServerFunction,
   invokeEffectInput,
   type EffectInput,
+  type RejectPromiseLikeValue,
   type ServerClientError,
   type ServerFunction
 } from "@effect-ui/core";
@@ -28,7 +29,7 @@ import {
  * typed in the collection error channel.
  */
 export type ServerCollectionResult<A, E = never, R = never> =
-  EffectInput<A, E, R>;
+  EffectInput<A & RejectPromiseLikeValue<A>, E, R>;
 
 /**
  * Server-backed operation used by `serverCollectionSyncAdapter`.
@@ -110,10 +111,16 @@ const runOperation = <I, A, E, R>(
   Effect.suspend(() => {
     const current = operation();
     if (isServerCollectionFunction(current)) {
-      return invokeEffectInput("Collection.server.operation", () => current.effect(input));
+      return invokeEffectInput<[], A, E | ServerClientError, R>(
+        "Collection.server.operation",
+        () => current.effect(input) as never
+      );
     }
 
-    return invokeEffectInput("Collection.server.operation", callback);
+    return invokeEffectInput<[], A, E, R>(
+      "Collection.server.operation",
+      callback as never
+    );
   });
 
 const serverCollectionName = <

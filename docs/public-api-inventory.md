@@ -833,10 +833,12 @@ Release decisions:
   `CollectionRequirements<C>` still preserve concrete collection channels.
 - `Collection.ChangeFeedUnsubscribe<E, R>` and
   `Collection.ChangeFeedSubscription<E, R>` preserve serviceful cleanup
-  Effects, so scoped change-feed release remains part of the adapter's typed
-  Effect channel. `CollectionPersistenceConfig.hydrate` explicitly accepts
-  `false` for definitions that enable persistence but disable config-driven
-  restore hydration before preload.
+  Effects for adapter authors. Scoped release publishes unsubscribe failures as
+  `CollectionChangeFeedFailure` events and swallows them after publication so
+  awaiting `Collection.subscribeChangesEffect(...)` observes subscription setup
+  failures, not cleanup failure rethrows. `CollectionPersistenceConfig.hydrate`
+  explicitly accepts `false` for definitions that enable persistence but
+  disable config-driven restore hydration before preload.
 - The collection reactive binding helpers exported from the DB root are
   expert-public Adapter helpers for React DB, Solid DB, and future framework
   adapters. They own collection source subscription, runtime-bound Effects,

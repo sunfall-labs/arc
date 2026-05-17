@@ -61,6 +61,11 @@ are easiest to regress while refactoring internals toward Effect primitives.
   `toEffect(...)`, `invokeEffectInput(...)`, Resource loaders, Action runs,
   Program updates, and Program subscriptions, so callers cannot hide
   Promise-shaped callback returns behind `unknown` success annotations.
+- Review210 added returned-Effect Promise rejection pins for
+  `toEffect(...)`, `ActionResult`, Resource loaders, Program updates,
+  Program subscriptions, and Action runs, plus callable-`then` negative
+  fixtures and React/Solid DB option imports with Promise-returning observer
+  rejection pins.
 - Start route preload type tests pin that `preloadRequestEffect(...)` and
   `createRequestHandlerEffect(...)` keep preload services in the requirement
   channel when the app server runtime does not provide them, and remove them

@@ -303,6 +303,8 @@ const allowed = [
       seam("type-tests/framework.test-d.ts", "Promise negative fixture startResponsePromise", /declare const startResponsePromise:\s*Promise<Response>;/),
       seam("type-tests/react.test-d.ts", "React RuntimeProvider Promise observer negative fixture", /declare const reactRuntimeProviderObserverPromise:\s*Promise<void>;/),
       seam("type-tests/solid.test-d.ts", "Solid RuntimeProvider Promise observer negative fixture", /declare const solidRuntimeProviderObserverPromise:\s*Promise<void>;/),
+      seam("type-tests/react-db.test-d.ts", "React DB preload observer Promise negative fixture", /declare const reactDbPreloadObserverPromise:\s*Promise<void>;/),
+      seam("type-tests/solid-db.test-d.ts", "Solid DB preload observer Promise negative fixture", /declare const solidDbPreloadObserverPromise:\s*Promise<void>;/),
       seam("type-tests/framework.test-d.ts", "Start fetch package Promise facade assertion", /const rootFetchPromise:\s*Promise<Response>\s*=\s*rootFetchPromiseHandler/)
     ]
   },
@@ -310,8 +312,7 @@ const allowed = [
     pattern: /\bPromiseLike\s*</g,
     name: "PromiseLike return type",
     seams: [
-      seam("packages/core/src/effect-like.ts", "EffectInput value Promise rejection conditional", /export type EffectInputValue[\s\S]*?Out extends PromiseLike<unknown>/),
-      seam("packages/core/src/effect-like.ts", "EffectInput union Promise rejection helper", /type HasPromiseLike[\s\S]*?Extract<Out,\s*PromiseLike<unknown>>/),
+      seam("packages/core/src/effect-like.ts", "EffectInput union Promise rejection helper", /type PromiseShapedMember[\s\S]*?Out extends PromiseLike<unknown>/),
       seam("packages/core/src/effect-like.ts", "EffectInput runtime Promise-like guard", /const isPromiseLike\s*=\s*\(value:\s*unknown\):\s*value is PromiseLike<unknown>/),
       seam("packages/core/src/capability.ts", "Capability useSync runtime Promise-like guard", /const isPromiseLike\s*=\s*\(value:\s*unknown\):\s*value is PromiseLike<unknown>/),
       seam("packages/start/src/file-route.ts", "File route preload runtime Promise-like guard", /const isPromiseLike\s*=\s*\(value:\s*unknown\):\s*value is PromiseLike<unknown>/),
@@ -323,11 +324,14 @@ const allowed = [
     pattern: /(?:^|[;{\n]\s*)(?:readonly\s+)?then\s*\??\s*(?:\(|:)/gm,
     name: "structural thenable type surface",
     seams: [
+      seam("packages/core/src/effect-like.ts", "EffectInput callable thenable type detector", /type CallableThenableMember[\s\S]*?readonly then\?:\s*infer Then/),
       seam("packages/core/src/effect-like.ts", "EffectInput runtime thenable guard property", /value as \{ readonly then\?: unknown \}/),
-      seam("packages/core/src/effect-like.ts", "EffectInput broad unknown non-thenable guard", /object\s*&\s*\{\s*readonly then\?: never\s*\}/),
+      seam("packages/core/src/effect-like.ts", "EffectInput broad unknown non-thenable guard", /object\s*&\s*\{\s*readonly then\?: never;\s*readonly \[Effect\.TypeId\]\?: never\s*\}/),
       seam("packages/core/src/capability.ts", "Capability useSync runtime thenable guard property", /value as \{ readonly then\?: unknown \}/),
       seam("packages/start/src/file-route.ts", "File route preload runtime thenable guard property", /value as \{ readonly then\?: unknown \}/),
-      seam("packages/start/src/start-fetch.ts", "Start transport headers runtime thenable guard property", /value as \{ readonly then\?: unknown \}/)
+      seam("packages/start/src/start-fetch.ts", "Start transport headers runtime thenable guard property", /value as \{ readonly then\?: unknown \}/),
+      seam("type-tests/framework.test-d.ts", "EffectInput callable thenable negative fixture", /declare const thenableProject:\s*\{ readonly then:\s*\(\) => void;/),
+      seam("type-tests/framework.test-d.ts", "EffectInput optional callable thenable negative fixture", /declare const optionalThenableProject:\s*\{ readonly then\?:\s*\(\) => void;/)
     ]
   }
 ];

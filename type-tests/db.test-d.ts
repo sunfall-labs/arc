@@ -249,6 +249,10 @@ const servicefulChangeFeedAdapter: Collection.ChangeFeedAdapter<
     unsubscribe: changeFeedUnsubscribeWithServices
   })
 };
+// Adapter lifecycle channels stay visible for subscription setup; unsubscribe
+// failures use the same adapter channel for failure publication but are
+// swallowed during scope release after `CollectionChangeFeedFailure` is
+// published.
 const servicefulChangeFeedEffect: Effect.Effect<
   void,
   Collection.RuntimeError<"load"> | "feed" | "unsubscribe",

@@ -12,18 +12,84 @@ const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 
 class VerifyCommandError extends Data.TaggedError("VerifyCommandError") {}
 
-const parseConcurrency = () => {
-  const concurrencyArg = process.argv.find((arg) => arg.startsWith("--concurrency="));
-  const raw = concurrencyArg?.slice("--concurrency=".length) ?? process.env.EFFECT_UI_VERIFY_CONCURRENCY;
+const verifyUsage = `Usage: node scripts/verify.mjs [--concurrency=<positive-integer>]
+
+Runs the full Effect UI verification plan.
+
+Options:
+  --concurrency=<n>  Number of package/example lanes to run in parallel. Defaults to 4.
+  -h, --help         Print this help without running verification.`;
+
+const parsePositiveConcurrency = (raw, source) => {
   if (raw === undefined || raw.trim() === "") {
-    return 4;
+    return {
+      _tag: "Failure",
+      message: `${source} must be a positive integer.`
+    };
   }
 
   const parsed = Number(raw);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : 4;
+  return Number.isInteger(parsed) && parsed > 0
+    ? { _tag: "Success", value: parsed }
+    : {
+        _tag: "Failure",
+        message: `${source} must be a positive integer, got ${JSON.stringify(raw)}.`
+      };
 };
 
-const laneConcurrency = parseConcurrency();
+const parseVerifyArgs = (args, env = process.env) => {
+  let concurrencyFromArgs;
+
+  for (const arg of args) {
+    if (arg === "--help" || arg === "-h") {
+      return { _tag: "Help" };
+    }
+
+    if (arg.startsWith("--concurrency=")) {
+      if (concurrencyFromArgs !== undefined) {
+        return {
+          _tag: "Failure",
+          message: "Use --concurrency at most once."
+        };
+      }
+      const parsed = parsePositiveConcurrency(
+        arg.slice("--concurrency=".length),
+        "--concurrency"
+      );
+      if (parsed._tag === "Failure") {
+        return parsed;
+      }
+      concurrencyFromArgs = parsed.value;
+      continue;
+    }
+
+    return {
+      _tag: "Failure",
+      message: `Unknown argument ${JSON.stringify(arg)}.`
+    };
+  }
+
+  if (concurrencyFromArgs !== undefined) {
+    return { _tag: "Run", laneConcurrency: concurrencyFromArgs };
+  }
+
+  const envConcurrency = env.EFFECT_UI_VERIFY_CONCURRENCY;
+  if (envConcurrency !== undefined && envConcurrency.trim() !== "") {
+    const parsed = parsePositiveConcurrency(
+      envConcurrency,
+      "EFFECT_UI_VERIFY_CONCURRENCY"
+    );
+    if (parsed._tag === "Failure") {
+      return parsed;
+    }
+    return { _tag: "Run", laneConcurrency: parsed.value };
+  }
+
+  return { _tag: "Run", laneConcurrency: 4 };
+};
+
+const verifyArgs = parseVerifyArgs(process.argv.slice(2));
+const laneConcurrency = verifyArgs._tag === "Run" ? verifyArgs.laneConcurrency : 4;
 
 const formatDuration = (startedAt) => {
   const ms = Date.now() - startedAt;
@@ -132,13 +198,20 @@ const verify = Effect.gen(function* () {
   yield* packageStarters;
 });
 
-Effect.runPromise(
-  verify.pipe(
-    Effect.catch((cause) =>
-      Effect.sync(() => {
-        console.error(cause);
-        process.exitCode = 1;
-      })
+if (verifyArgs._tag === "Help") {
+  console.log(verifyUsage);
+} else if (verifyArgs._tag === "Failure") {
+  console.error(`${verifyArgs.message}\n\n${verifyUsage}`);
+  process.exitCode = 1;
+} else {
+  Effect.runPromise(
+    verify.pipe(
+      Effect.catch((cause) =>
+        Effect.sync(() => {
+          console.error(cause);
+          process.exitCode = 1;
+        })
+      )
     )
-  )
-);
+  );
+}

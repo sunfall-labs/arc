@@ -1,8 +1,15 @@
 import { Data, Effect } from "effect";
 
+type CallableThenableMember<Out> = Out extends { readonly then?: infer Then }
+  ? Extract<Then, (...args: any) => unknown> extends never ? never : Out
+  : never;
+type PromiseShapedMember<Out> = Out extends unknown
+  ? Out extends PromiseLike<unknown> ? Out : CallableThenableMember<Out>
+  : never;
+
 type HasPromiseLike<Out> = [unknown] extends [Out]
   ? false
-  : [Extract<Out, PromiseLike<unknown>>] extends [never] ? false : true;
+  : [PromiseShapedMember<Out>] extends [never] ? false : true;
 
 type NonPromiseLikeUnknown =
   | null
@@ -12,7 +19,7 @@ type NonPromiseLikeUnknown =
   | boolean
   | bigint
   | symbol
-  | (object & { readonly then?: never });
+  | (object & { readonly then?: never; readonly [Effect.TypeId]?: never });
 
 export type RejectPromiseLikeValue<A> =
   [unknown] extends [A]
@@ -27,25 +34,24 @@ export type RejectPromiseLikeValue<A> =
  */
 export type EffectInput<A, E = never, R = never> =
   | (A & RejectPromiseLikeValue<A>)
-  | Effect.Effect<A, E, R>;
+  | Effect.Effect<A & RejectPromiseLikeValue<A>, E, R>;
 
-export type EffectInputValue<Out> = Out extends PromiseLike<unknown>
-  ? never
-  : Out extends Effect.Effect<infer A, infer _E, infer _R>
-    ? A
-    : Out;
+export type EffectInputValue<Out> = Out extends Effect.Effect<infer A, infer _E, infer _R>
+  ? HasPromiseLike<A> extends true ? never : A & RejectPromiseLikeValue<A>
+  : HasPromiseLike<Out> extends true ? never : Out & RejectPromiseLikeValue<Out>;
 
 export type EffectInputError<Out> = Out extends Effect.Effect<infer _A, infer E, infer _R> ? E : never;
 
 export type EffectInputRequirements<Out> = Out extends Effect.Effect<infer _A, infer _E, infer R> ? R : never;
 
 export type EnsureEffectInputValue<Out, A> =
-  HasPromiseLike<Out> extends true ? never : EffectInputValue<Out> extends A ? Out : never;
+  EffectInputValue<Out> extends A ? EnsureEffectInput<Out> : never;
 
-export type EnsureEffectInput<Out> =
-  HasPromiseLike<Out> extends true ? never : Out & RejectPromiseLikeValue<Out>;
+export type EnsureEffectInput<Out> = Out extends Effect.Effect<infer A, infer E, infer R>
+  ? HasPromiseLike<A> extends true ? never : Effect.Effect<A & RejectPromiseLikeValue<A>, E, R>
+  : HasPromiseLike<Out> extends true ? never : Out & RejectPromiseLikeValue<Out>;
 
-export function isEffectLike<A, E, R>(value: EffectInput<A, E, R>): value is Effect.Effect<A, E, R>;
+export function isEffectLike<A, E, R>(value: unknown): value is Effect.Effect<A, E, R>;
 export function isEffectLike(value: unknown): value is Effect.Effect<unknown, never, never>;
 export function isEffectLike(value: unknown): value is Effect.Effect<unknown, never, never> {
   return Effect.isEffect(value);
@@ -91,6 +97,11 @@ const isPromiseLike = (value: unknown): value is PromiseLike<unknown> => {
   return typeof (value as { readonly then?: unknown }).then === "function";
 };
 
+const promiseRejectedDefect = (): EffectInputPromiseRejected =>
+  new EffectInputPromiseRejected({
+    guidance: "EffectInput does not accept Promise-shaped values. Wrap host Promise work in Effect.tryPromise(...) at the host adapter seam."
+  });
+
 /**
  * Normalizes a value or Effect into an Effect.
  *
@@ -101,13 +112,15 @@ export const toEffect = <A, E = never, R = never>(
   value: EffectInput<A, E, R>
 ): Effect.Effect<A, E, R> => {
   if (isEffectLike(value)) {
-    return value;
+    return Effect.flatMap(value, (success) =>
+      isPromiseLike(success)
+        ? Effect.die(promiseRejectedDefect())
+        : Effect.succeed(success as A)
+    ) as Effect.Effect<A, E, R>;
   }
 
   if (isPromiseLike(value)) {
-    return Effect.die(new EffectInputPromiseRejected({
-      guidance: "EffectInput does not accept Promise-shaped values. Wrap host Promise work in Effect.tryPromise(...) at the host adapter seam."
-    }));
+    return Effect.die(promiseRejectedDefect());
   }
 
   return Effect.succeed(value as A);

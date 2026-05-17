@@ -190,6 +190,8 @@
         "CollectionHandle",
         "LiveQueryHandle",
         "Query",
+        "UseCollectionOptions",
+        "UseLiveQueryOptions",
         "useCollection",
         "useLiveQuery"
       ]
@@ -267,6 +269,8 @@
         "CollectionHandle",
         "LiveQueryHandle",
         "Query",
+        "UseCollectionOptions",
+        "UseLiveQueryOptions",
         "useCollection",
         "useLiveQuery"
       ]

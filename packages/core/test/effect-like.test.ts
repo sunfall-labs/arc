@@ -31,6 +31,43 @@ describe("EffectInput", () => {
       })
     ));
 
+  it("rejects Effect successes that are thenables at runtime", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const exit = yield* Effect.exit(toEffect(Effect.succeed({
+          then: (_resolve: (value: string) => void) => undefined
+        })));
+
+        expect(Exit.isFailure(exit)).toBe(true);
+        if (Exit.isFailure(exit)) {
+          const defect = exit.cause.reasons.find(Cause.isDieReason)?.defect;
+          expect(defect).toBeInstanceOf(EffectInputPromiseRejected);
+          expect((defect as EffectInputPromiseRejected).guidance).toContain("Effect.tryPromise");
+        }
+      })
+    ));
+
+  it("turns Promise-shaped Effect callback successes into typed failures", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const exit = yield* Effect.exit(
+          invokeEffectInput("test.promiseSuccess", () =>
+            Effect.succeed({
+              then: (_resolve: (value: string) => void) => undefined
+            })
+          )
+        );
+
+        expect(Exit.isFailure(exit)).toBe(true);
+        if (Exit.isFailure(exit)) {
+          const failure = exit.cause.reasons.find(Cause.isFailReason)?.error;
+          expect(failure).toBeInstanceOf(EffectInputCallbackError);
+          expect((failure as EffectInputCallbackError).operation).toBe("test.promiseSuccess");
+          expect((failure as EffectInputCallbackError).cause).toBeInstanceOf(EffectInputPromiseRejected);
+        }
+      })
+    ));
+
   it("captures synchronous callback throws as typed Effect failures", () =>
     Effect.runPromise(
       Effect.gen(function* () {

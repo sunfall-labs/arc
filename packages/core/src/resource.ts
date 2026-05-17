@@ -581,8 +581,14 @@ export namespace Resource {
     const { request, resolver, ...familyOptions } = options;
     return family({
       ...familyOptions,
-      load: (input: I) => Effect.request(request(input), resolver)
-    });
+      load: (input: I) =>
+        Effect.request(request(input), resolver) as never
+    }) as ResourceRefFactory<
+      I,
+      EffectRequest.Success<Req>,
+      EffectRequest.Error<Req> | EX,
+      EffectRequest.Services<Req> | RX
+    >;
   };
 
   const makeTagDefinition = <Input>(

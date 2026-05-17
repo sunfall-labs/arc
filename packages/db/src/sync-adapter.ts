@@ -156,11 +156,19 @@ export interface CollectionQuerySyncAdapterOptions<
 
 /**
  * Effect-aware unsubscribe callback for change-feed subscriptions.
+ *
+ * Scope release runs this callback as Effect work. If it fails, the Collection
+ * Runtime publishes the failure as `CollectionChangeFeedFailure` and then
+ * swallows it so subscription scope cleanup does not fail after release.
  */
 export type CollectionChangeFeedUnsubscribe<E = never, R = never> = () => EffectInput<void, E, R>;
 
 /**
  * Value returned by a change-feed subscribe call.
+ *
+ * Use an Effect-aware unsubscribe when cleanup needs services or can fail. The
+ * runtime reports cleanup failures through change-feed failure publication
+ * rather than by rethrowing from the released scope.
  */
 export type CollectionChangeFeedSubscription<E = never, R = never> =
   | CollectionChangeFeedUnsubscribe<E, R>
@@ -198,7 +206,9 @@ export interface CollectionChangeFeedContext<
  * Scoped adapter for remote change feeds.
  *
  * Use with `Collection.subscribeChangesEffect`; the subscription is released
- * when the provided Scope closes.
+ * when the provided Scope closes. Subscribe setup failures use the adapter's
+ * typed error channel. Unsubscribe failures are published as asynchronous
+ * change-feed failures and swallowed during scope release.
  *
  * `E` and `R` describe the feed subscription itself. `CollectionError` and
  * `CollectionRequirements` describe the `context.emit(...)` write seam.

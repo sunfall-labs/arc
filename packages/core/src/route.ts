@@ -561,7 +561,7 @@ export namespace Route {
           ? Effect.void
           : catchEffectInputPromiseDefect(
               `Route.preload(${match.route.path})`,
-              toEffect(input) as Effect.Effect<void, unknown, PreloadRequirements<R>>
+              toEffect(input as never) as Effect.Effect<void, unknown, PreloadRequirements<R>>
             ).pipe(
               Effect.asVoid,
               Effect.mapError((cause) => routePreloadError(match, cause))

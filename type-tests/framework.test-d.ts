@@ -489,16 +489,36 @@ declare const promisedString: Promise<string>;
 declare const promisedNumber: Promise<number>;
 declare const promisedVoid: Promise<void>;
 declare const promisedStartDevModule: Promise<Record<string, unknown>>;
+declare const thenableProject: { readonly then: () => void; readonly id: string; readonly name: string };
+declare const optionalThenableProject: { readonly then?: () => void; readonly id: string; readonly name: string };
 // @ts-expect-error direct EffectInput values cannot be Promise-shaped
 toEffect(promisedProject);
 // @ts-expect-error direct EffectInput values cannot hide Promise-shaped values behind explicit unknown
 toEffect<unknown>(promisedProject);
+// @ts-expect-error direct EffectInput values cannot be callable-then-shaped
+toEffect(thenableProject);
+// @ts-expect-error direct EffectInput values cannot be optional callable-then-shaped
+toEffect(optionalThenableProject);
+// @ts-expect-error EffectInput Effects cannot succeed with Promise-shaped values
+toEffect(Effect.succeed(promisedProject));
+// @ts-expect-error EffectInput Effects cannot hide Promise-shaped successes behind explicit unknown
+toEffect<unknown>(Effect.succeed(promisedProject));
+// @ts-expect-error EffectInput Effects cannot succeed with callable-then-shaped values
+toEffect(Effect.succeed(thenableProject));
+// @ts-expect-error EffectInput Effects cannot succeed with optional callable-then-shaped values
+toEffect(Effect.succeed(optionalThenableProject));
 // @ts-expect-error EffectInput callbacks cannot hide Promise-shaped values behind explicit unknown
 invokeEffectInput<[], unknown>("Project.promiseUnknown", () => promisedProject);
 // @ts-expect-error ActionResult.fromEffect rejects Promise-shaped direct values
 ActionResult.fromEffect(promisedProject);
+// @ts-expect-error ActionResult.fromEffect rejects Effect successes that are Promise-shaped
+ActionResult.fromEffect(Effect.succeed(promisedProject));
+// @ts-expect-error ActionResult.fromEffect rejects Effect successes hidden behind explicit unknown
+ActionResult.fromEffect<unknown>(Effect.succeed(promisedProject));
 // @ts-expect-error ActionResult.fromValidationEffect rejects Promise-shaped direct values
 ActionResult.fromValidationEffect(promisedProject);
+// @ts-expect-error ActionResult.fromValidationEffect rejects Effect successes that are Promise-shaped
+ActionResult.fromValidationEffect(Effect.succeed(promisedProject));
 
 type ProjectError = {
   readonly _tag: "ProjectError";
@@ -1478,16 +1498,40 @@ Resource.family<string, Project>({
   load: () => promisedProject
 });
 
+Resource.family<string, Project>({
+  name: "Project.asyncResourceEffect",
+  // @ts-expect-error resource loaders cannot return Effects that succeed with Promise-shaped values
+  load: () => Effect.succeed(promisedProject)
+});
+
 Resource.family<string, unknown>({
   name: "Project.asyncResourceUnknown",
   // @ts-expect-error resource loaders cannot hide Promise-shaped values behind explicit unknown
   load: () => promisedProject
 });
 
+Resource.family<string, unknown>({
+  name: "Project.asyncResourceUnknownEffect",
+  // @ts-expect-error resource loaders cannot hide Effect Promise successes behind explicit unknown
+  load: () => Effect.succeed(promisedProject)
+});
+
 Resource.family({
   name: "Project.asyncResourceInferred",
   // @ts-expect-error unannotated resource loaders must return Effect or a pure value, not Promise
   load: () => promisedProject
+});
+
+Resource.family({
+  name: "Project.thenableResourceInferred",
+  // @ts-expect-error unannotated resource loaders cannot return callable-then-shaped values
+  load: () => thenableProject
+});
+
+Resource.family({
+  name: "Project.thenableResourceEffectInferred",
+  // @ts-expect-error unannotated resource loaders cannot return Effects that succeed with callable-then-shaped values
+  load: () => Effect.succeed(thenableProject)
 });
 
 const BrandedProjectById = Resource.family<ProjectId, Project, ProjectError>({
@@ -3424,11 +3468,30 @@ Program.define<unknown, "bad">({
   update: () => promisedProject
 });
 
+Program.define<unknown, "bad">({
+  initial: {},
+  // @ts-expect-error Program updates cannot hide Effect Promise successes behind explicit unknown
+  update: () => Effect.succeed(promisedProject)
+});
+
 Program.define<number, "bad">({
   initial: 0,
   update: (model) => model + 1,
   // @ts-expect-error Program subscriptions cannot hide Promise-shaped values behind explicit unknown
   subscriptions: () => promisedProject
+});
+
+Program.define<number, "bad">({
+  initial: 0,
+  update: (model) => model + 1,
+  // @ts-expect-error Program subscriptions cannot hide Effect Promise successes behind explicit unknown
+  subscriptions: () => Effect.succeed(promisedProject)
+});
+
+Program.define<typeof promisedNumber, "bad">({
+  initial: promisedNumber,
+  // @ts-expect-error Program updates cannot return Effects that preserve Promise-shaped model values
+  update: () => Effect.succeed(promisedNumber)
 });
 
 // @ts-expect-error service method input remains typed
@@ -4355,16 +4418,40 @@ Action.define<{ readonly id: string }, Project>({
   run: () => promisedProject
 });
 
+Action.define<{ readonly id: string }, Project>({
+  name: "Project.asyncActionEffect",
+  // @ts-expect-error actions cannot return Effects that succeed with Promise-shaped values
+  run: () => Effect.succeed(promisedProject)
+});
+
 Action.define<{ readonly id: string }, unknown>({
   name: "Project.asyncActionUnknown",
   // @ts-expect-error actions cannot hide Promise-shaped values behind explicit unknown
   run: () => promisedProject
 });
 
+Action.define<{ readonly id: string }, unknown>({
+  name: "Project.asyncActionUnknownEffect",
+  // @ts-expect-error actions cannot hide Effect Promise successes behind explicit unknown
+  run: () => Effect.succeed(promisedProject)
+});
+
 Action.define({
   name: "Project.asyncAction.inferred",
   // @ts-expect-error unannotated actions must return Effect or a pure value, not Promise
   run: () => promisedProject
+});
+
+Action.define({
+  name: "Project.thenableAction.inferred",
+  // @ts-expect-error unannotated actions cannot return callable-then-shaped values
+  run: () => thenableProject
+});
+
+Action.define({
+  name: "Project.thenableActionEffect.inferred",
+  // @ts-expect-error unannotated actions cannot return Effects that succeed with callable-then-shaped values
+  run: () => Effect.succeed(thenableProject)
 });
 
 Action.define<{ readonly id: string }, Project>({

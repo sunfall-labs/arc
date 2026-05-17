@@ -11,16 +11,17 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review209, the Clean Sweep 2 candidate
-after Review208 fixing broad-`unknown` Promise callback rejection.
-The newest full verification checkpoint is Review209. Clean Sweep 1 after
-Review208 remains historical 1/30 evidence, but Clean Sweep 2 found Review209
-work, so the active Thirty-Sweep clean counter is 0/30 until a fresh
-post-Review209 sweep reports no actionable findings. Clean Sweep 1 after
+The newest completed focused review is Review210, the post-Review209 sweep
+fixing Effect-success Promise gates, verify argv validation, DB change-feed
+docs, React/Solid DB option pins, and Start CLI shared-flag evidence.
+The newest full verification checkpoint is Review210. Clean Sweep 1 after
+Review208 remains historical 1/30 evidence, but later sweeps found Review209
+and Review210 work, so the active Thirty-Sweep clean counter is 0/30 until a
+fresh post-Review210 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
-Review206, Review207, Review208, and Review209 work. Some older review entries
+Review206, Review207, Review208, Review209, and Review210 work. Some older review entries
 remain below this tip from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
 
@@ -63,7 +64,103 @@ Start/devtools/scripts/package, and docs/evidence sweeps found no actionable
 Module, Interface, Seam, Adapter, Locality, Depth, Leverage, typed-error,
 Effect-first, package, or docs drift work, creating active Clean Sweep 1 after
 Review208. Clean Sweep 2 after Review208 found Review209 broad-`unknown`
-Promise callback rejection work, so the counter reset to 0/30.
+Promise callback rejection work, and the post-Review209 sweep found Review210
+Core, DB, scripts, docs, and Start evidence work, so the counter stayed at
+0/30.
+
+## Review 210: Effect Success Promise Gates, Verify Args, And Adapter Pins
+
+Review210 fixed actionable findings from the fresh post-Review209 sweep and a
+local evidence pass. Core found that returned Effects could still succeed with
+Promise-shaped values, Start/scripts found `node scripts/verify.mjs --help`
+started the full verify plan, React/Solid DB found missing public option pins,
+DB found change-feed cleanup docs that overstated release failure visibility,
+and docs/evidence found stale Review208/clean-counter phrasing.
+
+1. EffectInput Effect Success Promise Rejection
+   - Status: fixed.
+   - Files: `packages/core/src/effect-like.ts`,
+     `packages/core/src/resource.ts`, `packages/core/src/route.ts`,
+     `packages/db/src/server-collection.ts`, `packages/core/test/effect-like.test.ts`,
+     `scripts/audit-effect-first.mjs`, `type-tests/framework.test-d.ts`.
+   - Problem: `EffectInput` rejected Promise-shaped direct values but accepted
+     returned Effects whose success value was Promise-shaped, such as
+     `toEffect(Effect.succeed(promise))`, Resource loaders, Action runs, and
+     Program updates/subscriptions that returned `Effect.succeed(promise)`.
+     Callable-`then` values that were not formally `PromiseLike` also missed
+     the type-level detector.
+   - Fix: `EffectInput`, `EffectInputValue`, and `EnsureEffectInput` now inspect
+     returned Effect success types; the type detector matches any callable
+     `then` property; broad `unknown` excludes Effect objects from the pure
+     non-thenable branch; and `toEffect(...)` rechecks successful Effect values
+     at runtime before publishing them.
+   - Benefits: public EffectInput seams reject Promise-shaped values whether
+     they arrive directly or as successful Effect values. Host Promise work
+     still has to be adapted deliberately with `Effect.tryPromise(...)`.
+
+2. Verify Script Argument Validation
+   - Status: fixed.
+   - Files: `scripts/verify.mjs`.
+   - Problem: `node scripts/verify.mjs --help` ignored the flag and started
+     package builds, tests, starter packaging, and dry runs.
+   - Fix: verify argv parsing now handles `--help` / `-h`, rejects unknown
+     arguments, rejects invalid `--concurrency` values, and exits before any
+     build/test command starts.
+   - Benefits: the full verification command behaves like a real CLI and no
+     longer turns help/error probes into expensive workspace runs.
+
+3. DB Change-Feed Cleanup Semantics
+   - Status: fixed.
+   - Files: `packages/db/src/sync-adapter.ts`,
+     `docs/public-api-inventory.md`, `type-tests/db.test-d.ts`.
+   - Problem: public docs implied unsubscribe cleanup failures remain visible
+     by awaiting `Collection.subscribeChangesEffect(...)`, but runtime behavior
+     intentionally publishes `CollectionChangeFeedFailure` and swallows cleanup
+     failures during scope release.
+   - Fix: adapter JSDoc and public inventory now describe subscribe setup
+     failures separately from unsubscribe failure publication, and the DB type
+     pin comment no longer implies cleanup rethrows from released scopes.
+   - Benefits: LSP docs match the actual scoped cleanup semantics.
+
+4. React DB And Solid DB Option Pins
+   - Status: fixed.
+   - Files: `type-tests/react-db.test-d.ts`,
+     `type-tests/solid-db.test-d.ts`, `type-tests/public-api.manifest.json`,
+     `scripts/audit-effect-first.mjs`.
+   - Problem: `UseCollectionOptions` and `UseLiveQueryOptions` carry important
+     preload-observer Promise rejection docs but were not required by focused
+     public type-test imports.
+   - Fix: both adapter packages now import and use those option types in public
+     type tests, and negative pins prove Promise-shaped preload observers are
+     rejected.
+   - Benefits: hover-doc policy and type-test coverage now protect the adapter
+     option seams users actually see.
+
+5. Start Graph Verbose Shared Flag Pins
+   - Status: fixed.
+   - Files: `packages/start/test/start.test.ts`.
+   - Problem: `docs/architecture-deepening-review.md` documented
+     `graph --verbose route ...`, `graph route --verbose ...`, and
+     `graph route ... --verbose` as covered Effect CLI grammar behavior, but
+     the parser test only asserted one trailing shared-flag form.
+   - Fix: the Start diagnostics CLI wrapper test now pins all three supported
+     `graph --verbose` placements against the same parsed `Graph` command,
+     route query, and `verbose: true` option shape.
+   - Benefits: the Effect v4 CLI shared-flag contract remains executable
+     evidence instead of a prose-only claim.
+
+Focused verification for Review210 passed:
+`pnpm typecheck:types`, Core/DB/React-DB/Solid-DB package typechecks, public
+API audit, Effect-first audit over 408 files with 26 anchored Promise fixtures,
+6 `PromiseLike` allowances, and 8 structural thenable allowances,
+`node scripts/verify.mjs --help`, invalid verify-argv probes, focused Core
+EffectInput/Resource/Action/Program and DB change-feed tests, and
+`pnpm exec vitest run packages/start/test/start.test.ts -t "parses and runs the Start diagnostics CLI wrapper"`.
+Full `pnpm verify` and `pnpm verify:serial` passed after Review210 with 11
+package builds, workspace typecheck, public type tests, public API inventory
+audit, Effect-first audit over 408 files, 53 root test files / 1064 tests,
+package-level verifies, generated starter packaging, the 16-target package
+dry-run gate, project-console checks, and leak scans.
 
 ## Review 209: Broad Unknown Promise Callback Rejection
 
@@ -148,9 +245,10 @@ four review lanes.
      checks, `pnpm audit:effect-first`, `pnpm audit:public-api`, `pnpm
      typecheck:types`, and `git diff --check` passed.
 
-The active Thirty-Sweep clean counter is now 1/30. Twenty-nine more consecutive
-fresh sweeps with no actionable findings are required before claiming the final
-no-new-improvements gate.
+At the Clean Sweep 1 checkpoint, the Thirty-Sweep clean counter reached 1/30.
+Clean Sweep 2 later found Review209 work and the post-Review209 sweep found
+Review210 work, so the active counter is 0/30 until a fresh post-Review210
+sweep reports no actionable findings.
 
 ## Review 208: Runtime Provider Observers, CLI Bin Execution, And Docs Drift
 
@@ -205,8 +303,9 @@ example that treated plain callback values as accessors.
      and the package-hygiene audit still named Review206 as the current full
      gate.
    - Fix: the Solid example now uses `previous?.name`, `value.name`, and
-     `String(error)`, while current-facing ledgers name Review208 as the latest
-     gate and preserve Review207 as historical evidence.
+     `String(error)`, while at the Review208 checkpoint current-facing ledgers
+     were refreshed from Review206 to Review208 and Review207 remained
+     historical evidence.
    - Benefits: copyable adapter docs match the typed API, and future sweeps
      start from one current evidence story.
 

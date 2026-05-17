@@ -7404,6 +7404,63 @@ describe("Effect UI Start", () => {
     expect(
       parseStartDiagnosticsCliArgs([
         "graph",
+        "--verbose",
+        "route",
+        "/projects/:id"
+      ])
+    ).toEqual({
+      _tag: "Graph",
+      options: {
+        query: {
+          kind: "route",
+          text: "/projects/:id"
+        },
+        json: false,
+        pretty: false,
+        verbose: true
+      }
+    });
+    expect(
+      parseStartDiagnosticsCliArgs([
+        "graph",
+        "route",
+        "--verbose",
+        "/projects/:id"
+      ])
+    ).toEqual({
+      _tag: "Graph",
+      options: {
+        query: {
+          kind: "route",
+          text: "/projects/:id"
+        },
+        json: false,
+        pretty: false,
+        verbose: true
+      }
+    });
+    expect(
+      parseStartDiagnosticsCliArgs([
+        "graph",
+        "route",
+        "/projects/:id",
+        "--verbose"
+      ])
+    ).toEqual({
+      _tag: "Graph",
+      options: {
+        query: {
+          kind: "route",
+          text: "/projects/:id"
+        },
+        json: false,
+        pretty: false,
+        verbose: true
+      }
+    });
+    expect(
+      parseStartDiagnosticsCliArgs([
+        "graph",
         "--query=--root"
       ])
     ).toEqual({

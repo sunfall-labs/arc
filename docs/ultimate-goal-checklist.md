@@ -659,18 +659,20 @@ Last evidence pass: May 16, 2026.
 ## Verification Gate
 
 - [x] Focused tests pass for each changed package.
-  - Latest focused evidence: Review 209 ran workspace typecheck, public type
-    tests, Core/React/Solid/DB/Start package typechecks, public API audit,
-    Effect-first audit, focused Core EffectInput/Resource/Action/Program plus
-    React/Solid hook tests, and `git diff --check` after closing explicit
-    broad-`unknown` Promise callback rejection holes.
+  - Latest focused evidence: Review 210 passed focused typechecks, public API
+    and Effect-first audits, verify-argv probes, Core/DB runtime tests, and the
+    Start diagnostics CLI wrapper focused test after closing Effect-success
+    Promise rejection, verify argv validation, DB cleanup docs, React/Solid DB
+    option pins, and all three Effect CLI `graph --verbose` shared-flag
+    placements.
     Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
     sweeps found Review191, Review192, Review193, Review194, Review195, and
-    Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, Review208, and Review209 work.
+    Review196, Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, Review208, Review209, and Review210 work.
     Clean Sweep 1 after Review208 remains historical 1/30 evidence, but Clean
-    Sweep 2 found Review209 work, leaving the active counter at 0/30.
+    Sweep 2 found Review209 work and the local post-Review209 pass found
+    Review210 work, leaving the active counter at 0/30.
     Latest full evidence:
-    `pnpm verify` ran after Review 209 with 53 test files / 1062 tests.
+    `pnpm verify` ran after Review 210 with 53 test files / 1064 tests.
 - [x] Type tests pass after compile-time API changes.
   - Evidence: `pnpm typecheck:types` completed inside `pnpm verify`.
 - [x] Example typecheck passes.
@@ -809,31 +811,36 @@ Last evidence pass: May 16, 2026.
 - [x] Next recommended workstreams listed.
   - Evidence: next section.
 - [x] Architectural decisions needing ADRs or docs updates listed.
-  - Evidence: no new ADR required for the Review 209 broad-`unknown`
-    Promise callback rejection fix.
+  - Evidence: no new ADR required for the Review 210 Effect boundary,
+    verify-script, DB docs, React/Solid DB type-pin, and Start CLI evidence
+    fixes.
     Future architecture sweeps remain tracked in
     `docs/architecture-deepening-review.md`.
 - [x] `pnpm verify` latest result recorded.
   - Evidence: root `pnpm verify` and `pnpm verify:serial` passed on May 16,
-    2026 after the Review 209 broad-`unknown` Promise callback rejection fix:
+    2026 after the Review 210 Effect success Promise gates, verify argv
+    validation, DB cleanup docs, React/Solid DB option pins, and Start CLI
+    shared-flag parser fixes:
     11 package builds, workspace
     typecheck, type tests, public API inventory audit, Effect-first audit over
-    408 physical/virtual files, 53 root test files / 1062 tests,
+    408 physical/virtual files, 53 root test files / 1064 tests,
     package-level verifies for the devtools/starter/example packages,
     generated starter-suite packaging/verifies for basic/react/project-console,
     16-target package dry-run gate, project-console typecheck, 4 project-console
     test files / 27 tests, project-console build, and leak scans.
 - [x] Latest focused verification recorded.
-  - Evidence: Review 209 records workspace typecheck, public type tests,
-    Core/React/Solid/DB/Start package typechecks, public API audit,
-    Effect-first audit, focused Core EffectInput/Resource/Action/Program plus
-    React/Solid hook tests, and `git diff --check`. Clean
+  - Evidence: Review 210 records
+    `pnpm typecheck:types`, Core/DB/React-DB/Solid-DB typechecks, public API
+    and Effect-first audits, verify-argv probes, focused Core/DB runtime tests,
+    and `pnpm exec vitest run packages/start/test/start.test.ts -t "parses and runs the Start diagnostics CLI wrapper"`
+    after closing the Review210 findings. Clean
     Sweep 1 after
     Review190 remains historical 1/30 evidence, but later sweeps found
     Review191, Review192, Review193, Review194, Review195, Review196,
-    Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, Review208, and Review209 work. Clean
+    Review197, Review198, Review199, Review200, Review201, Review202, Review203, Review204, Review205, Review206, Review207, Review208, Review209, and Review210 work. Clean
     Sweep 1 after Review208 remains historical 1/30 evidence, but Clean Sweep
-    2 found Review209 work, leaving the active counter at 0/30.
+    2 found Review209 work and the local post-Review209 pass found Review210
+    work, leaving the active counter at 0/30.
     Full verification is recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items
