@@ -178,6 +178,10 @@ const ReactProjectById = Resource.family<string, ReactProject>({
 });
 const reactProjectRef = ReactProjectById("atlas");
 const reactResourceOptions: UseResourceOptions<never> = { preload: false };
+const reactResourcePromiseObserverOptions: UseResourceOptions<never> = {
+  // @ts-expect-error React Resource preload observers cannot return Promise-shaped work
+  onPreloadFailure: () => reactRuntimeProviderObserverPromise,
+};
 const reactResourceHandle: ResourceHandle<string, ReactProject, never> = useResource(
   reactProjectRef,
   reactResourceOptions,

@@ -11,9 +11,10 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review503 React Solid DB Live Query Handle Hovers,
-the post-Review502 follow-up that adds member-level LSP docs to the public React
-DB and Solid DB `LiveQueryHandle` Interfaces.
+The newest focused review is Review504 Resource Preload Observer Promise Pins,
+the post-Review503 follow-up that adds public type-test pins proving Core,
+React, and Solid Resource preload failure observers reject Promise-shaped work
+at the EffectInput Seam.
 The newest full verification checkpoint is Review492.
 Clean Sweep 1 after
 Review208 remains historical 1/30
@@ -61,8 +62,9 @@ post-Review496 sweep found Review497 work, the fresh post-Review497 sweep
 found Review498 work, the fresh post-Review498 sweep found Review499 work, the
 fresh post-Review499 sweep found Review500 work, the fresh post-Review500
 sweep found Review501 work, the fresh post-Review501 sweep found Review502
-work, and the fresh post-Review502 sweep found Review503 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review503
+work, the fresh post-Review502 sweep found Review503 work, and the fresh
+post-Review503 sweep found Review504 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review504
 sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
@@ -77,7 +79,8 @@ work, Review240 work, Review241 work, Review242 work, Review243 work,
 Review244 work, Review245 work, Review246 work, Review247 work, Review490
 work, Review491 work, Review492 work, Review493 work, Review494 work,
 Review495 work, Review496 work, Review497 work, Review498 work, Review499
-work, Review500 work, Review501 work, Review502 work, and Review503 work.
+work, Review500 work, Review501 work, Review502 work, Review503 work, and
+Review504 work.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -209,7 +212,29 @@ and the fresh post-Review501 sweep found Review502 Start action trace
 invalidation hover work,
 and the fresh post-Review502 DB adapter sweep found Review503 React/Solid DB
 live query handle hover work,
+and the fresh post-Review503 Core/React/Solid sweep found Review504 Resource
+preload observer Promise pin work,
 so the counter remains 0/30.
+
+## Review 504: Resource Preload Observer Promise Pins
+
+Review504 fixes the actionable finding from the fresh post-Review503
+Core/React/Solid type-test sweep.
+
+1. Resource Preload Observer Promise Rejection Pins
+   - Status: fixed.
+   - Files: `type-tests/core.test-d.ts`, `type-tests/react.test-d.ts`, and
+     `type-tests/solid.test-d.ts`.
+   - Problem: Core `ResourceUiAutoPreloadOptions` plus React and Solid
+     `UseResourceOptions` documented that preload failure observers reject
+     Promise-shaped work at the EffectInput Seam, but public type tests only
+     pinned positive `void` and `Effect` observers.
+   - Solution: added negative public type-test assertions proving Promise-shaped
+     `onPreloadFailure` observers are rejected for Core Resource UI binding,
+     React Resource hooks, and Solid Resource hooks.
+   - Benefits: the Resource UI Binding Module and framework Adapter Interfaces
+     now have stronger type-test Locality for their Effect-first rule; callers
+     see the same no-Promise contract across Core, React, and Solid.
 
 ## Review 503: React Solid DB Live Query Handle Hovers
 

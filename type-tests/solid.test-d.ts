@@ -171,6 +171,10 @@ const SolidProjectById = Resource.family<string, SolidProject>({
 });
 const solidProjectRef = SolidProjectById("atlas");
 const solidResourceOptions: UseResourceOptions<never> = { preload: false };
+const solidResourcePromiseObserverOptions: UseResourceOptions<never> = {
+  // @ts-expect-error Solid Resource preload observers cannot return Promise-shaped work
+  onPreloadFailure: () => solidRuntimeProviderObserverPromise,
+};
 const solidResourceHandle: ResourceHandle<string, SolidProject, never> = useResource(
   solidProjectRef,
   solidResourceOptions,

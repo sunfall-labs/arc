@@ -477,6 +477,11 @@ const resourceUiAutoPreloadOptions: ResourceUiAutoPreloadOptions<string, never> 
 const resourceUiAutoPreloadEffectOptions: ResourceUiAutoPreloadOptions<string, never> = {
   onPreloadFailure: () => Effect.void,
 };
+declare const resourceUiPreloadObserverPromise: Promise<void>;
+const resourceUiAutoPreloadPromiseOptions: ResourceUiAutoPreloadOptions<string, never> = {
+  // @ts-expect-error Core Resource UI preload observers cannot return Promise-shaped work
+  onPreloadFailure: () => resourceUiPreloadObserverPromise,
+};
 const resourceUiPreloadFailure: ResourceUiPreloadFailure<string, string, string, never, never> = {
   ref: typeTestResourceRef,
   error: "failed",

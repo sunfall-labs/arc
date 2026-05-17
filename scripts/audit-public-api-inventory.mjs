@@ -269,7 +269,7 @@ const assertCurrentDocsTextPolicySelfTest = () => {
   }
   const currentUltimateFailures = currentDocsTextPolicyFailures(
     ultimatePolicy,
-    `Latest focused evidence: Review ${latestFocusedReview}; Latest focused verification recorded.\n  - Evidence: Review ${latestFocusedReview} records React DB and Solid DB live query handle hover findings. Review${latestFullGateReview} records the\n    latest full gate, leaving the active counter at ${currentDocsEvidencePolicy.activeCleanCounter}.`,
+    `Latest focused evidence: Review ${latestFocusedReview}; Latest focused verification recorded.\n  - Evidence: Review ${latestFocusedReview} records Resource preload observer Promise rejection pins. Review${latestFullGateReview} records the\n    latest full gate, leaving the active counter at ${currentDocsEvidencePolicy.activeCleanCounter}.`,
   );
   if (currentUltimateFailures.length > 0) {
     failSelfTest(
@@ -278,7 +278,7 @@ const assertCurrentDocsTextPolicySelfTest = () => {
   }
   const staleUltimateFailures = currentDocsTextPolicyFailures(
     ultimatePolicy,
-    `Latest focused evidence: Review ${staleFocusedReview}; Latest focused verification recorded.\n  - Evidence: Review ${staleFocusedReview} records React DB and Solid DB live query handle hover findings. Review${staleFullGateReview} records the\n    latest full gate, leaving the active counter at ${staleCleanCounter}.`,
+    `Latest focused evidence: Review ${staleFocusedReview}; Latest focused verification recorded.\n  - Evidence: Review ${staleFocusedReview} records Resource preload observer Promise rejection pins. Review${staleFullGateReview} records the\n    latest full gate, leaving the active counter at ${staleCleanCounter}.`,
   );
   for (const expected of [
     "Ultimate goal checklist must name current latest focused evidence",

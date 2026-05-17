@@ -430,6 +430,11 @@ const allowed = [
         /declare const solidDbPreloadObserverPromise:\s*Promise<void>;/,
       ),
       seam(
+        "type-tests/core.test-d.ts",
+        "Core Resource UI preload observer Promise negative fixture",
+        /declare const resourceUiPreloadObserverPromise:\s*Promise<void>;/,
+      ),
+      seam(
         "type-tests/framework.test-d.ts",
         "Start fetch package Promise facade assertion",
         /const rootFetchPromise:\s*Promise<Response>\s*=\s*rootFetchPromiseHandler/,

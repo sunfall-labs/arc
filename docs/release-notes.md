@@ -87,11 +87,17 @@ Latest full gate on May 17, 2026 after Review 492:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 504 Resource Preload Observer Promise Pins adds public type-test
+  negative assertions proving Core Resource UI binding, React Resource hooks,
+  and Solid Resource hooks reject Promise-shaped preload failure observers at
+  the EffectInput Seam. The active Thirty-Sweep clean counter remains 0/30 until
+  a fresh post-Review504 sweep reports no actionable findings.
 - Review 503 React Solid DB Live Query Handle Hovers adds member-level LSP docs
   to public React DB and Solid DB live query handles, covering live query rows,
   state, waiting/error/preload failure semantics, and Effect-returning
-  preload/refetch operations. The active Thirty-Sweep clean counter remains
-  0/30 until a fresh post-Review503 sweep reports no actionable findings.
+  preload/refetch operations. The active Thirty-Sweep clean counter remained
+  0/30; the later fresh post-Review503 sweep found Review504 Resource preload
+  observer Promise pin work.
 - Review 502 Start Action Trace Invalidation Hover aligns the public
   `StartRequestTraceAction.invalidationIndexes` hover with the Review501 runtime
   behavior: indexes refer to invalidation entries included in action response

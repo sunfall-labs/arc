@@ -20,6 +20,10 @@ interruption.
 
 ## Current Sweep Results
 
+- Review504 Resource Preload Observer Promise Pins strengthens Effect-first
+  type-test coverage: Core Resource UI binding, React Resource hooks, and Solid
+  Resource hooks now reject Promise-shaped preload failure observers at the
+  public Interface Seam.
 - Review503 React Solid DB Live Query Handle Hovers is an LSP-facing adapter
   docs fix: React DB and Solid DB live query handle hovers now describe
   runtime-bound Effect operations and add no Promise surface.
@@ -1666,7 +1670,7 @@ typecheck`, `pnpm --filter @sunfall/arc-db typecheck`, `pnpm typecheck:types`,
   5/4/6 local packages, 17-target package dry-run gate, project-console
   typecheck, 4 project-console test files / 27 tests, build, and leak scans.
   The Effect-first audit now
-  anchors 27 Promise return-type allowances: 8 host/facade seams, 18 Promise
+  anchors 28 Promise return-type allowances: 8 host/facade seams, 19 Promise
   negative fixtures, and 1 Start fetch Promise facade assertion. It also
   anchors 2 `PromiseLike` occurrences and 4 structural thenable
   guard/type-surface occurrences.

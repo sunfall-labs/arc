@@ -7,6 +7,10 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Current Sweep Results
 
+- Review504 Resource Preload Observer Promise Pins adds negative public
+  type-test coverage for Core `ResourceUiAutoPreloadOptions`, React
+  `UseResourceOptions`, and Solid `UseResourceOptions`, proving preload failure
+  observers cannot return Promise-shaped work.
 - `type-tests/framework.test-d.ts` exercises every public package root used by
   the example path: core routes/resources/actions/forms/capabilities, Start
   request handling and hydration, DB collections and live queries, Solid DB
