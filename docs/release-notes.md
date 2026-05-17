@@ -92,6 +92,11 @@ Latest full gate on May 17, 2026 after Review 492:
   generated-artifact, or docs-honesty work across Core/React/Solid, DB-family,
   Start/docs/package, and evidence lanes, moving the active Thirty-Sweep clean
   counter to 1/30.
+- Clean Sweep 2 after Review510 found no actionable Module, Interface, Seam,
+  Adapter, Locality, Depth, Leverage, Effect-first, LSP/JSDoc, package,
+  generated-artifact, or docs-honesty work across Core/React/Solid, DB-family,
+  Start/docs/package, and evidence lanes, moving the active Thirty-Sweep clean
+  counter to 2/30.
 - Review 510 Package Dry-Run Count Evidence updates the current release
   snapshot to match the 150-file `@sunfall/arc-db` package dry-run rehearsal.
   Clean Sweep 2 after Review509 found this docs-honesty drift, so the active

@@ -780,8 +780,9 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     fresh sweep found Review509 route component attachment hover docs work.
     Clean Sweep 1 after Review509 found no actionable follow-up, and Clean
     Sweep 2 found Review510 package dry-run count evidence work. Clean Sweep 1
-    after Review510 found no actionable follow-up, leaving the active counter
-    at 1/30.
+    after Review510 found no actionable follow-up, and Clean Sweep 2 after
+    Review510 found no actionable follow-up, leaving the active counter at
+    2/30.
     Latest full evidence:
     `pnpm verify` ran after Review 492 with 58 root
     test files / 1223
@@ -953,8 +954,9 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     and Review508 work. Clean Sweep 1 after Review508 found no actionable
     follow-up, and the next fresh sweep found Review509 work. Clean Sweep 1
     after Review509 found no actionable follow-up, and Clean Sweep 2 found
-    Review510 work. Clean Sweep 1 after Review510 found no actionable
-    follow-up, leaving the active counter at 1/30.
+    Review510 work. Clean Sweep 1 after Review510 and Clean Sweep 2 after
+    Review510 found no actionable follow-up, leaving the active counter at
+    2/30.
     Review492 records the latest
     full gate. Clean
     Sweep 1 after
@@ -1048,8 +1050,8 @@ diagnostics`, devtools summary tests, and generated virtual modules.
     fresh sweep found Review509 route component attachment hover docs work.
     Clean Sweep 1 after Review509 found no actionable follow-up, and Clean
     Sweep 2 found Review510 package dry-run count evidence work. Clean Sweep 1
-    after Review510 found no actionable follow-up, leaving the active counter
-    at 1/30.
+    after Review510 and Clean Sweep 2 after Review510 found no actionable
+    follow-up, leaving the active counter at 2/30.
     Full verification is recorded in the latest full gate above.
 
 ## Remaining Winning-Bar Items
