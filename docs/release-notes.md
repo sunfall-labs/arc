@@ -87,6 +87,10 @@ Latest full gate on May 17, 2026 after Review 492:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Clean Sweep 1 after Review508 found no actionable Module, Interface, Seam,
+  Adapter, Locality, Depth, Leverage, Effect-first, LSP/JSDoc, package, or
+  docs-honesty work across Core/React/Solid, DB-family, Start/docs/package, and
+  evidence lanes, moving the active Thirty-Sweep clean counter to 1/30.
 - Review 508 Lazy Component WithComponent Error Generic lets
   `Route.withComponent(...)` accept typed-error lazy route components through
   `Route.ComponentInput<R, E>` and pins that attachment path in public type

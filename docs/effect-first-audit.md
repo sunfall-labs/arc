@@ -20,6 +20,10 @@ interruption.
 
 ## Current Sweep Results
 
+- Clean Sweep 1 after Review508 found no actionable Effect-first follow-up:
+  Core/React/Solid, DB/React-DB/Solid-DB, Start/docs/package, and evidence
+  lanes preserved Effect-returning public Interfaces and explicit host-boundary
+  Promise allowances.
 - Review508 Lazy Component WithComponent Error Generic keeps route component
   attachment Effect-first by preserving typed lazy importer errors through
   `Route.ComponentInput<R, E>` and `Route.withComponent(...)`.

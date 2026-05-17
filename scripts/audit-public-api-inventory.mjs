@@ -177,7 +177,7 @@ const assertCurrentDocsTextPolicySelfTest = () => {
   const staleRootTestFiles = currentDocsEvidencePolicy.rootTestFiles - 5;
   const staleRootTestCount = currentDocsEvidencePolicy.rootTestCount - 62;
   const staleEffectFirstFiles = currentDocsEvidencePolicy.effectFirstFiles - 4;
-  const staleCleanCounter = "1/30";
+  const staleCleanCounter = "0/30";
   const currentDocsSelfTestPolicy = {
     file: "self-test.md",
     required: [
@@ -198,7 +198,7 @@ const assertCurrentDocsTextPolicySelfTest = () => {
       {
         name: "self-test current clean counter",
         pattern: new RegExp(
-          `${currentDocsEvidencePolicy.activeCleanCounter} until\\s+a fresh post-Review${latestFocusedReview}\\s+sweep reports no actionable\\s+findings`,
+          `${currentDocsEvidencePolicy.activeCleanCounter} after\\s+Clean Sweep 1 after Review${latestFocusedReview}`,
         ),
       },
       {
@@ -253,7 +253,7 @@ const assertCurrentDocsTextPolicySelfTest = () => {
 
   const currentFailures = currentDocsTextPolicyFailures(
     currentDocsSelfTestPolicy,
-    `Latest focused evidence: Review ${latestFocusedReview}; latest full gate is Review${latestFullGateReview}; ${currentDocsEvidencePolicy.rootTestFiles} root test files / ${currentDocsEvidencePolicy.rootTestCount} tests; Effect-first audit over ${currentDocsEvidencePolicy.effectFirstFiles}; active counter ${currentDocsEvidencePolicy.activeCleanCounter} until\n  a fresh post-Review${latestFocusedReview} sweep reports no actionable\n  findings.`,
+    `Latest focused evidence: Review ${latestFocusedReview}; latest full gate is Review${latestFullGateReview}; ${currentDocsEvidencePolicy.rootTestFiles} root test files / ${currentDocsEvidencePolicy.rootTestCount} tests; Effect-first audit over ${currentDocsEvidencePolicy.effectFirstFiles}; active counter ${currentDocsEvidencePolicy.activeCleanCounter} after\n  Clean Sweep 1 after Review${latestFocusedReview}.`,
   );
   if (currentFailures.length > 0) {
     failSelfTest(

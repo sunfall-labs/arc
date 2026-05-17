@@ -7,6 +7,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Current Sweep Results
 
+- Clean Sweep 1 after Review508 found no actionable public type-test follow-up:
+  the current lazy route, DB-family, Start trace, and package-root pins still
+  cover the public Interfaces exposed to callers and LSP.
 - Review508 Lazy Component WithComponent Error Generic pins
   `Route.withComponent(...)` accepting a typed-error lazy route component
   descriptor through `Route.ComponentInput<R, E>`.

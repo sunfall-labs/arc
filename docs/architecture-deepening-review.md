@@ -67,9 +67,11 @@ found no actionable work across Core/React/Solid, DB/public API,
 Start/docs/package, and evidence lanes, creating Clean Sweep 1 after Review504,
 the next fresh sweep found Review505 work, the fresh post-Review505 sweep
 found Review506 work, the fresh post-Review506 sweep found Review507 work, and
-the fresh post-Review507 sweep found Review508 work,
-so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review508
-sweep reports no actionable findings. Clean Sweep 1 after
+the fresh post-Review507 sweep found Review508 work, and the fresh
+post-Review508 sweep found no actionable work across Core/React/Solid,
+DB/public API, Start/docs/package, and evidence lanes,
+so the active Thirty-Sweep clean counter is 1/30 after
+Clean Sweep 1 after Review508. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
@@ -85,7 +87,8 @@ work, Review491 work, Review492 work, Review493 work, Review494 work,
 Review495 work, Review496 work, Review497 work, Review498 work, Review499
 work, Review500 work, Review501 work, Review502 work, Review503 work,
 Review504 work, Review505 work after Clean Sweep 1 after Review504,
-Review506 work, Review507 work, and Review508 work.
+Review506 work, Review507 work, and Review508 work before Clean Sweep 1 after
+Review508 found no actionable follow-up.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -225,8 +228,44 @@ Clean Sweep 1 after Review504. The next fresh sweep found Review505 lazy route
 typed error and DB type-test pin work, and the fresh post-Review505 sweep found
 Review506 lazy route Suspense typed-error work, and the fresh post-Review506
 sweep found Review507 namespace generic work. The fresh post-Review507 sweep
-found Review508 withComponent lazy error generic work, keeping the active
-counter at 0/30.
+found Review508 withComponent lazy error generic work. The fresh post-Review508
+sweep found no actionable Module, Interface, Seam, Adapter, Locality, Depth,
+Leverage, Effect-first, LSP/JSDoc, package, or docs-honesty work, creating
+Clean Sweep 1 after Review508.
+
+## Clean Sweep 1 After Review508
+
+The fresh post-Review508 sweep found no actionable findings across the current
+review lanes.
+
+1. Core/React/Solid Runtime And Adapter Lane
+   - Status: clean.
+   - Evidence: Ptolemy inspected `Route.ComponentInput<R, E>`,
+     `Route.withComponent(...)`, lazy component namespace aliases,
+     pending/Suspense helpers, public type tests, and React/Solid Suspense
+     Adapters. `pnpm exec tsc -p tsconfig.type-tests.json --pretty false`,
+     `pnpm audit:public-api`, `pnpm audit:effect-first`, focused
+     Core/React/Solid route tests, and focused Resource/hook tests passed.
+
+2. DB, React DB, And Solid DB Lane
+   - Status: clean.
+   - Evidence: Fermat inspected DB reactive binding, preload controller,
+     sync/persistence Adapter seams, React DB and Solid DB live query handles,
+     collection hooks, public policy, and type-test pins. `pnpm exec tsc -p
+tsconfig.type-tests.json --noEmit`, `pnpm audit:public-api`, `pnpm
+audit:effect-first`, DB-family tests, DB-family package typechecks, and
+     `git diff --check` passed.
+
+3. Start, Scripts, Package, And Docs Lane
+   - Status: clean.
+   - Evidence: local sweep checked current docs/policy, Effect-first audit,
+     public type tests, Start package typecheck, focused Start
+     invalidation/metrics tests, stale current-evidence grep, and `git diff
+--check`.
+
+At the Clean Sweep 1 after Review508 checkpoint, the Thirty-Sweep clean counter
+reached 1/30. The next sweep must still run; if it finds work, the counter
+resets to 0/30.
 
 ## Review 508: Lazy Component WithComponent Error Generic
 
