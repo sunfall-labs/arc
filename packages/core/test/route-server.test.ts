@@ -5,6 +5,7 @@ import {
   DuplicateRouteParam,
   defineApp,
   EffectInputCallbackError,
+  EffectInputPromiseRejected,
   InvalidRouteParam,
   matchRoutePath,
   parseRoutePathSegments,
@@ -186,6 +187,31 @@ describe("route", () => {
           Effect.sync(() => {
             expect(error).toBeInstanceOf(RoutePreloadError);
             expect(error.cause).toBe("preload-failed");
+          })
+        ),
+        Effect.asVoid
+      )
+    );
+  });
+
+  it("captures erased Promise-shaped preload returns as typed preload failures", () => {
+    const ProjectRoute = route("/projects/:id", {
+      preload: () => Promise.resolve(undefined) as never
+    });
+    const match = ProjectRoute.match("/projects/atlas");
+
+    expect(match).toBeDefined();
+
+    return Effect.runPromise(
+      Effect.flip(Route.preloadEffect(match!)).pipe(
+        Effect.tap((error) =>
+          Effect.sync(() => {
+            expect(error).toBeInstanceOf(RoutePreloadError);
+            expect(error.cause).toMatchObject({
+              _tag: "EffectInputCallbackError",
+              operation: "Route.preload(/projects/:id)",
+              cause: expect.any(EffectInputPromiseRejected)
+            });
           })
         ),
         Effect.asVoid

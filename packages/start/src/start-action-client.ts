@@ -54,6 +54,10 @@ type StartActionTransportRuntime<FetchRequirements, RuntimeError> =
   | EffectUiRuntime<FetchRequirements, RuntimeError>
   | AnyEffectUiRuntime<RuntimeError>;
 
+type StartActionResponseRuntime<RuntimeError> =
+  | EffectUiRuntime<any, RuntimeError>
+  | AnyEffectUiRuntime<RuntimeError>;
+
 type StartActionClientOptionsWithRuntime<
   FetchError,
   FetchRequirements,
@@ -62,7 +66,10 @@ type StartActionClientOptionsWithRuntime<
   StartActionClientOptions<FetchError, FetchRequirements, RuntimeError> &
     (
       | { readonly runtime: StartActionTransportRuntime<FetchRequirements, RuntimeError> }
-      | { readonly transportRuntime: StartActionTransportRuntime<FetchRequirements, RuntimeError> }
+      | {
+          readonly responseRuntime: StartActionResponseRuntime<RuntimeError>;
+          readonly transportRuntime: StartActionTransportRuntime<FetchRequirements, RuntimeError>;
+        }
     );
 
 type StartActionSubmitResult<D extends StartActionDefinition> =
@@ -251,7 +258,7 @@ export namespace StartAction {
     options: StartActionClientOptions<FetchError, FetchRequirements, RuntimeError> = {}
   ): Instance<D, RuntimeError, FetchRequirements> {
     const ambientRuntime = getCurrentRuntime() as AnyEffectUiRuntime<RuntimeError> | undefined;
-    const responseRuntime = options.runtime ?? ambientRuntime;
+    const responseRuntime = options.responseRuntime ?? options.runtime ?? ambientRuntime;
     const transportRuntime = options.transportRuntime ?? options.runtime;
     const hydration = Signal.make<StartHydrationPayload | undefined>(undefined);
     const submissions = makeActionSubmissionController<
@@ -286,7 +293,7 @@ export namespace StartAction {
         const acceptsStateUpdate = submissions.acceptsStateUpdate(submission);
         const responseOptions = {
           ...options,
-          ...(responseRuntime === undefined ? {} : { runtime: responseRuntime })
+          ...(responseRuntime === undefined ? {} : { responseRuntime })
         };
         if (acceptsStateUpdate) {
           yield* applyStartActionResponseEffect(submitted.response, {

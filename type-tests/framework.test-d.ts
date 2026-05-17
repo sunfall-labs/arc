@@ -1853,6 +1853,10 @@ void changeFeedSubscriptionEffect;
 Effect.map(flushCollectionsPendingMutationsEffect([ProjectsCollection], {
   skip: ({ collection }) => collection.name === "Projects.collection"
 }), (results) => results.map((result) => result._tag));
+flushCollectionsPendingMutationsEffect([ProjectsCollection], {
+  // @ts-expect-error static flush skip values must return Effect or a pure value, not Promise
+  skip: promisedBoolean
+});
 
 const sqliteStorage = Collection.sqliteStorage({
   table: () => ({
@@ -3339,6 +3343,22 @@ Resource.family<string, Project>({
   // @ts-expect-error resource loader output must satisfy the resource value type
   load: (id) => ({ id })
 });
+Resource.family<string, Project>({
+  name: "Project.promiseKey",
+  // @ts-expect-error custom resource keys must return a string synchronously, not Promise
+  key: () => promisedString,
+  load: (id) => ({ id, name: "Atlas" })
+});
+Resource.tag<{ readonly id: string }>("Project.promiseTagKey", {
+  // @ts-expect-error custom resource tag keys must return a string synchronously, not Promise
+  key: () => promisedString
+});
+Resource.family<string, Project>({
+  name: "Project.promiseProvides",
+  load: (id) => ({ id, name: "Atlas" }),
+  // @ts-expect-error resource provides callbacks must return tag metadata synchronously, not Promise
+  provides: () => promisedProjects
+});
 
 route("/promise-preload", {
   // @ts-expect-error route preload must return Effect or a pure value, not Promise
@@ -3928,7 +3948,16 @@ const startActionTransportRequirementsEffect: Effect.Effect<
 > = submitStartActionEffect(TouchProject, { id: "atlas" }, {
   fetch: authenticatedStartFetch
 });
-const startActionRuntimeProvidedEffect: Effect.Effect<
+const startActionTransportRuntimeOnlyEffect: Effect.Effect<
+  StartAction.Result<typeof TouchProject>,
+  Server.ClientError,
+  StartTransportEnv
+> = submitStartActionEffect(TouchProject, { id: "atlas" }, {
+  fetch: authenticatedStartFetch,
+  transportRuntime: startTransportRuntime
+});
+// @ts-expect-error transportRuntime only provides fetch work; action response metadata still needs an application runtime/caller runtime
+const startActionTransportRuntimeOnlyErased: Effect.Effect<
   StartAction.Result<typeof TouchProject>,
   Server.ClientError
 > = submitStartActionEffect(TouchProject, { id: "atlas" }, {
@@ -3941,6 +3970,14 @@ const startActionHydrationRuntimeProvidedEffect: Effect.Effect<
 > = submitStartActionEffect(TouchProject, { id: "atlas" }, {
   fetch: authenticatedStartFetch,
   runtime: startTransportRuntime
+});
+const startActionSplitRuntimesProvidedEffect: Effect.Effect<
+  StartAction.Result<typeof TouchProject>,
+  Server.ClientError
+> = submitStartActionEffect(TouchProject, { id: "atlas" }, {
+  fetch: authenticatedStartFetch,
+  responseRuntime: startTransportRuntime,
+  transportRuntime: startTransportRuntime
 });
 const startActionWithServicefulTransport = StartAction.use(TouchProject, {
   fetch: authenticatedStartFetch
@@ -3957,8 +3994,27 @@ const startActionWithProvidedTransport = StartAction.use(TouchProject, {
 });
 const startActionWithProvidedTransportSubmit: Effect.Effect<
   StartAction.Result<typeof TouchProject>,
-  Server.ClientError | ActionInterrupted
+  Server.ClientError | ActionInterrupted,
+  StartTransportEnv
 > = startActionWithProvidedTransport.submitEffect({ id: "atlas" });
+const startActionWithResponseRuntime = StartAction.use(TouchProject, {
+  fetch: authenticatedStartFetch,
+  runtime: startTransportRuntime,
+  transportRuntime: startTransportRuntime
+});
+const startActionWithResponseRuntimeSubmit: Effect.Effect<
+  StartAction.Result<typeof TouchProject>,
+  Server.ClientError | ActionInterrupted
+> = startActionWithResponseRuntime.submitEffect({ id: "atlas" });
+const startActionWithSplitRuntimes = StartAction.use(TouchProject, {
+  fetch: authenticatedStartFetch,
+  responseRuntime: startTransportRuntime,
+  transportRuntime: startTransportRuntime
+});
+const startActionWithSplitRuntimesSubmit: Effect.Effect<
+  StartAction.Result<typeof TouchProject>,
+  Server.ClientError | ActionInterrupted
+> = startActionWithSplitRuntimes.submitEffect({ id: "atlas" });
 // @ts-expect-error RPC ServerClient cannot hide a serviceful fetch without a transport runtime
 makeRpcClient({ fetch: authenticatedStartFetch });
 makeRpcClient({ fetch: authenticatedStartFetch, transportRuntime: startTransportRuntime });
@@ -3971,10 +4027,14 @@ makeRpcClient({
 makeRpcClientLayer({ fetch: authenticatedStartFetch });
 makeRpcClientLayer({ fetch: authenticatedStartFetch, transportRuntime: startTransportRuntime });
 void startActionTransportRequirementsEffect;
-void startActionRuntimeProvidedEffect;
+void startActionTransportRuntimeOnlyEffect;
+void startActionTransportRuntimeOnlyErased;
 void startActionHydrationRuntimeProvidedEffect;
+void startActionSplitRuntimesProvidedEffect;
 void startActionWithServicefulTransportSubmit;
 void startActionWithProvidedTransportSubmit;
+void startActionWithResponseRuntimeSubmit;
+void startActionWithSplitRuntimesSubmit;
 
 // @ts-expect-error Start action submissions require the action input shape
 submitStartActionEffect(TouchProject, { slug: "atlas" });
@@ -4194,6 +4254,20 @@ Action.define({
   name: "Project.asyncAction.inferred",
   // @ts-expect-error unannotated actions must return Effect or a pure value, not Promise
   run: () => promisedProject
+});
+
+Action.define<{ readonly id: string }, Project>({
+  name: "Project.promiseOptimistic",
+  // @ts-expect-error optimistic callbacks must return a rollback Effect, not Promise
+  optimistic: () => promisedVoid,
+  run: ({ id }) => Effect.succeed({ id, name: "Touched" })
+});
+
+Action.define<{ readonly id: string }, Project>({
+  name: "Project.promiseInvalidates",
+  run: ({ id }) => Effect.succeed({ id, name: "Touched" }),
+  // @ts-expect-error invalidation callbacks must return metadata synchronously, not Promise
+  invalidates: () => promisedProjects
 });
 
 Action.define<{ readonly id: string }, Project>({

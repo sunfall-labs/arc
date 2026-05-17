@@ -1,4 +1,4 @@
-import { invokeEffectInput, toEffect, type EffectInput, type EffectInputCallbackError } from "@effect-ui/core";
+import { invokeEffectInput, type EffectInput, type EffectInputCallbackError } from "@effect-ui/core";
 import { Effect } from "effect";
 import type {
   AnyCollection,
@@ -180,7 +180,7 @@ const shouldSkipCollection = <SkipError, SkipRequirements>(
 
   return typeof skip === "function"
     ? invokeEffectInput("Collection.flush.skip", skip, context)
-    : toEffect(skip);
+    : invokeEffectInput("Collection.flush.skip", () => skip);
 };
 
 const backgroundSyncPending = (

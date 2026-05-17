@@ -18,8 +18,10 @@ import {
 import {
   catchEffectInputPromiseDefect,
   EffectInputCallbackError,
+  invokeEffectInput,
   toEffect
 } from "./effect-like.js";
+import { rejectPromiseLikeSyncCallbackValue } from "./effect-input-sync.js";
 import type { ResourceInvalidation, ResourceInvalidationPlan } from "./resource.js";
 import {
   planResourceInvalidationEffect,
@@ -31,11 +33,13 @@ export const actionCallbackError = (
   operation: string,
   cause: unknown
 ): EffectInputCallbackError =>
-  new EffectInputCallbackError({
-    operation,
-    cause,
-    guidance: "Action callbacks must return values or Effects. Synchronous callback throws are reported in the Effect error channel."
-  });
+  cause instanceof EffectInputCallbackError
+    ? cause
+    : new EffectInputCallbackError({
+        operation,
+        cause,
+        guidance: "Action callbacks must return values or Effects. Synchronous callback throws are reported in the Effect error channel."
+      });
 
 const resultInvalidations = <A>(
   value: A
@@ -49,13 +53,21 @@ export const invalidationsFor = <I, A, E, R>(
   value: A,
   input: I
 ): ReadonlyArray<ResourceInvalidation<R | ActionResultInvalidationRequirements<A>>> => {
+  const operation = `Action.invalidates(${definition.name})`;
   try {
+    const invalidations = definition.invalidates === undefined
+      ? []
+      : rejectPromiseLikeSyncCallbackValue(
+          operation,
+          definition.invalidates(value, input),
+          "Action invalidates callbacks must return invalidation metadata synchronously. Move host Promise work into the action run Effect."
+        );
     return [
-      ...(definition.invalidates?.(value, input) ?? []),
+      ...invalidations,
       ...resultInvalidations(value)
     ] as ReadonlyArray<ResourceInvalidation<R | ActionResultInvalidationRequirements<A>>>;
   } catch (cause) {
-    throw actionCallbackError(`Action.invalidates(${definition.name})`, cause);
+    throw actionCallbackError(operation, cause);
   }
 };
 
@@ -69,7 +81,16 @@ export const invalidationsForEffect = <I, A, E, R>(
 > =>
   Effect.map(
     Effect.try({
-      try: () => definition.invalidates?.(value, input) ?? [],
+      try: () => {
+        const operation = `Action.invalidates(${definition.name})`;
+        return definition.invalidates === undefined
+          ? []
+          : rejectPromiseLikeSyncCallbackValue(
+              operation,
+              definition.invalidates(value, input),
+              "Action invalidates callbacks must return invalidation metadata synchronously. Move host Promise work into the action run Effect."
+            );
+      },
       catch: (cause) => actionCallbackError(`Action.invalidates(${definition.name})`, cause)
     }),
     (invalidations) => [
@@ -139,17 +160,15 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
       return Effect.succeed(transaction.rollback);
     }
 
-    return Effect.flatMap(
-      Effect.try({
-        try: () => definition.optimistic!(input, transaction.api),
-        catch: (cause) => actionCallbackError(`Action.optimistic(${definition.name})`, cause)
-      }),
-      (optimisticEffect) =>
-        optimisticEffect.pipe(
-          Effect.map((extraRollback) =>
-            Effect.ensuring(extraRollback, transaction.rollback.pipe(Effect.catch(() => Effect.void)))
-          )
-        )
+    return invokeEffectInput(
+      `Action.optimistic(${definition.name})`,
+      definition.optimistic,
+      input,
+      transaction.api
+    ).pipe(
+      Effect.map((extraRollback) =>
+        Effect.ensuring(extraRollback, transaction.rollback.pipe(Effect.catch(() => Effect.void)))
+      )
     );
   };
 

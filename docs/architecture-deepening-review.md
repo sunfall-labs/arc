@@ -11,14 +11,14 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review196, the post-Review195 sweep
-fixing erased Promise-shaped Action/Program state-machine callbacks, Start
-manifest/header guardrails, file-route/devtools/DB LSP pins, and starter
-preload locality. The newest full verification checkpoint is Review196. Clean
+The newest completed focused review is Review197, the post-Review196 sweep
+fixing erased Promise-shaped Route preload, Action/Resource metadata, Resource
+key, DB flush-skip, and Start action runtime seams. The newest full verification
+checkpoint is Review197. Clean
 Sweep 1 after Review190 remains
 historical evidence, but later sweeps found Review191, Review192, Review193,
-Review194, Review195, and Review196 work, so the active Thirty-Sweep clean
-counter is 0/30 until a fresh post-Review196 sweep reports no actionable
+Review194, Review195, Review196, and Review197 work, so the active
+Thirty-Sweep clean counter is 0/30 until a fresh post-Review197 sweep reports no actionable
 findings. Some older review entries
 remain below this tip from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
@@ -40,8 +40,103 @@ post-Review192 sweep found Review193 Core/Start/DB/public docs work, and the
 first post-Review193 sweep found Review194 Core/Start/docs work. The first
 post-Review194 sweep found Review195 Core/Start/example/docs work, so the
 counter stayed inactive. The first post-Review195 sweep found Review196
-Core/Start/DB/devtools/starter work, so the counter remains inactive until the
-post-Review196 sweep is clean.
+Core/Start/DB/devtools/starter work, and the first post-Review196 sweep found
+Review197 Core/Start/DB work, so the counter remains inactive until the
+post-Review197 sweep is clean.
+
+## Review 197: Sync Metadata, Runtime Splits, And Promise Guardrails
+
+Review197 fixed actionable findings from the fresh post-Review196 subagent
+sweep.
+
+1. Core Route And Metadata Promise Guardrails
+   - Status: fixed.
+   - Files: `packages/core/src/effect-input-sync.ts`,
+     `packages/core/src/route.ts`,
+     `packages/core/src/action-execution-workflow.ts`,
+     `packages/core/src/resource-dependency-graph.ts`,
+     `packages/core/test/route-server.test.ts`,
+     `packages/core/test/browser-router.test.ts`,
+     `packages/core/test/action.test.ts`,
+     `packages/core/test/resource.test.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: erased Promise-shaped values could still leak through sync
+     metadata seams: route preload returned Promise defects instead of typed
+     preload failures, Action `optimistic` / `invalidates` metadata could
+     fail after pending state as incidental defects, and Resource `provides`
+     metadata could defect while recording tags.
+   - Fix: added an internal sync metadata guard and routed Route preload,
+     Action optimistic/invalidation, and Resource provides callbacks through
+     typed `EffectInputCallbackError` failures with
+     `EffectInputPromiseRejected` causes.
+   - Benefits: these public Interfaces now fail at the owning Module seams
+     instead of leaking defects through router, action, or resource state
+     machines.
+
+2. Resource Key Callback Identity Guardrail
+   - Status: fixed.
+   - Files: `packages/core/src/resource.ts`,
+     `packages/core/src/resource-errors.ts`,
+     `packages/core/src/resource-key-codec.ts`,
+     `packages/core/test/resource.test.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: erased Promise-shaped custom `Resource.family({ key })` and
+     `Resource.tag(..., { key })` callbacks could construct unstable
+     `[object Promise]` refs or `{}` tag identities before any Effect boundary
+     could report a typed problem.
+   - Fix: custom key callbacks now reject Promise-shaped returns as
+     `ResourceKeyError` with reason `PromiseLikeKey` before ref or tag identity
+     construction.
+   - Benefits: Resource identity Locality stays in the Resource key Module, and
+     the Resource Store never indexes Promise-shaped keys.
+
+3. Start Action Response Runtime Split
+   - Status: fixed.
+   - Files: `packages/start/src/start-transport-protocol.ts`,
+     `packages/start/src/start-action-client.ts`,
+     `packages/start/src/start-action-response-application.ts`,
+     `packages/start/test/start.test.ts`,
+     `type-tests/framework.test-d.ts`,
+     `docs/public-api-inventory.md`.
+   - Problem: public Start action overloads treated `transportRuntime` as if it
+     also selected the Runtime Spine that applies action hydration and
+     invalidation metadata, but the Implementation only used it for the fetch
+     Adapter.
+   - Fix: `transportRuntime` now stays scoped to transport. The existing
+     `runtime` remains the combined response/transport runtime, and the new
+     `responseRuntime` option supports split app and transport Runtime Spines.
+     Type pins ensure `transportRuntime` alone no longer erases action
+     submission requirements.
+   - Benefits: the Start Action Client Interface now matches runtime Locality:
+     transport services and application response metadata can be provided by
+     different adapters without silently hydrating the wrong Resource Store.
+
+4. DB Flush Policy Static Skip Normalization
+   - Status: fixed.
+   - Files: `packages/db/src/flush-policy.ts`,
+     `packages/db/test/flush-policy.test.ts`,
+     `type-tests/framework.test-d.ts`.
+   - Problem: callback-shaped `skip` values crossed the EffectInput seam, but
+     static `skip` values used raw `toEffect(...)`, so erased
+     Promise-shaped static skip values failed as defects instead of the typed
+     callback error advertised by the flush policy Interface.
+   - Fix: static and callback skip values now both route through
+     `invokeEffectInput("Collection.flush.skip", ...)`.
+   - Benefits: the Collection Flush Policy Module owns one skip normalization
+     policy, and callers see the same typed failure shape for equivalent
+     invalid input.
+
+Focused workspace evidence for this pass: Core, Start, and DB package
+typechecks passed; public type tests passed; public API audit passed;
+Effect-first audit passed over 405 physical/virtual files; focused Core
+route/browser-router/action/resource regressions passed; focused Start action
+runtime/header/hydration regressions passed; focused DB flush-policy skip
+regressions passed; and `git diff --check` passed. Full `pnpm verify` passed
+after Review197 with 11 package builds, workspace typecheck, public type tests,
+public API audit, Effect-first audit over 405 files, 53 root test files / 1054
+tests, package-level verifies, generated starter packaging, 16-target package
+dry-run gate, project-console checks, and leak scans. This sweep found work, so
+the active clean counter remains 0/30.
 
 ## Review 196: EffectInput State Machines, Start Guardrails, And Public Pins
 

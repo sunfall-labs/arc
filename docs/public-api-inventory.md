@@ -378,8 +378,11 @@ The root export includes:
 - RPC clients/layers cannot expose fetch requirements through the core
   `ServerClient` Interface, so a service-backed `StartFetch<E, R>` requires an
   explicit `transportRuntime`. Start action submission remains effect-first:
-  without a runtime, transport requirements stay in the returned Effect; with
-  `runtime` or `transportRuntime`, the returned Effect is requirement-free.
+  without an application `runtime`, transport requirements stay in the returned
+  Effect even when `transportRuntime` provides the fetch Adapter. Supplying
+  `runtime`, or `responseRuntime` together with `transportRuntime`, makes the
+  returned Effect requirement-free and selects the Runtime Spine that applies
+  action hydration and invalidation metadata.
 - RPC/action client status validation delegates to the shared Start Transport
   Status Policy so semantic transport bodies and HTTP statuses cannot drift
   between server functions and actions.

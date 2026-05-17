@@ -154,6 +154,31 @@ describe("Action", () => {
     }
   });
 
+  it("captures erased Promise-shaped optimistic callback returns in the Effect error channel", async () => {
+    const Rename = Action.define<string, string>({
+      name: "rename.optimistic-promise-erased",
+      optimistic: () => Promise.resolve(Effect.void) as never,
+      run: (name) => Effect.succeed(name)
+    });
+    const action = Action.use(Rename);
+
+    const exit = await Effect.runPromise(Effect.exit(action.submitEffect("Ada")));
+
+    expect(exit._tag).toBe("Failure");
+    if (exit._tag === "Failure") {
+      const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
+      expect(failure?.error).toMatchObject({
+        _tag: "EffectInputCallbackError",
+        operation: "Action.optimistic(rename.optimistic-promise-erased)",
+        cause: expect.any(EffectInputPromiseRejected)
+      });
+      expect(action.state.get()).toMatchObject({
+        _tag: "Failure",
+        input: "Ada"
+      });
+    }
+  });
+
   it("captures optimistic signal updater throws in the Effect error channel", async () => {
     const cause = new Error("optimistic signal failed");
     const title = Signal.make("Draft");
@@ -292,6 +317,31 @@ describe("Action", () => {
     }
   });
 
+  it("captures erased Promise-shaped invalidation callback returns in the Effect error channel", async () => {
+    const Rename = Action.define<string, string>({
+      name: "rename.invalidates-promise-erased",
+      run: (name) => Effect.succeed(name),
+      invalidates: () => Promise.resolve([]) as never
+    });
+    const action = Action.use(Rename);
+
+    const exit = await Effect.runPromise(Effect.exit(action.submitEffect("Ada")));
+
+    expect(exit._tag).toBe("Failure");
+    if (exit._tag === "Failure") {
+      const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
+      expect(failure?.error).toMatchObject({
+        _tag: "EffectInputCallbackError",
+        operation: "Action.invalidates(rename.invalidates-promise-erased)",
+        cause: expect.any(EffectInputPromiseRejected)
+      });
+      expect(action.state.get()).toMatchObject({
+        _tag: "Failure",
+        input: "Ada"
+      });
+    }
+  });
+
   it("captures synchronous invalidation callback throws from sync planning", () => {
     const cause = new Error("invalidates failed");
     const Rename = Action.define<string, string>({
@@ -311,6 +361,26 @@ describe("Action", () => {
         _tag: "EffectInputCallbackError",
         operation: "Action.invalidates(rename.invalidates-sync-plan-throw)",
         cause
+      });
+    }
+  });
+
+  it("captures erased Promise-shaped invalidation callback returns from sync planning", () => {
+    const Rename = Action.define<string, string>({
+      name: "rename.invalidates-promise-plan-erased",
+      run: (name) => Effect.succeed(name),
+      invalidates: () => Promise.resolve([]) as never
+    });
+
+    expect(() => Action.planInvalidation(Rename, "Ada", "Ada")).toThrow(EffectInputCallbackError);
+    try {
+      Action.planInvalidation(Rename, "Ada", "Ada");
+      expect.fail("Expected Action.planInvalidation to throw a typed callback error");
+    } catch (error) {
+      expect(error).toMatchObject({
+        _tag: "EffectInputCallbackError",
+        operation: "Action.invalidates(rename.invalidates-promise-plan-erased)",
+        cause: expect.any(EffectInputPromiseRejected)
       });
     }
   });

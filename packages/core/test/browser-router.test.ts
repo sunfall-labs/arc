@@ -10,6 +10,8 @@ import {
   browserRouterInitialMatchedState,
   createBrowserRouterHostController,
   createBrowserRouterKernel,
+  EffectInputCallbackError,
+  EffectInputPromiseRejected,
   isPlainLeftClick,
   makeBrowserRouterLinkPreloader,
   makeMemoryBrowserHistoryAdapter,
@@ -726,6 +728,40 @@ describe("browser router kernel", () => {
                   cause: "missing-project"
                 });
                 expect(state.cause.reasons.find(Cause.isFailReason)?.error).toBe(state.error);
+              }
+            })
+          );
+        })
+      )
+    ));
+
+  it("keeps erased Promise-shaped preload failures in router state", () =>
+    Effect.runPromise(
+      Effect.scoped(
+        Effect.gen(function* () {
+          const runtime = makeRuntime();
+          yield* Effect.addFinalizer(() => runtime.disposeEffect);
+
+          const Project = route("/promise-failure-projects/:id", {
+            preload: () => Promise.resolve(undefined) as never
+          });
+          const router = createBrowserRouterKernel([Project] as const, {
+            initialHref: "/promise-failure-projects/atlas",
+            runtime
+          });
+          yield* Effect.addFinalizer(() => Effect.sync(() => router.dispose()));
+
+          router.navigateHref("/promise-failure-projects/atlas");
+          yield* Effect.promise(() =>
+            vi.waitFor(() => {
+              const state = router.state.get();
+              expect(state._tag).toBe("Failure");
+              if (state._tag === "Failure") {
+                expect(state.error).toBeInstanceOf(RoutePreloadError);
+                expect((state.error as RoutePreloadError).cause).toBeInstanceOf(EffectInputCallbackError);
+                expect(((state.error as RoutePreloadError).cause as EffectInputCallbackError).cause).toBeInstanceOf(
+                  EffectInputPromiseRejected
+                );
               }
             })
           );

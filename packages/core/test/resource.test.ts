@@ -122,6 +122,47 @@ describe("Resource", () => {
     }
   });
 
+  it("rejects erased Promise-shaped custom resource keys before constructing identities", () => {
+    const Project = Resource.family<string, string>({
+      name: "ResourceKey.promise-family-key",
+      key: () => Promise.resolve("atlas") as never,
+      load: () => "ok"
+    });
+    const ProjectTag = Resource.tag<string>("ResourceKey.promise-tag-key", {
+      key: () => Promise.resolve("atlas") as never
+    });
+
+    expect(() => Project("atlas")).toThrow(ResourceKeyError);
+    expect(() => ProjectTag("atlas")).toThrow(ResourceKeyError);
+
+    try {
+      Project("atlas");
+      expect.fail("Expected Promise-shaped family key to fail");
+    } catch (error) {
+      expect(error).toMatchObject({
+        _tag: "ResourceKeyError",
+        operation: "Resource.family.ref",
+        name: "ResourceKey.promise-family-key",
+        reason: "PromiseLikeKey",
+        cause: expect.any(EffectInputPromiseRejected)
+      });
+      expect(String((error as ResourceKeyError).cause)).not.toContain("[object Promise]");
+    }
+
+    try {
+      ProjectTag("atlas");
+      expect.fail("Expected Promise-shaped tag key to fail");
+    } catch (error) {
+      expect(error).toMatchObject({
+        _tag: "ResourceKeyError",
+        operation: "Resource.tag",
+        name: "ResourceKey.promise-tag-key",
+        reason: "PromiseLikeKey",
+        cause: expect.any(EffectInputPromiseRejected)
+      });
+    }
+  });
+
   it("exposes resource family and tag diagnostics", () => {
     const ProjectTag = Resource.tag<{ readonly id: string }>("Project.diagnostics-tag", {
       key: ({ id }) => id
@@ -1267,6 +1308,25 @@ describe("Resource", () => {
       _tag: "EffectInputCallbackError",
       operation: "Resource.provides(User.sync-provides-throw)",
       cause: expect.any(Error)
+    });
+
+    const status = Resource.status(ref);
+    expect(status._tag).toBe("Failure");
+    expect(status.error).toBeInstanceOf(EffectInputCallbackError);
+  });
+
+  it("captures erased Promise-shaped resource provides returns in the Effect error channel", async () => {
+    const User = Resource.family({
+      name: "User.promise-provides-erased",
+      load: (id: string) => Effect.succeed({ id }),
+      provides: () => Promise.resolve([]) as never
+    });
+    const ref = User("1");
+
+    await expect(Effect.runPromise(Resource.prefetchEffect(ref))).rejects.toMatchObject({
+      _tag: "EffectInputCallbackError",
+      operation: "Resource.provides(User.promise-provides-erased)",
+      cause: expect.any(EffectInputPromiseRejected)
     });
 
     const status = Resource.status(ref);

@@ -1,5 +1,6 @@
 import { Effect } from "effect";
 import { EffectInputCallbackError } from "./effect-like.js";
+import { rejectPromiseLikeSyncCallbackValue } from "./effect-input-sync.js";
 import { ResourceTagIdentityTypeId, ResourceTagTypeId, ResourceTypeId } from "./resource-identifiers.js";
 import type {
   AnyResourceRef,
@@ -102,13 +103,24 @@ export const resourceProvidedTagsEffect = <I, A, E, R>(
   value: A
 ): Effect.Effect<readonly ResourceTag[], EffectInputCallbackError> =>
   Effect.try({
-    try: () => ref.family.options.provides?.(value, ref.input) ?? [],
+    try: () => {
+      const operation = `Resource.provides(${ref.family.options.name})`;
+      return ref.family.options.provides === undefined
+        ? []
+        : rejectPromiseLikeSyncCallbackValue(
+            operation,
+            ref.family.options.provides(value, ref.input),
+            "Resource provides callbacks must return tag metadata synchronously. Move host Promise work into the resource load Effect."
+          );
+    },
     catch: (cause) =>
-      new EffectInputCallbackError({
-        operation: `Resource.provides(${ref.family.options.name})`,
-        cause,
-        guidance: "Resource provides callbacks must be pure and total. Synchronous callback throws are reported in the Effect error channel."
-      })
+      cause instanceof EffectInputCallbackError
+        ? cause
+        : new EffectInputCallbackError({
+            operation: `Resource.provides(${ref.family.options.name})`,
+            cause,
+            guidance: "Resource provides callbacks must be pure and total. Synchronous callback throws are reported in the Effect error channel."
+          })
   });
 
 export const recordResourceProvidedTagsEffect = <I, A, E, R>(

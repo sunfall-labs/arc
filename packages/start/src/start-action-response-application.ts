@@ -215,8 +215,10 @@ export const applyStartActionInvalidationEffect = <
 ): Effect.Effect<void, ServerTransportError | RuntimeError, FetchRequirements> => {
   const effect = startActionResponseInvalidationEffect(body);
 
-  return (options.runtime
-    ? options.runtime.provide(effect)
+  const runtime = options.responseRuntime ?? options.runtime;
+
+  return (runtime
+    ? runtime.provide(effect)
     : effect) as Effect.Effect<void, ServerTransportError | RuntimeError, FetchRequirements>;
 };
 
@@ -251,8 +253,10 @@ export const applyStartActionResponseEffect = <
     yield* startActionResponseInvalidationEffect(body, hydratedResources);
   });
 
-  return (options.runtime
-    ? options.runtime.provide(effect)
+  const runtime = options.responseRuntime ?? options.runtime;
+
+  return (runtime
+    ? runtime.provide(effect)
     : effect) as Effect.Effect<void, ServerTransportError | RuntimeError, FetchRequirements>;
 };
 

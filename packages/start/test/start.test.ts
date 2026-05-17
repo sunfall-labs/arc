@@ -4379,6 +4379,85 @@ describe("Effect UI Start", () => {
     }
   });
 
+  it("applies action response metadata through the explicit app runtime, not the transport runtime", async () => {
+    interface TransportToken {
+      readonly token: string;
+    }
+    const TransportToken = Context.Service<TransportToken>("@effect-ui/start/test/ActionTransportToken");
+    const Project = Resource.family({
+      name: "Start.action.client.response-runtime",
+      load: (_id: string) => Effect.succeed({ id: "atlas", name: "Initial" })
+    });
+    const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
+      name: "Start.action.client.response-runtime",
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+      run: ({ value }) => Effect.succeed({ value })
+    });
+    const appRuntime = makeRuntime();
+    const transportRuntime = makeRuntime(
+      Layer.succeed(TransportToken)({ token: "transport-ok" })
+    );
+    const ref = Project("atlas");
+    const fetcher: StartFetch<never, TransportToken> = () =>
+      TransportToken.use(({ token }) =>
+        Effect.succeed(
+          new Response(
+            JSON.stringify({
+              _tag: "Success",
+              value: { value: token },
+              hydration: {
+                resources: [
+                  {
+                    name: Project.family.options.name,
+                    key: ref.key,
+                    input: "atlas",
+                    state: {
+                      _tag: "Success",
+                      waiting: false,
+                      value: { id: "atlas", name: "Hydrated In App Runtime" },
+                      updatedAt: 1
+                    }
+                  }
+                ]
+              }
+            }),
+            { headers: { "content-type": "application/json" } }
+          )
+        )
+      );
+
+    try {
+      await runInRuntime(appRuntime, Resource.prefetchEffect(ref));
+      await runInRuntime(transportRuntime, Resource.prefetchEffect(ref));
+
+      await expect(
+        Effect.runPromise(
+          submitStartActionEffect(Ping, { value: "submit" }, {
+            fetch: fetcher,
+            responseRuntime: appRuntime,
+            transportRuntime
+          })
+        )
+      ).resolves.toMatchObject({
+        _tag: "Success",
+        value: { value: "transport-ok" }
+      });
+
+      expect(runWithRuntime(appRuntime, () => Resource.status(ref).value)).toEqual({
+        id: "atlas",
+        name: "Hydrated In App Runtime"
+      });
+      expect(runWithRuntime(transportRuntime, () => Resource.status(ref).value)).toEqual({
+        id: "atlas",
+        name: "Initial"
+      });
+    } finally {
+      await Effect.runPromise(appRuntime.disposeEffect);
+      await Effect.runPromise(transportRuntime.disposeEffect);
+    }
+  });
+
   it("reports malformed Start action hydration payloads as transport errors", async () => {
     const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
       name: "Start.action.client.bad-hydration-meta",

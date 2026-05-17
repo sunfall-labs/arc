@@ -13,9 +13,10 @@ import type {
   EnsureEffectInput,
   EnsureEffectInputValue
 } from "./effect-like.js";
-import { EffectInputCallbackError } from "./effect-like.js";
+import { EffectInputCallbackError, EffectInputPromiseRejected } from "./effect-like.js";
+import { isPromiseLikeValue } from "./effect-input-sync.js";
 import type { DurationInput } from "./resource-duration.js";
-import type { ResourceFailure, ResourcePending } from "./resource-errors.js";
+import { ResourceKeyError, type ResourceFailure, type ResourcePending } from "./resource-errors.js";
 import { ResourceTagIdentityTypeId, ResourceTagTypeId, ResourceTypeId } from "./resource-identifiers.js";
 import type { ResourceStoreEvent } from "./resource-store.js";
 import type { ReadableSignal } from "./signal.js";
@@ -300,6 +301,33 @@ export type ResourceStatus<I, A, E = never, R = never, RefError = E> =
       readonly error: E;
     });
 
+const resourceKeyCallbackPromiseError = (
+  operation: string,
+  name: string
+): ResourceKeyError =>
+  new ResourceKeyError({
+    operation,
+    name,
+    path: "$",
+    reason: "PromiseLikeKey",
+    cause: new EffectInputPromiseRejected({
+      guidance: "Resource key callbacks must return strings synchronously. Move async key work before Resource ref/tag construction."
+    }),
+    guidance: "Resource key callbacks must return stable string keys synchronously. Promise-shaped keys would create unstable Resource identities."
+  });
+
+const customResourceKey = (
+  operation: string,
+  name: string,
+  value: string
+): string => {
+  if (isPromiseLikeValue(value)) {
+    throw resourceKeyCallbackPromiseError(operation, name);
+  }
+
+  return value;
+};
+
 /**
  * Runtime cache and state container for a set of resource refs.
  *
@@ -313,10 +341,13 @@ export class ResourceFamily<I, A, E = never, R = never> {
 
   /** Creates a stable ref for one input. */
   ref(input: I): ResourceRef<I, A, E, R> {
-    const key = `${this.options.name}:${this.options.key?.(input) ?? encodeResourceKey(input, {
-      operation: "Resource.family.ref",
-      name: this.options.name
-    })}`;
+    const encodedKey = this.options.key === undefined
+      ? encodeResourceKey(input, {
+          operation: "Resource.family.ref",
+          name: this.options.name
+        })
+      : customResourceKey("Resource.family.ref", this.options.name, this.options.key(input));
+    const key = `${this.options.name}:${encodedKey}`;
     return {
       [ResourceTypeId]: ResourceTypeId,
       family: this,
@@ -565,7 +596,7 @@ export namespace Resource {
         name
       }));
     const make = ((input: Input) => {
-      const key = keyFor(input);
+      const key = customResourceKey("Resource.tag", name, keyFor(input));
       return makeResourceTag(name, `${name}:${key}`, {
         _tag: "Keyed",
         name,

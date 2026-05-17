@@ -1,4 +1,4 @@
-import { makeRuntime, runWithRuntime } from "@effect-ui/core";
+import { EffectInputPromiseRejected, makeRuntime, runWithRuntime } from "@effect-ui/core";
 import { Collection } from "@effect-ui/db";
 import { Effect } from "effect";
 import { describe, expect, it } from "vitest";
@@ -379,6 +379,32 @@ describe("flushCollectionsPendingMutationsEffect", () => {
         _tag: "EffectInputCallbackError",
         operation: "Collection.flush.skip",
         cause
+      });
+    } finally {
+      await Effect.runPromise(runtime.disposeEffect);
+    }
+  });
+
+  it("reports erased Promise-shaped static flush skip values in the Effect error channel", async () => {
+    const runtime = makeRuntime();
+    const Projects = Collection.define<Project, string, never>({
+      name: "Projects.flush-policy.skip-promise",
+      getKey: (project) => project.id
+    });
+
+    try {
+      await Effect.runPromise(runtime.provide(Projects.hydrateEffect(pendingProjectSnapshot(Projects.name))));
+
+      await expect(
+        Effect.runPromise(runtime.provide(
+          flushCollectionsPendingMutationsEffect([Projects], {
+            skip: Promise.resolve(true) as never
+          })
+        ))
+      ).rejects.toMatchObject({
+        _tag: "EffectInputCallbackError",
+        operation: "Collection.flush.skip",
+        cause: expect.any(EffectInputPromiseRejected)
       });
     } finally {
       await Effect.runPromise(runtime.disposeEffect);

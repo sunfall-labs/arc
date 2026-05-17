@@ -15,7 +15,7 @@ const pathSegment = (key: string): string =>
 
 interface ResourceKeyErrorFields {
   readonly path: string;
-  readonly reason: "CircularReference" | "UnsupportedObject" | "InvalidDate" | "EncodeFailure";
+  readonly reason: "CircularReference" | "UnsupportedObject" | "InvalidDate" | "EncodeFailure" | "PromiseLikeKey";
   readonly referencePath?: string;
   readonly cause?: unknown;
 }

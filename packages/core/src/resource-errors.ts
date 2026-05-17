@@ -55,7 +55,7 @@ export class ResourceKeyError extends Data.TaggedError("ResourceKeyError")<{
   /** Input path that failed to encode. */
   readonly path: string;
   /** Machine-readable failure reason. */
-  readonly reason: "CircularReference" | "UnsupportedObject" | "InvalidDate" | "EncodeFailure";
+  readonly reason: "CircularReference" | "UnsupportedObject" | "InvalidDate" | "EncodeFailure" | "PromiseLikeKey";
   /** Path of the original value for circular references. */
   readonly referencePath?: string;
   /** Original thrown value, when available. */

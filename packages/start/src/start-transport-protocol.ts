@@ -106,6 +106,13 @@ export interface StartActionClientOptions<
    * omitted, for fetch Effects that require services.
    */
   readonly runtime?: EffectUiRuntime<FetchRequirements, RuntimeError> | AnyEffectUiRuntime<RuntimeError>;
+  /**
+   * Runtime used only for action response hydration and invalidation metadata.
+   *
+   * Use this with `transportRuntime` when fetch transport services live in a
+   * different Runtime Spine than application Resource/Collection state.
+   */
+  readonly responseRuntime?: EffectUiRuntime<any, RuntimeError> | AnyEffectUiRuntime<RuntimeError>;
 }
 
 /** Extracts the input value type from a core `ActionDefinition`. */

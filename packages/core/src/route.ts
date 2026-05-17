@@ -1,6 +1,6 @@
 import { Data, Effect, Schema } from "effect";
 import type { EffectInputRequirements, EnsureEffectInput } from "./effect-like.js";
-import { toEffect } from "./effect-like.js";
+import { catchEffectInputPromiseDefect, toEffect } from "./effect-like.js";
 import {
   isResourceRef,
   type AnyResourceFamily,
@@ -559,9 +559,12 @@ export namespace Route {
       Effect.flatMap((input) =>
         input === undefined
           ? Effect.void
-          : toEffect(input).pipe(
+          : catchEffectInputPromiseDefect(
+              `Route.preload(${match.route.path})`,
+              toEffect(input) as Effect.Effect<void, unknown, PreloadRequirements<R>>
+            ).pipe(
               Effect.asVoid,
-              Effect.catch((cause: unknown) => Effect.fail(routePreloadError(match, cause)))
+              Effect.mapError((cause) => routePreloadError(match, cause))
             )
       )
     );
