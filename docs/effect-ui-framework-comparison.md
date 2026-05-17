@@ -127,18 +127,16 @@ and generated route facts close to the app graph:
 ```ts
 const RouteBuilder = defineFileRoute("/projects/:id")
 
-export const Route = RouteBuilder({
-  ...RouteBuilder.preload({
-    params: Schema.Struct({ id: ProjectId }),
-    search: Schema.Struct({
-      tab: Schema.optional(Schema.Literals(["overview", "activity"]))
-    }),
-    resources: ({ resource }) => [
-      resource(ProjectById, ({ params }) => params.id)
-    ],
-    collections: [ProjectSummaries]
-  })
-})
+export const Route = RouteBuilder.preload({
+  params: Schema.Struct({ id: ProjectId }),
+  search: Schema.Struct({
+    tab: Schema.optional(Schema.Literals(["overview", "activity"]))
+  }),
+  resources: ({ resource }) => [
+    resource(ProjectById, ({ params }) => params.id)
+  ],
+  collections: [ProjectSummaries]
+}).route()
 ```
 
 The generated route file exposes maps such as `routeById`, `routeByPath`,

@@ -101,10 +101,40 @@ export const toEffect = <A, E = never, R = never>(
   return Effect.succeed(value as A);
 };
 
+const promiseRejectedCallbackError = (
+  operation: string,
+  cause: EffectInputPromiseRejected
+): EffectInputCallbackError =>
+  new EffectInputCallbackError({
+    operation,
+    cause,
+    guidance: "EffectInput callbacks must return values or Effects. Wrap host Promise work in Effect.tryPromise(...) at the host adapter seam."
+  });
+
+/**
+ * Converts the controlled Promise-shaped EffectInput defect into a typed
+ * callback failure while preserving unrelated defects.
+ *
+ * Use this when a callback result needs extra Effect policy, such as retrying
+ * only the returned domain Effect instead of retrying callback normalization.
+ */
+export const catchEffectInputPromiseDefect = <A, E, R>(
+  operation: string,
+  effect: Effect.Effect<A, E, R>
+): Effect.Effect<A, E | EffectInputCallbackError, R> =>
+  Effect.catchDefect(
+    effect,
+    (defect) =>
+      defect instanceof EffectInputPromiseRejected
+        ? Effect.fail(promiseRejectedCallbackError(operation, defect))
+        : Effect.die(defect)
+  );
+
 const normalizeEffectInput = <A, E, R>(
+  operation: string,
   value: EffectInput<A, E, R>
-): Effect.Effect<A, E, R> =>
-  toEffect(value as never) as Effect.Effect<A, E, R>;
+): Effect.Effect<A, E | EffectInputCallbackError, R> =>
+  catchEffectInputPromiseDefect(operation, toEffect(value as never) as Effect.Effect<A, E, R>);
 
 /**
  * Invokes an EffectInput-returning callback inside Effect and normalizes the
@@ -130,5 +160,5 @@ export const invokeEffectInput = <
           guidance: "EffectInput callbacks must return values or Effects. Synchronous callback throws are reported in the Effect error channel."
         })
     }),
-    normalizeEffectInput
+    (value) => normalizeEffectInput(operation, value)
   );

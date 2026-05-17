@@ -16,6 +16,7 @@ import {
   type ActionRollback
 } from "./action-optimistic.js";
 import {
+  catchEffectInputPromiseDefect,
   EffectInputCallbackError,
   toEffect
 } from "./effect-like.js";
@@ -117,17 +118,15 @@ export const makeActionExecutionWorkflow = <I, A, E, R, ER>(
     return Effect.flatMap(
       Effect.try({
         try: () => definition.run(input),
-        catch: (cause) =>
-          new EffectInputCallbackError({
-            operation,
-            cause,
-            guidance: "EffectInput callbacks must return values or Effects. Synchronous callback throws are reported in the Effect error channel."
-          })
+        catch: (cause) => actionCallbackError(operation, cause)
       }),
       (result) => {
         const effect = toEffect(result as never) as Effect.Effect<A, E, R>;
         const retry = definition.policy?.retry;
-        return retry ? Effect.retry(effect, retry) : effect;
+        return catchEffectInputPromiseDefect(
+          operation,
+          retry === undefined ? effect : Effect.retry(effect, retry)
+        );
       }
     );
   };

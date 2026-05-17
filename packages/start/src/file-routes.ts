@@ -843,21 +843,39 @@ export const deserializeFileRouteManifest = (
       })
   }).pipe(Effect.flatMap(decodeSerializedManifest));
 
-/** Generates the full manifest artifact used by Start virtual modules. */
-export const generateFileRouteManifestArtifact = (
-  filePaths: Iterable<string>,
-  options: FileRouteManifestOptions = {}
-): FileRouteManifest =>
-  createFileRouteManifest(
-    generateFileRouteManifest(filePaths, options),
-    options,
-    generateFileRouteModules(filePaths, options)
-  );
-
 interface FileRouteManifestParts {
   readonly entries: readonly FileRouteManifestEntry[];
   readonly modules: readonly FileRouteManifestModule[];
 }
+
+const manifestEntriesFromModules = (
+  modules: Iterable<FileRouteManifestModule>
+): readonly FileRouteManifestEntry[] =>
+  Array.from(modules, fileRouteModuleToManifestEntry)
+    .filter((entry): entry is FileRouteManifestEntry => entry !== undefined)
+    .sort(compareManifestEntries);
+
+const generateFileRouteManifestParts = (
+  filePaths: Iterable<string>,
+  options: FileRouteManifestOptions = {}
+): FileRouteManifestParts => {
+  const modules = Array.from(filePaths, (filePath) => filePathToFileRouteModule(filePath, options))
+    .filter((module): module is FileRouteManifestModule => module !== undefined);
+
+  return {
+    entries: manifestEntriesFromModules(modules),
+    modules: modules.sort(compareManifestModules)
+  };
+};
+
+/** Generates the full manifest artifact used by Start virtual modules. */
+export const generateFileRouteManifestArtifact = (
+  filePaths: Iterable<string>,
+  options: FileRouteManifestOptions = {}
+): FileRouteManifest => {
+  const parts = generateFileRouteManifestParts(filePaths, options);
+  return createFileRouteManifest(parts.entries, options, parts.modules);
+};
 
 const generateValidatedFileRouteManifestPartsEffect = (
   filePaths: Iterable<string>,
@@ -867,10 +885,7 @@ const generateValidatedFileRouteManifestPartsEffect = (
     const modules = yield* Effect.forEach(filePaths, (filePath) =>
       filePathToFileRouteModuleEffect(filePath, options)
     ).pipe(Effect.map((modules) => modules.filter((module): module is FileRouteManifestModule => module !== undefined)));
-    const entries = modules.flatMap((module) => {
-      const entry = fileRouteModuleToManifestEntry(module);
-      return entry ? [entry] : [];
-    });
+    const entries = manifestEntriesFromModules(modules);
     const validated = yield* validateFileRouteManifestEffect(entries, modules);
 
     return {

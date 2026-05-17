@@ -65,14 +65,14 @@ yet.
 
 ## Verification Snapshot
 
-Latest full gate on May 16, 2026 after Review 195:
+Latest full gate on May 16, 2026 after Review 196:
 
 - 11 package builds;
 - workspace typecheck and public type tests;
 - public API inventory audit;
 - Effect-first audit over 404 package/example/config/script/type-test/generated
   template/docs-snippet physical and virtual files;
-- 53 root test files / 1040 tests;
+- 53 root test files / 1045 tests;
 - package-level verifies for the devtools panel, devtools extension, basic
   starter, React starter, and project console packages;
 - starter-suite packaging for basic (19 app files / 5 local packages), React
@@ -86,6 +86,14 @@ Latest full gate on May 16, 2026 after Review 195:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 196 closed the first post-Review195 sweep findings: erased
+  Promise-shaped Action/Program callbacks now become typed
+  `EffectInputCallbackError` failures instead of hanging state machines, Start
+  file-route manifest artifacts materialize modules once for one-shot inputs,
+  Start transport headers reject Promise-shaped callbacks as typed transport
+  errors, public Start/Devtools/DB Interfaces have stronger LSP/type-test pins,
+  starters no longer export duplicate manual preload Effects, and remaining
+  file-route docs/examples use `defineFileRoute(path).preload(...).route(...)`.
 - Review 195 closed the first post-Review194 sweep findings: erased
   Promise-shaped Resource loader returns now become typed
   `EffectInputCallbackError` failures instead of pending resources, Resource
@@ -119,8 +127,9 @@ Latest full gate on May 16, 2026 after Review 195:
   work, the first post-Review191 sweep found Review192 docs drift, and the
   first post-Review192 sweep found Review193 work, and the first post-Review193
   sweep found Review194 work, and the first post-Review194 sweep found
-  Review195 work. The active Thirty-Sweep clean counter is reset to
-  0/30 until a fresh post-Review195 sweep reports no
+  Review195 work, and the first post-Review195 sweep found Review196 work. The
+  active Thirty-Sweep clean counter is reset to
+  0/30 until a fresh post-Review196 sweep reports no
   actionable findings.
 - Review 192 refreshed stale current-gate docs wording that still named
   Review190 or active 1/30 progress after Review191.
@@ -1056,14 +1065,15 @@ Latest full gate on May 16, 2026 after Review 195:
   change-feed, and Solid DB preload surfaces.
 - Node server error hooks are EffectInput-only; host Promise work must be
   adapted explicitly with `Effect.tryPromise(...)`.
-- The latest full `pnpm verify` passed after Review 195 Resource guardrails,
-  Start diagnostics trace classification, and file-route LSP/starter refresh.
+- The latest full `pnpm verify` passed after Review 196 EffectInput
+  state-machine guardrails, Start manifest/transport hardening, public LSP pins,
+  and starter preload locality.
   Clean Sweep 1 after Review190 remains historical 1/30 evidence, but later
-  sweeps found Review191, Review192, Review193, Review194, and Review195 work,
-  leaving the active counter at 0/30.
+  sweeps found Review191, Review192, Review193, Review194, Review195, and
+  Review196 work, leaving the active counter at 0/30.
   Verification covered 11 package builds, workspace
   typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 404 physical/virtual files, 53 root test files / 1040
+  Effect-first audit over 404 physical/virtual files, 53 root test files / 1045
   tests, package-level verifies for the devtools/starter/example packages,
   generated starter-suite packaging/verifies for basic/react/project-console,
   16-target package dry-run gate, project-console typecheck, 4 project-console

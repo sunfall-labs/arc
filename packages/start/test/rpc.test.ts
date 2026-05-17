@@ -2,6 +2,7 @@ import { Cause, Data, Deferred, Effect, Exit, Fiber, Layer, Schema } from "effec
 import { describe, expect, it } from "vitest";
 import {
   defineApp,
+  EffectInputPromiseRejected,
   route,
   Server,
   ServerClient,
@@ -491,6 +492,35 @@ describe("Start RPC transport", () => {
           });
           expect(failure).toHaveProperty("cause");
           expect(String((failure as ServerTransportError).cause)).toContain("Start fetch hooks must return an Effect");
+        });
+      })
+    ));
+
+  it("rejects Promise-shaped RPC client headers as transport errors", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const Echo = Server.contract<string, string>("Start.transport.promise-headers", {
+          input: Schema.String,
+          output: Schema.String
+        });
+        const echo = Server.client(Echo);
+        const headerRuntime = Layer.succeed(ServerClient)(
+          makeRpcClient({
+            headers: (() => Promise.resolve({ authorization: "Bearer token" })) as never
+          })
+        );
+
+        const exit = yield* Effect.exit(Effect.provide(echo.effect("hello"), headerRuntime));
+
+        yield* Effect.sync(() => {
+          const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
+
+          expect(failure).toBeInstanceOf(ServerTransportError);
+          expect(failure).toMatchObject({
+            reason: "Network",
+            message: "Could not construct Start transport headers.",
+            cause: expect.any(EffectInputPromiseRejected)
+          });
         });
       })
     ));

@@ -1,4 +1,5 @@
 import {
+  EffectInputPromiseRejected,
   isEffectLike,
   ServerTransportError,
   type AnyEffectUiRuntime,
@@ -20,6 +21,19 @@ class StartFetchInvalidReturn extends Data.TaggedError("StartFetchInvalidReturn"
   readonly message: string;
   readonly received: unknown;
 }> {}
+
+const isPromiseLike = (value: unknown): value is PromiseLike<unknown> => {
+  if (value === null) {
+    return false;
+  }
+
+  const valueType = typeof value;
+  if (valueType !== "object" && valueType !== "function") {
+    return false;
+  }
+
+  return typeof (value as { readonly then?: unknown }).then === "function";
+};
 
 /** Input accepted by the Start client transport fetch hook. */
 export type StartFetchInput = Parameters<typeof globalThis.fetch>[0];
@@ -64,11 +78,29 @@ export const getStartTransportHeadersEffect = (
   options: Pick<ServerRpcClientOptions, "headers">
 ): Effect.Effect<Headers, ServerTransportError> =>
   Effect.gen(function* () {
+    const headersInit = yield* Effect.try({
+      try: () => typeof options.headers === "function"
+        ? options.headers()
+        : options.headers,
+      catch: (cause) =>
+        new ServerTransportError({
+          reason: "Network",
+          message: "Could not construct Start transport headers.",
+          cause
+        })
+    });
+    if (isPromiseLike(headersInit)) {
+      return yield* Effect.fail(new ServerTransportError({
+        reason: "Network",
+        message: "Could not construct Start transport headers.",
+        cause: new EffectInputPromiseRejected({
+          guidance: "Start transport headers must be static HeadersInit or a synchronous HeadersInit callback. Move async header work into the StartFetch Adapter and wrap host Promise work with Effect.tryPromise(...)."
+        })
+      }));
+    }
+
     const headers = yield* Effect.try({
-      try: () =>
-        new Headers(
-          typeof options.headers === "function" ? options.headers() : options.headers
-        ),
+      try: () => new Headers(headersInit),
       catch: (cause) =>
         new ServerTransportError({
           reason: "Network",

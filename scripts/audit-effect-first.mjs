@@ -313,6 +313,7 @@ const allowed = [
       seam("packages/core/src/effect-like.ts", "EffectInput runtime Promise-like guard", /const isPromiseLike\s*=\s*\(value:\s*unknown\):\s*value is PromiseLike<unknown>/),
       seam("packages/core/src/capability.ts", "Capability useSync runtime Promise-like guard", /const isPromiseLike\s*=\s*\(value:\s*unknown\):\s*value is PromiseLike<unknown>/),
       seam("packages/start/src/file-route.ts", "File route preload runtime Promise-like guard", /const isPromiseLike\s*=\s*\(value:\s*unknown\):\s*value is PromiseLike<unknown>/),
+      seam("packages/start/src/start-fetch.ts", "Start transport headers runtime Promise-like guard", /const isPromiseLike\s*=\s*\(value:\s*unknown\):\s*value is PromiseLike<unknown>/),
       seam("packages/start/src/streaming.ts", "ReadableStream finalizer host return contract", /export type StartResponseStreamRunner[\s\S]*?PromiseLike<A>;/)
     ]
   },
@@ -322,7 +323,8 @@ const allowed = [
     seams: [
       seam("packages/core/src/effect-like.ts", "EffectInput runtime thenable guard property", /value as \{ readonly then\?: unknown \}/),
       seam("packages/core/src/capability.ts", "Capability useSync runtime thenable guard property", /value as \{ readonly then\?: unknown \}/),
-      seam("packages/start/src/file-route.ts", "File route preload runtime thenable guard property", /value as \{ readonly then\?: unknown \}/)
+      seam("packages/start/src/file-route.ts", "File route preload runtime thenable guard property", /value as \{ readonly then\?: unknown \}/),
+      seam("packages/start/src/start-fetch.ts", "Start transport headers runtime thenable guard property", /value as \{ readonly then\?: unknown \}/)
     ]
   }
 ];

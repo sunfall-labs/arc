@@ -20,4 +20,3 @@ export const WelcomeResource = Resource.family({
 });
 
 export const WelcomeRef = WelcomeResource("React");
-export const preloadWelcomeEffect = Resource.prefetchEffect(WelcomeRef);

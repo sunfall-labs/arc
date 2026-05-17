@@ -1,4 +1,9 @@
 import {
+  Effect,
+  PubSub,
+  Scope
+} from "effect";
+import {
   Collection,
   Query,
   SQLitePersistence,
@@ -81,6 +86,10 @@ const serverSync = serverCollectionSyncAdapter<Project>({
   name: "projects",
   getKey: (project) => project.id
 });
+const collectionCurrentStore: Collection.Store = Collection.currentStore();
+const collectionStoreEffect: Effect.Effect<Collection.Store> = Collection.storeEffect();
+const collectionEventsEffect: Effect.Effect<PubSub.Subscription<Collection.StoreEvent>, never, Scope.Scope> =
+  Collection.subscribeEventsEffect();
 
 const dbExports: Array<unknown> = [
   Collection,
@@ -120,7 +129,10 @@ const dbExports: Array<unknown> = [
   liveQueryAlias,
   liveQueryCollectionAlias,
   serverOptions,
-  serverSync
+  serverSync,
+  collectionCurrentStore,
+  collectionStoreEffect,
+  collectionEventsEffect
 ];
 type DbErrors =
   | CollectionStorageError

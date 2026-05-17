@@ -1,6 +1,16 @@
 import { Cause, Context, Deferred, Effect, Exit, Layer, Option, Queue, Stream } from "effect";
 import { describe, expect, it } from "vitest";
-import { makeRuntime, Program, ProgramDisposed, read, RuntimeTypeId, runWithRuntime, type AnyEffectUiRuntime } from "../src/index.js";
+import {
+  EffectInputCallbackError,
+  EffectInputPromiseRejected,
+  makeRuntime,
+  Program,
+  ProgramDisposed,
+  read,
+  RuntimeTypeId,
+  runWithRuntime,
+  type AnyEffectUiRuntime
+} from "../src/index.js";
 
 interface CounterApi {
   readonly load: Effect.Effect<number>;
@@ -127,6 +137,30 @@ describe("Program", () => {
         expect(read(program.failures)).toEqual([failure]);
         program.clearFailures();
         expect(read(program.failures)).toEqual([]);
+
+        yield* program.disposeEffect;
+      })
+    ));
+
+  it("reports erased Promise-shaped update returns as typed failures", () =>
+    Effect.runPromise(
+      Effect.gen(function* () {
+        const program = Program.start(Program.define<number, "promise">({
+          initial: 0,
+          update: () => Promise.resolve(1) as never
+        }));
+
+        const failure = yield* Effect.flip(program.dispatchEffect("promise"));
+
+        expect(read(program.model)).toBe(0);
+        expect(failure).toMatchObject({
+          _tag: "ProgramFailure",
+          phase: "Update",
+          message: "promise",
+          error: expect.any(EffectInputCallbackError)
+        });
+        expect((failure.error as EffectInputCallbackError).cause).toBeInstanceOf(EffectInputPromiseRejected);
+        expect(read(program.failures)).toEqual([failure]);
 
         yield* program.disposeEffect;
       })

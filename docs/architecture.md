@@ -558,16 +558,14 @@ binding a builder so schemas, preload metadata, and preload work stay together:
 ```ts
 const RouteBuilder = defineFileRoute("/projects/:id")
 
-export const Route = RouteBuilder({
-  ...RouteBuilder.preload({
-    params: ProjectRouteParams,
-    search: ProjectRouteSearch,
-    resources: ({ resource }) => [
-      resource(ProjectById, ({ params }) => params.id)
-    ],
-    collections: [ProjectSummaries]
-  })
-})
+export const Route = RouteBuilder.preload({
+  params: ProjectRouteParams,
+  search: ProjectRouteSearch,
+  resources: ({ resource }) => [
+    resource(ProjectById, ({ params }) => params.id)
+  ],
+  collections: [ProjectSummaries]
+}).route()
 ```
 
 The generated file imports those route modules, checks each imported route's

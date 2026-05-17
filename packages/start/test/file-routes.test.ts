@@ -202,6 +202,30 @@ describe("file route manifest generation", () => {
     });
   });
 
+  it("creates a full manifest artifact from one-shot file path iterables", () => {
+    function* discoveredFiles() {
+      yield "src/routes/layout.tsx";
+      yield "src/routes/error.tsx";
+      yield "src/routes/metadata.ts";
+      yield "src/routes/index.tsx";
+    }
+
+    const manifest = generateFileRouteManifestArtifact(discoveredFiles(), options);
+
+    expect(manifest.entries).toEqual([
+      expect.objectContaining({
+        routePath: "/",
+        moduleId: "src/routes/index.tsx"
+      })
+    ]);
+    expect(manifest.modules).toEqual(expect.arrayContaining([
+      expect.objectContaining({ kind: "Route", moduleId: "src/routes/index.tsx" }),
+      expect.objectContaining({ kind: "Layout", moduleId: "src/routes/layout.tsx" }),
+      expect.objectContaining({ kind: "ErrorBoundary", moduleId: "src/routes/error.tsx" }),
+      expect.objectContaining({ kind: "Metadata", moduleId: "src/routes/metadata.ts" })
+    ]));
+  });
+
   it("describes parent routes and scoped support modules", () => {
     const manifest = generateFileRouteManifestArtifact(
       [

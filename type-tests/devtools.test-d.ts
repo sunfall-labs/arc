@@ -109,6 +109,29 @@ const devtoolsPanelsEffect: Effect.Effect<DevtoolsPanels> = devtoolsStore.getPan
 const devtoolsCausalGraph: DevtoolsCausalGraph = devtoolsStore.getCausalGraph();
 const devtoolsCausalGraphEffect: Effect.Effect<DevtoolsCausalGraph> =
   devtoolsStore.getCausalGraphEffect();
+declare const devtoolsActionInstance: Parameters<DevtoolsStore["recordActionEffect"]>[0];
+declare const devtoolsStartActionInstance: Parameters<DevtoolsStore["recordStartActionEffect"]>[0];
+declare const devtoolsRoutePlanInput: Parameters<DevtoolsStore["recordRoutePlanEffect"]>[0];
+declare const devtoolsProgramInstance: Parameters<DevtoolsStore["trackProgramEffect"]>[0];
+const devtoolsRecordActionEffect: Effect.Effect<void> =
+  devtoolsStore.recordActionEffect(devtoolsActionInstance);
+const devtoolsTrackActionEffect: Effect.Effect<void, never, Scope.Scope> =
+  devtoolsStore.trackActionEffect(devtoolsActionInstance);
+const devtoolsRecordStartActionEffect: Effect.Effect<void> =
+  devtoolsStore.recordStartActionEffect(devtoolsStartActionInstance);
+const devtoolsTrackStartActionEffect: Effect.Effect<void, never, Scope.Scope> =
+  devtoolsStore.trackStartActionEffect(devtoolsStartActionInstance);
+const devtoolsRecordRoutePlanEffect: Effect.Effect<number> =
+  devtoolsStore.recordRoutePlanEffect(devtoolsRoutePlanInput);
+const devtoolsTrackProgramEffect: Effect.Effect<void, never, Scope.Scope> =
+  devtoolsStore.trackProgramEffect(devtoolsProgramInstance);
+const devtoolsCustomRuntimeEvent: DevtoolsRuntimeEvent = {
+  _tag: "Custom",
+  name: "type-test",
+  payload: { ok: true }
+};
+const devtoolsRecordCustomRuntimeEventEffect: Effect.Effect<void> =
+  devtoolsStore.recordRuntimeEventEffect(devtoolsCustomRuntimeEvent);
 
 const devtoolsSummaryInput: DevtoolsSummaryInput = {
   snapshot: devtoolsSnapshot,
@@ -126,6 +149,13 @@ const describedDevtoolsCausalGraph: DevtoolsCausalGraph =
   describeDevtoolsCausalGraph(devtoolsSummaryInput);
 const describedDevtoolsCausalGraphEffect: Effect.Effect<DevtoolsCausalGraph> =
   describeDevtoolsCausalGraphEffect(devtoolsSummaryInput);
+void devtoolsRecordActionEffect;
+void devtoolsTrackActionEffect;
+void devtoolsRecordStartActionEffect;
+void devtoolsTrackStartActionEffect;
+void devtoolsRecordRoutePlanEffect;
+void devtoolsTrackProgramEffect;
+void devtoolsRecordCustomRuntimeEventEffect;
 
 const devtoolsPanelId: DevtoolsPanelId = devtoolsPanelIds[0]!;
 const devtoolsPanelSeverity: DevtoolsPanelSeverity = devtoolsPanelSeverities[0]!;

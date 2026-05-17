@@ -11,14 +11,15 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review195, the post-Review194 sweep
-fixing erased Promise-shaped Resource loads, Resource Store module finalizer
-typing, Start diagnostics virtual-module iterable normalization, request-trace
-failure-kind classification, and file-route LSP/example drift. The newest full
-verification checkpoint is Review195. Clean Sweep 1 after Review190 remains
+The newest completed focused review is Review196, the post-Review195 sweep
+fixing erased Promise-shaped Action/Program state-machine callbacks, Start
+manifest/header guardrails, file-route/devtools/DB LSP pins, and starter
+preload locality. The newest full verification checkpoint is Review196. Clean
+Sweep 1 after Review190 remains
 historical evidence, but later sweeps found Review191, Review192, Review193,
-Review194, and Review195 work, so the active Thirty-Sweep clean counter is 0/30
-until a fresh post-Review195 sweep reports no actionable findings. Some older review entries
+Review194, Review195, and Review196 work, so the active Thirty-Sweep clean
+counter is 0/30 until a fresh post-Review196 sweep reports no actionable
+findings. Some older review entries
 remain below this tip from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
 
@@ -38,7 +39,95 @@ work. The first post-Review191 sweep found Review192 docs drift, the first
 post-Review192 sweep found Review193 Core/Start/DB/public docs work, and the
 first post-Review193 sweep found Review194 Core/Start/docs work. The first
 post-Review194 sweep found Review195 Core/Start/example/docs work, so the
-counter is no longer active until the post-Review195 sweep is clean.
+counter stayed inactive. The first post-Review195 sweep found Review196
+Core/Start/DB/devtools/starter work, so the counter remains inactive until the
+post-Review196 sweep is clean.
+
+## Review 196: EffectInput State Machines, Start Guardrails, And Public Pins
+
+Review196 fixed actionable findings from the fresh post-Review195 subagent
+sweep.
+
+1. EffectInput Callback Normalization Across State Machines
+   - Status: fixed.
+   - Files: `packages/core/src/effect-like.ts`,
+     `packages/core/src/action-execution-workflow.ts`,
+     `packages/core/src/resource-runtime.ts`,
+     `packages/core/test/action.test.ts`,
+     `packages/core/test/program.test.ts`,
+     `packages/core/test/resource.test.ts`.
+   - Problem: Review195 fixed erased Promise-shaped `Resource.load(...)`
+     returns, but `Action.run(...)` and `Program.update(...)` could still let
+     the controlled `EffectInputPromiseRejected` defect cross their state
+     machines, leaving pending Action state or hanging Program dispatch
+     acknowledgements.
+   - Fix: the EffectInput Module now owns conversion of controlled
+     Promise-shaped defects into typed `EffectInputCallbackError` failures.
+     Action and Resource still apply retry only to the returned domain Effect,
+     not to callback normalization failures. Program gets the fix through
+     `invokeEffectInput(...)`.
+   - Benefits: erased JavaScript or `any` mistakes fail through the same public
+     Interface seams users observe, preserving Locality in the EffectInput
+     Module and Leverage across Resource, Action, Program, Server, DB, and UI
+     callback Adapters.
+
+2. Start Manifest And Transport Header Guardrails
+   - Status: fixed.
+   - Files: `packages/start/src/file-routes.ts`,
+     `packages/start/src/start-fetch.ts`,
+     `packages/start/test/file-routes.test.ts`,
+     `packages/start/test/rpc.test.ts`,
+     `packages/start/test/start.test.ts`,
+     `scripts/audit-effect-first.mjs`.
+   - Problem: `generateFileRouteManifestArtifact(...)` consumed route file
+     iterables twice, so generator-backed inputs could keep route entries while
+     dropping layout/error/metadata modules. Start transport headers also
+     accepted erased Promise-shaped header callbacks and let `new Headers(...)`
+     silently produce empty headers.
+   - Fix: sync and Effect manifest artifact paths now derive entries from one
+     materialized module pass. Transport headers reject Promise-shaped values as
+     typed `ServerTransportError` failures with `EffectInputPromiseRejected`
+     causes and guidance to move async work into the `StartFetch` Adapter.
+   - Benefits: Start manifest generation has one-shot iterable Locality, and
+     async auth/tracing mistakes fail loudly at the transport Adapter seam.
+
+3. Public LSP Pins And Starter Preload Locality
+   - Status: fixed.
+   - Files: `scripts/public-api-symbol-policy.mjs`,
+     `type-tests/public-api.manifest.json`,
+     `type-tests/start.test-d.ts`,
+     `type-tests/devtools.test-d.ts`,
+     `type-tests/db.test-d.ts`,
+     `examples/basic-starter/src/starter.ts`,
+     `examples/react-starter/src/starter.ts`,
+     `examples/project-console/src/routes/index.ts`,
+     `examples/project-console/src/routes/projects/index.ts`,
+     `docs/architecture.md`,
+     `docs/effect-ui-framework-comparison.md`.
+   - Problem: root Start type tests under-pinned the file-route authoring
+     Interface; Devtools Store and DB Collection Store accessors were public but
+     shallowly pinned for LSP; basic/React starters exported an unused manual
+     preload Effect beside route-owned preload metadata; and two project-console
+     routes plus docs snippets still taught the older spread preload idiom.
+   - Fix: added hover-doc/type-test pins for Start file-route authoring,
+     Devtools Store, and DB Collection Store access. Removed duplicate starter
+     preload exports and moved remaining examples/docs to
+     `RouteBuilder.preload(...).route(...)`.
+   - Benefits: users and agents now see one preferred route-local preload
+     Interface, while public store/debugging Interfaces have stronger LSP
+     Leverage and test-backed Locality.
+
+Focused evidence for this pass: Core/Start/DB/Devtools package typechecks,
+public type tests, public API audit, Effect-first audit over 404 files, focused
+Core Promise-shaped Action/Program/Resource regressions, focused Start
+one-shot/header regressions, basic-starter/react-starter/project-console
+typechecks, route-spread/preload-export greps, and `git diff --check` passed.
+Full `pnpm verify` passed after Review196 with 11 package builds, workspace
+typecheck, public type tests, public API audit, Effect-first audit over 404
+files, 53 root test files / 1045 tests, package-level verifies, generated
+starter packaging, the 16-target package dry-run gate, project-console checks,
+and leak scans. Because this sweep found work, the active clean counter remains
+0/30.
 
 ## Review 195: Resource Guardrails, Start Diagnostics, And File-Route Examples
 

@@ -20,4 +20,3 @@ export const WelcomeResource = Resource.family({
 });
 
 export const WelcomeRef = WelcomeResource("Effect UI");
-export const preloadWelcomeEffect = Resource.prefetchEffect(WelcomeRef);

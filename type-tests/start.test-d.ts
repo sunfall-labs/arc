@@ -9,6 +9,7 @@ import {
   createRequestHandler,
   createStartStreamedHtmlResponseEffect,
   defaultGeneratedFileRouteDefinitionsHeader,
+  defineFileRoute,
   describeStartAppGraph,
   describeStartAppGraphRuntimeDiagnostics,
   deserializeStartAppGraph,
@@ -64,6 +65,7 @@ import {
   StartAppGraphParseError,
   StartTransportEndpointConflictError,
   StartTransportEndpointPathError,
+  FileRoutePreloadError,
   StartAppGraphUnknownActionBehavior,
   submitStartActionEffect,
   validateStartAppGraphActionBehaviorEffect,
@@ -106,6 +108,9 @@ import {
   type FileRouteDefinitionsModuleOptions,
   type FileRouteManifest,
   type FileRouteModuleReference,
+  type DefineFileRouteBuilder,
+  type FileRoutePreloadOptions,
+  type FileRoutePreloadResource,
   type FileRoutePreloadRouteOptions,
   type GeneratedFileRouteDefinitionsModuleOptions,
   type StartAppGraphWireSchemaPolicy,
@@ -212,6 +217,7 @@ const startExports: Array<unknown> = [
   StartAppGraphDiagnosticsDtoError,
   FileRouteDefinitionsModuleInvalidExportName,
   FileRouteDefinitionsModuleInvalidIdentifier,
+  FileRoutePreloadError,
   StartActionDuplicateName,
   StartAppGraphMissingWireSchemas,
   StartAppGraphParseError,
@@ -260,6 +266,9 @@ type StartTypes =
   | FileRouteDefinitionsModuleOptions
   | FileRouteManifest
   | FileRouteModuleReference
+  | DefineFileRouteBuilder<"/typed/:id">
+  | FileRoutePreloadOptions<"/typed/:id">
+  | FileRoutePreloadResource<"/typed/:id">
   | FileRoutePreloadRouteOptions
   | GeneratedFileRouteDefinitionsModuleOptions
   | StartAppGraphWireSchemaPolicy
@@ -305,6 +314,26 @@ type StartTypes =
   | StartRequestTrace;
 void startExports;
 type _StartTypes = StartTypes;
+
+const fileRouteBuilder: DefineFileRouteBuilder<"/typed/:id"> = defineFileRoute("/typed/:id");
+const fileRouteFromBuilder = fileRouteBuilder.preload({}).route();
+declare const fileRoutePreloadResource: FileRoutePreloadResource<"/typed/:id">;
+const fileRoutePreloadOptions: FileRoutePreloadOptions<"/typed/:id"> = {
+  resources: [fileRoutePreloadResource]
+};
+const fileRoutePreloadRouteOptions: FileRoutePreloadRouteOptions = {};
+const fileRoutePreloadError = new FileRoutePreloadError({
+  path: "/typed/:id",
+  operation: "custom-preload",
+  cause: "promise-shaped preload",
+  guidance: "Return an Effect from preload."
+});
+const fileRoutePreloadOperation: "resource-selector" | "custom-preload" =
+  fileRoutePreloadError.operation;
+void fileRouteFromBuilder;
+void fileRoutePreloadOptions;
+void fileRoutePreloadRouteOptions;
+void fileRoutePreloadOperation;
 
 declare const startRenderContext: StartRenderContext;
 const legacyHydrationScript: string = startRenderContext.legacyHydrationScript;

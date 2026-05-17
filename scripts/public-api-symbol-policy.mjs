@@ -171,6 +171,10 @@ export const publicHoverDocGroups = [
   {
     file: "packages/devtools/src/devtools-contract.ts",
     declarations: [
+      "DevtoolsRuntimeEvent",
+      "DevtoolsSnapshot",
+      "DevtoolsStoreOptions",
+      "DevtoolsStore",
       "DevtoolsStartAppGraphSchemaCoverage",
       "DevtoolsStartAppGraphUnknownActionBehaviorEntry",
       "DevtoolsStartAppGraphUnknownRoutePreloadResourcesEntry",
@@ -183,6 +187,12 @@ export const publicHoverDocGroups = [
       "DevtoolsSummaryResource",
       "DevtoolsPanelMetric",
       "DevtoolsPanelItem"
+    ]
+  },
+  {
+    file: "packages/devtools/src/index.ts",
+    declarations: [
+      "makeDevtoolsStore"
     ]
   },
   {
@@ -219,6 +229,11 @@ export const publicHoverDocGroups = [
   {
     file: "packages/start/src/file-route.ts",
     declarations: [
+      "defineFileRoute",
+      "DefineFileRouteBuilder",
+      "FileRoutePreloadResource",
+      "FileRoutePreloadOptions",
+      "FileRoutePreloadError",
       "FileRoutePreloadRouteOptions"
     ]
   },
@@ -314,6 +329,9 @@ export const publicHoverDocGroups = [
         "StoreDiagnostics",
         "StoreDiagnosticsSnapshot",
         "StoreEvent",
+        "storeEffect",
+        "currentStore",
+        "subscribeEventsEffect",
         "Update",
         "Change",
         "RowSnapshot",

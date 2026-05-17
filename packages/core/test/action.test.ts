@@ -1,6 +1,6 @@
 import { Context, Deferred, Effect, Exit, Fiber, Layer, Schedule } from "effect";
 import { describe, expect, it, vi } from "vitest";
-import { Action, EffectInputCallbackError, makeRuntime, read, Resource, runWithRuntime, Signal } from "../src/index.js";
+import { Action, EffectInputCallbackError, EffectInputPromiseRejected, makeRuntime, read, Resource, runWithRuntime, Signal } from "../src/index.js";
 import { makeActionOptimisticTransactionRuntime } from "../src/action-optimistic.js";
 
 describe("Action", () => {
@@ -98,6 +98,30 @@ describe("Action", () => {
     if (exit._tag === "Failure") {
       const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
       expect(failure?.error).toBeInstanceOf(EffectInputCallbackError);
+      expect(action.state.get()).toMatchObject({
+        _tag: "Failure",
+        input: "Ada"
+      });
+    }
+  });
+
+  it("captures erased Promise-shaped run returns as failures instead of leaving pending state", async () => {
+    const Rename = Action.define<string, string>({
+      name: "rename.promise-erased",
+      run: () => Promise.resolve("Ada") as never
+    });
+    const action = Action.use(Rename);
+
+    const exit = await Effect.runPromise(Effect.exit(action.submitEffect("Ada")));
+
+    expect(exit._tag).toBe("Failure");
+    if (exit._tag === "Failure") {
+      const failure = exit.cause.reasons.find((reason) => reason._tag === "Fail");
+      expect(failure?.error).toMatchObject({
+        _tag: "EffectInputCallbackError",
+        operation: "Action.run(rename.promise-erased)",
+        cause: expect.any(EffectInputPromiseRejected)
+      });
       expect(action.state.get()).toMatchObject({
         _tag: "Failure",
         input: "Ada"

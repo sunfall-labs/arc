@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { build } from "vite";
 import { describe, expect, it } from "vitest";
-import { Action, ActionResult, defaultRuntime, defineApp, EffectInputCallbackError, makeRuntime, read, Resource, ResourceFamily, ResourceTypeId, RequestContext, ResponseContext, route, Route, RoutePreloadError, runWithRuntime, Server, ServerClient, ServerTransportError, type EffectUiRuntime, type ResourceRef } from "@effect-ui/core";
+import { Action, ActionResult, defaultRuntime, defineApp, EffectInputCallbackError, EffectInputPromiseRejected, makeRuntime, read, Resource, ResourceFamily, ResourceTypeId, RequestContext, ResponseContext, route, Route, RoutePreloadError, runWithRuntime, Server, ServerClient, ServerTransportError, type EffectUiRuntime, type ResourceRef } from "@effect-ui/core";
 import { Collection, CollectionSnapshotCodecError } from "@effect-ui/db";
 import type { DevtoolsRequestTrace } from "@effect-ui/devtools";
 import {
@@ -4458,6 +4458,33 @@ describe("Effect UI Start", () => {
       reason: "Network",
       message: "Start action request failed.",
       cause: fetchCause
+    });
+  });
+
+  it("rejects Promise-shaped Start action client headers as transport errors", async () => {
+    const Ping = Action.define<{ readonly value: string }, { readonly value: string }>({
+      name: "Start.action.client.promise-headers",
+      input: Schema.Struct({ value: Schema.String }),
+      output: Schema.Struct({ value: Schema.String }),
+      run: ({ value }) => Effect.succeed({ value })
+    });
+
+    const exit = await Effect.runPromiseExit(
+      submitStartActionEffect(
+        Ping,
+        { value: "ok" },
+        {
+          headers: (() => Promise.resolve({ authorization: "Bearer token" })) as never
+        }
+      )
+    );
+    const failure = Exit.isFailure(exit) ? firstFailure(exit.cause) : undefined;
+
+    expect(failure).toBeInstanceOf(ServerTransportError);
+    expect(failure).toMatchObject({
+      reason: "Network",
+      message: "Could not construct Start transport headers.",
+      cause: expect.any(EffectInputPromiseRejected)
     });
   });
 
