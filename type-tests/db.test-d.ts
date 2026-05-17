@@ -3,7 +3,7 @@ import {
   PubSub,
   Scope
 } from "effect";
-import type { EffectInputCallbackError } from "@effect-ui/core";
+import type { EffectInput, EffectInputCallbackError } from "@effect-ui/core";
 import {
   Collection,
   Query,
@@ -80,6 +80,11 @@ declare const dbProjectsCollection: Collection.Definition<Project, string, "load
 declare const erasedCollection: AnyCollection;
 declare const erasedCollectionError: CollectionError<typeof erasedCollection>;
 declare const erasedCollectionRequirements: CollectionRequirements<typeof erasedCollection>;
+declare const servicefulErasedCollection: AnyCollection<"persist", DbAdapterService>;
+declare const servicefulErasedPersistence:
+  NonNullable<typeof servicefulErasedCollection.options.persistence>;
+declare const bareErasedPersistence:
+  NonNullable<typeof erasedCollection.options.persistence>;
 declare const dbAdapterCleanupEffect: Effect.Effect<void, "unsubscribe", DbAdapterService>;
 const sqliteStorage = makeSQLitePersistenceStorage(
   makeSQLiteStatementPersistenceDriver(sqliteStatementDatabase)
@@ -171,7 +176,8 @@ type DbErasedCollectionPins =
   | AnyCollection
   | CollectionError<typeof dbProjectsCollection>
   | CollectionRequirements<typeof dbProjectsCollection>
-  | QueryGroupKey<{ readonly status: string; readonly meta: { readonly active: boolean } }>;
+  | QueryGroupKey<{ readonly status: string; readonly meta: { readonly active: boolean } }>
+  | Query.GroupKey<{ readonly status: string; readonly tags: ReadonlySet<string> }>;
 type DbServerPins =
   | ServerCollectionOptions<Project>
   | ServerCollectionOperation<void, ReadonlyArray<Project>>
@@ -218,6 +224,12 @@ const collectionBackgroundSyncRequirementsPin: DbRuntimeService | DbAdapterServi
 const concreteCollectionErrorPin: "load" = null as never as CollectionError<typeof dbProjectsCollection>;
 const concreteCollectionRequirementsPin: DbRuntimeService =
   null as never as CollectionRequirements<typeof dbProjectsCollection>;
+const servicefulErasedPersistencePin: Collection.PersistenceConfig<"persist", DbAdapterService> =
+  servicefulErasedPersistence;
+const servicefulErasedPersistenceRead: EffectInput<string | null, "persist", DbAdapterService> =
+  servicefulErasedPersistence.storage.getItem("projects");
+const bareErasedPersistencePin: Collection.PersistenceConfig<unknown, unknown> =
+  bareErasedPersistence;
 // @ts-expect-error erased collection errors default to unknown, not an arbitrary string.
 const erasedCollectionErrorString: string = erasedCollectionError;
 // @ts-expect-error erased collection requirements default to unknown, not an arbitrary service.
@@ -249,6 +261,9 @@ void collectionBackgroundSyncErrorPin;
 void collectionBackgroundSyncRequirementsPin;
 void concreteCollectionErrorPin;
 void concreteCollectionRequirementsPin;
+void servicefulErasedPersistencePin;
+void servicefulErasedPersistenceRead;
+void bareErasedPersistencePin;
 void servicefulChangeFeedEffect;
 type _DbErrors = DbErrors;
 type _DbReactivePins = DbReactivePins;

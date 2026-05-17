@@ -819,7 +819,7 @@ Release decisions:
   diagnostic seam instead of leaking raw defects through tooling.
 - `QueryGroupKey` and `Query.GroupKey` are the public grouped-query key
   contracts for `Query.groupBy(...)`. They reject Promise-shaped values inside
-  nested records/arrays at the type seam, and runtime evaluation reports
+  nested records, arrays, Maps, and Sets at the type seam, and runtime evaluation reports
   nested Promise-shaped keys with the failing group-key path before stable
   stringification.
 - Bare `AnyCollection` erases error and requirement channels to `unknown` so
@@ -830,8 +830,8 @@ Release decisions:
   `Collection.ChangeFeedSubscription<E, R>` preserve serviceful cleanup
   Effects, so scoped change-feed release remains part of the adapter's typed
   Effect channel. `CollectionPersistenceConfig.hydrate` explicitly accepts
-  `false` for definitions that enable persistence but disable restore
-  hydration.
+  `false` for definitions that enable persistence but disable config-driven
+  restore hydration before preload.
 - The collection reactive binding helpers exported from the DB root are
   expert-public Adapter helpers for React DB, Solid DB, and future framework
   adapters. They own collection source subscription, runtime-bound Effects,

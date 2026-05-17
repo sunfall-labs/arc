@@ -3139,6 +3139,41 @@ Query.live((query) =>
     )
 );
 
+Query.live((query) =>
+  query
+    .from({ project: ProjectsCollection })
+    .groupBy(
+      // @ts-expect-error Query group key Maps must not contain Promise-shaped values
+      ({ project }) => ({ name: project.name, values: new Map([["async", promisedString]]) }),
+      {
+        count: Query.count()
+      }
+    )
+);
+
+Query.live((query) =>
+  query
+    .from({ project: ProjectsCollection })
+    .groupBy(
+      // @ts-expect-error Query group key Sets must not contain Promise-shaped values
+      ({ project }) => ({ name: project.name, values: new Set([promisedString]) }),
+      {
+        count: Query.count()
+      }
+    )
+);
+
+const frameworkGroupKeyAlias: Query.GroupKey<{
+  readonly name: string;
+  readonly tags: ReadonlySet<string>;
+  readonly meta: ReadonlyMap<string, string>;
+}> = {
+  name: "Atlas",
+  tags: new Set(["active"]),
+  meta: new Map([["status", "active"]])
+};
+void frameworkGroupKeyAlias;
+
 const projectsHandle = useCollection(ProjectsCollection);
 projectsHandle.rows().map((project) => project.name);
 projectsHandle.get("atlas")?.name.toUpperCase();

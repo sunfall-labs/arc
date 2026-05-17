@@ -2035,6 +2035,74 @@ describe("Collection", () => {
     );
   });
 
+  it("skips restore-before-preload when persistence hydrate is disabled", () => {
+    const runtime = makeRuntime();
+    const key = "projects-restore-hydrate-disabled-cache";
+    const persisted = new Map<string, string>([[
+      key,
+      JSON.stringify({
+        name: "Projects.restore-hydrate-disabled",
+        rows: [
+          {
+            key: "atlas",
+            value: { id: "atlas", name: "Restored", status: "active", progress: 10 },
+            synced: true,
+            origin: "remote"
+          }
+        ],
+        pendingMutations: [],
+        updatedAt: 1
+      })
+    ]]);
+    let gets = 0;
+    let loads = 0;
+    const storage: Collection.PersistenceStorage = {
+      getItem: (storageKey) =>
+        Effect.sync(() => {
+          gets++;
+          return persisted.get(storageKey) ?? null;
+        }),
+      setItem: (storageKey, value) =>
+        Effect.sync(() => {
+          persisted.set(storageKey, value);
+        })
+    };
+    const Projects = Collection.define<Project>({
+      name: "Projects.restore-hydrate-disabled",
+      getKey: (project) => project.id,
+      load: () =>
+        Effect.sync(() => {
+          loads++;
+          return [
+            { id: "atlas", name: "Loaded", status: "blocked", progress: 99 }
+          ];
+        }),
+      persistence: {
+        storage,
+        key,
+        hydrate: false,
+        restoreOnPreload: true,
+        loadAfterRestore: true,
+        persistOnLoad: false
+      }
+    });
+
+    return Effect.runPromise(
+      Effect.gen(function* () {
+        yield* runtime.provide(Projects.preloadEffect());
+
+        expect(gets).toBe(0);
+        expect(loads).toBe(1);
+        expect(runWithRuntime(runtime, () => Projects.get("atlas"))).toMatchObject({
+          name: "Loaded",
+          progress: 99
+        });
+      }).pipe(
+        Effect.ensuring(runtime.disposeEffect)
+      )
+    );
+  });
+
   it("rolls back preload rows and lets later preload retry when persistOnLoad fails", () => {
     const runtime = makeRuntime();
     const key = "projects-preload-persist-failure-cache";

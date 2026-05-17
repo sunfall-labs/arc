@@ -383,12 +383,12 @@ export const restoreCollectionEffect = <A extends object, K extends CollectionKe
 export function collectionPersistenceConfig<A extends object, K extends CollectionKey, E, R>(
   definition: CollectionDefinition<A, K, E, R>
 ): CollectionPersistenceConfig<E, R> | undefined;
-export function collectionPersistenceConfig(
-  definition: AnyCollection
-): CollectionPersistenceConfig<any, any> | undefined;
-export function collectionPersistenceConfig(
-  definition: AnyCollection
-): CollectionPersistenceConfig<any, any> | undefined {
+export function collectionPersistenceConfig<E, R>(
+  definition: AnyCollection<E, R>
+): CollectionPersistenceConfig<E, R> | undefined;
+export function collectionPersistenceConfig<E, R>(
+  definition: AnyCollection<E, R>
+): CollectionPersistenceConfig<E, R> | undefined {
   return definition.options.persistence;
 }
 
@@ -469,7 +469,13 @@ export const restoreCollectionBeforePreloadEffect = <A extends object, K extends
 ): Effect.Effect<boolean, E | CollectionSnapshotCodecError | EffectInputCallbackError, R> =>
   Effect.gen(function* () {
     const config = collectionPersistenceConfig(definition);
-    if (!config || config.restoreOnPreload === false || state.persistenceRestored || !shouldRestore()) {
+    if (
+      !config ||
+      config.hydrate === false ||
+      config.restoreOnPreload === false ||
+      state.persistenceRestored ||
+      !shouldRestore()
+    ) {
       return false;
     }
 

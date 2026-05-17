@@ -166,6 +166,10 @@ export type RejectPromiseLikeRecord<Value> =
     ? never
     : Value extends readonly (infer Item)[]
       ? readonly RejectPromiseLikeRecord<Item>[]
+      : Value extends ReadonlyMap<infer Key, infer Item>
+        ? ReadonlyMap<RejectPromiseLikeRecord<Key>, RejectPromiseLikeRecord<Item>>
+        : Value extends ReadonlySet<infer Item>
+          ? ReadonlySet<RejectPromiseLikeRecord<Item>>
       : Value extends Record<string, unknown>
         ? { readonly [Key in keyof Value]: RejectPromiseLikeRecord<Value[Key]> }
         : Value;

@@ -263,7 +263,7 @@ export type AnyCollection<E = unknown, R = unknown> =
   Omit<CollectionDefinition<any, any, E, R>, "options"> & {
     readonly options: Omit<CollectionOptions<any, any, E, R>, "policy" | "persistence"> & {
       readonly policy?: { readonly retry?: unknown };
-      readonly persistence?: CollectionPersistenceConfig<any, any>;
+      readonly persistence?: CollectionPersistenceConfig<E, R>;
     };
   };
 /** Extracts the domain value type from a Collection definition. */

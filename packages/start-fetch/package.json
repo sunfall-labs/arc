@@ -19,7 +19,7 @@
   },
   "scripts": {
     "build": "rm -rf dist .tsbuildinfo && tsgo -p tsconfig.json",
-    "typecheck": "tsgo -b tsconfig.json --pretty false"
+    "typecheck": "tsgo -b tsconfig.json --pretty false --noEmit"
   },
   "dependencies": {
     "@effect-ui/start": "workspace:*"

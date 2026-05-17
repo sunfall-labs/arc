@@ -7,6 +7,14 @@ import { Data, Effect } from "effect";
 import { runScriptCommandEffect } from "./effect-command-runner.mjs";
 import { manifestTargetValidationFailures } from "./package-manifest-targets.mjs";
 import {
+  declarationArtifactPackFailures,
+  distPackageArtifactDriftFailures,
+  distPackageSourceStemsFromFiles,
+  isNonEmptyString,
+  knownPayloadPolicies,
+  workspaceDistPackagePayloadPolicies,
+} from "./package-payload-policy.mjs";
+import {
   starterCatalogConsistencyEffect,
   starterSourcePackagePayloadPolicies,
 } from "./starter-catalog.mjs";
@@ -21,29 +29,7 @@ const fail = (message, repair, cause) =>
   new PackageDryRunError({ message, repair, cause });
 
 const packagePayloadPolicies = new Map([
-  ["@effect-ui/core", { payload: "dist-package" }],
-  ["@effect-ui/db", { payload: "dist-package" }],
-  ["@effect-ui/devtools", { payload: "dist-package" }],
-  ["@effect-ui/react", { payload: "dist-package" }],
-  ["@effect-ui/react-db", { payload: "dist-package" }],
-  ["@effect-ui/solid", { payload: "dist-package" }],
-  ["@effect-ui/solid-db", { payload: "dist-package" }],
-  [
-    "@effect-ui/start",
-    {
-      payload: "dist-package",
-      declarationArtifacts: [
-        {
-          source: "src/virtual-modules.d.ts",
-          output: "dist/virtual.d.ts",
-          forbidden: ["dist/virtual.d.ts.map"],
-        },
-      ],
-    },
-  ],
-  ["@effect-ui/start-fetch", { payload: "dist-package" }],
-  ["@effect-ui/start-node", { payload: "dist-package" }],
-  ["@effect-ui/tsrx", { payload: "dist-package" }],
+  ...workspaceDistPackagePayloadPolicies,
   [
     "@effect-ui/example-devtools-extension",
     {
@@ -83,8 +69,6 @@ const packagePayloadPolicies = new Map([
   ...starterSourcePackagePayloadPolicies,
 ]);
 
-const knownPayloadPolicies = new Set(["dist-package", "source-package"]);
-
 const forbiddenGeneratedSegments = new Set([".test-dist", "node_modules"]);
 const forbiddenSourcePackageSegments = new Set(["dist", ...forbiddenGeneratedSegments]);
 const forbiddenFileNames = new Set([
@@ -97,9 +81,6 @@ const forbiddenFileNames = new Set([
 ]);
 
 const toPosixPath = (filePath) => filePath.split(sep).join("/");
-
-const isNonEmptyString = (value) =>
-  typeof value === "string" && value.trim().length > 0;
 
 const isStringArray = (value) =>
   Array.isArray(value) && value.length > 0 && value.every((entry) => typeof entry === "string");
@@ -184,71 +165,9 @@ const sourcePackageManifestValidationFailures = (target, expectedFiles, actualFi
   return failures;
 };
 
-const stripSourceExtension = (filePath) =>
-  filePath
-    .replace(/\.d\.ts$/, "")
-    .replace(/\.[cm]?tsx?$/, "");
-
-const stripDistArtifactExtension = (filePath) =>
-  filePath
-    .replace(/\.d\.ts\.map$/, "")
-    .replace(/\.d\.ts$/, "")
-    .replace(/\.js\.map$/, "")
-    .replace(/\.js$/, "");
-
-const distArtifactStem = (filePath) => {
-  if (!filePath.startsWith("dist/")) {
-    return undefined;
-  }
-  if (
-    !filePath.endsWith(".js") &&
-    !filePath.endsWith(".js.map") &&
-    !filePath.endsWith(".d.ts") &&
-    !filePath.endsWith(".d.ts.map")
-  ) {
-    return undefined;
-  }
-  return stripDistArtifactExtension(filePath.slice("dist/".length));
-};
-
-const distArtifactKind = (filePath) => {
-  if (filePath.endsWith(".js.map")) {
-    return "js.map";
-  }
-  if (filePath.endsWith(".d.ts.map")) {
-    return "types.map";
-  }
-  if (filePath.endsWith(".js")) {
-    return "js";
-  }
-  if (filePath.endsWith(".d.ts")) {
-    return "types";
-  }
-  return undefined;
-};
-
-const declarationArtifactTypeMapOptionalStems = (target) =>
-  new Set(
-    (target.declarationArtifacts ?? [])
-      .map((artifact) =>
-        isNonEmptyString(artifact.output) && artifact.output.startsWith("dist/")
-          ? distArtifactStem(artifact.output)
-          : undefined
-      )
-      .filter(Boolean)
-  );
-
-const requiredDistArtifactKinds = (target, stem) => {
-  const required = new Set(["js", "js.map", "types", "types.map"]);
-  if (declarationArtifactTypeMapOptionalStems(target).has(stem)) {
-    required.delete("types.map");
-  }
-  return required;
-};
-
 const collectDistPackageSourceStems = (target) =>
   Effect.gen(function* () {
-    const stems = new Set();
+    const files = [];
     const sourceDirectory = join(target.directory, "src");
     const visit = (directory) => Effect.gen(function* () {
       const entries = yield* fsEffect(
@@ -261,76 +180,15 @@ const collectDistPackageSourceStems = (target) =>
           yield* visit(fullPath);
           continue;
         }
-        if (
-          entry.isFile() &&
-          !entry.name.endsWith(".d.ts") &&
-          /\.[cm]?tsx?$/.test(entry.name)
-        ) {
-          stems.add(stripSourceExtension(toPosixPath(relative(sourceDirectory, fullPath))));
+        if (entry.isFile()) {
+          files.push(toPosixPath(relative(sourceDirectory, fullPath)));
         }
       }
     });
 
     yield* visit(sourceDirectory);
-    return stems;
+    return distPackageSourceStemsFromFiles(files);
   });
-
-const distPackageArtifactDriftFailures = (target, files, sourceStems) => {
-  const artifactStems = new Set(files.map(distArtifactStem).filter(Boolean));
-  const artifactKindsByStem = new Map();
-  for (const file of files) {
-    const stem = distArtifactStem(file);
-    const kind = distArtifactKind(file);
-    if (stem === undefined || kind === undefined) {
-      continue;
-    }
-    const kinds = artifactKindsByStem.get(stem) ?? new Set();
-    kinds.add(kind);
-    artifactKindsByStem.set(stem, kinds);
-  }
-  const extra = [...artifactStems]
-    .filter((stem) => !sourceStems.has(stem))
-    .sort((left, right) => left.localeCompare(right));
-  const missing = [...sourceStems].flatMap((stem) => {
-    const actualKinds = artifactKindsByStem.get(stem) ?? new Set();
-    return [...requiredDistArtifactKinds(target, stem)]
-      .filter((kind) => !actualKinds.has(kind))
-      .map((kind) => `${stem}.${kind === "types" ? "d.ts" : kind === "types.map" ? "d.ts.map" : kind}`);
-  })
-    .sort((left, right) => left.localeCompare(right));
-  const failures = [];
-
-  if (extra.length > 0) {
-    failures.push(`${target.label} package dry-run includes stale dist artifacts without matching src files: ${extra.map((stem) => "dist/" + stem).join(", ")}.`);
-  }
-  if (missing.length > 0) {
-    failures.push(`${target.label} package dry-run is missing built JS, declaration, or source-map artifacts for src files: ${missing.map((stem) => "dist/" + stem).join(", ")}.`);
-  }
-
-  return failures;
-};
-
-const declarationArtifactPackFailures = (target, files) => {
-  const failures = [];
-  const fileSet = new Set(files);
-  for (const artifact of target.declarationArtifacts ?? []) {
-    if (!isNonEmptyString(artifact.source) || !isNonEmptyString(artifact.output)) {
-      failures.push(`${target.label} declaration artifact policy must declare non-empty source and output paths.`);
-      continue;
-    }
-    if (!fileSet.has(artifact.output)) {
-      failures.push(`${target.label} package dry-run is missing copied declaration artifact ${artifact.output}.`);
-    }
-    for (const forbidden of artifact.forbidden ?? []) {
-      if (!isNonEmptyString(forbidden)) {
-        failures.push(`${target.label} declaration artifact forbidden paths must be non-empty strings.`);
-      } else if (fileSet.has(forbidden)) {
-        failures.push(`${target.label} package dry-run includes forbidden copied declaration artifact ${forbidden}.`);
-      }
-    }
-  }
-  return failures;
-};
 
 const isNodeNotFoundError = (cause) =>
   cause &&

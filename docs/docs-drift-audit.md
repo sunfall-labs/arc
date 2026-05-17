@@ -1,11 +1,11 @@
 # Docs Drift Audit
 
-Last updated: 2026-05-16.
+Last updated: 2026-05-17.
 
 Current release-tracking truth lives in `docs/architecture-deepening-review.md`
-and `docs/perfection-progress.md`. As of Review201, the latest full
-`pnpm verify` gate passed with 53 root test files / 1060 tests, and the active
-Thirty-Sweep clean counter remains 0/30 until a fresh post-Review201 sweep
+and `docs/perfection-progress.md`. As of Review202, the latest full
+`pnpm verify` gate passed with 53 root test files / 1061 tests, and the active
+Thirty-Sweep clean counter remains 0/30 until a fresh post-Review202 sweep
 reports no actionable findings.
 
 This historical audit checks release-tracking docs for claims that no longer match the
@@ -93,6 +93,9 @@ locality/snapshot preflight/LSP runtime type, Review 63 Effect snapshot
 - Review200 refreshed the current release ledgers after the public runtime and
   host-boundary pin sweep; post-Review200 sweeps are tracked in the architecture
   review tip instead of extending the historical enumeration above.
+- Review202 refreshed the current release ledgers after adapter-root pins, DB
+  persistence/query parity, package payload policy, no-emit typecheck, and
+  workspace verification plan fixes.
 - Review201 refreshed the current release ledgers after script command,
   Resource public-surface, React/Solid router LSP, DB erased-channel, and
   generated-starter README guardrail fixes; the historical enumeration above

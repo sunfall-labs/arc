@@ -13,7 +13,8 @@ const pnpmCommand = process.platform === "win32" ? "pnpm.cmd" : "pnpm";
 class VerifyCommandError extends Data.TaggedError("VerifyCommandError") {}
 
 const parseConcurrency = () => {
-  const raw = process.env.EFFECT_UI_VERIFY_CONCURRENCY;
+  const concurrencyArg = process.argv.find((arg) => arg.startsWith("--concurrency="));
+  const raw = concurrencyArg?.slice("--concurrency=".length) ?? process.env.EFFECT_UI_VERIFY_CONCURRENCY;
   if (raw === undefined || raw.trim() === "") {
     return 4;
   }

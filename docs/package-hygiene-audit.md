@@ -1,6 +1,6 @@
 # Package Hygiene Audit
 
-Last updated: 2026-05-16.
+Last updated: 2026-05-17.
 
 This audit checks package manifests against package-source imports and public
 exports. It supports the release-engineering charter workstream.
@@ -127,13 +127,22 @@ exports. It supports the release-engineering charter workstream.
   all 16 package payloads: 11 framework dist packages, 19 basic starter files,
   24 React starter files, 30 project-console files, 10 devtools panel files,
   and 15 devtools extension files.
-- The current full `pnpm verify` passed after Review201 with 11 package builds,
+- The current full `pnpm verify` passed after Review202 with 11 package builds,
   workspace typecheck, public type tests, public API inventory audit,
-  Effect-first audit over 407 files, 53 root test files / 1060 tests, derived
+  Effect-first audit over 408 files, 53 root test files / 1061 tests, derived
   package-level verifies for the five copyable source packages, generated
   starter packaging, and the 16-target dry-run gate. Review179 remains the
   focused package-hygiene evidence for concrete source-map artifact validation
   and source-package verify-script enforcement.
+- Review202 focused package hygiene passed `pnpm example:pack-dry-run` across
+  all 16 package payloads and fast generated starter packaging/verifies after
+  sharing the dist/declaration payload policy with starter local package
+  adapters, moving `verify:serial` onto the Workspace Verification Plan, and
+  making package/workspace `tsgo -b` typechecks no-emit so they cannot recreate
+  stale `dist` artifacts after package builds. Full `pnpm verify:serial`
+  passed with the same 11 package builds, 408-file Effect-first audit, 53 root
+  test files / 1061 tests, generated starter packaging, and package dry-runs as
+  the parallel gate.
 - Review201 focused package hygiene passed `pnpm example:pack-dry-run` across
   all 16 package payloads and fast generated starter packaging/verifies for the
   basic/react/project-console starters after moving script command execution to

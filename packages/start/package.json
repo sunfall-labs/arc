@@ -50,7 +50,7 @@
   },
   "scripts": {
     "build": "rm -rf dist .tsbuildinfo && tsgo -p tsconfig.json && cp src/virtual-modules.d.ts dist/virtual.d.ts && rm -f dist/virtual.d.ts.map",
-    "typecheck": "tsgo -b tsconfig.json --pretty false"
+    "typecheck": "tsgo -b tsconfig.json --pretty false --noEmit"
   },
   "dependencies": {
     "@effect-ui/core": "workspace:*",

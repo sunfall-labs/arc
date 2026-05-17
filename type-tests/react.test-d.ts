@@ -1,23 +1,31 @@
 import {
-  Action,
   ActionInterrupted,
-  Program,
-  Resource,
-  Signal,
   makeMemoryBrowserHistoryAdapter,
   route,
   type EffectInputCallbackError
 } from "@effect-ui/core";
 import { Effect, Stream } from "effect";
 import {
+  Action,
+  Program,
+  Resource,
+  Route,
+  RuntimeContext,
   RouterContextMissing,
   RouterLink,
   RouterOutlet,
   RouterProvider,
   RouterRouteNotRegistered,
   RuntimeProvider,
+  Signal,
+  UiScope,
   createBrowserRouter,
+  createEffectRuntime,
+  forkScoped,
+  onDispose,
+  read,
   useAction,
+  useComponentScope,
   useProgram,
   useResource,
   useResourceError,
@@ -27,8 +35,10 @@ import {
   useRouter,
   useRuntime,
   useRuntimeEffect,
+  useScoped,
   useSignal,
   useStream,
+  watch,
   type ActionHandle,
   type BrowserNavigateArgs,
   type BrowserRouter,
@@ -44,6 +54,7 @@ import {
   type RouterProviderProps,
   type RouterOutletProps,
   type RuntimeEffectRunner,
+  type RuntimeProviderProps,
   type UseResourceOptions
 } from "@effect-ui/react";
 
@@ -67,6 +78,7 @@ const reactRouterState: BrowserRouterState<typeof reactRoutes> = reactRouter.sta
 const reactRoutePath: BrowserRouterPath<typeof reactRoutes> = "/";
 type ReactRouteForHome = BrowserRouterRouteForPath<typeof reactRoutes, typeof reactRoutePath>;
 const reactRouteForPath: ReactRouteForHome = reactRoutes[0];
+const reactRouteHref: string = Route.href(reactRoutes[0]);
 const reactNavigateArgs: BrowserNavigateArgs<typeof reactRoutes[0]> = [];
 const reactRouterLinkProps: RouterLinkProps<typeof reactRoutes[0]> = {
   route: reactRoutes[0],
@@ -82,6 +94,14 @@ const reactProviderProps: RouterProviderProps<typeof reactRoutes> = {
   hydrating: true
 };
 const reactCountSignal = Signal.make(0);
+const reactReadSignalValue: number = read(reactCountSignal);
+const reactUiScope = new UiScope();
+const reactEffectRuntime = createEffectRuntime();
+const reactForkScoped: typeof forkScoped = forkScoped;
+const reactOnDispose: typeof onDispose = onDispose;
+const reactWatch: typeof watch = watch;
+const reactUseComponentScope: typeof useComponentScope = useComponentScope;
+const reactUseScoped: typeof useScoped = useScoped;
 const reactSignalValue: number = useSignal(reactCountSignal);
 const reactStreamValue: string = useStream(Stream.succeed("ready"), "idle");
 const reactRuntime = useRuntime();
@@ -143,14 +163,26 @@ const reactActionStateTag:
 reactAction.instance.state.get()._tag;
 reactAction.invalidationPlan?.entries.map((entry) => entry.ref.key);
 const reactExports: Array<unknown> = [
+  Action,
+  Program,
+  Resource,
+  Route,
+  RuntimeContext,
   RouterContextMissing,
   RouterLink,
   RouterOutlet,
   RouterProvider,
   RouterRouteNotRegistered,
   RuntimeProvider,
+  Signal,
+  UiScope,
   createBrowserRouter,
+  createEffectRuntime,
+  forkScoped,
+  onDispose,
+  read,
   useAction,
+  useComponentScope,
   useProgram,
   useResource,
   useResourceSuspense,
@@ -160,19 +192,30 @@ const reactExports: Array<unknown> = [
   useRouter,
   useRuntime,
   useRuntimeEffect,
+  useScoped,
   useSignal,
   useStream,
+  watch,
   reactRouter,
   reactRouterFromHook,
   reactRouterState,
   reactRoutePath,
   reactRouteForPath,
+  reactRouteHref,
   reactNavigateArgs,
   reactRouterLinkProps,
   reactRouterLinkNode,
   reactRouterOutletNode,
   reactContextMissing,
   reactRouteNotRegistered,
+  reactReadSignalValue,
+  reactUiScope,
+  reactEffectRuntime,
+  reactForkScoped,
+  reactOnDispose,
+  reactWatch,
+  reactUseComponentScope,
+  reactUseScoped,
   reactRuntime,
   reactRuntimeFiber,
   reactProgramHandle,
@@ -198,6 +241,9 @@ type ReactBrowserRouterRouteForPath = BrowserRouterRouteForPath<typeof reactRout
 type ReactBrowserRouterState = BrowserRouterState<typeof reactRoutes>;
 type ReactBrowserRouterOptions = BrowserRouterOptions;
 type ReactRouterProviderProps = RouterProviderProps<typeof reactRoutes>;
+type ReactRuntimeProviderProps = RuntimeProviderProps;
+type ReactRouteHrefOptions = Route.HrefOptions<typeof reactRoutes[0]>;
+type ReactUiScope = UiScope;
 type ReactActionHandle = ActionHandle<{ readonly id: string }, { readonly ok: boolean }>;
 type ReactProgramHandle = ProgramHandle<number, "tick", EffectInputCallbackError, EffectInputCallbackError | Program.Disposed>;
 type ReactResourceHandle = ResourceHandle<string, ReactProject, never>;
@@ -212,6 +258,9 @@ type _ReactBrowserRouterRouteForPath = ReactBrowserRouterRouteForPath;
 type _ReactBrowserRouterState = ReactBrowserRouterState;
 type _ReactBrowserRouterOptions = ReactBrowserRouterOptions;
 type _ReactRouterProviderProps = ReactRouterProviderProps;
+type _ReactRuntimeProviderProps = ReactRuntimeProviderProps;
+type _ReactRouteHrefOptions = ReactRouteHrefOptions;
+type _ReactUiScope = ReactUiScope;
 type _ReactActionHandle = ReactActionHandle;
 type _ReactProgramHandle = ReactProgramHandle;
 type _ReactResourceHandle = ReactResourceHandle;

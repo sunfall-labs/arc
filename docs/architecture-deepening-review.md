@@ -11,14 +11,14 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest completed focused review is Review201, the post-Review200 sweep
-fixing script command ownership, Core Resource public-surface leakage,
-React/Solid router LSP pins, and DB erased-channel/nested query callback
-contracts. The newest full verification checkpoint is Review201. Clean
+The newest completed focused review is Review202, the post-Review201 sweep
+fixing adapter-root public pins, DB persistence/query contract parity, and
+workspace package verification/payload hygiene. The newest full verification
+checkpoint is Review202. Clean
 Sweep 1 after Review190 remains
 historical evidence, but later sweeps found Review191, Review192, Review193,
 Review194, Review195, Review196, Review197, Review198, Review199, and
-Review200 and Review201 work, so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review201 sweep reports no actionable
+Review200, Review201, and Review202 work, so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review202 sweep reports no actionable
 findings. Some older review entries
 remain below this tip from prior ledger merges; use this tip rather than file
 order alone when looking for the latest architecture sweep.
@@ -46,7 +46,90 @@ Review198 DB/Start work. The first post-Review198 sweep found Review199
 Solid/React DB/Start work, the first post-Review199 sweep found Review200
 Core/React/Solid, DB, and Start work, and the first post-Review200 sweep found
 Review201 script/docs, Core/React/Solid public surface, and DB contract work.
-The counter remains inactive until a fresh post-Review201 sweep is clean.
+The first post-Review201 sweep found Review202 adapter-root, DB, scripts, and
+docs work. The counter remains inactive until a fresh post-Review202 sweep is
+clean.
+
+## Review 202: Adapter Root Pins, DB Persistence, And Package Hygiene
+
+Review202 fixed actionable findings from the fresh post-Review201 sweep. The
+Core/React/Solid lane found adapter-root re-export pins missing from focused
+type tests. The DB lane found `hydrate: false` restore semantics, erased
+persistence channel, and Map/Set group-key type parity gaps. The scripts/docs
+lane found package payload policy drift, serial verification drift, stale
+current-gate dates, and missing domain vocabulary for workspace script seams.
+
+1. React/Solid Adapter Root Public Pins
+   - Status: fixed.
+   - Files: `type-tests/react.test-d.ts`, `type-tests/solid.test-d.ts`,
+     `type-tests/public-api.manifest.json`,
+     `docs/type-test-coverage-audit.md`.
+   - Problem: React and Solid roots documented adapter-local Core ergonomics
+     and runtime helpers, but focused type tests imported Core concepts from
+     `@effect-ui/core` instead of proving the adapter root re-exports.
+   - Fix: focused adapter type tests now import and exercise `Action`,
+     `Program`, `Resource`, `Route`, `Signal`, `UiScope`, `read`,
+     `forkScoped`, `onDispose`, `watch`, runtime context/provider helpers, and
+     router/link helpers directly from `@effect-ui/react` and
+     `@effect-ui/solid`; the manifest requires those imports.
+   - Benefits: documented adapter ergonomics cannot disappear while public API
+     audits still pass.
+
+2. DB Persistence And Group-Key Contract Parity
+   - Status: fixed.
+   - Files: `packages/db/src/collection-contract.ts`,
+     `packages/db/src/collection-persistence.ts`,
+     `packages/db/src/query-plan.ts`, `packages/db/test/collection.test.ts`,
+     `type-tests/db.test-d.ts`, `type-tests/framework.test-d.ts`,
+     `docs/public-api-inventory.md`, `docs/type-test-coverage-audit.md`.
+   - Problem: `hydrate: false` disabled diagnostics but preload restore still
+     read/hydrated persisted rows; erased `AnyCollection` persistence carried
+     `any`; and `QueryGroupKey` rejected Map/Set Promise-shaped values at
+     runtime but not at the type seam.
+   - Fix: config-driven restore-before-preload now skips when
+     `persistence.hydrate === false`; erased persistence preserves
+     `AnyCollection<E, R>` channels or defaults to `unknown`; and
+     `RejectPromiseLikeRecord` covers `ReadonlyMap`/`ReadonlySet` along with
+     records and arrays. Runtime and public type tests pin the behavior.
+   - Benefits: DB docs, diagnostics, type contracts, and runtime behavior now
+     describe the same Effect-first persistence and query-key boundaries.
+
+3. Workspace Package Verification And Payload Hygiene
+   - Status: fixed.
+   - Files: `package.json`, `packages/*/package.json`,
+     `scripts/package-payload-policy.mjs`,
+     `scripts/package-project-console-starter.mjs`,
+     `scripts/verify-package-dry-runs.mjs`, `scripts/verify.mjs`,
+     `CONTEXT.md`, `docs/package-hygiene-audit.md`,
+     `docs/effect-first-audit.md`.
+   - Problem: generated starter local package adapters did not share the
+     package dry-run declaration artifact policy; `verify:serial` hard-coded an
+     older command chain instead of using the Workspace Verification Plan; and
+     `tsgo -b` typecheck scripts could re-emit `dist` artifacts after package
+     builds, including the forbidden `@effect-ui/start/virtual` declaration
+     map.
+   - Fix: starter packaging and dry-runs now share `package-payload-policy`;
+     local package adapters validate dist/source-map/declaration artifacts
+     before copy; `verify:serial` invokes `scripts/verify.mjs --concurrency=1`;
+     all package/workspace `typecheck` scripts pass `--noEmit`; and CONTEXT
+     names the Effect Script Command Runner plus Workspace Verification Plan.
+   - Benefits: package builds own `dist`, typecheck stays read-only, serial and
+     parallel verification cannot diverge, and generated starters enforce the
+     same package payload contract as publication dry-runs.
+
+Focused verification for Review202 passed: `pnpm typecheck`, `pnpm
+typecheck:types`, `pnpm audit:public-api`, `pnpm audit:effect-first` over 408
+files, `pnpm exec vitest run packages/db/test/collection.test.ts
+packages/db/test/collection-registry.test.ts packages/db/test/sync-adapter.test.ts`
+with 169 tests, `pnpm example:pack-dry-run` across all 16 package payloads, and
+fast generated starter packaging/verifies for basic/react/project-console at
+19/24/30 app files with 5/4/6 local packages under network-enabled generated
+installs. Full `pnpm verify` and `pnpm verify:serial` passed after Review202:
+11 package builds, workspace typecheck, public type tests, public API audit,
+Effect-first audit over 408 files, 53 root test files / 1061 tests,
+package-level verifies, generated starter packaging, 16-target package dry-run
+gate, project-console checks, and leak scans. This sweep found work, so the
+active clean counter remains 0/30.
 
 ## Review 201: Script Commands, Resource Surface, And DB Erasure Pins
 

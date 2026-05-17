@@ -7,6 +7,13 @@ import { Data, Effect } from "effect";
 import { runScriptCommandEffect } from "./effect-command-runner.mjs";
 import { manifestTargetValidationFailures } from "./package-manifest-targets.mjs";
 import {
+  declarationArtifactPackFailures,
+  distPackageArtifactDriftFailures,
+  distPackageSourceStemsFromFiles,
+  isNonEmptyString,
+  workspaceDistPackagePayloadPolicies,
+} from "./package-payload-policy.mjs";
+import {
   copyableStarterEntries,
   generatedStarterArtifactsFor,
   starterCatalogConsistencyEffect,
@@ -384,58 +391,87 @@ const rewritePackageDependencies = (packageJson, workspacePackages, toFileRefere
     };
   });
 
-const distSourceStem = (relativeDistFile) => {
-  const withoutMap = relativeDistFile.endsWith(".map")
-    ? relativeDistFile.slice(0, -".map".length)
-    : relativeDistFile;
-  if (withoutMap.endsWith(".d.ts")) {
-    return withoutMap.slice(0, -".d.ts".length);
-  }
-  if (withoutMap.endsWith(".js")) {
-    return withoutMap.slice(0, -".js".length);
-  }
-  return undefined;
-};
-
-const packageSourceExistsForDistFile = (workspacePackage, relativeDistFile) =>
+const workspacePackagePayloadTarget = (workspacePackage) =>
   Effect.gen(function* () {
-    const sourceStem = distSourceStem(relativeDistFile);
-    if (sourceStem === undefined) {
-      return false;
-    }
-
-    const sourceDir = resolve(workspacePackage.directory, "src");
-    const candidates = [
-      resolve(sourceDir, `${sourceStem}.ts`),
-      resolve(sourceDir, `${sourceStem}.tsx`),
-      resolve(sourceDir, `${sourceStem}.d.ts`),
-    ];
-    for (const candidate of candidates) {
-      if (yield* pathExists(candidate)) {
-        return true;
-      }
-    }
-    return false;
-  });
-
-const assertNoStalePackageDistArtifacts = (workspacePackage, sourceDist) =>
-  Effect.gen(function* () {
-    const distFiles = yield* collectFiles(sourceDist);
-    const staleFiles = [];
-    for (const distFile of distFiles) {
-      const hasSource = yield* packageSourceExistsForDistFile(workspacePackage, distFile);
-      if (!hasSource) {
-        staleFiles.push(distFile);
-      }
-    }
-
-    if (staleFiles.length > 0) {
+    const policy = workspaceDistPackagePayloadPolicies.get(workspacePackage.packageJson.name);
+    if (policy === undefined || policy.payload !== "dist-package") {
       return yield* Effect.fail(
         fail(
-          `${workspacePackage.packageJson.name} dist contains stale files with no source module.`,
+          `${workspacePackage.packageJson.name} generated local package adapter has no dist-package payload policy.`,
+          "Keep workspace package payload policies shared between starter packaging and package dry-runs.",
+        ),
+      );
+    }
+
+    return {
+      label: workspacePackage.packageJson.name,
+      directory: workspacePackage.directory,
+      packageJson: workspacePackage.packageJson,
+      ...policy,
+    };
+  });
+
+const declarationArtifactContentFailures = (target) =>
+  Effect.gen(function* () {
+    const failures = [];
+    for (const artifact of target.declarationArtifacts ?? []) {
+      if (!isNonEmptyString(artifact.source) || !isNonEmptyString(artifact.output)) {
+        continue;
+      }
+
+      const sourcePath = resolve(target.directory, artifact.source);
+      const outputPath = resolve(target.directory, artifact.output);
+      const source = yield* fsEffect(
+        `read ${relative(workspaceRoot, sourcePath)}`,
+        () => readFile(sourcePath),
+      );
+      const output = yield* fsEffect(
+        `read ${relative(workspaceRoot, outputPath)}`,
+        () => readFile(outputPath),
+      );
+      if (!source.equals(output)) {
+        failures.push(`${target.label} copied declaration artifact ${artifact.output} does not match ${artifact.source}.`);
+      }
+
+      for (const forbidden of artifact.forbidden ?? []) {
+        if (!isNonEmptyString(forbidden)) {
+          continue;
+        }
+        const forbiddenPath = resolve(target.directory, forbidden);
+        if (yield* pathExists(forbiddenPath)) {
+          failures.push(`${target.label} copied declaration artifact left forbidden file ${forbidden}.`);
+        }
+      }
+    }
+    return failures;
+  });
+
+const assertWorkspacePackageDistArtifacts = (workspacePackage, sourceDist) =>
+  Effect.gen(function* () {
+    const target = yield* workspacePackagePayloadTarget(workspacePackage);
+    const sourceFiles = yield* collectFiles(resolve(workspacePackage.directory, "src"));
+    const sourceStems = distPackageSourceStemsFromFiles(sourceFiles);
+    const distFiles = (yield* collectFiles(sourceDist)).map((file) => `dist/${file}`);
+    const distArtifactDrift = distPackageArtifactDriftFailures(target, distFiles, sourceStems);
+    const declarationArtifactPackDrift = declarationArtifactPackFailures(target, distFiles);
+    const declarationArtifactContentDrift =
+      declarationArtifactPackDrift.length === 0
+        ? yield* declarationArtifactContentFailures(target)
+        : [];
+
+    if (
+      distArtifactDrift.length > 0 ||
+      declarationArtifactPackDrift.length > 0 ||
+      declarationArtifactContentDrift.length > 0
+    ) {
+      return yield* Effect.fail(
+        fail(
+          `${workspacePackage.packageJson.name} generated local package adapter dist artifacts are stale.`,
           [
-            `Stale files: ${staleFiles.join(", ")}`,
-            "Run the package build script so dist is removed before compilation, then package the starter again.",
+            "Run a clean package build or remove stale dist files before packaging copyable starters.",
+            ...distArtifactDrift,
+            ...declarationArtifactPackDrift,
+            ...declarationArtifactContentDrift,
           ].join(" "),
         ),
       );
@@ -506,7 +542,7 @@ const writeLocalWorkspacePackage = (starter, workspacePackages, builtPackageName
         ),
       );
     }
-    yield* assertNoStalePackageDistArtifacts(workspacePackage, sourceDist);
+    yield* assertWorkspacePackageDistArtifacts(workspacePackage, sourceDist);
 
     const localPackageDir = resolve(
       starter.outputDir,
