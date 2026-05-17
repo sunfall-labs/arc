@@ -87,6 +87,12 @@ Latest full gate on May 17, 2026 after Review 492:
 - 4 project console test files / 27 tests;
 - project console production build;
 - project console server-only leak scan.
+- Review 505 Lazy Route And DB Type Pins gives Core lazy route component
+  preload failures a typed `RouteLazyComponentLoadError` public channel,
+  directly pins DB preload controller Promise-observer rejection, and pins React
+  DB/Solid DB live query handle member shapes. The active Thirty-Sweep clean
+  counter resets to 0/30 until a fresh post-Review505 sweep reports no
+  actionable findings.
 - Review 504 Resource Preload Observer Promise Pins adds public type-test
   negative assertions proving Core Resource UI binding, React Resource hooks,
   and Solid Resource hooks reject Promise-shaped preload failure observers at

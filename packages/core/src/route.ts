@@ -80,13 +80,13 @@ export const RouteLazyComponentTypeId: unique symbol = Symbol.for(
   "@sunfall/arc-core/RouteLazyComponent",
 ) as never;
 
-type RouteLazyComponentState<Component> =
+type RouteLazyComponentState<Component, E> =
   | {
       readonly _tag: "Initial";
     }
   | {
       readonly _tag: "Pending";
-      readonly fiber: Fiber.Fiber<Component, unknown>;
+      readonly fiber: Fiber.Fiber<Component, E | RouteLazyComponentLoadError>;
     }
   | {
       readonly _tag: "Success";
@@ -94,7 +94,7 @@ type RouteLazyComponentState<Component> =
     }
   | {
       readonly _tag: "Failure";
-      readonly cause: Cause.Cause<unknown>;
+      readonly cause: Cause.Cause<E | RouteLazyComponentLoadError>;
     };
 
 /**
@@ -104,12 +104,12 @@ type RouteLazyComponentState<Component> =
  * the descriptor rather than on one route render scope. The loader runs as an
  * Effect, while React and Solid own the final host Suspense token conversion.
  */
-export interface RouteLazyComponent<Component = unknown> {
+export interface RouteLazyComponent<Component = unknown, E = never> {
   readonly [RouteLazyComponentTypeId]: typeof RouteLazyComponentTypeId;
   /** Export name read from the lazily imported module. */
   readonly exportName: string;
   /** Starts loading the component chunk as an Effect and reuses the descriptor's in-flight owner. */
-  preloadEffect(): Effect.Effect<Component, unknown>;
+  preloadEffect(): Effect.Effect<Component, E | RouteLazyComponentLoadError>;
   /** Returns the loaded component, or throws a tagged pending/failure value for UI adapters. */
   read(): Component;
 }
@@ -120,40 +120,51 @@ export class RouteLazyComponentPending extends Data.TaggedError("RouteLazyCompon
   readonly preloadEffect: Effect.Effect<unknown, unknown>;
 }> {}
 
-/** Error thrown by `Route.readComponent(...)` after a lazy route component load fails. */
-export class RouteLazyComponentFailed extends Data.TaggedError("RouteLazyComponentFailed")<{
+/** Error failed by lazy route component preload Effects when the loaded module is invalid. */
+export class RouteLazyComponentLoadError extends Data.TaggedError("RouteLazyComponentLoadError")<{
   readonly exportName: string;
-  readonly cause: Cause.Cause<unknown>;
+  readonly cause: unknown;
+}> {}
+
+/** Error thrown by `Route.readComponent(...)` after a lazy route component load fails. */
+export class RouteLazyComponentFailed<E = never> extends Data.TaggedError(
+  "RouteLazyComponentFailed",
+)<{
+  readonly exportName: string;
+  readonly cause: Cause.Cause<E | RouteLazyComponentLoadError>;
 }> {}
 
 export type RouteLazyComponentModule<Component, ExportName extends string = "default"> = {
   readonly [Key in ExportName]: Component;
 };
 
-const lazyRouteComponentMissingExport = (exportName: string): Error =>
-  new Error(`Lazy route component module did not export ${JSON.stringify(exportName)}.`);
+const lazyRouteComponentMissingExport = (exportName: string): RouteLazyComponentLoadError =>
+  new RouteLazyComponentLoadError({
+    exportName,
+    cause: new Error(`Lazy route component module did not export ${JSON.stringify(exportName)}.`),
+  });
 
-export function lazyRouteComponent<Component>(
-  importer: Effect.Effect<RouteLazyComponentModule<Component>, unknown>,
-): RouteLazyComponent<Component>;
-export function lazyRouteComponent<const ExportName extends string, Component>(
-  importer: Effect.Effect<RouteLazyComponentModule<Component, ExportName>, unknown>,
+export function lazyRouteComponent<Component, E = never>(
+  importer: Effect.Effect<RouteLazyComponentModule<Component>, E>,
+): RouteLazyComponent<Component, E>;
+export function lazyRouteComponent<const ExportName extends string, Component, E = never>(
+  importer: Effect.Effect<RouteLazyComponentModule<Component, ExportName>, E>,
   exportName: ExportName,
-): RouteLazyComponent<Component>;
-export function lazyRouteComponent<Component>(
-  importer: Effect.Effect<Record<string, Component>, unknown>,
+): RouteLazyComponent<Component, E>;
+export function lazyRouteComponent<Component, E = never>(
+  importer: Effect.Effect<Record<string, Component>, E>,
   exportName = "default",
-): RouteLazyComponent<Component> {
-  let state: RouteLazyComponentState<Component> = { _tag: "Initial" };
+): RouteLazyComponent<Component, E> {
+  let state: RouteLazyComponentState<Component, E> = { _tag: "Initial" };
 
   const loadEffect = Effect.exit(
     importer.pipe(
       Effect.flatMap((module) =>
-        Effect.sync(() => {
+        Effect.suspend(() => {
           if (module === null || typeof module !== "object" || !(exportName in module)) {
-            throw lazyRouteComponentMissingExport(exportName);
+            return Effect.fail(lazyRouteComponentMissingExport(exportName));
           }
-          return Reflect.get(module, exportName) as Component;
+          return Effect.succeed(Reflect.get(module, exportName) as Component);
         }),
       ),
     ),
@@ -173,7 +184,7 @@ export function lazyRouteComponent<Component>(
     }),
   );
 
-  const startEffect = (): Effect.Effect<Component, unknown> =>
+  const startEffect = (): Effect.Effect<Component, E | RouteLazyComponentLoadError> =>
     Effect.gen(function* () {
       const fiber = yield* Effect.forkDetach(loadEffect, { startImmediately: true });
       if (state._tag === "Initial") {
@@ -182,7 +193,7 @@ export function lazyRouteComponent<Component>(
       return yield* Fiber.join(fiber);
     });
 
-  const preloadEffect = (): Effect.Effect<Component, unknown> =>
+  const preloadEffect = (): Effect.Effect<Component, E | RouteLazyComponentLoadError> =>
     Effect.suspend(() => {
       switch (state._tag) {
         case "Initial":
@@ -257,8 +268,9 @@ export const forkRouteLazyComponentSuspense = <RuntimeError>(
 /**
  * Route configuration with optional schema decoding and Effect-first preload work.
  *
- * `preload` can read resources or run Effects before navigation/render. Declare
- * preloadResources or preloadCollections when adapters need static preload hints.
+ * `preload` can read resources or run Effects before navigation/render.
+ * Declare `preloadResources` or `preloadCollections` when adapters need static
+ * preload hints.
  */
 export interface RouteOptions<Path extends string, Params, Search, PreloadRequirements = never> {
   /** Optional schema that decodes path params after route matching. */
@@ -698,6 +710,11 @@ export namespace Route {
   ) => unknown;
 
   export type LazyComponent<ComponentValue = unknown> = RouteLazyComponent<ComponentValue>;
+
+  export type LazyComponentLoadError = RouteLazyComponentLoadError;
+
+  /** Typed failure used when a lazy component module does not contain the requested export. */
+  export const LazyComponentLoadError = RouteLazyComponentLoadError;
 
   export type LazyComponentModule<
     ComponentValue,

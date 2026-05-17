@@ -20,6 +20,11 @@ interruption.
 
 ## Current Sweep Results
 
+- Review505 Lazy Route And DB Type Pins keeps the fresh post-Review504 findings
+  Effect-first: Core lazy route component preloads now fail with a typed
+  `RouteLazyComponentLoadError` public channel instead of `unknown`, DB preload
+  controller Promise observer negatives are pinned at the shared Seam, and
+  React DB/Solid DB live query handle member pins add no Promise surface.
 - Clean Sweep 1 after Review504 found no actionable Effect-first follow-up:
   Core/React/Solid, DB/React-DB/Solid-DB, Start/docs/package, and evidence
   lanes preserved Effect-returning public Interfaces and explicit host-boundary
@@ -1674,7 +1679,7 @@ typecheck`, `pnpm --filter @sunfall/arc-db typecheck`, `pnpm typecheck:types`,
   5/4/6 local packages, 17-target package dry-run gate, project-console
   typecheck, 4 project-console test files / 27 tests, build, and leak scans.
   The Effect-first audit now
-  anchors 28 Promise return-type allowances: 8 host/facade seams, 19 Promise
+  anchors 29 Promise return-type allowances: 8 host/facade seams, 20 Promise
   negative fixtures, and 1 Start fetch Promise facade assertion. It also
   anchors 2 `PromiseLike` occurrences and 4 structural thenable
   guard/type-surface occurrences.

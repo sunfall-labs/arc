@@ -101,6 +101,13 @@ const reactDbLiveRefetch: Effect.Effect<
   void,
   "query" | Query.EvaluationError | ReactDbRuntimeError
 > = reactDbLiveProjects.refetchEffect();
+const reactDbLiveData: ReadonlyArray<ReactDbProject> = reactDbLiveProjects.data;
+const reactDbLiveState: Query.LiveState<ReactDbProject, "query" | Query.EvaluationError> =
+  reactDbLiveProjects.state;
+const reactDbLiveWaiting: boolean = reactDbLiveProjects.waiting;
+const reactDbLiveError: "query" | Query.EvaluationError | undefined = reactDbLiveProjects.error;
+const reactDbLivePreloadFailure: "query" | Query.EvaluationError | ReactDbRuntimeError | undefined =
+  reactDbLiveProjects.preloadFailure;
 void reactDbExports;
 void reactDbPendingMutations;
 void reactDbPreload;
@@ -114,6 +121,11 @@ void reactDbWriteDelete;
 void reactDbFlushPending;
 void reactDbLivePreload;
 void reactDbLiveRefetch;
+void reactDbLiveData;
+void reactDbLiveState;
+void reactDbLiveWaiting;
+void reactDbLiveError;
+void reactDbLivePreloadFailure;
 void reactDbCollectionOptions;
 void reactDbLiveQueryOptions;
 void reactDbBadCollectionOptions;

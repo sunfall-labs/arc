@@ -7,6 +7,9 @@ are easiest to regress while refactoring internals toward Effect primitives.
 
 ## Current Sweep Results
 
+- Review505 Lazy Route And DB Type Pins adds compile-time coverage for Core lazy
+  route component typed preload failures, DB preload controller Promise observer
+  rejection, and React DB/Solid DB live query handle member shapes.
 - Clean Sweep 1 after Review504 found no actionable public type-test follow-up:
   the current pins for Resource preload observers, live query handles, Start
   request traces, and package-root manifests still describe the public

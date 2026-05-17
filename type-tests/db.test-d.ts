@@ -330,6 +330,19 @@ const collectionReactivePreloadController = makeCollectionReactivePreloadControl
   onSuccess: () => Effect.void,
   onFailure: () => Effect.void,
 });
+declare const dbPreloadObserverPromise: Promise<void>;
+makeCollectionReactivePreloadController({
+  runtime: null as unknown as AnySunfallArcRuntime<never>,
+  // @ts-expect-error DB preload success observers must return void or Effect, not Promise
+  onSuccess: () => dbPreloadObserverPromise,
+  onFailure: () => Effect.void,
+});
+makeCollectionReactivePreloadController({
+  runtime: null as unknown as AnySunfallArcRuntime<never>,
+  onSuccess: () => Effect.void,
+  // @ts-expect-error DB preload failure observers must return void or Effect, not Promise
+  onFailure: () => dbPreloadObserverPromise,
+});
 const collectionReactivePreloadInterruptEffect: Effect.Effect<void> =
   collectionReactivePreloadController.interruptEffect();
 // @ts-expect-error public LiveQuery handles do not expose their internal builder.

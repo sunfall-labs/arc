@@ -181,15 +181,27 @@ const coreNamedLazyRouteComponent = Route.lazyComponent(
   Effect.succeed({ Project: (_props: Route.Props<(typeof coreRoutes)[0]>) => undefined }),
   "Project",
 );
+class CoreLazyRouteImportError {
+  readonly _tag = "CoreLazyRouteImportError";
+}
+const coreLazyRouteComponentWithImportError = Route.lazyComponent<
+  Route.Component<(typeof coreRoutes)[0]>,
+  CoreLazyRouteImportError
+>(Effect.fail(new CoreLazyRouteImportError()));
 const coreLazyRouteComponentShape: Route.LazyComponent<Route.Component<(typeof coreRoutes)[0]>> =
   coreLazyRouteComponent;
 const coreLazyRouteComponentPreloadEffect: Effect.Effect<
   Route.Component<(typeof coreRoutes)[0]>,
-  unknown
+  Route.LazyComponentLoadError
 > = coreLazyRouteComponent.preloadEffect();
+const coreLazyRouteComponentImportErrorPreloadEffect: Effect.Effect<
+  Route.Component<(typeof coreRoutes)[0]>,
+  CoreLazyRouteImportError | Route.LazyComponentLoadError
+> = coreLazyRouteComponentWithImportError.preloadEffect();
 Route.isLazyComponent(coreLazyRouteComponent);
 Route.readComponent(coreNamedLazyRouteComponent);
 Route.withComponent(coreRoutes[0], coreLazyRouteComponent);
+void coreLazyRouteComponentImportErrorPreloadEffect;
 declare const browserRouterKernelRuntime: AnySunfallArcRuntime<never>;
 const browserRouterKernelOptions: BrowserRouterKernelOptions<typeof coreRoutes, never> = {
   runtime: browserRouterKernelRuntime,

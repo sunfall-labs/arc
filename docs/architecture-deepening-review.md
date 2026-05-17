@@ -11,10 +11,10 @@ explicitly scoped future work.
 
 ## Current Review Tip
 
-The newest focused review is Review504 Resource Preload Observer Promise Pins,
-the post-Review503 follow-up that adds public type-test pins proving Core,
-React, and Solid Resource preload failure observers reject Promise-shaped work
-at the EffectInput Seam.
+The newest focused review is Review505 Lazy Route And DB Type Pins, the
+post-Review504 follow-up that types Core lazy route component preload failures
+and pins DB/React-DB/Solid-DB public type surfaces for preload observers and
+live query handle members.
 The newest full verification checkpoint is Review492.
 Clean Sweep 1 after
 Review208 remains historical 1/30
@@ -63,11 +63,12 @@ found Review498 work, the fresh post-Review498 sweep found Review499 work, the
 fresh post-Review499 sweep found Review500 work, the fresh post-Review500
 sweep found Review501 work, the fresh post-Review501 sweep found Review502
 work, the fresh post-Review502 sweep found Review503 work, and the fresh
-post-Review503 sweep found Review504 work, and the fresh post-Review504 sweep
+post-Review503 sweep found Review504 work, the fresh post-Review504 sweep
 found no actionable work across Core/React/Solid, DB/public API,
-Start/docs/package, and evidence lanes,
-so the active Thirty-Sweep clean counter is 1/30 after
-Clean Sweep 1 after Review504. Clean Sweep 1 after
+Start/docs/package, and evidence lanes, creating Clean Sweep 1 after Review504,
+and the next fresh sweep found Review505 work,
+so the active Thirty-Sweep clean counter is 0/30 until a fresh post-Review505
+sweep reports no actionable findings. Clean Sweep 1 after
 Review190 also remains historical evidence, but later sweeps found Review191,
 Review192, Review193, Review194, Review195, Review196, Review197, Review198,
 Review199, Review200, Review201, Review202, Review203, Review204, Review205,
@@ -81,9 +82,8 @@ work, Review240 work, Review241 work, Review242 work, Review243 work,
 Review244 work, Review245 work, Review246 work, Review247 work, Review490
 work, Review491 work, Review492 work, Review493 work, Review494 work,
 Review495 work, Review496 work, Review497 work, Review498 work, Review499
-work, Review500 work, Review501 work, Review502 work, Review503 work, and
-Review504 work before Clean Sweep 1 after Review504 found no actionable
-follow-up.
+work, Review500 work, Review501 work, Review502 work, Review503 work,
+Review504 work, and Review505 work after Clean Sweep 1 after Review504.
 Some older review entries remain below this tip from prior ledger merges; use
 this tip rather than file order alone when looking for the latest architecture
 sweep.
@@ -219,7 +219,53 @@ and the fresh post-Review503 Core/React/Solid sweep found Review504 Resource
 preload observer Promise pin work. The fresh post-Review504 architecture sweep
 found no actionable Module, Interface, Seam, Adapter, Locality, Depth,
 Leverage, Effect-first, LSP/JSDoc, package, or docs-honesty work, creating
-Clean Sweep 1 after Review504.
+Clean Sweep 1 after Review504. The next fresh sweep found Review505 lazy route
+typed error and DB type-test pin work, resetting the active counter to 0/30.
+
+## Review 505: Lazy Route And DB Type Pins
+
+Review505 fixes actionable findings from the fresh post-Review504 sweep.
+
+1. Core Lazy Route Typed Failure Interface
+   - Status: fixed.
+   - Files: `packages/core/src/route.ts` and `type-tests/core.test-d.ts`.
+   - Problem: `RouteLazyComponent.preloadEffect()` exposed `unknown` as the
+     public Effect error channel, and `RouteLazyComponentFailed` carried an
+     untyped `Cause.Cause<unknown>`, weakening the Core Route Module Interface
+     and forcing React/Solid Adapters to reason about unclassified lazy chunk
+     failures.
+   - Solution: Core now exposes `RouteLazyComponentLoadError` for invalid lazy
+     component modules, preserves importer errors in the lazy component generic,
+     and pins both default and importer-error preload channels in public type
+     tests.
+   - Benefits: Core owns lazy load failure classification at the Route Seam,
+     improving Locality while React and Solid keep only the host Suspense
+     Adapter work.
+
+2. DB Preload Controller And Live Query Handle Type Pins
+   - Status: fixed.
+   - Files: `type-tests/db.test-d.ts`, `type-tests/react-db.test-d.ts`,
+     `type-tests/solid-db.test-d.ts`, and `scripts/audit-effect-first.mjs`.
+   - Problem: downstream React DB and Solid DB options rejected Promise-shaped
+     preload observers, but the shared DB preload controller Seam lacked direct
+     Promise-negative pins. React DB and Solid DB live query handle docs also
+     described member fields whose public types were not pinned in
+     package-specific type tests.
+   - Solution: DB type tests now reject Promise-shaped `onSuccess` and
+     `onFailure` observers at `makeCollectionReactivePreloadController(...)`.
+     React DB and Solid DB type tests pin `data`, `state`, `waiting`, `error`,
+     and `preloadFailure` member shapes alongside existing Effect method pins.
+   - Benefits: the DB Module owns Effect-first observer policy at the shared
+     Implementation Seam, and framework Adapter handles gain better Interface
+     Locality for LSP and type-test regressions.
+
+3. Route Options Hover Cleanup
+   - Status: fixed.
+   - Files: `packages/core/src/route.ts`.
+   - Problem: the central `RouteOptions` hover prose was carrying duplicated
+     preload guidance.
+   - Solution: the JSDoc now states the preload/static-hint relationship once.
+   - Benefits: LSP hovers stay concise on a high-leverage public Interface.
 
 ## Clean Sweep 1 After Review504
 

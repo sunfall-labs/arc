@@ -430,6 +430,11 @@ const allowed = [
         /declare const solidDbPreloadObserverPromise:\s*Promise<void>;/,
       ),
       seam(
+        "type-tests/db.test-d.ts",
+        "DB preload controller observer Promise negative fixture",
+        /declare const dbPreloadObserverPromise:\s*Promise<void>;/,
+      ),
+      seam(
         "type-tests/core.test-d.ts",
         "Core Resource UI preload observer Promise negative fixture",
         /declare const resourceUiPreloadObserverPromise:\s*Promise<void>;/,

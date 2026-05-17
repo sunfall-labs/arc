@@ -101,6 +101,17 @@ const solidDbLiveRefetch: Effect.Effect<
   void,
   "query" | Query.EvaluationError | SolidDbRuntimeError
 > = solidDbLiveProjects.refetchEffect();
+const solidDbLiveData: () => ReadonlyArray<SolidDbProject> = solidDbLiveProjects.data;
+const solidDbLiveState: () => Query.LiveState<SolidDbProject, "query" | Query.EvaluationError> =
+  solidDbLiveProjects.state;
+const solidDbLiveWaiting: () => boolean = solidDbLiveProjects.waiting;
+const solidDbLiveError: () => "query" | Query.EvaluationError | undefined =
+  solidDbLiveProjects.error;
+const solidDbLivePreloadFailure: () =>
+  | "query"
+  | Query.EvaluationError
+  | SolidDbRuntimeError
+  | undefined = solidDbLiveProjects.preloadFailure;
 void solidDbExports;
 void solidDbPendingMutations;
 void solidDbPreload;
@@ -114,6 +125,11 @@ void solidDbWriteDelete;
 void solidDbFlushPending;
 void solidDbLivePreload;
 void solidDbLiveRefetch;
+void solidDbLiveData;
+void solidDbLiveState;
+void solidDbLiveWaiting;
+void solidDbLiveError;
+void solidDbLivePreloadFailure;
 void solidDbCollectionOptions;
 void solidDbLiveQueryOptions;
 void solidDbBadCollectionOptions;
